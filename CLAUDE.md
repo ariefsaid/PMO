@@ -46,6 +46,7 @@ for one client, architected to scale to millions.
   before merging UI changes; Storybook for the shared component library (from Phase 3).
 
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
+The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
