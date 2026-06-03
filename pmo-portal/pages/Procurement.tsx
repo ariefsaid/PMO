@@ -1,11 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '../components/Card';
 import { procurements, projects, companies } from '../data/mockData';
-import { Procurement, ProcurementStatus, CompanyType } from '../types';
+import { ProcurementStatus } from '../types';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
-import { PlusIcon, BuildingOfficeIcon, UserIcon, CalendarDaysIcon, CurrencyDollarIcon, CheckCircleIcon, ClipboardDocumentCheckIcon, Squares2X2Icon, TableCellsIcon } from '../components/icons';
+import { PlusIcon, BuildingOfficeIcon, UserIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, Squares2X2Icon, TableCellsIcon } from '../components/icons';
 import { useUser } from '../context/UserContext';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);

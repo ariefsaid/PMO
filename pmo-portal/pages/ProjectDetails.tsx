@@ -1,12 +1,12 @@
 
-import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import { projects, users, companies, budgetLineItems, budgetVersions, procurements, timesheetEntries, timesheets, tasks as allTasks, projectDocuments } from '../data/mockData';
-import { BudgetLineItem, BudgetCategory, BudgetVersion, Task, TaskStatus, Procurement, ProcurementStatus, ProjectDocument } from '../types';
-import { BuildingOfficeIcon, CalendarDaysIcon, ChartBarIcon, CurrencyDollarIcon, UserIcon, CheckCircleIcon, PlusIcon, PencilSquareIcon, TrashIcon, ClipboardDocumentCheckIcon, DocumentIcon, CloudArrowUpIcon, EyeIcon } from '../components/icons';
+import { BudgetCategory, BudgetVersion, Task, TaskStatus, Procurement, ProcurementStatus, ProjectDocument } from '../types';
+import { BuildingOfficeIcon, CalendarDaysIcon, CurrencyDollarIcon, UserIcon, CheckCircleIcon, PlusIcon, PencilSquareIcon, TrashIcon, ClipboardDocumentCheckIcon, DocumentIcon, CloudArrowUpIcon, EyeIcon } from '../components/icons';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
@@ -58,7 +58,6 @@ const ProcurementDrawer: React.FC<{ procurement: Procurement | null; onClose: ()
     if (!procurement) return null;
 
     const vendor = companies.find(c => c.id === procurement.vendorId);
-    const requestedBy = users.find(u => u.id === procurement.requestedById);
 
     // Derive timeline from documents
     const timeline = procurement.documents.map(doc => ({
@@ -680,7 +679,7 @@ const ScheduleTabContent: React.FC<{ projectId: string }> = ({ projectId }) => {
         return [...tasks].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     }, [tasks]);
 
-    const { minDate, maxDate, totalDays } = useMemo(() => {
+    const { minDate, maxDate: _maxDate, totalDays } = useMemo(() => {
         if (tasks.length === 0) {
             const today = new Date();
             const end = new Date();
@@ -705,11 +704,11 @@ const ScheduleTabContent: React.FC<{ projectId: string }> = ({ projectId }) => {
         return d;
     }), [minDate, totalDays]);
 
-    const getDateLeft = (dateStr: string) => {
+    const getDateLeft = useCallback((dateStr: string) => {
         const date = new Date(dateStr);
         const diff = Math.ceil((date.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
         return diff * dayWidth;
-    };
+    }, [minDate, dayWidth]);
 
     useLayoutEffect(() => {
         // Calculate dependencies lines
@@ -747,7 +746,7 @@ const ScheduleTabContent: React.FC<{ projectId: string }> = ({ projectId }) => {
             });
         });
         setLines(newLines);
-    }, [sortedTasks, minDate, dayWidth]);
+    }, [sortedTasks, getDateLeft, dayWidth]);
 
 
     const handleSaveTask = (task: Task) => {
@@ -917,7 +916,7 @@ const ScheduleTabContent: React.FC<{ projectId: string }> = ({ projectId }) => {
 
                         {/* Bars Container */}
                         <div className="relative z-10 pt-0">
-                             {sortedTasks.map((task, index) => {
+                             {sortedTasks.map((task, _index) => {
                                  const startOffset = getDateLeft(task.startDate);
                                  const endOffset = getDateLeft(task.endDate) + dayWidth;
                                  const width = Math.max(endOffset - startOffset - 4, 4); // ensure min width
@@ -1206,15 +1205,13 @@ const ProjectDetails: React.FC = () => {
     const [activeTab, setActiveTab] = useState('Overview');
 
     const project = projects.find(p => p.id === projectId);
-    
+    const projectVersions = budgetVersions.filter(v => v.projectId === projectId);
+    const activeVersion = projectVersions.find(v => v.status === 'Active');
+    const [selectedVersionId, setSelectedVersionId] = useState(activeVersion?.id || projectVersions[0]?.id);
+
     if (!project) {
         return <Navigate to="/projects" replace />;
     }
-
-    const projectVersions = budgetVersions.filter(v => v.projectId === project.id);
-    const activeVersion = projectVersions.find(v => v.status === 'Active');
-    
-    const [selectedVersionId, setSelectedVersionId] = useState(activeVersion?.id || projectVersions[0]?.id);
 
     const projectManager = users.find(u => u.id === project.projectManagerId);
     const client = companies.find(c => c.id === project.clientId);

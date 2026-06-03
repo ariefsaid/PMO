@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: pmo-portal
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests (+ coverage)
+        run: npm run test:coverage
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint:ci
+      # e2e (Playwright) is added to CI once the first acceptance spec exists (Phase 3):
+      # - run: npx playwright install --with-deps chromium
+      # - run: npm run e2e

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import Card from '../components/Card';
-import { projects, companies, tasks, timesheetEntries, procurements } from '../data/mockData';
+import { projects, companies, tasks, procurements } from '../data/mockData';
 import { ProjectStatus, Kpi, UserRole, TaskStatus, ProcurementStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import { useUser } from '../context/UserContext';
@@ -99,8 +99,7 @@ const EngineerDashboard: React.FC<{ userId: number }> = ({ userId }) => {
 
 const PMDashboard: React.FC<{ userId: number }> = ({ userId }) => {
     const myProjects = projects.filter(p => p.projectManagerId === userId);
-    const activeProjects = myProjects.filter(p => p.status === ProjectStatus.Ongoing);
-    
+
     // Mock Pending Approvals
     const pendingTimesheets = 3;
     const pendingProcurements = 2;

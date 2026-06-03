@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { User, UserRole } from '../types';
 import { users } from '../data/mockData';
 
@@ -29,6 +29,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- custom hook co-located with its provider; HMR-only lint concern
 export const useUser = () => {
     const context = useContext(UserContext);
     if (!context) throw new Error('useUser must be used within a UserProvider');
