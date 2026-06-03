@@ -112,12 +112,15 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
 insert into procurement_documents (procurement_id, type, reference_number, status, date) values
   ('60000000-0000-0000-0000-000000000001','RFQ','RFQ-2026-004','Issued','2026-02-05');
 
--- timesheet (Monday week_start) + entries
+-- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
 insert into timesheets (id, user_id, week_start_date, status) values
-  ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','2026-06-01','Draft');  -- 2026-06-01 is a Monday
+  ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','2026-06-01','Draft'),  -- Engineer; 2026-06-01 is a Monday
+  ('70000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2','2026-06-01','Draft');  -- PM
 insert into timesheet_entries (timesheet_id, project_id, entry_date, hours, notes) values
   ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','2026-06-01',8,'Site coordination'),
-  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','2026-06-02',8,'Drawings review');
+  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','2026-06-02',8,'Drawings review'),
+  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001','2026-06-01',6,'Client workshop'),
+  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001','2026-06-02',4,'Status report');
 
 -- tasks + one dependency
 insert into tasks (id, project_id, name, start_date, end_date, assignee_id, status) values
