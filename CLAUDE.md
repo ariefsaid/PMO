@@ -2,14 +2,14 @@
 
 Production SaaS for **contract- & project-based organizations** (NOT industry-specific — the
 prototype's oil & gas framing is being generalized out). Built from an AI-Studio React/Vite
-prototype toward a single-tenant MVP (one client standing by) with a forward-compat seam to B2B
-multi-tenant later.
+prototype. Tenancy is **single-tenant with a forward-compatible `org_id` seam** so it can scale to
+B2B multi-tenancy without a rewrite.
 
 ## Repo layout
 - `pmo-portal/` — the app (React 19 + Vite + TypeScript). Run npm/vite here.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
 - `e2e/` — Playwright acceptance tests (the BDD layer).
-- `supabase/migrations/` — Postgres schema + RLS (added in Phase 2).
+- `supabase/migrations/` — Postgres schema + RLS policies.
 - `.claude/agents/`, `.claude/skills/` — the role agents and vendored spec skills.
 
 ## Operating model: Owner → Director → role agents
@@ -40,7 +40,7 @@ release-engineer (sonnet) · mechanical (haiku).
 | Design + task planning | superpowers (brainstorming, writing-plans) |
 | TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
 | Code review | superpowers spec + quality reviewers |
-| Design system / UI · browser QA · security · ship/deploy/monitor | gstack (`/design-*`, `/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) — *install pending* |
+| Design system / UI · browser QA · security · ship/deploy/monitor | gstack (`/design-*`, `/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
 
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
 `Bash` tool was stripped (read-only). gstack telemetry stays `off`.
