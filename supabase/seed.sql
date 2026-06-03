@@ -1,10 +1,11 @@
 -- seed.sql — single-tenant, generic professional-services seed (de-O&G'd, baseline §8).
 -- The default org ('00000000-...-001') is created by migration 0001; do not re-insert it.
 --
--- NOTE (Director decision #2): the auth.users rows below are BARE (id + email only) — no encrypted
--- password and no GoTrue identity, so they are NOT login-able. They exist only so the profiles FK
--- (profiles.id -> auth.users.id) resolves on a fresh `supabase db reset`. The Auth issue will replace
--- these with real credentialed GoTrue users.
+-- NOTE (Auth issue #3): the auth.users rows below are now REAL credentialed GoTrue users (local dev
+-- only). Each can sign in with password 'Passw0rd!dev' (meets config.toml policy: min 10, lower+upper+
+-- digit) and via magic link. Email confirmations are OFF for dev (config.toml), so email_confirmed_at
+-- is pre-set. Matching auth.identities rows make email/password and magic-link resolve. These dev
+-- credentials are documented in pmo-portal/.env.example and must NEVER appear in a production seed.
 
 -- companies
 insert into companies (id, name, type) values
@@ -14,14 +15,63 @@ insert into companies (id, name, type) values
   ('c0000000-0000-0000-0000-000000000004','Apex Supplies Ltd','Vendor'),
   ('c0000000-0000-0000-0000-000000000005','Synergy Logistics','Vendor');
 
--- auth users (local-dev only; bare rows — see NOTE above)
-insert into auth.users (id, email) values
-  ('00000000-0000-0000-0000-0000000000a1','exec@acme.test'),
-  ('00000000-0000-0000-0000-0000000000a2','pm@acme.test'),
-  ('00000000-0000-0000-0000-0000000000a3','finance@acme.test'),
-  ('00000000-0000-0000-0000-0000000000a4','engineer@acme.test'),
-  ('00000000-0000-0000-0000-0000000000a5','admin@acme.test')
+-- auth users (local-dev only; credentialed — see NOTE above). Password: 'Passw0rd!dev'.
+-- The token text columns (confirmation_token, recovery_token, email_change*, reauthentication_token)
+-- are nullable in schema but GoTrue's Go driver scans them as non-null strings, so they MUST be ''
+-- (empty string), not NULL — otherwise sign-in fails with "converting NULL to string is unsupported".
+insert into auth.users
+  (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+   confirmation_token, recovery_token, email_change, email_change_token_new,
+   email_change_token_current, reauthentication_token)
+values
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a1',
+   'authenticated','authenticated','exec@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a2',
+   'authenticated','authenticated','pm@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a3',
+   'authenticated','authenticated','finance@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a4',
+   'authenticated','authenticated','engineer@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a5',
+   'authenticated','authenticated','admin@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', '')
 on conflict (id) do nothing;
+
+-- GoTrue identities (email provider) so password + magic-link both resolve.
+insert into auth.identities
+  (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+values
+  ('exec@acme.test','00000000-0000-0000-0000-0000000000a1',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a1','email','exec@acme.test'),
+   'email', now(), now(), now()),
+  ('pm@acme.test','00000000-0000-0000-0000-0000000000a2',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a2','email','pm@acme.test'),
+   'email', now(), now(), now()),
+  ('finance@acme.test','00000000-0000-0000-0000-0000000000a3',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a3','email','finance@acme.test'),
+   'email', now(), now(), now()),
+  ('engineer@acme.test','00000000-0000-0000-0000-0000000000a4',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a4','email','engineer@acme.test'),
+   'email', now(), now(), now()),
+  ('admin@acme.test','00000000-0000-0000-0000-0000000000a5',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a5','email','admin@acme.test'),
+   'email', now(), now(), now())
+on conflict (provider_id, provider) do nothing;
 
 -- profiles (5 roles incl. Admin super-user); skills = neutral creds; location = free-text
 insert into profiles (id, company_id, full_name, email, role, title, location, skills, utilization) values
