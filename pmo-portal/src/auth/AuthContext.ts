@@ -10,6 +10,8 @@ export interface AuthContextValue {
   currentUser: Profile | null;
   role: Role | null;
   loading: boolean;
+  /** Non-null when a session exists but the profiles row could not be loaded. */
+  profileError: string | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;

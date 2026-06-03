@@ -5,6 +5,7 @@ import { render, renderHook, screen, waitFor } from '@testing-library/react';
 const state = vi.hoisted(() => ({
   session: null as unknown,
   profile: null as unknown,
+  profileError: null as unknown,
 }));
 
 vi.mock('@/src/lib/supabase/client', () => {
@@ -25,7 +26,7 @@ vi.mock('@/src/lib/supabase/client', () => {
         select: () => ({
           eq: () => ({
             single: vi.fn().mockImplementation(() =>
-              Promise.resolve({ data: state.profile, error: null })
+              Promise.resolve({ data: state.profile, error: state.profileError })
             ),
           }),
         }),
@@ -40,6 +41,7 @@ import { AuthProvider } from './AuthProvider';
 beforeEach(() => {
   state.session = null;
   state.profile = null;
+  state.profileError = null;
 });
 
 describe('useAuth', () => {
@@ -49,16 +51,18 @@ describe('useAuth', () => {
 });
 
 function Probe() {
-  const { currentUser, role } = useAuth();
+  const { currentUser, role, profileError } = useAuth();
   return (
     <div>
       {currentUser?.full_name}|{role}
+      {profileError && <span data-testid="profile-error">{profileError}</span>}
     </div>
   );
 }
 
 describe('AuthProvider', () => {
   it('exposes profile and role from the session (AC-AUTH-007)', async () => {
+    // This test is also the canonical unit-level coverage for AC-AUTH-007.
     state.session = { user: { id: '00000000-0000-0000-0000-0000000000a2' } };
     state.profile = {
       id: '00000000-0000-0000-0000-0000000000a2',
@@ -83,5 +87,38 @@ describe('AuthProvider', () => {
     await waitFor(() =>
       expect(screen.getByText('Alice Manager|Project Manager')).toBeInTheDocument()
     );
+  });
+
+  it('sets profileError when session exists but profile fetch fails', async () => {
+    // Regression guard: a failed profiles row must NOT produce a silent blank app.
+    // This is the canonical unit-level coverage for AC-AUTH-008.
+    state.session = { user: { id: '00000000-0000-0000-0000-0000000000ff' } };
+    state.profile = null;
+    state.profileError = { message: 'Profile not found', code: 'PGRST116' };
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('profile-error')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('profile-error').textContent).toMatch(/profile/i);
+  });
+
+  it('keeps currentUser null and clears profileError when there is no session', async () => {
+    state.session = null;
+    state.profile = null;
+    state.profileError = null;
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.queryByTestId('profile-error')).toBeNull());
   });
 });

@@ -11,5 +11,7 @@ import type { Role } from './AuthContext';
  */
 export function mockUserForRole(role: Role | null): User | null {
   if (!role) return null;
-  return users.find((u) => u.role === role) ?? users[0] ?? null;
+  // No fallback: unmatched role (e.g. Admin) returns null so "My *" filters show
+  // empty rows rather than leaking another user's data. Remove with Issue #4.
+  return users.find((u) => u.role === role) ?? null;
 }

@@ -3,15 +3,20 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { AuthContext, type Profile } from './AuthContext';
 
-async function loadProfile(userId: string): Promise<Profile | null> {
+type ProfileResult =
+  | { profile: Profile; error: null }
+  | { profile: null; error: string };
+
+async function loadProfile(userId: string): Promise<ProfileResult> {
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) return null;
-  return data;
+  if (error) return { profile: null, error: error.message };
+  return { profile: data, error: null };
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,7 +24,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const apply = async (s: Session | null) => {
       if (!active) return;
       setSession(s);
-      setCurrentUser(s?.user ? await loadProfile(s.user.id) : null);
+      if (s?.user) {
+        const result = await loadProfile(s.user.id);
+        if (!active) return;
+        if (result.error) {
+          setCurrentUser(null);
+          setProfileError(result.error);
+        } else {
+          setCurrentUser(result.profile);
+          setProfileError(null);
+        }
+      } else {
+        setCurrentUser(null);
+        setProfileError(null);
+      }
       if (active) setLoading(false);
     };
     supabase.auth.getSession().then(({ data }) => apply(data.session));
@@ -38,7 +56,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithMagicLink = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    // shouldCreateUser: false — magic links must NOT auto-create accounts for unknown emails.
+    // Prod also requires enable_signup=false in the Supabase project auth config (flag only; not set here).
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: window.location.origin,
+      },
+    });
     return { error: error?.message ?? null };
   }, []);
 
@@ -52,11 +78,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentUser,
       role: currentUser?.role ?? null,
       loading,
+      profileError,
       signInWithPassword,
       signInWithMagicLink,
       signOut,
     }),
-    [session, currentUser, loading, signInWithPassword, signInWithMagicLink, signOut]
+    [session, currentUser, loading, profileError, signInWithPassword, signInWithMagicLink, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

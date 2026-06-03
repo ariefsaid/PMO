@@ -10,9 +10,9 @@ describe('mockUserForRole', () => {
     expect(mockUserForRole('Executive')?.role).toBe(UserRole.Executive);
   });
 
-  it('falls back to the first mock user when the role has no mock match (e.g. Admin)', () => {
-    // No Admin in mockData; pages must still get a usable numeric id for mock filters.
-    expect(mockUserForRole('Admin')).not.toBeNull();
+  it('returns null for an unmatched role (e.g. Admin) — "My Projects"/"My Requests" must show empty, not another user\'s rows', () => {
+    // Fix #2: stop falling back to users[0]; unmatched role must yield null.
+    expect(mockUserForRole('Admin')).toBeNull();
   });
 
   it('returns null for a null role', () => {
