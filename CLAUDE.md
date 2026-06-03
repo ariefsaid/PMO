@@ -71,7 +71,16 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
 - IDs: `FR-###` (functional), `OBS-###` (observed/legacy), `NFR-###`, `AC-###` (acceptance).
 - Requirements in **EARS** (ubiquitous / event-driven `When…` / state-driven `While…` / optional
   `Where…` / conditional `While…when…`). All acceptance criteria in **Given/When/Then**.
-- Each `AC-###` → exactly one Playwright spec `e2e/<AC-id>.spec.ts`, named so traceability is obvious.
+- **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
+  Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
+  `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, ~6–8 curated journeys)
+  for real cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a
+  convention.
+- **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so
+  `grep -r AC-XXX` finds the canonical proof at whatever layer owns it: Vitest in the `it(...)` title;
+  pgTAP as the leading token of the test description; Playwright as the leading token of the `test(...)`
+  title with file `e2e/<AC-id>-<slug>.spec.ts`. An AC may be referenced at multiple layers but has exactly
+  one owning layer (recorded in the plan's traceability table).
 
 ## Tech stack & commands (run inside `pmo-portal/`)
 - React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).

@@ -31,7 +31,7 @@ The remaining feature work is CRUD **writes**, each gated on a business decision
 2. **ProjectDetails decomposition + read swap** — split the 1,390-line god-file (baseline F-5) into per-tab components, then wire budgets/tasks/documents tabs to real data. Large; do decomposition first as its own issue.
 3. **SalesPipeline read swap** — projects in tender/bid stages.
 4. **CI e2e wiring** — run Playwright + Supabase in GitHub Actions (currently e2e runs locally only; CI runs typecheck/lint/unit/build). Flip CI lint already done.
-5. **pgTAP in CI** — run `supabase test db` in CI.
+5. **pgTAP in CI** — run `supabase test db` in CI. (Now load-bearing per ADR-0010: the integration band owns RLS/tenancy ACs — pgTAP must be a CI gate, not local-only. E2e suite shrank 22→7 files, so CI e2e wall-clock drops; wire e2e+pgTAP together.)
 6. **Shared `<ListState>` component** — extract loading/empty/error markup duplicated across list pages; memoize list filters consistently (Procurement/Timesheets noted).
 7. **Design system** — build `DESIGN.md` (design.md format) via gstack `/design-consultation`; adopt Storybook for the shared component library. (Owner-adjacent — design taste.)
 

@@ -94,7 +94,7 @@ production-SaaS bar.
 | **Build (TDD)** | implementer | RED→GREEN→REFACTOR; no prod code without a failing test first; behavior covered (incl. loading/empty/error/edge); follows existing patterns; YAGNI; **does not change existing behavior when the task is a quality upgrade**. |
 | **Frontend/UI** | implementer + `/design-review` | Reusable, accessible (WCAG AA) components; loading/empty/error/edge states handled; responsive; matches `DESIGN.md` tokens; visual `/design-review` passed for UI-affecting changes. |
 | **Review** | spec-reviewer → code-quality-reviewer | Spec compliance verified by reading code (not the report); quality pass on single-responsibility, decomposition, naming, maintainability, scalability; no Critical/Important issues left open. |
-| **Acceptance (BDD)** | qa-acceptance | Each `AC-###` has a passing `e2e/<AC-id>.spec.ts`; tests assert behavior, never weakened to pass; per-AC pass matrix green. |
+| **Acceptance (BDD)** | qa-acceptance | Each `AC-###` has a passing **owning test at its lowest sufficient layer** (Unit / pgTAP / E2E per ADR-0010), AC-id-tagged for traceability; cross-stack journeys covered by the curated e2e set; tests assert behavior, never weakened to pass; per-AC pass matrix green across all three layers. |
 | **Security** | security-auditor | For auth/RLS/tenancy/API-surface changes: OWASP Top 10 + STRIDE pass; no High/Critical findings; no secrets in code or history. |
 | **Release/DevOps** | release-engineer | Full verification green (typecheck + unit + e2e); one PR per issue with test evidence; no force-push, no `git add -A`; CI gates pass; deploy/monitor steps followed (aspirational items tracked, not blocking MVP). |
 
