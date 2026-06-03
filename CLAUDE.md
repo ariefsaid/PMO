@@ -23,7 +23,7 @@ boundaries and before any push / merge / deploy. Per-issue loop:
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
 4. **Build (TDD)** — `implementer` (red-green-refactor; no prod code without a failing test).
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`.
-6. **Accept (BDD)** — `qa-acceptance` runs Playwright E2E mapped 1:1 to `AC-###`.
+6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + tenancy).
 8. **Ship** — `release-engineer` (branch → commit → push → PR).
 
