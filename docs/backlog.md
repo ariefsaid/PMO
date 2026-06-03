@@ -29,7 +29,7 @@ The remaining feature work is CRUD **writes**, each gated on a business decision
 ## Non-blocked backlog (can proceed without owner; recommended order)
 1. **ProcurementDetails read swap** — drill-down (procurement + items + quotations + documents) to real data. Moderate (4 child tables). Mirror of the list template.
 2. **ProjectDetails decomposition + read swap** — split the 1,390-line god-file (baseline F-5) into per-tab components, then wire budgets/tasks/documents tabs to real data. Large; do decomposition first as its own issue.
-3. **SalesPipeline read swap** — projects in tender/bid stages.
+3. **SalesPipeline read swap** — ✅ built (PR #12, branch `feat/sales-pipeline`) but **HELD for owner sign-off**: ratify **OD-SP-1** (which `ProjectStatus` = pipeline), **OD-SP-2** (stage win-probabilities), **OD-SP-3** (win-rate definition); then do the pre-merge polish (consolidate the duplicated stage table to one source, round the %-label, icon parity) + optional seed enrichment, then merge. Originated as the Director-orchestration test — passed independent review + all gates.
 4. **CI e2e wiring** — run Playwright + Supabase in GitHub Actions (currently e2e runs locally only; CI runs typecheck/lint/unit/build). Flip CI lint already done.
 5. **pgTAP in CI** — run `supabase test db` in CI. (Now load-bearing per ADR-0010: the integration band owns RLS/tenancy ACs — pgTAP must be a CI gate, not local-only. E2e suite shrank 22→7 files, so CI e2e wall-clock drops; wire e2e+pgTAP together.)
 6. **Shared `<ListState>` component** — extract loading/empty/error markup duplicated across list pages; memoize list filters consistently (Procurement/Timesheets noted).
