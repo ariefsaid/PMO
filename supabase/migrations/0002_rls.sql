@@ -53,19 +53,19 @@ alter table companies enable row level security;
 create policy companies_select on companies for select using (org_id = auth_org_id());
 create policy companies_write on companies for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'))
-  with check (org_id = auth_org_id());
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
 
 alter table projects enable row level security;
 create policy projects_select on projects for select using (org_id = auth_org_id());
 create policy projects_write on projects for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'))
-  with check (org_id = auth_org_id());
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
 
 alter table budget_versions enable row level security;
 create policy budget_versions_select on budget_versions for select using (org_id = auth_org_id());
 create policy budget_versions_write on budget_versions for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'))
-  with check (org_id = auth_org_id());
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
 
 alter table budget_line_items enable row level security;
 create policy budget_line_items_select on budget_line_items for select using (org_id = auth_org_id());
@@ -75,7 +75,7 @@ create policy budget_line_items_write on budget_line_items for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from budget_versions bv
       where bv.id = budget_line_items.budget_version_id and bv.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from budget_versions bv
       where bv.id = budget_line_items.budget_version_id and bv.org_id = auth_org_id()));
 
@@ -85,7 +85,7 @@ create policy tasks_select on tasks for select using (org_id = auth_org_id());
 create policy tasks_write on tasks for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from projects p where p.id = tasks.project_id and p.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from projects p where p.id = tasks.project_id and p.org_id = auth_org_id()));
 
 alter table task_dependencies enable row level security;
@@ -95,7 +95,7 @@ create policy task_dependencies_write on task_dependencies for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from tasks t where t.id = task_dependencies.task_id and t.org_id = auth_org_id())
     and exists (select 1 from tasks t where t.id = task_dependencies.depends_on_id and t.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from tasks t where t.id = task_dependencies.task_id and t.org_id = auth_org_id())
     and exists (select 1 from tasks t where t.id = task_dependencies.depends_on_id and t.org_id = auth_org_id()));
 
@@ -105,7 +105,7 @@ create policy project_documents_select on project_documents for select using (or
 create policy project_documents_write on project_documents for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from projects p where p.id = project_documents.project_id and p.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from projects p where p.id = project_documents.project_id and p.org_id = auth_org_id()));
 
 -- procurements + children: read in org; any member may insert (raise a request). Status transitions go
@@ -123,7 +123,7 @@ create policy procurement_items_select on procurement_items for select using (or
 create policy procurement_items_write on procurement_items for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_items.procurement_id and p.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_items.procurement_id and p.org_id = auth_org_id()));
 
 alter table procurement_quotations enable row level security;
@@ -132,7 +132,7 @@ create policy procurement_quotations_select on procurement_quotations for select
 create policy procurement_quotations_write on procurement_quotations for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_quotations.procurement_id and p.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_quotations.procurement_id and p.org_id = auth_org_id()));
 
 alter table procurement_documents enable row level security;
@@ -141,7 +141,7 @@ create policy procurement_documents_select on procurement_documents for select u
 create policy procurement_documents_write on procurement_documents for all
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_documents.procurement_id and p.org_id = auth_org_id()))
-  with check (org_id = auth_org_id()
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from procurements p where p.id = procurement_documents.procurement_id and p.org_id = auth_org_id()));
 
 -- timesheets: own rows readable/writable while Draft; managers read submitted (rule DEFERRED §14);

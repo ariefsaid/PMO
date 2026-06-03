@@ -3,7 +3,7 @@ begin;
 -- HIGH-1: self role-escalation blocked (profiles_update_self cannot change role/org_id; Admin still can).
 -- HIGH-2: child-row cross-org parent pollution blocked for all 7 child write policies (SQLSTATE 42501).
 -- LOW-1: auth_role() reads profiles.role (no unsigned JWT claim fast-path) — exercised via the role gate.
-select plan(12);
+select plan(17);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ──────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -133,6 +133,61 @@ select throws_ok(
      values ('aaaaaaaa-0000-0000-0000-000000000001','b2222222-0000-0000-0000-000000000002','PO','Draft') $$,
   '42501', null,
   'HIGH-2: procurement_documents cannot reference a cross-org procurement');
+
+-- ── MEDIUM-1: coarse role gate is enforced on INSERT (WITH CHECK), not only UPDATE/DELETE (USING) ─────
+-- Postgres applies USING to UPDATE/DELETE but NOT to INSERT — only WITH CHECK gates INSERT. Without the
+-- role predicate in WITH CHECK, an in-org Engineer could INSERT despite failing the write-role gate.
+-- These rows are stamped with the Engineer's OWN org (org A), so org-isolation is satisfied: any rejection
+-- (42501) is the role gate alone. Become org-A's Engineer (a2 — restored to Engineer? no: a2 was promoted
+-- to Finance above by the Admin test, which WOULD be a writer — so reset a2 back to Engineer first).
+reset role;
+update profiles set role = 'Engineer' where id = 'a0000000-0000-0000-0000-0000000000a2';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+-- projects: Engineer INSERT into own org is rejected by the role gate.
+select throws_ok(
+  $$ insert into projects (org_id, name, status)
+     values ('aaaaaaaa-0000-0000-0000-000000000001','Eng project','Leads') $$,
+  '42501', null,
+  'MEDIUM-1: Engineer cannot INSERT projects in own org (role gate on WITH CHECK)');
+
+-- tasks (child): Engineer INSERT into own org, valid org-A parent project, rejected by the role gate.
+select throws_ok(
+  $$ insert into tasks (org_id, project_id, name, status)
+     values ('aaaaaaaa-0000-0000-0000-000000000001','a1111111-0000-0000-0000-000000000001','Eng task','To Do') $$,
+  '42501', null,
+  'MEDIUM-1: Engineer cannot INSERT tasks in own org (role gate on WITH CHECK)');
+
+-- procurement_items (child): Engineer INSERT into own org, valid org-A parent procurement, rejected.
+select throws_ok(
+  $$ insert into procurement_items (org_id, procurement_id, name, quantity, rate)
+     values ('aaaaaaaa-0000-0000-0000-000000000001','a2222222-0000-0000-0000-000000000001','Eng item',1,1) $$,
+  '42501', null,
+  'MEDIUM-1: Engineer cannot INSERT procurement_items in own org (role gate on WITH CHECK)');
+
+-- ── MEDIUM-1 (no over-blocking): writer roles can still INSERT into their own org ────────────────────
+-- Become org-A's Project Manager (a1 — a writer).
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+insert into projects (id, org_id, name, status)
+  values ('a1111111-0000-0000-0000-0000000000aa','aaaaaaaa-0000-0000-0000-000000000001','PM project','Leads');
+reset role;
+select is(
+  (select count(*)::int from projects where id = 'a1111111-0000-0000-0000-0000000000aa'), 1,
+  'MEDIUM-1: a Project Manager CAN INSERT projects in own org (no over-blocking)');
+
+-- Become org-A's Admin (d1 — a writer); insert a child task under the org-A project.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"d0000000-0000-0000-0000-0000000000d1","role":"authenticated"}';
+insert into tasks (id, org_id, project_id, name, status)
+  values ('a4444444-0000-0000-0000-0000000000aa','aaaaaaaa-0000-0000-0000-000000000001','a1111111-0000-0000-0000-000000000001','Admin task','To Do');
+reset role;
+select is(
+  (select count(*)::int from tasks where id = 'a4444444-0000-0000-0000-0000000000aa'), 1,
+  'MEDIUM-1: an Admin CAN INSERT tasks in own org (no over-blocking)');
 
 reset role;
 select * from finish();

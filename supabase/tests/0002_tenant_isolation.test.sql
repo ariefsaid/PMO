@@ -49,13 +49,17 @@ select throws_ok(
   'AC-103: default org_id differs from caller org A -> rejected by with check');
 
 reset role;
--- AC-104: Engineer (org B user) cannot write projects.
+-- AC-104: Engineer (org B user) cannot write projects EVEN within their OWN org. Stamp the row with the
+-- Engineer's own org_id so org-isolation is satisfied — the rejection (42501) must come from the coarse
+-- role gate alone (auth_role() not in the writer set), not from cross-org WITH CHECK. (Inserting without
+-- org_id would be rejected by org-isolation against the default org, giving false assurance — MEDIUM-2.)
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"b0000000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select throws_ok(
-  $$ insert into projects (name, status) values ('Eng tries','Leads') $$,
+  $$ insert into projects (org_id, name, status)
+     values ('bbbbbbbb-0000-0000-0000-000000000002','Eng tries','Leads') $$,
   '42501', null,
-  'AC-104: Engineer role cannot write projects');
+  'AC-104: Engineer role cannot write projects in their own org (role gate)');
 
 select * from finish();
 rollback;
