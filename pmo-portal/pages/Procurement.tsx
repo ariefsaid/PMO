@@ -1,24 +1,25 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { procurements, projects, companies } from '../data/mockData';
 import { ProcurementStatus } from '../types';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
 import { PlusIcon, BuildingOfficeIcon, UserIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, Squares2X2Icon, TableCellsIcon } from '../components/icons';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { mockUserForRole } from '@/src/auth/mockUserForRole';
-
-const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+import { useProcurements } from '@/src/hooks/useProcurements';
+import { useAuth } from '@/src/auth/useAuth';
+import { formatCurrency } from '@/src/lib/format';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
 type TabType = 'All' | 'My Requests' | 'To Approve' | 'Active Orders';
 type ViewMode = 'Grid' | 'List';
 
 const ProcurementPage: React.FC = () => {
     const navigate = useNavigate();
-    const { effectiveRole } = useEffectiveRole();
-    // Identity/role from the real session; business data is still mockData (Issue #4).
-    const currentUser = mockUserForRole(effectiveRole);
-    
+    useEffectiveRole(); // still wires ImpersonationProvider in Shell
+    const { currentUser } = useAuth();
+    const { data: procData, isPending, isError, refetch } = useProcurements();
+    const allProcurements = useMemo(() => procData ?? [], [procData]);
+
     // UI States
     const [activeTab, setActiveTab] = useState<TabType>('My Requests');
     const [viewMode, setViewMode] = useState<ViewMode>('Grid');
@@ -27,25 +28,22 @@ const ProcurementPage: React.FC = () => {
 
     // Filter Logic
     const getFilteredProcurements = () => {
-        let filtered = [...procurements];
+        let filtered = [...allProcurements];
 
         // 1. Apply Tab Logic
         switch(activeTab) {
             case 'My Requests':
-                filtered = filtered.filter(p => p.requestedById === currentUser?.id);
+                filtered = filtered.filter(p => p.requested_by_id === currentUser?.id);
                 break;
             case 'To Approve':
-                // In a real app, this would check permissions. For now, assuming Managers/Executives approve.
-                // Showing items that are in 'Requested' state (needing approval)
                 filtered = filtered.filter(p => p.status === ProcurementStatus.Requested);
                 break;
             case 'Active Orders':
-                // Orders that are placed but not yet Paid/Closed
                 filtered = filtered.filter(p => [
-                    ProcurementStatus.Ordered, 
-                    ProcurementStatus.Received, 
+                    ProcurementStatus.Ordered,
+                    ProcurementStatus.Received,
                     ProcurementStatus.VendorInvoiced
-                ].includes(p.status));
+                ].includes(p.status as ProcurementStatus));
                 break;
             case 'All':
             default:
@@ -53,26 +51,27 @@ const ProcurementPage: React.FC = () => {
                 break;
         }
 
-        // 2. Apply Search
+        // 2. Apply Search (OD-7: title + code)
         if (searchTerm) {
-            filtered = filtered.filter(p => 
-                p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                p.id.toLowerCase().includes(searchTerm.toLowerCase())
+            const q = searchTerm.toLowerCase();
+            filtered = filtered.filter(p =>
+                p.title.toLowerCase().includes(q) ||
+                (p.code ?? '').toLowerCase().includes(q)
             );
         }
 
-        return filtered.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     };
 
     const filteredProcurements = getFilteredProcurements();
 
     // Counts for Tabs
     const counts = useMemo(() => ({
-        'My Requests': procurements.filter(p => p.requestedById === currentUser?.id).length,
-        'To Approve': procurements.filter(p => p.status === ProcurementStatus.Requested).length,
-        'Active Orders': procurements.filter(p => [ProcurementStatus.Ordered, ProcurementStatus.Received, ProcurementStatus.VendorInvoiced].includes(p.status)).length,
-        'All': procurements.length
-    }), [currentUser?.id]);
+        'My Requests': allProcurements.filter(p => p.requested_by_id === currentUser?.id).length,
+        'To Approve': allProcurements.filter(p => p.status === ProcurementStatus.Requested).length,
+        'Active Orders': allProcurements.filter(p => [ProcurementStatus.Ordered, ProcurementStatus.Received, ProcurementStatus.VendorInvoiced].includes(p.status as ProcurementStatus)).length,
+        'All': allProcurements.length
+    }), [allProcurements, currentUser?.id]);
 
     const getProgressPercentage = (status: ProcurementStatus) => {
         const steps = [
@@ -102,7 +101,23 @@ const ProcurementPage: React.FC = () => {
             default: return 'bg-primary-500';
         }
     };
-    
+
+    if (isPending) {
+      return <div data-testid="procurement-loading" className="animate-pulse space-y-4">
+        <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[0,1,2].map(i => <div key={i} className="h-48 bg-gray-200 dark:bg-gray-700 rounded-xl" />)}
+        </div>
+      </div>;
+    }
+    if (isError) {
+      return <div className="text-center py-16 border-2 border-dashed border-red-200 dark:border-red-800 rounded-xl">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white">Couldn't load procurements</h3>
+        <p className="mt-1 text-gray-500 dark:text-gray-400">Something went wrong fetching your requests.</p>
+        <button onClick={() => refetch()} className="mt-4 text-primary-600 hover:text-primary-500 font-medium text-sm">Retry</button>
+      </div>;
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between">
@@ -112,14 +127,14 @@ const ProcurementPage: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3 mt-4 md:mt-0">
                      <div className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <button 
+                        <button
                             onClick={() => setViewMode('Grid')}
                             className={`p-2 rounded-md transition-all ${viewMode === 'Grid' ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
                             title="Grid View"
                         >
                             <Squares2X2Icon className="w-5 h-5" />
                         </button>
-                         <button 
+                         <button
                             onClick={() => setViewMode('List')}
                             className={`p-2 rounded-md transition-all ${viewMode === 'List' ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
                             title="List View"
@@ -149,8 +164,8 @@ const ProcurementPage: React.FC = () => {
                         >
                             {tab}
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                                activeTab === tab 
-                                ? 'bg-primary-200 text-primary-800 dark:bg-primary-900 dark:text-primary-300' 
+                                activeTab === tab
+                                ? 'bg-primary-200 text-primary-800 dark:bg-primary-900 dark:text-primary-300'
                                 : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
                             }`}>
                                 {counts[tab]}
@@ -160,12 +175,12 @@ const ProcurementPage: React.FC = () => {
                 </div>
 
                 <div className="relative w-full lg:w-96">
-                    <input 
-                        type="text" 
-                        placeholder="Search procurements..." 
-                        value={searchTerm} 
-                        onChange={e => setSearchTerm(e.target.value)} 
-                        className="w-full px-4 py-2 pl-10 text-sm text-gray-700 bg-white dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg focus:border-primary-500 focus:ring-primary-500 focus:outline-none transition-shadow shadow-sm" 
+                    <input
+                        type="text"
+                        placeholder="Search procurements..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 text-sm text-gray-700 bg-white dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg focus:border-primary-500 focus:ring-primary-500 focus:outline-none transition-shadow shadow-sm"
                     />
                     <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
@@ -174,26 +189,24 @@ const ProcurementPage: React.FC = () => {
             {/* Content Area */}
             {viewMode === 'Grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredProcurements.map((procurement) => {
-                         const project = projects.find(p => p.id === procurement.projectId);
-                         const vendor = companies.find(c => c.id === procurement.vendorId);
-                         const progress = getProgressPercentage(procurement.status);
+                    {filteredProcurements.map((procurement: ProcurementWithRefs) => {
+                         const progress = getProgressPercentage(procurement.status as ProcurementStatus);
 
                          return (
-                            <div 
-                                key={procurement.id} 
+                            <div
+                                key={procurement.id}
                                 onClick={() => navigate(`/procurement/${procurement.id}`)}
                                 className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col h-full"
                             >
                                 {/* Top colored border indicator */}
-                                <div className={`h-1 w-full ${getStatusColor(procurement.status)}`}></div>
+                                <div className={`h-1 w-full ${getStatusColor(procurement.status as ProcurementStatus)}`}></div>
 
                                 <div className="p-5 flex-1 flex flex-col">
-                                    {/* Header: Status & ID */}
+                                    {/* Header: Status & Code */}
                                     <div className="flex justify-between items-start mb-3">
-                                        <ProcurementStatusBadge status={procurement.status} />
+                                        <ProcurementStatusBadge status={procurement.status as ProcurementStatus} />
                                         <span className="text-[10px] font-mono font-medium text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                                            {procurement.id}
+                                            {procurement.code ?? procurement.id.slice(0, 8)}
                                         </span>
                                     </div>
 
@@ -206,15 +219,15 @@ const ProcurementPage: React.FC = () => {
                                     <div className="space-y-2 mt-auto">
                                         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                             <BuildingOfficeIcon className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" />
-                                            <span className="truncate" title={project?.name}>{project?.name || 'Unknown Project'}</span>
+                                            <span className="truncate" title={procurement.project?.name ?? undefined}>{procurement.project?.name ?? 'Unknown Project'}</span>
                                         </div>
                                         <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                             <UserIcon className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" />
-                                            <span className="truncate">{vendor?.name || 'Vendor Pending'}</span>
+                                            <span className="truncate">{procurement.vendor?.name ?? 'Vendor Pending'}</span>
                                         </div>
                                          <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                             <CalendarDaysIcon className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" />
-                                            <span>{new Date(procurement.createdAt).toLocaleDateString()}</span>
+                                            <span>{new Date(procurement.created_at).toLocaleDateString()}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -223,7 +236,7 @@ const ProcurementPage: React.FC = () => {
                                 <div className="bg-gray-50 dark:bg-gray-700/30 px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                                     <div className="flex flex-col">
                                         <span className="text-xs text-gray-500 font-medium uppercase">Value</span>
-                                        <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(procurement.totalValue)}</span>
+                                        <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(procurement.total_value)}</span>
                                     </div>
                                     <div className="w-20">
                                          <div className="flex justify-between text-[10px] text-gray-400 mb-1">
@@ -231,7 +244,7 @@ const ProcurementPage: React.FC = () => {
                                             <span>{progress}%</span>
                                          </div>
                                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
-                                            <div className={`h-1.5 rounded-full ${getStatusColor(procurement.status)}`} style={{ width: `${progress}%` }}></div>
+                                            <div className={`h-1.5 rounded-full ${getStatusColor(procurement.status as ProcurementStatus)}`} style={{ width: `${progress}%` }}></div>
                                         </div>
                                     </div>
                                 </div>
@@ -254,24 +267,22 @@ const ProcurementPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredProcurements.map((procurement) => {
-                                     const project = projects.find(p => p.id === procurement.projectId);
-                                     const vendor = companies.find(c => c.id === procurement.vendorId);
+                                {filteredProcurements.map((procurement: ProcurementWithRefs) => {
                                      return (
-                                        <tr 
-                                            key={procurement.id} 
+                                        <tr
+                                            key={procurement.id}
                                             onClick={() => navigate(`/procurement/${procurement.id}`)}
                                             className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                                         >
-                                            <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500 dark:text-gray-400">{procurement.id}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500 dark:text-gray-400">{procurement.code ?? procurement.id.slice(0, 8)}</td>
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900 dark:text-white">{procurement.title}</div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">{project?.name}</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">{procurement.project?.name ?? 'Unknown Project'}</div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{vendor?.name || '-'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(procurement.createdAt).toLocaleDateString()}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap"><ProcurementStatusBadge status={procurement.status} /></td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(procurement.totalValue)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{procurement.vendor?.name ?? 'Vendor Pending'}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(procurement.created_at).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap"><ProcurementStatusBadge status={procurement.status as ProcurementStatus} /></td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(procurement.total_value)}</td>
                                         </tr>
                                      )
                                 })}
