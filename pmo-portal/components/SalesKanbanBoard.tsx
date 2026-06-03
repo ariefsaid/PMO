@@ -1,11 +1,13 @@
 
 import React from 'react';
-import { Project, ProjectStatus } from '../types';
+import { ProjectStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { BuildingOfficeIcon, UserIcon } from './icons';
+import { formatCurrency } from '@/src/lib/format';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 interface SalesKanbanBoardProps {
-  projects: Project[];
+  projects: ProjectWithRefs[];
 }
 
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects }) => {
@@ -51,13 +53,11 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects }) => {
     }
   ];
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
-
   return (
     <div className="flex h-[calc(100vh-280px)] overflow-x-auto pb-4 space-x-4">
       {columns.map((col, index) => {
-        const colProjects = projects.filter(p => p.status === col.status);
-        const totalValue = colProjects.reduce((sum, p) => sum + p.contractValue, 0);
+        const colProjects = projects.filter(p => (p.status as ProjectStatus) === col.status);
+        const totalValue = colProjects.reduce((sum, p) => sum + p.contract_value, 0);
         const weightedValue = totalValue * col.probability;
 
         return (
@@ -89,7 +89,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects }) => {
                   className="bg-white dark:bg-gray-700 p-3 rounded shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md cursor-pointer transition-shadow"
                 >
                   <div className="flex justify-between items-start mb-2">
-                     <span className="text-[10px] text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 px-1 rounded">{project.id}</span>
+                     <span className="text-[10px] text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 px-1 rounded">{project.code ?? project.id.slice(0, 8)}</span>
                      <span className="text-[10px] text-green-600 dark:text-green-400 font-bold">
                          {(col.probability * 100)}%
                      </span>
@@ -98,12 +98,12 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects }) => {
                   
                   <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2">
                     <BuildingOfficeIcon className="w-3 h-3 mr-1" />
-                    <span className="truncate">Client ID: {project.clientId}</span>
+                    <span className="truncate" title={project.client?.name ?? undefined}>{project.client?.name ?? 'Unknown Client'}</span>
                   </div>
 
                   <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-600 flex justify-between items-center">
                     <div>
-                        <span className="font-bold text-gray-700 dark:text-gray-200 text-sm block">{formatCurrency(project.contractValue)}</span>
+                        <span className="font-bold text-gray-700 dark:text-gray-200 text-sm block">{formatCurrency(project.contract_value)}</span>
                     </div>
                     <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-xs text-primary-700 dark:text-primary-300">
                         <UserIcon className="w-3 h-3" />
