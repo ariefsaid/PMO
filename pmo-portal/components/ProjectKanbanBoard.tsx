@@ -2,7 +2,6 @@
 import React from 'react';
 import { Project, ProjectStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
-import ProjectStatusBadge from './ProjectStatusBadge';
 import { BuildingOfficeIcon, UserIcon } from './icons';
 
 interface ProjectKanbanBoardProps {

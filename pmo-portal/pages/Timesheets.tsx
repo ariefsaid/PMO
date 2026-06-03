@@ -88,6 +88,7 @@ const TimesheetsPage: React.FC = () => {
         initialRows.sort((a, b) => a.projectId.localeCompare(b.projectId));
         
         setUiRows(initialRows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTimesheet.id]); // Intentionally not dependent on currentWeekEntries deep changes to avoid typing jitters
 
     const handlePrevWeek = () => {

@@ -128,8 +128,8 @@ const ProcurementPipeline: React.FC<ProcurementPipelineProps> = ({ currentStatus
                 const isLast = index === steps.length - 1;
                 
                 // Responsive size: smaller on mobile
-                let circleSize = "w-6 h-6 text-[10px] lg:w-8 lg:h-8 lg:text-xs";
-                let iconSize = "w-3 h-3 lg:w-5 lg:h-5";
+                const circleSize = "w-6 h-6 text-[10px] lg:w-8 lg:h-8 lg:text-xs";
+                const iconSize = "w-3 h-3 lg:w-5 lg:h-5";
                 
                 let circleClass = `bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-400 ${circleSize}`;
                 let textClass = "text-gray-500 dark:text-gray-400 font-medium";

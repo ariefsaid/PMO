@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projects, companies, users } from '../data/mockData';
-import { Project, ProjectStatus, Company, User } from '../types';
+import { Project, ProjectStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { useUser } from '../context/UserContext';
@@ -86,7 +86,7 @@ const Projects: React.FC = () => {
     }, [activeTab, filterClient, filterPM, searchTerm, currentUser.id]);
 
     const sortedProjects = useMemo(() => {
-        let sortableItems = [...filteredProjects];
+        const sortableItems = [...filteredProjects];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -153,8 +153,7 @@ const Projects: React.FC = () => {
                          const client = companies.find(c => c.id === project.clientId);
                          const pm = users.find(u => u.id === project.projectManagerId);
                          const progress = project.budget > 0 ? (project.spent / project.budget) * 100 : 0;
-                         const margin = project.contractValue - project.spent;
-                         
+
                          return (
                             <div 
                                 key={project.id} 
