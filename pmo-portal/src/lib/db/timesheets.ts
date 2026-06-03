@@ -28,5 +28,9 @@ export async function listTimesheets(userId: string): Promise<TimesheetWithEntri
     .eq('user_id', userId)
     .order('week_start_date', { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as TimesheetWithEntries[];
+  // Normalise hours to number at the data boundary so callers never need Number() casts.
+  return ((data ?? []) as unknown as TimesheetWithEntries[]).map(sheet => ({
+    ...sheet,
+    entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
+  }));
 }

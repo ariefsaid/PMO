@@ -5,7 +5,6 @@ import TimesheetStatusBadge from '../components/TimesheetStatusBadge';
 import { TimesheetStatus } from '../types';
 import { TimesheetsIcon, ClipboardDocumentCheckIcon } from '../components/icons';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
-import { useAuth } from '@/src/auth/useAuth';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 
 const getWeekStartDate = (date: Date): Date => {
@@ -23,7 +22,6 @@ const formatDate = (date: Date): string => {
 };
 
 const TimesheetsPage: React.FC = () => {
-    useAuth(); // establishes auth context; currentUser not used directly (scoping is in useTimesheets)
     const { data: sheets, isPending, isError, refetch } = useTimesheets();
 
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -60,7 +58,7 @@ const TimesheetsPage: React.FC = () => {
     }, [currentWeekEntries]);
 
     const weeklyTotal = useMemo(
-        () => currentWeekEntries.reduce((sum, e) => sum + Number(e.hours), 0),
+        () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
         [currentWeekEntries],
     );
 
@@ -68,7 +66,7 @@ const TimesheetsPage: React.FC = () => {
 
     const dailyTotals = useMemo(() => weekDates.map(d => {
         const ds = formatDate(d);
-        return currentWeekEntries.filter(e => e.entry_date === ds).reduce((s, e) => s + Number(e.hours), 0);
+        return currentWeekEntries.filter(e => e.entry_date === ds).reduce((s, e) => s + e.hours, 0);
     }), [currentWeekEntries, weekDates]);
 
     const handlePrevWeek = () => {
@@ -222,9 +220,10 @@ const TimesheetsPage: React.FC = () => {
                                     </tr>
                                 ) : (
                                     rows.map(row => {
+                                        // NOTE: revisit for manager/team view (OD-T1)
                                         const rowTotal = currentWeekEntries
                                             .filter(e => e.project_id === row.projectId && (e.notes ?? '') === row.notes)
-                                            .reduce((sum, e) => sum + Number(e.hours), 0);
+                                            .reduce((sum, e) => sum + e.hours, 0);
 
                                         return (
                                             <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -247,7 +246,7 @@ const TimesheetsPage: React.FC = () => {
                                                             className={`px-1 py-1 text-center border-l border-transparent ${isToday ? 'bg-primary-50/30 dark:bg-primary-900/10' : ''}`}
                                                         >
                                                             <span className={`text-sm ${entry ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600'}`}>
-                                                                {entry ? Number(entry.hours).toFixed(2) : '-'}
+                                                                {entry ? entry.hours.toFixed(2) : '-'}
                                                             </span>
                                                         </td>
                                                     );
