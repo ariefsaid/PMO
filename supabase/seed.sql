@@ -96,9 +96,13 @@ insert into budget_line_items (budget_version_id, category, description, budgete
   ('50000000-0000-0000-0000-000000000002','Materials','Fit-out materials',1700000,900000),
   ('50000000-0000-0000-0000-000000000002','Contingency','Reserve',1000000,0);
 
--- procurement (Vendor Quoted) + items + quotations (none selected -> no partial-unique conflict) + document
-insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id) values
-  ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Workstations & AV','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Quoted',150000,null);
+-- procurement rows (header only; no quotation/item children on new rows to avoid partial-unique index work)
+insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at) values
+  ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Workstations & AV','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Quoted',150000,null,'2026-02-05T00:00:00Z'),
+  ('60000000-0000-0000-0000-000000000002','PROC-2026-001','Network Infrastructure','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Ordered',85000,'c0000000-0000-0000-0000-000000000004','2026-01-10T00:00:00Z'),
+  ('60000000-0000-0000-0000-000000000003','PROC-2026-002','Safety Equipment & PPE','40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4','Requested',22500,null,'2026-01-20T00:00:00Z'),
+  ('60000000-0000-0000-0000-000000000004','PROC-2026-003','Survey Software Licenses','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Draft',9800,null,'2026-01-25T00:00:00Z'),
+  ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Office Fit-Out Furniture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Paid',320000,'c0000000-0000-0000-0000-000000000005','2025-12-01T00:00:00Z');
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
   ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
   ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000);
