@@ -60,6 +60,25 @@ describe('Projects (real data)', () => {
   });
 });
 
+describe('Projects Board view', () => {
+  it('toggles to Board view and renders a real contract value in a column header (AC-407)', async () => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByTitle('Board View (CRM)'));
+    // The Execution column must show the summed contract_value of ongoing projects: $5,000,000
+    expect(screen.getByText('$5,000,000')).toBeInTheDocument();
+  });
+
+  it('Board view does not render empty-state underneath columns (AC-407)', async () => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    renderPage();
+    await userEvent.click(screen.getByTitle('Board View (CRM)'));
+    expect(screen.queryByText(/No projects found/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('Projects states', () => {
   it('shows loading state while pending (AC-405)', () => {
     projectsState.isPending = true; projectsState.isError = false;

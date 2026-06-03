@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Project, ProjectStatus } from '../types';
+import { ProjectStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -169,7 +169,7 @@ const Projects: React.FC = () => {
 
     const renderContent = () => {
         if (viewMode === 'Board') {
-            return <ProjectKanbanBoard projects={filteredProjects as unknown as Project[]} />;
+            return <ProjectKanbanBoard projects={filteredProjects} />;
         }
 
         if (viewMode === 'Grid') {
@@ -359,7 +359,7 @@ const Projects: React.FC = () => {
                     <div className="relative flex-1">
                         <input
                             type="text"
-                            placeholder="Search projects by name or ID..."
+                            placeholder="Search projects by name or code..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="w-full px-4 py-2 pl-10 text-sm text-gray-700 bg-white dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg focus:border-primary-500 focus:ring-primary-500 focus:outline-none transition-shadow shadow-sm"
@@ -380,7 +380,7 @@ const Projects: React.FC = () => {
             {/* Content Area */}
             {renderContent()}
 
-            {sortedProjects.length === 0 && (
+            {viewMode !== 'Board' && sortedProjects.length === 0 && (
                 <div className="text-center py-16 px-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                     <div className="bg-gray-50 dark:bg-gray-800/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                         <ClipboardDocumentCheckIcon className="w-8 h-8 text-gray-400" />

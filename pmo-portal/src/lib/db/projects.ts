@@ -19,6 +19,10 @@ const SELECT = '*, client:companies(name), pm:profiles(full_name)';
 export async function listProjects(
   params?: { status?: ProjectRow['status']; pmId?: string },
 ): Promise<ProjectWithRefs[]> {
+  // `any` is a localized escape hatch: PostgREST's TypeScript builder types
+  // make it difficult to accumulate `.eq()` chains conditionally without
+  // widening the type here. The pattern is intentional and contained — do not
+  // propagate `any` beyond this function.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase.from('projects').select(SELECT);
   if (params?.status) q = q.eq('status', params.status);
