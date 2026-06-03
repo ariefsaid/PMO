@@ -28,3 +28,13 @@ in `useState`/`useReducer` (no global client-state store like Redux for MVP). Co
   `org_id`); over-aggressive `staleTime` could show stale data (tuned per query).
 - **Rejected:** SWR (thinner mutation/invalidation story); Redux Toolkit Query (heavier; we don't need a
   global client store); hand-rolled fetching (reinvents this layer, the `NFR-008` gap).
+
+## Supply-chain note (2026-06-04)
+The May 2026 npm supply-chain attack (CVE-2026-45321 / GHSA-g7cv-rxg3-hmpx) compromised the
+`@tanstack/*-router` and `*-start` package families — **NOT** `@tanstack/query*`, which is on TanStack's
+confirmed-clean list (postmortem). Verified our usage is unaffected: we depend only on
+`@tanstack/react-query` + `@tanstack/query-core` 5.101.0 (published 2026-06-02, after the pulled attack
+window), the lockfile sha512 integrity matches the live registry artifact, the version is not deprecated,
+and `npm audit` is clean. We route via `react-router-dom`, not `@tanstack/*-router`, so we never touched an
+affected package. `npm ci` enforces the pinned integrity hashes, and CI now runs `npm audit
+--audit-level=high` as a supply-chain guard. Decision stands.

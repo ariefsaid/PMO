@@ -20,6 +20,8 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
+      - name: Supply-chain audit (high+ severity)
+        run: npm audit --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests (+ coverage)
