@@ -21,6 +21,11 @@ as $$
   select json_build_object(
     'active_projects', (select count(*) from active),
     'total_contract_value', coalesce((select sum(contract_value) from active), 0),
+    -- [OWNER-DECISION] avg_gross_margin is currently an UNWEIGHTED average of per-project margins
+    -- (budget-spent)/budget. Confirm whether PORTFOLIO margin sum(budget-spent)/sum(budget)
+    -- (size-weighted) is intended — the two differ when project budgets vary significantly.
+    -- Note: projects_at_risk (spent/budget>0.9) and this metric use different bases by design;
+    -- revisit if a future role RPC copies this logic.
     'avg_gross_margin', coalesce(
       (select avg((budget - spent) / budget) from active where budget > 0), 0),
     'projects_at_risk', (select count(*) from active where budget > 0 and spent / budget > 0.9),
@@ -41,3 +46,8 @@ $$;
 
 revoke all on function get_executive_dashboard() from public;
 grant execute on function get_executive_dashboard() to authenticated;
+-- Supabase default ACL stamps a per-role EXECUTE grant on `anon` even after the public revoke above.
+-- Explicitly revoke it to close the unauthenticated heavy-query / DoS surface (Security LOW-1).
+-- The function is security invoker so anon already gets empty results, but the callable surface
+-- should not exist at all for unauthenticated callers.
+revoke execute on function get_executive_dashboard() from anon;
