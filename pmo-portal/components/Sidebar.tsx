@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '../types';
 import { AdminIcon, CompaniesIcon, DashboardIcon, ProcurementIcon, ProjectsIcon, ReportsIcon, TasksIcon, TimesheetsIcon, FunnelIcon } from './icons';
 
 const Sidebar: React.FC = () => {
-    const { currentUser } = useUser();
+    const { effectiveRole } = useEffectiveRole();
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     const activeLinkClass = "bg-primary-500 text-white";
@@ -15,7 +15,9 @@ const Sidebar: React.FC = () => {
 
     // Navigation configuration based on roles
     const getNavItems = () => {
-        const role = currentUser.role;
+        // effectiveRole is the profiles.role string union; its values are identical to the UserRole enum.
+        const role = effectiveRole as unknown as UserRole | null;
+        if (!role) return [];
         const allItems = [
             { to: '/', text: 'Dashboard', icon: DashboardIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
             { to: '/projects', text: 'Projects', icon: ProjectsIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -74,7 +76,7 @@ const Sidebar: React.FC = () => {
                             </NavLink>
                         ))}
                         
-                        {(currentUser.role === UserRole.Executive || currentUser.role === UserRole.Admin) && (
+                        {(effectiveRole === UserRole.Executive || effectiveRole === UserRole.Admin) && (
                             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                                 <NavLink
                                     to="/administration"

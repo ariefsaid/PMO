@@ -5,7 +5,8 @@ import { procurements, projects, companies } from '../data/mockData';
 import { ProcurementStatus } from '../types';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
 import { PlusIcon, BuildingOfficeIcon, UserIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, Squares2X2Icon, TableCellsIcon } from '../components/icons';
-import { useUser } from '../context/UserContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { mockUserForRole } from '@/src/auth/mockUserForRole';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
@@ -14,7 +15,9 @@ type ViewMode = 'Grid' | 'List';
 
 const ProcurementPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser } = useUser();
+    const { effectiveRole } = useEffectiveRole();
+    // Identity/role from the real session; business data is still mockData (Issue #4).
+    const currentUser = mockUserForRole(effectiveRole);
     
     // UI States
     const [activeTab, setActiveTab] = useState<TabType>('My Requests');
@@ -29,7 +32,7 @@ const ProcurementPage: React.FC = () => {
         // 1. Apply Tab Logic
         switch(activeTab) {
             case 'My Requests':
-                filtered = filtered.filter(p => p.requestedById === currentUser.id);
+                filtered = filtered.filter(p => p.requestedById === currentUser?.id);
                 break;
             case 'To Approve':
                 // In a real app, this would check permissions. For now, assuming Managers/Executives approve.
@@ -65,11 +68,11 @@ const ProcurementPage: React.FC = () => {
 
     // Counts for Tabs
     const counts = useMemo(() => ({
-        'My Requests': procurements.filter(p => p.requestedById === currentUser.id).length,
+        'My Requests': procurements.filter(p => p.requestedById === currentUser?.id).length,
         'To Approve': procurements.filter(p => p.status === ProcurementStatus.Requested).length,
         'Active Orders': procurements.filter(p => [ProcurementStatus.Ordered, ProcurementStatus.Received, ProcurementStatus.VendorInvoiced].includes(p.status)).length,
         'All': procurements.length
-    }), [currentUser.id]);
+    }), [currentUser?.id]);
 
     const getProgressPercentage = (status: ProcurementStatus) => {
         const steps = [
