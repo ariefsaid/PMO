@@ -26,10 +26,8 @@ jobs:
         run: npm run test:coverage
       - name: Build
         run: npm run build
-      # Lint is non-blocking until the legacy-cleanup issue lands, then switch to `npm run lint:ci`.
-      - name: Lint (informational)
-        run: npm run lint
-        continue-on-error: true
+      - name: Lint
+        run: npm run lint:ci
       # e2e (Playwright) is added to CI once the first acceptance spec exists (Phase 3):
       # - run: npx playwright install --with-deps chromium
       # - run: npm run e2e
