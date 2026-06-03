@@ -3,11 +3,14 @@ import { users } from '@/data/mockData';
 import type { Role } from './AuthContext';
 
 /**
- * Bridge for the still-mocked business pages (Issue #4 replaces mockData).
- * Identity/role now comes from the real Supabase session, but pages keep filtering
- * mockData by a numeric mock-user id. This maps the real role to a representative
- * mock user so "My Projects"/"My Requests" and the role-branched dashboards keep
- * working against mockData. Remove when the data-access layer lands.
+ * Bridge for pages that still read mockData (Dashboard, Procurement).
+ * Projects has migrated to the real data layer (ProjectWithRefs / useProjects)
+ * and no longer uses this helper.
+ *
+ * Identity/role comes from the real Supabase session; this maps the effective
+ * role to a representative mock user so role-branched dashboards and
+ * "My Requests" keep working against mockData until those pages migrate.
+ * Remove when every page has a real data-access layer.
  */
 export function mockUserForRole(role: Role | null): User | null {
   if (!role) return null;

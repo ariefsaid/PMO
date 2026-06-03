@@ -10,3 +10,6 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   await page.getByRole('button', { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/$/);
 }
+
+/** Alias for signIn — used by data-layer e2e specs (AC-4xx). */
+export const login = signIn;
