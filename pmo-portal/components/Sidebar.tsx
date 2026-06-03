@@ -1,21 +1,38 @@
 
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '../types';
 import { AdminIcon, CompaniesIcon, DashboardIcon, ProcurementIcon, ProjectsIcon, ReportsIcon, TasksIcon, TimesheetsIcon, FunnelIcon } from './icons';
 
+// Map profiles.role string → UserRole enum explicitly.
+// A future enum rename is a compile error here rather than a silent nav bug.
+const ROLE_MAP: Record<string, UserRole> = {
+    [UserRole.Executive]: UserRole.Executive,
+    [UserRole.ProjectManager]: UserRole.ProjectManager,
+    [UserRole.Finance]: UserRole.Finance,
+    [UserRole.Engineer]: UserRole.Engineer,
+    [UserRole.Admin]: UserRole.Admin,
+};
+
+function toUserRole(role: string | null): UserRole | null {
+    if (!role) return null;
+    return ROLE_MAP[role] ?? null;
+}
+
 const Sidebar: React.FC = () => {
-    const { currentUser } = useUser();
+    const { effectiveRole } = useEffectiveRole();
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     const activeLinkClass = "bg-primary-500 text-white";
     const inactiveLinkClass = "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700";
     const linkBaseClass = "flex items-center p-2 rounded-lg transition-colors duration-200";
 
+    const role = toUserRole(effectiveRole);
+
     // Navigation configuration based on roles
     const getNavItems = () => {
-        const role = currentUser.role;
+        if (!role) return [];
         const allItems = [
             { to: '/', text: 'Dashboard', icon: DashboardIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
             { to: '/projects', text: 'Projects', icon: ProjectsIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -44,10 +61,10 @@ const Sidebar: React.FC = () => {
             <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-md lg:hidden shadow-md">
                 <svg className="w-6 h-6 text-gray-800 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
             </button>
-            
+
             {/* Backdrop for mobile */}
             {isSidebarOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
                     onClick={() => setSidebarOpen(false)}
                 ></div>
@@ -73,8 +90,8 @@ const Sidebar: React.FC = () => {
                                 <span>{item.text}</span>
                             </NavLink>
                         ))}
-                        
-                        {(currentUser.role === UserRole.Executive || currentUser.role === UserRole.Admin) && (
+
+                        {(role === UserRole.Executive || role === UserRole.Admin) && (
                             <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                                 <NavLink
                                     to="/administration"

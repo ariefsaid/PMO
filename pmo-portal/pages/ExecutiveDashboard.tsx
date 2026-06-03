@@ -4,7 +4,8 @@ import Card from '../components/Card';
 import { projects, companies, tasks, procurements } from '../data/mockData';
 import { ProjectStatus, Kpi, UserRole, TaskStatus, ProcurementStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
-import { useUser } from '../context/UserContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { mockUserForRole } from '@/src/auth/mockUserForRole';
 
 const KpiCard: React.FC<{ kpi: Kpi }> = ({ kpi }) => (
     <Card>
@@ -265,7 +266,9 @@ const FinanceDashboard: React.FC = () => {
 }
 
 const ExecutiveDashboard: React.FC = () => {
-    const { currentUser } = useUser();
+    const { effectiveRole } = useEffectiveRole();
+    // Role from the real session/impersonation; business data is still mockData (Issue #4).
+    const currentUser = mockUserForRole(effectiveRole);
 
     // Default Executive View
     const renderExecutiveView = () => {
@@ -378,7 +381,7 @@ const ExecutiveDashboard: React.FC = () => {
         );
     };
 
-    switch (currentUser.role) {
+    switch (currentUser?.role) {
         case UserRole.Engineer:
             return <EngineerDashboard userId={currentUser.id} />;
         case UserRole.ProjectManager:

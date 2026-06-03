@@ -5,7 +5,8 @@ import { projects, companies, users } from '../data/mockData';
 import { Project, ProjectStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { useUser } from '../context/UserContext';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { mockUserForRole } from '@/src/auth/mockUserForRole';
 import { 
     Squares2X2Icon, 
     TableCellsIcon, 
@@ -27,7 +28,9 @@ type SortConfig = {
 
 const Projects: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser } = useUser();
+    const { effectiveRole } = useEffectiveRole();
+    // Identity/role from the real session; business data is still mockData (Issue #4).
+    const currentUser = mockUserForRole(effectiveRole);
     
     // UI States
     const [viewMode, setViewMode] = useState<ViewMode>('Grid');
@@ -46,7 +49,7 @@ const Projects: React.FC = () => {
         // 1. Tab Logic
         switch (activeTab) {
             case 'My Projects':
-                filtered = filtered.filter(p => p.projectManagerId === currentUser.id);
+                filtered = filtered.filter(p => p.projectManagerId === currentUser?.id);
                 break;
             case 'Ongoing':
                 filtered = filtered.filter(p => [ProjectStatus.Ongoing, ProjectStatus.WonPendingKoM, ProjectStatus.OnHold].includes(p.status));
@@ -83,7 +86,7 @@ const Projects: React.FC = () => {
         }
 
         return filtered;
-    }, [activeTab, filterClient, filterPM, searchTerm, currentUser.id]);
+    }, [activeTab, filterClient, filterPM, searchTerm, currentUser?.id]);
 
     const sortedProjects = useMemo(() => {
         const sortableItems = [...filteredProjects];
@@ -135,11 +138,11 @@ const Projects: React.FC = () => {
     // Tab Counts
     const counts = useMemo(() => ({
         'All': projects.length,
-        'My Projects': projects.filter(p => p.projectManagerId === currentUser.id).length,
+        'My Projects': projects.filter(p => p.projectManagerId === currentUser?.id).length,
         'Ongoing': projects.filter(p => [ProjectStatus.Ongoing, ProjectStatus.WonPendingKoM, ProjectStatus.OnHold].includes(p.status)).length,
         'Leads': projects.filter(p => [ProjectStatus.Leads, ProjectStatus.PQSubmitted, ProjectStatus.QuotationSubmitted, ProjectStatus.TenderSubmitted, ProjectStatus.Negotiation].includes(p.status)).length,
         'Completed': projects.filter(p => [ProjectStatus.CloseOut, ProjectStatus.Loss].includes(p.status)).length,
-    }), [currentUser.id]);
+    }), [currentUser?.id]);
 
     const renderContent = () => {
         if (viewMode === 'Board') {
