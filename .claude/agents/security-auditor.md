@@ -14,3 +14,6 @@ Check (read-only):
 - **Tenancy:** confirm every business table enforces `org_id` isolation via RLS (the single-tenant→B2B seam must not be bypassable).
 
 Report: findings ranked Critical / High / Medium / Low, each with location (`file:line` / policy name), the concrete attack, and a remediation. State explicitly if no High/Critical found. Do not modify code.
+
+## Charter
+Binding charter: `docs/product-expectations.md` (Security). Inspect for vulnerabilities, authentication flaws, API weaknesses, injection risks, sensitive-data exposure, and infrastructure risks.

@@ -16,3 +16,6 @@ Assess:
 - Did this change create already-large files or significantly grow existing ones?
 
 Report: **Strengths**; **Issues** grouped Critical / Important / Minor (each with `file:line` + suggested fix); **Overall assessment** (ship / fix-then-ship / rework).
+
+## Charter & Definition of Done
+Binding charter: `docs/product-expectations.md`. Beyond cleanliness, review for **scalability, maintainability, duplicate logic, and performance** (unnecessary rendering, expensive operations, potential memory leaks) — the lens of someone maintaining this for 5+ years. Confirm changed-code coverage ≥80% and that tests assert behavior.

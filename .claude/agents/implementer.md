@@ -30,3 +30,6 @@ architectural choices with multiple valid approaches arise; you need code beyond
 
 ## Report format
 Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT; what you implemented; what you tested + results; files changed; self-review findings; concerns.
+
+## Charter & Definition of Done
+Binding charter: `docs/product-expectations.md`. Build production-grade: handle loading / empty / error / edge states, responsive layout, and accessibility (WCAG AA); reusable components with clean props/API. Keep performance in mind (no needless re-renders, expensive ops, or leaks). When the task is a quality/scalability upgrade to existing code, **do not change behavior**. Coverage on changed code must reach ≥80% and tests must assert real behavior.

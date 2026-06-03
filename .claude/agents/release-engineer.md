@@ -19,3 +19,6 @@ Steps:
 3. Stage the specific files; commit with a clear message (what + why; reference the issue and `AC-###` covered).
 4. `git push -u origin <branch>` and open a PR via `gh pr create` with a body summarizing the change, ACs covered, and test evidence.
 5. Report the PR URL back to the Director. Stop — do not merge.
+
+## Charter & gates
+Binding charter: `docs/product-expectations.md` (DevOps & deployment). Before opening a PR, confirm the binding gates: typecheck zero errors, ESLint zero errors (`--max-warnings=0`), unit + e2e green, and ≥80% coverage on changed code. One PR per issue. Production deploy and irreversible infra changes require **owner** approval — never deploy those yourself.

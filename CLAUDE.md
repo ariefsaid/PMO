@@ -8,7 +8,7 @@ B2B multi-tenancy without a rewrite.
 ## Repo layout
 - `pmo-portal/` — the app (React 19 + Vite + TypeScript). Run npm/vite here.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
-- `e2e/` — Playwright acceptance tests (the BDD layer).
+- `pmo-portal/e2e/` — Playwright acceptance tests (the BDD layer).
 - `supabase/migrations/` — Postgres schema + RLS policies.
 - `.claude/agents/`, `.claude/skills/` — the role agents and vendored spec skills.
 
@@ -25,7 +25,27 @@ boundaries and before any push / merge / deploy. Per-issue loop:
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`.
 6. **Accept (BDD)** — `qa-acceptance` runs Playwright E2E mapped 1:1 to `AC-###`.
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + tenancy).
-8. **Ship** — `release-engineer` (branch → commit → push → PR). Owner approves merge/deploy.
+8. **Ship** — `release-engineer` (branch → commit → push → PR).
+
+## Director posture (main session)
+Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
+ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
+prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
+implementation plan, and a production-ready solution. Build a production-grade MVP — minimal enough
+for one client, architected to scale to millions.
+
+## Quality gates & checkpoints (binding)
+- **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
+- **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
+- **Checkpoints:** the **owner** approves spec sign-off + production deploy / irreversible infra; the
+  **Director** approves merge-to-main and staging within the signed spec, and escalates anything
+  strategic or out-of-spec.
+- **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
+- **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
+- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; `/design-review`
+  before merging UI changes; Storybook for the shared component library (from Phase 3).
+
+The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·

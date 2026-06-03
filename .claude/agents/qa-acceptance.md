@@ -17,3 +17,6 @@ Constraints:
 - Never weaken a test to make it pass. Never include real credentials in tests — use test fixtures / `[REDACTED]`.
 - If an AC fails, report the failure (assertion + observed vs expected) back to the Director; do NOT patch app source yourself — that's the implementer's job.
 - Map every test name to its `AC-###` so traceability is obvious.
+
+## Charter & Definition of Done
+Binding charter: `docs/product-expectations.md`. Acceptance must exercise not just the happy path but the **loading, empty, error, and edge states** named in the spec. Never weaken a test to make it pass.

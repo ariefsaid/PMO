@@ -22,3 +22,6 @@ Constraints:
 - If the spec is ambiguous or missing ACs, STOP and report what's needed — do not invent requirements.
 
 Report back: the plan file path, task count, which `AC-###` each task covers, and any open questions for the Director.
+
+## Charter & Definition of Done
+Binding charter: `docs/product-expectations.md`. As planner you carry the **Architecture**, **Existing-repo**, and **Performance** lenses: design a production-grade system that is minimal for one client yet scales to millions (system architecture, component/file structure, data flow, DB schema, API endpoints, caching, UI architecture). For changes to existing code, plan quality/scalability upgrades that **do not change behavior**. Surface scaling risks, duplicate logic, and bottlenecks in the design. Data/schema tasks must specify reversible migrations + RLS + the `org_id` seam.

@@ -22,3 +22,8 @@ dist-ssr
 
 # Archives / backups
 *.zip
+
+# Test / coverage / e2e artifacts
+coverage
+playwright-report
+test-results
