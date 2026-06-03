@@ -14,6 +14,25 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React core + router — changes rarely; long-lived browser cache
+          // Note: react/react-dom are already inlined into the main bundle by
+          // Rollup when they're re-exported by react-router-dom; combining them
+          // avoids an empty chunk warning.
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // TanStack Query — data-fetching layer
+          'vendor-query': ['@tanstack/react-query'],
+          // Supabase client — heaviest single dep
+          'vendor-supabase': ['@supabase/supabase-js'],
+          // Recharts — chart library, only used in dashboard pages
+          'vendor-recharts': ['recharts'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
