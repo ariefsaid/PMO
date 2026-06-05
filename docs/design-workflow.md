@@ -9,22 +9,26 @@ root is the single source of truth (see `docs/product-expectations.md` Part C "D
 Establish the design system before any UI issue builds on it.
 1. **Reverse-engineer `DESIGN.md`** — `design-architect` extracts the existing app's de-facto
    tokens (color / type / spacing / radius / elevation) + component patterns into `DESIGN.md`
-   (design.md format). The existing look is the IDENTITY authority; skills supply craft, not a new
-   aesthetic — never invent a brand.
+   (design.md format) **via `impeccable document` (DESIGN.md from existing code) → `impeccable extract`
+   (reusable tokens/components) → `impeccable distill`**, naming tokens with `ui-ux-pro-max`'s
+   `design-system` vocabulary; `design-consultation` supplies the format only. The existing look is the
+   IDENTITY authority; skills supply craft, not a new aesthetic — never invent a brand.
 2. **Owner sign-off** — the owner approves `DESIGN.md` (taste is the owner's gate, like spec
    sign-off). Until signed, no UI issue proceeds.
 
 ## 2. Per-UI-issue loop
 Slots into the Director per-issue loop **between Build and Accept** (so a feature's data/logic lands
 under TDD, then its UI is designed, built, and reviewed):
-1. **Design-plan** — `design-architect` → layout, component breakdown, all states
-   (loading / empty / error / edge), responsive breakpoints, WCAG-AA a11y, and which `DESIGN.md`
-   tokens each piece uses. (May be a `## Design` section in the eng-planner plan.)
-2. **UI-implement** — `ui-implementer` builds strictly to tokens + the design-plan; all states +
-   responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
-3. **Design-review** — `design-reviewer` renders the running app, **screenshots** each state at the
-   plan's breakpoints, and audits against `DESIGN.md` + the design-plan (token fidelity, hierarchy,
-   states, AI-slop, a11y, interaction perf). Read-only on source.
+1. **Design-plan** *(`impeccable shape` + `ui-ux-pro-max` `plan`)* — `design-architect` → layout,
+   component breakdown, all states (loading / empty / error / edge), responsive breakpoints, WCAG-AA
+   a11y, and which `DESIGN.md` tokens each piece uses. (May be a `## Design` section in the eng-planner plan.)
+2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
+   `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
+   design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
+3. **Design-review** *(`design-review` engine + `impeccable critique` & `audit`; `taste` AI-tells;
+   `ui-ux-pro-max` `review`/`check`)* — `design-reviewer` renders the running app, **screenshots** each
+   state at the plan's breakpoints, and audits against `DESIGN.md` + the design-plan (token fidelity,
+   hierarchy, states, AI-slop, a11y, interaction perf). Read-only on source.
 4. **Fix round (if needed)** — issues route back to `ui-implementer`; `design-reviewer` re-checks
    with before/after. Repeat until ship-clean.
 5. **Owner visual UX sign-off** — the owner approves the look on a real artifact.
@@ -52,6 +56,13 @@ variants) + a11y checks in isolation. Not before — premature Storybook is over
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
 | spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; audit vs `DESIGN.md` + plan; AI-slop / a11y / perf; read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** (owner sign-off) |
+
+### Skills → exact commands per agent (one owner per command — no overlap)
+| Agent | Primary | Secondary / checklist | Not used |
+|---|---|---|---|
+| **design-architect** | `impeccable` `document`→`extract`→`distill`; `ui-ux-pro-max` `design-system` + `plan`; `impeccable shape` (per-issue) | `design-consultation` (format only); `taste` (states/a11y into the plan) | design-consultation greenfield brand interview |
+| **ui-implementer** | `ui-ux-pro-max` `ui-styling` + `build`/`implement`; `taste` (discipline) | `impeccable` `harden`/`adapt`/`animate`/`optimize`/`clarify`/`layout`/`typeset` — per plan only | `impeccable live` (localhost browser loop) |
+| **design-reviewer** | `design-review` (render→screenshot→audit) | `impeccable` `critique` + `audit`; `taste` AI-tells/pre-flight; `ui-ux-pro-max` `review`/`check` | — |
 
 ## 6. Skill caveats
 - **impeccable** — phone-home / telemetry disabled (vendored copy); use offline.

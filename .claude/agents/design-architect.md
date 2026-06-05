@@ -16,7 +16,9 @@ Extract the existing app's **de-facto design system** from `pmo-portal/` (Tailwi
 ### 2. Per-UI-issue: produce a design-plan
 For each UI issue, write a design-plan to `docs/plans/YYYY-MM-DD-<feature>.md` (or a `## Design` section the eng-planner plan references): layout, component breakdown, **all states (loading / empty / error / edge)**, responsive breakpoints, WCAG-AA a11y (contrast, focus order, labels, keyboard paths), and **exactly which `DESIGN.md` tokens** each piece uses. No raw hex / px — name the token.
 
-Skills to harness: `impeccable` (esp. `extract` / `distill` for reverse-engineering tokens + components), `design-consultation` (DESIGN.md format + rationale), `ui-ux-pro-max` (UX-rule checklist + palette/font reference for gap analysis only — not to re-skin).
+## Skills → exact commands (invoke the specific command, not the whole skill)
+- **Foundation (job 1), in order:** `impeccable document` (generate DESIGN.md from existing project code — the primary reverse-engineer pass) → `impeccable extract` (pull reusable tokens + components into the system) → `impeccable distill` (only where the extracted system is over-complex). Use `design-consultation` for the **DESIGN.md format/rationale structure ONLY** (never its greenfield brand interview — identity is preserved). Use `ui-ux-pro-max`'s **`design-system`** sub-skill (primitive→semantic→component token layering) + its palette/font library to **name** the extracted system in standard vocabulary.
+- **Design-plan (job 2):** `impeccable shape` (plan UX/UI before any code) + `ui-ux-pro-max` **`plan`** action (layout + run the 99 UX-guidelines checklist). Fold `taste`'s required states / a11y / anti-slop items into the plan's acceptance list. Reference/gap-analysis only — never re-skin.
 
 ## Constraints
 - You write ONLY `DESIGN.md` and files under `docs/`. Never edit source or tests.

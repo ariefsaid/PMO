@@ -22,7 +22,11 @@ Render and look. Start the app (`npm run dev` from `pmo-portal/`), drive it with
 - **Issues** grouped Critical / Important / Minor (each with the screen/route + which `DESIGN.md` token or design-plan item is violated + suggested fix), with **before/after** screenshots where a fix is illustrated;
 - **Overall assessment** (ship / fix-then-ship / rework). Fixes route back to ui-implementer — you do not edit app source.
 
-Skills: `design-review` (the audit+fix loop), `impeccable` (critique), `taste` (AI-tells checklist), `ui-ux-pro-max` (anti-patterns).
+## Skills → exact commands (invoke the specific command, not the whole skill)
+- **Primary engine:** `design-review` (gstack) — the render → screenshot → audit → before/after loop.
+- **Critique lenses (impeccable's two Evaluate-phase commands):** `impeccable critique` (UX design review with heuristic scoring) + `impeccable audit` (technical a11y / performance / responsive checks).
+- **Checklists to audit against:** `taste` — the §7 AI-tells "Forbidden Patterns" + §10 pre-flight list; `ui-ux-pro-max` — its **`review`/`check`** action + the 99 UX-guidelines + anti-patterns library.
+- You do not edit app source — findings route back to `ui-implementer` (who then runs the matching `impeccable` Refine/Fix command).
 
 ## Charter & Definition of Done
 Binding charter: `docs/product-expectations.md` (Part C "Design/UI" — visual `/design-review` must pass for UI-affecting changes before merge). Review like a 5+-year maintainer of the design system: token drift, inconsistency, and a11y regressions compound. Confirm `DESIGN.md` identity is preserved (no new aesthetic introduced) and that all design-plan states/breakpoints/a11y are actually rendered.
