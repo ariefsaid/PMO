@@ -40,10 +40,20 @@ owner gates = prod deploy + genuinely-new decisions only.
    `manager_id` + RLS read-widening, line-manager approval + Admin/Exec fallback, SoD (no self-approve incl Admin).
    232 unit / 113 pgTAP / 1 e2e (AC-911). Security found+fixed+re-verified HIGH-TS-1 (null-manager SQL 3-valued
    fall-through → any member could approve), MED-TS-2 (direct-UPDATE RPC bypass), LOW-TS-3 (self-writable manager_id).
-4. **Projects: status-transitions + revenue fields** — ⏭️ NEXT. customer-contract-PO ref + `contract_date` +
-   `decided_at` (stamped on win/loss) + `pipeline_stage_config` lookup table (seeded win-prob defaults). Foundation for the pipeline lens.
-5. **Sales-pipeline + Dashboard margin re-formula** — dual-lens weighted margin, pipeline weighted value +
-   projected margin, dual (count+value) win-rate + time filter. Consumes budget + procurement spend.
+4. **Projects: status-transitions + revenue fields** — ✅ **MERGED (PR #16, `3d899ce`).** `transition_project` RPC
+   (win-capture requires customer-contract-PO+date, stamps `decided_at`), `pipeline_stage_config` (seeded win-probs),
+   revenue columns. 247 unit / 140 pgTAP / 1 e2e (AC-1011). Security: no HIGH; MED-PR-1 (direct-UPDATE bypass of
+   the RPC) fixed via revoke-then-regrant (status/decided_at/customer cols are RPC-definer-only).
+5. **Sales-pipeline + Dashboard margin re-formula** — 📋 **SPECCED + PLANNED, READY TO BUILD** (the capstone).
+   Spec `docs/specs/sales-pipeline-dashboard.spec.md` + plan `docs/plans/2026-06-04-sales-pipeline-dashboard.md`
+   (FR-SPD-001..015, AC-1100..1117, 24 tasks). **Build as 5a (margin/win-rate RPC re-formula + Exec Dashboard UI)
+   then 5b (SalesPipeline screen rebuild)** — each independently shippable; 5a first. Write **ADR-0014** (dashboard
+   RPC contract change + win-rate as a separate RPC) as Phase 0. Replaces the mislabeled `avg_gross_margin` with
+   OD-MARGIN dual-lens; consumes budget (`get_project_budget`) + committed procurement spend + `pipeline_stage_config`
+   + `decided_at`. **Worked-example KPI oracle** is in the spec (on-hand margin 94.9%, pipeline weighted value 800k,
+   win-rate count 2/3 + value 92.5%) — pgTAP asserts those exact numbers. Seed task SPD-S1 reduces P002/P010 budgets
+   so pipeline projected margin is non-trivial (0.200). **Checkpointed for a fresh-context session** (capstone too
+   large to build well on this session's remaining budget). Resume: execute the plan from Phase 0.
 
 ## Non-blocked backlog (can proceed without owner; recommended order)
 1. **ProcurementDetails read swap** — drill-down (procurement + items + quotations + documents) to real data. Moderate (4 child tables). Mirror of the list template.
@@ -62,6 +72,16 @@ owner gates = prod deploy + genuinely-new decisions only.
 - **JWT role claim:** `auth_role()` reads `profiles.role` (authoritative); re-introducing the `app_metadata.role` JWT fast-path requires GoTrue signing + an audited sync trigger.
 - **Budget module (from build-wave #1 reviews):** (a) `createBudgetVersion` computes `max(version)+1` client-side (TOCTOU race under concurrent "+New version"); move to a `create_budget_version` security-definer RPC like clone/activate. (b) Extract a shared `<LineItemTable readOnly>` in `ProjectBudget.tsx` (editor + read-only tables duplicate markup). (c) The project header **Budget MetricCard in `ProjectDetails.tsx` still reads the stale `projects.budget` header** — it becomes correct when the Projects/Dashboard margin re-formula issue derives budget from the Active version. Neither blocks the budget module.
 - **Procurement module (from build-wave #2 reviews):** (a) **transition-map drift guard** — `transition_procurement`'s legal-map + role matrix (SQL) and `procurementLifecycle.ts` `LEGAL_TRANSITIONS`/`allowedActions` (TS) are hand-maintained duplicates (SQL authoritative, TS cosmetic); add a sync test (or shared JSON fixture) before the matrix grows. (b) Extract a shared `formatDate` helper (dates formatted inline; `formatCurrency` already shared). Neither blocks.
+- **🔒 SECURITY follow-up — transition-RPC direct-UPDATE bypass (MEDIUM, systemic):** the coarse `*_write` RLS
+  policies let a 4-role insider directly `UPDATE` a row's status-machine columns, bypassing the security-definer
+  transition RPC (its legal-map + SoD + capture/stamp logic). **Timesheets** (MED-TS-2, WITH CHECK status pin) and
+  **Projects** (MED-PR-1, revoke-then-regrant) are FIXED. **`procurements_update` (`0002_rls.sql`) still has it** —
+  an insider can directly set a procurement's `status` (e.g. →Paid), bypassing `transition_procurement`'s SoD/matrix.
+  Fix with the same revoke-then-regrant (lock `status`/`pr_number`/`po_number`/`approved_by_id` to the definer RPC)
+  in a small hardening migration; add a pgTAP. Insider+direct-SQL only (UI uses the RPC), hence MEDIUM, but it
+  undercuts procurement SoD — do before production-hardening.
+- **Win-rate date filter (issue #5, OWNER-FLAG-1):** MVP ships period presets (All-time/YTD/Last quarter/Trailing
+  12mo); the RPC takes arbitrary `p_from`/`p_to` so a custom date-range picker is a UI-only later add. Confirm at #5 sign-off if a custom picker is wanted in MVP.
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project` (plugin); `scripts/vendor-skills.sh` (vendored skills); `cd pmo-portal && npm install`; `npx playwright install chromium`.
