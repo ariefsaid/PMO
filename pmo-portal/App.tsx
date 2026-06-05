@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import Sidebar from './components/Sidebar';
@@ -24,6 +24,13 @@ const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
+const ProjectBudgetLazy = React.lazy(() => import('./pages/ProjectBudget'));
+
+/** Thin route wrapper — reads :projectId from the URL and passes it as a prop. */
+const ProjectBudgetRoute: React.FC = () => {
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  return <ProjectBudgetLazy projectId={projectId} />;
+};
 
 // ── Shell (eager — renders after auth is confirmed) ────────────────────────
 // Suspense is INSIDE the authed shell so the loading fallback appears within
@@ -43,6 +50,7 @@ const Shell: React.FC = () => {
                 <Route path="/" element={<ExecutiveDashboard />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/:projectId" element={<ProjectDetails />} />
+                <Route path="/projects/:projectId/budget" element={<ProjectBudgetRoute />} />
                 <Route path="/sales" element={<SalesPipeline />} />
                 <Route path="/procurement" element={<ProcurementPage />} />
                 <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />

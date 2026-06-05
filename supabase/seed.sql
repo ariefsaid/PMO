@@ -88,14 +88,40 @@ insert into projects (id, code, name, status, client_id, project_manager_id, con
   ('40000000-0000-0000-0000-000000000003','P010','Regional Services Program','PQ Submitted','c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',800000,0,0,null,null),
   ('40000000-0000-0000-0000-000000000004','P003','Acme Internal Platform','Ongoing Project','c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',3000000,2000000,1900000,'2026-02-01','2026-11-30');
 
--- budget versions: exactly one Active per project (satisfies partial unique index)
+-- budget versions: exactly one Active per project (satisfies partial unique index).
+-- v2 is seeded as Draft so its line-items can be inserted past the 0005 not-Draft trigger
+-- (budget_line_items_draft_guard), then promoted to Active below — final state is unchanged.
 insert into budget_versions (id, project_id, version, name, status) values
   ('50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',1,'Initial Budget','Archived'),
-  ('50000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',2,'Revised Budget','Active');
+  ('50000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',2,'Revised Budget','Draft');
 insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
   ('50000000-0000-0000-0000-000000000002','Labor','Project team',2000000,1200000),
   ('50000000-0000-0000-0000-000000000002','Materials','Fit-out materials',1700000,900000),
   ('50000000-0000-0000-0000-000000000002','Contingency','Reserve',1000000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000002';
+
+-- budget versions: P002 (ERP Rollout — Labor + Materials), P003 (Internal Platform — 2,000,000 target),
+-- P010 (Regional Services — Labor + Subcontractors). Follow Draft→insert-items→promote-to-Active so the
+-- budget_line_items_draft_guard trigger (0005) does not reject the inserts.
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000002',1,'Initial Budget','Draft'),
+  ('50000000-0000-0000-0000-000000000004','40000000-0000-0000-0000-000000000004',1,'Initial Budget','Draft'),
+  ('50000000-0000-0000-0000-000000000005','40000000-0000-0000-0000-000000000003',1,'Initial Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  -- P002: ERP Rollout — Labor + Materials
+  ('50000000-0000-0000-0000-000000000003','Labor','ERP implementation team',800000,0),
+  ('50000000-0000-0000-0000-000000000003','Materials','Software licenses & infrastructure',400000,0),
+  -- P003: Acme Internal Platform — sums to 2,000,000
+  ('50000000-0000-0000-0000-000000000004','Labor','Platform development team',1400000,1200000),
+  ('50000000-0000-0000-0000-000000000004','Materials','Infrastructure & tooling',400000,500000),
+  ('50000000-0000-0000-0000-000000000004','Contingency','Reserve',200000,200000),
+  -- P010: Regional Services Program — Labor + Subcontractors
+  ('50000000-0000-0000-0000-000000000005','Labor','Program management',350000,0),
+  ('50000000-0000-0000-0000-000000000005','Subcontractors','Field delivery partners',450000,0);
+update budget_versions set status = 'Active' where id in (
+  '50000000-0000-0000-0000-000000000003',
+  '50000000-0000-0000-0000-000000000004',
+  '50000000-0000-0000-0000-000000000005');
 
 -- procurement rows (header only; no quotation/item children on new rows to avoid partial-unique index work)
 insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at) values

@@ -4,10 +4,11 @@ import { useParams, Navigate, Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
-import { projects, users, companies, budgetLineItems, budgetVersions, procurements, timesheetEntries, timesheets, tasks as allTasks, projectDocuments } from '../data/mockData';
-import { BudgetCategory, BudgetVersion, Task, TaskStatus, Procurement, ProcurementStatus, ProjectDocument } from '../types';
+import { projects, users, companies, procurements, timesheetEntries, timesheets, tasks as allTasks, projectDocuments } from '../data/mockData';
+import { Task, TaskStatus, Procurement, ProcurementStatus, ProjectDocument } from '../types';
 import { BuildingOfficeIcon, CalendarDaysIcon, CurrencyDollarIcon, UserIcon, CheckCircleIcon, PlusIcon, PencilSquareIcon, TrashIcon, ClipboardDocumentCheckIcon, DocumentIcon, CloudArrowUpIcon, EyeIcon } from '../components/icons';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
+import ProjectBudget from './ProjectBudget';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
@@ -221,129 +222,6 @@ const ProcurementDrawer: React.FC<{ procurement: Procurement | null; onClose: ()
 };
 
 // --- END: Drawer Components ---
-
-
-const BudgetTabContent: React.FC<{ versions: BudgetVersion[], selectedVersionId: string, onVersionChange: (id: string) => void }> = ({ versions, selectedVersionId, onVersionChange }) => {
-    
-    const selectedVersion = versions.find(v => v.id === selectedVersionId);
-    
-    // Filter line items based on selected version
-    const items = budgetLineItems.filter(item => item.budgetVersionId === selectedVersionId);
-    
-    // Calculate totals for the selected version
-    const totalBudget = items.reduce((sum, item) => sum + item.budgetedAmount, 0);
-    const totalSpent = items.reduce((sum, item) => sum + item.actualAmount, 0);
-
-    const budgetByCategory = Object.values(BudgetCategory).map(category => {
-        const total = items
-            .filter(item => item.category === category)
-            .reduce((sum, item) => sum + item.budgetedAmount, 0);
-        return { name: category, value: total };
-    }).filter(d => d.value > 0);
-
-    const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f97316', '#ef4444', '#6366f1', '#f59e0b'];
-
-    const getVarianceClass = (variance: number) => {
-        if (variance > 0) return 'text-green-500';
-        if (variance < 0) return 'text-red-500';
-        return 'text-gray-500 dark:text-gray-300';
-    }
-    
-    const budgetProgress = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-                <Card>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Budget Line Items</h3>
-                        <div className="mt-2 sm:mt-0 sm:w-72">
-                            <select 
-                                id="budget-version-select"
-                                value={selectedVersionId} 
-                                onChange={e => onVersionChange(e.target.value)}
-                                className="w-full px-4 py-2 text-gray-700 bg-white dark:bg-gray-900 dark:text-gray-300 border rounded-md focus:border-primary-500 focus:ring-primary-500 focus:outline-none focus:ring focus:ring-opacity-40"
-                                aria-label="Select budget version"
-                            >
-                                {versions.map(v => (
-                                    <option key={v.id} value={v.id}>
-                                        {`V${v.version}: ${v.name} ${v.status === 'Active' ? '(Active)' : `(${v.status})`}`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                     {selectedVersion?.status !== 'Active' && (
-                        <div className="mb-4 p-3 text-sm text-yellow-800 bg-yellow-100 rounded-lg dark:bg-yellow-900 dark:text-yellow-300" role="alert">
-                            You are viewing an {selectedVersion?.status.toLowerCase()} version of the budget.
-                        </div>
-                    )}
-                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Budgeted</th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actual</th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Variance</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                {items.map((item) => {
-                                    const variance = item.budgetedAmount - item.actualAmount;
-                                    return (
-                                        <tr key={item.id}>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.category}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.description}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-300">{formatCurrency(item.budgetedAmount)}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-300">{formatCurrency(item.actualAmount)}</td>
-                                            <td className={`px-4 py-4 whitespace-nowrap text-sm text-right font-medium ${getVarianceClass(variance)}`}>{formatCurrency(variance)}</td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            </div>
-            <div className="space-y-6">
-                 <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Budget Utilization</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{formatCurrency(totalSpent)} spent out of {formatCurrency(totalBudget)}</p>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                        <div className="bg-primary-600 h-4 rounded-full text-center text-white text-xs" style={{ width: `${budgetProgress}%` }}>
-                            {Math.round(budgetProgress)}%
-                        </div>
-                    </div>
-                </Card>
-                <Card>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Allocation by Category</h3>
-                     <ResponsiveContainer width="100%" height={250}>
-                        <PieChart>
-                            <Pie
-                                data={budgetByCategory}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                                nameKey="name"
-                            >
-                                {budgetByCategory.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ backgroundColor: 'rgba(31, 41, 55, 0.8)', border: 'none' }} />
-                            <Legend iconSize={10} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </Card>
-            </div>
-        </div>
-    );
-}
 
 const ProcurementTabContent: React.FC<{ projectId: string }> = ({ projectId }) => {
     // Replaced navigation with Drawer state
@@ -1205,9 +1083,6 @@ const ProjectDetails: React.FC = () => {
     const [activeTab, setActiveTab] = useState('Overview');
 
     const project = projects.find(p => p.id === projectId);
-    const projectVersions = budgetVersions.filter(v => v.projectId === projectId);
-    const activeVersion = projectVersions.find(v => v.status === 'Active');
-    const [selectedVersionId, setSelectedVersionId] = useState(activeVersion?.id || projectVersions[0]?.id);
 
     if (!project) {
         return <Navigate to="/projects" replace />;
@@ -1297,20 +1172,7 @@ const ProjectDetails: React.FC = () => {
                     </div>
                 );
              case 'Budget':
-                return projectVersions.length > 0 ? (
-                    <BudgetTabContent 
-                        versions={projectVersions} 
-                        selectedVersionId={selectedVersionId}
-                        onVersionChange={setSelectedVersionId}
-                    />
-                ) : (
-                     <Card className="h-64 flex items-center justify-center">
-                        <div className="text-center">
-                            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">No Budget Data</h3>
-                            <p className="text-gray-500 dark:text-gray-400">Detailed budget information is not available for this project.</p>
-                        </div>
-                    </Card>
-                );
+                return <ProjectBudget projectId={project.id} />;
             case 'Schedule':
                 return <ScheduleTabContent projectId={project.id} />;
              case 'Procurement':

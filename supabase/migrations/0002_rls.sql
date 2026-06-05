@@ -63,9 +63,15 @@ create policy projects_write on projects for all
 
 alter table budget_versions enable row level security;
 create policy budget_versions_select on budget_versions for select using (org_id = auth_org_id());
+-- Parent-org guard (audit HIGH-BV-1): the parent project must also be in the caller's org, so a version
+-- stamped with the caller's own org cannot be grafted onto another org's project. Without this, an org-A
+-- user could insert an org-A version pointing at an org-B project_id and then activate_budget_version
+-- (definer, archives by project_id) would silently zero out org-B's real Active budget.
 create policy budget_versions_write on budget_versions for all
-  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'))
-  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
+  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+    and exists (select 1 from public.projects p where p.id = budget_versions.project_id and p.org_id = auth_org_id()))
+  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+    and exists (select 1 from public.projects p where p.id = budget_versions.project_id and p.org_id = auth_org_id()));
 
 alter table budget_line_items enable row level security;
 create policy budget_line_items_select on budget_line_items for select using (org_id = auth_org_id());
