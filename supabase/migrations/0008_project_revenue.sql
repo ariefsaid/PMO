@@ -150,3 +150,23 @@ end; $$;
 revoke all     on function transition_project(uuid, project_status, text, date) from public;
 grant  execute on function transition_project(uuid, project_status, text, date) to   authenticated;
 revoke execute on function transition_project(uuid, project_status, text, date) from anon;
+
+-- ============================================================================
+-- A6 — Column-level UPDATE lockdown (MED-PR-1): the win-capture / legal-map / decided_at
+-- columns are RPC-ONLY. transition_project (security-definer, runs as table owner) is the
+-- SOLE authority for these four columns. Without this, a 4-role insider could direct-
+-- `update projects set status='Won, Pending KoM', decided_at=...` and bypass the required
+-- customer-PO capture, the legal transition map, and forge the decision date. projects_write
+-- gates org+role on row-level UPDATE but not per-column.
+--
+-- NOTE on Postgres semantics: Supabase's bootstrap grants a TABLE-level UPDATE to
+-- `authenticated`, which covers ALL columns and is NOT reduced by a column-level REVOKE.
+-- So we must (1) revoke the table-wide UPDATE, then (2) re-grant UPDATE only on the columns
+-- that stay client-writable. The four omitted columns (status, decided_at,
+-- customer_contract_ref, contract_date) thus become writable ONLY by the security-definer RPC.
+-- (auditor option b; FR-PR-001/005/006/007, ADR-0011/0012)
+-- ============================================================================
+revoke update on projects from authenticated;
+grant  update (id, org_id, code, name, client_id, project_manager_id, contract_value,
+               budget, spent, start_date, end_date, created_at, last_update)
+  on projects to authenticated;

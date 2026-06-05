@@ -237,7 +237,7 @@ insert into projects (id, code, name, status, client_id, project_manager_id,
    650000,0,0,'2026-02-20T00:00:00Z');
 
 -- Budget for P004 (AC-733 invariant: every project needs exactly one Active budget_version).
--- Loss Tender projects have a zero-budget stub (no spending; the tender was lost before execution).
+-- Loss Tender project: a minimal tender-prep budget stub (AC-733 invariant requires >=1 line item).
 insert into budget_versions (id, project_id, version, name, status) values
   ('50000000-0000-0000-0000-000000000006','40000000-0000-0000-0000-000000000005',1,'Tender Budget','Draft');
 insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values

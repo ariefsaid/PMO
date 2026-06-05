@@ -90,9 +90,8 @@ export function projectStatusGroup(status: ProjectStatus): ProjectStatusGroup {
 // ---------------------------------------------------------------------------
 // DAL writes — thin RPC wrapper (AC-1002, FR-PR-002/011)
 // org_id is NEVER sent; the security-definer RPC re-asserts org from auth context.
-// Uses @ts-expect-error + as unknown as cast (mirrors timesheetTransition.ts / procurementLifecycle.ts)
-// because transition_project is in the generated Functions type but the rpc() overload resolution
-// may not fully infer the return shape — the cast is intentional and contained.
+// transition_project is in the regenerated database.types.ts, so the rpc() call is
+// fully typed (p_to is the project_status literal union) — no cast (mirrors timesheetTransition.ts).
 // ---------------------------------------------------------------------------
 
 /**
@@ -106,12 +105,12 @@ export async function transitionProject(
   to: ProjectStatus,
   opts?: TransitionProjectOpts,
 ): Promise<void> {
-  const { error } = (await supabase.rpc('transition_project', {
+  const { error } = await supabase.rpc('transition_project', {
     p_id: id,
     p_to: to,
     p_customer_contract_ref: opts?.customerContractRef ?? null,
     p_contract_date: opts?.contractDate ?? null,
-  })) as unknown as { data: null; error: { message: string } | null };
+  });
   if (error) throw new Error(error.message);
 }
 

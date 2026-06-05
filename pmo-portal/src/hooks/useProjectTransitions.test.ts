@@ -15,11 +15,12 @@ vi.mock('@/src/lib/db/projectTransitions', () => ({
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: vi.fn(() => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' })),
 }));
 
 import { usePipelineStageConfig, useProjectTransition } from './useProjectTransitions';
 import { listPipelineStageConfig, transitionProject } from '@/src/lib/db/projectTransitions';
+import { useAuth } from '@/src/auth/useAuth';
 
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient
@@ -36,7 +37,11 @@ function makeWrapper() {
 // ---------------------------------------------------------------------------
 
 describe('usePipelineStageConfig', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset useAuth to the default signed-in user (clearAllMocks wipes the vi.fn() impl).
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' } as unknown as ReturnType<typeof useAuth>);
+  });
 
   it("AC-1003 (hook): usePipelineStageConfig keys cache by ['pipeline-stage-config', orgId] and calls listPipelineStageConfig", async () => {
     const { Wrapper } = makeWrapper();
@@ -52,14 +57,12 @@ describe('usePipelineStageConfig', () => {
   });
 
   it('is disabled when orgId is absent', () => {
-    // Force no current user
-    vi.doMock('@/src/auth/useAuth', () => ({
-      useAuth: () => ({ currentUser: null }),
-    }));
+    // No signed-in user → no org_id → query is enabled:false (fetchStatus stays 'idle', queryFn never runs).
+    vi.mocked(useAuth).mockReturnValue({ currentUser: null } as unknown as ReturnType<typeof useAuth>);
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => usePipelineStageConfig(), { wrapper: Wrapper });
-    // With the mocked org, it's enabled — just verify shape returned
-    expect(result.current.fetchStatus === 'idle' || result.current.isPending || result.current.isSuccess).toBe(true);
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(listPipelineStageConfig).not.toHaveBeenCalled();
   });
 });
 
@@ -68,7 +71,10 @@ describe('usePipelineStageConfig', () => {
 // ---------------------------------------------------------------------------
 
 describe('useProjectTransition', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' } as unknown as ReturnType<typeof useAuth>);
+  });
 
   it("AC-1011 (hook): useProjectTransition.mutate calls transitionProject(id,to,opts) and invalidates ['projects', orgId] on success", async () => {
     const { qc, Wrapper } = makeWrapper();
