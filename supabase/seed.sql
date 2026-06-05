@@ -139,6 +139,50 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
 insert into procurement_documents (procurement_id, type, reference_number, status, date) values
   ('60000000-0000-0000-0000-000000000001','RFQ','RFQ-2026-004','Issued','2026-02-05');
 
+-- F1 — Lifecycle seed backfill (plan Phase F1, AC-804/815/816 data).
+-- Backfill three procurements with doc-trail data at varied lifecycle stages.
+-- org_id is intentionally omitted on all inserts — column default keeps the
+-- client-unspoofable seam consistent (ADR-0011/ADR-0012).
+-- NOTE: the {PREFIX}-YYMMDD#### doc numbers below are STATIC dev fixtures, hand-written to look
+-- realistic. They are decoupled from the live `procurement_doc_counters` minter — seeding them does
+-- NOT advance any counter, so the first runtime mint still starts at 0001 for the seed's org/day.
+
+-- Row 002 (Ordered, mid-flow): PR# + PO# on procurements; selected quotation with VQ#;
+-- a Partial goods receipt (GR#). Lands in the Committed set (future spent derivation).
+-- requested_by=a2 (pm), approved_by=a3 (finance) — distinct for SoD representability.
+update procurements set
+  pr_number      = 'PR-2601100001',
+  po_number      = 'PO-2601100001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a3'
+where id = '60000000-0000-0000-0000-000000000002';
+
+insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
+  ('60000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000004','APX-NET-55',85000,'2026-01-08',true,'VQ-2601100001');
+
+insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
+  ('60000000-0000-0000-0000-000000000002','GR-2601100001','2026-01-10','Partial');
+
+-- Row 003 (Requested, early): PR# only — exercises the empty-trail / non-Committed rendering.
+-- requested_by=a4 (engineer); no approver yet.
+update procurements set
+  pr_number = 'PR-2601200001'
+where id = '60000000-0000-0000-0000-000000000003';
+
+-- Row 005 (Paid, completed): full PR/VQ/PO trail + a Paid invoice (VI#).
+-- requested_by=a2 (pm), approved_by=a3 (finance) — distinct, satisfies SoD representation.
+-- YYMMDD = 251201 matches created_at 2025-12-01.
+update procurements set
+  pr_number      = 'PR-2512010001',
+  po_number      = 'PO-2512010001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a3'
+where id = '60000000-0000-0000-0000-000000000005';
+
+insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
+  ('60000000-0000-0000-0000-000000000005','c0000000-0000-0000-0000-000000000005','SYN-FURN-01',320000,'2025-11-25',true,'VQ-2512010001');
+
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
+  ('60000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-15','Paid');
+
 -- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
 insert into timesheets (id, user_id, week_start_date, status) values
   ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','2026-06-01','Draft'),  -- Engineer; 2026-06-01 is a Monday

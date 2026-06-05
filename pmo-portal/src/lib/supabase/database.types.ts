@@ -228,6 +228,35 @@ export type Database = {
         }
         Relationships: []
       }
+      procurement_doc_counters: {
+        Row: {
+          doc_date: string
+          last_seq: number
+          org_id: string
+          prefix: string
+        }
+        Insert: {
+          doc_date: string
+          last_seq: number
+          org_id?: string
+          prefix: string
+        }
+        Update: {
+          doc_date?: string
+          last_seq?: number
+          org_id?: string
+          prefix?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_doc_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_documents: {
         Row: {
           date: string | null
@@ -269,6 +298,51 @@ export type Database = {
           },
           {
             foreignKeyName: "procurement_documents_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_invoices: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_date: string | null
+          org_id: string
+          procurement_id: string
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          vi_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_date?: string | null
+          org_id?: string
+          procurement_id: string
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          vi_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_date?: string | null
+          org_id?: string
+          procurement_id?: string
+          status?: Database["public"]["Enums"]["procurement_invoice_status"]
+          vi_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_invoices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoices_procurement_id_fkey"
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
@@ -335,6 +409,7 @@ export type Database = {
           reference: string | null
           total_amount: number
           vendor_id: string
+          vq_number: string | null
         }
         Insert: {
           file_url?: string | null
@@ -346,6 +421,7 @@ export type Database = {
           reference?: string | null
           total_amount?: number
           vendor_id: string
+          vq_number?: string | null
         }
         Update: {
           file_url?: string | null
@@ -357,6 +433,7 @@ export type Database = {
           reference?: string | null
           total_amount?: number
           vendor_id?: string
+          vq_number?: string | null
         }
         Relationships: [
           {
@@ -382,13 +459,63 @@ export type Database = {
           },
         ]
       }
+      procurement_receipts: {
+        Row: {
+          created_at: string
+          gr_number: string | null
+          id: string
+          org_id: string
+          procurement_id: string
+          receipt_date: string | null
+          status: Database["public"]["Enums"]["procurement_receipt_status"]
+        }
+        Insert: {
+          created_at?: string
+          gr_number?: string | null
+          id?: string
+          org_id?: string
+          procurement_id: string
+          receipt_date?: string | null
+          status: Database["public"]["Enums"]["procurement_receipt_status"]
+        }
+        Update: {
+          created_at?: string
+          gr_number?: string | null
+          id?: string
+          org_id?: string
+          procurement_id?: string
+          receipt_date?: string | null
+          status?: Database["public"]["Enums"]["procurement_receipt_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_receipts_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurements: {
         Row: {
+          approval_notes: string | null
+          approved_by_id: string | null
           code: string | null
           created_at: string
           id: string
           org_id: string
+          po_number: string | null
+          pr_number: string | null
           project_id: string | null
+          rejection_notes: string | null
           requested_by_id: string | null
           status: Database["public"]["Enums"]["procurement_status"]
           title: string
@@ -397,11 +524,16 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          approval_notes?: string | null
+          approved_by_id?: string | null
           code?: string | null
           created_at?: string
           id?: string
           org_id?: string
+          po_number?: string | null
+          pr_number?: string | null
           project_id?: string | null
+          rejection_notes?: string | null
           requested_by_id?: string | null
           status?: Database["public"]["Enums"]["procurement_status"]
           title: string
@@ -410,11 +542,16 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          approval_notes?: string | null
+          approved_by_id?: string | null
           code?: string | null
           created_at?: string
           id?: string
           org_id?: string
+          po_number?: string | null
+          pr_number?: string | null
           project_id?: string | null
+          rejection_notes?: string | null
           requested_by_id?: string | null
           status?: Database["public"]["Enums"]["procurement_status"]
           title?: string
@@ -423,6 +560,13 @@ export type Database = {
           vendor_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurements_approved_by_id_fkey"
+            columns: ["approved_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurements_org_id_fkey"
             columns: ["org_id"]
@@ -876,8 +1020,90 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
+      create_procurement_invoice: {
+        Args: {
+          p_invoice_date: string
+          p_procurement_id: string
+          p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+        }
+        Returns: {
+          created_at: string
+          id: string
+          invoice_date: string | null
+          org_id: string
+          procurement_id: string
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          vi_number: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_procurement_quotation: {
+        Args: {
+          p_procurement_id: string
+          p_received_date: string
+          p_total_amount: number
+          p_vendor_id: string
+        }
+        Returns: {
+          file_url: string | null
+          id: string
+          is_selected: boolean
+          org_id: string
+          procurement_id: string
+          received_date: string | null
+          reference: string | null
+          total_amount: number
+          vendor_id: string
+          vq_number: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_quotations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_procurement_receipt: {
+        Args: {
+          p_procurement_id: string
+          p_receipt_date: string
+          p_status: Database["public"]["Enums"]["procurement_receipt_status"]
+        }
+        Returns: {
+          created_at: string
+          gr_number: string | null
+          id: string
+          org_id: string
+          procurement_id: string
+          receipt_date: string | null
+          status: Database["public"]["Enums"]["procurement_receipt_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      next_procurement_doc_number: {
+        Args: { p_org: string; p_prefix: string }
+        Returns: string
+      }
+      transition_procurement: {
+        Args: {
+          p_id: string
+          p_notes?: string
+          p_to: Database["public"]["Enums"]["procurement_status"]
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       budget_category:
@@ -893,6 +1119,8 @@ export type Database = {
       doc_status: "Draft" | "Issued" | "Approved" | "Rejected" | "Closed"
       incident_severity: "Low" | "Medium" | "High" | "Critical"
       incident_status: "Open" | "Investigating" | "Closed"
+      procurement_invoice_status: "Received" | "Scheduled" | "Paid"
+      procurement_receipt_status: "Partial" | "Complete"
       procurement_status:
         | "Draft"
         | "Requested"
@@ -1069,6 +1297,8 @@ export const Constants = {
       doc_status: ["Draft", "Issued", "Approved", "Rejected", "Closed"],
       incident_severity: ["Low", "Medium", "High", "Critical"],
       incident_status: ["Open", "Investigating", "Closed"],
+      procurement_invoice_status: ["Received", "Scheduled", "Paid"],
+      procurement_receipt_status: ["Partial", "Complete"],
       procurement_status: [
         "Draft",
         "Requested",
@@ -1107,4 +1337,3 @@ export const Constants = {
     },
   },
 } as const
-
