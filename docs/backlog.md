@@ -44,16 +44,34 @@ owner gates = prod deploy + genuinely-new decisions only.
    (win-capture requires customer-contract-PO+date, stamps `decided_at`), `pipeline_stage_config` (seeded win-probs),
    revenue columns. 247 unit / 140 pgTAP / 1 e2e (AC-1011). Security: no HIGH; MED-PR-1 (direct-UPDATE bypass of
    the RPC) fixed via revoke-then-regrant (status/decided_at/customer cols are RPC-definer-only).
-5. **Sales-pipeline + Dashboard margin re-formula** — 📋 **SPECCED + PLANNED, READY TO BUILD** (the capstone).
-   Spec `docs/specs/sales-pipeline-dashboard.spec.md` + plan `docs/plans/2026-06-04-sales-pipeline-dashboard.md`
-   (FR-SPD-001..015, AC-1100..1117, 24 tasks). **Build as 5a (margin/win-rate RPC re-formula + Exec Dashboard UI)
-   then 5b (SalesPipeline screen rebuild)** — each independently shippable; 5a first. Write **ADR-0014** (dashboard
-   RPC contract change + win-rate as a separate RPC) as Phase 0. Replaces the mislabeled `avg_gross_margin` with
+5. **Sales-pipeline + Dashboard margin re-formula** — ✅ **MERGED (PR #17, `23f3b6d`).** ADR-0014. Replaced the
+   mislabeled `avg_gross_margin` with the OD-MARGIN dual-lens model: 3 security-invoker read RPCs
+   (`get_executive_dashboard` re-formula + `get_win_rate(from,to)` + `get_sales_pipeline`); Exec Dashboard dual-lens
+   tiles + win-rate widget (count/value toggle + period selector); SalesPipeline rebuilt on real data. 261 unit /
+   172 pgTAP / 1 e2e (AC-1117). pgTAP asserts the worked-example **oracle** exactly (on-hand margin 0.949375,
+   pipeline weighted 800k, projected 0.200, win-rate 2/3 + 0.9249). Security: **no HIGH/Med** (all invoker, cross-tenant
+   verified with live org-B fixture, anon revoked). FIRST issue with zero HIGH — no definer-bypass surface.
+
+## ✅ WRITE-CAPABLE MVP COMPLETE (2026-06-04)
+All 5 write-wave issues merged (PRs #13–#17), `main` @ `23f3b6d`. The portal now does real procure-to-pay,
+budget versioning, timesheet submit/approve, project win/loss with revenue capture, and a dual-lens
+margin/win-rate/pipeline dashboard — all RLS-tenant-safe, every business rule traced to `docs/decisions.md`.
+Cumulative on main: ~261 unit · 172 pgTAP (44 files) · curated e2e journeys · typecheck/lint/build green.
+Each issue ran the full SDD→TDD→BDD loop; the security gate caught + fixed a real HIGH on 3 of 4 definer-RPC
+issues (all missed by unit+pgTAP+spec-review). **Next: production hardening (see follow-ups, esp. the
+procurements_update transition-RPC bypass) → hosting/deploy (owner-gated, ADR-0006) → admin config engine (B2B).**
+
+<details><summary>(superseded) original #5 design notes</summary>
+
+   Spec `docs/specs/sales-pipeline-dashboard.spec.md` + plan `docs/plans/2026-06-04-sales-pipeline-dashboard.md`.
+   Built as 5a (margin/win-rate RPC + dashboard) then A3 (`get_sales_pipeline`) + 5b (screen) — collapsed into one PR.
+   Replaces the mislabeled `avg_gross_margin` with
    OD-MARGIN dual-lens; consumes budget (`get_project_budget`) + committed procurement spend + `pipeline_stage_config`
    + `decided_at`. **Worked-example KPI oracle** is in the spec (on-hand margin 94.9%, pipeline weighted value 800k,
    win-rate count 2/3 + value 92.5%) — pgTAP asserts those exact numbers. Seed task SPD-S1 reduces P002/P010 budgets
    so pipeline projected margin is non-trivial (0.200). **Checkpointed for a fresh-context session** (capstone too
    large to build well on this session's remaining budget). Resume: execute the plan from Phase 0.
+</details>
 
 ## Non-blocked backlog (can proceed without owner; recommended order)
 1. **ProcurementDetails read swap** — drill-down (procurement + items + quotations + documents) to real data. Moderate (4 child tables). Mirror of the list template.
