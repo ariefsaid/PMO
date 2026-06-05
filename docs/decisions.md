@@ -110,6 +110,14 @@ cost/billing) is **not** in MVP. It's the natural upgrade if/when timesheets mus
 project actuals — pairs with the budget-actuals work (see OD-BUDGET). Same config/multi-tenant bridge as
 OD-PROC-6.
 
+### OD-TS-4 — Build-time resolutions (Director-ratified 2026-06-04, mode A)
+Defaults resolved while speccing/planning issue #3 (within locked OD-TS, not new business rules):
+- **A** — on Rejected→Draft rework, do NOT clear `submitted_at`/`approved_by`/`approved_at` stamps (audit trail of the last cycle); they're overwritten on the next submit/approve.
+- **B** — entry-edit lock reuses the existing `timesheets_update_own` Draft gate (no new mechanism).
+- **C** — an approver's queue = `Submitted` timesheets where `user_id <> self`, RLS-scoped.
+- **D** — a non-null `manager_id` is exclusive (that manager approves); Admin/Exec fallback applies ONLY when `manager_id` is null; Admin is break-glass throughout EXCEPT cannot self-approve (SoD wins over break-glass — the `actor = owner` check runs before the role/manager check).
+- **RLS read-widening (FR-TS-008):** `timesheets_select` gains `or exists(select 1 from profiles p where p.id = timesheets.user_id and p.manager_id = auth.uid())` so an Engineer-role line-manager can see their reports' submitted sheets. The issue's only RLS change. Approval authz follows the ADR-0012 security-definer transition pattern (no new ADR).
+
 ---
 
 ## OD-BUDGET — Budget authority & spend derivation (LOCKED 2026-06-04)
