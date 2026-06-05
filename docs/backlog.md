@@ -58,8 +58,37 @@ budget versioning, timesheet submit/approve, project win/loss with revenue captu
 margin/win-rate/pipeline dashboard — all RLS-tenant-safe, every business rule traced to `docs/decisions.md`.
 Cumulative on main: ~261 unit · 172 pgTAP (44 files) · curated e2e journeys · typecheck/lint/build green.
 Each issue ran the full SDD→TDD→BDD loop; the security gate caught + fixed a real HIGH on 3 of 4 definer-RPC
-issues (all missed by unit+pgTAP+spec-review). **Next: production hardening (see follow-ups, esp. the
-procurements_update transition-RPC bypass) → hosting/deploy (owner-gated, ADR-0006) → admin config engine (B2B).**
+issues (all missed by unit+pgTAP+spec-review). Production hardening since: **CI now gates pgTAP+e2e** (PR #19,
+also fixed a silently-red verify job) and the **procurements_update SoD bypass is closed** (PR #18) — the
+transition-RPC-bypass class is now shut on all 4 state machines. `main` @ `e95cf50`, PRs #13–#19 merged.
+
+## ▶ RESUME HERE (next session, after reload) — UI/UX design pass
+The **UI/UX agentic harness is built + committed** (this session): 3 agents `design-architect` / `ui-implementer`
+/ `design-reviewer` (`.claude/agents/`), the cycle in `docs/design-workflow.md`, and vendored skills
+**impeccable / taste / ui-ux-pro-max** (gitignored; `scripts/vendor-skills.sh`; each agent maps to specific
+skill-commands — see design-workflow.md). **NOT yet run.** Immediate next step:
+1. **Reverse-engineer `DESIGN.md`** — dispatch `design-architect` (it runs `impeccable document`→`extract`→`distill`)
+   to extract the existing app's de-facto design system from `pmo-portal/` → `DESIGN.md` at repo root.
+   *(Blocked this session only because newly-authored agents aren't dispatchable until a session reload — hence
+   the compact+reload. After reload, `design-architect` is available.)*
+2. **Owner signs off `DESIGN.md`** (taste = owner's gate).
+3. Then run **ProjectDetails decomposition** + **per-role sub-dashboards** (the 2 mockData survivors) and any new
+   UI through the per-UI-issue design cycle (design-plan → ui-implement → design-review → owner UX sign-off).
+
+Other open threads: **hosting/deploy** (owner-gated, ADR-0006); **deferred prototype modules** scope decision
+(below); the polish/debt follow-ups.
+
+## Deferred prototype modules — OWNER SCOPE DECISION pending
+The original prototype had these as `PlaceholderPage` stubs; the approved MVP cut kept them as placeholders.
+NOT built. Owner must decide whether/which to build (asked, not yet answered):
+- **Tasks** (+ `task_dependencies`) — schema READY, no DAL/UI (placeholder route).
+- **Incident/risk register** (`incident_reports`) — schema READY, no UI (was dead data in the prototype).
+- **Document control** (`project_documents`/`procurement_documents`) — schema READY, but **Storage disabled** (re-enable first).
+- **Companies** — read-DAL exists (joins); no management screen (placeholder).
+- **Work Orders** — placeholder, **NO schema table** (never modeled — define or drop).
+- **Reports** — placeholder, no schema (undefined — needs owner definition).
+- **Administration** — user/org/role admin + the admin config engine (= the OD-PROC-6 / B2B multi-tenant bridge; sizeable).
+Schema-ready ones (Tasks/Incidents/Documents) are cheapest — same RPC+RLS+DAL+UI pattern used 5×.
 
 <details><summary>(superseded) original #5 design notes</summary>
 
@@ -81,7 +110,7 @@ procurements_update transition-RPC bypass) → hosting/deploy (owner-gated, ADR-
 4. **ProjectDetails decomposition + read swap** — `pages/ProjectDetails.tsx` is still the ~1,388-line mockData prototype (imports `projects/users/companies/procurements/timesheets/tasks/projectDocuments` from `data/mockData`). Split into per-tab components, then wire budgets/tasks/documents tabs to real data (budget tab already mounts the real `<ProjectBudget>`). Large; decomposition first.
 5. **Per-role sub-dashboards on real data (OD-D3)** — `EngineerDashboard`/`PMDashboard`/`FinanceDashboard` in `ExecutiveDashboard.tsx` still read `data/mockData` (the only other mockData survivor). Wire to real per-role queries.
 6. **Shared `<ListState>` component** — extract loading/empty/error markup duplicated across list pages; memoize list filters consistently.
-7. **Design system** — build `DESIGN.md` (design.md format) via gstack `/design-consultation`; adopt Storybook for the shared component library. (Owner-adjacent — design taste.)
+7. **UI/UX design workflow** — ✅ harness BUILT (agents + `docs/design-workflow.md` + vendored skills); ▶ NOT yet run — see "RESUME HERE" above (reverse-engineer `DESIGN.md` via `design-architect`, owner sign-off, then run UI issues through the design cycle). `DESIGN.md` is reverse-engineered from the existing app (identity-preserved), NOT greenfield `/design-consultation`. Storybook adopted when the shared component library is extracted.
 
 ## Tracked follow-ups / debt (from PR reviews)
 - **Storage:** `supabase/config.toml` has `[storage]` + `[edge_runtime]` disabled (sandbox health-check issue). MUST re-enable for the documents feature; `procurement_quotations.file_url` / `procurement_documents.link` / `project_documents.file_path` have no bucket yet. Buckets must be private + RLS/`org_id`-pathed.
