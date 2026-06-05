@@ -67,6 +67,19 @@ roles for MVP (would violate "minimal for one client"). Cheap forward-compat sea
 This bridge is crossed alongside the `org_id` → true multi-tenant push (second client with a different
 process is the trigger), with its own ADR then.
 
+### OD-PROC-7 — Build-time resolutions (Director-ratified 2026-06-04, mode A)
+Defaults resolved while speccing/planning issue #2 (within locked OD-PROC, not new business rules):
+- **A** — add `approved_by_id` to `procurements` (stamped on →Approved) so SoD-b (approver ≠ payer) is
+  checkable without a status-history table.
+- **B** — Cancel cut: *early* = {Draft, Requested} (requester may cancel); *later* = any other non-terminal
+  (PM/Finance/Exec). Admin = break-glass throughout.
+- **C** — Reference-number minting = a single shared `next_procurement_doc_number(org, prefix)` security-
+  definer helper backed by `procurement_doc_counters(org_id, prefix, doc_date, last_seq)` using
+  `insert … on conflict do update set last_seq = last_seq+1 returning` (atomic, collision-free, daily reset
+  via `doc_date` in PK, **gap-tolerant** — a rolled-back txn advances the seq; gapless audit numbering is a
+  separate future design if Finance ever requires it). See ADR-0012.
+- **D** — creating a GR/VI does NOT force the matching status transition (permissive; OD-PROC-4).
+
 ---
 
 ## OD-TS — Timesheet approval (LOCKED 2026-06-04)
