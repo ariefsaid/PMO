@@ -30,7 +30,10 @@ const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) =
     Archived: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status]}`}>
+    <span
+      data-testid={`version-status-${status.toLowerCase()}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status]}`}
+    >
       {status}
     </span>
   );
@@ -179,7 +182,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+    <div data-testid="version-card" className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <span className="text-sm font-mono text-gray-400">v{version.version}</span>
@@ -355,7 +358,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Project Budget</h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-              Active budget: <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(derivedTotal)}</span>
+              Active budget: <span data-testid="derived-budget" className="font-semibold text-gray-900 dark:text-white">{formatCurrency(derivedTotal)}</span>
             </p>
           </div>
           {canWrite && (
@@ -399,7 +402,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Project Budget</h2>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            Active budget: <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(derivedTotal)}</span>
+            Active budget: <span data-testid="derived-budget" className="font-semibold text-gray-900 dark:text-white">{formatCurrency(derivedTotal)}</span>
           </p>
         </div>
         {canWrite && (
