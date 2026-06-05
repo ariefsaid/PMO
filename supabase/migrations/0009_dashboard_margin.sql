@@ -132,3 +132,86 @@ $$;
 revoke all on function get_win_rate(date, date) from public;
 grant execute on function get_win_rate(date, date) to authenticated;
 revoke execute on function get_win_rate(date, date) from anon;
+
+-- ============================================================================
+-- get_sales_pipeline() — per-stage pipeline summary + per-project list
+-- (FR-SPD-010, OD-SP-1/2; Phase A3 of issue #5).
+--
+-- SECURITY (NFR-SPD-SEC-001 / ADR-0009): security invoker, no org_id argument —
+-- the projects read runs under projects_select (org_id = auth_org_id()), so all
+-- aggregates and rows are org-scoped automatically.
+-- DO NOT switch to `security definer` without re-adding an explicit
+-- `org_id = auth_org_id()` filter on every table read here.
+--
+-- Returns a JSON object:
+--   stages: array of { status, count, total_value, win_probability, weighted_value }
+--           — one entry per OD-SP-1 pipeline status that has ≥1 project; empty stages
+--           are omitted from the SQL agg but the TS caller renders all 5 columns.
+--   projects: flat array of { id, name, client_name, status, contract_value,
+--             win_probability } — all pipeline projects, ordered by contract_value desc.
+-- Both arrays default to '[]' when the org has no pipeline projects (div-by-zero safe).
+-- ============================================================================
+create or replace function get_sales_pipeline()
+  returns json
+  language sql
+  stable
+  security invoker
+as $$
+  with pl as (
+    select
+      p.id,
+      p.name,
+      p.client_id,
+      p.status,
+      p.contract_value,
+      coalesce(c.win_probability, 0) as win_prob
+    from projects p
+    left join pipeline_stage_config c on c.status = p.status
+    where p.status in (
+      'Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation'
+    )
+  )
+  select json_build_object(
+    'stages', coalesce((
+      select json_agg(
+        json_build_object(
+          'status',        s.status,
+          'count',         s.cnt,
+          'total_value',   s.total_value,
+          'win_probability', s.win_prob,
+          'weighted_value',  s.total_value * s.win_prob
+        )
+        order by s.status
+      )
+      from (
+        select
+          status,
+          count(*)::int           as cnt,
+          sum(contract_value)     as total_value,
+          max(win_prob)           as win_prob
+        from pl
+        group by status
+      ) s
+    ), '[]'::json),
+    'projects', coalesce((
+      select json_agg(
+        json_build_object(
+          'id',             pl.id,
+          'name',           pl.name,
+          'client_name',    co.name,
+          'status',         pl.status,
+          'contract_value', pl.contract_value,
+          'win_probability', pl.win_prob
+        )
+        order by pl.contract_value desc
+      )
+      from pl
+      left join companies co on co.id = pl.client_id
+    ), '[]'::json)
+  );
+$$;
+
+revoke all on function get_sales_pipeline() from public;
+grant execute on function get_sales_pipeline() to authenticated;
+-- Explicitly revoke anon EXECUTE to close unauthenticated surface (ADR-0009 Security LOW-1).
+revoke execute on function get_sales_pipeline() from anon;

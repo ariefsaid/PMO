@@ -1137,6 +1137,7 @@ export type Database = {
       }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      get_sales_pipeline: { Args: never; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
@@ -1400,4 +1401,3 @@ export const Constants = {
     },
   },
 } as const
-

@@ -106,8 +106,7 @@ export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
  * On RPC error throws.
  */
 export async function getSalesPipeline(): Promise<SalesPipeline> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.rpc as any)('get_sales_pipeline');
+  const { data, error } = await supabase.rpc('get_sales_pipeline');
   if (error) throw new Error(error.message);
   return data as unknown as SalesPipeline;
 }
