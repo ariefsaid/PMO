@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '../types';
-import { AdminIcon, CompaniesIcon, DashboardIcon, ProcurementIcon, ProjectsIcon, ReportsIcon, TasksIcon, TimesheetsIcon, FunnelIcon } from './icons';
+import { AdminIcon, ClipboardDocumentCheckIcon, CompaniesIcon, DashboardIcon, ProcurementIcon, ProjectsIcon, ReportsIcon, TasksIcon, TimesheetsIcon, FunnelIcon } from './icons';
 
 // Map profiles.role string → UserRole enum explicitly.
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -39,6 +39,7 @@ const Sidebar: React.FC = () => {
             { to: '/sales', text: 'Sales Pipeline', icon: FunnelIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
             { to: '/procurement', text: 'Procurement', icon: ProcurementIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
             { to: '/timesheets', text: 'Timesheets', icon: TimesheetsIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+            { to: '/approvals', text: 'Approvals', icon: ClipboardDocumentCheckIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
             { to: '/tasks', text: 'Tasks', icon: TasksIcon, roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
             { to: '/companies', text: 'Companies', icon: CompaniesIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
             { to: '/reports', text: 'Reports', icon: ReportsIcon, roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },

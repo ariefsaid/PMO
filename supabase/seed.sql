@@ -183,6 +183,17 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
 insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
   ('60000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-15','Paid');
 
+-- E1 — Seed enrichment for timesheet approval module (AC-904/911 fixtures, plan Phase E1).
+-- Set manager_id so the Dave→Alice→Bob chain exists:
+--   Dave (a4, Engineer) reports to Alice (a2, PM); Alice reports to Bob (a1, Executive).
+--   Bob's manager_id stays null (top of chain — Exec/Admin fallback fixture).
+-- Uses post-insert UPDATE so no row references a not-yet-inserted manager (R2).
+-- Both timesheets remain Draft so the e2e (AC-911) performs Draft→Submitted itself.
+update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
+  where id = '00000000-0000-0000-0000-0000000000a4';  -- Dave → Alice
+update profiles set manager_id = '00000000-0000-0000-0000-0000000000a1'
+  where id = '00000000-0000-0000-0000-0000000000a2';  -- Alice → Bob
+
 -- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
 insert into timesheets (id, user_id, week_start_date, status) values
   ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','2026-06-01','Draft'),  -- Engineer; 2026-06-01 is a Monday

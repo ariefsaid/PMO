@@ -606,6 +606,7 @@ export type Database = {
           full_name: string
           id: string
           location: string | null
+          manager_id: string | null
           org_id: string
           role: Database["public"]["Enums"]["user_role"]
           skills: string[]
@@ -621,6 +622,7 @@ export type Database = {
           full_name: string
           id: string
           location?: string | null
+          manager_id?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
@@ -636,6 +638,7 @@ export type Database = {
           full_name?: string
           id?: string
           location?: string | null
+          manager_id?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
@@ -649,6 +652,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1101,6 +1111,14 @@ export type Database = {
           p_id: string
           p_notes?: string
           p_to: Database["public"]["Enums"]["procurement_status"]
+        }
+        Returns: undefined
+      }
+      transition_timesheet: {
+        Args: {
+          p_notes?: string
+          p_timesheet_id: string
+          p_to: Database["public"]["Enums"]["timesheet_status"]
         }
         Returns: undefined
       }
