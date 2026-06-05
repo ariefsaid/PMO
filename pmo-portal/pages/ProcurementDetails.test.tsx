@@ -371,3 +371,124 @@ describe('AC-806: mutation error renders in UI', () => {
     mockTransition.mockResolvedValue(undefined);
   });
 });
+
+// ---------------------------------------------------------------------------
+// D3 — GR creation panel (AC-816 UI support)
+// ---------------------------------------------------------------------------
+describe('GR creation panel (D3, AC-816 UI support)', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+    mockCreateReceipt.mockClear();
+    mockCreateReceipt.mockResolvedValue({ id: 'r-new' });
+  });
+
+  it('shows Create Goods Receipt button for Finance on Received status', () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+  });
+
+  it('shows Create Goods Receipt button for Finance on Ordered status', () => {
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+  });
+
+  it('does NOT show Create GR button for Engineer', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.queryByTestId('btn-create-gr')).not.toBeInTheDocument();
+  });
+
+  it('clicking Create GR shows the form', async () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
+    expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
+  });
+
+  it('submitting GR form calls createReceipt mutation', async () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    await waitFor(() =>
+      expect(mockCreateReceipt).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'Complete' })
+      )
+    );
+  });
+
+  it('cancelling GR form hides the form', async () => {
+    detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-gr'));
+    // The form Cancel is a type="button" without danger styling — find it within the form
+    const form = screen.getByTestId('form-create-gr');
+    const cancelBtns = screen.getAllByRole('button', { name: /^Cancel$/i });
+    // The form-level Cancel button is inside the form; click it
+    const formCancelBtn = cancelBtns.find((btn) => form.contains(btn));
+    await userEvent.click(formCancelBtn!);
+    expect(screen.queryByTestId('form-create-gr')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D3 — VI creation panel (AC-816 UI support)
+// ---------------------------------------------------------------------------
+describe('VI creation panel (D3, AC-816 UI support)', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+    mockCreateInvoice.mockClear();
+    mockCreateInvoice.mockResolvedValue({ id: 'i-new' });
+  });
+
+  it('shows Create Vendor Invoice button for Finance on Vendor Invoiced status', () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.getByTestId('btn-create-vi')).toBeInTheDocument();
+  });
+
+  it('does NOT show Create VI button for Engineer', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.queryByTestId('btn-create-vi')).not.toBeInTheDocument();
+  });
+
+  it('clicking Create VI shows the form', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
+    expect(screen.getByTestId('vi-status-select')).toBeInTheDocument();
+  });
+
+  it('submitting VI form calls createInvoice mutation', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await waitFor(() =>
+      expect(mockCreateInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'Received' })
+      )
+    );
+  });
+
+  it('cancelling VI form hides the form', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    // Two "Cancel" buttons now (GR and VI) — use getAllByRole and click the VI one (last)
+    const cancelBtns = screen.getAllByRole('button', { name: /^Cancel$/i });
+    await userEvent.click(cancelBtns[cancelBtns.length - 1]);
+    expect(screen.queryByTestId('form-create-vi')).not.toBeInTheDocument();
+  });
+});

@@ -144,6 +144,10 @@ const ProcurementDetails: React.FC = () => {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
 
+  // GR/VI creation state (D3 — AC-816 journey support)
+  const [showCreateGR, setShowCreateGR] = useState(false);
+  const [showCreateVI, setShowCreateVI] = useState(false);
+
   // ── Loading state (AC-804, NFR-PROC-UI-001) ──────────────────────────────
   if (detailQuery.isPending) {
     return (
@@ -273,6 +277,131 @@ const ProcurementDetails: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* GR creation panel (AC-816): shown when status is Ordered/Received and role allows writes) */}
+      {(p.status === 'Ordered' || p.status === 'Received' || p.status === 'Vendor Invoiced' || p.status === 'Paid') && SOURCING_ROLES.has(role) && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          {!showCreateGR ? (
+            <button
+              data-testid="btn-create-gr"
+              onClick={() => setShowCreateGR(true)}
+              className={`${btnBase} ${variantClass.primary}`}
+            >
+              + Create Goods Receipt
+            </button>
+          ) : (
+            <form
+              data-testid="form-create-gr"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                setMutationError(null);
+                try {
+                  await mutations.createReceipt.mutateAsync({
+                    status: fd.get('gr-status') as 'Partial' | 'Complete',
+                    receiptDate: fd.get('gr-date') as string,
+                  });
+                  setShowCreateGR(false);
+                } catch (err) {
+                  setMutationError(err instanceof Error ? err.message : 'An error occurred');
+                }
+              }}
+              className="flex flex-wrap items-end gap-3"
+            >
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="gr-status" defaultValue="Complete"
+                  className="block w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  data-testid="gr-status-select"
+                >
+                  <option value="Partial">Partial</option>
+                  <option value="Complete">Complete</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Receipt Date</label>
+                <input type="date" name="gr-date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="block rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  data-testid="gr-date-input"
+                />
+              </div>
+              <button type="submit" disabled={mutations.createReceipt.isPending}
+                data-testid="btn-save-gr"
+                className={`${btnBase} ${variantClass.success}`}>
+                Save GR
+              </button>
+              <button type="button" onClick={() => setShowCreateGR(false)}
+                className={`${btnBase} ${variantClass.neutral}`}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* VI creation panel (AC-816): shown when status is Vendor Invoiced and role is Finance/Admin) */}
+      {(p.status === 'Vendor Invoiced' || p.status === 'Paid') && INVOICE_PAY_ROLES.has(role) && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          {!showCreateVI ? (
+            <button
+              data-testid="btn-create-vi"
+              onClick={() => setShowCreateVI(true)}
+              className={`${btnBase} ${variantClass.primary}`}
+            >
+              + Create Vendor Invoice
+            </button>
+          ) : (
+            <form
+              data-testid="form-create-vi"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                setMutationError(null);
+                try {
+                  await mutations.createInvoice.mutateAsync({
+                    status: fd.get('vi-status') as 'Received' | 'Scheduled' | 'Paid',
+                    invoiceDate: fd.get('vi-date') as string,
+                  });
+                  setShowCreateVI(false);
+                } catch (err) {
+                  setMutationError(err instanceof Error ? err.message : 'An error occurred');
+                }
+              }}
+              className="flex flex-wrap items-end gap-3"
+            >
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="vi-status" defaultValue="Received"
+                  className="block w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  data-testid="vi-status-select"
+                >
+                  <option value="Received">Received</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Paid">Paid</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Invoice Date</label>
+                <input type="date" name="vi-date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="block rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  data-testid="vi-date-input"
+                />
+              </div>
+              <button type="submit" disabled={mutations.createInvoice.isPending}
+                data-testid="btn-save-vi"
+                className={`${btnBase} ${variantClass.success}`}>
+                Save VI
+              </button>
+              <button type="button" onClick={() => setShowCreateVI(false)}
+                className={`${btnBase} ${variantClass.neutral}`}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {/* Document trail (D3 — PR / VQ / PO / GR / VI) */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
