@@ -250,3 +250,15 @@ config table, no `decided_at`, no dual win-rate, no time filter, and no projecte
 on the Exec Dashboard. It is therefore **superseded, not merely polish-away from merge**. Recommended:
 treat the pipeline + dashboard-margin work as a fresh issue built on the budget + procurement foundations
 (see build-order note in backlog), and close/redo PR #12 rather than force-fit it.
+
+### OD-PR — Projects revenue/transitions build-time resolutions (Director-ratified 2026-06-04, mode A, issue #4)
+- **A** — `pipeline_stage_config` write gate = coarse 4-role (Admin/Exec/PM/Finance), consistent with
+  `projects_write`/`budget_versions_write`; Admin-only tightening deferred to the OD-PROC-6 config bridge.
+- **B** — permissive `transition_project` legal map: win reachable from late pipeline (Quotation/Tender/
+  Negotiation); free on-hand interconversion (Ongoing/On Hold/Close Out); `Loss Tender→Negotiation` and
+  `Close Out→Ongoing` re-open allowed; `Internal Project` reachable only from Leads.
+- **C** — win-capture (require `customer_contract_ref`+`contract_date`, stamp `decided_at=contract_date`)
+  fires only on FIRST reach of `Won, Pending KoM` from a pipeline stage; on-hand re-entry doesn't re-stamp.
+- **D** — `decided_at = contract_date::timestamptz` (midnight) on win; `= now()` on `Loss Tender`.
+- Transition = `transition_project` security-definer RPC (ADR-0012 pattern; no new ADR). UI mounts on the
+  live-backed `pages/Projects.tsx` (the mock `ProjectDetails` prototype stays out — separate decomposition issue).
