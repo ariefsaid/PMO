@@ -131,6 +131,26 @@ Coarse write-gate for MVP: Admin / Executive / Project Manager / Finance may cre
 and line-items (same role set as other procurement/project writes). Fine-grained (e.g. only Finance may
 mark Active) deferred to the config bridge (OD-PROC-6).
 
+### OD-BUDGET-4 — Budget categories (LOCKED 2026-06-04)
+Keep the existing 7-value `budget_category` enum **as-is**: `Labor, Materials, Subcontractors, Equipment,
+Permits & Fees, Overheads, Contingency`. (Mapping: "manpower" = Labor; "procurement spend" splits across
+Materials/Subcontractors/Equipment.) **No generic `Other`** for MVP — misc *indirect* spend goes to
+`Overheads`; **`Contingency` is reserved for the risk/unforeseen buffer only** (NOT a catch-all — keeping
+it clean preserves the reserve figure for margin/at-risk reporting).
+- **Fixed enum for MVP; seamed configurable later.** Making categories admin-editable (enum → seeded
+  org-scoped lookup table, like `pipeline_stage_config` in OD-SP-2) is deferred to the admin-settings /
+  config bridge (OD-PROC-6). The future procurement→budget per-category spend roll-up (OD-BUDGET-2
+  deferred portion) will map procurement spend onto these categories.
+
+### OD-BUDGET-5 — Spec defaults ratified + sign-off (LOCKED 2026-06-04)
+`docs/specs/budget-versioning.spec.md` **signed off** by owner. The four assumed defaults flagged in the
+spec are **ratified as-is**:
+- **A** — Active version is read-only; revise via clone → edit Draft → re-activate.
+- **B** — archiving the Active with no successor is allowed but **warns** (project → budget 0).
+- **C** — Draft versions are hard-deletable; Archived versions are never deleted (version history preserved).
+- **D** — line-item delete is a hard delete (no per-line audit in MVP).
+Version-level history IS kept (Archived chain); per-line-item change history is the deferred bigger feature.
+
 ---
 
 ## OD-MARGIN — Dual-lens value & margin (LOCKED 2026-06-04)
