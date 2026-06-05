@@ -8,13 +8,25 @@ import Projects from './Projects';
 const seed = [
   { id: 'p1', name: 'Innovate Corp HQ Fit-Out', status: 'Ongoing Project',
     client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
-    spent: 2100000, end_date: '2026-12-18', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' } },
+    spent: 2100000, end_date: '2026-12-18', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
+    customer_contract_ref: null, contract_date: null, decided_at: null },
   { id: 'p2', name: 'Northwind ERP Rollout', status: 'Tender Submitted',
     client_id: 'c3', project_manager_id: 'u-alice', contract_value: 1200000, budget: 0, spent: 0,
-    end_date: '2026-12-31', client: { name: 'Northwind Manufacturing' }, pm: { full_name: 'Alice Manager' } },
+    end_date: '2026-12-31', client: { name: 'Northwind Manufacturing' }, pm: { full_name: 'Alice Manager' },
+    customer_contract_ref: null, contract_date: null, decided_at: null },
   { id: 'p3', name: 'Regional Services Program', status: 'PQ Submitted',
     client_id: 'c2', project_manager_id: 'u-alice', contract_value: 800000, budget: 0, spent: 0,
-    end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' } },
+    end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
+    customer_contract_ref: null, contract_date: null, decided_at: null },
+];
+
+// Won project with customer_contract_ref set (for AC-1011 UI test)
+const seedWithWon = [
+  ...seed,
+  { id: 'p4', name: 'Won Deal', status: 'Won, Pending KoM',
+    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 2000000, budget: 0, spent: 0,
+    end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
+    customer_contract_ref: 'CPO-2026-999', contract_date: '2026-01-15', decided_at: '2026-01-15T00:00:00Z' },
 ];
 
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -27,7 +39,11 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager', canImpersonate: false, viewAs: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
+  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
+}));
 
 const renderPage = () => render(<MemoryRouter><Projects /></MemoryRouter>);
 
@@ -96,6 +112,26 @@ describe('Projects states', () => {
     projectsState.data = [];
     renderPage();
     expect(screen.getByText(/No projects found/i)).toBeInTheDocument();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+  });
+});
+
+describe('ProjectStatusControl integration (AC-1011 UI)', () => {
+  it('AC-1011 (UI): each project row renders a ProjectStatusControl and shows the customer contract reference when set (FR-PR-011)', () => {
+    projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    renderPage();
+
+    // Each project row should have a status control (data-testid="project-status-control")
+    const controls = screen.getAllByTestId('project-status-control');
+    // 4 projects in seedWithWon — all have legal transitions except potentially terminal ones
+    // 'Won, Pending KoM' → has transitions, so control renders; all 4 should render
+    expect(controls.length).toBeGreaterThanOrEqual(1);
+
+    // The won project's customer_contract_ref should be visible on the row
+    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
+
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 });

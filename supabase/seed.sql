@@ -211,6 +211,39 @@ insert into tasks (id, project_id, name, start_date, end_date, assignee_id, stat
 insert into task_dependencies (task_id, depends_on_id) values
   ('80000000-0000-0000-0000-000000000002','80000000-0000-0000-0000-000000000001');
 
+-- E1/E2 — Seed enrichment for projects revenue/transitions module (plan Phase E, AC-1010 data; supports #5).
+-- Backfill won-project decision data on the two Ongoing (won) projects so #5's win-rate numerator
+-- + on-hand value have real data. org_id intentionally omitted on all updates — column default seam.
+update projects set
+  customer_contract_ref = 'CPO-2026-001',
+  contract_date         = '2026-01-06',
+  decided_at            = '2026-01-06T00:00:00Z'
+where id = '40000000-0000-0000-0000-000000000001';  -- P001 Innovate Corp HQ Fit-Out (Ongoing)
+
+update projects set
+  customer_contract_ref = 'CPO-2026-003',
+  contract_date         = '2026-02-01',
+  decided_at            = '2026-02-01T00:00:00Z'
+where id = '40000000-0000-0000-0000-000000000004';  -- P003 Acme Internal Platform (Ongoing)
+
+-- E2 — Add a Loss Tender project (win-rate denominator for #5).
+-- PM = Alice (a2); client = Northwind (c3). decided_at = a fixed loss-decision date.
+-- null customer_contract_ref / contract_date (FR-PR-006: no customer PO on loss).
+-- fresh code 'P004' satisfies unique(org_id, code). org_id omitted = column default.
+insert into projects (id, code, name, status, client_id, project_manager_id,
+                      contract_value, budget, spent, decided_at) values
+  ('40000000-0000-0000-0000-000000000005','P004','Coastal Depot Bid','Loss Tender',
+   'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
+   650000,0,0,'2026-02-20T00:00:00Z');
+
+-- Budget for P004 (AC-733 invariant: every project needs exactly one Active budget_version).
+-- Loss Tender project: a minimal tender-prep budget stub (AC-733 invariant requires >=1 line item).
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000006','40000000-0000-0000-0000-000000000005',1,'Tender Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('50000000-0000-0000-0000-000000000006','Labor','Tender preparation',5000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000006';
+
 -- incident report (neutral; schema-only MVP)
 insert into incident_reports (incident_date, type, severity, location, description, status, reported_by) values
   ('2026-03-15','Near Miss','Low','Regional Site B','Trip hazard reported and cleared','Closed','00000000-0000-0000-0000-0000000000a4');
