@@ -112,9 +112,14 @@ begin
   returning last_seq into v_seq;
   return p_prefix || '-' || to_char(current_date, 'YYMMDD') || lpad(v_seq::text, 4, '0');
 end; $$;
+-- HIGH-1 (security review): the minter is an INTERNAL-ONLY helper. Its only legitimate callers are
+-- the four security-definer RPCs above (transition_procurement / create_procurement_quotation /
+-- _receipt / _invoice), which run as the function owner and so retain execute after this revoke.
+-- It is NOT granted to authenticated: a direct PostgREST/RPC call would let any authenticated user
+-- write an arbitrary org's per-day counter (cross-tenant sequence write) and pick an arbitrary prefix.
 revoke all     on function next_procurement_doc_number(uuid, text) from public;
-grant  execute on function next_procurement_doc_number(uuid, text) to   authenticated;
 revoke execute on function next_procurement_doc_number(uuid, text) from anon;
+revoke execute on function next_procurement_doc_number(uuid, text) from authenticated;
 
 -- ============================================================================
 -- A5 — transition_procurement: the single authority for all status changes (FR-PROC-001..009/011/018).

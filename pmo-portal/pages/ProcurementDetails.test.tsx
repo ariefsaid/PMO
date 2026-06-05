@@ -256,6 +256,49 @@ describe('AC-805: transition mutations called on action click', () => {
 });
 
 // ---------------------------------------------------------------------------
+// AC-805 / OD-PROC-1 — Approve/Reject optional notes input
+// ---------------------------------------------------------------------------
+describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.refetch = vi.fn();
+    mockTransition.mockClear();
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('AC-805: entering notes + Approve calls transition mutation with the notes argument', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Within budget — approved.');
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await waitFor(() =>
+      expect(mockTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'Approved', notes: 'Within budget — approved.' })
+      )
+    );
+  });
+
+  it('AC-805: entering notes + Reject calls transition mutation with the notes argument', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
+    await userEvent.click(screen.getByRole('button', { name: /reject/i }));
+    await waitFor(() =>
+      expect(mockTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'Rejected', notes: 'Over budget.' })
+      )
+    );
+  });
+
+  it('AC-805: notes input is NOT shown when no Approve/Reject action is available', () => {
+    detailState.data = { ...baseProcurement, status: 'Draft' };
+    renderPage();
+    expect(screen.queryByTestId('procurement-notes-input')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // D3 — Document trail renders numbers + receipt/invoice status
 // (covered end-to-end by AC-816; verified here as part of D3)
 // ---------------------------------------------------------------------------

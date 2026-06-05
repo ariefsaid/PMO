@@ -3,8 +3,10 @@
 --   • Finance INSERT into procurement_receipts supplying an explicit foreign org_id → 42501.
 --   • anon role cannot execute transition_procurement (execute revoked).
 --   • anon role cannot execute create_procurement_receipt (execute revoked).
+--   • authenticated cannot DIRECTLY execute next_procurement_doc_number (HIGH-1: minter is an
+--     internal-only helper; only the definer RPCs may mint, so a direct call must be denied).
 begin;
-select plan(3);
+select plan(4);
 
 -- Fixtures (inserted as table owner).
 insert into organizations (id, name) values
@@ -51,6 +53,21 @@ select throws_ok(
   $$ select create_procurement_receipt('00190000-0000-0000-0000-000000000010','Partial','2026-06-05') $$,
   '42501', null,
   'AC-814: anon role cannot execute create_procurement_receipt (execute revoked)');
+
+reset role;
+
+-- ── T3: authenticated cannot DIRECTLY execute next_procurement_doc_number (HIGH-1) ──
+-- The minter is internal-only — only the security-definer RPCs may call it (they run as the
+-- function owner and retain execute after the revoke). A direct authenticated call must be
+-- denied (permission denied / 42501) so no user can write another org's counter or pick an
+-- arbitrary prefix. The org argument is foreign here, but execute is revoked before org is read.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00190000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select throws_ok(
+  $$ select next_procurement_doc_number('00190000-0000-0000-0000-000000000001','PR') $$,
+  '42501', null,
+  'AC-814/HIGH-1: authenticated cannot directly execute next_procurement_doc_number (internal-only minter, execute revoked)');
 
 reset role;
 select * from finish();

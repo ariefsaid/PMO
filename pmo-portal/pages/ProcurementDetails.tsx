@@ -55,7 +55,7 @@ function allowedActions(
   if (legal('Vendor Quoted') && SOURCING_ROLES.has(role)) {
     actions.push({ to: 'Vendor Quoted', label: 'Request Vendor Quotes', variant: 'primary' });
   }
-  if (legal('Ordered') && SOURCING_ROLES.has(role)) {
+  if (legal('Ordered') && SOURCING_ROLES.has(role) && status === 'Approved') {
     actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'warning' });
   }
 
@@ -64,12 +64,11 @@ function allowedActions(
     actions.push({ to: 'Quote Selected', label: 'Select Quote', variant: 'primary' });
   }
 
-  // Quote Selected → Ordered: PM/Finance/Admin
-  if (legal('Ordered') && SOURCING_ROLES.has(role)) {
-    // Avoid duplicate if already pushed (Approved→Ordered path above handles this)
-    if (!actions.find((a) => a.to === 'Ordered')) {
-      actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'warning' });
-    }
+  // Quote Selected → Ordered: PM/Finance/Admin. No dedup needed vs the Approved→Ordered push above:
+  // a procurement has exactly one `status`, so legal('Ordered') holds for at most one of those
+  // branches (status is either 'Approved' or 'Quote Selected', never both) — they cannot collide.
+  if (legal('Ordered') && SOURCING_ROLES.has(role) && status === 'Quote Selected') {
+    actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'warning' });
   }
 
   // Ordered → Received: requester or PM (FR-PROC-008)
@@ -108,6 +107,22 @@ const variantClass: Record<string, string> = {
   warning: 'bg-orange-600 hover:bg-orange-700 text-white focus:ring-orange-500',
   neutral:
     'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
+};
+
+// Status badge palette — terminal/negative states stand apart from in-flight ones so the lifecycle
+// stage is legible at a glance (Paid = success, Cancelled/Rejected = muted/negative, rest = in-flight).
+const statusBadgeClass: Record<ProcurementStatus, string> = {
+  Draft: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  Requested: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  Approved: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',
+  Rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+  'Vendor Quoted': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  'Quote Selected': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  Ordered: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+  Received: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300',
+  'Vendor Invoiced': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+  Paid: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+  Cancelled: 'bg-gray-200 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
 };
 
 // ---------------------------------------------------------------------------
@@ -206,6 +221,10 @@ const ProcurementDetails: React.FC = () => {
   // Derive selected quotation for the VQ trail
   const selectedQuote = p.quotations.find((q) => q.is_selected);
 
+  // Approve/Reject carry an optional reviewer note (OD-PROC-1) — show the notes field only when
+  // one of those actions is offered, so the input is contextual to the decision being recorded.
+  const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
+
   // ── Transition handler (AC-805, AC-806) ─────────────────────────────────
   const handleTransition = async (to: ProcurementStatus) => {
     setMutationError(null);
@@ -248,7 +267,7 @@ const ProcurementDetails: React.FC = () => {
                 we render a generic badge here to stay off mock-data imports) */}
             <span
               data-testid="procurement-status-badge"
-              className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+              className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeClass[p.status]}`}
             >
               {p.status}
             </span>
@@ -257,6 +276,27 @@ const ProcurementDetails: React.FC = () => {
 
         {/* Action bar (AC-805) */}
         <div className="flex flex-col gap-2 lg:mt-6">
+          {/* Optional approval/rejection notes (OD-PROC-1) — stamped as approval_notes/rejection_notes
+              by transition_procurement; shown only when an Approve/Reject action is available. */}
+          {showNotes && (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="procurement-notes-input"
+                className="text-xs font-medium text-gray-500 dark:text-gray-400"
+              >
+                Notes <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                id="procurement-notes-input"
+                data-testid="procurement-notes-input"
+                rows={2}
+                value={notesInput}
+                onChange={(e) => setNotesInput(e.target.value)}
+                placeholder="Add a note for the approval or rejection…"
+                className="block w-full min-w-[16rem] rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {actions.map((action) => (
               <button

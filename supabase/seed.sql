@@ -143,6 +143,9 @@ insert into procurement_documents (procurement_id, type, reference_number, statu
 -- Backfill three procurements with doc-trail data at varied lifecycle stages.
 -- org_id is intentionally omitted on all inserts — column default keeps the
 -- client-unspoofable seam consistent (ADR-0011/ADR-0012).
+-- NOTE: the {PREFIX}-YYMMDD#### doc numbers below are STATIC dev fixtures, hand-written to look
+-- realistic. They are decoupled from the live `procurement_doc_counters` minter — seeding them does
+-- NOT advance any counter, so the first runtime mint still starts at 0001 for the seed's org/day.
 
 -- Row 002 (Ordered, mid-flow): PR# + PO# on procurements; selected quotation with VQ#;
 -- a Partial goods receipt (GR#). Lands in the Committed set (future spent derivation).
