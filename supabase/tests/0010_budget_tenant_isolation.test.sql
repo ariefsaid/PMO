@@ -1,5 +1,5 @@
 begin;
-select plan(4);
+select plan(5);
 
 -- Fixtures: two orgs with a project + Draft version each (inserted as table owner).
 insert into organizations (id, name) values
@@ -56,6 +56,15 @@ select throws_ok(
      values ('f0000000-0000-0000-0000-000000000001','f2222222-0000-0000-0000-000000000002','Materials',5000) $$,
   '42501', null,
   'AC-730: inserting line-item with org-B parent version rejected (parent-org guard)');
+
+-- AC-730: org-A PM cannot INSERT a budget_versions row stamped with its OWN org (org-A) but pointing at
+-- an ORG-B PROJECT (cross-tenant project graft, HIGH-BV-1). Without the parent-project-org guard the row
+-- own org_id check alone passes; the new guard on projects.org_id must reject it.
+select throws_ok(
+  $$ insert into budget_versions (org_id, project_id, version, name, status)
+     values ('f0000000-0000-0000-0000-000000000001','f1111111-0000-0000-0000-000000000002',99,'Grafted','Draft') $$,
+  '42501', null,
+  'AC-730: inserting budget_versions with own org but org-B project_id rejected (parent-project-org guard)');
 
 reset role;
 select * from finish();

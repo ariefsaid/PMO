@@ -173,6 +173,31 @@ describe('listBudgetVersions', () => {
     expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');
   });
 
+  it('coerces string numerics from PostgREST into a number total (guards Number() on budgets.ts:62)', async () => {
+    // Postgres numeric arrives over PostgREST as a STRING; the DAL must Number()-coerce it.
+    const versions = [
+      {
+        id: 'v1',
+        org_id: 'org-1',
+        project_id: 'p1',
+        version: 1,
+        name: 'V1',
+        status: 'Active' as const,
+        created_at: '2026-01-01T00:00:00Z',
+        line_items: [
+          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: '3000000', actual_amount: '0' },
+        ],
+      },
+    ];
+    makeFromBuilder({ data: versions, error: null });
+
+    const result = await listBudgetVersions('p1');
+
+    // Numeric (not string concatenation: '03000000' or '03000000') and typed as number.
+    expect(result[0].total).toBe(3000000);
+    expect(typeof result[0].total).toBe('number');
+  });
+
   it('throws on PostgREST error', async () => {
     makeFromBuilder({ data: null, error: { message: 'list error' } });
     await expect(listBudgetVersions('p1')).rejects.toThrow('list error');

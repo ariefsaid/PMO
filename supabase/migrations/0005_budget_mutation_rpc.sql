@@ -37,6 +37,10 @@ begin
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  -- Defense-in-depth (audit HIGH-BV-1): also assert the parent project belongs to the caller's org, so a
+  -- definer-context archive-by-project_id can never cross orgs even if a grafted version slipped past RLS.
+  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
   if v_status <> 'Draft' then raise exception 'only a Draft version can be activated' using errcode = 'P0001'; end if;
   update budget_versions set status = 'Archived'
     where project_id = v_project and status = 'Active';
@@ -59,6 +63,10 @@ begin
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  -- Defense-in-depth (audit HIGH-BV-1): the parent project must also be in the caller's org, so a definer
+  -- clone can never read/write across orgs even if a grafted source version slipped past RLS.
+  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
   select coalesce(max(version),0)+1 into v_next from budget_versions where project_id = v_project;
   insert into budget_versions (org_id, project_id, version, name, status)
     select v_org, v_project, v_next, name || ' (copy)', 'Draft'
@@ -74,11 +82,13 @@ grant execute on function clone_budget_version(uuid) to authenticated;
 revoke execute on function clone_budget_version(uuid) from anon;
 
 -- FR-BV-011 guard: line-items mutate only while the owning version is Draft (covers I/U/D uniformly).
+-- search_path is pinned to public (audit LOW-BV-1) and the table/type are schema-qualified so a caller
+-- cannot shadow budget_versions/budget_status via a pg_temp object to spoof the status check.
 create or replace function enforce_draft_line_item()
-  returns trigger language plpgsql as $$
-declare v_status budget_status;
+  returns trigger language plpgsql set search_path = public as $$
+declare v_status public.budget_status;
 begin
-  select status into v_status from budget_versions
+  select status into v_status from public.budget_versions
     where id = coalesce(new.budget_version_id, old.budget_version_id);
   if v_status <> 'Draft' then
     raise exception 'line-items can only change while the owning version is Draft' using errcode = 'P0001';

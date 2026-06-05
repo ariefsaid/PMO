@@ -27,7 +27,14 @@ import { useProjectBudget, useBudgetVersions, useBudgetMutations } from './useBu
 import {
   deriveProjectBudget,
   listBudgetVersions,
+  createBudgetVersion,
+  cloneVersion,
   activateVersion,
+  archiveVersion,
+  deleteDraftVersion,
+  createLineItem,
+  updateLineItem,
+  deleteLineItem,
 } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +103,109 @@ describe('useBudgetMutations', () => {
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"budget"') && c.includes('"org-1"') && c.includes('"p-1"'))).toBe(true);
     expect(calls.some((c) => c.includes('"budget-versions"') && c.includes('"org-1"') && c.includes('"p-1"'))).toBe(true);
+  });
+
+  /** Asserts both org-scoped read keys were invalidated by a successful mutation. */
+  function expectBothKeysInvalidated(invalidateSpy: ReturnType<typeof vi.spyOn>) {
+    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(calls.some((c) => c.includes('"budget"') && c.includes('"org-1"') && c.includes('"p-1"'))).toBe(true);
+    expect(
+      calls.some((c) => c.includes('"budget-versions"') && c.includes('"org-1"') && c.includes('"p-1"')),
+    ).toBe(true);
+  }
+
+  it('createVersion calls createBudgetVersion(projectId, name) and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.createVersion.mutateAsync({ projectId: 'p-1', name: 'V3' });
+    });
+
+    expect(createBudgetVersion).toHaveBeenCalledWith('p-1', 'V3');
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('cloneVersion calls cloneVersion(versionId) and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.cloneVersion.mutateAsync('v-active');
+    });
+
+    expect(cloneVersion).toHaveBeenCalledWith('v-active');
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('archive calls archiveVersion(versionId) and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.archive.mutateAsync('v-active');
+    });
+
+    expect(archiveVersion).toHaveBeenCalledWith('v-active');
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('deleteDraft calls deleteDraftVersion(versionId) and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.deleteDraft.mutateAsync('v-draft');
+    });
+
+    expect(deleteDraftVersion).toHaveBeenCalledWith('v-draft');
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('createLineItem calls createLineItem(versionId, item) in that arg order and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    const item = { category: 'Labor' as const, description: 'Day labor', budgeted_amount: 200000 };
+    await act(async () => {
+      await result.current.createLineItem.mutateAsync({ versionId: 'v-draft', item });
+    });
+
+    // Order matters: catches a swapped/dropped arg like createLineItem(item, versionId).
+    expect(createLineItem).toHaveBeenCalledWith('v-draft', item);
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('updateLineItem calls updateLineItem(id, patch) in that arg order and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    const patch = { budgeted_amount: 500 };
+    await act(async () => {
+      await result.current.updateLineItem.mutateAsync({ id: 'li-1', patch });
+    });
+
+    expect(updateLineItem).toHaveBeenCalledWith('li-1', patch);
+    expectBothKeysInvalidated(invalidateSpy);
+  });
+
+  it('deleteLineItem calls deleteLineItem(id) and invalidates both keys (T13)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.deleteLineItem.mutateAsync('li-1');
+    });
+
+    expect(deleteLineItem).toHaveBeenCalledWith('li-1');
+    expectBothKeysInvalidated(invalidateSpy);
   });
 
   it('mutations are exposed: createVersion, cloneVersion, activate, archive, deleteDraft, createLineItem, updateLineItem, deleteLineItem', () => {

@@ -43,10 +43,8 @@ const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) =
 // Line-item editor (for Draft versions)
 // ---------------------------------------------------------------------------
 interface LineItemEditorProps {
-  versionId: string;
   lineItems: BudgetLineItemRow[];
   onCreateLineItem: (item: NewLineItem) => Promise<unknown>;
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>) => Promise<unknown>;
   onDeleteLineItem: (id: string) => Promise<unknown>;
 }
 
@@ -164,7 +162,6 @@ interface VersionCardProps {
   onClone: (id: string) => Promise<unknown>;
   onDeleteDraft: (id: string) => Promise<unknown>;
   onCreateLineItem: (versionId: string, item: NewLineItem) => Promise<unknown>;
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>) => Promise<unknown>;
   onDeleteLineItem: (id: string) => Promise<unknown>;
 }
 
@@ -176,7 +173,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
   onClone,
   onDeleteDraft,
   onCreateLineItem,
-  onUpdateLineItem,
   onDeleteLineItem,
 }) => {
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -263,10 +259,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
       {/* Line-item editor for Draft; read-only view for others */}
       {version.status === 'Draft' && canWrite ? (
         <LineItemEditor
-          versionId={version.id}
           lineItems={version.line_items}
           onCreateLineItem={(item) => onCreateLineItem(version.id, item)}
-          onUpdateLineItem={onUpdateLineItem}
           onDeleteLineItem={onDeleteLineItem}
         />
       ) : (
@@ -441,9 +435,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             onDeleteDraft={(id) => mutations.deleteDraft.mutateAsync(id)}
             onCreateLineItem={(versionId, item) =>
               mutations.createLineItem.mutateAsync({ versionId, item })
-            }
-            onUpdateLineItem={(id, patch) =>
-              mutations.updateLineItem.mutateAsync({ id, patch })
             }
             onDeleteLineItem={(id) => mutations.deleteLineItem.mutateAsync(id)}
           />
