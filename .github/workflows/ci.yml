@@ -30,6 +30,68 @@ jobs:
         run: npm run build
       - name: Lint
         run: npm run lint:ci
-      # e2e (Playwright) is added to CI once the first acceptance spec exists (Phase 3):
-      # - run: npx playwright install --with-deps chromium
-      # - run: npm run e2e
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        # supabase CLI must be run from repo root (where supabase/config.toml lives)
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.104.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+
+      - name: Install Node dependencies
+        working-directory: pmo-portal
+        run: npm ci
+
+      # Docker is pre-installed on ubuntu-latest; storage + edge_runtime are disabled in
+      # config.toml so the image pull is lighter.
+      - name: Start local Supabase stack
+        run: supabase start
+
+      # Applies every migration in order and re-seeds from supabase/seed.sql so tests
+      # always start from a clean, known state.
+      - name: Reset DB (migrations + seed)
+        run: supabase db reset --yes
+
+      # pgTAP gate: 45 files / 180 tests — RLS, tenancy, SoD proofs.
+      - name: pgTAP integration tests
+        run: supabase test db
+
+      # Extract the anon key + API URL from the local stack and write them into the file
+      # pmo-portal/src/lib/supabase/client.ts reads at build/dev time.
+      - name: Write .env.local for Vite / Playwright
+        run: |
+          eval "$(supabase status -o env)"
+          echo "VITE_SUPABASE_URL=${API_URL}" > pmo-portal/.env.local
+          echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}" >> pmo-portal/.env.local
+
+      # Install only the Chromium browser (the single project defined in playwright.config.ts).
+      - name: Install Playwright browsers
+        working-directory: pmo-portal
+        run: npx playwright install --with-deps chromium
+
+      # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
+      # reuseExistingServer=false in CI so Playwright owns the lifecycle.
+      - name: E2E tests (Playwright / Chromium)
+        working-directory: pmo-portal
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: pmo-portal/playwright-report/
+          retention-days: 7
