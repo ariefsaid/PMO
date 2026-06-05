@@ -36,10 +36,12 @@ owner gates = prod deploy + genuinely-new decisions only.
    RPC: map + role×transition matrix + SoD + ref-number minter; `procurement_receipts`/`procurement_invoices`).
    213 unit / 93 pgTAP / 1 e2e (AC-816 full Draft→Paid). Security found+fixed+re-verified HIGH-1 (minter callable
    cross-org → revoked internal-only). (PR #12 old SalesPipeline closed — superseded.)
-3. **Timesheet submit/approve** — ⏭️ NEXT. OD-TS-1/2/3: `manager_id` on profiles, whole-week approval by line
-   manager (Admin/Exec fallback), SoD (no self-approve), Draft→Submitted→Approved|Rejected, Rejected→Draft.
-4. **Projects: status-transitions + revenue fields** — customer-contract-PO ref + `contract_date` + `decided_at`
-   + `pipeline_stage_config` lookup table (seeded win-prob defaults). Foundation for the pipeline lens.
+3. **Timesheet submit/approve** — ✅ **MERGED (PR #15, `f12c934`).** `transition_timesheet` RPC (ADR-0012 pattern),
+   `manager_id` + RLS read-widening, line-manager approval + Admin/Exec fallback, SoD (no self-approve incl Admin).
+   232 unit / 113 pgTAP / 1 e2e (AC-911). Security found+fixed+re-verified HIGH-TS-1 (null-manager SQL 3-valued
+   fall-through → any member could approve), MED-TS-2 (direct-UPDATE RPC bypass), LOW-TS-3 (self-writable manager_id).
+4. **Projects: status-transitions + revenue fields** — ⏭️ NEXT. customer-contract-PO ref + `contract_date` +
+   `decided_at` (stamped on win/loss) + `pipeline_stage_config` lookup table (seeded win-prob defaults). Foundation for the pipeline lens.
 5. **Sales-pipeline + Dashboard margin re-formula** — dual-lens weighted margin, pipeline weighted value +
    projected margin, dual (count+value) win-rate + time filter. Consumes budget + procurement spend.
 
