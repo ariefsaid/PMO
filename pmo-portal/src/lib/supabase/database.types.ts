@@ -866,11 +866,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_budget_version: {
+        Args: { version_id: string }
+        Returns: undefined
+      }
       auth_org_id: { Args: never; Returns: string }
       auth_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      clone_budget_version: { Args: { version_id: string }; Returns: string }
+      get_executive_dashboard: { Args: never; Returns: Json }
+      get_project_budget: { Args: { p_project_id: string }; Returns: number }
     }
     Enums: {
       budget_category:

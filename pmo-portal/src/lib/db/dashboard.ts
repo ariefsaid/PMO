@@ -36,9 +36,6 @@ export interface ExecutiveDashboard {
  * NFR-DASH-SEC-001). On RPC error it throws.
  */
 export async function getExecutiveDashboard(): Promise<ExecutiveDashboard> {
-  // @ts-expect-error — database.types.ts does not yet have a generated Functions entry for
-  // get_executive_dashboard (regenerate via `supabase gen types` once stack is stable, R3).
-  // The local ExecutiveDashboard interface is the authoritative contract until then.
   const { data, error } = await supabase.rpc('get_executive_dashboard');
   if (error) throw new Error(error.message);
   return data as unknown as ExecutiveDashboard;
