@@ -8,6 +8,7 @@ import { projects, users, companies, budgetLineItems, budgetVersions, procuremen
 import { BudgetCategory, BudgetVersion, Task, TaskStatus, Procurement, ProcurementStatus, ProjectDocument } from '../types';
 import { BuildingOfficeIcon, CalendarDaysIcon, CurrencyDollarIcon, UserIcon, CheckCircleIcon, PlusIcon, PencilSquareIcon, TrashIcon, ClipboardDocumentCheckIcon, DocumentIcon, CloudArrowUpIcon, EyeIcon } from '../components/icons';
 import ProcurementStatusBadge from '../components/ProcurementStatusBadge';
+import ProjectBudget from './ProjectBudget';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
@@ -223,7 +224,7 @@ const ProcurementDrawer: React.FC<{ procurement: Procurement | null; onClose: ()
 // --- END: Drawer Components ---
 
 
-const BudgetTabContent: React.FC<{ versions: BudgetVersion[], selectedVersionId: string, onVersionChange: (id: string) => void }> = ({ versions, selectedVersionId, onVersionChange }) => {
+const _BudgetTabContent: React.FC<{ versions: BudgetVersion[], selectedVersionId: string, onVersionChange: (id: string) => void }> = ({ versions, selectedVersionId, onVersionChange }) => {
     
     const selectedVersion = versions.find(v => v.id === selectedVersionId);
     
@@ -1207,7 +1208,7 @@ const ProjectDetails: React.FC = () => {
     const project = projects.find(p => p.id === projectId);
     const projectVersions = budgetVersions.filter(v => v.projectId === projectId);
     const activeVersion = projectVersions.find(v => v.status === 'Active');
-    const [selectedVersionId, setSelectedVersionId] = useState(activeVersion?.id || projectVersions[0]?.id);
+    const [_selectedVersionId, _setSelectedVersionId] = useState(activeVersion?.id || projectVersions[0]?.id);
 
     if (!project) {
         return <Navigate to="/projects" replace />;
@@ -1297,20 +1298,7 @@ const ProjectDetails: React.FC = () => {
                     </div>
                 );
              case 'Budget':
-                return projectVersions.length > 0 ? (
-                    <BudgetTabContent 
-                        versions={projectVersions} 
-                        selectedVersionId={selectedVersionId}
-                        onVersionChange={setSelectedVersionId}
-                    />
-                ) : (
-                     <Card className="h-64 flex items-center justify-center">
-                        <div className="text-center">
-                            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">No Budget Data</h3>
-                            <p className="text-gray-500 dark:text-gray-400">Detailed budget information is not available for this project.</p>
-                        </div>
-                    </Card>
-                );
+                return <ProjectBudget projectId={project.id} />;
             case 'Schedule':
                 return <ScheduleTabContent projectId={project.id} />;
              case 'Procurement':
