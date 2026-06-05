@@ -28,13 +28,20 @@ config engine (OD-PROC-6). The wall is down — the write wave is unblocked.
 **Build order (dependency-driven):** Budget-versioning module → Procurement lifecycle → Sales-pipeline +
 Dashboard-margin re-formula. (Margin needs Active-version budget; on-hand spend needs committed
 procurement; pipeline/dashboard consume both.)
-1. **Budget-versioning module** — ✅ BUILT on `feat/budget-versioning` (7 commits, `604ddc6..adeb1bd`).
-   Spec `docs/specs/budget-versioning.spec.md` (signed off), plan `docs/plans/2026-06-04-budget-versioning.md`,
-   ADR-0011 (security-definer mutation RPCs). 151 unit / 56 pgTAP / 1 e2e (AC-732) green; typecheck/lint/build
-   clean. Reviews: spec-reviewer ✅ ship; code-quality fix-then-ship (Important coverage gaps fixed →
-   100% on `budgets.ts`/`useBudget.ts`); security-auditor found + (re-verified) FIXED **HIGH-BV-1**
-   (cross-tenant budget hijack via unguarded `budget_versions.project_id`) + LOW-BV-1 (trigger search_path).
-   **Pending: owner approval to push + open PR.** PR #12 (old SalesPipeline) was closed — superseded.
+Operating cadence: **mode A + Director-merge** (owner AFK) — autonomous spec→build→review→PR→merge;
+owner gates = prod deploy + genuinely-new decisions only.
+1. **Budget-versioning** — ✅ **MERGED (PR #13, `a17a2e9`).** ADR-0011 (security-definer mutation RPCs).
+   151 unit / 56 pgTAP / 1 e2e. Security found+fixed+re-verified HIGH-BV-1 (cross-tenant budget hijack) + LOW-BV-1.
+2. **Procurement lifecycle** — ✅ **MERGED (PR #14, `eb91b5e`).** ADR-0012 (`transition_procurement` security-definer
+   RPC: map + role×transition matrix + SoD + ref-number minter; `procurement_receipts`/`procurement_invoices`).
+   213 unit / 93 pgTAP / 1 e2e (AC-816 full Draft→Paid). Security found+fixed+re-verified HIGH-1 (minter callable
+   cross-org → revoked internal-only). (PR #12 old SalesPipeline closed — superseded.)
+3. **Timesheet submit/approve** — ⏭️ NEXT. OD-TS-1/2/3: `manager_id` on profiles, whole-week approval by line
+   manager (Admin/Exec fallback), SoD (no self-approve), Draft→Submitted→Approved|Rejected, Rejected→Draft.
+4. **Projects: status-transitions + revenue fields** — customer-contract-PO ref + `contract_date` + `decided_at`
+   + `pipeline_stage_config` lookup table (seeded win-prob defaults). Foundation for the pipeline lens.
+5. **Sales-pipeline + Dashboard margin re-formula** — dual-lens weighted margin, pipeline weighted value +
+   projected margin, dual (count+value) win-rate + time filter. Consumes budget + procurement spend.
 
 ## Non-blocked backlog (can proceed without owner; recommended order)
 1. **ProcurementDetails read swap** — drill-down (procurement + items + quotations + documents) to real data. Moderate (4 child tables). Mirror of the list template.
@@ -52,6 +59,7 @@ procurement; pipeline/dashboard consume both.)
 - **Hosting** (ADR-0006 deferred) — pick Vercel/Netlify/Cloudflare + Supabase cloud project; production deploy needs owner approval (irreversible).
 - **JWT role claim:** `auth_role()` reads `profiles.role` (authoritative); re-introducing the `app_metadata.role` JWT fast-path requires GoTrue signing + an audited sync trigger.
 - **Budget module (from build-wave #1 reviews):** (a) `createBudgetVersion` computes `max(version)+1` client-side (TOCTOU race under concurrent "+New version"); move to a `create_budget_version` security-definer RPC like clone/activate. (b) Extract a shared `<LineItemTable readOnly>` in `ProjectBudget.tsx` (editor + read-only tables duplicate markup). (c) The project header **Budget MetricCard in `ProjectDetails.tsx` still reads the stale `projects.budget` header** — it becomes correct when the Projects/Dashboard margin re-formula issue derives budget from the Active version. Neither blocks the budget module.
+- **Procurement module (from build-wave #2 reviews):** (a) **transition-map drift guard** — `transition_procurement`'s legal-map + role matrix (SQL) and `procurementLifecycle.ts` `LEGAL_TRANSITIONS`/`allowedActions` (TS) are hand-maintained duplicates (SQL authoritative, TS cosmetic); add a sync test (or shared JSON fixture) before the matrix grows. (b) Extract a shared `formatDate` helper (dates formatted inline; `formatCurrency` already shared). Neither blocks.
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project` (plugin); `scripts/vendor-skills.sh` (vendored skills); `cd pmo-portal && npm install`; `npx playwright install chromium`.
