@@ -34,23 +34,35 @@ const KpiCard: React.FC<KpiCardProps> = ({ testId, title, value, description }) 
 
 type PeriodKey = 'all' | 'ytd' | 'q' | 't12';
 
+/** ISO YYYY-MM-DD string for a Date, or '' if absent. */
+function toDateKey(d?: Date): string {
+  return d ? d.toISOString().slice(0, 10) : '';
+}
+
+/**
+ * Build a WinRateRange whose `key` encodes both the period label and the resolved
+ * from/to ISO dates. This prevents stale cache entries when the window rolls over
+ * across a day/quarter/year boundary in a long-lived session (FIX-WIN-CACHE-KEY).
+ */
 function buildWinRateRange(period: PeriodKey): WinRateRange {
   const now = new Date();
   switch (period) {
-    case 'ytd':
-      return { from: new Date(now.getFullYear(), 0, 1), key: 'ytd' };
+    case 'ytd': {
+      const from = new Date(now.getFullYear(), 0, 1);
+      return { from, key: `ytd:${toDateKey(from)}:` };
+    }
     case 'q': {
       const from = new Date(now);
       from.setMonth(from.getMonth() - 3);
-      return { from, to: now, key: 'q' };
+      return { from, to: now, key: `q:${toDateKey(from)}:${toDateKey(now)}` };
     }
     case 't12': {
       const from = new Date(now);
       from.setFullYear(from.getFullYear() - 1);
-      return { from, to: now, key: 't12' };
+      return { from, to: now, key: `t12:${toDateKey(from)}:${toDateKey(now)}` };
     }
     default:
-      return { key: 'all' };
+      return { key: 'all::' };
   }
 }
 
