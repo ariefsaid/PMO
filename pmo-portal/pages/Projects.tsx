@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ProjectStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
+import ProjectStatusControl from '../components/ProjectStatusControl';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjects, useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
@@ -218,23 +219,33 @@ const Projects: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Footer: Value & Mini Progress */}
-                                <div className="bg-gray-50 dark:bg-gray-700/30 px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-gray-500 font-medium uppercase">Contract Value</span>
-                                        <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(project.contract_value)}</span>
+                                {/* Footer: Value, Progress & Status Control */}
+                                <div className="bg-gray-50 dark:bg-gray-700/30 px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-gray-500 font-medium uppercase">Contract Value</span>
+                                            <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(project.contract_value)}</span>
+                                        </div>
+                                        <div className="w-24 text-right">
+                                            <div className="flex justify-end text-[10px] text-gray-400 mb-1 space-x-2">
+                                                <span>Spent</span>
+                                                <span className={progress > 100 ? 'text-red-500 font-bold' : ''}>{Math.round(progress)}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                                                <div
+                                                    className={`h-1.5 rounded-full ${progress > 100 ? 'bg-red-500' : 'bg-primary-600'}`}
+                                                    style={{ width: `${Math.min(progress, 100)}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="w-24 text-right">
-                                        <div className="flex justify-end text-[10px] text-gray-400 mb-1 space-x-2">
-                                            <span>Spent</span>
-                                            <span className={progress > 100 ? 'text-red-500 font-bold' : ''}>{Math.round(progress)}%</span>
+                                    {project.customer_contract_ref && (
+                                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                                            {project.customer_contract_ref}
                                         </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
-                                            <div
-                                                className={`h-1.5 rounded-full ${progress > 100 ? 'bg-red-500' : 'bg-primary-600'}`}
-                                                style={{ width: `${Math.min(progress, 100)}%` }}
-                                            ></div>
-                                        </div>
+                                    )}
+                                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                                        <ProjectStatusControl project={project} />
                                     </div>
                                 </div>
                             </div>
@@ -274,12 +285,18 @@ const Projects: React.FC = () => {
                                     <td className="px-6 py-4">
                                         <div className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{project.code ?? ''}</div>
+                                        {project.customer_contract_ref && (
+                                            <div className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">{project.customer_contract_ref}</div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{project.client?.name ?? 'Unknown Client'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{project.pm?.full_name ?? 'Unassigned'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm"><ProjectStatusBadge status={project.status as ProjectStatus} /></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(project.contract_value)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{project.end_date ? new Date(project.end_date).toLocaleDateString() : '—'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                                        <ProjectStatusControl project={project} />
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

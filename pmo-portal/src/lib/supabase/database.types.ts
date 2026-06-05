@@ -228,6 +228,32 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_stage_config: {
+        Row: {
+          org_id: string
+          status: Database["public"]["Enums"]["project_status"]
+          win_probability: number
+        }
+        Insert: {
+          org_id?: string
+          status: Database["public"]["Enums"]["project_status"]
+          win_probability: number
+        }
+        Update: {
+          org_id?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          win_probability?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stage_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_doc_counters: {
         Row: {
           doc_date: string
@@ -742,8 +768,11 @@ export type Database = {
           budget: number
           client_id: string | null
           code: string | null
+          contract_date: string | null
           contract_value: number
           created_at: string
+          customer_contract_ref: string | null
+          decided_at: string | null
           end_date: string | null
           id: string
           last_update: string
@@ -758,8 +787,11 @@ export type Database = {
           budget?: number
           client_id?: string | null
           code?: string | null
+          contract_date?: string | null
           contract_value?: number
           created_at?: string
+          customer_contract_ref?: string | null
+          decided_at?: string | null
           end_date?: string | null
           id?: string
           last_update?: string
@@ -774,8 +806,11 @@ export type Database = {
           budget?: number
           client_id?: string | null
           code?: string | null
+          contract_date?: string | null
           contract_value?: number
           created_at?: string
+          customer_contract_ref?: string | null
+          decided_at?: string | null
           end_date?: string | null
           id?: string
           last_update?: string
@@ -1114,6 +1149,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      transition_project: {
+        Args: {
+          p_contract_date?: string
+          p_customer_contract_ref?: string
+          p_id: string
+          p_to: Database["public"]["Enums"]["project_status"]
+        }
+        Returns: undefined
+      }
       transition_timesheet: {
         Args: {
           p_notes?: string
@@ -1355,3 +1399,4 @@ export const Constants = {
     },
   },
 } as const
+
