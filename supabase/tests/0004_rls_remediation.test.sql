@@ -3,7 +3,7 @@ begin;
 -- HIGH-1: self role-escalation blocked (profiles_update_self cannot change role/org_id; Admin still can).
 -- HIGH-2: child-row cross-org parent pollution blocked for all 7 child write policies (SQLSTATE 42501).
 -- LOW-1: auth_role() reads profiles.role (no unsigned JWT claim fast-path) — exercised via the role gate.
-select plan(17);
+select plan(18);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ──────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -59,6 +59,13 @@ select throws_ok(
   $$ update profiles set org_id = 'bbbbbbbb-0000-0000-0000-000000000002' where id = auth.uid() $$,
   '42501', null,
   'HIGH-1: a non-Admin self-update cannot change org_id');
+
+-- LOW-TS-3: a non-Admin self-update that re-routes its own approval line (manager_id) is rejected.
+-- profiles_update_self pins manager_id to the persisted value; only profiles_admin_write may change it.
+select throws_ok(
+  $$ update profiles set manager_id = 'a0000000-0000-0000-0000-0000000000a1' where id = auth.uid() $$,
+  '42501', null,
+  'LOW-TS-3: a non-Admin self-update cannot re-route its own manager_id');
 
 -- A self-update that does NOT touch role/org_id still succeeds (regression: legitimate self-edits work).
 update profiles set full_name = 'Renamed A2' where id = auth.uid();

@@ -11,6 +11,19 @@
 alter table profiles add column manager_id uuid references profiles(id);
 create index profiles_manager_id_idx on profiles (manager_id);
 
+-- LOW-TS-3: now that manager_id exists, re-pin profiles_update_self so a non-Admin self-update cannot
+-- re-route its own approval line. Mirrors the existing role/org_id pin mechanism (0002): the WITH CHECK
+-- requires manager_id to equal the persisted value (`is not distinct from` is null-safe). Only
+-- profiles_admin_write may change manager_id. Drop+recreate (the column didn't exist at 0002's apply
+-- time, so it could not be pinned there).
+drop policy profiles_update_self on profiles;
+create policy profiles_update_self on profiles for update
+  using (id = auth.uid())
+  with check (
+    org_id = (select p.org_id from profiles p where p.id = auth.uid())
+    and role = (select p.role from profiles p where p.id = auth.uid())
+    and manager_id is not distinct from (select p.manager_id from profiles p where p.id = auth.uid()));
+
 -- ============================================================================
 -- A2 — RLS read-widening (FR-TS-008, OD-TS-4). drop+recreate timesheets_select adding a manager-of
 -- clause so a line-manager (even an Engineer-role one, NOT in the privileged-read set) can SELECT their
@@ -89,7 +102,11 @@ begin
     end if;
     -- Then: the assigned line manager (exclusive when set); OR Admin/Exec fallback ONLY when manager is
     -- null; OR Admin break-glass (OD-TS-4-D).
-    if not (v_uid = v_mgr
+    -- HIGH-TS-1: `v_uid is not distinct from v_mgr` is null-safe — it yields FALSE (not NULL) when
+    -- v_mgr is null, so `not (false or ...)` no longer short-circuits to NULL and skips the raise.
+    -- The Admin/Exec fallback is therefore gated STRICTLY to a null manager; a non-privileged
+    -- bystander on a null-manager sheet now correctly hits 42501.
+    if not (v_uid is not distinct from v_mgr
             or (v_mgr is null and v_role in ('Admin','Executive'))
             or v_role = 'Admin') then
       raise exception 'not authorized' using errcode = '42501';

@@ -34,6 +34,8 @@ create policy profiles_select on profiles for select
 -- A self-update may NOT change role or org_id (audit HIGH-1: prevents self role-escalation). The
 -- with check pins both to the caller's current persisted values; only profiles_admin_write may change
 -- role. (subselects read profiles directly; security-definer-free here is fine — same-row read.)
+-- NOTE (LOW-TS-3): once 0007 adds profiles.manager_id, this policy is dropped+recreated there to ALSO
+-- pin manager_id (the column does not exist at this migration's apply time, so it cannot be pinned here).
 create policy profiles_update_self on profiles for update
   using (id = auth.uid())
   with check (
@@ -158,9 +160,14 @@ create policy timesheets_select on timesheets for select
          or auth_role() in ('Admin','Executive','Project Manager','Finance')));
 create policy timesheets_insert on timesheets for insert
   with check (org_id = auth_org_id() and user_id = auth.uid());
+-- MED-TS-2: the WITH CHECK also pins the POST-image status to 'Draft'. USING gates the pre-image
+-- (only own Draft rows are updatable) but without this WITH CHECK clause an owner could
+-- `update ... set status='Approved', approved_by=self` directly, bypassing transition_timesheet
+-- (the SoD/legal-map authority). All status changes MUST go through the security-definer RPC
+-- (which bypasses RLS and is therefore unaffected by this clause).
 create policy timesheets_update_own on timesheets for update
   using (org_id = auth_org_id() and user_id = auth.uid() and status = 'Draft')
-  with check (org_id = auth_org_id() and user_id = auth.uid());
+  with check (org_id = auth_org_id() and user_id = auth.uid() and status = 'Draft');
 
 alter table timesheet_entries enable row level security;
 create policy timesheet_entries_select on timesheet_entries for select

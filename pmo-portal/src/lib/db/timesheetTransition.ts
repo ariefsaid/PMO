@@ -69,11 +69,11 @@ export function timesheetActions(
  * org_id is NEVER sent (AC-902, FR-TS-009/010).
  */
 export async function submitTimesheet(id: string): Promise<void> {
-  const { error } = (await supabase.rpc('transition_timesheet', {
+  const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Submitted',
     p_notes: null,
-  })) as unknown as { data: null; error: { message: string } | null };
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -82,11 +82,11 @@ export async function submitTimesheet(id: string): Promise<void> {
  * org_id is NEVER sent (AC-902, FR-TS-009/010).
  */
 export async function approveTimesheet(id: string, notes?: string): Promise<void> {
-  const { error } = (await supabase.rpc('transition_timesheet', {
+  const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Approved',
     p_notes: notes ?? null,
-  })) as unknown as { data: null; error: { message: string } | null };
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -95,11 +95,11 @@ export async function approveTimesheet(id: string, notes?: string): Promise<void
  * org_id is NEVER sent (AC-902, FR-TS-009/010).
  */
 export async function rejectTimesheet(id: string, notes?: string): Promise<void> {
-  const { error } = (await supabase.rpc('transition_timesheet', {
+  const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Rejected',
     p_notes: notes ?? null,
-  })) as unknown as { data: null; error: { message: string } | null };
+  });
   if (error) throw new Error(error.message);
 }
 
