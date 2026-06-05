@@ -108,16 +108,16 @@ insert into budget_versions (id, project_id, version, name, status) values
   ('50000000-0000-0000-0000-000000000004','40000000-0000-0000-0000-000000000004',1,'Initial Budget','Draft'),
   ('50000000-0000-0000-0000-000000000005','40000000-0000-0000-0000-000000000003',1,'Initial Budget','Draft');
 insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
-  -- P002: ERP Rollout — Labor + Materials
-  ('50000000-0000-0000-0000-000000000003','Labor','ERP implementation team',800000,0),
-  ('50000000-0000-0000-0000-000000000003','Materials','Software licenses & infrastructure',400000,0),
+  -- P002: ERP Rollout — Labor + Materials (SPD-S1: budget reduced to 1,000,000 for non-trivial projected margin)
+  ('50000000-0000-0000-0000-000000000003','Labor','ERP implementation team',700000,0),
+  ('50000000-0000-0000-0000-000000000003','Materials','Software licenses & infrastructure',300000,0),
   -- P003: Acme Internal Platform — sums to 2,000,000
   ('50000000-0000-0000-0000-000000000004','Labor','Platform development team',1400000,1200000),
   ('50000000-0000-0000-0000-000000000004','Materials','Infrastructure & tooling',400000,500000),
   ('50000000-0000-0000-0000-000000000004','Contingency','Reserve',200000,200000),
-  -- P010: Regional Services Program — Labor + Subcontractors
-  ('50000000-0000-0000-0000-000000000005','Labor','Program management',350000,0),
-  ('50000000-0000-0000-0000-000000000005','Subcontractors','Field delivery partners',450000,0);
+  -- P010: Regional Services Program — Labor + Subcontractors (SPD-S1: budget reduced to 600,000 for non-trivial projected margin)
+  ('50000000-0000-0000-0000-000000000005','Labor','Program management',250000,0),
+  ('50000000-0000-0000-0000-000000000005','Subcontractors','Field delivery partners',350000,0);
 update budget_versions set status = 'Active' where id in (
   '50000000-0000-0000-0000-000000000003',
   '50000000-0000-0000-0000-000000000004',

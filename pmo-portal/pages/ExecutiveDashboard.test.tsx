@@ -1,13 +1,23 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
+import { formatCurrency } from '@/src/lib/format';
 
+// Oracle payload — extended dual-lens fields (no avg_gross_margin)
 const populated = {
-  active_projects: 2, total_contract_value: 8000000, avg_gross_margin: 0.30162, projects_at_risk: 1,
+  active_projects: 2,
+  total_contract_value: 8000000,
+  on_hand_margin: 0.949375,
+  on_hand_value: 8000000,
+  pipeline_weighted_value: 800000,
+  pipeline_projected_margin: 0.200,
+  pipeline_total_value: 2000000,
+  projects_at_risk: 1,
   projects_by_status: [
-    { status: 'Ongoing Project', count: 2 }, { status: 'Tender Submitted', count: 1 },
+    { status: 'Ongoing Project', count: 2 },
+    { status: 'Tender Submitted', count: 1 },
     { status: 'PQ Submitted', count: 1 },
   ],
   procurements_by_status: [
@@ -21,14 +31,31 @@ const populated = {
       contract_value: 3000000, budget: 2000000, spent: 1900000, status: 'Ongoing Project' },
   ],
 };
+
+// Oracle win-rate — all-time §3.8
+const winRateOracle = {
+  wins_count: 2, losses_count: 1, wins_value: 8000000, losses_value: 650000,
+  win_rate_count: 0.666667, win_rate_value: 0.924855,
+};
+
+// Track calls to useWinRate so AC-1115 can assert range changes
+let lastWinRateRange: { key: string } | null = null;
+
 const dashState: {
-  data: typeof populated | { active_projects: 0; total_contract_value: 0; avg_gross_margin: 0; projects_at_risk: 0; projects_by_status: never[]; procurements_by_status: never[]; top_projects: never[] };
+  data: typeof populated | null;
   isPending: boolean;
   isError: boolean;
   refetch: ReturnType<typeof vi.fn>;
 } = { data: populated, isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useDashboard', () => ({ useDashboard: () => dashState }));
+vi.mock('@/src/hooks/useDashboard', () => ({
+  useDashboard: () => dashState,
+  useWinRate: (range: { key: string }) => {
+    lastWinRateRange = range;
+    return { data: winRateOracle, isPending: false, isError: false };
+  },
+  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
+}));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
@@ -42,12 +69,6 @@ describe('ExecutiveDashboard (real data)', () => {
     renderPage();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
-  });
-  it('renders Avg Gross Margin 30.2% and Projects at Risk 1 (AC-702)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
-    renderPage();
-    expect(screen.getByTestId('kpi-avg-gross-margin')).toHaveTextContent('30.2%');
-    expect(screen.getByTestId('kpi-projects-at-risk')).toHaveTextContent('1');
   });
   it('pipeline region shows the Ongoing count 2 (AC-703)', () => {
     dashState.isPending = false; dashState.isError = false; dashState.data = populated;
@@ -82,11 +103,58 @@ describe('ExecutiveDashboard states', () => {
     dashState.isError = false;
   });
   it('empty state when org has no projects/procurements (AC-708)', () => {
-    dashState.data = { active_projects: 0, total_contract_value: 0, avg_gross_margin: 0,
-      projects_at_risk: 0, projects_by_status: [], procurements_by_status: [], top_projects: [] };
+    dashState.data = {
+      active_projects: 0, total_contract_value: 0,
+      on_hand_margin: 0, on_hand_value: 0, pipeline_weighted_value: 0,
+      pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
+      projects_by_status: [], procurements_by_status: [], top_projects: [],
+    };
     dashState.isPending = false; dashState.isError = false;
     renderPage();
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
     dashState.data = populated;
+  });
+});
+
+describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
+  it('AC-1114: renders on-hand margin / pipeline weighted value / projected margin tiles, no avg_gross_margin (FR-SPD-012)', () => {
+    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+    renderPage();
+
+    // on-hand margin = 0.949375 → 94.9%
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('94.9%');
+
+    // pipeline weighted value = 800000
+    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000));
+
+    // pipeline projected margin = 0.200 → 20.0%
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
+
+    // old tile must not exist
+    expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
+  });
+});
+
+describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
+  it('AC-1115: win-rate tile toggles count↔value and period re-queries (FR-SPD-013)', () => {
+    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+    lastWinRateRange = null;
+    renderPage();
+
+    // default mode = count → 66.7%
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+
+    // toggle to value → 92.5%
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
+
+    // reset toggle back to count
+    fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+
+    // changing period selector changes range key
+    const initialKey = lastWinRateRange?.key;
+    fireEvent.change(screen.getByTestId('win-rate-period'), { target: { value: 'q' } });
+    expect(lastWinRateRange?.key).not.toBe(initialKey);
   });
 });
