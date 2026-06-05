@@ -40,6 +40,12 @@ export default defineConfig({
     include: ['**/*.{test,spec}.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     css: false,
+    // Dummy Supabase env so client.ts can instantiate in unit tests without a
+    // real .env.local (tests that exercise supabase still mock all calls).
+    env: {
+      VITE_SUPABASE_URL: 'http://localhost:54321',
+      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
