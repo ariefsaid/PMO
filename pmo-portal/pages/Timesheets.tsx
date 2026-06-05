@@ -3,8 +3,11 @@ import React, { useState, useMemo } from 'react';
 import Card from '../components/Card';
 import TimesheetStatusBadge from '../components/TimesheetStatusBadge';
 import { TimesheetStatus } from '../types';
-import { TimesheetsIcon, ClipboardDocumentCheckIcon } from '../components/icons';
+import { TimesheetsIcon } from '../components/icons';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
+import { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
+import { timesheetActions } from '@/src/lib/db/timesheetTransition';
+import { useAuth } from '@/src/auth/useAuth';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 
 const getWeekStartDate = (date: Date): Date => {
@@ -23,6 +26,9 @@ const formatDate = (date: Date): string => {
 
 const TimesheetsPage: React.FC = () => {
     const { data: sheets, isPending, isError, refetch } = useTimesheets();
+    const { submit } = useTimesheetMutations();
+    const { currentUser } = useAuth();
+    const signedInUserId = currentUser?.id;
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -177,15 +183,28 @@ const TimesheetsPage: React.FC = () => {
                                 style={{ width: `${weeklyUtilization}%` }}
                             />
                         </div>
-                        <div className="mt-4">
-                            <button
-                                disabled
-                                title="Submitting is coming soon"
-                                className="px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm bg-gray-400 cursor-not-allowed"
-                            >
-                                Submit Timesheet
-                            </button>
-                        </div>
+                        {/* Submit button — only when the current user owns this Draft sheet (FR-TS-004) */}
+                        {(() => {
+                            const isOwner = currentTimesheet?.user_id === signedInUserId;
+                            const actions = currentTimesheet
+                                ? timesheetActions(
+                                    currentTimesheet.status as TimesheetStatus,
+                                    Boolean(isOwner),
+                                    false,
+                                  )
+                                : { submit: false, approve: false, reject: false };
+                            return actions.submit ? (
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => submit.mutate({ id: currentTimesheet!.id })}
+                                        disabled={submit.isPending}
+                                        className="px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Submit Timesheet
+                                    </button>
+                                </div>
+                            ) : null;
+                        })()}
                     </div>
                 </div>
 
@@ -276,17 +295,10 @@ const TimesheetsPage: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex items-start p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-                    <ClipboardDocumentCheckIcon className="w-5 h-5 mr-3 flex-shrink-0" />
-                    <p>
-                        <strong>View only:</strong> Entry editing and timesheet submission are coming soon.
-                    </p>
-                </div>
-
-                {/* Approvals tab is deferred — OD-T1 */}
+                {/* View-only note for entry editing (entry editing is out-of-scope; see spec) */}
                 <div className="text-xs text-gray-400 dark:text-gray-600 flex items-center gap-2">
                     <TimesheetsIcon className="w-4 h-4" />
-                    <span>Approvals workflow coming soon.</span>
+                    <span>Entry editing coming soon. Approved timesheets are read-only.</span>
                 </div>
             </div>
         </Card>

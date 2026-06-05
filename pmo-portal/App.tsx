@@ -23,6 +23,7 @@ const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
+const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const ProjectBudgetLazy = React.lazy(() => import('./pages/ProjectBudget'));
 
@@ -55,6 +56,7 @@ const Shell: React.FC = () => {
                 <Route path="/procurement" element={<ProcurementPage />} />
                 <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
                 <Route path="/timesheets" element={<TimesheetsPage />} />
+                <Route path="/approvals" element={<ApprovalsPage />} />
                 <Route path="/tasks" element={<PlaceholderPage title="Tasks" />} />
                 <Route path="/companies" element={<PlaceholderPage title="Companies" />} />
                 <Route path="/work-orders" element={<PlaceholderPage title="Work Orders" />} />

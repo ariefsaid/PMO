@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
@@ -17,6 +17,8 @@ const pmSheet = [{
   ],
 }];
 
+const submitMutate = vi.fn();
+
 const tsState: {
   data: TimesheetWithEntries[] | undefined;
   isPending: boolean;
@@ -26,6 +28,14 @@ const tsState: {
 vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => tsState }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetMutations: () => ({
+    submit: { mutate: submitMutate, isPending: false },
+    approve: { mutate: vi.fn(), isPending: false },
+    reject: { mutate: vi.fn(), isPending: false },
+  }),
+  useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
 }));
 
 const renderPage = () => render(<MemoryRouter><Timesheets /></MemoryRouter>);
@@ -87,6 +97,73 @@ describe('Timesheets states', () => {
     tsState.isError = false;
     renderPage();
     expect(screen.getByTestId('timesheets-empty')).toBeInTheDocument();
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C5 — Submit button wiring (AC-911 UI, FR-TS-004)
+// ---------------------------------------------------------------------------
+
+describe('Timesheets submit button', () => {
+  beforeEach(() => {
+    submitMutate.mockClear();
+  });
+
+  it("AC-911 (UI): the weekly grid shows an enabled Submit button for the owner's own Draft sheet and calls the submit mutation (FR-TS-004)", () => {
+    // pmSheet has user_id 'u-alice' and useAuth returns id 'u-alice' → isOwner=true
+    // week_start_date must match the current week; Timesheets page uses today's week
+    // so we set a Draft sheet matching the current week string
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    const weekStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
+    const draftSheet = [{
+      id: 'ts-draft', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [],
+    }];
+    tsState.data = draftSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+
+    renderPage();
+
+    const submitBtn = screen.getByRole('button', { name: /submit timesheet/i });
+    expect(submitBtn).toBeInTheDocument();
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+    expect(submitMutate).toHaveBeenCalledWith({ id: 'ts-draft' });
+
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+
+  it('AC-911 (UI): no Submit button on a Submitted sheet (badge shown instead) (FR-TS-004)', () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    const weekStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
+    const submittedSheet = [{
+      id: 'ts-sub', user_id: 'u-alice', week_start_date: weekStr, status: 'Submitted',
+      submitted_at: '2026-06-08T17:00:00Z', approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [],
+    }];
+    tsState.data = submittedSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+
+    renderPage();
+
+    // Submit button should NOT be present for Submitted status
+    expect(screen.queryByRole('button', { name: /submit timesheet/i })).toBeNull();
+
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
