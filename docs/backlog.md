@@ -77,7 +77,7 @@ procurements_update transition-RPC bypass) → hosting/deploy (owner-gated, ADR-
 > Reconciled 2026-06-04 after the write wave. ✅ = shipped during #1–#5; the rest are genuinely open.
 1. ✅ **ProcurementDetails read swap** — DONE in issue #2 (rewritten on real data + lifecycle actions).
 2. ✅ **SalesPipeline + Dashboard-margin** — DONE in issue #5 (PR #17). (Old `feat/sales-pipeline` branch may still linger on origin — safe to delete.)
-3. **🔴 pgTAP + e2e in CI (TOP PRIORITY — security proofs are currently un-gated).** CI runs only typecheck/audit/unit/build/lint; the **44 pgTAP files / 172 tests** (which own all RLS/tenancy/SoD proofs + every HIGH-fix regression) and the e2e journeys are **local-only**. A change could break tenancy/SoD and CI would pass green. Wire `supabase` + `supabase test db` + `npx playwright test` into GitHub Actions. Load-bearing per ADR-0010 — do this before trusting CI as a merge gate.
+3. ✅ **pgTAP + e2e in CI** — DONE (PR #19, `18cfca5`). Added a parallel `integration` job (`supabase start` → `db reset` → `supabase test db` 45 files/180 tests → Playwright e2e); verified green on the real GitHub runner. ALSO fixed a latent failure it surfaced: the fast `verify` job had been **silently red** on missing `VITE_SUPABASE_URL` (CI has no `.env.local`) — made the unit suite hermetic via dummy Supabase env in `vite.config.ts` `test.env`. CI is now a trustworthy merge gate. **Going forward: watch the actual CI run on PRs, don't merge on local-green alone.**
 4. **ProjectDetails decomposition + read swap** — `pages/ProjectDetails.tsx` is still the ~1,388-line mockData prototype (imports `projects/users/companies/procurements/timesheets/tasks/projectDocuments` from `data/mockData`). Split into per-tab components, then wire budgets/tasks/documents tabs to real data (budget tab already mounts the real `<ProjectBudget>`). Large; decomposition first.
 5. **Per-role sub-dashboards on real data (OD-D3)** — `EngineerDashboard`/`PMDashboard`/`FinanceDashboard` in `ExecutiveDashboard.tsx` still read `data/mockData` (the only other mockData survivor). Wire to real per-role queries.
 6. **Shared `<ListState>` component** — extract loading/empty/error markup duplicated across list pages; memoize list filters consistently.
@@ -92,14 +92,11 @@ procurements_update transition-RPC bypass) → hosting/deploy (owner-gated, ADR-
 - **Budget module (from build-wave #1 reviews):** (a) `createBudgetVersion` computes `max(version)+1` client-side (TOCTOU race under concurrent "+New version"); move to a `create_budget_version` security-definer RPC like clone/activate. (b) Extract a shared `<LineItemTable readOnly>` in `ProjectBudget.tsx` (editor + read-only tables duplicate markup). (c) The project header **Budget MetricCard in `ProjectDetails.tsx` still reads the stale `projects.budget` header** — it becomes correct when the Projects/Dashboard margin re-formula issue derives budget from the Active version. Neither blocks the budget module.
 - **Procurement module (from build-wave #2 reviews):** (a) **transition-map drift guard** — `transition_procurement`'s legal-map + role matrix (SQL) and `procurementLifecycle.ts` `LEGAL_TRANSITIONS`/`allowedActions` (TS) are hand-maintained duplicates (SQL authoritative, TS cosmetic); add a sync test (or shared JSON fixture) before the matrix grows. (b) Extract a shared `formatDate` helper (dates formatted inline; `formatCurrency` already shared). Neither blocks.
 - **Dashboard module (from build-wave #5 reviews):** (a) the on-hand + pipeline **status-set literals are duplicated across all 3 RPCs** in `0009_dashboard_margin.sql` (4+ occurrences) — extract a shared SQL helper (`on_hand_statuses()`/`pipeline_statuses()` or a `status_membership` table) before the taxonomy changes. (b) `SalesPipeline.tsx` re-filters projects O(5×N) per render — `useMemo` a single group-by-status. (Win-rate cache-key staleness was already fixed in the build.) Neither blocks.
-- **🔒 SECURITY follow-up — transition-RPC direct-UPDATE bypass (MEDIUM, systemic):** the coarse `*_write` RLS
-  policies let a 4-role insider directly `UPDATE` a row's status-machine columns, bypassing the security-definer
-  transition RPC (its legal-map + SoD + capture/stamp logic). **Timesheets** (MED-TS-2, WITH CHECK status pin) and
-  **Projects** (MED-PR-1, revoke-then-regrant) are FIXED. **`procurements_update` (`0002_rls.sql`) still has it** —
-  an insider can directly set a procurement's `status` (e.g. →Paid), bypassing `transition_procurement`'s SoD/matrix.
-  Fix with the same revoke-then-regrant (lock `status`/`pr_number`/`po_number`/`approved_by_id` to the definer RPC)
-  in a small hardening migration; add a pgTAP. Insider+direct-SQL only (UI uses the RPC), hence MEDIUM, but it
-  undercuts procurement SoD — do before production-hardening.
+- ✅ **SECURITY — transition-RPC direct-UPDATE bypass (MEDIUM, systemic): FULLY CLOSED across all 4 state machines.**
+  Coarse `*_write` RLS let a 4-role insider directly `UPDATE` status-machine columns, bypassing the security-definer
+  transition RPC (legal-map + SoD + capture/stamp). Fixed: timesheets (MED-TS-2, WITH CHECK status pin), projects
+  (MED-PR-1, revoke-then-regrant), and **procurements** (PR #18, `2bd40c0`, migration `0010` — revoke-then-regrant
+  locking `status`/`pr_number`/`po_number`/`approved_by_id`/notes + child doc-number cols to the definer RPCs; pgTAP `0045`).
 - **Win-rate date filter (issue #5, OWNER-FLAG-1):** MVP ships period presets (All-time/YTD/Last quarter/Trailing
   12mo); the RPC takes arbitrary `p_from`/`p_to` so a custom date-range picker is a UI-only later add. Confirm at #5 sign-off if a custom picker is wanted in MVP.
 
