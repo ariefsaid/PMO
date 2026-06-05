@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Card from '../components/Card';
 import { projects, tasks, procurements } from '../data/mockData';
 import { ProjectStatus, TaskStatus, ProcurementStatus } from '../types';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useDashboard } from '@/src/hooks/useDashboard';
+import { useDashboard, useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 
 // OD-D3: interim mock ids for the not-yet-migrated role sub-dashboards. These pick a representative
@@ -29,6 +29,95 @@ const KpiCard: React.FC<KpiCardProps> = ({ testId, title, value, description }) 
     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{description}</p>
   </Card>
 );
+
+// ---- Win-rate period options ----
+
+type PeriodKey = 'all' | 'ytd' | 'q' | 't12';
+
+function buildWinRateRange(period: PeriodKey): WinRateRange {
+  const now = new Date();
+  switch (period) {
+    case 'ytd':
+      return { from: new Date(now.getFullYear(), 0, 1), key: 'ytd' };
+    case 'q': {
+      const from = new Date(now);
+      from.setMonth(from.getMonth() - 3);
+      return { from, to: now, key: 'q' };
+    }
+    case 't12': {
+      const from = new Date(now);
+      from.setFullYear(from.getFullYear() - 1);
+      return { from, to: now, key: 't12' };
+    }
+    default:
+      return { key: 'all' };
+  }
+}
+
+/** Win-rate widget: count/value toggle + period selector (FR-SPD-013). */
+const WinRateCard: React.FC = () => {
+  const [mode, setMode] = useState<'count' | 'value'>('count');
+  const [period, setPeriod] = useState<PeriodKey>('all');
+  const range = useMemo(() => buildWinRateRange(period), [period]);
+  const { data: wr } = useWinRate(range);
+
+  const rate = wr
+    ? (mode === 'count' ? wr.win_rate_count : wr.win_rate_value)
+    : null;
+
+  return (
+    <Card data-testid="kpi-win-rate-card">
+      <div className="flex items-start justify-between mb-2">
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Win Rate</p>
+        {/* Count / Value toggle */}
+        <div className="flex rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden text-xs">
+          <button
+            data-testid="win-rate-toggle-count"
+            onClick={() => setMode('count')}
+            className={`px-2 py-1 ${mode === 'count' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            aria-pressed={mode === 'count'}
+          >
+            Count
+          </button>
+          <button
+            data-testid="win-rate-toggle-value"
+            onClick={() => setMode('value')}
+            className={`px-2 py-1 ${mode === 'value' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            aria-pressed={mode === 'value'}
+          >
+            Value
+          </button>
+        </div>
+      </div>
+      <p
+        data-testid="kpi-win-rate"
+        className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white"
+      >
+        {rate !== null ? `${(rate * 100).toFixed(1)}%` : '—'}
+      </p>
+      <div className="mt-2">
+        <label htmlFor="win-rate-period" className="sr-only">Win-rate period</label>
+        <select
+          id="win-rate-period"
+          data-testid="win-rate-period"
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as PeriodKey)}
+          className="mt-1 block w-full text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+        >
+          <option value="all">All time</option>
+          <option value="ytd">YTD</option>
+          <option value="q">Last quarter</option>
+          <option value="t12">Trailing 12 months</option>
+        </select>
+      </div>
+      {wr && (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {wr.wins_count} won / {wr.losses_count} lost
+        </p>
+      )}
+    </Card>
+  );
+};
 
 const EngineerDashboard: React.FC<{ userId: number }> = ({ userId }) => {
   const myTasks = tasks.filter(t => t.assigneeId === userId);
@@ -310,11 +399,38 @@ const ExecutiveDashboard: React.FC = () => {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Row 1: core project KPIs */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <KpiCard testId="kpi-active-projects" title="Active Projects" value={`${data.active_projects}`} description="Ongoing projects" />
           <KpiCard testId="kpi-total-contract-value" title="Total Contract Value" value={formatCurrency(data.total_contract_value)} description="Ongoing projects" />
-          <KpiCard testId="kpi-avg-gross-margin" title="Average Gross Margin" value={`${(data.avg_gross_margin * 100).toFixed(1)}%`} description="Budget vs spent" />
           <KpiCard testId="kpi-projects-at-risk" title="Projects at Risk" value={`${data.projects_at_risk}`} description="Budget usage > 90%" />
+        </div>
+
+        {/* Row 2: OD-MARGIN-1 dual-lens margin tiles (FR-SPD-012) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <KpiCard
+            testId="kpi-on-hand-margin"
+            title="On-hand Actual Margin"
+            value={`${(data.on_hand_margin * 100).toFixed(1)}%`}
+            description="On-hand actual margin (weighted)"
+          />
+          <KpiCard
+            testId="kpi-pipeline-weighted-value"
+            title="Pipeline Weighted Value"
+            value={formatCurrency(data.pipeline_weighted_value)}
+            description="Pipeline weighted value"
+          />
+          <KpiCard
+            testId="kpi-pipeline-projected-margin"
+            title="Pipeline Projected Margin"
+            value={`${(data.pipeline_projected_margin * 100).toFixed(1)}%`}
+            description="Pipeline projected margin"
+          />
+        </div>
+
+        {/* Row 3: Win-rate widget (FR-SPD-013) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <WinRateCard />
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

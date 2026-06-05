@@ -5,7 +5,9 @@ import React from 'react';
 
 vi.mock('@/src/lib/db/dashboard', () => ({
   getExecutiveDashboard: vi.fn().mockResolvedValue({
-    active_projects: 2, total_contract_value: 8000000, avg_gross_margin: 0.30162,
+    active_projects: 2, total_contract_value: 8000000,
+    on_hand_margin: 0.949375, on_hand_value: 8000000,
+    pipeline_weighted_value: 800000, pipeline_projected_margin: 0.200, pipeline_total_value: 2000000,
     projects_at_risk: 1, projects_by_status: [], procurements_by_status: [], top_projects: [],
   }),
 }));
