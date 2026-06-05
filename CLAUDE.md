@@ -47,11 +47,13 @@ for one client, architected to scale to millions.
 
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
+The UI/UX cycle (Foundation → per-UI-issue loop → human-UX improvement loop; code→UI agent analogs) is **`docs/design-workflow.md`**.
 
 ## Agent roster (`.claude/agents/`) and models
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
 code-quality-reviewer (opus) · qa-acceptance (sonnet) · security-auditor (opus) ·
-release-engineer (sonnet) · mechanical (haiku).
+release-engineer (sonnet) · mechanical (haiku) · design-architect (opus) ·
+ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 
 ## Skill ownership (one owner per concern — avoids collisions)
 | Concern | Owner |
@@ -61,7 +63,10 @@ release-engineer (sonnet) · mechanical (haiku).
 | Design + task planning | superpowers (brainstorming, writing-plans) |
 | TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
 | Code review | superpowers spec + quality reviewers |
-| Design system / UI · browser QA · security · ship/deploy/monitor | gstack (`/design-*`, `/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| Design-system reverse-eng / maintenance (`DESIGN.md`) | design-architect (impeccable, design-consultation) |
+| UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
+| Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
+| Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
 
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
 `Bash` tool was stripped (read-only). gstack telemetry stays `off`.
