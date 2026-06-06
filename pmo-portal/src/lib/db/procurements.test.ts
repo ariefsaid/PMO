@@ -38,7 +38,7 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles(full_name)',
+      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');
