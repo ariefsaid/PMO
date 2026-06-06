@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+================================================================================
+  PMO PORTAL — PROPOSAL "VISUAL-B": DENSE ENTERPRISE DATA-CONSOLE
+================================================================================
+  DIRECTION: Information-dense, table/grid-centric power-user ERP console.
+             A refined Bloomberg-terminal / SAP-Fiori-meets-modern aesthetic.
+             Deliberately NOT a clean-airy minimal SaaS look.
+
+  DESIGN RATIONALE
+  - Cockpit density (taste VISUAL_DENSITY ~8): 1px dividers and rules replace
+    rounded "cards" wherever elevation isn't functionally needed; rows are
+    compact (28-32px); a persistent toolbar + filter rail anchors every surface.
+  - Tabular numerics everywhere (IBM Plex Mono, font-variant-numeric: tabular-nums)
+    so money/percent columns align and never reflow — applied per ui-ux-pro-max
+    `number-tabular` and taste Cockpit "Mandatory: monospace for all numbers".
+  - Own palette, NO RIS tokens, NO AI-purple (taste "THE LILA BAN"): a cool
+    charcoal/slate neutral base with ONE desaturated accent (amber-gold #b88a2e
+    "signal") plus disciplined semantic status hues (emerald/red/sky/amber).
+    Max one accent, saturation kept < 80% (taste Rule 2).
+  - Type pairing IBM Plex Sans + IBM Plex Mono — an engineering/industrial pair
+    (no Inter, no serif on a dashboard — taste typography rules).
+  - Strong data hierarchy via weight + color + rule-lines, not boxes
+    (taste Rule 4 "Anti-Card Overuse"; ui-ux-pro-max `visual-hierarchy`).
+
+  ui-ux-pro-max GUIDANCE APPLIED
+  - Accessibility: 4.5:1 contrast, visible 2px focus rings, semantic landmarks
+    (header/nav/main/aside), aria-current on nav, role=tablist/tab, labelled
+    controls, aria-sort on sortable columns, color-not-only (status uses dot+text).
+  - Charts & Data: legends + direct labels, tabular numbers, table-alternative
+    semantics, gridline-subtle, empty-data-state + loading skeleton + error state.
+  - Forms & Feedback: visible labels, disabled-state opacity, destructive-emphasis,
+    multi-step progress (procurement stepper), separation-of-duties gating.
+
+  taste GUIDANCE APPLIED
+  - Forbidden patterns avoided: no neon/outer glows, no pure black (#0d1117 base),
+    no oversaturated accent, no Inter, no generic "John Doe" names / "Acme" brands,
+    no 99.99%/50% fake numbers (organic figures throughout), no centered hero.
+  - Full interaction cycle: hover/active states, skeleton loader, empty state,
+    inline error state. Tactile :active translate on buttons.
+================================================================================
+-->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PMO Portal — Dense Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================== TOKENS ================================= */
+:root{
+  /* neutral base — cool charcoal/slate, no pure black */
+  --bg:#0d1117;            /* app shell base */
+  --bg-2:#121823;          /* panel base */
+  --bg-3:#171f2b;          /* raised row / header strip */
+  --bg-hover:#1c2533;
+  --bg-sel:#202c3d;
+  --line:#23303f;          /* hairline divider */
+  --line-2:#2d3c4f;        /* stronger divider */
+  --ink:#e6edf3;           /* primary text */
+  --ink-2:#aab8c7;         /* secondary text */
+  --ink-3:#7d8da0;         /* tertiary / labels */
+  --ink-dim:#56657a;
+
+  /* single brand accent — desaturated amber-gold "signal" */
+  --acc:#d09a3c;
+  --acc-strong:#e3b257;
+  --acc-ink:#1a1408;
+  --acc-soft:#2a2210;
+
+  /* semantic status (color-not-only: always paired with text/dot) */
+  --pos:#3fb27f;  --pos-soft:#10241c;
+  --neg:#e0625f;  --neg-soft:#2a1413;
+  --info:#4ea3d6; --info-soft:#0e2030;
+  --warn:#d6a23c; --warn-soft:#271d0c;
+  --muted:#6b7a8d;--muted-soft:#1a2230;
+
+  /* tight spacing scale (4pt) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+
+  --r:4px;     /* tight radii — industrial, not pill */
+  --r2:6px;
+  --row:30px;  /* compact row height */
+  --mono:"IBM Plex Mono","SFMono-Regular",ui-monospace,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --sb:248px;  /* sidebar width */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:13px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--acc-strong); outline-offset:1px; border-radius:2px}
+::selection{background:var(--acc-soft); color:var(--ink)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:6px; border:2px solid var(--bg-2)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ============================== APP SHELL ============================= */
+.app{display:grid; grid-template-columns:var(--sb) 1fr; grid-template-rows:48px 1fr; height:100dvh;
+  grid-template-areas:"brand topbar" "side main";}
+.skip{position:absolute;left:-999px;top:8px;z-index:200;background:var(--acc);color:var(--acc-ink);padding:6px 12px;border-radius:var(--r);font-weight:600}
+.skip:focus{left:8px}
+
+/* brand cell */
+.brand{grid-area:brand;display:flex;align-items:center;gap:var(--s2);padding:0 var(--s4);
+  background:var(--bg-2);border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+.brand .mark{width:22px;height:22px;border-radius:var(--r);background:linear-gradient(135deg,var(--acc-strong),var(--acc));
+  display:grid;place-items:center;color:var(--acc-ink);font-weight:700;font-size:13px;flex:none}
+.brand .name{font-weight:700;letter-spacing:.2px;font-size:13.5px}
+.brand .env{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);
+  border:1px solid var(--line-2);padding:1px 5px;border-radius:3px;letter-spacing:.4px}
+
+/* topbar */
+.topbar{grid-area:topbar;display:flex;align-items:center;gap:var(--s3);padding:0 var(--s4);
+  background:var(--bg-2);border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+.crumbs b{color:var(--ink);font-weight:600}
+.crumbs .sep{color:var(--ink-dim)}
+.gsearch{margin-left:8px;flex:1;max-width:420px;display:flex;align-items:center;gap:6px;
+  background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r);padding:5px 9px;color:var(--ink-3)}
+.gsearch input{background:none;border:0;color:var(--ink);font-family:var(--mono);font-size:12px;width:100%;outline:none}
+.gsearch kbd{font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--line-2);
+  border-radius:3px;padding:0 4px;background:var(--bg-3)}
+.topbar .spacer{flex:1}
+.iconbtn{width:30px;height:30px;display:grid;place-items:center;border:1px solid transparent;border-radius:var(--r);
+  background:none;color:var(--ink-2);position:relative}
+.iconbtn:hover{background:var(--bg-hover);border-color:var(--line-2);color:var(--ink)}
+.iconbtn .badge{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--neg);
+  border:1.5px solid var(--bg-2)}
+
+/* role switcher */
+.roleswitch{display:flex;align-items:center;gap:0;background:var(--bg);border:1px solid var(--line-2);
+  border-radius:var(--r);padding:2px;height:30px}
+.roleswitch label{font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.5px;padding:0 6px 0 4px;align-self:center}
+.roleswitch select{appearance:none;background:none;border:0;color:var(--ink);font-family:var(--sans);
+  font-size:12px;font-weight:600;padding:0 22px 0 6px;height:100%;outline:none;cursor:pointer;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237d8da0' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 6px center}
+.who{display:flex;align-items:center;gap:8px;padding-left:6px;border-left:1px solid var(--line)}
+.av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;
+  color:#0d1117;letter-spacing:.3px}
+.who .meta{line-height:1.15}
+.who .meta .n{font-size:11.5px;font-weight:600}
+.who .meta .r{font-size:10px;color:var(--ink-3);font-family:var(--mono)}
+
+/* sidebar nav */
+.side{grid-area:side;background:var(--bg-2);border-right:1px solid var(--line);overflow-y:auto;padding:var(--s3) 0}
+.navgrp{padding:0 var(--s3) var(--s2)}
+.navgrp .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-dim);
+  padding:var(--s3) var(--s2) var(--s2);font-weight:600}
+.navitem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;
+  padding:6px 10px;border-radius:var(--r);color:var(--ink-2);font-size:12.5px;position:relative;line-height:1}
+.navitem svg{width:15px;height:15px;flex:none;color:var(--ink-3)}
+.navitem:hover{background:var(--bg-hover);color:var(--ink)}
+.navitem.active{background:var(--bg-sel);color:var(--ink);font-weight:600}
+.navitem.active svg{color:var(--acc-strong)}
+.navitem.active::before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:2.5px;border-radius:2px;background:var(--acc)}
+.navitem .ct{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-3);
+  background:var(--bg-3);border:1px solid var(--line);border-radius:3px;padding:0 5px}
+.navitem.stub{color:var(--ink-dim);cursor:not-allowed}
+.navitem.stub svg{color:var(--ink-dim)}
+.navitem.stub:hover{background:none;color:var(--ink-dim)}
+.navitem.stub .soon{margin-left:auto;font-size:9px;font-family:var(--mono);color:var(--ink-dim);
+  border:1px dashed var(--line-2);border-radius:3px;padding:0 4px}
+.navsep{height:1px;background:var(--line);margin:var(--s3) var(--s3)}
+
+/* main scroll region */
+.main{grid-area:main;overflow:auto;background:var(--bg);scroll-behavior:smooth}
+.surface{display:none}
+.surface.show{display:block}
+
+/* persistent surface toolbar */
+.toolbar{position:sticky;top:0;z-index:30;background:var(--bg-2);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:var(--s3);padding:8px var(--s4);min-height:46px;flex-wrap:wrap}
+.toolbar h1{font-size:14px;font-weight:700;letter-spacing:.1px;margin:0;display:flex;align-items:center;gap:8px}
+.toolbar .sub{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+.toolbar .tspacer{flex:1}
+.segmented{display:flex;background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden}
+.segmented button{border:0;background:none;color:var(--ink-3);font-size:11.5px;font-weight:500;padding:5px 11px;border-right:1px solid var(--line)}
+.segmented button:last-child{border-right:0}
+.segmented button.on{background:var(--bg-sel);color:var(--ink);font-weight:600}
+.segmented button:hover:not(.on){background:var(--bg-hover);color:var(--ink-2)}
+.filterchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);
+  background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r);padding:5px 9px}
+.filterchip svg{width:13px;height:13px;color:var(--ink-3)}
+.filterchip select{appearance:none;background:none;border:0;color:var(--ink);font-family:inherit;font-size:11.5px;outline:none;padding-right:14px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237d8da0' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 0 center}
+.btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border:1px solid var(--line-2);
+  background:var(--bg);color:var(--ink);border-radius:var(--r);padding:6px 11px;transition:transform .06s,background .12s,border-color .12s}
+.btn svg{width:14px;height:14px}
+.btn:hover{background:var(--bg-hover);border-color:var(--line-2)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.btn.primary:hover{background:var(--acc-strong);border-color:var(--acc-strong)}
+.btn.ghost{background:none;border-color:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--bg-hover);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:active{transform:none}
+
+.pad{padding:var(--s4)}
+
+/* status pill (always dot + text, never color alone) */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;font-family:var(--mono);
+  padding:1px 7px 1px 5px;border-radius:3px;border:1px solid transparent;white-space:nowrap;line-height:1.6}
+.pill .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.pill.pos{background:var(--pos-soft);color:#7fdcb0;border-color:#1c3a2d}.pill.pos .dot{background:var(--pos)}
+.pill.neg{background:var(--neg-soft);color:#f0a3a1;border-color:#3d201f}.pill.neg .dot{background:var(--neg)}
+.pill.info{background:var(--info-soft);color:#8fcdec;border-color:#143245}.pill.info .dot{background:var(--info)}
+.pill.warn{background:var(--warn-soft);color:#e6c576;border-color:#3a2c11}.pill.warn .dot{background:var(--warn)}
+.pill.muted{background:var(--muted-soft);color:#9fb0c2;border-color:#28323f}.pill.muted .dot{background:var(--muted)}
+.pill.acc{background:var(--acc-soft);color:var(--acc-strong);border-color:#3a2f12}.pill.acc .dot{background:var(--acc)}
+
+/* ============================== DATA TABLE =========================== */
+.tablewrap{border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg-2)}
+table.dt{width:100%;border-collapse:collapse;font-size:12px}
+table.dt thead th{background:var(--bg-3);text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--ink-3);font-weight:600;padding:7px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap;position:sticky;top:0;z-index:1}
+table.dt thead th.r{text-align:right}
+table.dt thead th[aria-sort]{cursor:pointer}
+table.dt thead th[aria-sort]:hover{color:var(--ink)}
+table.dt thead th .sortcaret{color:var(--acc);margin-left:3px}
+table.dt tbody td{padding:6px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:middle;height:var(--row)}
+table.dt tbody td.r{text-align:right}
+table.dt tbody tr:hover td{background:var(--bg-hover)}
+table.dt tbody tr:last-child td{border-bottom:0}
+table.dt tbody tr.tot td{background:var(--bg-3);font-weight:600;color:var(--ink);border-top:1px solid var(--line-2)}
+.ref{font-family:var(--mono);font-size:11px;color:var(--acc-strong)}
+.pname{color:var(--ink);font-weight:500}
+.dim{color:var(--ink-3)}
+.miniprog{height:5px;background:var(--bg);border-radius:3px;overflow:hidden;min-width:80px;border:1px solid var(--line)}
+.miniprog i{display:block;height:100%;border-radius:3px}
+
+/* ============================== KPI STRIP ============================ */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg-2)}
+.kpi{padding:11px 13px;border-right:1px solid var(--line);position:relative}
+.kpi:last-child{border-right:0}
+.kpi .k-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:5px}
+.kpi .k-val{font-family:var(--mono);font-size:21px;font-weight:600;color:var(--ink);margin-top:5px;letter-spacing:-.5px}
+.kpi .k-val.sm{font-size:18px}
+.kpi .k-foot{font-size:10.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:5px;font-family:var(--mono)}
+.delta{font-family:var(--mono);font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;gap:2px}
+.delta.up{color:var(--pos)} .delta.down{color:var(--neg)}
+.spark{position:absolute;right:11px;bottom:11px;opacity:.85}
+
+/* dashboard grid */
+.dgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:var(--s4);margin-top:var(--s4)}
+.panel{border:1px solid var(--line);border-radius:var(--r2);background:var(--bg-2);overflow:hidden}
+.panel > header{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--line);background:var(--bg-3)}
+.panel > header h2{font-size:12px;font-weight:600;margin:0;letter-spacing:.1px}
+.panel > header .ph-sub{font-size:10px;color:var(--ink-3);font-family:var(--mono);margin-left:auto}
+.panel .body{padding:13px}
+
+/* bar chart (CSS) */
+.bvac{display:flex;flex-direction:column;gap:9px}
+.bvac .row{display:grid;grid-template-columns:130px 1fr 92px;align-items:center;gap:10px;font-size:11.5px}
+.bvac .row .cat{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bartrack{position:relative;height:16px;background:var(--bg);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.bartrack .budget{position:absolute;left:0;top:0;bottom:0;background:var(--line-2);opacity:.55}
+.bartrack .actual{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--acc),var(--acc-strong))}
+.bartrack .over{background:linear-gradient(90deg,#b5443f,var(--neg))}
+.bvac .row .amt{text-align:right;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+
+/* donut */
+.donutwrap{display:flex;align-items:center;gap:18px}
+.donut-legend{display:flex;flex-direction:column;gap:7px;font-size:11.5px;flex:1}
+.donut-legend .li{display:flex;align-items:center;gap:8px}
+.donut-legend .sw{width:9px;height:9px;border-radius:2px;flex:none}
+.donut-legend .li .nm{color:var(--ink-2)}
+.donut-legend .li .vl{margin-left:auto;font-family:var(--mono);color:var(--ink);font-weight:600}
+
+/* ============================== KANBAN =============================== */
+.kanban{display:grid;grid-template-columns:repeat(7,minmax(208px,1fr));gap:10px;padding:var(--s4);align-items:start;min-width:1180px}
+.kcol{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r2);display:flex;flex-direction:column;max-height:calc(100dvh - 200px)}
+.kcol > header{padding:9px 11px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg-3);border-radius:var(--r2) var(--r2) 0 0;z-index:1}
+.kcol .kh-top{display:flex;align-items:center;gap:7px}
+.kcol .kh-name{font-size:11.5px;font-weight:600;color:var(--ink)}
+.kcol .kh-prob{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--acc-strong);
+  background:var(--acc-soft);border:1px solid #3a2f12;border-radius:3px;padding:0 5px}
+.kcol .kh-meta{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.kcol .kh-meta .wv{color:var(--ink-2);font-weight:600}
+.kcards{padding:8px;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.kcard{background:var(--bg-3);border:1px solid var(--line-2);border-radius:var(--r);padding:9px 10px;cursor:grab;
+  transition:transform .08s,border-color .12s,box-shadow .12s;position:relative}
+.kcard:hover{border-color:var(--acc);transform:translateY(-1px);box-shadow:0 4px 14px -8px rgba(0,0,0,.6)}
+.kcard:active{cursor:grabbing;transform:scale(.99)}
+.kcard .grip{position:absolute;top:9px;right:8px;color:var(--ink-dim);letter-spacing:1px;font-size:9px}
+.kcard .cust{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);font-weight:600}
+.kcard .opp{font-size:12px;font-weight:600;color:var(--ink);margin:2px 0 6px;line-height:1.25;padding-right:14px}
+.kcard .vals{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px;margin-top:2px}
+.kcard .vals .v .vl{font-size:8.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-dim)}
+.kcard .vals .v .num{font-size:12px;font-weight:600;color:var(--ink);display:block}
+.kcard .vals .v .num.w{color:var(--acc-strong)}
+.kcard .kfoot{display:flex;align-items:center;gap:6px;margin-top:7px;font-family:var(--mono);font-size:9.5px;color:var(--ink-3)}
+.kcard .kfoot .dd{margin-left:auto}
+
+/* weighted funnel */
+.funnel{display:flex;flex-direction:column;gap:4px;padding:13px}
+.funnel .frow{display:grid;grid-template-columns:118px 1fr 96px;align-items:center;gap:10px;font-size:11px}
+.funnel .frow .fl{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.funbar{height:20px;border-radius:3px;background:linear-gradient(90deg,var(--acc),var(--acc-strong));display:flex;align-items:center;
+  padding-left:8px;color:var(--acc-ink);font-family:var(--mono);font-size:10px;font-weight:600;min-width:38px}
+.funnel .frow .fv{text-align:right;font-family:var(--mono);color:var(--ink);font-weight:600}
+
+/* ============================== STEPPER ============================== */
+.stepper{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg-2)}
+.step{flex:1;padding:11px 14px 11px 22px;position:relative;border-right:1px solid var(--line);min-width:0}
+.step:last-child{border-right:0}
+.step::after{content:"";position:absolute;right:-9px;top:50%;transform:translateY(-50%) rotate(45deg);width:16px;height:16px;
+  background:var(--bg-2);border-top:1px solid var(--line);border-right:1px solid var(--line);z-index:2}
+.step:last-child::after{display:none}
+.step .st-top{display:flex;align-items:center;gap:7px}
+.step .st-ico{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none;font-family:var(--mono);font-size:10px;font-weight:600}
+.step .st-name{font-size:11px;font-weight:600;color:var(--ink-2)}
+.step .st-ref{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:5px;display:block}
+.step .st-date{font-family:var(--mono);font-size:9.5px;color:var(--ink-dim)}
+.step.done{background:var(--bg-2)}
+.step.done .st-ico{background:var(--pos);color:#06140d}
+.step.done .st-name{color:var(--ink)}
+.step.current{background:var(--acc-soft)}
+.step.current::after{background:var(--acc-soft)}
+.step.current .st-ico{background:var(--acc);color:var(--acc-ink)}
+.step.current .st-name{color:var(--acc-strong)}
+.step.pending .st-ico{background:var(--bg-3);border:1px solid var(--line-2);color:var(--ink-dim)}
+.step.pending .st-name{color:var(--ink-dim)}
+.step.skipped .st-ico{background:var(--bg-3);border:1px dashed var(--line-2);color:var(--ink-dim)}
+.step.skipped .st-name{color:var(--ink-dim);text-decoration:line-through}
+
+/* gate / SoD banner */
+.gate{display:flex;align-items:center;gap:11px;border:1px solid var(--warn-soft);background:linear-gradient(0deg,var(--warn-soft),transparent);
+  border-radius:var(--r2);padding:10px 13px;margin-top:var(--s4)}
+.gate .g-ico{width:26px;height:26px;border-radius:var(--r);display:grid;place-items:center;background:var(--warn-soft);color:var(--warn);flex:none}
+.gate .g-txt{font-size:11.5px;color:var(--ink-2)}
+.gate .g-txt b{color:var(--ink)}
+.gate .g-actions{margin-left:auto;display:flex;gap:8px}
+
+/* two-col detail */
+.cols2{display:grid;grid-template-columns:1fr 320px;gap:var(--s4);align-items:start}
+.kv{display:grid;grid-template-columns:1fr;gap:0}
+.kv .kvr{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}
+.kv .kvr:last-child{border-bottom:0}
+.kv .kvr .k{color:var(--ink-3)}
+.kv .kvr .v{color:var(--ink);font-weight:500;text-align:right}
+
+/* tabs (in-surface) */
+.tabbar{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 var(--s4);background:var(--bg-2);position:sticky;top:46px;z-index:20}
+.tabbar button{border:0;background:none;color:var(--ink-3);font-size:12px;font-weight:500;padding:9px 13px;position:relative}
+.tabbar button:hover{color:var(--ink-2)}
+.tabbar button[aria-selected="true"]{color:var(--ink);font-weight:600}
+.tabbar button[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--acc)}
+.tabpane{display:none} .tabpane.show{display:block}
+
+/* version chips */
+.vrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.vrow:last-child{border-bottom:0}
+.vrow .vno{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.vrow .vname{font-weight:500;color:var(--ink)}
+.vrow .vmeta{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto}
+
+/* dual-lens margin block */
+.lens{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden}
+.lens .cell{background:var(--bg-2);padding:11px 13px}
+.lens .cell .l-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);font-weight:600}
+.lens .cell .l-val{font-family:var(--mono);font-size:19px;font-weight:600;margin-top:4px}
+.lens .cell .l-foot{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:2px}
+
+/* ============================== TIMESHEET GRID ====================== */
+.ts-summary{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ts-stat{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.ts-stat b{color:var(--ink);font-weight:600;font-size:13px}
+table.ts{width:100%;border-collapse:collapse;font-size:12px}
+table.ts th,table.ts td{border:1px solid var(--line);padding:5px 9px;text-align:center}
+table.ts thead th{background:var(--bg-3);font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);font-weight:600}
+table.ts thead th.proj{text-align:left;width:230px}
+table.ts thead th.wknd{color:var(--ink-dim)}
+table.ts td.proj{text-align:left}
+table.ts td.proj .ref{display:block;font-size:9.5px}
+table.ts td.wknd{background:var(--bg)}
+table.ts .hr{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+table.ts .hr.zero{color:var(--ink-dim)}
+table.ts tfoot td{background:var(--bg-3);font-weight:600;color:var(--ink);font-family:var(--mono);border-top:1px solid var(--line-2)}
+table.ts tfoot td.lbl{text-align:right;font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3)}
+.ts-input{width:42px;text-align:center;background:var(--bg);border:1px solid var(--line-2);border-radius:3px;color:var(--ink);
+  font-family:var(--mono);font-size:12px;padding:3px}
+.ts-input:focus{border-color:var(--acc)}
+
+/* approvals queue */
+.queue .qrow{display:grid;grid-template-columns:30px 1fr 110px 90px 120px;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.queue .qrow:hover{background:var(--bg-hover)}
+.queue .qrow:last-child{border-bottom:0}
+.queue .qname{color:var(--ink);font-weight:500}
+.queue .qsub{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+
+/* ============================== STATES ============================== */
+.skel{background:linear-gradient(90deg,var(--bg-3) 0%,var(--line) 50%,var(--bg-3) 100%);
+  background-size:200% 100%;animation:shim 1.3s ease-in-out infinite;border-radius:3px}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}*{scroll-behavior:auto !important}}
+.empty,.errstate{border:1px dashed var(--line-2);border-radius:var(--r2);padding:34px 24px;text-align:left;
+  display:flex;gap:16px;align-items:center;background:var(--bg-2)}
+.empty .e-ico,.errstate .e-ico{width:42px;height:42px;border-radius:var(--r2);display:grid;place-items:center;flex:none}
+.empty .e-ico{background:var(--bg-3);color:var(--ink-3);border:1px solid var(--line-2)}
+.errstate{border-color:#3d201f;background:linear-gradient(0deg,var(--neg-soft),transparent)}
+.errstate .e-ico{background:var(--neg-soft);color:var(--neg)}
+.empty h3,.errstate h3{margin:0 0 3px;font-size:13px;color:var(--ink)}
+.empty p,.errstate p{margin:0;font-size:12px;color:var(--ink-3);max-width:52ch}
+
+/* helper bits */
+.hint{font-size:10.5px;color:var(--ink-3);font-family:var(--mono)}
+.notice{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-3);padding:7px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)}
+
+/* ============================== RESPONSIVE ========================== */
+@media (max-width:1100px){
+  .dgrid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .kpi:nth-child(3){border-right:0}
+  .kpi:nth-child(n+4){border-top:1px solid var(--line)}
+  .cols2{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  :root{--sb:0px}
+  .app{grid-template-columns:1fr;grid-template-areas:"brand" "topbar" "main"}
+  .side{display:none}
+  .brand .env{display:none}
+  .gsearch{display:none}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .kpi{border-right:1px solid var(--line)} .kpi:nth-child(2n){border-right:0}
+  .kpi:nth-child(n+3){border-top:1px solid var(--line)}
+  .grid2{grid-template-columns:1fr}
+  .who .meta{display:none}
+  .crumbs .sep,.crumbs span:not(b){display:none}
+}
+.mobnav{display:none}
+@media (max-width:860px){
+  .mobnav{display:flex;gap:6px;overflow-x:auto;padding:8px var(--s4);background:var(--bg-2);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:25}
+  .mobnav button{flex:none;font-size:11.5px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink-2);border-radius:var(--r);padding:5px 10px}
+  .mobnav button.active{background:var(--bg-sel);color:var(--ink);border-color:var(--acc)}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<div class="app">
+
+  <!-- BRAND -->
+  <div class="brand">
+    <div class="mark" aria-hidden="true">P</div>
+    <span class="name">PMO&nbsp;Portal</span>
+    <span class="env" title="Environment">STG · v3.2</span>
+  </div>
+
+  <!-- TOPBAR -->
+  <header class="topbar" role="banner">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <span id="crumb-root">Workspace</span><span class="sep">/</span><b id="crumb-leaf">Executive Dashboard</b>
+    </nav>
+    <div class="gsearch">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <label for="gsearch" class="skip">Search records</label>
+      <input id="gsearch" type="search" placeholder="Search projects, refs, vendors…" />
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="spacer"></div>
+
+    <div class="filterchip" title="Reporting period">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+      <label for="gperiod" class="skip">Global period</label>
+      <select id="gperiod"><option>FY2026 · Q2</option><option>FY2026 · Q1</option><option>Trailing 12M</option></select>
+    </div>
+
+    <button class="iconbtn" aria-label="Notifications (3 unread)"><span class="badge"></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+
+    <div class="roleswitch">
+      <label for="role">View as</label>
+      <select id="role" aria-label="Switch active role">
+        <option value="Executive">Executive</option>
+        <option value="ProjectManager">Project Manager</option>
+        <option value="Finance">Finance</option>
+        <option value="Engineer">Engineer</option>
+        <option value="Admin">Admin</option>
+      </select>
+    </div>
+
+    <div class="who">
+      <span class="av" id="whoAv" style="background:linear-gradient(135deg,#e3b257,#b8731f)">RH</span>
+      <span class="meta"><span class="n" id="whoName">Renata Halvorsen</span><span class="r" id="whoRole">Executive</span></span>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="side" aria-label="Primary" id="sidenav">
+    <div class="navgrp">
+      <div class="lbl">Operate</div>
+      <button class="navitem active" data-surface="dashboard" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Dashboard</button>
+      <button class="navitem" data-surface="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+        Sales Pipeline <span class="ct num">42</span></button>
+      <button class="navitem" data-surface="procurement">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L22 8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+        Procurement <span class="ct num">17</span></button>
+    </div>
+    <div class="navsep"></div>
+    <div class="navgrp">
+      <div class="lbl">Delivery</div>
+      <button class="navitem" data-surface="project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg>
+        Project &amp; Budget</button>
+      <button class="navitem" data-surface="timesheets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Timesheets <span class="ct num">6</span></button>
+      <button class="navitem stub" disabled aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+        Approvals <span class="soon">soon</span></button>
+      <button class="navitem stub" disabled aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        Tasks <span class="soon">soon</span></button>
+    </div>
+    <div class="navsep"></div>
+    <div class="navgrp">
+      <div class="lbl">Records</div>
+      <button class="navitem stub" disabled aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/></svg>
+        Companies <span class="soon">soon</span></button>
+      <button class="navitem stub" disabled aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        Reports <span class="soon">soon</span></button>
+      <button class="navitem stub" disabled aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 13.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 7l-.1-.1A2 2 0 1 1 7.3 4.1l.1.1A1.6 1.6 0 0 0 9 4.6V4a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 17 5.6l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        Administration <span class="soon">soon</span></button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main" id="main" tabindex="-1">
+
+    <!-- mobile surface nav -->
+    <div class="mobnav" id="mobnav" aria-hidden="true"></div>
+
+    <!-- ============ 1. DASHBOARD ============ -->
+    <section class="surface show" id="dashboard" aria-labelledby="d-h">
+      <div class="toolbar">
+        <h1 id="d-h">Executive Dashboard <span class="sub" id="d-rolehint">· portfolio-wide</span></h1>
+        <div class="tspacer"></div>
+        <div class="filterchip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+          <label for="winframe" class="skip">Win-rate time frame</label>
+          <select id="winframe"><option>Win-rate: TTM</option><option>Win-rate: YTD</option><option>Win-rate: Q2</option></select>
+        </div>
+        <button class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export</button>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>Refresh</button>
+      </div>
+
+      <div class="pad">
+        <!-- KPI STRIP -->
+        <div class="kpis" role="group" aria-label="Portfolio KPIs">
+          <div class="kpi">
+            <div class="k-lbl">On-hand Actual Margin</div>
+            <div class="k-val">18.4%</div>
+            <div class="k-foot">$7.62M GM <span class="delta up">▲ 1.3pt</span></div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Pipeline Weighted Value</div>
+            <div class="k-val">$23.7M</div>
+            <div class="k-foot">of $61.4M gross · 38.6%</div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Projected Pipeline Margin</div>
+            <div class="k-val">16.1%</div>
+            <div class="k-foot">$3.81M weighted GM</div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Win Rate <span class="hint">(count)</span></div>
+            <div class="k-val sm">31.7%</div>
+            <div class="k-foot">13 / 41 bids · TTM</div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Win Rate <span class="hint">(value)</span></div>
+            <div class="k-val sm">27.9%</div>
+            <div class="k-foot">$19.4M / $69.5M won</div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Active Projects</div>
+            <div class="k-val">14</div>
+            <div class="k-foot">3 at risk <span class="delta down">budget &gt;90%</span></div>
+          </div>
+        </div>
+
+        <!-- second KPI row: budget/committed -->
+        <div class="kpis" role="group" aria-label="Spend KPIs" style="margin-top:16px;grid-template-columns:repeat(3,1fr)">
+          <div class="kpi">
+            <div class="k-lbl">Contract Value (Active)</div>
+            <div class="k-val">$41.3M</div>
+            <div class="k-foot">14 ongoing engagements</div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Budget vs Actual</div>
+            <div class="k-val">$28.9M <span style="color:var(--ink-3);font-size:13px">/ $33.7M</span></div>
+            <div class="k-foot">85.8% consumed <span class="delta up">on track</span></div>
+          </div>
+          <div class="kpi">
+            <div class="k-lbl">Committed Spend</div>
+            <div class="k-val">$6.14M</div>
+            <div class="k-foot">open POs + receipts not yet invoiced</div>
+          </div>
+        </div>
+
+        <div class="dgrid">
+          <!-- Budget vs Actual by category (CSS bars) -->
+          <section class="panel" aria-labelledby="bvac-h">
+            <header><h2 id="bvac-h">Budget vs Actual — by category</h2><span class="ph-sub">Active projects · $33.7M base</span></header>
+            <div class="body">
+              <div class="bvac" role="img" aria-label="Budget versus actual spend across seven cost categories. Subcontractors is over budget.">
+                <div class="row"><span class="cat">Labor</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:88%"></span></div><span class="amt">$11.2M</span></div>
+                <div class="row"><span class="cat">Materials</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:74%"></span></div><span class="amt">$6.8M</span></div>
+                <div class="row"><span class="cat">Subcontractors</span><div class="bartrack"><span class="budget" style="width:84%"></span><span class="actual over" style="width:100%"></span></div><span class="amt">$5.1M</span></div>
+                <div class="row"><span class="cat">Equipment</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:61%"></span></div><span class="amt">$2.9M</span></div>
+                <div class="row"><span class="cat">Permits &amp; Fees</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:42%"></span></div><span class="amt">$0.74M</span></div>
+                <div class="row"><span class="cat">Overheads</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:79%"></span></div><span class="amt">$1.9M</span></div>
+                <div class="row"><span class="cat">Contingency</span><div class="bartrack"><span class="budget" style="width:100%"></span><span class="actual" style="width:23%"></span></div><span class="amt">$0.31M</span></div>
+              </div>
+              <div class="notice" style="border-top:1px solid var(--line);margin-top:12px;padding-top:9px">
+                <span class="pill warn"><span class="dot"></span>OVER</span>
+                <span>Subcontractors exceeds budget by <b style="color:var(--ink)">$0.83M (+19.4%)</b> — driven by Marrow Bay rework.</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Committed spend mix (donut SVG) -->
+          <section class="panel" aria-labelledby="mix-h">
+            <header><h2 id="mix-h">Committed Spend Mix</h2><span class="ph-sub">$6.14M open</span></header>
+            <div class="body">
+              <div class="donutwrap">
+                <svg width="120" height="120" viewBox="0 0 42 42" role="img" aria-label="Committed spend by category donut chart">
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#171f2b" stroke-width="7"/>
+                  <!-- segments via stroke-dasharray, total circumference 100 -->
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#d09a3c" stroke-width="7" stroke-dasharray="38 62" stroke-dashoffset="25"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#4ea3d6" stroke-width="7" stroke-dasharray="27 73" stroke-dashoffset="-13"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#3fb27f" stroke-width="7" stroke-dasharray="19 81" stroke-dashoffset="-40"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#6b7a8d" stroke-width="7" stroke-dasharray="16 84" stroke-dashoffset="-59"/>
+                  <text x="21" y="20.5" text-anchor="middle" font-size="6" font-family="IBM Plex Mono" font-weight="600" fill="#e6edf3">$6.14M</text>
+                  <text x="21" y="25.5" text-anchor="middle" font-size="3" font-family="IBM Plex Mono" fill="#7d8da0">COMMITTED</text>
+                </svg>
+                <div class="donut-legend">
+                  <div class="li"><span class="sw" style="background:#d09a3c"></span><span class="nm">Subcontractors</span><span class="vl">$2.33M</span></div>
+                  <div class="li"><span class="sw" style="background:#4ea3d6"></span><span class="nm">Materials</span><span class="vl">$1.66M</span></div>
+                  <div class="li"><span class="sw" style="background:#3fb27f"></span><span class="nm">Equipment</span><span class="vl">$1.17M</span></div>
+                  <div class="li"><span class="sw" style="background:#6b7a8d"></span><span class="nm">Other</span><span class="vl">$0.98M</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- At-risk projects table -->
+        <section class="panel" aria-labelledby="risk-h" style="margin-top:16px">
+          <header><h2 id="risk-h">Projects requiring attention</h2><span class="ph-sub">sorted by budget consumption</span></header>
+          <div class="tablewrap" style="border:0;border-radius:0">
+            <table class="dt">
+              <thead><tr>
+                <th aria-sort="none">Ref</th><th aria-sort="none">Project</th><th>Client</th><th>PM</th>
+                <th class="r" aria-sort="descending">Budget Used <span class="sortcaret">▼</span></th>
+                <th class="r">Contract</th><th class="r">Margin</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                <tr><td><span class="ref">PRJ-0418</span></td><td class="pname">Marrow Bay Jetty Refit</td><td>Tidewater Holdings</td><td>D. Achterberg</td>
+                  <td class="r"><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><span class="num">103.2%</span><span class="miniprog"><i style="width:100%;background:var(--neg)"></i></span></div></td>
+                  <td class="r num">$4.12M</td><td class="r num" style="color:var(--neg)">-2.1%</td><td><span class="pill neg"><span class="dot"></span>OVER</span></td></tr>
+                <tr><td><span class="ref">PRJ-0392</span></td><td class="pname">Helder Substation EPC</td><td>Northbridge Energy</td><td>S. Okonkwo</td>
+                  <td class="r"><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><span class="num">94.7%</span><span class="miniprog"><i style="width:95%;background:var(--warn)"></i></span></div></td>
+                  <td class="r num">$8.90M</td><td class="r num" style="color:var(--warn)">6.4%</td><td><span class="pill warn"><span class="dot"></span>AT RISK</span></td></tr>
+                <tr><td><span class="ref">PRJ-0455</span></td><td class="pname">Quayside Modular Fab — Phase 2</td><td>Verro Marine</td><td>L. Castellano</td>
+                  <td class="r"><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><span class="num">91.0%</span><span class="miniprog"><i style="width:91%;background:var(--warn)"></i></span></div></td>
+                  <td class="r num">$6.45M</td><td class="r num" style="color:var(--pos)">11.8%</td><td><span class="pill warn"><span class="dot"></span>AT RISK</span></td></tr>
+                <tr><td><span class="ref">PRJ-0401</span></td><td class="pname">Ostrava Pipe Rack Assembly</td><td>Kettleworth Industrial</td><td>D. Achterberg</td>
+                  <td class="r"><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><span class="num">76.3%</span><span class="miniprog"><i style="width:76%;background:var(--acc)"></i></span></div></td>
+                  <td class="r num">$3.28M</td><td class="r num" style="color:var(--pos)">14.2%</td><td><span class="pill pos"><span class="dot"></span>ON TRACK</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <p class="hint" style="margin-top:14px" id="d-rolenote">Showing portfolio-wide figures. Switch role (top-right) to scope this view — Project Managers see only their assigned engagements.</p>
+      </div>
+    </section>
+
+    <!-- ============ 2. SALES PIPELINE ============ -->
+    <section class="surface" id="pipeline" aria-labelledby="p-h">
+      <div class="toolbar">
+        <h1 id="p-h">Sales Pipeline <span class="sub">· 42 open · $61.4M gross</span></h1>
+        <div class="segmented" role="tablist" aria-label="Pipeline view">
+          <button role="tab" aria-selected="true" class="on" id="pv-board" onclick="pipeView('board')">Board</button>
+          <button role="tab" aria-selected="false" id="pv-table" onclick="pipeView('table')">Table</button>
+        </div>
+        <div class="tspacer"></div>
+        <div class="filterchip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3z"/></svg>
+          <label for="powner" class="skip">Filter by owner</label>
+          <select id="powner"><option>All owners</option><option>S. Okonkwo</option><option>L. Castellano</option><option>D. Achterberg</option></select>
+        </div>
+        <div class="filterchip">
+          <label for="psort" class="skip">Sort cards</label>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+          <select id="psort"><option>Sort: Weighted ▼</option><option>Sort: Value ▼</option><option>Sort: Decision date</option></select>
+        </div>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Opportunity</button>
+      </div>
+
+      <!-- weighted funnel summary -->
+      <div class="pad" style="padding-bottom:0">
+        <section class="panel" aria-labelledby="fun-h">
+          <header><h2 id="fun-h">Weighted Funnel</h2><span class="ph-sub">Σ value × stage probability · $23.7M weighted of $61.4M gross</span></header>
+          <div class="funnel" role="img" aria-label="Weighted funnel by stage; weighted value decreases down the funnel.">
+            <div class="frow"><span class="fl">Leads · 10%</span><div class="funbar" style="width:100%">$14.8M → $1.48M</div><span class="fv">9 opps</span></div>
+            <div class="frow"><span class="fl">Pre-Qual · 25%</span><div class="funbar" style="width:79%">$11.6M → $2.90M</div><span class="fv">7 opps</span></div>
+            <div class="frow"><span class="fl">Quotation · 40%</span><div class="funbar" style="width:88%">$13.0M → $5.20M</div><span class="fv">8 opps</span></div>
+            <div class="frow"><span class="fl">Tender · 50%</span><div class="funbar" style="width:67%">$9.9M → $4.95M</div><span class="fv">6 opps</span></div>
+            <div class="frow"><span class="fl">Negotiation · 75%</span><div class="funbar" style="width:81%">$12.1M → $9.08M</div><span class="fv">5 opps</span></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- BOARD VIEW -->
+      <div id="pipe-board" style="overflow-x:auto">
+        <div class="kanban">
+          <!-- LEADS -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Leads</span><span class="kh-prob num">10%</span></div>
+              <div class="kh-meta"><span>9 · $14.8M</span><span class="wv">wtd $1.48M</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Stenmark Offshore</div><div class="opp">Crane pedestal recert program</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$2.40M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$0.24M</span></div></div>
+                <div class="kfoot"><span class="ref">OPP-2606-118</span><span class="dd">dec 12 Aug</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Verro Marine</div><div class="opp">Ballast tank coating — drydock</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$1.85M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$0.19M</span></div></div>
+                <div class="kfoot"><span class="ref">OPP-2606-122</span><span class="dd">dec 04 Sep</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Kettleworth Industrial</div><div class="opp">Conveyor gantry survey</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$0.92M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$0.09M</span></div></div>
+                <div class="kfoot"><span class="ref">OPP-2606-130</span><span class="dd">dec 20 Aug</span></div></article>
+            </div>
+          </div>
+          <!-- PRE-QUAL -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Pre-Qualification</span><span class="kh-prob num">25%</span></div>
+              <div class="kh-meta"><span>7 · $11.6M</span><span class="wv">wtd $2.90M</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Northbridge Energy</div><div class="opp">Helder II switchyard extension</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$4.20M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$1.05M</span></div></div>
+                <div class="kfoot"><span class="ref">PQ-NBE-0073</span><span class="dd">dec 28 Jul</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Tidewater Holdings</div><div class="opp">Jetty fendering replacement</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$3.10M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$0.78M</span></div></div>
+                <div class="kfoot"><span class="ref">PQ-TWH-0061</span><span class="dd">dec 15 Aug</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Aldgate Rail Partners</div><div class="opp">Depot roof steel renewal</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$2.55M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$0.64M</span></div></div>
+                <div class="kfoot"><span class="ref">PQ-ARP-0044</span><span class="dd">dec 09 Aug</span></div></article>
+            </div>
+          </div>
+          <!-- QUOTATION -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Quotation</span><span class="kh-prob num">40%</span></div>
+              <div class="kh-meta"><span>8 · $13.0M</span><span class="wv">wtd $5.20M</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Verro Marine</div><div class="opp">Quayside modular fab — Ph.3</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$3.95M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$1.58M</span></div></div>
+                <div class="kfoot"><span class="ref">QT-VRM-0210</span><span class="dd">dec 22 Jul</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Halcyon Logistics</div><div class="opp">Cold-store rack mezzanine</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$2.78M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$1.11M</span></div></div>
+                <div class="kfoot"><span class="ref">QT-HLG-0188</span><span class="dd">dec 31 Jul</span></div></article>
+            </div>
+          </div>
+          <!-- TENDER -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Tender</span><span class="kh-prob num">50%</span></div>
+              <div class="kh-meta"><span>6 · $9.9M</span><span class="wv">wtd $4.95M</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Northbridge Energy</div><div class="opp">Substation EPC — Lot B</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$5.40M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$2.70M</span></div></div>
+                <div class="kfoot"><span class="ref">TND-NBE-0090</span><span class="dd">dec 18 Jul</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Marisol Ports Authority</div><div class="opp">Berth 7 dredge support steel</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$2.30M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$1.15M</span></div></div>
+                <div class="kfoot"><span class="ref">TND-MPA-0033</span><span class="dd">dec 26 Jul</span></div></article>
+            </div>
+          </div>
+          <!-- NEGOTIATION -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Negotiation</span><span class="kh-prob num">75%</span></div>
+              <div class="kh-meta"><span>5 · $12.1M</span><span class="wv">wtd $9.08M</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Tidewater Holdings</div><div class="opp">Marrow Bay jetty — variation pkg</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$4.60M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$3.45M</span></div></div>
+                <div class="kfoot"><span class="ref">NEG-TWH-0102</span><span class="dd">dec 11 Jul</span></div></article>
+              <article class="kcard" tabindex="0"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Kettleworth Industrial</div><div class="opp">Pipe rack assembly — extension</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$3.20M</span></div><div class="v"><span class="vl">Weighted</span><span class="num w">$2.40M</span></div></div>
+                <div class="kfoot"><span class="ref">NEG-KTW-0058</span><span class="dd">dec 08 Jul</span></div></article>
+            </div>
+          </div>
+          <!-- WON -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Won</span><span class="kh-prob num" style="color:#7fdcb0;background:var(--pos-soft);border-color:#1c3a2d">100%</span></div>
+              <div class="kh-meta"><span>4 · $19.4M</span><span class="wv">closed Q2</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0" style="border-color:#1c3a2d"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Northbridge Energy</div><div class="opp">Helder substation EPC</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$8.90M</span></div><div class="v"><span class="vl">PO Ref</span><span class="num" style="font-size:10px;color:var(--ink-2)">NBE-PO-9921</span></div></div>
+                <div class="kfoot"><span class="pill pos" style="font-size:9px"><span class="dot"></span>WON 14 May</span></div></article>
+            </div>
+          </div>
+          <!-- LOST -->
+          <div class="kcol">
+            <header>
+              <div class="kh-top"><span class="kh-name">Lost</span><span class="kh-prob num" style="color:#f0a3a1;background:var(--neg-soft);border-color:#3d201f">0%</span></div>
+              <div class="kh-meta"><span>3 · $7.2M</span><span class="wv">closed Q2</span></div>
+            </header>
+            <div class="kcards">
+              <article class="kcard" tabindex="0" style="border-color:#3d201f;opacity:.82"><span class="grip" aria-hidden="true">⠿</span>
+                <div class="cust">Halcyon Logistics</div><div class="opp">DC automation steelwork</div>
+                <div class="vals"><div class="v"><span class="vl">Value</span><span class="num">$3.50M</span></div><div class="v"><span class="vl">Reason</span><span class="num" style="font-size:10px;color:var(--ink-3)">price</span></div></div>
+                <div class="kfoot"><span class="pill neg" style="font-size:9px"><span class="dot"></span>LOST 02 Jun</span></div></article>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABLE VIEW -->
+      <div id="pipe-table" class="pad" style="display:none">
+        <div class="tablewrap">
+          <table class="dt">
+            <thead><tr>
+              <th aria-sort="none">Ref</th><th aria-sort="none">Opportunity</th><th>Customer</th><th>Stage</th>
+              <th class="r">Prob.</th><th class="r" aria-sort="descending">Value <span class="sortcaret">▼</span></th>
+              <th class="r">Weighted</th><th>Owner</th><th>Decision</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><span class="ref">NEG-TWH-0102</span></td><td class="pname">Marrow Bay jetty — variation pkg</td><td>Tidewater Holdings</td><td><span class="pill acc"><span class="dot"></span>Negotiation</span></td><td class="r num">75%</td><td class="r num">$4.60M</td><td class="r num" style="color:var(--acc-strong)">$3.45M</td><td>D. Achterberg</td><td class="num dim">11 Jul</td></tr>
+              <tr><td><span class="ref">NEG-KTW-0058</span></td><td class="pname">Pipe rack assembly — extension</td><td>Kettleworth Industrial</td><td><span class="pill acc"><span class="dot"></span>Negotiation</span></td><td class="r num">75%</td><td class="r num">$3.20M</td><td class="r num" style="color:var(--acc-strong)">$2.40M</td><td>D. Achterberg</td><td class="num dim">08 Jul</td></tr>
+              <tr><td><span class="ref">TND-NBE-0090</span></td><td class="pname">Substation EPC — Lot B</td><td>Northbridge Energy</td><td><span class="pill info"><span class="dot"></span>Tender</span></td><td class="r num">50%</td><td class="r num">$5.40M</td><td class="r num" style="color:var(--acc-strong)">$2.70M</td><td>S. Okonkwo</td><td class="num dim">18 Jul</td></tr>
+              <tr><td><span class="ref">QT-VRM-0210</span></td><td class="pname">Quayside modular fab — Ph.3</td><td>Verro Marine</td><td><span class="pill info"><span class="dot"></span>Quotation</span></td><td class="r num">40%</td><td class="r num">$3.95M</td><td class="r num" style="color:var(--acc-strong)">$1.58M</td><td>L. Castellano</td><td class="num dim">22 Jul</td></tr>
+              <tr><td><span class="ref">QT-HLG-0188</span></td><td class="pname">Cold-store rack mezzanine</td><td>Halcyon Logistics</td><td><span class="pill info"><span class="dot"></span>Quotation</span></td><td class="r num">40%</td><td class="r num">$2.78M</td><td class="r num" style="color:var(--acc-strong)">$1.11M</td><td>L. Castellano</td><td class="num dim">31 Jul</td></tr>
+              <tr><td><span class="ref">PQ-NBE-0073</span></td><td class="pname">Helder II switchyard extension</td><td>Northbridge Energy</td><td><span class="pill muted"><span class="dot"></span>Pre-Qual</span></td><td class="r num">25%</td><td class="r num">$4.20M</td><td class="r num" style="color:var(--acc-strong)">$1.05M</td><td>S. Okonkwo</td><td class="num dim">28 Jul</td></tr>
+              <tr class="tot"><td colspan="5">Open pipeline — 42 opportunities</td><td class="r num">$61.4M</td><td class="r num">$23.7M</td><td colspan="2"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 3. PROCUREMENT LIFECYCLE ============ -->
+    <section class="surface" id="procurement" aria-labelledby="pr-h">
+      <div class="toolbar">
+        <h1 id="pr-h">Procurement <span class="sub">· PO-2606050001</span></h1>
+        <div class="segmented">
+          <button class="on">Lifecycle</button><button>All (17)</button><button>To Approve (4)</button>
+        </div>
+        <div class="tspacer"></div>
+        <span class="pill acc"><span class="dot"></span>STAGE: ORDERED</span>
+        <button class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Audit Trail</button>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>Advance to Receipt</button>
+      </div>
+
+      <div class="pad">
+        <!-- LIFECYCLE STEPPER -->
+        <div class="stepper" role="group" aria-label="Procurement lifecycle status">
+          <div class="step done"><div class="st-top"><span class="st-ico">✓</span><span class="st-name">Purchase Request</span></div><span class="st-ref">PR-2606050001</span><span class="st-date">02 Jun · K. Brennecke</span></div>
+          <div class="step done"><div class="st-top"><span class="st-ico">✓</span><span class="st-name">Vendor Quotation</span></div><span class="st-ref">VQ-2606050003</span><span class="st-date">04 Jun · 3 quotes recvd</span></div>
+          <div class="step current"><div class="st-top"><span class="st-ico">3</span><span class="st-name">Purchase Order</span></div><span class="st-ref">PO-2606050001</span><span class="st-date">05 Jun · awaiting GR</span></div>
+          <div class="step pending"><div class="st-top"><span class="st-ico">4</span><span class="st-name">Goods Receipt</span></div><span class="st-ref">— not yet raised</span><span class="st-date">expected 19 Jun</span></div>
+          <div class="step skipped"><div class="st-top"><span class="st-ico">5</span><span class="st-name">Inspection</span></div><span class="st-ref">skipped — waived</span><span class="st-date">low-risk item</span></div>
+          <div class="step pending"><div class="st-top"><span class="st-ico">6</span><span class="st-name">Vendor Invoice</span></div><span class="st-ref">— pending</span><span class="st-date">net-30 terms</span></div>
+          <div class="step pending"><div class="st-top"><span class="st-ico">7</span><span class="st-name">Paid</span></div><span class="st-ref">—</span><span class="st-date">—</span></div>
+        </div>
+
+        <!-- SoD gate banner -->
+        <div class="gate" role="status">
+          <div class="g-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div class="g-txt"><b>Separation of duties:</b> this PO was raised by <b>Kaspar Brennecke</b>. It must be approved by a different user holding the Finance role. You are signed in as Renata Halvorsen (Executive) — approval permitted.</div>
+          <div class="g-actions">
+            <button class="btn ghost" style="color:var(--neg)">Reject</button>
+            <button class="btn primary">Approve PO</button>
+          </div>
+        </div>
+
+        <div class="cols2" style="margin-top:16px">
+          <div>
+            <!-- line items -->
+            <section class="panel" aria-labelledby="li-h">
+              <header><h2 id="li-h">Line Items</h2><span class="ph-sub">5 lines · $84,520.00</span></header>
+              <div class="tablewrap" style="border:0;border-radius:0">
+                <table class="dt">
+                  <thead><tr><th>#</th><th>Item / Description</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead>
+                  <tbody>
+                    <tr><td class="num dim">01</td><td><span class="pname">S355 structural plate</span><br><span class="dim">12mm, mill-cert, 1500×3000</span></td><td class="r num">24</td><td class="r num">$1,180.00</td><td class="r num">$28,320.00</td></tr>
+                    <tr><td class="num dim">02</td><td><span class="pname">UB 305×165×40 beam</span><br><span class="dim">grade S275, 12m lengths</span></td><td class="r num">18</td><td class="r num">$1,420.00</td><td class="r num">$25,560.00</td></tr>
+                    <tr><td class="num dim">03</td><td><span class="pname">M24 HSFG bolt assemblies</span><br><span class="dim">galvanised, EN 14399</span></td><td class="r num">640</td><td class="r num">$18.50</td><td class="r num">$11,840.00</td></tr>
+                    <tr><td class="num dim">04</td><td><span class="pname">Welding consumables — flux core</span><br><span class="dim">E71T-1, 15kg spools</span></td><td class="r num">40</td><td class="r num">$96.00</td><td class="r num">$3,840.00</td></tr>
+                    <tr><td class="num dim">05</td><td><span class="pname">Surface prep &amp; primer (subcon)</span><br><span class="dim">SA 2.5 blast + 2-coat</span></td><td class="r num">1</td><td class="r num">$14,960.00</td><td class="r num">$14,960.00</td></tr>
+                    <tr class="tot"><td colspan="4">Subtotal (ex. tax)</td><td class="r num">$84,520.00</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- linked quotations -->
+            <section class="panel" aria-labelledby="vq-h" style="margin-top:16px">
+              <header><h2 id="vq-h">Linked Vendor Quotations</h2><span class="ph-sub">3 received · 1 selected</span></header>
+              <div class="tablewrap" style="border:0;border-radius:0">
+                <table class="dt">
+                  <thead><tr><th>Vendor</th><th>Quote Ref</th><th>Received</th><th class="r">Total</th><th>Selected</th></tr></thead>
+                  <tbody>
+                    <tr style="background:var(--bg-sel)"><td class="pname">Drennan Steel &amp; Fab</td><td><span class="ref">DSF-Q-4471</span></td><td class="num dim">03 Jun</td><td class="r num">$84,520.00</td><td><span class="pill pos"><span class="dot"></span>SELECTED</span></td></tr>
+                    <tr><td>Halverson Metalworks</td><td><span class="ref">HMW-2206-19</span></td><td class="num dim">03 Jun</td><td class="r num">$88,140.00</td><td class="dim">—</td></tr>
+                    <tr><td>Cintra Supply Co.</td><td><span class="ref">CSC-99231</span></td><td class="num dim">04 Jun</td><td class="r num">$91,775.00</td><td class="dim">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- receipts/invoices empty state -->
+            <section class="panel" aria-labelledby="gr-h" style="margin-top:16px">
+              <header><h2 id="gr-h">Receipts &amp; Invoices</h2><span class="ph-sub">downstream documents</span></header>
+              <div class="body">
+                <div class="empty">
+                  <div class="e-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6"/></svg></div>
+                  <div><h3>No goods receipt yet</h3><p>This PO is awaiting delivery. A Goods Receipt (GR) can be raised once material arrives on site. The vendor invoice gate unlocks only after GR is posted.</p></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- right rail: PO meta + auto-ref + gates -->
+          <aside>
+            <section class="panel" aria-labelledby="meta-h">
+              <header><h2 id="meta-h">PO Detail</h2><span class="ph-sub">auto-ref</span></header>
+              <div class="body">
+                <div class="kv">
+                  <div class="kvr"><span class="k">Document Ref</span><span class="v ref" style="color:var(--acc-strong)">PO-2606050001</span></div>
+                  <div class="kvr"><span class="k">Vendor</span><span class="v">Drennan Steel &amp; Fab</span></div>
+                  <div class="kvr"><span class="k">Project</span><span class="v">PRJ-0418 · Marrow Bay</span></div>
+                  <div class="kvr"><span class="k">Requested by</span><span class="v">K. Brennecke</span></div>
+                  <div class="kvr"><span class="k">Raised</span><span class="v num">05 Jun 2026</span></div>
+                  <div class="kvr"><span class="k">Terms</span><span class="v">Net-30</span></div>
+                  <div class="kvr"><span class="k">Total</span><span class="v num" style="font-size:14px">$84,520.00</span></div>
+                </div>
+                <p class="hint" style="margin-top:10px;line-height:1.5">Refs auto-generated as <b style="color:var(--ink-2)">PREFIX-YYMMDD####</b>. This PO is the 1st document raised on 05 Jun 2026 → <span class="ref">PO-2606050001</span>.</p>
+              </div>
+            </section>
+
+            <section class="panel" aria-labelledby="gates-h" style="margin-top:16px">
+              <header><h2 id="gates-h">Approval Gates</h2></header>
+              <div class="body" style="display:flex;flex-direction:column;gap:9px">
+                <div style="display:flex;align-items:center;gap:9px"><span class="pill pos"><span class="dot"></span>PASSED</span><span style="font-size:11.5px">PR approval — <b style="color:var(--ink)">S. Okonkwo</b>, 02 Jun</span></div>
+                <div style="display:flex;align-items:center;gap:9px"><span class="pill pos"><span class="dot"></span>PASSED</span><span style="font-size:11.5px">Quote selection — <b style="color:var(--ink)">L. Castellano</b>, 04 Jun</span></div>
+                <div style="display:flex;align-items:center;gap:9px"><span class="pill warn"><span class="dot"></span>OPEN</span><span style="font-size:11.5px">PO approval — <b style="color:var(--ink)">awaiting Finance</b></span></div>
+                <div style="display:flex;align-items:center;gap:9px"><span class="pill muted"><span class="dot"></span>LOCKED</span><span style="font-size:11.5px;color:var(--ink-3)">GR posting — after PO approval</span></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. PROJECT + BUDGET DETAIL ============ -->
+    <section class="surface" id="project" aria-labelledby="prj-h">
+      <div class="toolbar">
+        <h1 id="prj-h">PRJ-0418 · Marrow Bay Jetty Refit</h1>
+        <span class="pill info"><span class="dot"></span>ONGOING</span>
+        <div class="tspacer"></div>
+        <span class="hint">Client: Tidewater Holdings · PM: D. Achterberg</span>
+        <button class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit Header</button>
+      </div>
+
+      <!-- header KV strip -->
+      <div class="pad" style="padding-bottom:0">
+        <div class="kpis" role="group" aria-label="Project header facts" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi"><div class="k-lbl">Contract Value</div><div class="k-val sm">$4.12M</div><div class="k-foot">signed</div></div>
+          <div class="kpi"><div class="k-lbl">Proposed vs Contract</div><div class="k-val sm">$4.38M</div><div class="k-foot"><span class="delta down">-$0.26M</span> negotiated down</div></div>
+          <div class="kpi"><div class="k-lbl">Customer PO Ref</div><div class="k-val sm ref" style="font-size:13px;color:var(--acc-strong)">TWH-PO-77310</div><div class="k-foot">dated 21 Apr 2026</div></div>
+          <div class="kpi"><div class="k-lbl">Spent to Date</div><div class="k-val sm">$3.41M</div><div class="k-foot">82.7% of contract</div></div>
+          <div class="kpi"><div class="k-lbl">Schedule</div><div class="k-val sm num">68%</div><div class="k-foot">end 30 Sep 2026</div></div>
+        </div>
+      </div>
+
+      <!-- in-surface tabs -->
+      <div class="tabbar" role="tablist" aria-label="Project tabs" style="margin-top:16px">
+        <button role="tab" aria-selected="true" onclick="prjTab('budget',this)">Budget</button>
+        <button role="tab" aria-selected="false" onclick="prjTab('overview',this)">Overview</button>
+        <button role="tab" aria-selected="false" onclick="prjTab('docs',this)">Documents</button>
+      </div>
+
+      <div class="pad">
+        <!-- BUDGET TAB -->
+        <div class="tabpane show" id="tab-budget">
+          <div class="cols2">
+            <div>
+              <!-- dual-lens margin -->
+              <div class="lens" style="margin-bottom:16px">
+                <div class="cell"><div class="l-lbl">Margin — actual lens</div><div class="l-val" style="color:var(--neg)">-2.1%</div><div class="l-foot">$4.12M contract − $4.21M cost</div></div>
+                <div class="cell"><div class="l-lbl">Margin — weighted lens</div><div class="l-val" style="color:var(--warn)">3.4%</div><div class="l-foot">incl. $0.46M pending variation @ 75%</div></div>
+              </div>
+
+              <section class="panel" aria-labelledby="bud-h">
+                <header>
+                  <h2 id="bud-h">Budget v3 — Active</h2>
+                  <span class="ph-sub">7 categories · committed + actual</span>
+                </header>
+                <div class="tablewrap" style="border:0;border-radius:0">
+                  <table class="dt">
+                    <thead><tr>
+                      <th>Category</th><th class="r">Budgeted</th><th class="r">Committed</th>
+                      <th class="r">Actual</th><th class="r">Variance</th><th>Used</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr><td class="pname">Labor</td><td class="r num">$1,640,000</td><td class="r num">$1,510,000</td><td class="r num">$1,448,200</td><td class="r num" style="color:var(--pos)">+$191,800</td><td><span class="miniprog"><i style="width:88%;background:var(--acc)"></i></span></td></tr>
+                      <tr><td class="pname">Materials</td><td class="r num">$980,000</td><td class="r num">$972,400</td><td class="r num">$901,650</td><td class="r num" style="color:var(--pos)">+$78,350</td><td><span class="miniprog"><i style="width:92%;background:var(--acc)"></i></span></td></tr>
+                      <tr><td class="pname">Subcontractors</td><td class="r num">$610,000</td><td class="r num">$728,000</td><td class="r num">$727,800</td><td class="r num" style="color:var(--neg)">-$117,800</td><td><span class="miniprog"><i style="width:100%;background:var(--neg)"></i></span></td></tr>
+                      <tr><td class="pname">Equipment</td><td class="r num">$340,000</td><td class="r num">$295,000</td><td class="r num">$268,400</td><td class="r num" style="color:var(--pos)">+$71,600</td><td><span class="miniprog"><i style="width:79%;background:var(--acc)"></i></span></td></tr>
+                      <tr><td class="pname">Permits &amp; Fees</td><td class="r num">$72,000</td><td class="r num">$66,500</td><td class="r num">$66,500</td><td class="r num" style="color:var(--pos)">+$5,500</td><td><span class="miniprog"><i style="width:92%;background:var(--acc)"></i></span></td></tr>
+                      <tr><td class="pname">Overheads</td><td class="r num">$210,000</td><td class="r num">$198,000</td><td class="r num">$181,300</td><td class="r num" style="color:var(--pos)">+$28,700</td><td><span class="miniprog"><i style="width:86%;background:var(--acc)"></i></span></td></tr>
+                      <tr><td class="pname">Contingency</td><td class="r num">$148,000</td><td class="r num">$0</td><td class="r num">$0</td><td class="r num" style="color:var(--pos)">+$148,000</td><td><span class="miniprog"><i style="width:0%"></i></span></td></tr>
+                      <tr class="tot"><td>Total — Budget v3</td><td class="r num">$4,000,000</td><td class="r num">$3,769,900</td><td class="r num">$3,593,850</td><td class="r num" style="color:var(--pos)">+$406,150</td><td><span class="num">89.8%</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <!-- right rail: versions -->
+            <aside>
+              <section class="panel" aria-labelledby="ver-h">
+                <header><h2 id="ver-h">Budget Versions</h2><span class="ph-sub">1 active</span></header>
+                <div class="body">
+                  <div class="vrow"><span class="vno num">v3</span><span class="vname">Re-baseline (variation)</span><span class="pill pos"><span class="dot"></span>ACTIVE</span></div>
+                  <div class="vrow"><span class="vno num">v2</span><span class="vname">Q1 re-forecast</span><span class="pill muted"><span class="dot"></span>ARCHIVED</span></div>
+                  <div class="vrow"><span class="vno num">v1</span><span class="vname">Award baseline</span><span class="pill muted"><span class="dot"></span>ARCHIVED</span></div>
+                  <div class="vrow"><span class="vno num">v4</span><span class="vname">Close-out draft</span><span class="pill warn"><span class="dot"></span>DRAFT</span></div>
+                  <p class="hint" style="margin-top:10px;line-height:1.5">Only one version is <b style="color:var(--ink-2)">Active</b> (authoritative) at a time. Drafts are editable; activating a draft archives the current active version.</p>
+                  <button class="btn" style="width:100%;justify-content:center;margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Draft Version</button>
+                </div>
+              </section>
+
+              <section class="panel" aria-labelledby="cmt-h" style="margin-top:16px">
+                <header><h2 id="cmt-h">Commitment Summary</h2></header>
+                <div class="body">
+                  <div class="kv">
+                    <div class="kvr"><span class="k">Budgeted total</span><span class="v num">$4,000,000</span></div>
+                    <div class="kvr"><span class="k">Committed (open PO)</span><span class="v num">$176,050</span></div>
+                    <div class="kvr"><span class="k">Actual spent</span><span class="v num">$3,593,850</span></div>
+                    <div class="kvr"><span class="k">Remaining free</span><span class="v num" style="color:var(--pos)">$230,100</span></div>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div class="tabpane" id="tab-overview">
+          <div class="grid2">
+            <section class="panel"><header><h2>Engagement</h2></header><div class="body"><div class="kv">
+              <div class="kvr"><span class="k">Status</span><span class="v"><span class="pill info"><span class="dot"></span>ONGOING</span></span></div>
+              <div class="kvr"><span class="k">Client</span><span class="v">Tidewater Holdings</span></div>
+              <div class="kvr"><span class="k">Project Manager</span><span class="v">Dario Achterberg</span></div>
+              <div class="kvr"><span class="k">Contract value</span><span class="v num">$4,120,000</span></div>
+              <div class="kvr"><span class="k">Start / End</span><span class="v num">21 Apr → 30 Sep 2026</span></div>
+              <div class="kvr"><span class="k">Last update</span><span class="v num">05 Jun 2026</span></div>
+            </div></div></section>
+            <section class="panel"><header><h2>Recent activity</h2></header><div class="body" style="font-size:12px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;gap:9px"><span class="num dim" style="flex:none">05 Jun</span><span>PO <span class="ref">PO-2606050001</span> raised — $84,520 to Drennan Steel.</span></div>
+              <div style="display:flex;gap:9px"><span class="num dim" style="flex:none">04 Jun</span><span>Budget re-baselined to <b style="color:var(--ink)">v3</b> for jetty variation.</span></div>
+              <div style="display:flex;gap:9px"><span class="num dim" style="flex:none">02 Jun</span><span>Subcontractor cost exceeded category budget — flagged.</span></div>
+            </div></div></section>
+          </div>
+        </div>
+
+        <!-- DOCS TAB -->
+        <div class="tabpane" id="tab-docs">
+          <div class="tablewrap">
+            <table class="dt">
+              <thead><tr><th>Code</th><th>Title</th><th>Category</th><th class="r">Rev</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ref">T-014</span></td><td class="pname">Jetty deck steel — GA drawing</td><td>Drawing</td><td class="r num">C</td><td><span class="pill pos"><span class="dot"></span>APPROVED</span></td><td class="num dim">28 May</td></tr>
+                <tr><td><span class="ref">RFI-022</span></td><td class="pname">Pile cap reinforcement clash</td><td>RFI</td><td class="r num">A</td><td><span class="pill warn"><span class="dot"></span>OPEN</span></td><td class="num dim">03 Jun</td></tr>
+                <tr><td><span class="ref">SUB-009</span></td><td class="pname">Coating system data sheet</td><td>Submittal</td><td class="r num">B</td><td><span class="pill info"><span class="dot"></span>ISSUED</span></td><td class="num dim">01 Jun</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 5. TIMESHEETS ============ -->
+    <section class="surface" id="timesheets" aria-labelledby="ts-h">
+      <div class="toolbar">
+        <h1 id="ts-h">Timesheets</h1>
+        <div class="filterchip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          <span class="num">Week of 02 Jun 2026</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+        <span class="pill warn"><span class="dot"></span>DRAFT</span>
+        <div class="tspacer"></div>
+        <span class="ts-summary"><span class="ts-stat">This week <b>38.5h</b></span><span class="ts-stat">Billable <b>34.0h</b></span></span>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Submit Timesheet</button>
+      </div>
+
+      <div class="pad">
+        <!-- weekly grid -->
+        <div class="tablewrap" style="margin-bottom:16px">
+          <table class="ts">
+            <caption class="skip">Weekly hours per project per day for week of 02 June 2026</caption>
+            <thead><tr>
+              <th class="proj" scope="col">Project</th>
+              <th scope="col">Mon 02</th><th scope="col">Tue 03</th><th scope="col">Wed 04</th><th scope="col">Thu 05</th><th scope="col">Fri 06</th>
+              <th class="wknd" scope="col">Sat 07</th><th class="wknd" scope="col">Sun 08</th><th scope="col">Total</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td class="proj"><span class="pname">Marrow Bay Jetty Refit</span><span class="ref">PRJ-0418</span></td>
+                <td><input class="ts-input num" value="8.0" aria-label="Marrow Bay Monday hours"></td>
+                <td><input class="ts-input num" value="8.0" aria-label="Marrow Bay Tuesday hours"></td>
+                <td><input class="ts-input num" value="6.5" aria-label="Marrow Bay Wednesday hours"></td>
+                <td><input class="ts-input num" value="8.0" aria-label="Marrow Bay Thursday hours"></td>
+                <td><input class="ts-input num" value="4.0" aria-label="Marrow Bay Friday hours"></td>
+                <td class="wknd"><span class="hr zero">·</span></td><td class="wknd"><span class="hr zero">·</span></td>
+                <td class="hr">34.5</td>
+              </tr>
+              <tr>
+                <td class="proj"><span class="pname">Helder Substation EPC</span><span class="ref">PRJ-0392</span></td>
+                <td><input class="ts-input num" value="" aria-label="Helder Monday hours"></td>
+                <td><input class="ts-input num" value="" aria-label="Helder Tuesday hours"></td>
+                <td><input class="ts-input num" value="1.5" aria-label="Helder Wednesday hours"></td>
+                <td><input class="ts-input num" value="" aria-label="Helder Thursday hours"></td>
+                <td><input class="ts-input num" value="2.5" aria-label="Helder Friday hours"></td>
+                <td class="wknd"><span class="hr zero">·</span></td><td class="wknd"><span class="hr zero">·</span></td>
+                <td class="hr">4.0</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr><td class="lbl">Daily total</td><td>8.0</td><td>8.0</td><td>8.0</td><td>8.0</td><td>6.5</td><td>0.0</td><td>0.0</td><td>38.5</td></tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="hint" style="margin-bottom:18px">Enter hours per project per day, then submit the whole week. Once submitted, your line manager approves the entire timesheet — entries lock on approval.</p>
+
+        <!-- approvals queue (line-manager view) -->
+        <section class="panel" aria-labelledby="aq-h">
+          <header><h2 id="aq-h">Approvals Queue</h2><span class="ph-sub">line-manager view · 6 pending</span></header>
+          <div class="queue">
+            <div class="qrow">
+              <span class="av" style="background:linear-gradient(135deg,#4ea3d6,#2a6f96);font-size:9px">JF</span>
+              <span><span class="qname">Joaquim Ferreira</span><br><span class="qsub">PRJ-0418 · week 26 May → 01 Jun</span></span>
+              <span class="num" style="text-align:right">41.0h</span>
+              <span class="pill info"><span class="dot"></span>SUBMITTED</span>
+              <span style="display:flex;gap:6px;justify-content:flex-end"><button class="btn ghost" style="padding:4px 8px;color:var(--neg)">Reject</button><button class="btn" style="padding:4px 9px">Approve</button></span>
+            </div>
+            <div class="qrow">
+              <span class="av" style="background:linear-gradient(135deg,#3fb27f,#1f7a55);font-size:9px">MN</span>
+              <span><span class="qname">Marit Nkemelu</span><br><span class="qsub">PRJ-0455 · week 26 May → 01 Jun</span></span>
+              <span class="num" style="text-align:right">38.0h</span>
+              <span class="pill info"><span class="dot"></span>SUBMITTED</span>
+              <span style="display:flex;gap:6px;justify-content:flex-end"><button class="btn ghost" style="padding:4px 8px;color:var(--neg)">Reject</button><button class="btn" style="padding:4px 9px">Approve</button></span>
+            </div>
+            <!-- SoD: own timesheet, cannot self-approve -->
+            <div class="qrow" style="opacity:.7">
+              <span class="av" style="background:linear-gradient(135deg,#e3b257,#b8731f);font-size:9px">RH</span>
+              <span><span class="qname">Renata Halvorsen <span class="dim">(you)</span></span><br><span class="qsub">PRJ-0418 · week 26 May → 01 Jun</span></span>
+              <span class="num" style="text-align:right">40.0h</span>
+              <span class="pill warn"><span class="dot"></span>SUBMITTED</span>
+              <span style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" style="padding:4px 9px" disabled title="Separation of duties: you cannot approve your own timesheet">Approve</button></span>
+            </div>
+            <div class="qrow">
+              <span class="av" style="background:linear-gradient(135deg,#6b7a8d,#465463);font-size:9px">DA</span>
+              <span><span class="qname">Dario Achterberg</span><br><span class="qsub">PRJ-0401 · week 19 → 25 May</span></span>
+              <span class="num" style="text-align:right">36.5h</span>
+              <span class="pill pos"><span class="dot"></span>APPROVED</span>
+              <span class="dim" style="text-align:right;font-size:11px">by S. Okonkwo</span>
+            </div>
+            <div class="qrow">
+              <span class="av" style="background:linear-gradient(135deg,#e0625f,#9c3b39);font-size:9px">TB</span>
+              <span><span class="qname">Tamsin Beaulieu</span><br><span class="qsub">PRJ-0392 · week 19 → 25 May</span></span>
+              <span class="num" style="text-align:right">42.5h</span>
+              <span class="pill neg"><span class="dot"></span>REJECTED</span>
+              <span class="dim" style="text-align:right;font-size:11px">overtime unapproved</span>
+            </div>
+          </div>
+          <p class="notice" style="padding:9px 12px;border-top:1px solid var(--line)">
+            <span class="pill warn"><span class="dot"></span>SoD</span>
+            <span style="font-size:11px">Separation of duties — you cannot approve a timesheet you submitted. Your own week is routed to S. Okonkwo.</span>
+          </p>
+        </section>
+
+        <!-- LOADING + ERROR demo strip -->
+        <div class="grid2" style="margin-top:16px">
+          <section class="panel" aria-labelledby="ld-h">
+            <header><h2 id="ld-h">Prior weeks</h2><span class="ph-sub">loading…</span></header>
+            <div class="body" style="display:flex;flex-direction:column;gap:9px" aria-busy="true" aria-live="polite">
+              <div class="skel" style="height:16px;width:70%"></div>
+              <div class="skel" style="height:16px;width:90%"></div>
+              <div class="skel" style="height:16px;width:55%"></div>
+              <div class="skel" style="height:16px;width:80%"></div>
+            </div>
+          </section>
+          <section class="panel" aria-labelledby="er-h">
+            <header><h2 id="er-h">Payroll export</h2><span class="ph-sub">sync</span></header>
+            <div class="body">
+              <div class="errstate" role="alert">
+                <div class="e-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+                <div><h3>Export failed — payroll endpoint unreachable</h3><p>The 02 Jun batch could not be transmitted (HTTP 504, gateway timeout). Approved hours are saved locally and will retry automatically.</p>
+                  <button class="btn" style="margin-top:9px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>Retry now</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ---------- surface switching ---------- */
+const surfaces = ['dashboard','pipeline','procurement','project','timesheets'];
+const labels = {dashboard:'Executive Dashboard',pipeline:'Sales Pipeline',procurement:'Procurement',project:'Project & Budget',timesheets:'Timesheets'};
+const navBtns = document.querySelectorAll('.navitem[data-surface]');
+
+function showSurface(id){
+  surfaces.forEach(s=>document.getElementById(s).classList.toggle('show', s===id));
+  navBtns.forEach(b=>{
+    const on = b.dataset.surface===id;
+    b.classList.toggle('active', on);
+    if(on){ b.setAttribute('aria-current','page'); } else { b.removeAttribute('aria-current'); }
+  });
+  document.querySelectorAll('#mobnav button').forEach(b=>b.classList.toggle('active', b.dataset.surface===id));
+  document.getElementById('crumb-leaf').textContent = labels[id];
+  document.getElementById('main').scrollTop = 0;
+}
+navBtns.forEach(b=>b.addEventListener('click',()=>showSurface(b.dataset.surface)));
+
+/* build mobile nav */
+const mob = document.getElementById('mobnav');
+surfaces.forEach(s=>{
+  const b=document.createElement('button'); b.dataset.surface=s; b.textContent=labels[s].replace('Executive ','');
+  if(s==='dashboard') b.classList.add('active');
+  b.addEventListener('click',()=>showSurface(s)); mob.appendChild(b);
+});
+
+/* ---------- role switcher (role-aware dashboard hint) ---------- */
+const roleData = {
+  Executive:        {name:'Renata Halvorsen', init:'RH', grad:'linear-gradient(135deg,#e3b257,#b8731f)', hint:'· portfolio-wide',         note:'Showing portfolio-wide figures. You see every engagement, pipeline, and consolidated margin.'},
+  ProjectManager:   {name:'Dario Achterberg',  init:'DA', grad:'linear-gradient(135deg,#4ea3d6,#2a6f96)', hint:'· your 4 projects',        note:'Scoped to your 4 assigned projects. Portfolio-wide pipeline and other PMs are hidden.'},
+  Finance:          {name:'Soraya Okonkwo',    init:'SO', grad:'linear-gradient(135deg,#3fb27f,#1f7a55)', hint:'· spend & approvals',      note:'Finance lens: budget-vs-actual, committed spend, and the procurement approval queue are emphasised.'},
+  Engineer:         {name:'Joaquim Ferreira',  init:'JF', grad:'linear-gradient(135deg,#6b7a8d,#465463)', hint:'· my tasks & hours',       note:'Engineer lens: KPIs collapse to your timesheets and assigned project tasks; financials are read-only.'},
+  Admin:            {name:'Kaspar Brennecke',  init:'KB', grad:'linear-gradient(135deg,#e0625f,#9c3b39)', hint:'· system & records',       note:'Admin lens: full record access (companies, users, refs) with configuration controls unlocked.'}
+};
+const roleSel = document.getElementById('role');
+roleSel.addEventListener('change', e=>{
+  const r = roleData[e.target.value]; if(!r) return;
+  document.getElementById('whoName').textContent = r.name;
+  document.getElementById('whoRole').textContent = e.target.options[e.target.selectedIndex].text;
+  const av=document.getElementById('whoAv'); av.textContent=r.init; av.style.background=r.grad;
+  document.getElementById('d-rolehint').textContent = r.hint;
+  document.getElementById('d-rolenote').textContent = r.note;
+});
+
+/* ---------- pipeline board/table toggle ---------- */
+function pipeView(v){
+  const board = v==='board';
+  document.getElementById('pipe-board').style.display = board?'':'none';
+  document.getElementById('pipe-table').style.display = board?'none':'';
+  const bb=document.getElementById('pv-board'), tb=document.getElementById('pv-table');
+  bb.classList.toggle('on',board); tb.classList.toggle('on',!board);
+  bb.setAttribute('aria-selected',board); tb.setAttribute('aria-selected',!board);
+}
+
+/* ---------- project sub-tabs ---------- */
+function prjTab(t,btn){
+  ['budget','overview','docs'].forEach(x=>document.getElementById('tab-'+x).classList.toggle('show', x===t));
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected', b===btn));
+}
+
+/* ---------- ⌘K focuses search ---------- */
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); document.getElementById('gsearch').focus(); }
+});
+</script>
+</body>
+</html>
