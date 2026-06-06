@@ -79,6 +79,46 @@ describe('DataTable', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
+  it('state="error" renders an alert with a Retry that calls onRetry', async () => {
+    const onRetry = vi.fn();
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="error"
+        errorTitle="Load failed"
+        onRetry={onRetry}
+      />
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Load failed');
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('marks the selected row with the primary tint', () => {
+    render(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="PRJ-1" />
+    );
+    expect(screen.getByText('Alpha').closest('tr')!.className).toContain('bg-primary/[0.07]');
+  });
+
+  it('Toolbar/SearchMini/TableFoot render their content', async () => {
+    const { Toolbar, SearchMini, TableFoot } = await import('../DataTable');
+    render(
+      <div>
+        <Toolbar standalone>
+          <SearchMini placeholder="Find…" />
+        </Toolbar>
+        <TableFoot>
+          <span>Total: 2,180</span>
+        </TableFoot>
+      </div>
+    );
+    expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
+    expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
+  });
+
   it('row menu opens on its trigger and Esc closes it', async () => {
     render(
       <DataTable

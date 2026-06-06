@@ -28,6 +28,19 @@ describe('Kanban', () => {
     await userEvent.keyboard('{Enter}');
     expect(onActivate).toHaveBeenCalled();
   });
+
+  it('renders a column with prob chip, totals, and child cards', () => {
+    render(
+      <Kanban>
+        <KanbanColumn title="Quote" count={1} prob="40%" totals={<span>$2M</span>}>
+          <KanbanCard selected>Deal A</KanbanCard>
+        </KanbanColumn>
+      </Kanban>
+    );
+    expect(screen.getByText('40%')).toBeInTheDocument();
+    expect(screen.getByText('$2M')).toBeInTheDocument();
+    expect(screen.getByText('Deal A')).toBeInTheDocument();
+  });
 });
 
 describe('LifecycleStepper', () => {
@@ -50,6 +63,32 @@ describe('LifecycleStepper', () => {
     // upcoming step is de-emphasized
     expect(screen.getByText('PO').className).toContain('text-muted-foreground');
   });
+
+  it('inline variant renders pips with done/current/upcoming + links', () => {
+    render(
+      <LifecycleStepper
+        variant="inline"
+        steps={[
+          { label: 'Draft', state: 'done' },
+          { label: 'Active', state: 'current' },
+          { label: 'Paid', state: 'paid' },
+        ]}
+      />
+    );
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveAttribute('aria-label', expect.stringContaining('done'));
+  });
+
+  it('node variant renders a doc ref slot', () => {
+    render(
+      <LifecycleStepper
+        variant="node"
+        steps={[{ label: 'PO', state: 'done', ref: 'PO-0042' }]}
+      />
+    );
+    expect(screen.getByText('PO-0042')).toBeInTheDocument();
+  });
 });
 
 describe('Funnel', () => {
@@ -67,6 +106,28 @@ describe('Funnel', () => {
     expect(screen.getAllByRole('button')).toHaveLength(2);
     expect(screen.getByText('Quote').closest('[role=button]')!.className).toContain('bg-primary/[0.06]');
   });
+
+  it('non-interactive funnel renders prob + weighted + bar without buttons', () => {
+    render(
+      <Funnel
+        stages={[
+          { name: 'Leads', value: '$1M', prob: '20%', weighted: '$200K', barPct: 40 },
+        ]}
+      />
+    );
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
+    expect(screen.getByText('$200K')).toBeInTheDocument();
+  });
+
+  it('funnel stage is keyboard-activatable when interactive', async () => {
+    const onSelect = vi.fn();
+    render(<Funnel onSelect={onSelect} stages={[{ name: 'Leads', value: '$1M' }]} />);
+    const stage = screen.getByRole('button');
+    stage.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
 });
 
 describe('GateNotice', () => {
@@ -79,15 +140,21 @@ describe('GateNotice', () => {
 });
 
 describe('PageHeader', () => {
-  it('renders name, stats, and actions', () => {
+  it('renders icon, name, status, meta, stats, and actions', () => {
     render(
       <PageHeader
+        icon={<span>P</span>}
+        iconColor="hsl(var(--primary))"
         name="Project Alpha"
+        status={<span>Active</span>}
+        meta="Client: Acme"
         stats={[{ label: 'Budget', value: '$1.2M' }]}
         actions={<button>Edit</button>}
       />
     );
     expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Client: Acme')).toBeInTheDocument();
     expect(screen.getByText('Budget')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
