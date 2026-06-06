@@ -276,7 +276,7 @@ const ProcurementDetails: React.FC = () => {
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
         icon={<Icon name="cart" />}
         status={
-          <span data-testid="procurement-status-badge">
+          <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
               {stageLabelForStatus(p.status)}
             </StatusPill>
