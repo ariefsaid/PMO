@@ -71,7 +71,6 @@ export const WorkspaceTabsProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const tab = tabForPath(location.pathname);
     if (tab) dispatch({ type: 'open', tab });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on the path only
   }, [location.pathname]);
 
   const selectTab = useCallback(

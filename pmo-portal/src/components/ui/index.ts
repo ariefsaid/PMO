@@ -1,6 +1,7 @@
 // Shared primitive library — single import surface for the 6 program surfaces.
 export { cn } from './cn';
-export { Icon, ICON_PATHS, type IconName, type IconProps } from './icons';
+export { Icon, type IconProps } from './icons';
+export { ICON_PATHS, type IconName } from './iconPaths';
 export { chartTheme, type ChartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
