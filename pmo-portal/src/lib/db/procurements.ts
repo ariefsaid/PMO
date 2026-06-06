@@ -11,7 +11,7 @@ export type ProcurementWithRefs = ProcurementRow & {
 };
 
 const SELECT =
-  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles(full_name)';
+  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
 
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
