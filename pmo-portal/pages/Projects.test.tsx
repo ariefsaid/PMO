@@ -146,6 +146,41 @@ describe('Projects index states', () => {
   });
 });
 
+describe('Projects table — compact layout (#1)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+  });
+
+  it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
+    renderPage();
+    // Find the PM avatar in the table tbody (has single-letter initial, size-[18px])
+    const tableBody = document.querySelector('tbody');
+    const pmCells = tableBody?.querySelectorAll('td');
+    const pmAvatar = Array.from(pmCells ?? [])
+      .flatMap(td => Array.from(td.querySelectorAll('[aria-hidden="true"]')))
+      .find(el => el.className.includes('rounded-full') && el.className.includes('size-[18px]'));
+    expect(pmAvatar).toBeTruthy();
+  });
+
+  it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
+    renderPage();
+    // The progressbar role should be in the table and have a compact constrained wrapper
+    const progressbars = screen.getAllByRole('progressbar');
+    expect(progressbars.length).toBeGreaterThan(0);
+    // The outer wrapper span should have min-w-[80px] (compact mode)
+    const bar = progressbars[0];
+    const wrapper = bar.closest('span')?.parentElement;
+    expect(wrapper).toBeTruthy();
+    // The outermost span container should use compact sizing (min-w-[80px])
+    const outerSpan = bar.closest('span[class*="min-w-[80px]"]') ??
+      bar.parentElement?.closest('span[class*="min-w-[80px]"]');
+    expect(outerSpan).not.toBeNull();
+  });
+});
+
 describe('ProjectStatusControl integration (AC-1011 UI)', () => {
   beforeEach(() => {
     sessionStorage.clear();

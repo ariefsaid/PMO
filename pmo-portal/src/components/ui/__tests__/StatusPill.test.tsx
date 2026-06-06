@@ -11,6 +11,14 @@ describe('StatusPill', () => {
     expect(pill?.querySelector('[data-pill-dot]')).toBeInTheDocument();
   });
 
+  it('#4: label text is 12px per DESIGN.md label token (not text-xs which is 10.5px on 14px base)', () => {
+    render(<StatusPill variant="open">Check size</StatusPill>);
+    const pill = screen.getByText('Check size').closest('span')!;
+    // Must use text-[12px] explicit pixel class, not text-xs (which resolves to 0.75rem = 10.5px on our 14px base)
+    expect(pill.className).toContain('text-[12px]');
+    expect(pill.className).not.toContain('text-xs');
+  });
+
   it('uses the DARKENED AA text variant, not the base hue, for won', () => {
     render(<StatusPill variant="won">Won</StatusPill>);
     const pill = screen.getByText('Won').closest('span')!;

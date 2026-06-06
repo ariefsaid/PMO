@@ -149,19 +149,21 @@ const Projects: React.FC = () => {
       key: 'customer',
       header: 'Customer',
       cell: (p) => <span>{p.client?.name ?? '—'}</span>,
+      // Hide below 1280px — frees ~120px so Progress+Action columns fit at 1180px
+      colClassName: 'hidden xl:table-cell',
     },
     {
       key: 'pm',
       header: 'PM',
       cell: (p) => (
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
           <span
             aria-hidden
-            className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
+            className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
           >
             {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
           </span>
-          <span className="truncate">{p.pm?.full_name ?? 'Unassigned'}</span>
+          <span className="max-w-[10ch] truncate">{p.pm?.full_name ?? 'Unassigned'}</span>
         </span>
       ),
     },
@@ -191,6 +193,7 @@ const Projects: React.FC = () => {
         <ProgressBar
           value={Math.round(utilizationPct(p))}
           showValue
+          compact
           aria-label={`Spend: ${Math.round(utilizationPct(p))}% of contract`}
         />
       ),

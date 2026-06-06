@@ -98,7 +98,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
 
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
-        <div className="absolute left-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Move to
           </p>
@@ -126,7 +126,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
       {pendingTarget === 'Won, Pending KoM' && (
         <form
           onSubmit={handleWinSubmit}
-          className="absolute left-0 z-20 mt-1 min-w-[240px] space-y-2 rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
           <p className="text-xs font-semibold">Win — enter contract details</p>
           <div>

@@ -10,6 +10,11 @@ export interface ProgressBarProps {
   tone?: ProgressTone;
   /** Render the trailing tabular percent. */
   showValue?: boolean;
+  /**
+   * Compact mode — reduces the wrapper min-width for tight table columns.
+   * The track shrinks from min-w-[70px] to min-w-[48px]; outer wrapper from 120px to 80px.
+   */
+  compact?: boolean;
   className?: string;
   'aria-label'?: string;
 }
@@ -32,6 +37,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   value,
   tone,
   showValue = false,
+  compact = false,
   className,
   'aria-label': ariaLabel,
 }) => {
@@ -40,14 +46,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const resolvedTone: ProgressTone = over ? 'destructive' : (tone ?? thresholdTone(value));
 
   return (
-    <span className={cn('inline-flex min-w-[120px] items-center gap-2', className)}>
+    <span className={cn(compact ? 'inline-flex min-w-[80px] items-center gap-1.5' : 'inline-flex min-w-[120px] items-center gap-2', className)}>
       <span
         role="progressbar"
         aria-label={ariaLabel}
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-[7px] min-w-[70px] flex-1 overflow-hidden rounded-full bg-secondary"
+        className={cn('h-[7px] flex-1 overflow-hidden rounded-full bg-secondary', compact ? 'min-w-[48px]' : 'min-w-[70px]')}
       >
         <span
           data-testid="progress-fill"
