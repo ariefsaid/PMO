@@ -40,6 +40,10 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 
 const renderPage = () => render(<MemoryRouter><Timesheets /></MemoryRouter>);
 
+beforeEach(() => {
+  sessionStorage.clear(); // reset the persisted view so each test starts on the grid
+});
+
 describe('Timesheets (real data)', () => {
   it('renders the signed-in user entry with joined project name for the current week (AC-601)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
@@ -97,6 +101,56 @@ describe('Timesheets states', () => {
     tsState.isError = false;
     renderPage();
     expect(screen.getByTestId('timesheets-empty')).toBeInTheDocument();
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+describe('Timesheets view toggle (Grid default + Approvals queue)', () => {
+  it('defaults to the weekly grid and offers an Approvals queue toggle', () => {
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(screen.getByRole('tab', { name: /weekly grid/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /approvals queue/i })).toBeInTheDocument();
+    // Grid body renders the joined project name (one row per project+notes).
+    expect(screen.getAllByText('Innovate Corp HQ Fit-Out').length).toBeGreaterThan(0);
+  });
+
+  it('switching to the Approvals queue shows the SoD GateNotice (edge: self-approval blocked)', () => {
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: /approvals queue/i }));
+    expect(screen.getByText(/Separation of duties/i)).toBeInTheDocument();
+    // Empty queue → "Nothing awaiting you" (AC-604-style finance/manager empty queue).
+    expect(screen.getByTestId('approvals-empty')).toBeInTheDocument();
+  });
+});
+
+describe('Timesheets returned-for-changes edge state', () => {
+  it('renders the returned-week ErrBanner (role=status) when the week is Rejected', () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    const weekStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
+    const rejectedSheet = [{
+      id: 'ts-rej', user_id: 'u-alice', week_start_date: weekStr, status: 'Rejected',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [
+        { id: 'er', timesheet_id: 'ts-rej', project_id: 'pr1', entry_date: weekStr, hours: 8,
+          notes: 'Work', project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+      ],
+    }];
+    tsState.data = rejectedSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(screen.getByRole('status')).toHaveTextContent(/returned for changes/i);
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
