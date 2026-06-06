@@ -87,7 +87,7 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
 
   return (
     <aside
-      className="flex min-h-0 flex-col border-r border-border bg-card"
+      className="flex min-h-0 flex-col border-r border-border bg-card max-[920px]:hidden"
       style={{ gridArea: 'rail' }}
       aria-label="Primary navigation"
     >

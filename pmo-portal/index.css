@@ -104,6 +104,15 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* ≤920px: collapse the rail column so the grid snaps to full-width and the
+     hamburger drawer becomes the sole rail. The <aside> in Rail.tsx also carries
+     max-[920px]:hidden so neither the grid slot nor the element occupies space. */
+  @media (max-width: 920px) {
+    :root {
+      --rail-w: 0px;
+    }
+  }
 }
 
 /* =============================================================================
