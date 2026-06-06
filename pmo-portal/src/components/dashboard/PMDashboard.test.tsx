@@ -1,16 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PMDashboard } from './PMDashboard';
 
 const mine = [
   { id: 'p1', name: 'My Project A', contract_value: 4_000_000, budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, budget: 1_000_000, spent: 980_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, budget: 1_000_000, spent: 980_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
+  { id: 'p3', name: 'My Project C', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null },
+  { id: 'p4', name: 'My Project D', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'On Hold', project_manager_id: 'pm-1', client: null, pm: null },
+  { id: 'p5', name: 'My Project E', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'Leads', project_manager_id: 'pm-1', client: null, pm: null },
 ];
 const other = { id: 'p9', name: 'Someone Else', contract_value: 9_000_000, budget: 1, spent: 0, status: 'Ongoing Project', project_manager_id: 'pm-2', client: null, pm: null };
 
+const projState: { data: unknown[] | undefined; isPending: boolean; isError: boolean } = {
+  data: [...mine, other], isPending: false, isError: false,
+};
+
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [...mine, other], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjects: () => ({ ...projState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [{ id: 't1' }, { id: 't2' }], isPending: false, isError: false, refetch: vi.fn() }),
@@ -21,18 +28,25 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 const renderPane = () => render(<MemoryRouter><PMDashboard /></MemoryRouter>);
 
+beforeEach(() => {
+  projState.data = [...mine, other];
+  projState.isPending = false;
+  projState.isError = false;
+});
+
 describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
-  it('counts only my projects (2 of 3)', () => {
+  it('counts only my projects (5 of 6)', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('5');
   });
   it('sums my contract value, not the whole org', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$6,000,000');
+    // 4M + 2M + 1M + 1M + 1M = 9M (excludes the other PM's 9M)
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000');
   });
   it('counts my at-risk projects (utilization > 90%)', () => {
     renderPane();
-    // Project B is 98% utilized → 1 at-risk
+    // only Project B is 98% utilized → 1 at-risk
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
   it('shows timesheets awaiting approval = 2 (real)', () => {
@@ -42,5 +56,30 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   it('renders the procurement-approvals half as a coming-soon placeholder (not summed)', () => {
     renderPane();
     expect(screen.getByText(/Procurement approvals — coming soon/i)).toBeInTheDocument();
+  });
+  it('renders a toned status pill per project status (won/lost/on-hold/neutral)', () => {
+    renderPane();
+    expect(screen.getByText('Won, Pending KoM')).toBeInTheDocument();
+    expect(screen.getByText('Loss Tender')).toBeInTheDocument();
+    expect(screen.getByText('On Hold')).toBeInTheDocument();
+    expect(screen.getByText('Leads')).toBeInTheDocument();
+  });
+});
+
+describe('PMDashboard states', () => {
+  it('shows a loading skeleton while projects are pending', () => {
+    projState.isPending = true; projState.data = undefined;
+    renderPane();
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+  });
+  it('shows an error + retry when the projects query fails', () => {
+    projState.isError = true; projState.data = undefined;
+    renderPane();
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  });
+  it('shows an empty state when no projects are assigned to me', () => {
+    projState.data = [other];
+    renderPane();
+    expect(screen.getByText(/No projects assigned to you yet/i)).toBeInTheDocument();
   });
 });
