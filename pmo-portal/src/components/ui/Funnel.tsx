@@ -68,7 +68,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
               <span
                 className="block h-full rounded-full"
                 style={{
-                  width: `${Math.min(100, s.barPct)}%`,
+                  width: `${Math.max(0, Math.min(100, s.barPct))}%`,
                   background: s.barColor ?? 'hsl(var(--primary))',
                 }}
               />

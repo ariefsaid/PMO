@@ -151,7 +151,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       <div className="flex items-center gap-2.5 border-l border-border pl-3.5">
         <span
           aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
+          className="grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
           style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
         >
           {initials(currentUser?.full_name)}

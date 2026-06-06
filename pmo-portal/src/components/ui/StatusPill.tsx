@@ -23,8 +23,8 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   open: { cls: 'bg-primary/10', text: 'hsl(221 70% 45%)', dot: 'hsl(var(--primary))' },
   won: { cls: 'bg-success/12', text: 'hsl(142 64% 30%)', dot: 'hsl(var(--success))' },
   lost: { cls: 'bg-destructive/10', text: 'hsl(0 72% 45%)', dot: 'hsl(var(--destructive))' },
-  warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(38 92% 50%)' },
-  overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(38 92% 50%)' },
+  warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
+  overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
   neutral: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   draft: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
 };
