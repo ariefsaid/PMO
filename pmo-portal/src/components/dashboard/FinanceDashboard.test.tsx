@@ -34,6 +34,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
 
+describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
+    const { container } = renderPane();
+    const band = container.querySelector('[aria-label="Finance KPIs"]') as HTMLElement;
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
 describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('shows total contracted revenue from the RPC', () => {
     renderPane();

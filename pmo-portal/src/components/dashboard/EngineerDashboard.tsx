@@ -49,7 +49,7 @@ export const EngineerDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title="My Dashboard" sub="Your hours this week and timesheet status." />
 
-      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[1180px]:grid-cols-3">
+      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3">
         <KPITile testId="kpi-hours-week" tone="blue" icon="clock" label="Hours this week"
           value={`${hoursThisWeek}`} loading={isPending}
           vs={current ? `week of ${current.week_start_date}` : undefined}

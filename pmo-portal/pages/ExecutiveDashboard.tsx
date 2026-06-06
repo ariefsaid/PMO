@@ -45,7 +45,7 @@ const ExecutiveDashboard: React.FC = () => {
         <section
           data-testid="dashboard-loading"
           aria-label="Portfolio KPIs"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
         >
           {Array.from({ length: 6 }).map((_, i) => (
             <KPITile key={i} loading tone="blue" icon="grid" label="" value="" />
@@ -98,10 +98,12 @@ const ExecutiveDashboard: React.FC = () => {
           }
         />
 
-        {/* KPI band — reflows 6 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints). */}
+        {/* KPI band — reflows 6 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints).
+            All tiers are arbitrary min-[] — monotonically ascending source order so
+            Tailwind v4 cascade never lets a named sm: (640px) win over a wider tier. */}
         <section
           aria-label="Portfolio KPIs"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
         >
           <KPITile testId="kpi-on-hand-margin" tone="green" icon="dollar" label="On-hand margin"
             value={formatCurrency(data.on_hand_value)} vs={`${onHandPct} realized`}

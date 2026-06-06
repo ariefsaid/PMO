@@ -31,6 +31,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 const renderPane = () => render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
 
+describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
+    const { container } = renderPane();
+    const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[920px]:grid-cols-3');
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
 describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('sums hours this week from the latest sheet (8 + 7.5 = 15.5)', () => {
     renderPane();

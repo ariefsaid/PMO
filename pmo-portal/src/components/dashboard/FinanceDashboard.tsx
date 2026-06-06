@@ -76,7 +76,7 @@ export const FinanceDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
 
-      <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[1180px]:grid-cols-4">
+      <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
           value={formatCurrency(data?.total_contract_value ?? 0)} loading={isPending}
           help="Total contract value across active and closed-out projects." />

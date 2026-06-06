@@ -123,7 +123,7 @@ export function KPITile<L extends string = string>({
         />
       ) : (
         (delta || vs) && (
-          <div className="flex items-center gap-[7px] text-xs">
+          <div className="flex items-center gap-[7px] text-[12px]">
             {delta && (
               <span
                 data-testid="kpi-delta"

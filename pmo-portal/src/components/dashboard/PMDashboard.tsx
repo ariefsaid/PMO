@@ -54,7 +54,7 @@ export const PMDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title="My Dashboard" sub="Your projects, budget health, and approvals queue." />
 
-      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[1180px]:grid-cols-4">
+      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         <KPITile testId="kpi-my-projects" tone="cyan" icon="folder" label="My projects"
           value={String(mine.length)} loading={isPending}
           help="Projects where you are the assigned project manager." />
@@ -94,13 +94,26 @@ export const PMDashboard: React.FC = () => {
             ) : (
               <ul className="divide-y divide-border/70">
                 {mine.map((p) => {
-                  const margin = p.contract_value > 0 ? ((p.contract_value - p.spent) / p.contract_value) * 100 : 0;
+                  // Only show a margin figure for in-delivery projects that have real spend.
+                  // Zero-spend (Tender/Loss rows) would produce (contract - 0)/contract = 100%
+                  // which is misleading — show "—" instead (I2 fix).
+                  const isActive = p.status === 'Ongoing Project' || p.status === 'Internal Project';
+                  const hasSpend = p.spent > 0 && p.contract_value > 0;
+                  const margin = isActive && hasSpend
+                    ? ((p.contract_value - p.spent) / p.contract_value) * 100
+                    : null;
+                  const marginClass =
+                    margin === null
+                      ? 'text-muted-foreground'
+                      : margin < 10
+                        ? 'text-destructive'
+                        : 'text-foreground';
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.name}</span>
                       <StatusPill variant={statusVariant(p.status)}>{p.status}</StatusPill>
-                      <span className={`w-16 text-right text-[13px] font-bold tabular ${margin < 10 ? 'text-destructive' : 'text-success'}`}>
-                        {margin.toFixed(1)}%
+                      <span className={`w-16 text-right text-[13px] font-bold tabular ${marginClass}`}>
+                        {margin !== null ? `${margin.toFixed(1)}%` : '—'}
                       </span>
                     </li>
                   );

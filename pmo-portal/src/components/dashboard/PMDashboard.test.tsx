@@ -66,6 +66,42 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
 });
 
+describe('PMDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
+    const { container } = renderPane();
+    const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
+describe('PMDashboard Project Status margin — no false-green (I2)', () => {
+  it('shows margin for active ongoing projects only — "—" for zero-spend/non-active rows', () => {
+    // mine fixture: p1=Ongoing+spend, p2=Won pending (not active), p3=Loss Tender (not active), p4=On Hold, p5=Leads
+    renderPane();
+    // p1: Ongoing, spent=1M, contract=4M → margin = (4M-1M)/4M = 75% → should show a % figure
+    // p3: Loss Tender, not active → should show "—"
+    const items = document.querySelectorAll('[aria-label="My KPIs"] ~ * li, ul li');
+    // Verify "—" appears for non-active rows (Loss Tender, Won Pending KoM, On Hold, Leads)
+    const allText = document.body.textContent ?? '';
+    expect(allText).toContain('75.0%');
+    // Non-active rows get "—" not a percentage
+    const listItems = document.querySelectorAll('ul li');
+    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project C'));
+    expect(lossTenderItem?.textContent).toContain('—');
+    expect(lossTenderItem?.textContent).not.toMatch(/\d+\.\d+%/);
+  });
+  it('does not emit text-success on non-active project margin cells', () => {
+    const { container } = renderPane();
+    const listItems = container.querySelectorAll('ul li');
+    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project C'));
+    // The margin span must NOT carry text-success
+    const marginSpan = lossTenderItem?.querySelector('span:last-child');
+    expect(marginSpan?.className).not.toContain('text-success');
+  });
+});
+
 describe('PMDashboard states', () => {
   it('shows a loading skeleton while projects are pending', () => {
     projState.isPending = true; projState.data = undefined;
