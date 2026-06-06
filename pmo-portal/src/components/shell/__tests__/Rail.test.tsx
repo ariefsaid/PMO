@@ -93,17 +93,56 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011)',
     }
   });
 
-  it('active item carries aria-current=page', () => {
+  // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works
+  // and screen readers announce "link" not "button"; cmd/middle-click also requires <a>.
+  it('nav items are rendered as links (role=link), not buttons — AC-AUTH-003', () => {
     effectiveRole = 'Executive';
     renderRail();
-    const dash = screen.getByRole('button', { name: /Dashboard/ });
+    // Primary nav items must be anchors
+    expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Sales Pipeline/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Projects/ })).toBeInTheDocument();
+  });
+
+  it('Administration foot item is a link (role=link)', () => {
+    effectiveRole = 'Admin';
+    renderRail();
+    expect(screen.getByRole('link', { name: /Administration/ })).toBeInTheDocument();
+  });
+
+  it('active item carries aria-current=page — AC-AUTH-003', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    // Dashboard is active (activeId=dashboard, module=dashboard)
+    const dash = screen.getByRole('link', { name: /Dashboard/ });
     expect(dash).toHaveAttribute('aria-current', 'page');
   });
 
-  it('clicking a rail item opens the module', async () => {
+  // Clicking a rail item with a moduleKey must still call openModule for tab state
+  it('clicking a rail item calls openModule for workspace tab sync', async () => {
     effectiveRole = 'Executive';
     renderRail();
-    await userEvent.click(screen.getByRole('button', { name: /Sales Pipeline/ }));
+    await userEvent.click(screen.getByRole('link', { name: /Sales Pipeline/ }));
     expect(openModule).toHaveBeenCalledWith('sales');
+  });
+
+  // Items without a moduleKey (Approvals, Tasks, Companies, Reports) do NOT call openModule
+  it('clicking an item without moduleKey does not call openModule', async () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    await userEvent.click(screen.getByRole('link', { name: /Approvals/ }));
+    expect(openModule).not.toHaveBeenCalled();
+  });
+
+  it('onNavigate callback fires when a nav link is clicked', async () => {
+    effectiveRole = 'Executive';
+    const onNavigate = vi.fn();
+    render(
+      <MemoryRouter>
+        <Rail onNavigate={onNavigate} />
+      </MemoryRouter>
+    );
+    await userEvent.click(screen.getByRole('link', { name: /Projects/ }));
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
@@ -47,43 +47,54 @@ const ALL_ITEMS: NavItem[] = [
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'Sales', 'Delivery', 'Workforce'];
 
+/** Base classes shared by every nav anchor (primary items + Administration foot). */
+const NAV_LINK_BASE =
+  'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+
 export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const { effectiveRole } = useEffectiveRole();
   const ws = useWorkspaceTabsOptional();
-  const navigate = useNavigate();
   const role = toUserRole(effectiveRole);
 
   if (!role) return null;
 
   const items = ALL_ITEMS.filter((i) => i.roles.includes(role));
-  const activeModule = ws?.tabs.find((t) => t.id === ws.activeId)?.module;
 
-  const handleClick = (item: NavItem) => {
+  /**
+   * Build the onClick handler for a nav item.
+   *
+   * For module items: call openModule() so the workspace tab strip opens/refocuses
+   * the correct tab. The NavLink still navigates via its href — openModule only
+   * manages tab state (it already calls navigate internally, but the router-driven
+   * URL change from the anchor click is the canonical source of truth and harmless
+   * to call twice for the same path).
+   *
+   * For non-module items: just fire onNavigate (e.g. close mobile drawer).
+   */
+  const makeClickHandler = (item: NavItem) => () => {
     if (item.moduleKey && ws) ws.openModule(item.moduleKey);
-    else navigate(item.to);
     onNavigate?.();
   };
 
-  const renderItem = (item: NavItem) => {
-    const active = item.moduleKey ? item.moduleKey === activeModule : false;
-    return (
-      <button
-        key={item.to}
-        type="button"
-        onClick={() => handleClick(item)}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-left text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0',
-          active
+  const renderItem = (item: NavItem) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      end={item.to === '/'}
+      onClick={makeClickHandler(item)}
+      className={({ isActive }: { isActive: boolean }) =>
+        cn(
+          NAV_LINK_BASE,
+          isActive
             ? 'bg-primary/10 font-semibold text-primary'
             : 'text-foreground hover:bg-accent'
-        )}
-      >
-        <Icon name={item.icon} />
-        <span>{item.text}</span>
-      </button>
-    );
-  };
+        )
+      }
+    >
+      <Icon name={item.icon} />
+      <span>{item.text}</span>
+    </NavLink>
+  );
 
   return (
     <aside
@@ -121,17 +132,21 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
 
       {(role === UserRole.Executive || role === UserRole.Admin) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              navigate('/administration');
-              onNavigate?.();
-            }}
-            className="flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-left text-[13.5px] font-medium text-foreground transition-colors hover:bg-accent [&_svg]:size-[17px]"
+          <NavLink
+            to="/administration"
+            onClick={onNavigate}
+            className={({ isActive }: { isActive: boolean }) =>
+              cn(
+                NAV_LINK_BASE,
+                isActive
+                  ? 'bg-primary/10 font-semibold text-primary'
+                  : 'text-foreground hover:bg-accent'
+              )
+            }
           >
             <Icon name="admin" />
             <span>Administration</span>
-          </button>
+          </NavLink>
         </div>
       )}
     </aside>

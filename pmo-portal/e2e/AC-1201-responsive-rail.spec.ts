@@ -20,8 +20,8 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
   // --- Desktop: persistent grid-area rail is visible, no hamburger. ---
   const persistent = page.locator('.rail-persistent');
   await expect(persistent).toBeVisible();
-  // The persistent rail's nav is present with real items.
-  const desktopNavCount = await persistent.locator('nav button').count();
+  // The persistent rail's nav is present with real items (anchors now that Rail uses NavLink).
+  const desktopNavCount = await persistent.locator('nav a').count();
   expect(desktopNavCount).toBeGreaterThan(0);
   // Hamburger is hidden at desktop widths.
   await expect(page.locator('.mobile-rail-toggle')).toBeHidden();
@@ -41,7 +41,7 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
       document.querySelectorAll('aside[aria-label="Primary navigation"]')
     );
     const drawer = asides.find((a) => !a.closest('.rail-persistent'));
-    return drawer ? drawer.querySelectorAll('nav button').length : 0;
+    return drawer ? drawer.querySelectorAll('nav a').length : 0;
   });
   expect(drawerNavCount).toBeGreaterThan(0);
 });
