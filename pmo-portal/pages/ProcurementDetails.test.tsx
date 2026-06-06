@@ -39,6 +39,20 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole }),
 }));
 
+// Shell + toast: the IA-3 detail page lives in the workspace shell and emits a
+// success toast on transition. Mock them so the page renders without providers.
+const openModule = vi.fn();
+const openRecord = vi.fn();
+const toast = vi.fn();
+vi.mock('@/src/components/shell', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn() }) };
+});
+vi.mock('@/src/components/ui', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useToast: () => ({ toast }) };
+});
+
 import ProcurementDetails from './ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -312,7 +326,8 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
   it('renders PR number from procurement header', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', pr_number: 'PR-2606040001' };
     renderPage();
-    expect(screen.getByText('PR-2606040001')).toBeInTheDocument();
+    // PR# now appears in both the lifecycle stepper node and the doc-trail row.
+    expect(screen.getAllByText('PR-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders VQ number, PO number, GR number and status from Ordered procurement', () => {

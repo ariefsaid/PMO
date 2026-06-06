@@ -1,72 +1,129 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import Procurement from './Procurement';
 
 const seed = [
-  { id: 'pc1', code: 'PROC-2026-004', title: 'Workstations & AV', status: 'Vendor Quoted',
-    total_value: 150000, project_id: 'pr1', requested_by_id: 'u-alice', vendor_id: null,
+  {
+    id: 'pc1',
+    code: 'PROC-2026-004',
+    title: 'Workstations & AV',
+    status: 'Vendor Quoted',
+    total_value: 150000,
+    project_id: 'pr1',
+    requested_by_id: 'u-alice',
+    vendor_id: null,
     created_at: '2026-02-05T00:00:00Z',
-    project: { name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001' }, vendor: null,
-    requested_by: { full_name: 'Alice Manager' } },
+    project: { name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001' },
+    vendor: null,
+    requested_by: { full_name: 'Alice Manager' },
+  },
+  {
+    id: 'pc2',
+    code: 'PROC-2026-005',
+    title: 'Crane hire — 6 weeks',
+    status: 'Paid',
+    total_value: 518000,
+    project_id: 'pr2',
+    requested_by_id: 'u-bob',
+    vendor_id: null,
+    created_at: '2026-01-20T00:00:00Z',
+    project: { name: 'Skyline Bridge', code: 'PRJ-002' },
+    vendor: null,
+    requested_by: { full_name: 'Bob Engineer' },
+  },
 ];
 
-const procState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
+const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }) }));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }),
+}));
+const openRecord = vi.fn();
+vi.mock('@/src/components/shell', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn() }) };
+});
 
 const renderPage = () => render(<MemoryRouter><Procurement /></MemoryRouter>);
 
-describe('Procurement (real data)', () => {
-  it('renders seeded procurement with joined project name (AC-501)', async () => {
+describe('Procurement index — IA-3 (real data)', () => {
+  beforeEach(() => {
+    procState.data = seed;
+    procState.isPending = false;
+    procState.isError = false;
+    sessionStorage.clear();
+    openRecord.mockClear();
+  });
+
+  it('renders seeded requests with joined project name (AC-501)', () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^All/ }));
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 
-  it('"My Requests" uses the real profile id (AC-502)', () => {
-    renderPage(); // default tab is My Requests; u-alice is the requester
-    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+  it('defaults to the Table view with the lifecycle column header', () => {
+    renderPage();
+    expect(screen.getByRole('columnheader', { name: /Lifecycle/i })).toBeInTheDocument();
   });
 
-  it('Active Orders excludes the Vendor Quoted row (AC-503)', async () => {
+  it('search filters real rows by title/code (AC-504)', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /Active Orders/ }));
+    await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
-    expect(screen.getByText(/No requests found/i)).toBeInTheDocument();
+    expect(screen.getByText(/No requests match/i)).toBeInTheDocument();
   });
 
-  it('search filters real rows (AC-504)', async () => {
+  it('status filter narrows the list (Paid only)', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^All/ }));
-    await userEvent.type(screen.getByPlaceholderText(/Search procurements/i), 'zzz');
-    expect(screen.getByText(/No requests found/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /^Paid$/ }));
+    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+  });
+
+  it('switching to the by-stage Board groups requests into stage columns', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
+    // Vendor Quoted request lands in the VQ column
+    expect(within(screen.getByTestId('prstage-vq')).getByText('Workstations & AV')).toBeInTheDocument();
+  });
+
+  it('activating a row opens a procurement record tab', async () => {
+    renderPage();
+    await userEvent.click(screen.getByText('Workstations & AV'));
+    expect(openRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'procurement:pc1', module: 'procurement' }),
+    );
   });
 });
 
-describe('Procurement states', () => {
-  it('loading skeleton while pending (AC-505)', () => {
-    procState.isPending = true; procState.isError = false;
-    renderPage();
-    expect(screen.getByTestId('procurement-loading')).toBeInTheDocument();
+describe('Procurement index — states', () => {
+  beforeEach(() => {
+    procState.data = seed;
     procState.isPending = false;
-  });
-  it('error state with retry (AC-507)', () => {
-    procState.isError = true; procState.isPending = false;
-    renderPage();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
     procState.isError = false;
   });
-  it('empty state when zero rows (AC-506)', async () => {
+
+  it('loading skeleton while pending (AC-505)', () => {
+    procState.isPending = true;
+    renderPage();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
+  it('error state with retry (AC-507)', () => {
+    procState.isError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  });
+
+  it('empty state when zero rows (AC-506)', () => {
     procState.data = [];
     renderPage();
-    expect(screen.getByText(/No requests found/i)).toBeInTheDocument();
-    procState.data = seed;
+    expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
   });
 });
