@@ -57,7 +57,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
                 scope="col"
                 className={cn(
                   'h-[38px] min-w-[64px] border-b border-border px-2 text-center text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground',
-                  d.weekend && 'weekend bg-secondary/50'
+                  d.weekend && 'weekend bg-secondary/60'
                 )}
               >
                 {d.label}
@@ -97,7 +97,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
                   return (
                     <td
                       key={i}
-                      className={cn('p-1 text-center align-middle', weekend && 'bg-secondary/40')}
+                      className={cn('p-1 text-center align-middle', weekend && 'bg-secondary/60')}
                     >
                       <div
                         aria-label={`${r.project}, ${days[i]?.label} hours`}
@@ -134,7 +134,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
                 data-testid={`tsgrid-daily-total-${i}`}
                 className={cn(
                   'px-2 py-3 text-center text-sm font-semibold tabular',
-                  days[i]?.weekend && 'bg-secondary/50'
+                  days[i]?.weekend && 'bg-secondary/60'
                 )}
               >
                 {t > 0 ? fmt(t) : '·'}

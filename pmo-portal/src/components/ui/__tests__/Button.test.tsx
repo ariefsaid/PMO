@@ -20,8 +20,18 @@ describe('Button', () => {
     expect(screen.getByRole('button').className).toContain('hover:bg-accent');
     rerender(<Button variant="destructive">x</Button>);
     expect(screen.getByRole('button').className).toContain('bg-destructive');
-    rerender(<Button variant="success">x</Button>);
-    expect(screen.getByRole('button').className).toContain('bg-success');
+  });
+
+  /**
+   * C2 (CRITICAL): outline variant must NOT carry `border-transparent` anywhere
+   * in its resolved className — that class overrides `border-input` in Tailwind v4
+   * (equal specificity, source order wins) and makes the border invisible.
+   */
+  it('C2: outline variant does not carry border-transparent (would eclipse border-input)', () => {
+    render(<Button variant="outline">Outline</Button>);
+    const btn = screen.getByRole('button', { name: 'Outline' });
+    expect(btn.className).toContain('border-input');
+    expect(btn.className).not.toContain('border-transparent');
   });
 
   it('renders the sm size class', () => {

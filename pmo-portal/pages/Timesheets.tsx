@@ -83,12 +83,13 @@ const TimesheetsPage: React.FC = () => {
     [currentTimesheet]
   );
 
-  // Group entries into grid rows (one row per project+notes), each with 7 daily hours.
+  // Group entries into grid rows (one row per project), each with 7 daily hours.
+  // Entries for the same project on the same day are summed regardless of note text.
   const gridRows = useMemo<TimesheetGridRow[]>(() => {
     const map = new Map<string, TimesheetGridRow>();
     const dateStrings = weekDates.map(formatDate);
     for (const e of currentWeekEntries) {
-      const key = `${e.project_id}::${e.notes ?? ''}`;
+      const key = `${e.project_id}`;
       let row = map.get(key);
       if (!row) {
         row = {

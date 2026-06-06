@@ -156,6 +156,61 @@ describe('Timesheets returned-for-changes edge state', () => {
 });
 
 // ---------------------------------------------------------------------------
+// #4 — Zero badge hidden in ViewToggle
+// ---------------------------------------------------------------------------
+
+describe('Timesheets #4: ViewToggle count badge', () => {
+  it('#4: the Approvals queue tab has no visible badge when pendingCount === 0', () => {
+    // useTimesheetsAwaitingApproval returns [] (empty) by default in this file's mock
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    // The Badge inside the approvals tab should NOT render "0"
+    const approvalsTab = screen.getByRole('tab', { name: /approvals queue/i });
+    // No "0" text should appear inside the tab
+    expect(approvalsTab.textContent).not.toContain('0');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #5 — gridRows grouped by project only (not project+notes)
+// ---------------------------------------------------------------------------
+
+describe('Timesheets #5: grid rows grouped by project only', () => {
+  it('#5: two entries for the same project but different notes produce ONE grid row', () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    const weekStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+    const tue = new Date(monday);
+    tue.setDate(monday.getDate() + 1);
+    const tueStr = `${tue.getFullYear()}-${String(tue.getMonth() + 1).padStart(2, '0')}-${String(tue.getDate()).padStart(2, '0')}`;
+
+    const twoNoteSheet = [{
+      id: 'ts-twonote', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [
+        { id: 'en1', timesheet_id: 'ts-twonote', project_id: 'pr1', entry_date: weekStr, hours: 3,
+          notes: 'Meeting', project: { name: 'Alpha Project', code: 'A001' } },
+        { id: 'en2', timesheet_id: 'ts-twonote', project_id: 'pr1', entry_date: tueStr, hours: 5,
+          notes: 'Development', project: { name: 'Alpha Project', code: 'A001' } },
+      ],
+    }];
+    tsState.data = twoNoteSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    // Only ONE row for 'Alpha Project' — not two
+    const projectCells = screen.getAllByText('Alpha Project');
+    expect(projectCells).toHaveLength(1);
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+// ---------------------------------------------------------------------------
 // C5 — Submit button wiring (AC-911 UI, FR-TS-004)
 // ---------------------------------------------------------------------------
 

@@ -14,7 +14,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const base =
-  'inline-flex items-center justify-center gap-[7px] rounded-lg border border-transparent ' +
+  'inline-flex items-center justify-center gap-[7px] rounded-lg border ' +
   'text-sm font-medium whitespace-nowrap select-none ' +
   'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ' +
   'active:translate-y-px ' +
@@ -23,11 +23,11 @@ const base =
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90',
-  outline: 'bg-background border-input text-foreground hover:bg-accent',
-  ghost: 'bg-transparent text-foreground hover:bg-accent',
-  destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-  success: 'bg-success text-success-foreground hover:bg-success/90',
+    'border-transparent bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90',
+  outline: 'border-input bg-background text-foreground hover:bg-accent',
+  ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent',
+  destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90',
+  success: 'border-transparent bg-success text-success-foreground hover:bg-success/90',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

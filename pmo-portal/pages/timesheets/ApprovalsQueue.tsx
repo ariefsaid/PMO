@@ -109,7 +109,7 @@ export const ApprovalsQueue: React.FC = () => {
               >
                 {actions.approve && (
                   <Button
-                    variant="success"
+                    variant="primary"
                     size="sm"
                     onClick={() => approve.mutate({ id: sheet.id })}
                     loading={approve.isPending}
