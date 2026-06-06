@@ -72,6 +72,9 @@ export function stageLabelForStatus(status: ProcurementStatus): string {
   const s = status as string;
   if (s === 'Paid') return 'Paid';
   if (TERMINAL_OFF_TRACK.has(s)) return s;
+  // Draft has its own neutral-grey pill variant (`draft`) — the label must also
+  // distinguish it from Requested ("Purchase Request") so color is not the only signal.
+  if (s === 'Draft') return 'Draft';
   const idx = stageIndexForStatus(status);
   return PR_STAGES[idx]?.full ?? s;
 }

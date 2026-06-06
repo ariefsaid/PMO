@@ -45,6 +45,15 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
     expect(stageLabelForStatus('Vendor Quoted' as ProcurementStatus)).toBe('Vendor Quote');
     expect(stageLabelForStatus('Rejected' as ProcurementStatus)).toBe('Rejected');
   });
+
+  it('Draft label is "Draft" (not "Purchase Request") — color-not-only: label+color must both distinguish Draft from Requested', () => {
+    // Draft → neutral grey (`draft` variant) + "Draft" label
+    expect(stageLabelForStatus('Draft' as ProcurementStatus)).toBe('Draft');
+    expect(pillVariantForStatus('Draft' as ProcurementStatus)).toBe('draft');
+    // Requested → blue (`open` variant) + "Purchase Request" label
+    expect(stageLabelForStatus('Requested' as ProcurementStatus)).toBe('Purchase Request');
+    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('open');
+  });
 });
 
 describe('procurement helper — lifecycleSteps (node + inline stepper)', () => {

@@ -90,6 +90,26 @@ describe('LifecycleStepper', () => {
     expect(screen.getByText('PO-0042')).toBeInTheDocument();
   });
 
+  it('node variant paid step renders success treatment (not upcoming grey)', () => {
+    render(
+      <LifecycleStepper
+        variant="node"
+        steps={[
+          { label: 'PR', state: 'done' },
+          { label: 'Payment', state: 'paid' },
+        ]}
+      />
+    );
+    const paymentStep = screen.getByText('Payment').closest('.pstep')!;
+    const circle = paymentStep.querySelector('span')!;
+    // Must carry success classes — not the grey upcoming treatment
+    expect(circle.className).toContain('border-success');
+    expect(circle.className).toContain('bg-success');
+    expect(circle.className).not.toContain('border-border');
+    // Paid node renders a check icon (like done), not a number
+    expect(paymentStep.querySelector('svg')).toBeInTheDocument();
+  });
+
   it('AC-A11Y-03: node variant each step has aria-label conveying "{label}: {state}"', () => {
     render(
       <LifecycleStepper
