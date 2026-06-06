@@ -2,17 +2,49 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import React, { useEffect } from 'react';
-import { projects } from '../data/mockData';
-import ProjectDetails from '../pages/ProjectDetails';
+import ProjectDetail from '../pages/project-detail/ProjectDetail';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-// F-1 (baseline §9): useState ran AFTER an early `return <Navigate/>`, making a hook
-// conditional. React surfaces this as a console.error: "Rendered more hooks than during
-// the previous render" / "change in the order of Hooks". This test fails (red) while the
-// hook is below the guard and passes (green) once all hooks are hoisted above it. AC-005.
+// F-1 (baseline §9): the legacy ProjectDetails ran useState AFTER an early
+// `return <Navigate/>`, making a hook conditional — React surfaces this as a
+// "Rendered more/fewer hooks" console.error. The decomposed ProjectDetail
+// hoists every hook above the not-found guard, so navigating invalid→valid
+// (fewer-hooks path → more-hooks path) on the SAME fiber must not error. AC-005.
 afterEach(() => vi.restoreAllMocks());
 
-/** Navigates to a new projectId after mount to exercise re-render of the same
- *  ProjectDetails component instance (same element in Routes → same fiber). */
+const VALID_ID = 'p1';
+const project = {
+  id: VALID_ID, name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
+  client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
+  spent: 2100000, start_date: '2026-01-01', end_date: '2026-12-18', contract_date: null,
+  customer_contract_ref: null, client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
+} as unknown as ProjectWithRefs;
+
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }) }));
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetMutations: () => ({
+    createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
+    archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
+    deleteDraft: { mutateAsync: vi.fn() }, createLineItem: { mutateAsync: vi.fn() },
+    deleteLineItem: { mutateAsync: vi.fn() },
+  }),
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/components/shell', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useWorkspaceTabs: () => ({ openModule: vi.fn(), openRecord: vi.fn(), setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
+});
+
 function NavDriver({ to }: { to: string }) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -25,44 +57,37 @@ function renderAt(projectId: string) {
   return render(
     <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
       <Routes>
-        <Route path="/projects/:projectId" element={<ProjectDetails />} />
+        <Route path="/projects/:projectId" element={<ProjectDetail />} />
         <Route path="/projects" element={<div>projects-list</div>} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
-describe('ProjectDetails hooks order (F-1)', () => {
+describe('ProjectDetail hooks order (F-1, AC-005)', () => {
   it('renders a valid project without a React hooks-order error', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const validId = projects[0].id;
-    expect(() => renderAt(validId)).not.toThrow();
-    const hooksOrderError = errorSpy.mock.calls.some(args =>
+    expect(() => renderAt(VALID_ID)).not.toThrow();
+    const hooksOrderError = errorSpy.mock.calls.some((args) =>
       String(args[0]).match(/hook|order of Hooks|Rendered more|Rendered fewer/i),
     );
     expect(hooksOrderError).toBe(false);
   });
 
-  it('does not trigger hooks-order error when navigating from invalid to valid project id', () => {
+  it('does not trigger a hooks-order error when navigating from invalid to valid project id', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const validId = projects[0].id;
-
-    // Start on INVALID id (early-return path: fewer hooks rendered).
-    // Then NavDriver immediately navigates to the valid id (more hooks path).
-    // If useState is still below the guard, React fires a hooks-order console.error.
     act(() => {
       render(
         <MemoryRouter initialEntries={['/projects/INVALID']}>
-          <NavDriver to={validId} />
+          <NavDriver to={VALID_ID} />
           <Routes>
-            <Route path="/projects/:projectId" element={<ProjectDetails />} />
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route path="/projects" element={<div>projects-list</div>} />
           </Routes>
         </MemoryRouter>,
       );
     });
-
-    const hooksOrderError = errorSpy.mock.calls.some(args =>
+    const hooksOrderError = errorSpy.mock.calls.some((args) =>
       String(args[0]).match(/hook|order of Hooks|Rendered more|Rendered fewer/i),
     );
     expect(hooksOrderError).toBe(false);
