@@ -57,8 +57,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         Skip to main content
       </a>
 
-      {/* Desktop rail (hidden ≤920px via the media query). */}
-      {rail}
+      {/* Persistent grid-area rail. Hidden ≤920px by the SAME index.css media
+          query that zeroes --rail-w (single source of truth) via .rail-persistent.
+          The hide lives HERE, on the grid-area wrapper — never on the Rail
+          <aside> itself, so the drawer copy below stays visible. */}
+      <div className="rail-persistent contents" style={{ gridArea: 'rail' }}>
+        {rail}
+      </div>
 
       {header}
       {tabstrip}
@@ -75,7 +80,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
       {/* Mobile rail drawer overlay (≤920px). */}
       {railOpen && (
-        <div className="fixed inset-0 z-[60] max-[920px]:block min-[921px]:hidden">
+        <div className="fixed inset-0 z-[60] max-[921px]:block min-[921px]:hidden">
           <div
             className="absolute inset-0 bg-[hsl(240_10%_4%/0.4)]"
             onClick={onCloseRail}

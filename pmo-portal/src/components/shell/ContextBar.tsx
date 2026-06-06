@@ -63,7 +63,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         type="button"
         aria-label="Open navigation menu"
         onClick={onToggleRail}
-        className="mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[920px]:grid [&_svg]:size-[17px]"
+        className="mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
       >
         <Icon name="cols" />
       </button>
@@ -77,11 +77,11 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         aria-label="Open command palette"
         aria-keyshortcuts="Meta+K Control+K"
         onClick={onOpenPalette}
-        className="cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background pl-[11px] pr-[9px] text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[920px]:min-w-0 max-[920px]:w-9 max-[920px]:justify-center max-[920px]:px-0 [&_svg]:size-[15px]"
+        className="cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background pl-[11px] pr-[9px] text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
       >
         <Icon name="search" />
-        <span className="cmdk-label flex-1 text-left max-[920px]:hidden">Search or jump to…</span>
-        <span className="cmdk-kbd rounded-[5px] border border-border bg-secondary px-1.5 py-px text-[11px] font-semibold max-[920px]:hidden">
+        <span className="cmdk-label flex-1 text-left max-[921px]:hidden">Search or jump to…</span>
+        <span className="cmdk-kbd rounded-[5px] border border-border bg-secondary px-1.5 py-px text-[11px] font-semibold max-[921px]:hidden">
           ⌘K
         </span>
       </button>
@@ -115,7 +115,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             onClick={() => setMenuOpen((v) => !v)}
             className="inline-flex h-8 items-center gap-[7px] rounded-lg border border-input bg-background pl-[11px] pr-2.5 text-[13px] font-medium text-foreground hover:bg-accent [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           >
-            <span className="text-muted-foreground max-[920px]:hidden">View as role:</span>
+            <span className="text-muted-foreground max-[921px]:hidden">View as role:</span>
             <strong>{effectiveRole}</strong>
             <Icon name="chev" className="rotate-90" />
           </button>
@@ -156,7 +156,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         >
           {initials(currentUser?.full_name)}
         </span>
-        <span className="user-meta flex flex-col max-[920px]:hidden">
+        <span className="user-meta flex flex-col max-[921px]:hidden">
           <span className="text-[13px] font-semibold leading-tight">
             {currentUser?.full_name}
           </span>
@@ -164,10 +164,13 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         </span>
       </div>
 
+      {/* Sign out. `shrink-0` + `whitespace-nowrap` guarantee the label never
+          wraps to two lines / clips past the right edge at phone widths; ≤920px
+          the cluster compacts (tighter padding) since the user name/role hide. */}
       <button
         type="button"
         onClick={() => void signOut()}
-        className="inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent"
+        className="inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent max-[921px]:px-2.5"
       >
         Sign out
       </button>

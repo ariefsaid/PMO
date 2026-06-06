@@ -105,13 +105,27 @@
     }
   }
 
-  /* ≤920px: collapse the rail column so the grid snaps to full-width and the
-     hamburger drawer becomes the sole rail. The <aside> in Rail.tsx also carries
-     max-[920px]:hidden so neither the grid slot nor the element occupies space. */
-  @media (max-width: 920px) {
-    :root {
-      --rail-w: 0px;
-    }
+}
+
+/* ≤920px: collapse the rail column so the grid snaps to full-width and the
+   hamburger drawer becomes the sole rail. SINGLE SOURCE OF TRUTH for the
+   breakpoint — this one query both zeroes the grid column (--rail-w:0) AND
+   hides the persistent grid-area rail (.rail-persistent). The Rail <aside>
+   itself carries NO hide class, so its drawer copy (not under .rail-persistent)
+   stays visible and the mobile drawer always shows nav. Using a CSS media query
+   (not a Tailwind `max-[920px]:` arbitrary variant) keeps boundary semantics
+   identical: both fire at width ≤ 920px, no off-by-one gap at exactly 920px.
+
+   IMPORTANT: this block is UNLAYERED, matching the unlayered :root token block
+   at the top of the file. The canonical `:root { --rail-w: 224px }` is unlayered;
+   an override placed inside `@layer base` would lose the cascade to it (unlayered
+   beats layered) and never collapse the rail — the defect that slipped jsdom. */
+@media (max-width: 920px) {
+  :root {
+    --rail-w: 0px;
+  }
+  .rail-persistent {
+    display: none;
   }
 }
 
