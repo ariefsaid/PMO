@@ -1,19 +1,180 @@
 @import "tailwindcss";
 
-/* Class-based dark mode (preserves prototype's darkMode: 'class' behavior). */
-@custom-variant dark (&:where(.dark, .dark *));
+/* =============================================================================
+   PMO Portal token pipeline (DESIGN.md — "Token System A", shadcn-vue HSL).
+   The prototype primary-50..950 ramp and class-based dark mode are REMOVED.
+   Canonical runtime form is the BARE `H S% L%` triplet so `/ <alpha>` works
+   (e.g. bg-primary/10, border-border/70). Light scheme only.
+   ============================================================================= */
+:root {
+  /* --- Surfaces --- */
+  --background: 0 0% 100%;            --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;                  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;              --popover-foreground: 240 10% 3.9%;
+  /* --- Brand / action --- */
+  --primary: 221.2 83.2% 53.3%;      --primary-foreground: 0 0% 98%;
+  /* --- Quiet UI --- */
+  --secondary: 240 4.8% 95.9%;       --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;           --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;          --accent-foreground: 240 5.9% 10%;
+  /* --- Status / semantic --- */
+  --destructive: 0 84.2% 60.2%;      --destructive-foreground: 0 0% 98%;
+  --warning: 43 96% 56%;             --warning-foreground: 22 78% 26%;
+  --success: 142 71% 45%;            --success-foreground: 0 0% 98%;
+  /* --- Lines / fields / focus --- */
+  --border: 240 5.9% 90%;            --input: 240 5.9% 90%;
+  --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;
+  /* --- Geometry --- */
+  --radius: 0.5rem;
+  --rail-w: 224px;                   --header-h: 56px;   --tabstrip-h: 40px;
+  color-scheme: light;
+}
 
-/* Ported verbatim from the prototype's inline CDN config (index.html:16) so the look is unchanged. */
-@theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+/* Map Tailwind v4 utilities → the vars. Slash-alpha tints are load-bearing
+   (Tinted-Status + hover-wash) and work because each var is a bare triplet. */
+@theme inline {
+  --color-background: hsl(var(--background) / <alpha-value>);
+  --color-foreground: hsl(var(--foreground) / <alpha-value>);
+  --color-card: hsl(var(--card) / <alpha-value>);
+  --color-card-foreground: hsl(var(--card-foreground) / <alpha-value>);
+  --color-popover: hsl(var(--popover) / <alpha-value>);
+  --color-popover-foreground: hsl(var(--popover-foreground) / <alpha-value>);
+  --color-primary: hsl(var(--primary) / <alpha-value>);
+  --color-primary-foreground: hsl(var(--primary-foreground) / <alpha-value>);
+  --color-secondary: hsl(var(--secondary) / <alpha-value>);
+  --color-secondary-foreground: hsl(var(--secondary-foreground) / <alpha-value>);
+  --color-muted: hsl(var(--muted) / <alpha-value>);
+  --color-muted-foreground: hsl(var(--muted-foreground) / <alpha-value>);
+  --color-accent: hsl(var(--accent) / <alpha-value>);
+  --color-accent-foreground: hsl(var(--accent-foreground) / <alpha-value>);
+  --color-destructive: hsl(var(--destructive) / <alpha-value>);
+  --color-destructive-foreground: hsl(var(--destructive-foreground) / <alpha-value>);
+  --color-warning: hsl(var(--warning) / <alpha-value>);
+  --color-warning-foreground: hsl(var(--warning-foreground) / <alpha-value>);
+  --color-success: hsl(var(--success) / <alpha-value>);
+  --color-success-foreground: hsl(var(--success-foreground) / <alpha-value>);
+  --color-border: hsl(var(--border) / <alpha-value>);
+  --color-input: hsl(var(--input) / <alpha-value>);
+  --color-ring: hsl(var(--ring) / <alpha-value>);
+  --color-violet: hsl(var(--violet) / <alpha-value>);
+  --radius-lg: var(--radius);                 /* 8px */
+  --radius-md: calc(var(--radius) - 2px);     /* 6px */
+  --radius-sm: calc(var(--radius) - 4px);     /* 4px */
+}
+
+@layer base {
+  html, body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The Tabular-Numbers Rule — apply to every figure that can change/compare. */
+  .tabular, .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Single source of truth for focus (DESIGN.md a11y posture). */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* =============================================================================
+   SIGNATURE COMPONENT CSS — ported verbatim from the IA-3 mockup. Token-
+   referenced; the only raw values are the DESIGN.md-sanctioned desaturated
+   near-black shadow alphas and the tooltip dark surface (hsl 240 10% 8%).
+   Utilities cover everything else; these are the few effects Tailwind can't
+   express cleanly (shimmer keyframes, scroll surfaces, stepper connectors).
+   ============================================================================= */
+
+/* ---------- Skeleton shimmer ---------- */
+.skel {
+  background: linear-gradient(90deg, hsl(var(--secondary)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--secondary)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skel-line { height: 12px; margin: 7px 0; }
+
+/* ---------- Kanban scroll surfaces ---------- */
+.kanban-scroll { overflow-x: auto; padding-bottom: 6px; }
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
+.kcol-head-sticky {
+  position: sticky; top: 0;
+  background: hsl(var(--secondary) / 0.95);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius) var(--radius) 0 0;
+  z-index: 1;
+}
+
+/* ---------- Lifecycle stepper connectors (::after rules can't be utilities) ---------- */
+.pstep:not(:last-child)::after {
+  content: ""; position: absolute; top: 15px;
+  left: calc(50% + 18px); right: calc(-50% + 18px);
+  height: 2px; background: hsl(var(--border));
+}
+.pstep.done:not(:last-child)::after { background: hsl(var(--success)); }
+
+/* ---------- In-page tab underline ---------- */
+.ptab-active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: hsl(var(--primary));
+}
+
+/* ---------- Tooltip dark surface (DESIGN.md-sanctioned literal) ---------- */
+.tooltip-surface {
+  background: hsl(240 10% 8%);
+  color: hsl(0 0% 98%);
+  border: 1px solid hsl(240 6% 22%);
+  box-shadow: 0 8px 24px hsl(240 10% 4% / 0.4);
+}
+
+/* ---------- Toast slide-in ---------- */
+.toast-anim { animation: toastIn 0.2s ease; }
+.toast-anim.out { animation: toastOut 0.2s ease forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+
+/* ---------- Command palette panel entrance ---------- */
+.cmdk-anim { animation: cmdkin 0.14s ease; }
+@keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* ---------- Scrollbar polish (from reference) ---------- */
+.main-scroll::-webkit-scrollbar,
+.kanban-scroll::-webkit-scrollbar,
+.tabstrip-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
+.main-scroll::-webkit-scrollbar-thumb,
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: hsl(240 5% 80%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
