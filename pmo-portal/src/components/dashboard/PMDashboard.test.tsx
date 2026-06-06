@@ -82,7 +82,6 @@ describe('PMDashboard Project Status margin — no false-green (I2)', () => {
     renderPane();
     // p1: Ongoing, spent=1M, contract=4M → margin = (4M-1M)/4M = 75% → should show a % figure
     // p3: Loss Tender, not active → should show "—"
-    const items = document.querySelectorAll('[aria-label="My KPIs"] ~ * li, ul li');
     // Verify "—" appears for non-active rows (Loss Tender, Won Pending KoM, On Hold, Leads)
     const allText = document.body.textContent ?? '';
     expect(allText).toContain('75.0%');
