@@ -9,6 +9,8 @@ export interface ViewOption<V extends string = string> {
   icon?: IconName;
   /** Optional trailing count badge (e.g. an Approvals queue size). */
   count?: number;
+  /** Optional test id on the option's button (for AC-tagged assertions). */
+  testId?: string;
 }
 
 export interface ViewToggleProps<V extends string = string> {
@@ -56,6 +58,7 @@ export function ViewToggle<V extends string = string>({
             key={opt.value}
             type="button"
             role="tab"
+            data-testid={opt.testId}
             aria-selected={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(opt.value)}
