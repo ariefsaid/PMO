@@ -30,33 +30,37 @@
   color-scheme: light;
 }
 
-/* Map Tailwind v4 utilities → the vars. Slash-alpha tints are load-bearing
-   (Tinted-Status + hover-wash) and work because each var is a bare triplet. */
+/* Map Tailwind v4 utilities → the vars. In v4 `@theme` color values must be
+   RESOLVABLE colors (no v3 `<alpha-value>` placeholder — it is not substituted
+   and would emit invalid CSS the browser discards). Each value is a bare
+   `hsl(var(--token))`; the slash-alpha tints (bg-primary/10, border-border/70,
+   bg-success/12) are load-bearing and v4 generates them automatically via
+   color-mix() from these bare colors. */
 @theme inline {
-  --color-background: hsl(var(--background) / <alpha-value>);
-  --color-foreground: hsl(var(--foreground) / <alpha-value>);
-  --color-card: hsl(var(--card) / <alpha-value>);
-  --color-card-foreground: hsl(var(--card-foreground) / <alpha-value>);
-  --color-popover: hsl(var(--popover) / <alpha-value>);
-  --color-popover-foreground: hsl(var(--popover-foreground) / <alpha-value>);
-  --color-primary: hsl(var(--primary) / <alpha-value>);
-  --color-primary-foreground: hsl(var(--primary-foreground) / <alpha-value>);
-  --color-secondary: hsl(var(--secondary) / <alpha-value>);
-  --color-secondary-foreground: hsl(var(--secondary-foreground) / <alpha-value>);
-  --color-muted: hsl(var(--muted) / <alpha-value>);
-  --color-muted-foreground: hsl(var(--muted-foreground) / <alpha-value>);
-  --color-accent: hsl(var(--accent) / <alpha-value>);
-  --color-accent-foreground: hsl(var(--accent-foreground) / <alpha-value>);
-  --color-destructive: hsl(var(--destructive) / <alpha-value>);
-  --color-destructive-foreground: hsl(var(--destructive-foreground) / <alpha-value>);
-  --color-warning: hsl(var(--warning) / <alpha-value>);
-  --color-warning-foreground: hsl(var(--warning-foreground) / <alpha-value>);
-  --color-success: hsl(var(--success) / <alpha-value>);
-  --color-success-foreground: hsl(var(--success-foreground) / <alpha-value>);
-  --color-border: hsl(var(--border) / <alpha-value>);
-  --color-input: hsl(var(--input) / <alpha-value>);
-  --color-ring: hsl(var(--ring) / <alpha-value>);
-  --color-violet: hsl(var(--violet) / <alpha-value>);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-violet: hsl(var(--violet));
   --radius-lg: var(--radius);                 /* 8px */
   --radius-md: calc(var(--radius) - 2px);     /* 6px */
   --radius-sm: calc(var(--radius) - 4px);     /* 4px */
