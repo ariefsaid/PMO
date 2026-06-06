@@ -43,6 +43,8 @@ export interface KPITileProps<L extends string = string> {
   loading?: boolean;
   /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
   dual?: KPIDualLens<L>;
+  /** Test id on the tile root (for AC-tagged smoke assertions). */
+  testId?: string;
   className?: string;
 }
 
@@ -63,10 +65,12 @@ export function KPITile<L extends string = string>({
   vs,
   loading = false,
   dual,
+  testId,
   className,
 }: KPITileProps<L>) {
   return (
     <div
+      data-testid={testId}
       className={cn(
         'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
         className

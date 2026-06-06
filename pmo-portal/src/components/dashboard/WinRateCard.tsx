@@ -80,10 +80,10 @@ export const WinRateCard: React.FC = () => {
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <span className="text-[13.5px] font-semibold">Win Rate</span>
         <span className="flex-1" />
-        <ViewToggle options={BASIS_OPTIONS} value={mode} onChange={setMode} ariaLabel="Win-rate basis" />
+        <ViewToggle<'count' | 'value'> options={BASIS_OPTIONS} value={mode} onChange={setMode} ariaLabel="Win-rate basis" />
       </div>
 
-      <ViewToggle
+      <ViewToggle<PeriodKey>
         options={PERIOD_OPTIONS}
         value={period}
         onChange={setPeriod}
