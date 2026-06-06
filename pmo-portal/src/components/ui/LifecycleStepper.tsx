@@ -83,11 +83,11 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
               s.state === 'current' &&
                 'border-primary bg-primary text-primary-foreground shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]',
               s.state === 'skipped' && 'border-dashed border-border bg-secondary text-muted-foreground',
-              (s.state === 'upcoming' || s.state === 'paid') &&
-                'border-border bg-background text-muted-foreground'
+              s.state === 'upcoming' && 'border-border bg-background text-muted-foreground',
+              s.state === 'paid' && 'border-success bg-success text-success-foreground'
             )}
           >
-            {s.state === 'done' ? <Icon name="check" strokeWidth={2.5} /> : i + 1}
+            {(s.state === 'done' || s.state === 'paid') ? <Icon name="check" strokeWidth={2.5} /> : i + 1}
           </span>
           <span
             className={cn(

@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
+// NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
+// (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
+// stable `data-status` attribute so this oracle survives the presentation change.
 
 // AC-816 — full procure-to-pay happy path: Draft→Requested→Approved→Ordered→Received→
 // Vendor Invoiced→Paid with minted PR#/PO#/GR#/VI# trail.
@@ -23,31 +26,31 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
 
   // Wait for page to fully load (not in loading skeleton)
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Draft', { timeout: 10_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 10_000 });
 
   await page.getByRole('button', { name: 'Submit Request' }).click();
 
   // Wait for status to advance to Requested and PR# to appear
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Requested', { timeout: 15_000 });
-  await expect(page.getByText(/^PR-\d{10}$/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 15_000 });
+  await expect(page.getByText(/^PR-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 
   // ── Step 2: admin approves (Requested → Approved) ────────────────────────
   await login(page, 'admin@acme.test');
   await page.goto(PROC_URL);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Requested', { timeout: 10_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 10_000 });
 
   await page.getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Approved', { timeout: 15_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
 
   // ── Step 3: admin generates PO (Approved → Ordered) ──────────────────────
   await page.getByRole('button', { name: 'Generate Purchase Order' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Ordered', { timeout: 15_000 });
-  await expect(page.getByText(/^PO-\d{10}$/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
+  await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 
   // ── Step 4: admin confirms receipt (Ordered → Received) ──────────────────
   await page.getByRole('button', { name: 'Confirm Receipt' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Received', { timeout: 15_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 15_000 });
 
   // ── Step 5: admin creates GR (Complete) ──────────────────────────────────
   await page.getByTestId('btn-create-gr').click();
@@ -64,10 +67,10 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await login(page, 'finance@acme.test');
   await page.goto(PROC_URL);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Received', { timeout: 10_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 10_000 });
 
   await page.getByRole('button', { name: 'Mark Vendor Invoiced' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Vendor Invoiced', { timeout: 15_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 15_000 });
 
   // ── Step 7: finance creates VI (status Paid) ─────────────────────────────
   await page.getByTestId('btn-create-vi').click();
@@ -83,7 +86,7 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   // ── Step 8: finance marks Paid (Vendor Invoiced → Paid) ──────────────────
   // SoD-b: admin approved (step 2), finance pays — distinct users → allowed.
   await page.getByRole('button', { name: 'Mark as Paid' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveText('Paid', { timeout: 15_000 });
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid', { timeout: 15_000 });
 
   // ── Final assertions: full document trail PR/PO/GR/VI all visible ─────────
   // Numbers may appear in both the doc-trail panel and the detail sections — use .first()
