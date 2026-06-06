@@ -1,11 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import SalesPipeline from './SalesPipeline';
 import { formatCurrency } from '@/src/lib/format';
 
-// Oracle stages from spec §3.8 (after SPD-S1)
+// Oracle stages from spec §3.8 — Won/Lost are NOT in the funnel band.
 const seedStages = [
   { status: 'Leads', count: 0, total_value: 0, win_probability: 0.1, weighted_value: 0 },
   { status: 'PQ Submitted', count: 1, total_value: 800000, win_probability: 0.25, weighted_value: 200000 },
@@ -25,6 +26,8 @@ const pipelineState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: { stages: seedStages, projects: seedProjects }, isPending: false, isError: false, refetch: vi.fn() };
 
+const openRecord = vi.fn();
+
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useDashboard: () => ({ data: undefined, isPending: false, isError: false }),
@@ -33,64 +36,114 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
+vi.mock('@/src/components/shell', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn() }) };
+});
 
 const renderPage = () => render(<MemoryRouter><SalesPipeline /></MemoryRouter>);
 
-describe('SalesPipeline (AC-1116 / FR-SPD-014/015)', () => {
-  it('AC-1116: loading state', () => {
-    pipelineState.isPending = true; pipelineState.isError = false; pipelineState.data = undefined;
+beforeEach(() => {
+  sessionStorage.clear();
+  openRecord.mockClear();
+  pipelineState.data = { stages: seedStages, projects: seedProjects };
+  pipelineState.isPending = false;
+  pipelineState.isError = false;
+});
+
+describe('SalesPipeline header + funnel (AC-SP-202)', () => {
+  it('AC-SP-202: renders the page title, sub, and action buttons', () => {
     renderPage();
-    expect(screen.getByTestId('pipeline-loading')).toBeInTheDocument();
-    pipelineState.isPending = false;
+    expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New deal/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
   });
 
-  it('AC-1116: error state with retry button', () => {
-    pipelineState.isError = true; pipelineState.isPending = false; pipelineState.data = undefined;
+  it('AC-SP-202: funnel band shows the five open stages, not Won/Lost', () => {
     renderPage();
-    expect(screen.getByTestId('pipeline-error')).toBeInTheDocument();
-    const retryBtn = screen.getByRole('button', { name: /retry/i });
-    expect(retryBtn).toBeInTheDocument();
-    fireEvent.click(retryBtn);
-    expect(pipelineState.refetch).toHaveBeenCalled();
-    pipelineState.isError = false;
+    const funnel = screen.getByLabelText('Pipeline summary');
+    const f = within(funnel);
+    expect(f.getByText('Leads')).toBeInTheDocument();
+    expect(f.getByText('Negotiation')).toBeInTheDocument();
+    expect(f.queryByText(/Won/)).toBeNull();
   });
 
-  it('AC-1116: empty state when no pipeline projects', () => {
-    pipelineState.data = { stages: [], projects: [] };
-    pipelineState.isPending = false; pipelineState.isError = false;
+  it('AC-1117: the weighted total test id is preserved and sums only the open stages', () => {
     renderPage();
-    expect(screen.getByTestId('pipeline-empty')).toBeInTheDocument();
-    pipelineState.data = { stages: seedStages, projects: seedProjects };
-  });
-
-  it('AC-1116: populated — five stage columns, per-stage data, total weighted value (FR-SPD-014)', () => {
-    pipelineState.data = { stages: seedStages, projects: seedProjects };
-    pipelineState.isPending = false; pipelineState.isError = false;
-    renderPage();
-
-    // total weighted value = 200000 + 600000 = 800000
+    // 200000 + 600000 = 800000
     expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000));
+  });
+});
 
-    // All five stage columns present
-    expect(screen.getByTestId('stage-Leads')).toBeInTheDocument();
-    expect(screen.getByTestId('stage-PQ Submitted')).toBeInTheDocument();
-    expect(screen.getByTestId('stage-Quotation Submitted')).toBeInTheDocument();
-    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
-    expect(screen.getByTestId('stage-Negotiation')).toBeInTheDocument();
+describe('SalesPipeline states (AC-SP-203)', () => {
+  it('AC-SP-203: loading renders the skeleton ListState (no spinner), aria-busy', () => {
+    pipelineState.isPending = true; pipelineState.data = undefined;
+    renderPage();
+    // funnel band + body both skeleton (no spinner) — every loader is aria-busy.
+    const loaders = screen.getAllByTestId('liststate-loading');
+    expect(loaders.length).toBeGreaterThan(0);
+    loaders.forEach((l) => expect(l).toHaveAttribute('aria-busy', 'true'));
+  });
 
-    // Tender Submitted: count 1, value $1,200,000, weighted $600,000
-    const tenderCol = screen.getByTestId('stage-Tender Submitted');
-    expect(tenderCol).toHaveTextContent('1');
-    expect(tenderCol).toHaveTextContent(formatCurrency(1200000));
-    expect(tenderCol).toHaveTextContent(formatCurrency(600000));
+  it('AC-SP-203: error renders an alert + Retry that calls refetch', () => {
+    pipelineState.isError = true; pipelineState.data = undefined;
+    renderPage();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(pipelineState.refetch).toHaveBeenCalled();
+  });
 
-    // PQ Submitted: count 1, value $800,000, weighted $200,000
-    const pqCol = screen.getByTestId('stage-PQ Submitted');
-    expect(pqCol).toHaveTextContent('1');
-    expect(pqCol).toHaveTextContent(formatCurrency(800000));
-    expect(pqCol).toHaveTextContent(formatCurrency(200000));
+  it('AC-SP-203: empty renders the composed empty state with a New deal action', () => {
+    pipelineState.data = { stages: [], projects: [] };
+    renderPage();
+    expect(screen.getByText(/No opportunities yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /New deal/i }).length).toBeGreaterThan(0);
+  });
+});
 
-    // no mockData / hard-coded probability refs
-    expect(screen.queryByText('mockData')).toBeNull();
+describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', () => {
+  it('AC-SP-204: defaults to the Kanban view with the Tender stage column + its weighted total', () => {
+    renderPage();
+    const tender = screen.getByTestId('stage-Tender Submitted');
+    expect(within(tender).getAllByText((t) => t.includes(formatCurrency(600000))).length).toBeGreaterThan(0);
+  });
+
+  it('AC-SP-206: the view toggle is a tablist with Kanban selected by default', () => {
+    renderPage();
+    const toggle = screen.getByRole('tablist', { name: /Pipeline view/i });
+    const kanbanTab = within(toggle).getByRole('tab', { name: /Kanban/i });
+    expect(kanbanTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('AC-SP-206 / AC-SP-205: switching to Table renders the DataTable with the deal rows', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    // table view: opportunity rows present
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    // win% progressbar with aria-label
+    expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
+  });
+
+  it('AC-SP-206: the chosen view persists to sessionStorage', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    expect(sessionStorage.getItem('pmo.workspace.views')).toContain('table');
+  });
+});
+
+describe('SalesPipeline drill-down (AC-SP-207)', () => {
+  it('AC-SP-207: clicking a card opens a record tab with the human label', () => {
+    renderPage();
+    fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
+    expect(openRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'sales:p2', label: 'Northwind ERP Rollout', module: 'sales' }),
+    );
+  });
+
+  it('AC-SP-205: a table row click opens the record tab', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
+    expect(openRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'sales:p2' }));
   });
 });

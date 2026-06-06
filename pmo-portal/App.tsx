@@ -20,12 +20,14 @@ import {
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
+import { ToastProvider } from '@/src/components/ui';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
 const Projects = React.lazy(() => import('./pages/Projects'));
 const ProjectDetails = React.lazy(() => import('./pages/ProjectDetails'));
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
+const OpportunityDetail = React.lazy(() => import('./pages/OpportunityDetail'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
@@ -47,7 +49,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/projects/:projectId" element={<ProjectDetails />} />
       <Route path="/projects/:projectId/budget" element={<ProjectBudgetRoute />} />
       <Route path="/sales" element={<SalesPipeline />} />
-      {/* Slot reserved for the Issue-2 opportunity detail route: /sales/:opportunityId */}
+      <Route path="/sales/:opportunityId" element={<OpportunityDetail />} />
       <Route path="/procurement" element={<ProcurementPage />} />
       <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       <Route path="/timesheets" element={<TimesheetsPage />} />
@@ -149,7 +151,9 @@ const Shell: React.FC = () => {
   return (
     <ImpersonationProvider realRole={role}>
       <WorkspaceTabsProvider>
-        <ShellChrome />
+        <ToastProvider>
+          <ShellChrome />
+        </ToastProvider>
       </WorkspaceTabsProvider>
     </ImpersonationProvider>
   );
