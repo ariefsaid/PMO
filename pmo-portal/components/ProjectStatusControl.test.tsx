@@ -136,6 +136,31 @@ describe('ProjectStatusControl', () => {
   });
 });
 
+describe('ProjectStatusControl — popover collision-aware placement (#2)', () => {
+  it('the MOVE TO dropdown anchors right-0 (not left-0) to stay within the viewport when far-right', async () => {
+    const user = userEvent.setup();
+    render(<ProjectStatusControl project={negotiationProject} />);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+
+    // Find the dropdown panel (it has the "Move to" heading)
+    const panel = screen.getByText(/move to/i).closest('div')!;
+    // Must anchor to the right edge of the trigger (right-0) not left-0
+    expect(panel.className).toContain('right-0');
+    expect(panel.className).not.toContain('left-0');
+  });
+
+  it('the win-capture form panel also anchors right-0 to avoid viewport overflow', async () => {
+    const user = userEvent.setup();
+    render(<ProjectStatusControl project={negotiationProject} />);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    await user.click(screen.getByRole('button', { name: /Won, Pending KoM/i }));
+
+    const form = screen.getByRole('textbox', { name: /customer contract ref/i }).closest('form')!;
+    expect(form.className).toContain('right-0');
+    expect(form.className).not.toContain('left-0');
+  });
+});
+
 describe('ProjectStatusControl — Won project', () => {
   it('shows legal next statuses for Won, Pending KoM project', async () => {
     const user = userEvent.setup();

@@ -79,7 +79,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
     <div data-testid="project-status-control" className="relative">
       {/* Inline error display — always visible when error exists (NFR-PR-UI-001) */}
       {mutation.isError && mutation.error && (
-        <p className="text-xs text-red-600 dark:text-red-400 mb-1" role="alert">
+        <p className="mb-1 text-xs text-destructive" role="alert">
           {mutation.error.message}
         </p>
       )}
@@ -88,7 +88,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-primary-500 hover:text-primary-600 transition-colors"
+          className="rounded-md border border-input px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           disabled={mutation.isPending}
           aria-label="Change status"
         >
@@ -98,8 +98,8 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
 
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
-        <div className="absolute z-20 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[180px]">
-          <p className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Move to
           </p>
           {legalTargets.map(target => (
@@ -107,7 +107,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
               key={target}
               type="button"
               onClick={() => handleTargetSelect(target)}
-              className="block w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
             >
               {target}
             </button>
@@ -115,7 +115,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
           <button
             type="button"
             onClick={handleCancel}
-            className="block w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border-t border-gray-100 dark:border-gray-700"
+            className="mt-[5px] block w-full rounded-md border-t border-border px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent"
           >
             Cancel
           </button>
@@ -126,15 +126,13 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
       {pendingTarget === 'Won, Pending KoM' && (
         <form
           onSubmit={handleWinSubmit}
-          className="absolute z-20 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 min-w-[240px] space-y-2"
+          className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
-          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-            Win — enter contract details
-          </p>
+          <p className="text-xs font-semibold">Win — enter contract details</p>
           <div>
             <label
               htmlFor={`contract-ref-${project.id}`}
-              className="block text-xs text-gray-600 dark:text-gray-400 mb-0.5"
+              className="mb-0.5 block text-xs text-muted-foreground"
             >
               Customer contract ref
             </label>
@@ -145,13 +143,13 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
               value={contractRef}
               onChange={e => setContractRef(e.target.value)}
               placeholder="e.g. CPO-2026-001"
-              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary-500 dark:bg-gray-700 dark:text-gray-200"
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
           </div>
           <div>
             <label
               htmlFor={`contract-date-${project.id}`}
-              className="block text-xs text-gray-600 dark:text-gray-400 mb-0.5"
+              className="mb-0.5 block text-xs text-muted-foreground"
             >
               Contract date
             </label>
@@ -161,20 +159,20 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
               required
               value={contractDate}
               onChange={e => setContractDate(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-primary-500 dark:bg-gray-700 dark:text-gray-200"
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
           </div>
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
-              className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded hover:bg-primary-700 transition-colors"
+              className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Confirm
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Cancel
             </button>

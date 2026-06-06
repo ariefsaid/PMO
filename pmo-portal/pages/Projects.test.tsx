@@ -1,20 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import Projects from './Projects';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const seed = [
-  { id: 'p1', name: 'Innovate Corp HQ Fit-Out', status: 'Ongoing Project',
+  { id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
     client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
     spent: 2100000, end_date: '2026-12-18', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
-  { id: 'p2', name: 'Northwind ERP Rollout', status: 'Tender Submitted',
+  { id: 'p2', name: 'Northwind ERP Rollout', code: 'PRJ-002', status: 'Tender Submitted',
     client_id: 'c3', project_manager_id: 'u-alice', contract_value: 1200000, budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Northwind Manufacturing' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
-  { id: 'p3', name: 'Regional Services Program', status: 'PQ Submitted',
+  { id: 'p3', name: 'Regional Services Program', code: 'PRJ-003', status: 'PQ Submitted',
     client_id: 'c2', project_manager_id: 'u-alice', contract_value: 800000, budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
@@ -23,13 +24,12 @@ const seed = [
 // Won project with customer_contract_ref set (for AC-1011 UI test)
 const seedWithWon = [
   ...seed,
-  { id: 'p4', name: 'Won Deal', status: 'Won, Pending KoM',
+  { id: 'p4', name: 'Won Deal', code: 'PRJ-004', status: 'Won, Pending KoM',
     client_id: 'c2', project_manager_id: 'u-alice', contract_value: 2000000, budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: 'CPO-2026-999', contract_date: '2026-01-15', decided_at: '2026-01-15T00:00:00Z' },
 ];
 
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
@@ -44,10 +44,23 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
+const openRecord = vi.fn();
+vi.mock('@/src/components/shell', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
+});
 
 const renderPage = () => render(<MemoryRouter><Projects /></MemoryRouter>);
 
-describe('Projects (real data)', () => {
+describe('Projects index — IA-3 (real data)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    openRecord.mockClear();
+  });
+
   it('renders seeded projects with joined client + PM names (AC-401)', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
@@ -55,9 +68,32 @@ describe('Projects (real data)', () => {
     expect(screen.getAllByText('Alice Manager').length).toBeGreaterThan(0);
   });
 
-  it('filters to Leads tab (AC-403)', async () => {
+  it('defaults to the Table view and the toggle switches to Cards (AC-A)', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /Leads/ }));
+    const toggle = screen.getByRole('tablist', { name: /projects view/i });
+    expect(within(toggle).getByRole('tab', { name: /Table/i })).toHaveAttribute('aria-selected', 'true');
+    // No project-card carriers in Table view
+    expect(screen.queryAllByTestId('project-card').length).toBe(0);
+    await userEvent.click(within(toggle).getByRole('tab', { name: /Cards/i }));
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+  });
+
+  it('renders status as a StatusPill (dot + text), not a legacy badge (AC-C)', () => {
+    renderPage();
+    const pill = screen.getAllByText('Ongoing Project')[0];
+    // The StatusPill carries a 6px dot sibling (color-not-only).
+    expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
+  });
+
+  it('opens the workspace record tab and navigates when a row is activated (AC-B)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByText('Innovate Corp HQ Fit-Out'));
+    expect(openRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'projects:p1', path: '/projects/p1' }));
+  });
+
+  it('filters to Leads via the status SegFilter (AC-403)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Leads/ }));
     expect(screen.getByText('Regional Services Program')).toBeInTheDocument();
     expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
   });
@@ -71,67 +107,103 @@ describe('Projects (real data)', () => {
 
   it('"My Projects" uses the real profile id (AC-402)', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /My Projects/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /My Projects/ }));
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument(); // u-alice manages all
   });
 });
 
-describe('Projects Board view', () => {
-  it('toggles to Board view and renders a real contract value in a column header (AC-407)', async () => {
+describe('Projects index states', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
-    renderPage();
-    await userEvent.click(screen.getByTitle('Board View (CRM)'));
-    // The Execution column must show the summed contract_value of ongoing projects: $5,000,000
-    expect(screen.getByText('$5,000,000')).toBeInTheDocument();
   });
 
-  it('Board view does not render empty-state underneath columns (AC-407)', async () => {
-    projectsState.data = seed as unknown as ProjectWithRefs[];
-    renderPage();
-    await userEvent.click(screen.getByTitle('Board View (CRM)'));
-    expect(screen.queryByText(/No projects found/i)).not.toBeInTheDocument();
-  });
-});
-
-describe('Projects states', () => {
   it('shows loading state while pending (AC-405)', () => {
     projectsState.isPending = true; projectsState.isError = false;
     renderPage();
     expect(screen.getByTestId('projects-loading')).toBeInTheDocument();
-    projectsState.isPending = false;
   });
+
   it('shows error state with retry on failure (AC-408)', () => {
     projectsState.isError = true; projectsState.isPending = false;
     renderPage();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
-    projectsState.isError = false;
   });
-  it('shows empty state when zero rows (AC-406)', () => {
+
+  it('shows empty state with a New Project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
     renderPage();
-    expect(screen.getByText(/No projects found/i)).toBeInTheDocument();
+    expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
+  });
+
+  it('shows a filter-no-match empty state with a clear-filters action (AC-D)', async () => {
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'zzzz-no-match');
+    expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
+  });
+});
+
+describe('Projects table — compact layout (#1)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
     projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+  });
+
+  it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
+    renderPage();
+    // Find the PM avatar in the table tbody (has single-letter initial, size-[18px])
+    const tableBody = document.querySelector('tbody');
+    const pmCells = tableBody?.querySelectorAll('td');
+    const pmAvatar = Array.from(pmCells ?? [])
+      .flatMap(td => Array.from(td.querySelectorAll('[aria-hidden="true"]')))
+      .find(el => el.className.includes('rounded-full') && el.className.includes('size-[18px]'));
+    expect(pmAvatar).toBeTruthy();
+  });
+
+  it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
+    renderPage();
+    // The progressbar role should be in the table and have a compact constrained wrapper
+    const progressbars = screen.getAllByRole('progressbar');
+    expect(progressbars.length).toBeGreaterThan(0);
+    // The outer wrapper span should have min-w-[80px] (compact mode)
+    const bar = progressbars[0];
+    const wrapper = bar.closest('span')?.parentElement;
+    expect(wrapper).toBeTruthy();
+    // The outermost span container should use compact sizing (min-w-[80px])
+    const outerSpan = bar.closest('span[class*="min-w-[80px]"]') ??
+      bar.parentElement?.closest('span[class*="min-w-[80px]"]');
+    expect(outerSpan).not.toBeNull();
   });
 });
 
 describe('ProjectStatusControl integration (AC-1011 UI)', () => {
-  it('AC-1011 (UI): each project row renders a ProjectStatusControl and shows the customer contract reference when set (FR-PR-011)', () => {
-    projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
+  beforeEach(() => {
+    sessionStorage.clear();
     projectsState.isPending = false;
     projectsState.isError = false;
+  });
+
+  it('AC-1011 (UI): the default Table view renders a ProjectStatusControl per row and shows the customer contract reference (FR-PR-011)', () => {
+    projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
-
-    // Each project row should have a status control (data-testid="project-status-control")
     const controls = screen.getAllByTestId('project-status-control');
-    // 4 projects in seedWithWon — all have legal transitions except potentially terminal ones
-    // 'Won, Pending KoM' → has transitions, so control renders; all 4 should render
     expect(controls.length).toBeGreaterThanOrEqual(1);
-
-    // The won project's customer_contract_ref should be visible on the row
     expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+  });
 
+  it('AC-1011 (UI): the Cards view also renders the status control + ref (win flow reachable from both views)', async () => {
+    projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 });

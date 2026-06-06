@@ -47,6 +47,26 @@ describe('DataTable', () => {
     expect(onSort).toHaveBeenCalledWith('name');
   });
 
+  it('#6: rows with onActivate expose role="link" for AT announcement', () => {
+    render(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={vi.fn()} />
+    );
+    const alphaRow = screen.getByText('Alpha').closest('tr')!;
+    expect(alphaRow).toHaveAttribute('role', 'link');
+  });
+
+  it('#5: row focus ring uses the design-system ring token with positive (outset) offset, not inset', () => {
+    render(
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={vi.fn()} />
+    );
+    const alphaRow = screen.getByText('Alpha').closest('tr')!;
+    // Must use focus-visible:outline-offset-2 (positive outset) — NOT focus-visible:-outline-offset-2 (inset/black)
+    expect(alphaRow.className).toContain('focus-visible:outline-offset-2');
+    expect(alphaRow.className).not.toContain('focus-visible:-outline-offset-2');
+    // Must use ring token for the outline color
+    expect(alphaRow.className).toContain('focus-visible:outline-ring');
+  });
+
   it('row click and Enter both call onActivate', async () => {
     const onActivate = vi.fn();
     render(

@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -25,7 +25,7 @@ import { ToastProvider } from '@/src/components/ui';
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
 const Projects = React.lazy(() => import('./pages/Projects'));
-const ProjectDetails = React.lazy(() => import('./pages/ProjectDetails'));
+const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDetail'));
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
 const OpportunityDetail = React.lazy(() => import('./pages/OpportunityDetail'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
@@ -33,21 +33,14 @@ const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails')
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
-const ProjectBudgetLazy = React.lazy(() => import('./pages/ProjectBudget'));
-
-/** Thin route wrapper — reads :projectId from the URL and passes it as a prop. */
-const ProjectBudgetRoute: React.FC = () => {
-  const { projectId = '' } = useParams<{ projectId: string }>();
-  return <ProjectBudgetLazy projectId={projectId} />;
-};
 
 const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingFallback />}>
     <Routes>
       <Route path="/" element={<ExecutiveDashboard />} />
       <Route path="/projects" element={<Projects />} />
-      <Route path="/projects/:projectId" element={<ProjectDetails />} />
-      <Route path="/projects/:projectId/budget" element={<ProjectBudgetRoute />} />
+      <Route path="/projects/:projectId" element={<ProjectDetail />} />
+      <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
       <Route path="/sales" element={<SalesPipeline />} />
       <Route path="/sales/:opportunityId" element={<OpportunityDetail />} />
       <Route path="/procurement" element={<ProcurementPage />} />

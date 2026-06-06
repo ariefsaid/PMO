@@ -30,3 +30,6 @@ test-results
 
 # Vendored third-party Claude Code skills — re-create with scripts/vendor-skills.sh
 .claude/skills/
+
+# agent worktrees (transient)
+.claude/worktrees/

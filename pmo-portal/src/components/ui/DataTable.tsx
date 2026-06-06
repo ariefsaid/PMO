@@ -12,6 +12,11 @@ export interface Column<Row> {
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
+  /**
+   * Extra Tailwind classes applied to both the `<th>` and each `<td>` in this column.
+   * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
+   */
+  colClassName?: string;
 }
 
 export interface SortState {
@@ -100,7 +105,8 @@ export function DataTable<Row>({
                     aria-sort={ariaSort}
                     className={cn(
                       'sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
-                      alignClass(col.align)
+                      alignClass(col.align),
+                      col.colClassName
                     )}
                   >
                     {sortable ? (
@@ -153,6 +159,7 @@ export function DataTable<Row>({
                 return (
                   <tr
                     key={key}
+                    role={onActivate ? 'link' : undefined}
                     tabIndex={onActivate ? 0 : undefined}
                     onClick={() => onActivate?.(row)}
                     onKeyDown={(e) => {
@@ -165,7 +172,7 @@ export function DataTable<Row>({
                       'group border-b border-border/70 last:border-b-0 transition-colors',
                       onActivate && 'cursor-pointer hover:bg-accent/60',
                       selected && 'bg-primary/[0.07]',
-                      'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+                      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
                     )}
                   >
                     {columns.map((col) => (
@@ -174,7 +181,8 @@ export function DataTable<Row>({
                         className={cn(
                           'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
                           alignClass(col.align),
-                          col.align === 'num' && 'tabular'
+                          col.align === 'num' && 'tabular',
+                          col.colClassName
                         )}
                       >
                         {col.cell(row)}
