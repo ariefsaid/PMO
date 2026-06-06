@@ -232,7 +232,7 @@ const SalesPipeline: React.FC = () => {
           variant="empty"
           title="No opportunities yet"
           sub="Add a lead to start tracking the pipeline."
-          action={{ label: 'New deal', onClick: () => {} }}
+          action={{ label: 'New deal', onClick: () => {}, disabled: true, disabledTitle: 'Deal creation is coming soon' }}
         />
       )}
 

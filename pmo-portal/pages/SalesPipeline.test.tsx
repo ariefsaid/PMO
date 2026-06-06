@@ -99,6 +99,16 @@ describe('SalesPipeline states (AC-SP-203)', () => {
     expect(screen.getByText(/No opportunities yet/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /New deal/i }).length).toBeGreaterThan(0);
   });
+
+  it('AC-A11Y-04: empty-state "New deal" CTA is disabled (matches gated header affordance)', () => {
+    pipelineState.data = { stages: [], projects: [] };
+    renderPage();
+    // The empty-state "New deal" button must be disabled — same gating as the header CTA.
+    const newDealButtons = screen.getAllByRole('button', { name: /New deal/i });
+    newDealButtons.forEach((btn) => {
+      expect(btn).toBeDisabled();
+    });
+  });
 });
 
 describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', () => {

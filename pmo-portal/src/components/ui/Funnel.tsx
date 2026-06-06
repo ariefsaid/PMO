@@ -54,7 +54,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
             />
             <span className="text-xs font-semibold">{s.name}</span>
             {s.prob && (
-              <span className="ml-auto text-[10px] font-bold text-muted-foreground">{s.prob}</span>
+              <span className="ml-auto text-[11px] font-bold text-muted-foreground">{s.prob}</span>
             )}
           </div>
           <div className="text-[17px] font-bold leading-none tracking-[-0.02em] tabular">
