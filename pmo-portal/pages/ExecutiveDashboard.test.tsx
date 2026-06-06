@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
+import { ToastProvider } from '@/src/components/ui/Toast';
 import { formatCurrency } from '@/src/lib/format';
 
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
@@ -61,30 +62,37 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
 
-const renderPage = () => render(<MemoryRouter><ExecutiveDashboard /></MemoryRouter>);
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <ExecutiveDashboard />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
+
+beforeEach(() => {
+  dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+});
 
 describe('ExecutiveDashboard (real data)', () => {
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
     renderPage();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
-  it('pipeline region shows the Ongoing count 2 (AC-703)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+  it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
     renderPage();
     expect(screen.getByTestId('dashboard-pipeline')).toHaveTextContent('2');
   });
   it('procurement-by-status region shows 5 statuses (AC-704)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
     renderPage();
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
   });
-  it('top projects table shows joined client name (AC-705)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+  it('budget-vs-actual list shows the project names (AC-705)', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
-    expect(screen.getAllByText('Innovate Corp').length).toBeGreaterThan(0);
+    expect(screen.getByText('Acme Internal Platform')).toBeInTheDocument();
   });
 });
 
@@ -93,14 +101,12 @@ describe('ExecutiveDashboard states', () => {
     dashState.isPending = true; dashState.isError = false;
     renderPage();
     expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
-    dashState.isPending = false;
   });
   it('error state with retry (AC-707)', () => {
     dashState.isError = true; dashState.isPending = false;
     renderPage();
     expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
-    dashState.isError = false;
   });
   it('empty state when org has no projects/procurements (AC-708)', () => {
     dashState.data = {
@@ -109,52 +115,66 @@ describe('ExecutiveDashboard states', () => {
       pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
       projects_by_status: [], procurements_by_status: [], top_projects: [],
     };
-    dashState.isPending = false; dashState.isError = false;
     renderPage();
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
-    dashState.data = populated;
   });
 });
 
 describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
   it('AC-1114: renders on-hand margin / pipeline weighted value / projected margin tiles, no avg_gross_margin (FR-SPD-012)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
     renderPage();
-
-    // on-hand margin = 0.949375 → 94.9%
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('94.9%');
-
-    // pipeline weighted value = 800000
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000));
-
-    // pipeline projected margin = 0.200 → 20.0%
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
-
-    // old tile must not exist
+    // projected margin tile defaults to the on-hand lens (94.9%)
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('94.9%');
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
+  });
+
+  it('AC-1114: the projected-margin tile toggles lens on-hand↔weighted (FR-SPD-012)', () => {
+    renderPage();
+    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
+    // on-hand lens = on_hand_margin 94.9%
+    expect(tile).toHaveTextContent('94.9%');
+    // toggle to the weighted lens → pipeline_projected_margin 20.0%
+    fireEvent.click(screen.getByRole('tab', { name: /Weighted/i }));
+    expect(tile).toHaveTextContent('20.0%');
   });
 });
 
 describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
   it('AC-1115: win-rate tile toggles count↔value and period re-queries (FR-SPD-013)', () => {
-    dashState.isPending = false; dashState.isError = false; dashState.data = populated;
     lastWinRateRange = null;
     renderPage();
-
-    // default mode = count → 66.7%
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
-
-    // toggle to value → 92.5%
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
-
-    // reset toggle back to count
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
 
-    // changing period selector changes range key
     const initialKey = lastWinRateRange?.key;
-    fireEvent.change(screen.getByTestId('win-rate-period'), { target: { value: 'q' } });
+    fireEvent.click(screen.getByTestId('win-rate-period-q'));
     expect(lastWinRateRange?.key).not.toBe(initialKey);
+  });
+});
+
+describe('ExecutiveDashboard token purity / no mockData', () => {
+  it('does not render legacy gray/dark utility classes on the KPI band', () => {
+    const { container } = renderPage();
+    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
+    expect(band).toBeTruthy();
+    expect(band.querySelector('.text-gray-500')).toBeNull();
+    expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
+  });
+
+  it('reflows the KPI band 1→2→3→6 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
+    const { container } = renderPage();
+    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
+    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
+    expect(band.className).toContain('grid-cols-1');
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[920px]:grid-cols-3');
+    expect(band.className).toContain('min-[1180px]:grid-cols-6');
+    // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
+    expect(band.className).not.toContain('sm:grid-cols');
   });
 });
