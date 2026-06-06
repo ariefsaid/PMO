@@ -6,6 +6,9 @@ import { Button } from './Button';
 interface ActionSpec {
   label: string;
   onClick: () => void;
+  /** When true, renders the CTA disabled with a "coming soon" title. */
+  disabled?: boolean;
+  disabledTitle?: string;
 }
 
 export interface ListStateProps {
@@ -99,7 +102,14 @@ export const ListState: React.FC<ListStateProps> = ({
       {title && <div className="text-[15px] font-semibold">{title}</div>}
       {sub && <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={action.onClick}
+          disabled={action.disabled}
+          title={action.disabled ? (action.disabledTitle ?? 'Coming soon') : undefined}
+          className="mt-1"
+        >
           {action.label}
         </Button>
       )}

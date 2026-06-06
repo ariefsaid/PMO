@@ -89,6 +89,23 @@ describe('LifecycleStepper', () => {
     );
     expect(screen.getByText('PO-0042')).toBeInTheDocument();
   });
+
+  it('AC-A11Y-03: node variant each step has aria-label conveying "{label}: {state}"', () => {
+    render(
+      <LifecycleStepper
+        variant="node"
+        steps={[
+          { label: 'PR', state: 'done' },
+          { label: 'RFQ', state: 'current' },
+          { label: 'PO', state: 'upcoming' },
+        ]}
+      />
+    );
+    const items = screen.getAllByRole('listitem');
+    expect(items[0]).toHaveAttribute('aria-label', 'PR: done');
+    expect(items[1]).toHaveAttribute('aria-label', 'RFQ: current');
+    expect(items[2]).toHaveAttribute('aria-label', 'PO: upcoming');
+  });
 });
 
 describe('Funnel', () => {
@@ -127,6 +144,18 @@ describe('Funnel', () => {
     stage.focus();
     await userEvent.keyboard('{Enter}');
     expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
+  it('AC-A11Y-02: prob chip font size is ≥11px (AA floor, text-[11px] class)', () => {
+    render(
+      <Funnel
+        stages={[{ name: 'Leads', value: '$1M', prob: '20%' }]}
+      />
+    );
+    const probChip = screen.getByText('20%');
+    // Must carry text-[11px] — not text-[10px] (which was below the AA floor)
+    expect(probChip.className).toContain('text-[11px]');
+    expect(probChip.className).not.toContain('text-[10px]');
   });
 });
 

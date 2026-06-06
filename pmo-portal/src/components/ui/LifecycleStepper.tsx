@@ -70,6 +70,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
         <div
           key={i}
           role="listitem"
+          aria-label={`${s.label}: ${s.state}`}
           className={cn(
             'pstep relative flex min-w-[96px] flex-1 flex-col items-center gap-2',
             s.state

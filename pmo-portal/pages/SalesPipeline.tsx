@@ -1,138 +1,264 @@
-import React from 'react';
-import Card from '../components/Card';
+import React, { useMemo, useState } from 'react';
+import {
+  Button,
+  Funnel,
+  Toolbar,
+  SearchMini,
+  ViewToggle,
+  ListState,
+  DataTable,
+  StatusPill,
+  ProgressBar,
+  Icon,
+  type FunnelStage,
+  type Column,
+} from '@/src/components/ui';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useWorkspaceTabs } from '@/src/components/shell';
 import { formatCurrency } from '@/src/lib/format';
+import type { PipelineProject } from '@/src/lib/db/dashboard';
+import SalesKanbanBoard from '../components/SalesKanbanBoard';
+import { usePipelineView } from '@/src/hooks/usePipelineView';
+import {
+  SALES_COLUMNS,
+  weightedValue,
+  pillVariantForStatus,
+  formatPercent,
+  openOpportunity,
+} from '../components/salesPipeline';
 
-// OD-SP-1 fixed pipeline stage display order (FR-SPD-014).
-const PIPELINE_STAGES = [
-  'Leads',
-  'PQ Submitted',
-  'Quotation Submitted',
-  'Tender Submitted',
-  'Negotiation',
-] as const;
+/** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
+const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
 const SalesPipeline: React.FC = () => {
   const { data, isPending, isError, refetch } = useSalesPipeline();
+  const ws = useWorkspaceTabs();
+  const [view, setView] = usePipelineView();
+  const [search, setSearch] = useState('');
 
-  if (isPending) {
-    return (
-      <div data-testid="pipeline-loading" className="animate-pulse space-y-4">
-        <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded-xl" />
-        <div className="grid grid-cols-5 gap-4">
-          {PIPELINE_STAGES.map(s => (
-            <div key={s} className="h-48 bg-gray-200 dark:bg-gray-700 rounded-xl" />
-          ))}
+  const projects = useMemo(() => data?.projects ?? [], [data]);
+  const stages = useMemo(() => data?.stages ?? [], [data]);
+
+  // Client-side name/customer filter (FR — view-local search).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
+    );
+  }, [projects, search]);
+
+  // Funnel band — always the five open stages in fixed order, even when the RPC
+  // omits empty stages (edge (b): render zero-value stages, never blank). Each
+  // band cell is keyed to its column status so probs/values never drift.
+  const stageByStatus = useMemo(
+    () => new Map(stages.map((s) => [s.status as string, s])),
+    [stages],
+  );
+  const totalWeighted = OPEN_COLUMNS.reduce(
+    (sum, c) => sum + (stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
+    0,
+  );
+  const maxWeighted = Math.max(
+    0,
+    ...OPEN_COLUMNS.map((c) => stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
+  );
+
+  const funnelStages: FunnelStage[] = OPEN_COLUMNS.map((col) => {
+    const s = stageByStatus.get(col.statuses[0]);
+    const weighted = s?.weighted_value ?? 0;
+    return {
+      name: col.title,
+      dotColor: col.dotColor,
+      prob: s ? formatPercent(s.win_probability) : undefined,
+      value: formatCurrency(s?.total_value ?? 0),
+      weighted: `${formatCurrency(weighted)} weighted`,
+      barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
+    };
+  });
+
+  const onOpen = (p: PipelineProject) => openOpportunity(ws, p);
+
+  const tableColumns: Column<PipelineProject>[] = [
+    {
+      key: 'opp',
+      header: 'Opportunity',
+      cell: (r) => (
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="grid size-7 shrink-0 place-items-center rounded-md text-[12px] font-bold text-white"
+            style={{ background: stageDot(r.status) }}
+          >
+            {(r.client_name ?? r.name).trim().charAt(0).toUpperCase() || '•'}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate font-semibold" title={r.name}>
+              {r.name}
+            </div>
+            <div className="truncate font-mono text-[11px] text-muted-foreground">
+              {r.id.slice(0, 8)}
+            </div>
+          </div>
         </div>
-      </div>
-    );
-  }
+      ),
+    },
+    { key: 'customer', header: 'Customer', cell: (r) => r.client_name ?? '—' },
+    {
+      key: 'stage',
+      header: 'Stage',
+      cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{r.status}</StatusPill>,
+    },
+    { key: 'value', header: 'Value', align: 'num', cell: (r) => formatCurrency(r.contract_value) },
+    {
+      key: 'weighted',
+      header: 'Weighted',
+      align: 'num',
+      cell: (r) => (
+        <span className="text-muted-foreground">{formatCurrency(weightedValue(r))}</span>
+      ),
+    },
+    {
+      key: 'win',
+      header: 'Win %',
+      align: 'num',
+      cell: (r) => {
+        const pct = Math.round(r.win_probability * 100);
+        return (
+          <ProgressBar
+            value={pct}
+            showValue
+            aria-label={`Win probability ${pct}%`}
+            className="ml-auto"
+          />
+        );
+      },
+    },
+    { key: 'decision', header: 'Decision', cell: () => '—' },
+  ];
 
-  if (isError || !data) {
-    return (
-      <div data-testid="pipeline-error" className="text-center py-16 border-2 border-dashed border-red-200 dark:border-red-800 rounded-xl">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white">Couldn&apos;t load the sales pipeline</h3>
-        <button
-          onClick={() => refetch()}
-          className="mt-4 text-primary-600 hover:text-primary-500 font-medium text-sm"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  if (data.projects.length === 0) {
-    return (
-      <div data-testid="pipeline-empty" className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white">No pipeline projects</h3>
-        <p className="mt-1 text-gray-500 dark:text-gray-400">Add a lead or opportunity to see the sales pipeline.</p>
-      </div>
-    );
-  }
-
-  // Build a lookup from stage status → stage data (FR-SPD-014)
-  const stageByStatus = new Map(data.stages.map(s => [s.status, s]));
-  const totalWeightedValue = data.stages.reduce((sum, s) => sum + s.weighted_value, 0);
+  // ── States ────────────────────────────────────────────────────────────────
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+    ? 'loading'
+    : isError || !data
+      ? 'error'
+      : projects.length === 0
+        ? 'empty'
+        : undefined;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Sales Pipeline</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-          Track opportunities, manage leads, and forecast revenue.
-        </p>
+    <div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Sales Pipeline</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Track opportunities, manage leads, and forecast revenue.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline">
+            <Icon name="export" />
+            Export
+          </Button>
+          <Button variant="primary" disabled title="Deal creation is coming soon">
+            <Icon name="plus" />
+            New deal
+          </Button>
+        </div>
       </div>
 
-      {/* Total weighted value KPI */}
-      <Card>
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Pipeline Weighted Value</p>
-        <p
-          data-testid="pipeline-weighted-total"
-          className="text-2xl font-bold text-primary-600 dark:text-primary-400"
-        >
-          {formatCurrency(totalWeightedValue)}
-        </p>
-        <p className="mt-1 text-xs text-gray-400">Σ(contract_value × win_probability) across all stages</p>
-      </Card>
+      {/* Weighted funnel summary band */}
+      {state === 'loading' ? (
+        <div className="mb-4">
+          <ListState variant="loading" rows={2} />
+        </div>
+      ) : state === undefined ? (
+        <section aria-label="Pipeline summary" className="mb-4">
+          {/* Narrow viewports scroll the band horizontally so the five stages stay
+              readable rather than crushing below their min track width (§2 reflow). */}
+          <div className="overflow-x-auto">
+            <Funnel stages={funnelStages} className="min-w-[640px]" />
+          </div>
+          <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
+            <span>Weighted pipeline forecast</span>
+            <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
+              {formatCurrency(totalWeighted)}
+            </span>
+          </div>
+        </section>
+      ) : null}
 
-      {/* Stage columns — fixed order per OD-SP-1 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {PIPELINE_STAGES.map(stageName => {
-          const stage = stageByStatus.get(stageName);
-          const count = stage?.count ?? 0;
-          const totalValue = stage?.total_value ?? 0;
-          const winProb = stage?.win_probability ?? 0;
-          const weightedValue = stage?.weighted_value ?? 0;
+      {/* Toolbar */}
+      {state !== 'loading' && (
+        <Toolbar standalone>
+          <ViewToggle
+            options={[
+              { value: 'kanban', label: 'Kanban', icon: 'cards' },
+              { value: 'table', label: 'Table', icon: 'table' },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel="Pipeline view"
+          />
+          <SearchMini
+            placeholder="Search deals…"
+            aria-label="Search deals"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            containerClassName="ml-auto"
+          />
+        </Toolbar>
+      )}
 
-          return (
-            <div
-              key={stageName}
-              data-testid={`stage-${stageName}`}
-              className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700"
-            >
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 truncate" title={stageName}>
-                {stageName}
-              </h3>
-              <dl className="space-y-2">
-                <div>
-                  <dt className="text-xs text-gray-500 dark:text-gray-400">Count</dt>
-                  <dd className="text-xl font-bold text-gray-900 dark:text-white">{count}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500 dark:text-gray-400">Total Value</dt>
-                  <dd className="text-sm font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(totalValue)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500 dark:text-gray-400">Win Probability</dt>
-                  <dd className="text-sm text-gray-600 dark:text-gray-300">{(winProb * 100).toFixed(0)}%</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500 dark:text-gray-400">Weighted Value</dt>
-                  <dd className="text-sm font-semibold text-primary-600 dark:text-primary-400">{formatCurrency(weightedValue)}</dd>
-                </div>
-              </dl>
+      {/* Body */}
+      {state === 'loading' && (
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={6} />
+        </div>
+      )}
 
-              {/* Project list within stage */}
-              {count > 0 && (
-                <ul className="mt-3 space-y-1 border-t border-gray-200 dark:border-gray-600 pt-3">
-                  {data.projects.filter(p => p.status === stageName).map(p => (
-                    <li key={p.id} className="text-xs text-gray-700 dark:text-gray-300 truncate" title={p.name}>
-                      {p.name}
-                      {p.client_name && (
-                        <span className="text-gray-400 dark:text-gray-500"> — {p.client_name}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {state === 'error' && (
+        <ListState
+          variant="error"
+          title="Couldn't load the sales pipeline"
+          sub="Something went wrong fetching your pipeline."
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {state === 'empty' && (
+        <ListState
+          variant="empty"
+          title="No opportunities yet"
+          sub="Add a lead to start tracking the pipeline."
+          action={{ label: 'New deal', onClick: () => {}, disabled: true, disabledTitle: 'Deal creation is coming soon' }}
+        />
+      )}
+
+      {state === undefined && view === 'kanban' && (
+        <SalesKanbanBoard projects={filtered} onOpen={onOpen} />
+      )}
+
+      {state === undefined && view === 'table' && (
+        <DataTable<PipelineProject>
+          rows={filtered}
+          columns={tableColumns}
+          rowKey={(r) => r.id}
+          onActivate={onOpen}
+          state={filtered.length === 0 ? 'empty' : undefined}
+          emptyTitle="No deals match your search"
+          emptySub="Try a different name or customer."
+        />
+      )}
     </div>
   );
 };
+
+/** Stage dot color for a status (table icon tile + funnel parity). */
+function stageDot(status: PipelineProject['status']): string {
+  const col = SALES_COLUMNS.find((c) => c.statuses.includes(status));
+  return col?.dotColor ?? 'hsl(var(--muted-foreground))';
+}
 
 export default SalesPipeline;

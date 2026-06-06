@@ -16,7 +16,7 @@ colors:
   secondary: "hsl(240 4.8% 95.9%)"
   secondary-foreground: "hsl(240 5.9% 10%)"
   muted: "hsl(240 4.8% 95.9%)"
-  muted-foreground: "hsl(240 3.8% 46.1%)"
+  muted-foreground: "hsl(240 4% 40%)"  # darkened from 46.1%→40% L so muted text clears AA (≥4.5:1) on secondary fills, not just white
   accent: "hsl(240 4.8% 95.9%)"
   accent-foreground: "hsl(240 5.9% 10%)"
   # --- Status / semantic ---
