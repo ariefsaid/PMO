@@ -64,6 +64,51 @@ describe('workspaceReducer (AC: open/refocus/close/dirty/non-closable dashboard)
     s = workspaceReducer(s, { type: 'setDirty', id: 'project:PRJ-1', dirty: true });
     expect(s.tabs.find((t) => t.id === 'project:PRJ-1')?.dirty).toBe(true);
   });
+
+  // I2 — hydrated human label must survive a synthetic back-navigation re-open
+  it('I2: hydrated record label survives a synthetic back-navigation re-open', () => {
+    // 1. Open a record tab with the URL-derived (synthetic) id label
+    const syntheticOpen: WorkspaceTab & { synthetic?: boolean } = {
+      id: 'projects:PRJ-42',
+      kind: 'record',
+      path: '/projects/PRJ-42',
+      icon: 'folder',
+      label: 'PRJ-42', // raw URL-derived label
+      code: 'PRJ-42',
+      module: 'projects',
+    };
+    let s = workspaceReducer(INITIAL_STATE, { type: 'open', tab: syntheticOpen });
+    expect(s.tabs.find((t) => t.id === 'projects:PRJ-42')?.label).toBe('PRJ-42');
+
+    // 2. Surface hydrates the label to a human name
+    s = workspaceReducer(s, {
+      type: 'open',
+      tab: { ...syntheticOpen, label: 'Offshore Platform Alpha' },
+    });
+    expect(s.tabs.find((t) => t.id === 'projects:PRJ-42')?.label).toBe('Offshore Platform Alpha');
+
+    // 3. Back-navigation triggers a synthetic re-open with the raw id label — hydrated label must survive
+    s = workspaceReducer(s, {
+      type: 'open',
+      tab: { ...syntheticOpen, label: 'PRJ-42', synthetic: true },
+    });
+    expect(s.tabs.find((t) => t.id === 'projects:PRJ-42')?.label).toBe('Offshore Platform Alpha');
+  });
+
+  it('I2: non-synthetic re-open with a richer label IS applied (hydration wins)', () => {
+    const tab: WorkspaceTab = {
+      id: 'projects:PRJ-10',
+      kind: 'record',
+      path: '/projects/PRJ-10',
+      icon: 'folder',
+      label: 'PRJ-10',
+      code: 'PRJ-10',
+      module: 'projects',
+    };
+    let s = workspaceReducer(INITIAL_STATE, { type: 'open', tab });
+    s = workspaceReducer(s, { type: 'open', tab: { ...tab, label: 'Site B Contract' } });
+    expect(s.tabs.find((t) => t.id === 'projects:PRJ-10')?.label).toBe('Site B Contract');
+  });
 });
 
 // ── Provider integration ──────────────────────────────────────────────────

@@ -68,9 +68,11 @@ export const WorkspaceTabsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // URL is the source of truth: derive the tab from the current path and
   // open/refocus it. Handles deep links and browser Back/Forward.
+  // synthetic:true so that a back-navigation re-open does NOT overwrite a
+  // previously hydrated human label on a record tab with the raw URL id.
   useEffect(() => {
     const tab = tabForPath(location.pathname);
-    if (tab) dispatch({ type: 'open', tab });
+    if (tab) dispatch({ type: 'open', tab, synthetic: true });
   }, [location.pathname]);
 
   const selectTab = useCallback(
