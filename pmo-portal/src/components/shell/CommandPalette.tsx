@@ -173,7 +173,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       }}
                       className={cn(
                         'flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
-                        isSel && 'bg-accent'
+                        isSel
+                          ? 'bg-primary/10 text-foreground'
+                          : 'hover:bg-accent'
                       )}
                     >
                       <span className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-secondary text-muted-foreground [&_svg]:size-[15px]">

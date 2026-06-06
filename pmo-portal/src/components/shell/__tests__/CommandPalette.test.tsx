@@ -73,4 +73,21 @@ describe('CommandPalette', () => {
     expect(trigger).toHaveFocus();
     trigger.remove();
   });
+
+  // I1 — active option must carry a clearly-perceptible visible-selection class
+  it('I1: active option carries visible-selection class (bg-primary/10) — not just bg-accent', () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const opts = screen.getAllByRole('option');
+    // First item is selected by default
+    expect(opts[0]).toHaveAttribute('aria-selected', 'true');
+    // Must have the primary tint class for perceptible contrast, not the invisible accent
+    expect(opts[0].className).toMatch(/bg-primary\/10/);
+  });
+
+  it('I1: non-active options do NOT carry bg-primary/10', () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const opts = screen.getAllByRole('option');
+    expect(opts[1]).toHaveAttribute('aria-selected', 'false');
+    expect(opts[1].className).not.toMatch(/bg-primary\/10/);
+  });
 });
