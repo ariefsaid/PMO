@@ -11,6 +11,20 @@ describe('StatusPill', () => {
     expect(pill?.querySelector('[data-pill-dot]')).toBeInTheDocument();
   });
 
+  /**
+   * I3 (CRITICAL): the `open` variant text must be darkened to ≥4.5:1 against
+   * its primary/10 background. hsl(221 70% 45%) = rgb(34,85,195) was the old
+   * failing value (3.15:1). The fix targets hsl(221 75% 38%) = rgb(24,70,170)
+   * which clears 4.5:1.
+   */
+  it('I3: open variant text is darkened to AA-compliant hsl(221 75% 38%) (not the failing hsl(221 70% 45%))', () => {
+    render(<StatusPill variant="open">Submitted</StatusPill>);
+    const pill = screen.getByText('Submitted').closest('span')!;
+    // Old failing value: hsl(221 70% 45%) → rgb(34, 85, 195) — 3.15:1 contrast
+    // New required value: hsl(221 75% 38%) → rgb(24, 70, 170) — ≥4.5:1 contrast
+    expect(pill.style.color).toBe('rgb(24, 70, 170)');
+  });
+
   it('#4: label text is 12px per DESIGN.md label token (not text-xs which is 10.5px on 14px base)', () => {
     render(<StatusPill variant="open">Check size</StatusPill>);
     const pill = screen.getByText('Check size').closest('span')!;

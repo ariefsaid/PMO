@@ -121,13 +121,14 @@ describe('Approvals page states', () => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page data', () => {
-  it('renders submitted sheets with owner full_name and week_start_date', () => {
+  it('renders submitted sheets with owner full_name and the formatted week label', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
     renderPage();
     expect(screen.getByText('Dave Engineer')).toBeInTheDocument();
-    expect(screen.getByText(/2026-06-01/)).toBeInTheDocument();
+    // Week of 2026-06-01 → "Week of Jun 1" (formatted, TZ-safe).
+    expect(screen.getByText(/Jun 1/)).toBeInTheDocument();
   });
 
   it('renders summed hours per sheet', () => {
@@ -145,28 +146,29 @@ describe('Approvals page data', () => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page actions', () => {
-  it("AC-911 (UI): an Approvals row for a report's Submitted sheet offers Approve and Reject; clicking Approve calls the approve mutation with the row id (FR-TS-005)", () => {
+  it("AC-911 (UI): an Approvals row for a report's Submitted sheet offers Approve and Return; clicking Approve calls the approve mutation with the row id (FR-TS-005)", () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
     renderPage();
 
     const approveBtn = screen.getByRole('button', { name: /approve/i });
-    const rejectBtn = screen.getByRole('button', { name: /reject/i });
+    // "Return" is the IA-3 label for the reject transition (sends the week back).
+    const returnBtn = screen.getByRole('button', { name: /return/i });
     expect(approveBtn).toBeInTheDocument();
-    expect(rejectBtn).toBeInTheDocument();
+    expect(returnBtn).toBeInTheDocument();
 
     fireEvent.click(approveBtn);
     expect(approveMutation.mutate).toHaveBeenCalledWith({ id: 'ts-1' });
   });
 
-  it('clicking Reject calls the reject mutation with the row id', () => {
+  it('clicking Return calls the reject mutation with the row id', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /reject/i }));
+    fireEvent.click(screen.getByRole('button', { name: /return/i }));
     expect(rejectMutation.mutate).toHaveBeenCalledWith({ id: 'ts-1' });
   });
 });

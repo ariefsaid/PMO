@@ -72,7 +72,7 @@ export function ViewToggle<V extends string = string>({
           >
             {opt.icon && <Icon name={opt.icon} />}
             {opt.label}
-            {opt.count !== undefined && (
+            {opt.count !== undefined && opt.count > 0 && (
               <Badge active={on} className="min-w-0 px-1.5">
                 {opt.count}
               </Badge>

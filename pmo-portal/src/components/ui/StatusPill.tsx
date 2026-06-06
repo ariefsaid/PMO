@@ -20,7 +20,7 @@ interface PillStyle {
 }
 
 const STYLES: Record<StatusVariant, PillStyle> = {
-  open: { cls: 'bg-primary/10', text: 'hsl(221 70% 45%)', dot: 'hsl(var(--primary))' },
+  open: { cls: 'bg-primary/10', text: 'hsl(221 75% 38%)', dot: 'hsl(var(--primary))' },
   won: { cls: 'bg-success/12', text: 'hsl(142 64% 30%)', dot: 'hsl(var(--success))' },
   lost: { cls: 'bg-destructive/10', text: 'hsl(0 72% 45%)', dot: 'hsl(var(--destructive))' },
   warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
