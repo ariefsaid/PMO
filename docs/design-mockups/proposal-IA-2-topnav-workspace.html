@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<!--
+=====================================================================================
+  PMO PORTAL — IA EXPLORATION 2 of 2
+  Direction: "IA-2 — Top primary-nav + command-driven tabbed workspace"
+
+  TOKENS: The entire :root design-token block (shadcn-vue HSL, "Token System A" —
+  --background / --foreground / --card / --primary / --secondary / --muted / --accent /
+  --destructive / --warning / --success / --border / --input / --ring / --radius, etc.)
+  AND the type-scale utility classes (.text-2xl/.text-xl/.text-lg/.text-sm/.text-xs,
+  .font-*, .font-mono, .tnum, .muted) were copied VERBATIM from the RIS reference
+  /Users/ariefsaid/Coding/RIS-portal-2/docs/design-mockups/sales-pipeline-reference.html.
+  Component patterns (KPI cards, toolbars, dense table, kanban, tooltip, toast, row-menu,
+  progress bars) mirror that reference + budget-reference.html. The LOOK is identical to
+  the RIS reference by design — the ONLY variable under test here is INFORMATION ARCHITECTURE.
+
+  IA RATIONALE (why top-nav + tabbed workspace, vs. the left-rail master-detail of IA-1):
+   • TOP primary nav frees the full viewport width for data-dense PMO surfaces (kanban
+     boards, versioned budget tables, weekly timesheet grids) that suffer in a narrow
+     content column beside a persistent left rail.
+   • A CONTEXTUAL secondary sub-nav per module keeps within-module wayfinding shallow
+     (module = top nav; views/records = sub-nav) instead of one deep ever-growing tree.
+   • A TABBED WORKSPACE lets a PM keep several live records open at once (a PR mid-approval,
+     two competing tenders, a project budget) and pivot between them without losing state —
+     the core daily job of contract/project operators who work many threads in parallel.
+   • A first-class COMMAND PALETTE (⌘K) makes navigation keystroke-driven for power users:
+     jump to any project / PR / customer / action without hunting through nav menus.
+   • Full-width content surfaces + role switcher in the shell test whether a "workspace"
+     model reads as more capable than a "browser" model for the same feature set.
+=====================================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — Workspace (IA-2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     RIS Portal Design Tokens — shadcn-vue HSL (Token System A)
+     COPIED VERBATIM from sales-pipeline-reference.html :root block.
+     ============================================================ */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 22 78% 26%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+
+    /* IA-2 shell metrics (top-nav model, not a left rail) */
+    --topbar-h: 52px;
+    --subnav-h: 44px;
+    --tabstrip-h: 40px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Type scale (COPIED VERBATIM, per DESIGN-SYSTEM.md § Typography) ---------- */
+  .text-2xl { font-size: 24px; line-height: 1.2; }
+  .text-xl  { font-size: 20px; line-height: 1.25; }
+  .text-lg  { font-size: 18px; line-height: 1.3; }
+  .text-sm  { font-size: 14px; }
+  .text-xs  { font-size: 12px; }
+  .font-bold { font-weight: 700; }
+  .font-semibold { font-weight: 600; }
+  .font-medium { font-weight: 500; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     APP SHELL — IA-2: stacked horizontal bands, full-width main
+     row 1: top primary nav   row 2: contextual sub-nav
+     row 3: workspace tab strip   row 4: scrollable content
+     ========================================================= */
+  .app {
+    display: grid;
+    grid-template-rows: var(--topbar-h) var(--subnav-h) var(--tabstrip-h) 1fr;
+    grid-template-areas:
+      "topbar"
+      "subnav"
+      "tabstrip"
+      "main";
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* ---------- ROW 1 : TOP PRIMARY NAV ---------- */
+  .topbar {
+    grid-area: topbar;
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    z-index: 40;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding-right: 6px; flex-shrink: 0; }
+  .brand-logo {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+    display: grid; place-items: center; font-weight: 700; font-size: 14px;
+  }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; line-height: 1; }
+  .brand-sub { font-size: 10.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+
+  /* primary nav — the unmistakable horizontal module bar */
+  .primary-nav { display: flex; align-items: center; gap: 2px; margin-left: 10px; min-width: 0; }
+  .nav-item {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 34px; padding: 0 12px;
+    border-radius: var(--radius);
+    color: hsl(var(--muted-foreground));
+    font-size: 13.5px; font-weight: 500;
+    cursor: pointer; user-select: none; white-space: nowrap;
+    border: 1px solid transparent; background: transparent;
+    transition: background .12s ease, color .12s ease;
+  }
+  .nav-item svg { width: 16px; height: 16px; stroke-width: 2; flex-shrink: 0; }
+  .nav-item:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .nav-item.active { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); font-weight: 600; }
+  .nav-item.stub { color: hsl(var(--muted-foreground) / 0.55); cursor: not-allowed; }
+  .nav-item.stub:hover { background: transparent; color: hsl(var(--muted-foreground) / 0.55); }
+  .nav-item .stub-tag {
+    font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+    padding: 1px 4px; border-radius: 4px;
+  }
+  .nav-item .badge-count {
+    font-size: 11px; font-weight: 700;
+    background: hsl(var(--primary) / 0.15); color: hsl(var(--primary));
+    padding: 0 6px; height: 17px; border-radius: 999px;
+    display: inline-grid; place-items: center; min-width: 17px;
+  }
+
+  .topbar-spacer { flex: 1; }
+
+  /* ⌘K command palette affordance — prominent */
+  .cmdk {
+    display: flex; align-items: center; gap: 8px;
+    height: 32px; padding: 0 9px 0 11px;
+    min-width: 260px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    font-size: 13px; cursor: text;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .cmdk:hover { border-color: hsl(var(--primary) / 0.5); box-shadow: 0 0 0 3px hsl(var(--primary) / 0.06); }
+  .cmdk svg { width: 15px; height: 15px; }
+  .cmdk .ctxt { flex: 1; text-align: left; }
+  .cmdk .kbd {
+    font-family: inherit; font-size: 11px; font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--border));
+    border-radius: 5px; padding: 1px 6px;
+  }
+
+  .icon-btn {
+    position: relative;
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border: 1px solid transparent; border-radius: var(--radius);
+    background: transparent; color: hsl(var(--muted-foreground));
+    cursor: pointer; transition: background .12s ease, color .12s ease;
+  }
+  .icon-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-btn svg { width: 17px; height: 17px; stroke-width: 2; }
+  .icon-btn .dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 7px; height: 7px; border-radius: 999px;
+    background: hsl(var(--destructive));
+    border: 1.5px solid hsl(var(--card));
+  }
+
+  /* role switcher + user chip */
+  .role-switch {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 9px;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); cursor: pointer;
+    font-size: 13px; color: hsl(var(--foreground));
+    transition: background .12s ease;
+  }
+  .role-switch:hover { background: hsl(var(--accent)); }
+  .role-switch svg { width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+  .role-switch .rlabel { color: hsl(var(--muted-foreground)); }
+  .role-switch .rval { font-weight: 600; }
+
+  .user-chip {
+    display: flex; align-items: center; gap: 9px;
+    padding: 3px 4px 3px 3px; border-radius: 999px;
+    cursor: pointer; transition: background .12s ease;
+  }
+  .user-chip:hover { background: hsl(var(--accent)); }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221 83% 53%), hsl(262 83% 58%));
+    color: #fff; display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .avatar.sm { width: 22px; height: 22px; font-size: 9.5px; }
+
+  /* ---------- ROW 2 : CONTEXTUAL SECONDARY SUB-NAV ---------- */
+  .subnav {
+    grid-area: subnav;
+    background: hsl(var(--background));
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 16px;
+    overflow-x: auto;
+    z-index: 30;
+  }
+  .subnav-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); margin-right: 12px; flex-shrink: 0;
+  }
+  .subnav-item {
+    position: relative;
+    display: inline-flex; align-items: center; gap: 7px;
+    height: var(--subnav-h); padding: 0 12px;
+    font-size: 13px; font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer; white-space: nowrap;
+    border: none; background: transparent;
+    transition: color .12s ease;
+  }
+  .subnav-item svg { width: 15px; height: 15px; stroke-width: 2; }
+  .subnav-item:hover { color: hsl(var(--foreground)); }
+  .subnav-item.active { color: hsl(var(--foreground)); font-weight: 600; }
+  .subnav-item.active::after {
+    content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px;
+    background: hsl(var(--primary)); border-radius: 2px 2px 0 0;
+  }
+  .subnav-item .scount {
+    font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground));
+    background: hsl(var(--secondary)); padding: 0 6px; height: 17px;
+    border-radius: 999px; display: inline-grid; place-items: center;
+  }
+  .subnav-spacer { flex: 1; }
+
+  /* ---------- ROW 3 : WORKSPACE TAB STRIP (the IA signature) ---------- */
+  .tabstrip {
+    grid-area: tabstrip;
+    background: hsl(var(--secondary) / 0.5);
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: stretch;
+    padding: 0 8px; gap: 0;
+    overflow-x: auto;
+    z-index: 20;
+  }
+  .ws-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: var(--tabstrip-h); padding: 0 10px 0 12px;
+    border-right: 1px solid hsl(var(--border));
+    font-size: 13px; color: hsl(var(--muted-foreground));
+    cursor: pointer; white-space: nowrap; max-width: 230px;
+    background: transparent; border-top: 2px solid transparent;
+    transition: background .12s ease, color .12s ease;
+  }
+  .ws-tab:first-child { border-left: 1px solid hsl(var(--border)); }
+  .ws-tab:hover { background: hsl(var(--accent) / 0.6); color: hsl(var(--foreground)); }
+  .ws-tab.active {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground)); font-weight: 600;
+    border-top-color: hsl(var(--primary));
+    box-shadow: 0 1px 0 hsl(var(--background));
+  }
+  .ws-tab .wt-ico { width: 15px; height: 15px; display: grid; place-items: center; flex-shrink: 0; }
+  .ws-tab .wt-ico svg { width: 15px; height: 15px; stroke-width: 2; }
+  .ws-tab .wt-label { overflow: hidden; text-overflow: ellipsis; }
+  .ws-tab .wt-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .ws-tab .wt-close {
+    width: 18px; height: 18px; border-radius: 4px;
+    display: grid; place-items: center; flex-shrink: 0;
+    color: hsl(var(--muted-foreground)); opacity: 0;
+    transition: opacity .12s ease, background .12s ease;
+  }
+  .ws-tab:hover .wt-close, .ws-tab.active .wt-close { opacity: .8; }
+  .ws-tab .wt-close:hover { background: hsl(var(--secondary)); color: hsl(var(--foreground)); opacity: 1; }
+  .ws-tab .wt-close svg { width: 12px; height: 12px; stroke-width: 2.5; }
+  .ws-tab .wt-dirty { width: 7px; height: 7px; border-radius: 999px; background: hsl(var(--warning)); flex-shrink: 0; }
+  .tab-newbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: var(--tabstrip-h);
+    color: hsl(var(--muted-foreground)); background: transparent; border: none;
+    cursor: pointer; transition: color .12s ease, background .12s ease;
+  }
+  .tab-newbtn:hover { color: hsl(var(--foreground)); background: hsl(var(--accent) / 0.6); }
+  .tab-newbtn svg { width: 16px; height: 16px; stroke-width: 2; }
+
+  /* =========================================================
+     MAIN SCROLL AREA — full width
+     ========================================================= */
+  .main {
+    grid-area: main;
+    overflow-y: auto; overflow-x: hidden;
+    background: hsl(var(--secondary) / 0.35);
+  }
+  .main-inner { padding: 20px 24px 64px; max-width: 1680px; margin: 0 auto; }
+
+  .page-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 3px; max-width: 70ch; }
+  .page-head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ---------- Buttons (h-8 text-sm) ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500;
+    border-radius: var(--radius); border: 1px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
+    user-select: none;
+  }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-success { background: hsl(var(--success)); color: hsl(var(--success-foreground)); }
+  .btn-success:hover { background: hsl(var(--success) / 0.9); }
+  .btn-destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+  .btn-destructive:hover { background: hsl(var(--destructive) / 0.9); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* =========================================================
+     KPI BAND (copied component pattern)
+     ========================================================= */
+  .kpi-band { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-bottom: 16px; }
+  .kpi {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); padding: 15px 15px 13px;
+    display: flex; flex-direction: column; gap: 9px; min-width: 0; position: relative;
+    transition: box-shadow .14s ease, border-color .14s ease;
+  }
+  .kpi:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }
+  .kpi-top { display: flex; align-items: center; gap: 8px; }
+  .kpi-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+  .kpi-ico svg { width: 16px; height: 16px; stroke-width: 2; }
+  .kpi-ico.blue   { background: hsl(221 83% 53% / 0.12); color: hsl(221 83% 53%); }
+  .kpi-ico.violet { background: hsl(262 83% 58% / 0.12); color: hsl(262 83% 58%); }
+  .kpi-ico.amber  { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
+  .kpi-ico.red    { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+  .kpi-ico.green  { background: hsl(var(--success) / 0.13); color: hsl(var(--success)); }
+  .kpi-ico.cyan   { background: hsl(199 89% 48% / 0.13); color: hsl(199 89% 42%); }
+  .kpi-label { font-size: 12.5px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+  .kpi-help { margin-left: auto; width: 15px; height: 15px; color: hsl(var(--muted-foreground)); opacity: .55; cursor: help; display: grid; place-items: center; }
+  .kpi-help:hover { opacity: 1; }
+  .kpi-help svg { width: 14px; height: 14px; }
+  .kpi-val { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .kpi-val.neg { color: hsl(var(--destructive)); }
+  .kpi-foot { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+  .kpi-delta { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .kpi-delta svg { width: 12px; height: 12px; stroke-width: 2.5; }
+  .kpi-delta.up   { color: hsl(var(--success)); background: hsl(var(--success) / 0.12); }
+  .kpi-delta.down { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.1); }
+  .kpi-delta.neutral { color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); }
+  .kpi-foot .vs { color: hsl(var(--muted-foreground)); }
+  .kpi .dual-toggle {
+    display: inline-flex; align-items: center; height: 22px; padding: 1px;
+    background: hsl(var(--secondary)); border-radius: 6px; margin-left: auto;
+  }
+  .kpi .dual-toggle button {
+    height: 20px; padding: 0 8px; font-size: 11px; font-weight: 600;
+    border: none; background: transparent; color: hsl(var(--muted-foreground));
+    border-radius: 5px; cursor: pointer; font-family: inherit;
+  }
+  .kpi .dual-toggle button.on { background: hsl(var(--background)); color: hsl(var(--foreground)); box-shadow: 0 1px 2px hsl(240 6% 10% / 0.1); }
+
+  /* =========================================================
+     SECTION / CARD primitives
+     ========================================================= */
+  .section { margin-bottom: 18px; }
+  .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .section-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .section-head .sh-spacer { flex: 1; }
+  .card {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .card-pad { padding: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* ---------- Action toolbar (copied) ---------- */
+  .toolbar {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius) var(--radius) 0 0; border-bottom: none;
+    padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .toolbar.standalone { border-radius: var(--radius); border-bottom: 1px solid hsl(var(--border)); margin-bottom: 14px; }
+  .control {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 10px; font-size: 13.5px;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--foreground));
+    cursor: pointer; white-space: nowrap; user-select: none;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .control:hover { background: hsl(var(--accent)); }
+  .control svg { width: 15px; height: 15px; stroke-width: 2; color: hsl(var(--muted-foreground)); }
+  .control .cval { font-weight: 600; }
+  .control .cap { color: hsl(var(--muted-foreground)); font-weight: 400; }
+  .control .chev { margin-left: 1px; opacity: .7; }
+  .seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; background: hsl(var(--secondary)); border-radius: var(--radius); gap: 2px; }
+  .seg button {
+    height: 28px; padding: 0 11px; font-size: 13px; font-weight: 500;
+    border: none; background: transparent; color: hsl(var(--muted-foreground));
+    border-radius: calc(var(--radius) - 3px); cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+  }
+  .seg button:hover { color: hsl(var(--foreground)); }
+  .seg button.on { background: hsl(var(--background)); color: hsl(var(--foreground)); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.1); }
+  .toolbar-spacer { flex: 1; }
+  .search-mini {
+    display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); min-width: 190px;
+  }
+  .search-mini svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .search-mini input { border: none; outline: none; background: transparent; font-size: 13.5px; font-family: inherit; width: 100%; color: hsl(var(--foreground)); }
+  .search-mini input::placeholder { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     DATA TABLE (copied)
+     ========================================================= */
+  .table-wrap { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+  .table-wrap.standalone { border-radius: var(--radius); }
+  .table-scroll { overflow-x: auto; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.grid thead th {
+    position: sticky; top: 0; background: hsl(var(--card)); height: 38px; text-align: left;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); padding: 0 12px;
+    border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; user-select: none; z-index: 2;
+  }
+  th.num, td.num { text-align: right; }
+  th.center, td.center { text-align: center; }
+  table.grid tbody td {
+    height: 52px; padding: 11px 12px; border-bottom: 1px solid hsl(var(--border) / 0.7);
+    vertical-align: middle; white-space: nowrap;
+  }
+  table.grid tbody tr.row { cursor: pointer; transition: background .1s ease; }
+  table.grid tbody tr.row:hover { background: hsl(var(--accent) / 0.6); }
+  .proj { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .proj-ico { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #fff; }
+  .proj-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .proj-name { font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+  .proj-code { font-size: 11.5px; color: hsl(var(--muted-foreground)); line-height: 1.2; }
+  .proj-code .pc-id { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  td .money { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; font-weight: 500; }
+  td .money.sub { color: hsl(var(--muted-foreground)); font-weight: 400; }
+
+  /* status badge (copied) */
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .status.open    { background: hsl(221 83% 53% / 0.1); color: hsl(221 70% 45%); }
+  .status.open .sdot { background: hsl(221 83% 53%); }
+  .status.won     { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.won .sdot { background: hsl(var(--success)); }
+  .status.lost    { background: hsl(var(--destructive) / 0.1); color: hsl(0 72% 45%); }
+  .status.lost .sdot { background: hsl(var(--destructive)); }
+  .status.overdue { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
+  .status.overdue .sdot { background: hsl(38 92% 50%); }
+  .status.neutral { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+  .status.neutral .sdot { background: hsl(var(--muted-foreground)); }
+
+  /* progress bar (from budget reference .bd-bar) */
+  .pbar { height: 7px; border-radius: 999px; background: hsl(var(--secondary)); overflow: hidden; min-width: 80px; }
+  .pbar i { display: block; height: 100%; border-radius: 999px; }
+  .winp { display: inline-flex; align-items: center; gap: 8px; min-width: 130px; }
+  .winp .pbar { flex: 1; }
+  .winp-val { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; width: 38px; text-align: right; }
+
+  /* =========================================================
+     KANBAN (copied component, restyled to 6 stages)
+     ========================================================= */
+  .kanban-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(268px, 1fr); gap: 13px; min-width: 0; }
+  .kcol { background: hsl(var(--secondary) / 0.5); border: 1px solid hsl(var(--border)); border-radius: var(--radius); display: flex; flex-direction: column; min-width: 0; }
+  .kcol-head { padding: 11px 12px 10px; border-bottom: 1px solid hsl(var(--border)); position: sticky; top: 0; background: hsl(var(--secondary) / 0.92); backdrop-filter: blur(4px); border-radius: var(--radius) var(--radius) 0 0; z-index: 1; }
+  .kcol-head-top { display: flex; align-items: center; gap: 8px; }
+  .kcol-stagedot { width: 9px; height: 9px; border-radius: 999px; flex-shrink: 0; }
+  .kcol-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+  .kcol-prob { font-size: 10.5px; font-weight: 700; color: hsl(var(--muted-foreground)); background: hsl(var(--background)); border: 1px solid hsl(var(--border)); padding: 0 6px; height: 17px; border-radius: 999px; display: inline-grid; place-items: center; }
+  .kcol-count { margin-left: auto; font-size: 11.5px; font-weight: 700; background: hsl(var(--background)); border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; }
+  .kcol-sub { display: flex; align-items: baseline; gap: 7px; margin-top: 7px; }
+  .kcol-total { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .kcol-weighted { font-size: 11px; color: hsl(var(--muted-foreground)); cursor: help; }
+  .kcol-body { padding: 9px; display: flex; flex-direction: column; gap: 9px; overflow-y: auto; min-height: 60px; }
+  .kcard { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 11px; cursor: grab; position: relative; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.04); transition: box-shadow .14s ease, border-color .14s ease, transform .05s ease; }
+  .kcard:hover { box-shadow: 0 4px 14px hsl(240 6% 10% / 0.1); border-color: hsl(var(--muted-foreground) / 0.35); }
+  .kcard:active { cursor: grabbing; transform: scale(.992); }
+  .kcard .kgrip { position: absolute; top: 9px; right: 9px; color: hsl(var(--muted-foreground)); opacity: 0; transition: opacity .12s ease; }
+  .kcard:hover .kgrip { opacity: .5; }
+  .kcard .kgrip svg { width: 14px; height: 14px; }
+  .kcard-top { display: flex; align-items: flex-start; gap: 9px; padding-right: 18px; }
+  .kcard-ico { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; font-size: 11px; font-weight: 700; color: #fff; }
+  .kcard-name { font-size: 13px; font-weight: 600; line-height: 1.25; }
+  .kcard-cust { font-size: 11.5px; color: hsl(var(--muted-foreground)); line-height: 1.2; margin-top: 1px; }
+  .kcard-val { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin: 9px 0 4px; }
+  .kcard-wtd { font-size: 11px; color: hsl(var(--muted-foreground)); margin-bottom: 8px; }
+  .kcard-foot { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid hsl(var(--border) / 0.7); }
+  .kcard-foot .kf-spacer { flex: 1; }
+  .kcard-ref { font-size: 10.5px; color: hsl(var(--muted-foreground)); font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .kcard-date { font-size: 10.5px; color: hsl(var(--muted-foreground)); display: inline-flex; align-items: center; gap: 4px; }
+  .kcard-date svg { width: 11px; height: 11px; }
+  .kcard-win { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kcard-win .kw-dot { width: 6px; height: 6px; border-radius: 999px; }
+
+  /* weighted funnel summary band */
+  .funnel { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; margin-bottom: 14px; }
+  .fstage { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-right: none; padding: 13px 14px 12px; position: relative; min-width: 0; }
+  .fstage:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .fstage:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-right: 1px solid hsl(var(--border)); }
+  .fstage-top { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .fstage-dot { width: 9px; height: 9px; border-radius: 999px; flex-shrink: 0; }
+  .fstage-name { font-size: 12px; font-weight: 600; }
+  .fstage-prob { margin-left: auto; font-size: 10px; font-weight: 700; color: hsl(var(--muted-foreground)); }
+  .fstage-val { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .fstage-wtd { display: flex; align-items: center; gap: 5px; margin-top: 7px; font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .fstage-bar { height: 5px; border-radius: 999px; margin-top: 8px; overflow: hidden; background: hsl(var(--secondary)); }
+  .fstage-bar i { display: block; height: 100%; border-radius: 999px; }
+
+  /* =========================================================
+     PROCUREMENT LIFECYCLE STEPPER
+     ========================================================= */
+  .stepper { display: flex; align-items: flex-start; padding: 18px 8px 6px; overflow-x: auto; }
+  .pstep { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; min-width: 96px; position: relative; }
+  .pstep:not(:last-child)::after {
+    content: ""; position: absolute; top: 15px; left: calc(50% + 18px); right: calc(-50% + 18px);
+    height: 2px; background: hsl(var(--border));
+  }
+  .pstep.done:not(:last-child)::after { background: hsl(var(--success)); }
+  .pstep-node {
+    width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center;
+    background: hsl(var(--background)); border: 2px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 700; z-index: 1;
+  }
+  .pstep-node svg { width: 15px; height: 15px; stroke-width: 2.5; }
+  .pstep.done .pstep-node { background: hsl(var(--success)); border-color: hsl(var(--success)); color: hsl(var(--success-foreground)); }
+  .pstep.current .pstep-node { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15); }
+  .pstep.skipped .pstep-node { border-style: dashed; background: hsl(var(--secondary)); }
+  .pstep-label { font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.2; }
+  .pstep.upcoming .pstep-label { color: hsl(var(--muted-foreground)); }
+  .pstep-ref { font-size: 10px; font-family: "JetBrains Mono", ui-monospace, monospace; color: hsl(var(--muted-foreground)); }
+  .pstep-skip { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+
+  /* SoD gate notice */
+  .gate {
+    display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+    border-radius: var(--radius); font-size: 13px;
+  }
+  .gate svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+  .gate.blocked { background: hsl(var(--warning) / 0.12); border: 1px solid hsl(var(--warning) / 0.4); color: hsl(var(--warning-foreground)); }
+  .gate.blocked svg { color: hsl(38 92% 45%); }
+  .gate.ready { background: hsl(var(--success) / 0.1); border: 1px solid hsl(var(--success) / 0.35); color: hsl(142 64% 28%); }
+  .gate.ready svg { color: hsl(var(--success)); }
+  .gate b { font-weight: 700; }
+
+  /* mini stat tiles */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: hsl(var(--border)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; }
+  .stat { background: hsl(var(--card)); padding: 13px 14px; }
+  .stat-label { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-bottom: 4px; }
+  .stat-val { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .stat-val.pos { color: hsl(var(--success)); }
+  .stat-val.neg { color: hsl(var(--destructive)); }
+  .stat-sub { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+
+  /* version pill */
+  .vpill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .vpill.active { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .vpill.draft { background: hsl(var(--warning) / 0.16); color: hsl(var(--warning-foreground)); }
+  .vpill.archived { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+
+  /* category dot */
+  .cat-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
+
+  /* project header card */
+  .phead { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; }
+  .phead-top { display: flex; align-items: flex-start; gap: 14px; }
+  .phead-ico { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; flex-shrink: 0; }
+  .phead-name { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+  .phead-meta { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .phead-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px; margin-top: 16px; padding-top: 16px; border-top: 1px solid hsl(var(--border)); }
+  .ph-stat .ph-l { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-bottom: 3px; }
+  .ph-stat .ph-v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  /* in-page tabs (project detail) */
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid hsl(var(--border)); margin-bottom: 16px; }
+  .ptab { height: 38px; padding: 0 14px; font-size: 13.5px; font-weight: 500; color: hsl(var(--muted-foreground)); background: transparent; border: none; cursor: pointer; position: relative; font-family: inherit; }
+  .ptab:hover { color: hsl(var(--foreground)); }
+  .ptab.active { color: hsl(var(--primary)); font-weight: 600; }
+  .ptab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: hsl(var(--primary)); }
+
+  /* =========================================================
+     TIMESHEET GRID
+     ========================================================= */
+  table.tsgrid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.tsgrid th { background: hsl(var(--card)); height: 40px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: hsl(var(--muted-foreground)); padding: 0 12px; border-bottom: 1px solid hsl(var(--border)); text-align: center; }
+  table.tsgrid th:first-child { text-align: left; min-width: 220px; }
+  table.tsgrid th.weekend { background: hsl(var(--secondary) / 0.6); }
+  table.tsgrid td { height: 48px; padding: 0 8px; border-bottom: 1px solid hsl(var(--border) / 0.7); text-align: center; }
+  table.tsgrid td:first-child { text-align: left; padding: 0 12px; }
+  table.tsgrid td.weekend { background: hsl(var(--secondary) / 0.4); }
+  .ts-cell { width: 52px; height: 32px; margin: 0 auto; border: 1px solid hsl(var(--input)); border-radius: 6px; background: hsl(var(--background)); display: grid; place-items: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: text; transition: border-color .12s ease, box-shadow .12s ease; }
+  .ts-cell:hover { border-color: hsl(var(--primary) / 0.5); }
+  .ts-cell.empty { color: hsl(var(--muted-foreground) / 0.4); font-weight: 400; }
+  .ts-cell.filled { background: hsl(var(--primary) / 0.07); border-color: hsl(var(--primary) / 0.25); color: hsl(var(--primary)); }
+  .ts-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ts-foot td { background: hsl(var(--secondary) / 0.4); font-weight: 700; border-top: 1.5px solid hsl(var(--border)); }
+
+  /* =========================================================
+     EMPTY / LOADING / ERROR STATES
+     ========================================================= */
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 56px 24px; text-align: center; }
+  .empty-ico { width: 52px; height: 52px; border-radius: 14px; background: hsl(var(--secondary)); display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+  .empty-ico svg { width: 24px; height: 24px; stroke-width: 1.75; }
+  .empty-title { font-size: 15px; font-weight: 600; }
+  .empty-sub { font-size: 13px; color: hsl(var(--muted-foreground)); max-width: 42ch; }
+
+  .err-banner { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius); background: hsl(var(--destructive) / 0.07); border: 1px solid hsl(var(--destructive) / 0.3); margin-bottom: 16px; }
+  .err-banner svg { width: 20px; height: 20px; color: hsl(var(--destructive)); flex-shrink: 0; }
+  .err-banner .eb-body { flex: 1; }
+  .err-banner .eb-title { font-size: 13.5px; font-weight: 600; color: hsl(0 72% 42%); }
+  .err-banner .eb-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+
+  /* skeleton */
+  .skel { background: linear-gradient(90deg, hsl(var(--secondary)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--secondary)) 75%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 6px; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skel { animation: none; } * { scroll-behavior: auto !important; } }
+  .skel-line { height: 12px; margin: 7px 0; }
+
+  /* =========================================================
+     COMMAND PALETTE OVERLAY (⌘K)
+     ========================================================= */
+  #cmdk-overlay { position: fixed; inset: 0; z-index: 950; display: none; align-items: flex-start; justify-content: center; padding-top: 12vh; background: hsl(240 10% 4% / 0.4); backdrop-filter: blur(3px); }
+  #cmdk-overlay.show { display: flex; }
+  .cmdk-panel { width: 100%; max-width: 600px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border)); border-radius: 12px; box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); overflow: hidden; animation: cmdkin .14s ease; }
+  @keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+  .cmdk-input-row { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid hsl(var(--border)); }
+  .cmdk-input-row svg { width: 18px; height: 18px; color: hsl(var(--muted-foreground)); }
+  .cmdk-input-row input { flex: 1; border: none; outline: none; background: transparent; font-size: 15px; font-family: inherit; color: hsl(var(--foreground)); }
+  .cmdk-input-row input::placeholder { color: hsl(var(--muted-foreground)); }
+  .cmdk-input-row .esc { font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); border-radius: 5px; padding: 2px 7px; }
+  .cmdk-list { max-height: 380px; overflow-y: auto; padding: 6px; }
+  .cmdk-group { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); padding: 10px 10px 5px; }
+  .cmdk-row { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+  .cmdk-row:hover, .cmdk-row.sel { background: hsl(var(--accent)); }
+  .cmdk-row .cr-ico { width: 28px; height: 28px; border-radius: 7px; background: hsl(var(--secondary)); display: grid; place-items: center; flex-shrink: 0; color: hsl(var(--muted-foreground)); }
+  .cmdk-row .cr-ico svg { width: 15px; height: 15px; stroke-width: 2; }
+  .cmdk-row .cr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .cmdk-row .cr-title { font-weight: 500; line-height: 1.2; }
+  .cmdk-row .cr-sub { font-size: 11.5px; color: hsl(var(--muted-foreground)); line-height: 1.2; }
+  .cmdk-row .cr-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     TOOLTIP / TOAST / ROW-MENU (copied)
+     ========================================================= */
+  #tip { position: fixed; z-index: 900; max-width: 280px; background: hsl(240 10% 8%); color: hsl(0 0% 98%); border: 1px solid hsl(240 6% 22%); border-radius: 7px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 24px hsl(240 10% 4% / 0.4); pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .12s ease, transform .12s ease; white-space: normal; }
+  #tip.show { opacity: 1; transform: translateY(0); }
+  #tip .tip-h { font-weight: 700; margin-bottom: 3px; }
+  #tip .tip-b { color: hsl(0 0% 80%); }
+  #toast-wrap { position: fixed; bottom: 22px; right: 22px; z-index: 920; display: flex; flex-direction: column; gap: 9px; }
+  .toast { display: flex; align-items: center; gap: 10px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--primary)); border-radius: var(--radius); box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16); padding: 11px 14px; font-size: 13.5px; min-width: 230px; max-width: 360px; animation: toastIn .2s ease; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  .toast.out { animation: toastOut .2s ease forwards; }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+  .toast svg { width: 17px; height: 17px; flex-shrink: 0; color: hsl(var(--primary)); }
+  .toast.ok { border-left-color: hsl(var(--success)); }
+  .toast.ok svg { color: hsl(var(--success)); }
+  .toast.warn { border-left-color: hsl(var(--warning)); }
+  .toast.warn svg { color: hsl(38 92% 45%); }
+  .toast b { font-weight: 600; }
+
+  /* =========================================================
+     RESPONSIVE — top-nav collapses to a menu on tablet/mobile
+     ========================================================= */
+  .mobile-only { display: none; }
+  .menu-btn { display: none; }
+
+  @media (max-width: 1320px) {
+    .brand-sub { display: none; }            /* reclaim top-bar width before the nav crowds */
+    .cmdk { min-width: 200px; }
+    .user-chip .uinfo { display: none; }     /* avatar-only to keep nav items clickable */
+  }
+  @media (max-width: 1080px) {
+    .kpi-band { grid-template-columns: repeat(3, 1fr); }
+    .phead-stats { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .cmdk { min-width: 150px; }
+  }
+  @media (max-width: 900px) {
+    .primary-nav { display: none; }       /* collapse modules into the menu button */
+    .menu-btn { display: grid; }
+    .cmdk { min-width: 0; width: 36px; padding: 0; justify-content: center; }
+    .cmdk .ctxt, .cmdk .kbd { display: none; }
+    .role-switch .rlabel { display: none; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .funnel { grid-template-columns: 1fr 1fr; }
+    .fstage { border-right: 1px solid hsl(var(--border)) !important; border-radius: var(--radius) !important; }
+    .phead-stats { grid-template-columns: repeat(2, 1fr); }
+    .stat-row { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .kpi-band { grid-template-columns: 1fr 1fr; }
+    .main-inner { padding: 14px 12px 60px; }
+    .user-chip .uinfo { display: none; }
+    .page-head-actions .btn .btxt { display: none; }
+  }
+
+  /* scrollbar + focus polish (copied) */
+  .main::-webkit-scrollbar, .table-scroll::-webkit-scrollbar, .kanban-scroll::-webkit-scrollbar, .kcol-body::-webkit-scrollbar, .subnav::-webkit-scrollbar, .tabstrip::-webkit-scrollbar { height: 9px; width: 9px; }
+  .main::-webkit-scrollbar-thumb, .table-scroll::-webkit-scrollbar-thumb, .kanban-scroll::-webkit-scrollbar-thumb { background: hsl(240 5% 80%); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+</style>
+</head>
+<body>
+<a href="#main" class="sr-only">Skip to main content</a>
+<div class="app">
+
+  <!-- ============ ROW 1 : TOP PRIMARY NAV ============ -->
+  <header class="topbar" role="banner">
+    <button class="icon-btn menu-btn" aria-label="Open navigation menu" onclick="toast('Navigation','Primary modules')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">P</div>
+      <div>
+        <div class="brand-name">PMO Portal</div>
+        <div class="brand-sub">Meridian Contracting Group</div>
+      </div>
+    </div>
+
+    <nav class="primary-nav" aria-label="Primary">
+      <button class="nav-item active" data-module="dashboard" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-item" data-module="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
+        Sales Pipeline <span class="badge-count">18</span>
+      </button>
+      <button class="nav-item" data-module="procurement">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Procurement <span class="badge-count">7</span>
+      </button>
+      <button class="nav-item" data-module="project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9h18M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Projects
+      </button>
+      <button class="nav-item" data-module="timesheets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Timesheets
+      </button>
+    </nav>
+
+    <div class="topbar-spacer"></div>
+
+    <button class="cmdk" id="cmdkBtn" aria-label="Open command palette" aria-keyshortcuts="Meta+K Control+K">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span class="ctxt">Search or jump to…</span>
+      <span class="kbd">⌘K</span>
+    </button>
+
+    <button class="role-switch" id="roleBtn" aria-label="Switch role">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      <span class="rlabel">Role:</span><span class="rval" id="roleVal">Executive</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+
+    <button class="icon-btn" aria-label="Notifications: 4 items need attention" onclick="toast('Notifications','4 items need your attention')">
+      <span class="dot" aria-hidden="true"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+
+    <button class="user-chip" aria-label="Account: Renata Halloway" onclick="toast('Account','Renata Halloway — signed in')">
+      <span class="avatar" aria-hidden="true">RH</span>
+      <span class="uinfo">
+        <span style="display:block;font-size:13px;font-weight:600;line-height:1.1">Renata Halloway</span>
+        <span style="display:block;font-size:11px;color:hsl(var(--muted-foreground));line-height:1.1" id="userRoleLine">Managing Director</span>
+      </span>
+    </button>
+  </header>
+
+  <!-- ============ ROW 2 : CONTEXTUAL SECONDARY SUB-NAV ============ -->
+  <nav class="subnav" id="subnav" aria-label="Section"></nav>
+
+  <!-- ============ ROW 3 : WORKSPACE TAB STRIP ============ -->
+  <div class="tabstrip" id="tabstrip" role="tablist" aria-label="Open workspace tabs"></div>
+
+  <!-- ============ ROW 4 : MAIN CONTENT ============ -->
+  <main class="main" id="main" tabindex="-1">
+    <div class="main-inner" id="surface"><!-- surfaces injected by JS --></div>
+  </main>
+</div>
+
+<!-- floating primitives -->
+<div id="tip" role="tooltip"></div>
+<div id="toast-wrap" aria-live="polite"></div>
+
+<!-- COMMAND PALETTE -->
+<div id="cmdk-overlay" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="cmdk-panel">
+    <div class="cmdk-input-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="cmdkInput" type="text" placeholder="Search projects, PRs, customers, or run a command…" aria-label="Command palette search" autocomplete="off" />
+      <span class="esc">ESC</span>
+    </div>
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PMO PORTAL — IA-2 workspace logic (vanilla, zero-dep).
+   Realistic contracting / EPC / fabrication / services sample data.
+   Currency: USD thousands (k) → millions (M). No industry-specific jargon.
+   ============================================================ */
+const fmtK = n => "$" + Math.round(n).toLocaleString("en-US") + "k";
+const fmtM = n => "$" + (n/1000).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) + "M";
+const money = n => Math.abs(n) >= 1000 ? fmtM(n) : fmtK(n);
+
+/* ---- pipeline stages + fixed win-probabilities (per spec) ---- */
+const STAGES = [
+  { key:"leads",   label:"Leads",            prob:10, color:"hsl(240 4% 60%)"  },
+  { key:"pq",      label:"Pre-Qualification",prob:25, color:"hsl(221 83% 53%)" },
+  { key:"quote",   label:"Quotation",        prob:40, color:"hsl(199 89% 48%)" },
+  { key:"tender",  label:"Tender",           prob:50, color:"hsl(262 83% 58%)" },
+  { key:"nego",    label:"Negotiation",      prob:75, color:"hsl(38 92% 50%)"  },
+  { key:"won",     label:"Won / Lost",       prob:100,color:"hsl(142 71% 45%)" },
+];
+const stageMeta = k => STAGES.find(s=>s.key===k);
+
+/* ---- deals (realistic contracting opportunities) ---- */
+const DEALS = [
+  { id:"OPP-2041", name:"Harborside Terminal — Civil Works", cust:"Cascade Port Authority", ref:"CPA-RFP-0118", decision:"Aug 14, 2026", value:4820, stage:"leads",  status:"open", color:"hsl(221 83% 53%)" },
+  { id:"OPP-2038", name:"Northgate Data Hall Fit-out",       cust:"Aldridge Infrastructure", ref:"ALD-2026-77", decision:"Jul 30, 2026", value:2180, stage:"leads",  status:"open", color:"hsl(262 83% 58%)" },
+  { id:"OPP-2044", name:"Maple Ridge WWTP Mechanical Pkg",   cust:"Sterling Water District", ref:"SWD-Q-4412",  decision:"Sep 02, 2026", value:3360, stage:"pq",     status:"open", color:"hsl(142 71% 45%)" },
+  { id:"OPP-2031", name:"Vance Tower Curtain Wall",          cust:"Pinnacle Developments",  ref:"PIN-CW-091",  decision:"Jul 18, 2026", value:6240, stage:"pq",     status:"open", color:"hsl(199 89% 48%)" },
+  { id:"OPP-2027", name:"Eastfield Logistics Park — Phase 2", cust:"Brightwater Realty",     ref:"BWR-LP2-014", decision:"Jul 11, 2026", value:2740, stage:"quote",  status:"open", color:"hsl(38 92% 50%)"  },
+  { id:"OPP-2019", name:"Continental Refinery Piping Spool",  cust:"Halcyon Energy",         ref:"HAL-PS-2206", decision:"Jul 09, 2026", value:3890, stage:"quote",  status:"open", color:"hsl(221 83% 53%)" },
+  { id:"OPP-2015", name:"Greystone Hospital MEP Upgrade",     cust:"Verdant Health Trust",   ref:"VHT-MEP-30",  decision:"Jun 26, 2026", value:5120, stage:"tender", status:"open", color:"hsl(262 83% 58%)" },
+  { id:"OPP-2009", name:"Skyline Bridge Steel Fabrication",   cust:"Department of Transit",  ref:"DOT-SB-1149", decision:"Jun 20, 2026", value:7480, stage:"tender", status:"open", color:"hsl(199 89% 48%)" },
+  { id:"OPP-2003", name:"Crestwood Substation Build",         cust:"Aldridge Infrastructure", ref:"ALD-SS-008", decision:"Jun 14, 2026", value:4310, stage:"nego",   status:"open", color:"hsl(38 92% 50%)"  },
+  { id:"OPP-1998", name:"Lakeview Campus Interiors",          cust:"Brightwater Realty",     ref:"BWR-INT-22",  decision:"Jun 12, 2026", value:2960, stage:"nego",   status:"open", color:"hsl(142 71% 45%)" },
+  { id:"OPP-1990", name:"Riverside Pump Station O&M",         cust:"Sterling Water District", ref:"SWD-OM-77",  decision:"Jun 05, 2026", value:1840, stage:"won",    status:"won",  color:"hsl(221 83% 53%)" },
+  { id:"OPP-1986", name:"Fairmont Atrium Glazing",            cust:"Pinnacle Developments",  ref:"PIN-GL-040",  decision:"May 29, 2026", value:2210, stage:"won",    status:"lost", color:"hsl(262 83% 58%)" },
+];
+const dealWeighted = d => Math.round(d.value * stageMeta(d.stage).prob / 100);
+
+/* ---- projects ---- */
+const PROJECTS = [
+  { id:"PRJ-0142", name:"Eastfield Logistics Park — Phase 2", cust:"Brightwater Realty", status:"Ongoing", contract:28400, proposed:29200, committed:24100, actual:15800, color:"hsl(221 83% 53%)", po:"BWR-PO-0091", poDate:"Jan 22, 2026" },
+  { id:"PRJ-0138", name:"Greystone Hospital MEP Upgrade",     cust:"Verdant Health Trust", status:"Ongoing", contract:18600, proposed:18600, committed:16200, actual:12400, color:"hsl(262 83% 58%)", po:"VHT-PO-0440", poDate:"Nov 04, 2025" },
+  { id:"PRJ-0131", name:"Skyline Bridge Steel Fabrication",    cust:"Department of Transit", status:"Ongoing", contract:31200, proposed:32800, committed:30800, actual:19600, color:"hsl(199 89% 48%)", po:"DOT-PO-1149", poDate:"Sep 18, 2025" },
+];
+
+/* ---- budget: 7 fixed categories ---- */
+const BUDGET_CATS = [
+  { key:"Labor",          color:"hsl(221 83% 53%)", budget:7400, committed:6900, actual:5200 },
+  { key:"Materials",      color:"hsl(262 83% 58%)", budget:8200, committed:7600, actual:4900 },
+  { key:"Subcontractors", color:"hsl(199 89% 48%)", budget:6100, committed:5400, actual:3100 },
+  { key:"Equipment",      color:"hsl(38 92% 50%)",  budget:2900, committed:2300, actual:1400 },
+  { key:"Permits & Fees", color:"hsl(142 71% 45%)", budget:980,  committed:980,  actual:760  },
+  { key:"Overheads",      color:"hsl(0 72% 55%)",   budget:1820, committed:1500, actual:880  },
+  { key:"Contingency",    color:"hsl(240 4% 60%)",  budget:1000, committed:0,    actual:0    },
+];
+
+/* ---- people ---- */
+const PEOPLE = {
+  "Renata Halloway":{i:"RH",c:"hsl(221 83% 53%)"},
+  "Desmond Achebe": {i:"DA",c:"hsl(262 83% 58%)"},
+  "Priya Venkatesh":{i:"PV",c:"hsl(142 71% 45%)"},
+  "Tobias Lindqvist":{i:"TL",c:"hsl(199 89% 48%)"},
+  "Camille Rousseau":{i:"CR",c:"hsl(38 92% 50%)"},
+};
+
+/* ---- workspace tab state ---- */
+let TABS = [
+  { id:"dashboard", kind:"module", module:"dashboard", icon:"grid", label:"Dashboard" },
+];
+let activeTab = "dashboard";
+
+const ICONS = {
+  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  pipe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>',
+  cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+  folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9h18M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>',
+  help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7l10 10M17 17H8M17 17V8"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
+};
+
+/* =====================================================
+   SUB-NAV definitions (contextual, per module)
+   ===================================================== */
+const SUBNAV = {
+  dashboard:  [{l:"Overview",a:1},{l:"Margin",c:""},{l:"Cash & Commitments"},{l:"Forecast"}],
+  pipeline:   [{l:"Board",a:1},{l:"Funnel",c:""},{l:"Won / Lost"},{l:"By Customer"}],
+  procurement:[{l:"Active Requests",a:1,c:"7"},{l:"Awaiting My Approval",c:"3"},{l:"Purchase Orders"},{l:"Invoices & Payments"}],
+  project:    [{l:"All Projects",a:1,c:"3"},{l:"My Projects"},{l:"At Risk",c:"1"}],
+  timesheets: [{l:"My Timesheet",a:1},{l:"Team Approvals",c:"4"},{l:"History"}],
+  record:     [{l:"Overview",a:1},{l:"Budget"},{l:"Procurement"},{l:"Team"},{l:"Documents"}],
+  pr:         [{l:"Lifecycle",a:1},{l:"Line Items"},{l:"Quotations"},{l:"Receipts & Invoices"},{l:"Audit Trail"}],
+};
+
+/* =====================================================
+   RENDER: tab strip
+   ===================================================== */
+function renderTabs(){
+  const strip = document.getElementById("tabstrip");
+  strip.innerHTML = TABS.map(t=>`
+    <div class="ws-tab ${t.id===activeTab?'active':''}" role="tab" tabindex="0"
+         aria-selected="${t.id===activeTab}" data-tab="${t.id}">
+      <span class="wt-ico">${ICONS[t.icon]||ICONS.doc}</span>
+      ${t.code?`<span class="wt-code">${t.code}</span>`:''}
+      <span class="wt-label">${t.label}</span>
+      ${t.dirty?'<span class="wt-dirty" title="Unsaved changes"></span>':''}
+      ${t.kind!=='module'?`<span class="wt-close" role="button" aria-label="Close ${t.label}" data-close="${t.id}">${ICONS.x}</span>`:''}
+    </div>`).join("") +
+    `<button class="tab-newbtn" aria-label="Open a new record" title="Open command palette (⌘K)">${ICONS.plus}</button>`;
+
+  strip.querySelectorAll(".ws-tab").forEach(el=>{
+    el.addEventListener("click", e=>{
+      if(e.target.closest("[data-close]")){ closeTab(e.target.closest("[data-close]").dataset.close); return; }
+      selectTab(el.dataset.tab);
+    });
+    el.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selectTab(el.dataset.tab); }});
+  });
+  strip.querySelector(".tab-newbtn").addEventListener("click", openCmdk);
+}
+
+function selectTab(id){
+  activeTab = id;
+  const t = TABS.find(x=>x.id===id);
+  const mod = t.kind==='module' ? t.module : (t.kind==='record' ? 'record' : 'pr');
+  renderTabs();
+  renderSubnav(t);
+  syncPrimaryNav(t);
+  renderSurface(t);
+  document.getElementById("main").scrollTop = 0;
+}
+
+function closeTab(id){
+  const idx = TABS.findIndex(t=>t.id===id);
+  TABS = TABS.filter(t=>t.id!==id);
+  if(activeTab===id){ selectTab(TABS[Math.max(0,idx-1)].id); }
+  else { renderTabs(); }
+  toast("Tab closed","Removed from your workspace");
+}
+
+function openModule(module){
+  let t = TABS.find(x=>x.kind==='module' && x.module===module);
+  if(!t){
+    const meta = {dashboard:["grid","Dashboard"],pipeline:["pipe","Sales Pipeline"],procurement:["cart","Procurement"],project:["folder","Projects"],timesheets:["clock","Timesheets"]}[module];
+    t = { id:module, kind:"module", module, icon:meta[0], label:meta[1] };
+    TABS.push(t);
+  }
+  selectTab(t.id);
+}
+
+function openRecord(kind, rec){
+  const id = (kind==='pr'?'pr:':'rec:')+rec.id;
+  let t = TABS.find(x=>x.id===id);
+  if(!t){
+    t = { id, kind, code:rec.id, icon: kind==='pr'?'cart':'folder',
+          label: rec.label, payload: rec, dirty: kind==='pr' };
+    TABS.push(t);
+  }
+  selectTab(id);
+}
+
+/* =====================================================
+   RENDER: sub-nav
+   ===================================================== */
+function renderSubnav(tab){
+  const key = tab.kind==='module' ? tab.module : (tab.kind==='record'?'record':'pr');
+  const items = SUBNAV[key] || [];
+  const label = tab.kind==='module'
+      ? ({dashboard:"Executive",pipeline:"Pipeline",procurement:"Procurement",project:"Projects",timesheets:"Time"}[tab.module])
+      : (tab.kind==='record'?"Project":"Purchase Request");
+  const nav = document.getElementById("subnav");
+  nav.innerHTML = `<span class="subnav-label">${label}</span>` + items.map((it,i)=>`
+    <button class="subnav-item ${it.a?'active':''}">
+      ${it.l}${it.c!=null && it.c!=="" ? `<span class="scount">${it.c}</span>`:''}
+    </button>`).join("") + `<span class="subnav-spacer"></span>`;
+  nav.querySelectorAll(".subnav-item").forEach(b=>{
+    b.addEventListener("click",()=>{
+      nav.querySelectorAll(".subnav-item").forEach(x=>{x.classList.remove("active");x.setAttribute("aria-selected","false");});
+      b.classList.add("active");
+      toast("View",`${label} · ${b.textContent.trim()}`);
+    });
+  });
+}
+
+function syncPrimaryNav(tab){
+  const target = tab.kind==='module' ? tab.module : (tab.kind==='record'?'project':'procurement');
+  document.querySelectorAll(".nav-item[data-module]").forEach(n=>{
+    const on = n.dataset.module===target;
+    n.classList.toggle("active", on);
+    if(on) n.setAttribute("aria-current","page"); else n.removeAttribute("aria-current");
+  });
+}
+
+/* =====================================================
+   SURFACES
+   ===================================================== */
+function renderSurface(tab){
+  const s = document.getElementById("surface");
+  if(tab.kind==='module'){
+    ({dashboard:surfDashboard, pipeline:surfPipeline, procurement:surfProcurement,
+      project:surfProjects, timesheets:surfTimesheets}[tab.module])(s);
+  } else if(tab.kind==='record'){
+    surfProjectDetail(s, tab.payload);
+  } else {
+    surfPR(s, tab.payload);
+  }
+  bindTips();
+}
+
+/* ---------- 1) DASHBOARD ---------- */
+function surfDashboard(s){
+  const onhandMargin = 18.4, weightedMargin = 14.1;
+  s.innerHTML = `
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Executive Dashboard</h1>
+      <p class="page-sub">Portfolio health across pipeline, projects and cash — single-pane view for the leadership team.</p>
+    </div>
+    <div class="page-head-actions">
+      <button class="control" onclick="toast('Period','FY2026 · Q2')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="cap">Period</span><span class="cval">FY2026 · Q2</span></button>
+      <button class="btn btn-outline" onclick="toast('Refreshed','Synced just now')">${ICONS.refresh}<span class="btxt">Refresh</span></button>
+    </div>
+  </div>
+
+  <section class="kpi-band" aria-label="Key metrics">
+    ${kpi('blue','On-hand Margin', money(5230), 'up','2.1pt', 'Actual margin earned on delivered work', '18.4% realized · '+money(5230))}
+    ${kpi('violet','Pipeline (Weighted)', money(15940), 'up','6.8%', 'Σ(value × win probability) across all open stages', 'of '+money(46150)+' gross')}
+    ${kpiDual()}
+    ${kpi('cyan','Active Projects', '3', 'neutral','+1', 'Projects currently in delivery', '1 at-risk · 2 on-track')}
+    ${kpi('amber','Budget vs Actual', '63.2%', 'up','4.0pt', 'Portfolio actual spend against active budgets', money(47800)+' actual')}
+    ${kpi('red','Committed Spend', money(75600), 'up','3.3%', 'Locked into signed POs & subcontracts', '88.5% of budget')}
+  </section>
+
+  <div class="grid-2">
+    <section class="section card card-pad" aria-label="Budget vs actual by project">
+      <div class="section-head"><span class="section-title">Budget vs Actual — Active Projects</span><span class="sh-spacer"></span><span class="text-xs muted">USD thousands</span></div>
+      ${PROJECTS.map(p=>{
+        const cpct=Math.round(p.committed/p.contract*100), apct=Math.round(p.actual/p.contract*100);
+        return `<div style="padding:10px 0;border-bottom:1px dashed hsl(var(--border))">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+            <span class="cat-dot" style="background:${p.color}"></span>
+            <span class="font-medium" style="font-size:13px">${p.name}</span>
+            <span class="sh-spacer" style="flex:1"></span>
+            <span class="text-xs muted tnum">${money(p.actual)} / ${money(p.contract)}</span>
+          </div>
+          <div class="pbar" style="height:9px"><i style="width:${cpct}%;background:hsl(var(--warning) / .55)"></i></div>
+          <div class="pbar" style="height:9px;margin-top:3px"><i style="width:${apct}%;background:${p.color}"></i></div>
+        </div>`;
+      }).join("")}
+      <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px" class="muted">
+        <span><span class="cat-dot" style="background:hsl(var(--warning) / .55)"></span> Committed</span>
+        <span><span class="cat-dot" style="background:hsl(221 83% 53%)"></span> Actual</span>
+      </div>
+    </section>
+
+    <section class="section card card-pad" aria-label="Win rate">
+      <div class="section-head"><span class="section-title">Win Rate</span><span class="sh-spacer"></span>
+        <div class="seg" role="group" aria-label="Win-rate basis">
+          <button class="on" onclick="winBasis(this,'count')">By count</button>
+          <button onclick="winBasis(this,'value')">By value</button>
+        </div>
+      </div>
+      <div class="seg" style="margin-bottom:14px" role="group" aria-label="Time frame">
+        <button onclick="winFrame(this)">90d</button><button class="on" onclick="winFrame(this)">12 mo</button><button onclick="winFrame(this)">All time</button>
+      </div>
+      <div id="winBody">${winRateBody('count')}</div>
+    </section>
+  </div>`;
+}
+function kpi(c,label,val,dir,delta,tip,foot){
+  return `<div class="kpi">
+    <div class="kpi-top"><div class="kpi-ico ${c}">${ICONS.grid}</div><span class="kpi-label">${label}</span>
+      <span class="kpi-help" data-tip-h="${label}" data-tip="${tip}">${ICONS.help}</span></div>
+    <div class="kpi-val">${val}</div>
+    <div class="kpi-foot"><span class="kpi-delta ${dir}">${dir==='up'?ICONS.up:dir==='down'?ICONS.down:''}${delta}</span><span class="vs">${foot}</span></div>
+  </div>`;
+}
+function kpiDual(){
+  return `<div class="kpi">
+    <div class="kpi-top"><div class="kpi-ico green">${ICONS.grid}</div><span class="kpi-label">Projected Margin</span>
+      <span class="kpi-help" data-tip-h="Projected Margin" data-tip="Two lenses: on-hand (delivered) vs weighted (probability-adjusted pipeline). Toggle to compare.">${ICONS.help}</span></div>
+    <div class="kpi-val" id="dualVal">18.4%</div>
+    <div class="kpi-foot"><span class="dual-toggle"><button class="on" onclick="dualLens(this,'onhand')">On-hand</button><button onclick="dualLens(this,'weighted')">Weighted</button></span></div>
+  </div>`;
+}
+window.dualLens=(b,k)=>{ b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); document.getElementById("dualVal").textContent = k==='onhand'?'18.4%':'14.1%'; };
+function winRateBody(basis){
+  const data = basis==='count' ? {won:7,lost:3,rate:70} : {won:14820,lost:6510,rate:69.5};
+  const total = basis==='count' ? data.won+data.lost : data.won+data.lost;
+  const wpct = Math.round(data.won/total*100);
+  return `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px">
+      <span style="font-size:34px;font-weight:700;letter-spacing:-.02em" class="tnum">${data.rate}%</span>
+      <span class="text-xs muted">${basis==='count'?`${data.won} won of ${data.won+data.lost} closed`:`${money(data.won)} won of ${money(total)} closed`}</span></div>
+    <div class="pbar" style="height:12px"><i style="width:${wpct}%;background:hsl(var(--success))"></i></div>
+    <div style="display:flex;gap:16px;margin-top:10px;font-size:12px" class="muted">
+      <span><span class="cat-dot" style="background:hsl(var(--success))"></span> Won</span>
+      <span><span class="cat-dot" style="background:hsl(var(--secondary))"></span> Lost</span></div>`;
+}
+window.winBasis=(b,k)=>{ b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); document.getElementById("winBody").innerHTML=winRateBody(k); bindTips(); };
+window.winFrame=(b)=>{ b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); toast("Win rate",`Time frame: ${b.textContent}`); };
+
+/* ---------- 2) SALES PIPELINE (kanban + funnel) ---------- */
+function surfPipeline(s){
+  const totGross = DEALS.filter(d=>d.stage!=='won').reduce((a,d)=>a+d.value,0);
+  const totWtd = DEALS.filter(d=>d.stage!=='won').reduce((a,d)=>a+dealWeighted(d),0);
+  s.innerHTML = `
+  <div class="page-head">
+    <div><h1 class="page-title">Sales Pipeline</h1>
+      <p class="page-sub">Leads through Negotiation to Won/Lost. Open a card as a workspace tab to work the opportunity without leaving the board.</p></div>
+    <div class="page-head-actions">
+      <button class="btn btn-outline" onclick="toast('Export','pipeline.xlsx')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg><span class="btxt">Export</span></button>
+      <button class="btn btn-primary" onclick="toast('New deal','Opening opportunity form')">${ICONS.plus}<span class="btxt">New Deal</span></button>
+    </div>
+  </div>
+
+  <section class="funnel" aria-label="Weighted funnel summary">
+    ${STAGES.filter(st=>st.key!=='won').map(st=>{
+      const ds=DEALS.filter(d=>d.stage===st.key); const gross=ds.reduce((a,d)=>a+d.value,0); const w=ds.reduce((a,d)=>a+dealWeighted(d),0);
+      const pct = totGross? Math.round(gross/totGross*100):0;
+      return `<div class="fstage">
+        <div class="fstage-top"><span class="fstage-dot" style="background:${st.color}"></span><span class="fstage-name">${st.label}</span><span class="fstage-prob">${st.prob}%</span></div>
+        <div class="fstage-val">${money(gross)}</div>
+        <div class="fstage-wtd" data-tip-h="Weighted value" data-tip="${money(gross)} gross × ${st.prob}% win probability = ${money(w)} weighted.">weighted ${money(w)} · ${ds.length} deal${ds.length!==1?'s':''}</div>
+        <div class="fstage-bar"><i style="width:${pct}%;background:${st.color}"></i></div>
+      </div>`;
+    }).join("")}
+  </section>
+
+  <div class="toolbar standalone">
+    <button class="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="cap">Owner</span><span class="cval">All</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button class="control"><span class="cap">Sort</span><span class="cval">Value ↓</span></button>
+    <div class="toolbar-spacer"></div>
+    <div class="search-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Filter deals…" aria-label="Filter deals" oninput="filterKanban(this.value)"/></div>
+    <div class="text-xs muted tnum" style="padding:0 4px">Gross ${money(totGross)} · Weighted <b style="color:hsl(var(--foreground))">${money(totWtd)}</b></div>
+  </div>
+
+  <div class="kanban-scroll"><div class="kanban" id="kanban">${STAGES.map(kcol).join("")}</div></div>`;
+}
+function kcol(st){
+  const ds = DEALS.filter(d=>d.stage===st.key);
+  const gross = ds.reduce((a,d)=>a+d.value,0), w = ds.reduce((a,d)=>a+dealWeighted(d),0);
+  return `<div class="kcol" data-stage="${st.key}">
+    <div class="kcol-head">
+      <div class="kcol-head-top"><span class="kcol-stagedot" style="background:${st.color}"></span><span class="kcol-title">${st.label}</span>
+        ${st.key!=='won'?`<span class="kcol-prob" data-tip-h="Win probability" data-tip="Deals in ${st.label} are forecast at a ${st.prob}% chance of closing.">${st.prob}%</span>`:''}
+        <span class="kcol-count">${ds.length}</span></div>
+      <div class="kcol-sub"><span class="kcol-total">${money(gross)}</span>${st.key!=='won'?`<span class="kcol-weighted" data-tip-h="Weighted" data-tip="${money(w)} probability-adjusted.">wtd ${money(w)}</span>`:''}</div>
+    </div>
+    <div class="kcol-body">${ds.map(kcard).join("") || emptyCol()}</div>
+  </div>`;
+}
+function emptyCol(){ return `<div style="padding:18px 8px;text-align:center;font-size:12px;color:hsl(var(--muted-foreground))">No deals in this stage</div>`; }
+function kcard(d){
+  const st=stageMeta(d.stage), wtd=dealWeighted(d);
+  const statusBadge = d.status==='won'?'<span class="status won"><span class="sdot"></span>Won</span>'
+    : d.status==='lost'?'<span class="status lost"><span class="sdot"></span>Lost</span>':'';
+  return `<div class="kcard" tabindex="0" role="button" aria-label="${d.name}, ${d.cust}, ${money(d.value)}"
+       onclick="openDeal('${d.id}')" onkeydown="if(event.key==='Enter')openDeal('${d.id}')">
+    <span class="kgrip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>
+    <div class="kcard-top"><span class="kcard-ico" style="background:${d.color}">${d.cust.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>
+      <div><div class="kcard-name">${d.name}</div><div class="kcard-cust">${d.cust}</div></div></div>
+    <div class="kcard-val">${money(d.value)}</div>
+    <div class="kcard-wtd" data-tip-h="Weighted value" data-tip="${money(d.value)} × ${st.prob}% = ${money(wtd)}">weighted ${money(wtd)} @ ${st.prob}%</div>
+    ${statusBadge}
+    <div class="kcard-foot">
+      <span class="kcard-ref" title="Customer / contract reference">${d.ref}</span>
+      <span class="kf-spacer"></span>
+      <span class="kcard-date" data-tip-h="Decision date" data-tip="Expected client decision."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${d.decision}</span>
+    </div>
+  </div>`;
+}
+window.openDeal=(id)=>{ const d=DEALS.find(x=>x.id===id); toast("Deal",`${d.name} — ${stageMeta(d.stage).label}`); };
+window.filterKanban=(q)=>{ q=q.toLowerCase(); document.querySelectorAll("#kanban .kcard").forEach(c=>{ c.style.display = c.textContent.toLowerCase().includes(q)?'':'none'; }); };
+
+/* ---------- 3) PROCUREMENT (list with loading state demo) ---------- */
+const PRS = [
+  { id:"PR-2606050001", title:"Structural steel — Eastfield Phase 2", project:"Eastfield Logistics Park — Phase 2", req:"Desmond Achebe", value:842, stage:"po", status:"open" },
+  { id:"PR-2606040007", title:"HVAC chillers — Greystone MEP", project:"Greystone Hospital MEP Upgrade", req:"Priya Venkatesh", value:1180, stage:"vq", status:"open" },
+  { id:"PR-2606030012", title:"Welding consumables restock", project:"Skyline Bridge Steel Fabrication", req:"Tobias Lindqvist", value:96, stage:"gr", status:"open" },
+  { id:"PR-2606030004", title:"Site survey subcontract", project:"Eastfield Logistics Park — Phase 2", req:"Camille Rousseau", value:240, stage:"pr", status:"open" },
+  { id:"PR-2605290009", title:"Crane hire — 6 weeks", project:"Skyline Bridge Steel Fabrication", req:"Desmond Achebe", value:518, stage:"paid", status:"paid" },
+];
+const PR_STAGES = [
+  {key:"pr",label:"PR",full:"Purchase Request"},{key:"vq",label:"VQ",full:"Vendor Quote"},
+  {key:"po",label:"PO",full:"Purchase Order"},{key:"gr",label:"GR",full:"Goods Receipt"},
+  {key:"vi",label:"VI",full:"Vendor Invoice"},{key:"paid",label:"Paid",full:"Payment"},
+];
+function surfProcurement(s){
+  s.innerHTML = `
+  <div class="page-head">
+    <div><h1 class="page-title">Procurement Lifecycle</h1>
+      <p class="page-sub">PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drive it through its lifecycle in a dedicated tab.</p></div>
+    <div class="page-head-actions">
+      <button class="btn btn-primary" onclick="toast('New PR','Opening purchase request form')">${ICONS.plus}<span class="btxt">New Request</span></button>
+    </div>
+  </div>
+
+  <div class="toolbar standalone">
+    <div class="seg" role="group" aria-label="Filter"><button class="on">All stages</button><button>Awaiting approval</button><button>In delivery</button><button>Closed</button></div>
+    <div class="toolbar-spacer"></div>
+    <div class="search-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Filter requests…" aria-label="Filter requests"/></div>
+  </div>
+
+  <div class="table-wrap standalone">
+    <div class="table-scroll"><table class="grid">
+      <thead><tr><th>Request</th><th>Project</th><th>Requested by</th><th class="num">Value</th><th>Lifecycle</th><th>Status</th></tr></thead>
+      <tbody id="prBody"></tbody>
+    </table></div>
+  </div>`;
+
+  // demonstrate a loading skeleton then populate
+  const body = document.getElementById("prBody");
+  body.innerHTML = Array.from({length:4}).map(()=>`<tr><td colspan="6"><div class="skel skel-line" style="width:${60+Math.random()*30}%"></div></td></tr>`).join("");
+  setTimeout(()=>{ if(activeTab!=='procurement') return; body.innerHTML = PRS.map(prRow).join(""); bindTips(); }, 650);
+}
+function prRow(p){
+  const idx = PR_STAGES.findIndex(x=>x.key===p.stage);
+  const mini = PR_STAGES.map((st,i)=>`<span class="cat-dot" title="${st.full}" style="border-radius:999px;width:8px;height:8px;background:${i<=idx?(p.status==='paid'?'hsl(var(--success))':'hsl(var(--primary))'):'hsl(var(--secondary))'}"></span>`).join('<span style="display:inline-block;width:9px;height:2px;background:hsl(var(--border));vertical-align:middle"></span>');
+  const stB = p.status==='paid'?'<span class="status won"><span class="sdot"></span>Paid</span>':'<span class="status open"><span class="sdot"></span>'+PR_STAGES[idx].full+'</span>';
+  const per = PEOPLE[p.req];
+  return `<tr class="row" onclick="openPR('${p.id}')" tabindex="0" onkeydown="if(event.key==='Enter')openPR('${p.id}')">
+    <td><div class="proj"><div class="proj-meta"><span class="proj-name">${p.title}</span><span class="proj-code"><span class="pc-id">${p.id}</span></span></div></div></td>
+    <td><span class="text-sm">${p.project}</span></td>
+    <td><span style="display:inline-flex;align-items:center;gap:8px"><span class="avatar sm" style="background:${per.c}">${per.i}</span>${p.req}</span></td>
+    <td class="num"><span class="money">${money(p.value)}</span></td>
+    <td><span style="display:inline-flex;align-items:center">${mini}</span></td>
+    <td>${stB}</td>
+  </tr>`;
+}
+window.openPR=(id)=>{ const p=PRS.find(x=>x.id===id); openRecord('pr',{id:p.id,label:p.title.slice(0,22),pr:p}); };
+
+/* ---------- 3b) PR DETAIL (lifecycle stepper + SoD gate) ---------- */
+function surfPR(s, payload){
+  const p = payload.pr;
+  const idx = PR_STAGES.findIndex(x=>x.key===p.stage);
+  const stepHtml = PR_STAGES.map((st,i)=>{
+    const cls = i<idx?'done':i===idx?'current':'upcoming';
+    const skip = (st.key==='vq' && p.stage==='po');
+    const node = i<idx?ICONS.check:`<span>${st.label}</span>`;
+    const ref = i<=idx ? autoRef(st.key, i) : '';
+    return `<div class="pstep ${cls} ${skip?'skipped':''}">
+      <div class="pstep-node">${i<idx?ICONS.check:st.label}</div>
+      <div class="pstep-label">${st.full}</div>
+      ${ref?`<div class="pstep-ref">${ref}</div>`:''}
+      ${skip?'<div class="pstep-skip">skipped</div>':''}
+    </div>`;
+  }).join("");
+
+  s.innerHTML = `
+  <div class="page-head">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <h1 class="page-title">${p.title}</h1>
+        <span class="status open"><span class="sdot"></span>${PR_STAGES[idx].full}</span>
+      </div>
+      <p class="page-sub"><span class="font-mono text-xs">${p.id}</span> · ${p.project} · requested by ${p.req}</p>
+    </div>
+    <div class="page-head-actions">
+      <button class="btn btn-outline" onclick="toast('Audit','Opening audit trail')">${ICONS.doc}<span class="btxt">Audit trail</span></button>
+    </div>
+  </div>
+
+  <section class="section card">
+    <div class="stepper" role="list" aria-label="Procurement lifecycle">${stepHtml}</div>
+  </section>
+
+  <div class="gate blocked" style="margin-bottom:16px">
+    ${ICONS.lock}
+    <div><b>Separation-of-duties gate.</b> This PR was requested by ${p.req}. To advance from Purchase Order to Goods Receipt, a different user with the Finance or Project Manager role must confirm receipt — the requester cannot self-approve their own request.</div>
+  </div>
+
+  <div class="stat-row" style="margin-bottom:16px">
+    <div class="stat"><div class="stat-label">PR value</div><div class="stat-val tnum">${money(p.value)}</div><div class="stat-sub">3 line items</div></div>
+    <div class="stat"><div class="stat-label">Selected quote</div><div class="stat-val tnum">${money(Math.round(p.value*0.97))}</div><div class="stat-sub">of 3 received</div></div>
+    <div class="stat"><div class="stat-label">PO committed</div><div class="stat-val tnum">${money(Math.round(p.value*0.97))}</div><div class="stat-sub">Apex Fabrication Co.</div></div>
+    <div class="stat"><div class="stat-label">Received</div><div class="stat-val tnum">$0k</div><div class="stat-sub">awaiting delivery</div></div>
+  </div>
+
+  <div class="grid-2">
+    <section class="section card">
+      <div class="section-head card-pad" style="padding-bottom:0"><span class="section-title">Line items</span></div>
+      <div class="table-scroll"><table class="grid">
+        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          ${[['Wide-flange beams W12×40',18,28.4],['Base plates 25mm A36',42,6.1],['Anchor bolt assemblies',120,1.8]].map(([n,q,r])=>`
+          <tr><td><span class="font-medium text-sm">${n}</span></td><td class="num tnum">${q}</td><td class="num money">${fmtK(r)}</td><td class="num money">${money(Math.round(q*r))}</td></tr>`).join("")}
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="section card card-pad">
+      <div class="section-head"><span class="section-title">Linked quotations</span></div>
+      ${[['Apex Fabrication Co.',Math.round(p.value*0.97),true],['Meridian Steelworks',Math.round(p.value*1.04),false],['Coastal Metal Supply',Math.round(p.value*1.11),false]].map(([v,amt,sel])=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed hsl(var(--border))">
+          <span class="cat-dot" style="border-radius:999px;width:9px;height:9px;background:${sel?'hsl(var(--success))':'hsl(var(--secondary))'}"></span>
+          <span class="font-medium text-sm">${v}</span>
+          ${sel?'<span class="status won" style="height:19px"><span class="sdot"></span>Selected</span>':''}
+          <span class="sh-spacer" style="flex:1"></span>
+          <span class="money text-sm">${money(amt)}</span>
+        </div>`).join("")}
+    </section>
+  </div>
+
+  <div class="gate ready" style="margin-top:4px">
+    ${ICONS.check}
+    <div><b>Ready to advance.</b> Quote selected and PO issued. As Finance, you may record the Goods Receipt against <span class="font-mono">${autoRef('po',2)}</span>.</div>
+  </div>`;
+}
+function autoRef(key,i){
+  const pref = {pr:'PR',vq:'VQ',po:'PO',gr:'GR',vi:'VI',paid:'PE'}[key];
+  return `${pref}-2606050${(1+i).toString().padStart(3,'0')}`;
+}
+
+/* ---------- 4) PROJECTS list + detail (versioned budget) ---------- */
+function surfProjects(s){
+  s.innerHTML = `
+  <div class="page-head">
+    <div><h1 class="page-title">Projects</h1><p class="page-sub">Active delivery portfolio. Open a project to work its budget, procurement and team in a tab.</p></div>
+    <div class="page-head-actions"><button class="btn btn-primary" onclick="toast('New project','Opening setup')">${ICONS.plus}<span class="btxt">New Project</span></button></div>
+  </div>
+  <div class="table-wrap standalone"><div class="table-scroll"><table class="grid">
+    <thead><tr><th>Project</th><th>Customer</th><th>Status</th><th class="num">Contract value</th><th class="num">Committed</th><th class="num">Actual</th><th>Progress</th></tr></thead>
+    <tbody>${PROJECTS.map(p=>{
+      const apct=Math.round(p.actual/p.contract*100);
+      return `<tr class="row" onclick="openProj('${p.id}')" tabindex="0" onkeydown="if(event.key==='Enter')openProj('${p.id}')">
+        <td><div class="proj"><span class="proj-ico" style="background:${p.color}">${p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span><div class="proj-meta"><span class="proj-name">${p.name}</span><span class="proj-code"><span class="pc-id">${p.id}</span></span></div></div></td>
+        <td><span class="text-sm">${p.cust}</span></td>
+        <td><span class="status open"><span class="sdot"></span>${p.status}</span></td>
+        <td class="num money">${money(p.contract)}</td><td class="num money sub">${money(p.committed)}</td><td class="num money">${money(p.actual)}</td>
+        <td><span class="winp"><span class="pbar"><i style="width:${apct}%;background:${p.color}"></i></span><span class="winp-val">${apct}%</span></span></td>
+      </tr>`;}).join("")}</tbody>
+  </table></div></div>`;
+}
+window.openProj=(id)=>{ const p=PROJECTS.find(x=>x.id===id); openRecord('record',{id:p.id,label:p.name.slice(0,20),prj:p}); };
+
+function surfProjectDetail(s, payload){
+  const p = payload.prj;
+  const totB=BUDGET_CATS.reduce((a,c)=>a+c.budget,0), totC=BUDGET_CATS.reduce((a,c)=>a+c.committed,0), totA=BUDGET_CATS.reduce((a,c)=>a+c.actual,0);
+  const onhandMargin = ((p.contract-totA)/p.contract*100).toFixed(1);
+  const weightedMargin = ((p.contract-totC)/p.contract*100).toFixed(1);
+  s.innerHTML = `
+  <div class="phead">
+    <div class="phead-top">
+      <span class="phead-ico" style="background:${p.color}">${p.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</span>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="phead-name">${p.name}</span>
+          <span class="status open"><span class="sdot"></span>${p.status}</span>
+        </div>
+        <div class="phead-meta">${p.cust} · <span class="font-mono text-xs">${p.id}</span> · Customer PO <span class="font-mono">${p.po}</span> (${p.poDate})</div>
+      </div>
+    </div>
+    <div class="phead-stats">
+      <div class="ph-stat"><div class="ph-l">Contract value</div><div class="ph-v tnum">${money(p.contract)}</div></div>
+      <div class="ph-stat"><div class="ph-l">Proposed value</div><div class="ph-v tnum">${money(p.proposed)}</div></div>
+      <div class="ph-stat"><div class="ph-l">Committed</div><div class="ph-v tnum">${money(p.committed)}</div></div>
+      <div class="ph-stat"><div class="ph-l">Actual</div><div class="ph-v tnum">${money(p.actual)}</div></div>
+      <div class="ph-stat"><div class="ph-l">On-hand margin</div><div class="ph-v tnum" style="color:hsl(var(--success))">${onhandMargin}%</div></div>
+    </div>
+  </div>
+
+  <div class="ptabs" role="tablist" aria-label="Project sections">
+    <button class="ptab" role="tab" onclick="projTab(this,'overview')">Overview</button>
+    <button class="ptab active" role="tab" aria-selected="true" onclick="projTab(this,'budget')">Budget</button>
+    <button class="ptab" role="tab" onclick="projTab(this,'team')">Team</button>
+    <button class="ptab" role="tab" onclick="projTab(this,'docs')">Documents</button>
+  </div>
+
+  <div id="projTabBody">${budgetTab(p,totB,totC,totA,onhandMargin,weightedMargin)}</div>`;
+}
+window.projTab=(b,k)=>{
+  b.parentElement.querySelectorAll(".ptab").forEach(x=>{x.classList.remove("active");x.setAttribute("aria-selected","false");});
+  b.classList.add("active"); b.setAttribute("aria-selected","true");
+  const body=document.getElementById("projTabBody");
+  if(k==='budget'){ const p=TABS.find(t=>t.id===activeTab).payload.prj; const tb=BUDGET_CATS.reduce((a,c)=>a+c.budget,0),tc=BUDGET_CATS.reduce((a,c)=>a+c.committed,0),ta=BUDGET_CATS.reduce((a,c)=>a+c.actual,0); body.innerHTML=budgetTab(p,tb,tc,ta,((p.contract-ta)/p.contract*100).toFixed(1),((p.contract-tc)/p.contract*100).toFixed(1)); bindTips(); }
+  else if(k==='team'){ body.innerHTML=teamTab(); }
+  else { body.innerHTML=`<div class="card"><div class="empty"><div class="empty-ico">${ICONS.doc}</div><div class="empty-title">No documents yet</div><div class="empty-sub">Drawings, RFIs and transmittals for this project will appear here. Upload a file or link it from a purchase request.</div><button class="btn btn-primary">${ICONS.plus} Upload document</button></div></div>`; }
+};
+function budgetTab(p,totB,totC,totA,onhand,weighted){
+  return `
+  <div class="toolbar standalone">
+    <span class="vpill active">${ICONS.check} v3 · Active</span>
+    <button class="control" onclick="toast('Versions','v3 Active · v4 Draft · v2 Archived')"><span class="cap">Version</span><span class="cval">v3 (Active)</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></button>
+    <span class="vpill draft">v4 · Draft</span>
+    <div class="toolbar-spacer"></div>
+    <button class="btn btn-outline btn-sm" onclick="toast('Compare','v3 → v4 variance')">Compare versions</button>
+    <button class="btn btn-outline btn-sm" onclick="toast('Draft','Editing draft v4')">Edit draft</button>
+  </div>
+
+  <div class="gate ready" style="border-radius:0;border-top:none;border-bottom:none">
+    ${ICONS.check}<div>Only <b>one Active version</b> is authoritative at a time. v3 is Active; v4 is an editable Draft. Activating v4 will archive v3.</div>
+  </div>
+
+  <div class="table-wrap standalone" style="border-radius:0 0 var(--radius) var(--radius)">
+    <div class="table-scroll"><table class="grid">
+      <thead><tr><th>Cost category</th><th class="num">Budgeted</th><th class="num">Committed</th><th class="num">Actual</th><th class="num">Variance</th><th>Utilization</th></tr></thead>
+      <tbody>
+        ${BUDGET_CATS.map(c=>{
+          const v=c.budget-c.actual; const upct=Math.round(c.actual/c.budget*100);
+          return `<tr class="row"><td><span style="display:inline-flex;align-items:center;gap:9px"><span class="cat-dot" style="background:${c.color}"></span><span class="font-medium text-sm">${c.key}</span></span></td>
+            <td class="num money">${money(c.budget)}</td><td class="num money sub">${money(c.committed)}</td><td class="num money">${money(c.actual)}</td>
+            <td class="num money" style="color:${v<0?'hsl(var(--destructive))':'hsl(var(--success))'}">${v<0?'−':''}${money(Math.abs(v))}</td>
+            <td><span class="winp"><span class="pbar"><i style="width:${Math.min(upct,100)}%;background:${upct>100?'hsl(var(--destructive))':c.color}"></i></span><span class="winp-val">${upct}%</span></span></td></tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>
+    <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;border-top:1.5px solid hsl(var(--border));background:hsl(var(--secondary) / .4);font-size:13px;flex-wrap:wrap">
+      <span class="muted">Totals:</span>
+      <span>Budgeted <b class="tnum">${money(totB)}</b></span><span class="muted">·</span>
+      <span>Committed <b class="tnum">${money(totC)}</b></span><span class="muted">·</span>
+      <span>Actual <b class="tnum">${money(totA)}</b></span>
+      <span style="flex:1"></span>
+      <span data-tip-h="Dual-lens margin" data-tip="On-hand = (contract − actual). Weighted = (contract − committed), the more conservative forward view.">On-hand margin <b style="color:hsl(var(--success))">${onhand}%</b> · weighted <b>${weighted}%</b></span>
+    </div>
+  </div>`;
+}
+function teamTab(){
+  return `<div class="card card-pad"><div class="section-head"><span class="section-title">Assigned team</span></div>
+    ${Object.entries(PEOPLE).slice(0,4).map(([n,p],i)=>`
+    <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px dashed hsl(var(--border))">
+      <span class="avatar" style="background:${p.c}">${p.i}</span>
+      <div><div class="font-medium text-sm">${n}</div><div class="text-xs muted">${['Project Manager','Lead Engineer','Cost Controller','Site Supervisor'][i]}</div></div>
+      <span class="sh-spacer" style="flex:1"></span>
+      <span class="text-xs muted tnum">${[92,78,64,88][i]}% utilized</span>
+    </div>`).join("")}</div>`;
+}
+
+/* ---------- 5) TIMESHEETS ---------- */
+const TS_DAYS = [["Mon","2"],["Tue","3"],["Wed","4"],["Thu","5"],["Fri","6"],["Sat","7"],["Sun","8"]];
+const TS_ROWS = [
+  { proj:"Eastfield Logistics Park — Phase 2", code:"PRJ-0142", h:[8,8,7.5,8,6,0,0] },
+  { proj:"Greystone Hospital MEP Upgrade", code:"PRJ-0138", h:[0,0,0.5,0,2,0,0] },
+  { proj:"Internal — Estimating", code:"INT-0004", h:[0,0,0,0,0,0,0] },
+];
+function surfTimesheets(s){
+  s.innerHTML = `
+  <div class="page-head">
+    <div><h1 class="page-title">Timesheets</h1><p class="page-sub">Week of Jun 2 – Jun 8, 2026. Enter hours per project per day, then submit the whole week for your line manager to approve.</p></div>
+    <div class="page-head-actions">
+      <button class="control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg><span class="cval">Week of Jun 2</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="btn btn-primary" onclick="submitTS()">${ICONS.check}<span class="btxt">Submit week</span></button>
+    </div>
+  </div>
+
+  <div class="err-banner" role="status">
+    ${ICONS.alert}
+    <div class="eb-body"><div class="eb-title">Last week was returned for changes</div><div class="eb-sub">Your manager flagged Fri Jun 5 — 14 hours logged exceeds the daily maximum. Correct and resubmit.</div></div>
+    <button class="btn btn-outline btn-sm" onclick="toast('Review','Opening returned week')">Review</button>
+  </div>
+
+  <div class="grid-2">
+    <section class="section card" style="grid-column:1 / -1">
+      <div class="toolbar" style="border-radius:var(--radius) var(--radius) 0 0">
+        <span class="status neutral"><span class="sdot"></span>Draft — not submitted</span>
+        <div class="toolbar-spacer"></div>
+        <button class="control btn-sm" onclick="toast('Add row','Pick a project')">${ICONS.plus} Add project</button>
+      </div>
+      <div class="table-scroll"><table class="tsgrid">
+        <thead><tr><th>Project</th>${TS_DAYS.map((d,i)=>`<th class="${i>4?'weekend':''}">${d[0]}<br><span class="text-xs muted tnum">${d[1]}</span></th>`).join("")}<th>Total</th></tr></thead>
+        <tbody>${TS_ROWS.map(tsRow).join("")}</tbody>
+        <tfoot><tr class="ts-foot"><td>Daily total</td>${TS_DAYS.map((d,i)=>{const sum=TS_ROWS.reduce((a,r)=>a+r.h[i],0);return `<td class="${i>4?'weekend':''} tnum">${sum||'–'}</td>`;}).join("")}<td class="tnum">${TS_ROWS.reduce((a,r)=>a+r.h.reduce((x,y)=>x+y,0),0)}</td></tr></tfoot>
+      </table></div>
+    </section>
+  </div>
+
+  <section class="section card card-pad">
+    <div class="section-head"><span class="section-title">Team approvals queue</span><span class="sh-spacer"></span><span class="status overdue"><span class="sdot"></span>4 awaiting you</span></div>
+    <div class="gate blocked" style="margin-bottom:12px">${ICONS.lock}<div><b>Separation of duties.</b> You cannot approve your own timesheet — only a line manager can approve, and not their own week.</div></div>
+    ${[['Desmond Achebe',38.5,'Submitted'],['Priya Venkatesh',40,'Submitted'],['Tobias Lindqvist',42,'Submitted'],['Camille Rousseau',36,'Submitted']].map(([n,h,st])=>{
+      const per=PEOPLE[n];
+      return `<div style="display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px dashed hsl(var(--border))">
+        <span class="avatar" style="background:${per.c}">${per.i}</span>
+        <div><div class="font-medium text-sm">${n}</div><div class="text-xs muted">Week of Jun 2 · <span class="tnum">${h}</span> h</div></div>
+        <span class="sh-spacer" style="flex:1"></span>
+        <span class="status open" style="margin-right:4px"><span class="sdot"></span>${st}</span>
+        <button class="btn btn-success btn-sm" onclick="toast('Approved','${n}\\'s week approved')">${ICONS.check} Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="toast('Returned','Sent back to ${n}')">Return</button>
+      </div>`;}).join("")}
+  </section>`;
+}
+function tsRow(r){
+  return `<tr>
+    <td><div><div class="font-medium text-sm">${r.proj}</div><div class="text-xs muted font-mono">${r.code}</div></div></td>
+    ${r.h.map((h,i)=>`<td class="${i>4?'weekend':''}"><div class="ts-cell ${h>0?'filled':'empty'}" tabindex="0" role="textbox" aria-label="${r.proj} hours">${h>0?h:'·'}</div></td>`).join("")}
+    <td class="ts-total tnum">${r.h.reduce((a,b)=>a+b,0)}</td>
+  </tr>`;
+}
+window.submitTS=()=>toast("Submitted","Week sent to your line manager for approval","ok");
+
+/* =====================================================
+   COMMAND PALETTE
+   ===================================================== */
+const CMDK_DATA = [
+  {g:"Navigate",rows:[
+    {ico:"grid",t:"Dashboard",s:"Executive overview",act:()=>openModule('dashboard')},
+    {ico:"pipe",t:"Sales Pipeline",s:"Kanban board",act:()=>openModule('pipeline')},
+    {ico:"cart",t:"Procurement",s:"PR lifecycle",act:()=>openModule('procurement')},
+    {ico:"folder",t:"Projects",s:"Delivery portfolio",act:()=>openModule('project')},
+    {ico:"clock",t:"Timesheets",s:"Weekly hours",act:()=>openModule('timesheets')},
+  ]},
+  {g:"Open record",rows:[
+    {ico:"folder",code:"PRJ-0142",t:"Eastfield Logistics Park — Phase 2",s:"Brightwater Realty",act:()=>openProj('PRJ-0142')},
+    {ico:"folder",code:"PRJ-0131",t:"Skyline Bridge Steel Fabrication",s:"Department of Transit",act:()=>openProj('PRJ-0131')},
+    {ico:"cart",code:"PR-2606050001",t:"Structural steel — Eastfield Phase 2",s:"Open as workspace tab",act:()=>openPR('PR-2606050001')},
+    {ico:"cart",code:"PR-2606040007",t:"HVAC chillers — Greystone MEP",s:"Open as workspace tab",act:()=>openPR('PR-2606040007')},
+  ]},
+  {g:"Actions",rows:[
+    {ico:"plus",t:"New purchase request",s:"Start a PR",act:()=>toast('New PR','Opening form')},
+    {ico:"plus",t:"New deal",s:"Add pipeline opportunity",act:()=>toast('New deal','Opening form')},
+    {ico:"refresh",t:"Refresh all data",s:"Re-sync",act:()=>toast('Refreshed','Synced just now','ok')},
+  ]},
+];
+let cmdkFlat=[], cmdkSel=0;
+function openCmdk(){
+  document.getElementById("cmdk-overlay").classList.add("show");
+  const inp=document.getElementById("cmdkInput"); inp.value=""; renderCmdk(""); inp.focus();
+}
+function closeCmdk(){ document.getElementById("cmdk-overlay").classList.remove("show"); }
+function renderCmdk(q){
+  q=q.toLowerCase(); cmdkFlat=[]; cmdkSel=0;
+  const list=document.getElementById("cmdkList"); let html="";
+  CMDK_DATA.forEach(grp=>{
+    const rows=grp.rows.filter(r=>(r.t+(r.s||"")+(r.code||"")).toLowerCase().includes(q));
+    if(!rows.length) return;
+    html+=`<div class="cmdk-group">${grp.g}</div>`;
+    rows.forEach(r=>{ const i=cmdkFlat.length; cmdkFlat.push(r);
+      html+=`<div class="cmdk-row ${i===0?'sel':''}" data-i="${i}">
+        <span class="cr-ico">${ICONS[r.ico]||ICONS.doc}</span>
+        <span class="cr-body"><span class="cr-title">${r.t}</span><span class="cr-sub">${r.s||''}</span></span>
+        ${r.code?`<span class="cr-code">${r.code}</span>`:''}</div>`;
+    });
+  });
+  list.innerHTML = html || `<div class="empty" style="padding:32px"><div class="empty-sub">No matches for “${q}”.</div></div>`;
+  list.querySelectorAll(".cmdk-row").forEach(el=>el.addEventListener("click",()=>runCmdk(+el.dataset.i)));
+}
+function runCmdk(i){ const r=cmdkFlat[i]; if(!r) return; closeCmdk(); r.act(); }
+
+/* =====================================================
+   ROLE SWITCHER
+   ===================================================== */
+const ROLES = ["Executive","Project Manager","Finance","Engineer","Admin"];
+let roleIdx=0;
+document.getElementById("roleBtn").addEventListener("click",()=>{
+  roleIdx=(roleIdx+1)%ROLES.length;
+  document.getElementById("roleVal").textContent=ROLES[roleIdx];
+  document.getElementById("userRoleLine").textContent=({Executive:"Managing Director","Project Manager":"Senior PM",Finance:"Cost Controller",Engineer:"Lead Engineer",Admin:"System Administrator"})[ROLES[roleIdx]];
+  toast("Role switched",`Viewing as ${ROLES[roleIdx]}`,"ok");
+});
+
+/* =====================================================
+   TOOLTIP / TOAST / GLOBAL EVENTS
+   ===================================================== */
+const tip=document.getElementById("tip");
+function bindTips(){
+  document.querySelectorAll("[data-tip]").forEach(el=>{
+    if(el._t) return; el._t=1;
+    const show=()=>{ tip.innerHTML=`<div class="tip-h">${el.dataset.tipH||''}</div><div class="tip-b">${el.dataset.tip}</div>`; const r=el.getBoundingClientRect(); tip.style.left=Math.min(r.left,innerWidth-300)+"px"; tip.style.top=(r.bottom+8)+"px"; tip.classList.add("show"); };
+    const hide=()=>tip.classList.remove("show");
+    el.addEventListener("mouseenter",show); el.addEventListener("mouseleave",hide);
+    el.addEventListener("focus",show); el.addEventListener("blur",hide);
+  });
+}
+function toast(title,body,kind=""){
+  const w=document.getElementById("toast-wrap");
+  const t=document.createElement("div"); t.className="toast "+kind;
+  t.innerHTML=`${kind==='ok'?ICONS.check:kind==='warn'?ICONS.alert:ICONS.inbox}<div><b>${title}</b><div style="color:hsl(var(--muted-foreground));font-size:12.5px">${body}</div></div>`;
+  w.appendChild(t); setTimeout(()=>{t.classList.add("out");setTimeout(()=>t.remove(),200);},3200);
+}
+window.toast=toast;
+
+document.querySelectorAll(".nav-item[data-module]").forEach(n=>{
+  n.addEventListener("click",()=>openModule(n.dataset.module));
+});
+document.getElementById("cmdkBtn").addEventListener("click",openCmdk);
+document.getElementById("cmdkInput").addEventListener("input",e=>renderCmdk(e.target.value));
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); openCmdk(); }
+  if(e.key==="Escape") closeCmdk();
+  if(document.getElementById("cmdk-overlay").classList.contains("show")){
+    const rows=document.querySelectorAll(".cmdk-row");
+    if(e.key==="ArrowDown"){ e.preventDefault(); cmdkSel=Math.min(cmdkSel+1,rows.length-1); }
+    if(e.key==="ArrowUp"){ e.preventDefault(); cmdkSel=Math.max(cmdkSel-1,0); }
+    if(e.key==="Enter"){ e.preventDefault(); runCmdk(cmdkSel); return; }
+    rows.forEach((r,i)=>r.classList.toggle("sel",i===cmdkSel));
+    rows[cmdkSel]?.scrollIntoView({block:"nearest"});
+  }
+});
+document.getElementById("cmdk-overlay").addEventListener("click",e=>{ if(e.target.id==="cmdk-overlay") closeCmdk(); });
+
+/* ---- boot ---- */
+renderTabs();
+selectTab("dashboard");
+</script>
+</body>
+</html>

@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  PROPOSAL · IA-1 — LEFT RAIL + MASTER-DETAIL
+  ============================================================================
+  Product : PMO Portal — SaaS for contract- & project-based organizations
+  Direction: "IA-1 — left rail + master-detail" (one of two SAME-LOOK
+             explorations; the only variable across the pair is INFORMATION
+             ARCHITECTURE, not visual style).
+
+  TOKENS COPIED VERBATIM: the entire :root custom-property block (Token
+  System A, shadcn-vue HSL — --background/--foreground/--card/--primary/
+  --secondary/--muted/--accent/--destructive/--warning/--success/--border/
+  --input/--ring/--radius/--rail-w/--header-h, etc.) AND the type-scale
+  classes (.text-2xl … .muted) were copied character-for-character from
+  /Users/ariefsaid/Coding/RIS-portal-2/docs/design-mockups/
+  sales-pipeline-reference.html. Component patterns (KPI band, toolbar,
+  data table, kanban card, inline detail panel, timeline, tooltip, row menu,
+  toast) reuse the same reference + budget-reference.html classes so the
+  LOOK matches the RIS reference exactly.
+
+  IA RATIONALE (why a persistent left rail + master-detail):
+   • One persistent ~224px rail = a single, stable mental map of the whole
+     product. Operators (PM/Finance) live here all day; the rail never moves,
+     so "where am I / where do I go" is answered once, globally.
+   • Master-detail (list on the left, detail on the right) keeps the working
+     SET in view while you drill a single record — pick a PR and read its
+     lifecycle without losing the queue; pick a deal and read its journey
+     without a full-page jump. Context is never destroyed by navigation.
+   • Split views + inline detail panels mean fewer page loads and a tighter
+     scan→act loop than a top-nav/tabbed-workspace alternative, which trades
+     persistent context for wide horizontal real-estate.
+   • A thin top CONTEXT BAR (breadcrumb + role switcher + search) layers
+     situational context ON TOP of the durable rail, instead of being the
+     primary nav itself — this is the structural tell that distinguishes
+     IA-1 from the top-nav sibling.
+   • Master-detail naturally fits the domain's record-centric surfaces
+     (Procurement PR↔detail, Sales deal↔journey, Timesheet approvals queue↔
+     grid), so the IA mirrors how the work is actually shaped.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — IA-1 · Left rail + master-detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     PMO Portal Design Tokens — shadcn-vue HSL (Token System A)
+     COPIED VERBATIM from RIS sales-pipeline-reference.html :root.
+     ============================================================ */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 22 78% 26%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+
+    /* sidebar rail */
+    --rail-w: 224px;
+    --header-h: 56px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Type scale (COPIED VERBATIM from reference) ---------- */
+  .text-2xl { font-size: 24px; line-height: 1.2; }
+  .text-xl  { font-size: 20px; line-height: 1.25; }
+  .text-lg  { font-size: 18px; line-height: 1.3; }
+  .text-sm  { font-size: 14px; }
+  .text-xs  { font-size: 12px; }
+  .font-bold { font-weight: 700; }
+  .font-semibold { font-weight: 600; }
+  .font-medium { font-weight: 500; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     APP SHELL  (rail + context bar + main) — from reference
+     ========================================================= */
+  .app {
+    display: grid;
+    grid-template-columns: var(--rail-w) 1fr;
+    grid-template-rows: var(--header-h) 1fr;
+    grid-template-areas:
+      "rail header"
+      "rail main";
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* ---------- Sidebar rail ---------- */
+  .rail {
+    grid-area: rail;
+    background: hsl(var(--card));
+    border-right: 1px solid hsl(var(--border));
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .rail-brand {
+    height: var(--header-h);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    border-bottom: 1px solid hsl(var(--border));
+    flex-shrink: 0;
+  }
+  .rail-logo {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .rail-brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .rail-brand-sub { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: -2px; }
+
+  .rail-nav { padding: 10px 10px; overflow-y: auto; flex: 1; min-height: 0; }
+  .rail-group-label {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: hsl(var(--muted-foreground));
+    padding: 14px 8px 6px;
+  }
+  .rail-item {
+    display: flex; align-items: center; gap: 11px;
+    height: 36px; padding: 0 10px;
+    border-radius: calc(var(--radius) - 2px);
+    color: hsl(var(--foreground));
+    font-size: 13.5px; font-weight: 500;
+    cursor: pointer; user-select: none;
+    text-decoration: none;
+    transition: background .12s ease, color .12s ease;
+    width: 100%; border: none; background: transparent; text-align: left;
+    font-family: inherit;
+  }
+  .rail-item:hover { background: hsl(var(--accent)); }
+  .rail-item.active {
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+    font-weight: 600;
+  }
+  .rail-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke-width: 2; }
+  .rail-item .badge-count {
+    margin-left: auto;
+    font-size: 11px; font-weight: 600;
+    background: hsl(var(--secondary));
+    color: hsl(var(--muted-foreground));
+    padding: 1px 7px; border-radius: 999px;
+  }
+  .rail-item.active .badge-count { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+  /* greyed stub nav items */
+  .rail-item.stub { color: hsl(var(--muted-foreground)); opacity: .65; cursor: not-allowed; }
+  .rail-item.stub:hover { background: transparent; }
+  .rail-item.stub .badge-count { background: hsl(var(--secondary) / 0.6); }
+  .rail-item.stub .stub-tag {
+    margin-left: auto; font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: hsl(var(--muted-foreground));
+    background: hsl(var(--secondary)); border: 1px solid hsl(var(--border));
+    padding: 1px 5px; border-radius: 5px;
+  }
+
+  .rail-foot {
+    border-top: 1px solid hsl(var(--border));
+    padding: 10px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Header / top context bar ---------- */
+  .header {
+    grid-area: header;
+    background: hsl(var(--background));
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+  }
+  .breadcrumb { display: flex; align-items: center; gap: 7px; font-size: 13.5px; min-width: 0; }
+  .breadcrumb a, .breadcrumb button {
+    color: hsl(var(--muted-foreground)); text-decoration: none; white-space: nowrap;
+    border: none; background: transparent; font: inherit; cursor: pointer; padding: 0;
+  }
+  .breadcrumb a:hover, .breadcrumb button:hover { color: hsl(var(--foreground)); }
+  .breadcrumb .sep { color: hsl(var(--muted-foreground)); opacity: .5; }
+  .breadcrumb .current { font-weight: 600; color: hsl(var(--foreground)); white-space: nowrap; }
+  .breadcrumb svg { width: 14px; height: 14px; }
+
+  .header-spacer { flex: 1; }
+
+  .cmdk {
+    display: flex; align-items: center; gap: 8px;
+    height: 32px; padding: 0 10px 0 11px;
+    min-width: 230px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    font-size: 13px; cursor: text;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .cmdk:hover { border-color: hsl(var(--muted-foreground) / 0.5); }
+  .cmdk svg { width: 15px; height: 15px; }
+  .cmdk .kbd {
+    margin-left: auto;
+    font-family: inherit; font-size: 11px; font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--border));
+    border-radius: 5px; padding: 1px 6px;
+  }
+
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer; position: relative;
+    transition: background .12s ease, color .12s ease;
+  }
+  .icon-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-btn svg { width: 17px; height: 17px; stroke-width: 2; }
+  .icon-btn .dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 7px; height: 7px; border-radius: 999px;
+    background: hsl(var(--destructive));
+    border: 1.5px solid hsl(var(--background));
+  }
+
+  /* role switcher (top context bar) */
+  .role-switch {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 10px 0 11px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    color: hsl(var(--foreground));
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .role-switch:hover { background: hsl(var(--accent)); }
+  .role-switch svg { width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+  .role-switch .rs-cap { color: hsl(var(--muted-foreground)); font-weight: 400; }
+
+  .user-chip {
+    display: flex; align-items: center; gap: 9px;
+    padding: 3px 6px 3px 3px;
+    border-radius: 999px;
+    cursor: pointer; border: none; background: transparent; font: inherit;
+    transition: background .12s ease;
+  }
+  .user-chip:hover { background: hsl(var(--accent)); }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221 83% 53%), hsl(262 83% 58%));
+    color: #fff; display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .user-chip .uname { font-size: 13px; font-weight: 600; line-height: 1.1; text-align: left; }
+  .user-chip .urole { font-size: 11px; color: hsl(var(--muted-foreground)); line-height: 1.1; text-align: left; }
+
+  /* =========================================================
+     MAIN SCROLL AREA
+     ========================================================= */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: hsl(var(--secondary) / 0.35);
+  }
+  .main-inner { padding: 20px 24px 64px; max-width: 1600px; margin: 0 auto; }
+
+  .page-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .page-head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* surface routing */
+  .surface { display: none; animation: fadeIn .2s ease; }
+  .surface.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease, transform .05s ease;
+    user-select: none; font-family: inherit;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+  .btn-destructive:hover { background: hsl(var(--destructive) / 0.9); }
+  .btn-icon-only { width: 32px; padding: 0; }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+  /* =========================================================
+     KPI BAND — COPIED VERBATIM from reference
+     ========================================================= */
+  .kpi-band {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .kpi-band.six { grid-template-columns: repeat(6, 1fr); }
+  .kpi {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 16px 16px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    min-width: 0;
+    transition: box-shadow .14s ease, border-color .14s ease;
+    position: relative;
+  }
+  .kpi:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }
+  .kpi-top { display: flex; align-items: center; gap: 8px; }
+  .kpi-ico {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .kpi-ico svg { width: 16px; height: 16px; stroke-width: 2; }
+  .kpi-ico.blue   { background: hsl(221 83% 53% / 0.12); color: hsl(221 83% 53%); }
+  .kpi-ico.violet { background: hsl(262 83% 58% / 0.12); color: hsl(262 83% 58%); }
+  .kpi-ico.amber  { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
+  .kpi-ico.red    { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+  .kpi-ico.green  { background: hsl(var(--success) / 0.13); color: hsl(var(--success)); }
+  .kpi-label { font-size: 12.5px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+  .kpi-help {
+    margin-left: auto; width: 15px; height: 15px;
+    color: hsl(var(--muted-foreground)); opacity: .55; cursor: help;
+    display: grid; place-items: center;
+  }
+  .kpi-help:hover { opacity: 1; }
+  .kpi-help svg { width: 14px; height: 14px; }
+  .kpi-val { font-size: 23px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .kpi-val.neg { color: hsl(var(--destructive)); }
+  .kpi-foot { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+  .kpi-delta { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .kpi-delta svg { width: 12px; height: 12px; stroke-width: 2.5; }
+  .kpi-delta.up   { color: hsl(var(--success)); background: hsl(var(--success) / 0.12); }
+  .kpi-delta.down { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.1); }
+  .kpi-delta.neutral { color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); }
+  .kpi-foot .vs { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     ACTION BAR / TOOLBAR — from reference
+     ========================================================= */
+  .toolbar {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none;
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .toolbar.standalone { border-radius: var(--radius); border-bottom: 1px solid hsl(var(--border)); margin-bottom: 14px; }
+
+  .control {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 10px;
+    font-size: 13.5px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, border-color .12s ease;
+    user-select: none; font-family: inherit;
+  }
+  .control:hover { background: hsl(var(--accent)); }
+  .control svg { width: 15px; height: 15px; stroke-width: 2; color: hsl(var(--muted-foreground)); }
+  .control .cval { font-weight: 600; }
+  .control .cap { color: hsl(var(--muted-foreground)); font-weight: 400; }
+  .control .chev { margin-left: 1px; opacity: .7; }
+
+  .seg {
+    display: inline-flex; align-items: center;
+    height: 32px; padding: 2px;
+    background: hsl(var(--secondary));
+    border-radius: var(--radius);
+    gap: 2px;
+  }
+  .seg button {
+    height: 28px; padding: 0 11px;
+    font-size: 13px; font-weight: 500;
+    border: none; background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-radius: calc(var(--radius) - 3px);
+    cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+  }
+  .seg button:hover { color: hsl(var(--foreground)); }
+  .seg button.on {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-weight: 600;
+    box-shadow: 0 1px 2px hsl(240 6% 10% / 0.1);
+  }
+
+  .toolbar-spacer { flex: 1; }
+
+  .search-mini {
+    display: flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 10px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    min-width: 180px;
+  }
+  .search-mini svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .search-mini input {
+    border: none; outline: none; background: transparent;
+    font-size: 13.5px; font-family: inherit; width: 100%;
+    color: hsl(var(--foreground));
+  }
+  .search-mini input::placeholder { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     CARD primitive (panels)
+     ========================================================= */
+  .card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; border-bottom: 1px solid hsl(var(--border));
+  }
+  .card-head h3 { font-size: 14px; font-weight: 600; }
+  .card-head .ch-sub { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .card-head .ch-spacer { flex: 1; }
+  .card-body { padding: 16px; }
+
+  /* =========================================================
+     MASTER–DETAIL SPLIT  (the IA-1 structural signature)
+     ========================================================= */
+  .md-split {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  .md-list {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: sticky; top: 0;
+    max-height: calc(100vh - var(--header-h) - 120px);
+    display: flex; flex-direction: column;
+  }
+  .md-list-head {
+    padding: 11px 13px; border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .md-list-head .mlh-title { font-size: 12px; font-weight: 600; }
+  .md-list-head .mlh-count { font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .md-list-scroll { overflow-y: auto; flex: 1; min-height: 0; }
+
+  .md-row {
+    display: flex; align-items: flex-start; gap: 11px;
+    padding: 12px 13px;
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+    cursor: pointer; width: 100%; text-align: left;
+    border-left: 2.5px solid transparent;
+    background: transparent; font-family: inherit;
+    transition: background .1s ease, border-color .1s ease;
+  }
+  .md-row:hover { background: hsl(var(--accent) / 0.6); }
+  .md-row.selected { background: hsl(var(--primary) / 0.07); border-left-color: hsl(var(--primary)); }
+  .md-row-ico {
+    width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff;
+  }
+  .md-row-body { min-width: 0; flex: 1; }
+  .md-row-title { font-size: 13px; font-weight: 600; line-height: 1.25; }
+  .md-row-meta { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .md-row-meta .pc-id { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; }
+  .md-row-amt { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0; }
+
+  .md-detail { min-width: 0; }
+
+  /* detail header block */
+  .detail-hero {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none;
+    padding: 16px 18px;
+  }
+  .detail-hero.solo { border-radius: var(--radius); border-bottom: 1px solid hsl(var(--border)); }
+  .dh-top { display: flex; align-items: flex-start; gap: 12px; }
+  .dh-ico {
+    width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .dh-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .dh-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .dh-sub .pc-id { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .dh-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .dh-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 16px; border-top: 1px solid hsl(var(--border)); }
+  .dh-stat { padding: 12px 14px 0; border-right: 1px solid hsl(var(--border)); }
+  .dh-stat:last-child { border-right: none; }
+  .dh-stat .ds-label { font-size: 11px; color: hsl(var(--muted-foreground)); margin-bottom: 3px; }
+  .dh-stat .ds-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .dh-stat .ds-val.pos { color: hsl(var(--success)); }
+  .dh-stat .ds-val.neg { color: hsl(var(--destructive)); }
+
+  /* tabs inside detail */
+  .detail-tabs {
+    display: flex; align-items: center; gap: 2px;
+    background: hsl(var(--card));
+    border-left: 1px solid hsl(var(--border));
+    border-right: 1px solid hsl(var(--border));
+    padding: 0 10px;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .detail-tab {
+    height: 38px; padding: 0 12px;
+    border: none; background: transparent; cursor: pointer; font-family: inherit;
+    font-size: 13px; font-weight: 500; color: hsl(var(--muted-foreground));
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .12s ease, border-color .12s ease;
+  }
+  .detail-tab:hover { color: hsl(var(--foreground)); }
+  .detail-tab.on { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); font-weight: 600; }
+
+  .detail-pane {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    padding: 16px 18px 18px;
+  }
+  .detail-tabpane { display: none; }
+  .detail-tabpane.on { display: block; animation: fadeIn .16s ease; }
+
+  /* =========================================================
+     DATA TABLE — from reference
+     ========================================================= */
+  .table-wrap {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.grid thead th {
+    background: hsl(var(--card));
+    height: 38px; text-align: left;
+    font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.03em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    padding: 0 12px;
+    border-bottom: 1px solid hsl(var(--border));
+    white-space: nowrap; user-select: none;
+  }
+  th.num, td.num { text-align: right; }
+  th.center, td.center { text-align: center; }
+  table.grid tbody td {
+    height: 46px; padding: 8px 12px;
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+    vertical-align: middle; white-space: nowrap;
+  }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid tbody tr.row { cursor: pointer; transition: background .1s ease; }
+  table.grid tbody tr.row:hover { background: hsl(var(--accent) / 0.6); }
+  td .money { font-variant-numeric: tabular-nums; font-weight: 500; }
+  td .money.sub { color: hsl(var(--muted-foreground)); font-weight: 400; }
+  .pc-id { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  .table-foot {
+    display: flex; align-items: center; gap: 16px;
+    padding: 11px 14px;
+    border-top: 1.5px solid hsl(var(--border));
+    background: hsl(var(--secondary) / 0.4);
+    font-size: 13px; flex-wrap: wrap;
+  }
+  .table-foot .foot-label { color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .table-foot .foot-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .table-foot .foot-spacer { flex: 1; }
+  .table-foot .foot-count { color: hsl(var(--muted-foreground)); }
+
+  /* =========================================================
+     STATUS / PHASE BADGES — from reference
+     ========================================================= */
+  .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 9px 0 8px;
+    border-radius: 999px; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .status.open    { background: hsl(221 83% 53% / 0.1); color: hsl(221 70% 45%); }
+  .status.open .sdot { background: hsl(221 83% 53%); }
+  .status.won     { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.won .sdot { background: hsl(var(--success)); }
+  .status.lost    { background: hsl(var(--destructive) / 0.1); color: hsl(0 72% 45%); }
+  .status.lost .sdot { background: hsl(var(--destructive)); }
+  .status.overdue, .status.warn { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning-foreground)); }
+  .status.overdue .sdot, .status.warn .sdot { background: hsl(38 92% 50%); }
+  .status.neutral { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+  .status.neutral .sdot { background: hsl(var(--muted-foreground)); }
+  .status.draft { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+  .status.draft .sdot { background: hsl(var(--muted-foreground)); }
+
+  /* win% chip + bar — from reference */
+  .winp { display: inline-flex; align-items: center; gap: 8px; min-width: 110px; }
+  .winp-bar { flex: 1; height: 7px; border-radius: 999px; background: hsl(var(--secondary)); overflow: hidden; }
+  .winp-fill { height: 100%; border-radius: 999px; }
+  .winp-fill.hi  { background: hsl(var(--success)); }
+  .winp-fill.mid { background: hsl(var(--warning)); }
+  .winp-fill.lo  { background: hsl(var(--destructive)); }
+  .winp-val { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; width: 38px; text-align: right; }
+  .winp-val.hi  { color: hsl(142 64% 32%); }
+  .winp-val.mid { color: hsl(var(--warning-foreground)); }
+  .winp-val.lo  { color: hsl(0 72% 45%); }
+
+  /* owner mini chip */
+  .owner-mini { display: inline-flex; align-items: center; gap: 8px; }
+  .owner-av {
+    width: 26px; height: 26px; border-radius: 999px;
+    display: grid; place-items: center; flex-shrink: 0;
+    font-size: 10.5px; font-weight: 700; color: #fff;
+    box-shadow: 0 0 0 1.5px hsl(var(--card)), 0 1px 2px hsl(240 6% 10% / 0.12);
+  }
+  .owner-name { font-size: 13px; font-weight: 500; }
+
+  /* =========================================================
+     DASHBOARD — bento-ish KPI + charts
+     ========================================================= */
+  .dash-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+  .chart-card { display: flex; flex-direction: column; min-height: 0; }
+  /* SVG bar chart */
+  .bvac-chart { width: 100%; height: 230px; }
+  .bvac-legend { display: flex; gap: 16px; padding: 0 16px 14px; font-size: 12px; }
+  .bvac-legend .lg { display: inline-flex; align-items: center; gap: 6px; color: hsl(var(--muted-foreground)); }
+  .bvac-legend .lg .sw { width: 11px; height: 11px; border-radius: 3px; }
+
+  /* donut */
+  .donut-wrap { display: flex; align-items: center; gap: 18px; padding: 6px 4px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+  .dl-item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .dl-item .dl-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .dl-item .dl-name { flex: 1; }
+  .dl-item .dl-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* win-rate dual lens */
+  .winrate-dual { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .wr-cell { padding: 14px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--secondary) / 0.3); }
+  .wr-cell .wr-cap { font-size: 11.5px; color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .wr-cell .wr-big { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .wr-cell .wr-sub { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .wr-track { height: 8px; border-radius: 999px; background: hsl(var(--secondary)); overflow: hidden; margin-top: 11px; }
+  .wr-track i { display: block; height: 100%; border-radius: 999px; background: hsl(var(--success)); }
+
+  /* =========================================================
+     KANBAN — from reference (Sales Pipeline)
+     ========================================================= */
+  .kanban-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(232px, 1fr));
+    gap: 12px; min-width: 0;
+  }
+  .kcol {
+    background: hsl(var(--secondary) / 0.5);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    display: flex; flex-direction: column; min-width: 0;
+  }
+  .kcol-head {
+    padding: 11px 12px 10px;
+    border-bottom: 1px solid hsl(var(--border));
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .kcol-head-top { display: flex; align-items: center; gap: 8px; }
+  .kcol-stagedot { width: 9px; height: 9px; border-radius: 999px; flex-shrink: 0; }
+  .kcol-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+  .kcol-count {
+    margin-left: auto; font-size: 11.5px; font-weight: 700;
+    background: hsl(var(--background)); border: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    min-width: 22px; height: 20px; padding: 0 7px;
+    border-radius: 999px; display: inline-grid; place-items: center;
+  }
+  .kcol-prob { font-size: 10.5px; font-weight: 600; color: hsl(var(--muted-foreground)); margin-top: 6px; display: flex; align-items: center; gap: 5px; }
+  .kcol-prob .kp-pill { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); padding: 1px 6px; border-radius: 999px; font-weight: 700; }
+  .kcol-sub { display: flex; align-items: baseline; gap: 7px; margin-top: 7px; }
+  .kcol-total { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .kcol-weighted { font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .kcol-body { padding: 9px; display: flex; flex-direction: column; gap: 9px; overflow-y: auto; min-height: 60px; }
+
+  .kcard {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 11px 11px 10px;
+    cursor: grab; position: relative;
+    transition: box-shadow .14s ease, border-color .14s ease, transform .05s ease;
+    box-shadow: 0 1px 2px hsl(240 6% 10% / 0.04);
+  }
+  .kcard:hover { box-shadow: 0 4px 14px hsl(240 6% 10% / 0.1); border-color: hsl(var(--muted-foreground) / 0.35); }
+  .kcard:active { cursor: grabbing; transform: scale(.992); }
+  .kcard .kgrip { position: absolute; top: 9px; right: 9px; color: hsl(var(--muted-foreground)); opacity: 0; transition: opacity .12s ease; }
+  .kcard:hover .kgrip { opacity: .55; }
+  .kcard .kgrip svg { width: 14px; height: 14px; }
+  .kcard-top { display: flex; align-items: flex-start; gap: 9px; padding-right: 18px; }
+  .kcard-ico { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: #fff; }
+  .kcard-name { font-size: 12.5px; font-weight: 600; line-height: 1.25; }
+  .kcard-cust { font-size: 11px; color: hsl(var(--muted-foreground)); line-height: 1.2; margin-top: 1px; }
+  .kcard-val { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin: 9px 0 3px; }
+  .kcard-wval { font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .kcard-foot { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid hsl(var(--border) / 0.7); }
+  .kcard-foot .kf-spacer { flex: 1; }
+  .kcard-ref { font-size: 10.5px; color: hsl(var(--muted-foreground)); font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .kcard .owner-av { width: 22px; height: 22px; font-size: 9.5px; }
+  .kcard-date { font-size: 10.5px; color: hsl(var(--muted-foreground)); display: inline-flex; align-items: center; gap: 4px; }
+  .kcard-date svg { width: 11px; height: 11px; }
+
+  /* weighted funnel summary band */
+  .funnel-sum {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0;
+    margin-bottom: 14px;
+  }
+  .fs-stage {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-right: none;
+    padding: 12px 13px; position: relative; min-width: 0;
+  }
+  .fs-stage:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .fs-stage:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-right: 1px solid hsl(var(--border)); }
+  .fs-top { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+  .fs-dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+  .fs-name { font-size: 11.5px; font-weight: 600; }
+  .fs-count { margin-left: auto; font-size: 10.5px; font-weight: 700; color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); padding: 1px 6px; border-radius: 999px; }
+  .fs-val { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .fs-wtd { font-size: 10.5px; color: hsl(var(--muted-foreground)); margin-top: 5px; }
+  .fs-bar { height: 5px; border-radius: 999px; margin-top: 8px; overflow: hidden; background: hsl(var(--secondary)); }
+  .fs-bar i { display: block; height: 100%; border-radius: 999px; }
+
+  /* =========================================================
+     PROCUREMENT LIFECYCLE STEPPER (horizontal, gated)
+     ========================================================= */
+  .stepper {
+    display: flex; align-items: flex-start;
+    padding: 4px 2px 2px; overflow-x: auto;
+  }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; min-width: 78px; position: relative; }
+  .step-connector { position: absolute; top: 14px; left: 50%; width: 100%; height: 2px; background: hsl(var(--border)); z-index: 0; }
+  .step:last-child .step-connector { display: none; }
+  .step.done .step-connector { background: hsl(var(--success)); }
+  .step-dot {
+    width: 28px; height: 28px; border-radius: 999px; z-index: 1;
+    display: grid; place-items: center; flex-shrink: 0;
+    background: hsl(var(--background)); border: 2px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 700;
+  }
+  .step-dot svg { width: 14px; height: 14px; stroke-width: 2.5; }
+  .step.done .step-dot { background: hsl(var(--success)); border-color: hsl(var(--success)); color: #fff; }
+  .step.current .step-dot { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: #fff; box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15); }
+  .step.skipped .step-dot { background: hsl(var(--secondary)); border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); border-style: dashed; }
+  .step-label { font-size: 11px; font-weight: 600; text-align: center; line-height: 1.2; }
+  .step-meta { font-size: 10px; color: hsl(var(--muted-foreground)); text-align: center; }
+  .step.done .step-label, .step.current .step-label { color: hsl(var(--foreground)); }
+  .step:not(.done):not(.current) .step-label { color: hsl(var(--muted-foreground)); }
+
+  /* gate / separation-of-duties banner */
+  .gate {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 14px; border-radius: var(--radius);
+    background: hsl(var(--warning) / 0.1); border: 1px solid hsl(var(--warning) / 0.35);
+    font-size: 13px; margin: 14px 0;
+  }
+  .gate.ready { background: hsl(var(--primary) / 0.07); border-color: hsl(var(--primary) / 0.3); }
+  .gate.blocked { background: hsl(var(--destructive) / 0.07); border-color: hsl(var(--destructive) / 0.3); }
+  .gate svg { width: 17px; height: 17px; flex-shrink: 0; }
+  .gate.ready svg { color: hsl(var(--primary)); }
+  .gate.blocked svg { color: hsl(var(--destructive)); }
+  .gate svg.warnico { color: hsl(var(--warning-foreground)); }
+  .gate .gate-body { flex: 1; }
+  .gate .gate-body b { font-weight: 700; }
+  .gate .gate-body .gate-sub { color: hsl(var(--muted-foreground)); font-size: 11.5px; margin-top: 1px; }
+
+  /* line items table mini */
+  .li-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .li-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: hsl(var(--muted-foreground)); padding: 6px 10px; border-bottom: 1px solid hsl(var(--border)); }
+  .li-table td { padding: 9px 10px; border-bottom: 1px solid hsl(var(--border) / 0.7); }
+  .li-table td.num, .li-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .li-table tfoot td { font-weight: 700; border-top: 1.5px solid hsl(var(--border)); border-bottom: none; }
+
+  /* doc-ref chips */
+  .docref {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 10px; border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    background: hsl(var(--background)); font-size: 12px;
+  }
+  .docref .dr-type { color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .docref .dr-id { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 600; }
+  .docref svg { width: 13px; height: 13px; color: hsl(var(--success)); }
+
+  /* =========================================================
+     BUDGET — versioned + categories
+     ========================================================= */
+  .version-bar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+  .vchip {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 30px; padding: 0 11px; border-radius: var(--radius);
+    border: 1px solid hsl(var(--input)); background: hsl(var(--background));
+    font-size: 12.5px; cursor: pointer; font-family: inherit; color: hsl(var(--foreground));
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .vchip:hover { background: hsl(var(--accent)); }
+  .vchip.active { border-color: hsl(var(--primary)); background: hsl(var(--primary) / 0.06); color: hsl(var(--primary)); font-weight: 600; }
+  .vchip .v-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+  .vchip .v-badge.active-b { background: hsl(var(--success) / 0.15); color: hsl(142 64% 30%); }
+  .vchip .v-badge.draft-b { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+
+  .bud-bar-cell { display: inline-flex; align-items: center; gap: 9px; min-width: 150px; }
+  .bud-bar { flex: 1; height: 7px; border-radius: 999px; background: hsl(var(--secondary)); overflow: hidden; position: relative; }
+  .bud-bar i { display: block; height: 100%; border-radius: 999px; background: hsl(var(--primary)); }
+  .bud-bar i.over { background: hsl(var(--destructive)); }
+  .bud-bar i.warn { background: hsl(var(--warning)); }
+  .bud-pct { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; width: 42px; text-align: right; }
+  .cat-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; display: inline-block; margin-right: 8px; vertical-align: middle; }
+
+  /* =========================================================
+     TIMESHEETS — weekly grid + approvals queue (master-detail)
+     ========================================================= */
+  .ts-grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ts-grid th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: hsl(var(--muted-foreground)); padding: 8px 10px; border-bottom: 1px solid hsl(var(--border)); text-align: center; }
+  .ts-grid th.proj-col { text-align: left; min-width: 200px; }
+  .ts-grid td { padding: 7px 8px; border-bottom: 1px solid hsl(var(--border) / 0.7); text-align: center; }
+  .ts-grid td.proj-col { text-align: left; }
+  .ts-cell {
+    width: 46px; height: 32px; text-align: center; font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px; font-weight: 500; border: 1px solid hsl(var(--input)); border-radius: 6px;
+    background: hsl(var(--background)); color: hsl(var(--foreground)); font-variant-numeric: tabular-nums;
+  }
+  .ts-cell:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .ts-cell.weekend { background: hsl(var(--secondary) / 0.5); }
+  .ts-cell.filled { border-color: hsl(var(--primary) / 0.4); background: hsl(var(--primary) / 0.05); }
+  .ts-cell[readonly] { background: hsl(var(--secondary) / 0.4); cursor: default; }
+  .ts-proj { display: flex; align-items: center; gap: 9px; }
+  .ts-proj-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .ts-proj-name { font-weight: 500; }
+  .ts-proj-code { font-size: 11px; color: hsl(var(--muted-foreground)); font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .ts-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ts-grid tfoot td { font-weight: 700; border-top: 1.5px solid hsl(var(--border)); padding-top: 10px; font-variant-numeric: tabular-nums; }
+  .ts-day-total { color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 400; }
+
+  /* =========================================================
+     EMPTY / LOADING / ERROR STATES
+     ========================================================= */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 48px 24px; gap: 6px;
+  }
+  .empty-ico {
+    width: 52px; height: 52px; border-radius: 13px;
+    background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+    display: grid; place-items: center; margin-bottom: 6px;
+  }
+  .empty-ico svg { width: 24px; height: 24px; }
+  .empty-state h4 { font-size: 14.5px; font-weight: 600; }
+  .empty-state p { font-size: 12.5px; color: hsl(var(--muted-foreground)); max-width: 320px; }
+  .empty-state .btn { margin-top: 10px; }
+
+  .error-state .empty-ico { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+
+  /* skeleton */
+  .sk { background: hsl(var(--secondary)); border-radius: 6px; position: relative; overflow: hidden; }
+  .sk::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.55), transparent);
+    transform: translateX(-100%); animation: shimmer 1.3s infinite;
+  }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+  .sk-row { display: flex; align-items: center; gap: 11px; padding: 12px 13px; border-bottom: 1px solid hsl(var(--border) / 0.7); }
+  @media (prefers-reduced-motion: reduce) { .sk::after { animation: none; } * { animation-duration: .001ms !important; } }
+
+  /* =========================================================
+     TOOLTIP — from reference
+     ========================================================= */
+  #tip {
+    position: fixed; z-index: 900; max-width: 280px;
+    background: hsl(240 10% 8%); color: hsl(0 0% 98%);
+    border: 1px solid hsl(240 6% 22%); border-radius: 7px;
+    padding: 8px 11px; font-size: 12.5px; line-height: 1.45;
+    box-shadow: 0 8px 24px hsl(240 10% 4% / 0.4);
+    pointer-events: none; opacity: 0; transform: translateY(3px);
+    transition: opacity .12s ease, transform .12s ease; white-space: normal;
+  }
+  #tip.show { opacity: 1; transform: translateY(0); }
+  #tip .tip-h { font-weight: 700; margin-bottom: 3px; }
+  #tip .tip-b { color: hsl(0 0% 80%); }
+
+  /* =========================================================
+     ROW MENU + TOAST — from reference
+     ========================================================= */
+  #rowmenu {
+    position: fixed; z-index: 910; min-width: 190px;
+    background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08);
+    padding: 5px; display: none; animation: menuPop .12s ease;
+  }
+  #rowmenu.show { display: block; }
+  @keyframes menuPop { from { opacity: 0; transform: scale(.97) translateY(-3px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .menu-item {
+    display: flex; align-items: center; gap: 10px;
+    height: 32px; padding: 0 9px;
+    font-size: 13.5px; border-radius: calc(var(--radius) - 3px);
+    cursor: pointer; color: hsl(var(--foreground)); border: none; background: transparent; width: 100%; font-family: inherit;
+  }
+  .menu-item:hover { background: hsl(var(--accent)); }
+  .menu-item svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); stroke-width: 2; }
+  .menu-item.danger { color: hsl(var(--destructive)); }
+  .menu-item.danger svg { color: hsl(var(--destructive)); }
+  .menu-sep { height: 1px; background: hsl(var(--border)); margin: 4px 0; }
+
+  #toast-wrap { position: fixed; bottom: 22px; right: 22px; z-index: 920; display: flex; flex-direction: column; gap: 9px; }
+  .toast {
+    display: flex; align-items: center; gap: 10px;
+    background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-left: 3px solid hsl(var(--primary)); border-radius: var(--radius);
+    box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16);
+    padding: 11px 14px; font-size: 13.5px; min-width: 230px; max-width: 340px;
+    animation: toastIn .2s ease;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  .toast.out { animation: toastOut .2s ease forwards; }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+  .toast svg { width: 17px; height: 17px; flex-shrink: 0; color: hsl(var(--primary)); }
+  .toast.ok { border-left-color: hsl(var(--success)); }
+  .toast.ok svg { color: hsl(var(--success)); }
+  .toast b { font-weight: 600; }
+
+  .section-gap { height: 18px; }
+
+  /* =========================================================
+     RESPONSIVE — rail collapses on tablet/mobile
+     ========================================================= */
+  .mobile-only { display: none; }
+
+  @media (max-width: 1180px) {
+    .kpi-band, .kpi-band.six { grid-template-columns: repeat(3, 1fr); }
+    .dash-grid { grid-template-columns: 1fr; }
+    .kanban { grid-template-columns: repeat(6, 232px); }
+    .funnel-sum { grid-template-columns: repeat(3, 1fr); }
+    .fs-stage { border: 1px solid hsl(var(--border)) !important; border-radius: var(--radius) !important; }
+  }
+
+  @media (max-width: 920px) {
+    :root { --rail-w: 0px; }
+    .app { grid-template-columns: 0 1fr; }
+    .rail { display: none; }
+    .mobile-only { display: inline-flex; }
+    .main-inner { padding: 14px 12px 60px; }
+    .kpi-band, .kpi-band.six { grid-template-columns: repeat(2, 1fr); }
+    .cmdk { min-width: 0; width: 36px; padding: 0; justify-content: center; }
+    .cmdk .ctxt, .cmdk .kbd { display: none; }
+    .user-chip .uname, .user-chip .urole { display: none; }
+    .role-switch .rs-cap, .role-switch .rs-name { display: none; }
+    /* master-detail stacks; list above detail */
+    .md-split { grid-template-columns: 1fr; }
+    .md-list { position: relative; max-height: 320px; }
+    .dh-stats { grid-template-columns: repeat(2, 1fr); }
+    .dh-stat:nth-child(2) { border-right: none; }
+    .winrate-dual { grid-template-columns: 1fr; }
+    .page-head-actions .btn .btxt { display: none; }
+    .ts-grid { font-size: 12px; }
+  }
+
+  @media (max-width: 560px) {
+    .kpi-band, .kpi-band.six { grid-template-columns: 1fr; }
+    .funnel-sum { grid-template-columns: 1fr 1fr; }
+    .kanban { grid-template-columns: repeat(6, 84vw); }
+  }
+
+  /* scrollbar polish — from reference */
+  .main::-webkit-scrollbar, .table-scroll::-webkit-scrollbar, .rail-nav::-webkit-scrollbar, .kanban-scroll::-webkit-scrollbar, .kcol-body::-webkit-scrollbar, .md-list-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
+  .main::-webkit-scrollbar-thumb, .table-scroll::-webkit-scrollbar-thumb, .kanban-scroll::-webkit-scrollbar-thumb, .md-list-scroll::-webkit-scrollbar-thumb { background: hsl(240 5% 80%); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+  .main::-webkit-scrollbar-thumb:hover, .table-scroll::-webkit-scrollbar-thumb:hover { background: hsl(240 5% 68%); background-clip: content-box; }
+
+  /* COPIED VERBATIM: focus ring */
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR RAIL (persistent primary nav) ============ -->
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-brand">
+      <div class="rail-logo">P</div>
+      <div>
+        <div class="rail-brand-name">PMO Portal</div>
+        <div class="rail-brand-sub">Meridian Contracting Group</div>
+      </div>
+    </div>
+    <nav class="rail-nav" aria-label="Sections">
+      <div class="rail-group-label">Overview</div>
+      <button class="rail-item active" data-surface="dashboard" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9h18M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Projects
+        <span class="stub-tag">Soon</span>
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Approvals
+        <span class="stub-tag">Soon</span>
+      </button>
+
+      <div class="rail-group-label">Sales</div>
+      <button class="rail-item" data-surface="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
+        Sales Pipeline
+        <span class="badge-count">18</span>
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
+        Companies
+        <span class="stub-tag">Soon</span>
+      </button>
+
+      <div class="rail-group-label">Delivery</div>
+      <button class="rail-item" data-surface="procurement">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Procurement
+        <span class="badge-count">9</span>
+      </button>
+      <button class="rail-item" data-surface="project">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        Project &amp; Budget
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11H3v10h6zM21 3h-6v18h6zM15 7H9v14h6z"/></svg>
+        Tasks
+        <span class="stub-tag">Soon</span>
+      </button>
+
+      <div class="rail-group-label">Workforce</div>
+      <button class="rail-item" data-surface="timesheets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Timesheets
+        <span class="badge-count">4</span>
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+        Reports
+        <span class="stub-tag">Soon</span>
+      </button>
+      <button class="rail-item stub" aria-disabled="true" title="Stub — not in this prototype scope">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>
+        Administration
+        <span class="stub-tag">Soon</span>
+      </button>
+    </nav>
+    <div class="rail-foot">
+      <button class="rail-item" onclick="toast('Settings','Workspace settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ TOP CONTEXT BAR ============ -->
+  <header class="header">
+    <button class="icon-btn mobile-only" aria-label="Open navigation" onclick="toast('Navigation','Rail menu (mobile)')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <button onclick="go('dashboard')">PMO Portal</button>
+      <svg class="sep" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></svg>
+      <span class="current" id="crumb">Dashboard</span>
+    </nav>
+    <div class="header-spacer"></div>
+    <div class="cmdk" role="button" tabindex="0" onclick="toast('Search','Command palette')" onkeydown="if(event.key==='Enter')toast('Search','Command palette')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span class="ctxt">Search projects, PRs, deals…</span>
+      <span class="kbd">⌘K</span>
+    </div>
+    <!-- role switcher -->
+    <button class="role-switch" id="roleSwitch" onclick="cycleRole()" aria-label="Switch role">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="rs-cap">View as</span><span class="rs-name" id="roleName">Executive</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <button class="icon-btn" aria-label="Notifications: 4 items need attention" onclick="toast('Notifications','4 approvals waiting on you')">
+      <span class="dot"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="user-chip" onclick="toast('Account','Renata Halverson — signed in')" aria-label="Account menu">
+      <span class="avatar">RH</span>
+      <span>
+        <span class="uname">Renata Halverson</span>
+        <span class="urole" id="userRole">Executive</span>
+      </span>
+    </button>
+  </header>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- ====================================================
+           SURFACE 1 — DASHBOARD (executive)
+           ==================================================== -->
+      <section class="surface active" id="surface-dashboard" aria-label="Executive dashboard">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Executive Dashboard</h1>
+            <p class="page-sub">Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="control" onclick="toast('Period','Time-frame filter')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <span class="cap">Win-rate window</span><span class="cval" id="wrWindow">Trailing 12 mo</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <button class="btn btn-outline" onclick="toast('Export','Generating board pack…')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+              <span class="btxt">Board pack</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI band (6) -->
+        <section class="kpi-band six" aria-label="Portfolio KPIs">
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+              <span class="kpi-label">On-hand margin</span>
+              <span class="kpi-help" data-tip-h="On-hand actual margin" data-tip="Realized margin on active and closed-out contracts: contract value booked minus actual cost to date. 14 ongoing projects.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">$8.74M</div>
+            <div class="kpi-foot"><span class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>5.6%</span><span class="vs">18.3% blended</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg></div>
+              <span class="kpi-label">Pipeline (weighted)</span>
+              <span class="kpi-help" data-tip-h="Weighted pipeline value" data-tip="Gross open opportunity value multiplied by each stage's win probability. Gross book is $61.2M across 18 deals.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">$19.6M</div>
+            <div class="kpi-foot"><span class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>8.1%</span><span class="vs">proj. margin $3.4M</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></div>
+              <span class="kpi-label">Win rate (count)</span>
+              <span class="kpi-help" data-tip-h="Win rate — by count" data-tip="Share of closed tenders won, counting deals equally. 23 won of 41 closed in the trailing 12 months.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">56.1%</div>
+            <div class="kpi-foot"><span class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>3.2pt</span><span class="vs">23 of 41 closed</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 8v8M12 4v12M8 12v4M4 18h16"/></svg></div>
+              <span class="kpi-label">Win rate (value)</span>
+              <span class="kpi-help" data-tip-h="Win rate — by value" data-tip="Share of closed tender VALUE won. $34.8M won of $52.5M closed in the trailing 12 months — fewer-but-bigger wins lift the value basis above the count basis.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">66.3%</div>
+            <div class="kpi-foot"><span class="kpi-delta up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>4.8pt</span><span class="vs">$34.8M of $52.5M</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></div>
+              <span class="kpi-label">Active projects</span>
+              <span class="kpi-help" data-tip-h="Active projects" data-tip="Projects currently in delivery (Ongoing + Close-out). 2 are flagged amber on schedule or budget variance.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">14</div>
+            <div class="kpi-foot"><span class="kpi-delta neutral">+2</span><span class="vs">12 on track · 2 at risk</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top">
+              <div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+              <span class="kpi-label">Committed spend</span>
+              <span class="kpi-help" data-tip-h="Committed spend" data-tip="Value of issued purchase orders not yet invoiced. Locks future cost against active budgets — watch against budget-vs-actual headroom.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
+            </div>
+            <div class="kpi-val">$6.12M</div>
+            <div class="kpi-foot"><span class="kpi-delta down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7l10 10M17 17V8M17 17H8"/></svg>2.1%</span><span class="vs">across 9 open POs</span></div>
+          </div>
+        </section>
+
+        <!-- charts row -->
+        <div class="dash-grid">
+          <!-- budget vs actual -->
+          <div class="card chart-card">
+            <div class="card-head">
+              <h3>Budget vs Actual</h3>
+              <span class="ch-sub">— active projects, $K</span>
+              <span class="ch-spacer"></span>
+              <button class="control btn-sm" onclick="toast('Drill-down','Open project breakdown')" style="height:28px">By project</button>
+            </div>
+            <div class="bvac-legend" aria-hidden="true">
+              <span class="lg"><span class="sw" style="background:hsl(var(--primary))"></span>Budget</span>
+              <span class="lg"><span class="sw" style="background:hsl(var(--success))"></span>Actual (under)</span>
+              <span class="lg"><span class="sw" style="background:hsl(var(--destructive))"></span>Actual (over)</span>
+            </div>
+            <svg class="bvac-chart" viewBox="0 0 560 230" role="img" aria-label="Grouped bar chart comparing budgeted versus actual cost for six active projects; Harbourpoint Terminal is over budget.">
+              <!-- gridlines -->
+              <g stroke="hsl(var(--border))" stroke-width="1">
+                <line x1="40" y1="20" x2="560" y2="20"/><line x1="40" y1="70" x2="560" y2="70"/>
+                <line x1="40" y1="120" x2="560" y2="120"/><line x1="40" y1="170" x2="560" y2="170"/>
+                <line x1="40" y1="200" x2="560" y2="200"/>
+              </g>
+              <g fill="hsl(var(--muted-foreground))" font-size="9" text-anchor="end" font-family="JetBrains Mono, monospace">
+                <text x="35" y="24">3.2M</text><text x="35" y="74">2.4M</text><text x="35" y="124">1.6M</text><text x="35" y="174">0.8M</text>
+              </g>
+              <!-- groups: budget (primary) + actual (success/destructive) -->
+              <g>
+                <rect x="60"  y="92"  width="18" height="108" rx="2" fill="hsl(var(--primary))"/>
+                <rect x="80"  y="108" width="18" height="92"  rx="2" fill="hsl(var(--success))"/>
+                <rect x="146" y="64"  width="18" height="136" rx="2" fill="hsl(var(--primary))"/>
+                <rect x="166" y="48"  width="18" height="152" rx="2" fill="hsl(var(--destructive))"/>
+                <rect x="232" y="118" width="18" height="82"  rx="2" fill="hsl(var(--primary))"/>
+                <rect x="252" y="130" width="18" height="70"  rx="2" fill="hsl(var(--success))"/>
+                <rect x="318" y="100" width="18" height="100" rx="2" fill="hsl(var(--primary))"/>
+                <rect x="338" y="112" width="18" height="88"  rx="2" fill="hsl(var(--success))"/>
+                <rect x="404" y="78"  width="18" height="122" rx="2" fill="hsl(var(--primary))"/>
+                <rect x="424" y="86"  width="18" height="114" rx="2" fill="hsl(var(--success))"/>
+                <rect x="490" y="132" width="18" height="68"  rx="2" fill="hsl(var(--primary))"/>
+                <rect x="510" y="138" width="18" height="62"  rx="2" fill="hsl(var(--success))"/>
+              </g>
+              <g fill="hsl(var(--muted-foreground))" font-size="9" text-anchor="middle">
+                <text x="79"  y="214">Westgate</text><text x="165" y="214">Harbour</text>
+                <text x="251" y="214">Cedar Ln</text><text x="337" y="214">Module 7</text>
+                <text x="423" y="214">Atrium</text><text x="509" y="214">Riverside</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- committed spend by category donut -->
+          <div class="card chart-card">
+            <div class="card-head"><h3>Committed spend by category</h3><span class="ch-spacer"></span><span class="ch-sub">$6.12M</span></div>
+            <div class="card-body">
+              <div class="donut-wrap">
+                <svg width="132" height="132" viewBox="0 0 42 42" role="img" aria-label="Donut chart: committed spend split — Subcontractors 38%, Materials 27%, Equipment 18%, Labor 11%, Other 6%.">
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(var(--secondary))" stroke-width="6"/>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(var(--primary))" stroke-width="6" stroke-dasharray="38 62" stroke-dashoffset="25"/>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(262 83% 58%)" stroke-width="6" stroke-dasharray="27 73" stroke-dashoffset="-13"/>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(var(--warning))" stroke-width="6" stroke-dasharray="18 82" stroke-dashoffset="-40"/>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(var(--success))" stroke-width="6" stroke-dasharray="11 89" stroke-dashoffset="-58"/>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="6" stroke-dasharray="6 94" stroke-dashoffset="-69"/>
+                  <text x="21" y="20" text-anchor="middle" font-size="6" font-weight="700" fill="hsl(var(--foreground))">$6.1M</text>
+                  <text x="21" y="26" text-anchor="middle" font-size="3" fill="hsl(var(--muted-foreground))">committed</text>
+                </svg>
+                <div class="donut-legend">
+                  <div class="dl-item"><span class="dl-dot" style="background:hsl(var(--primary))"></span><span class="dl-name">Subcontractors</span><span class="dl-val">38%</span></div>
+                  <div class="dl-item"><span class="dl-dot" style="background:hsl(262 83% 58%)"></span><span class="dl-name">Materials</span><span class="dl-val">27%</span></div>
+                  <div class="dl-item"><span class="dl-dot" style="background:hsl(var(--warning))"></span><span class="dl-name">Equipment</span><span class="dl-val">18%</span></div>
+                  <div class="dl-item"><span class="dl-dot" style="background:hsl(var(--success))"></span><span class="dl-name">Labor</span><span class="dl-val">11%</span></div>
+                  <div class="dl-item"><span class="dl-dot" style="background:hsl(var(--muted-foreground))"></span><span class="dl-name">Permits &amp; other</span><span class="dl-val">6%</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-gap"></div>
+
+        <!-- win-rate dual lens -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Win rate — dual lens</h3>
+            <span class="ch-sub">trailing 12 months</span>
+            <span class="ch-spacer"></span>
+            <div class="seg" role="group" aria-label="Win-rate time frame">
+              <button onclick="setWrWindow(this,'Trailing 90 days')">90d</button>
+              <button class="on" onclick="setWrWindow(this,'Trailing 12 mo')">12mo</button>
+              <button onclick="setWrWindow(this,'Fiscal YTD')">YTD</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="winrate-dual">
+              <div class="wr-cell">
+                <div class="wr-cap">By count — every tender weighted equally</div>
+                <div class="wr-big">56.1%</div>
+                <div class="wr-sub">23 won of 41 closed tenders</div>
+                <div class="wr-track" aria-hidden="true"><i style="width:56.1%"></i></div>
+              </div>
+              <div class="wr-cell">
+                <div class="wr-cap">By value — weighted by contract size</div>
+                <div class="wr-big">66.3%</div>
+                <div class="wr-sub">$34.8M won of $52.5M closed</div>
+                <div class="wr-track" aria-hidden="true"><i style="width:66.3%"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SURFACE 2 — SALES PIPELINE (kanban + funnel)  *strongest*
+           ==================================================== -->
+      <section class="surface" id="surface-pipeline" aria-label="Sales pipeline">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Sales Pipeline</h1>
+            <p class="page-sub">Leads → Pre-Qualification → Quotation → Tender → Negotiation → Won. Weighted forecast across 18 open opportunities.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="btn btn-outline" onclick="toast('Refreshed','Pipeline re-synced')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+              <span class="btxt">Refresh</span>
+            </button>
+            <button class="btn btn-primary" onclick="toast('New opportunity','Opening opportunity form…')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+              <span class="btxt">New opportunity</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- weighted funnel summary -->
+        <div class="funnel-sum" aria-label="Weighted funnel summary">
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(var(--muted-foreground))"></span><span class="fs-name">Leads</span><span class="fs-count">4</span></div><div class="fs-val">$12.4M</div><div class="fs-wtd">10% · wtd $1.24M</div><div class="fs-bar"><i style="width:20%;background:hsl(var(--muted-foreground))"></i></div></div>
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(221 83% 53%)"></span><span class="fs-name">Pre-Qual</span><span class="fs-count">3</span></div><div class="fs-val">$9.8M</div><div class="fs-wtd">25% · wtd $2.45M</div><div class="fs-bar"><i style="width:33%;background:hsl(221 83% 53%)"></i></div></div>
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(262 83% 58%)"></span><span class="fs-name">Quotation</span><span class="fs-count">4</span></div><div class="fs-val">$15.1M</div><div class="fs-wtd">40% · wtd $6.04M</div><div class="fs-bar"><i style="width:55%;background:hsl(262 83% 58%)"></i></div></div>
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(var(--warning))"></span><span class="fs-name">Tender</span><span class="fs-count">3</span></div><div class="fs-val">$11.6M</div><div class="fs-wtd">50% · wtd $5.80M</div><div class="fs-bar"><i style="width:62%;background:hsl(var(--warning))"></i></div></div>
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(var(--success))"></span><span class="fs-name">Negotiation</span><span class="fs-count">2</span></div><div class="fs-val">$8.5M</div><div class="fs-wtd">75% · wtd $6.38M</div><div class="fs-bar"><i style="width:80%;background:hsl(var(--success))"></i></div></div>
+          <div class="fs-stage"><div class="fs-top"><span class="fs-dot" style="background:hsl(142 64% 30%)"></span><span class="fs-name">Won (qtr)</span><span class="fs-count">2</span></div><div class="fs-val">$3.8M</div><div class="fs-wtd">closed · booked</div><div class="fs-bar"><i style="width:100%;background:hsl(142 64% 30%)"></i></div></div>
+        </div>
+
+        <!-- toolbar -->
+        <div class="toolbar standalone">
+          <button class="control" onclick="toast('Owner','Filter by deal owner')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="cap">Owner</span><span class="cval">All</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button class="control" onclick="toast('Sort','Sort cards in each column')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"/></svg>
+            <span class="cap">Sort</span><span class="cval">Value ↓</span>
+          </button>
+          <div class="toolbar-spacer"></div>
+          <div class="search-mini">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" placeholder="Filter cards…" aria-label="Filter pipeline cards" oninput="filterKanban(this.value)" />
+          </div>
+          <button class="control" onclick="toast('Export','Exporting pipeline.xlsx…')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            <span class="cval">Export</span>
+          </button>
+        </div>
+
+        <!-- KANBAN -->
+        <div class="kanban-scroll">
+          <div class="kanban" id="kanban"><!-- columns injected by JS --></div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SURFACE 3 — PROCUREMENT LIFECYCLE (master-detail)
+           ==================================================== -->
+      <section class="surface" id="surface-procurement" aria-label="Procurement lifecycle">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Procurement</h1>
+            <p class="page-sub">Purchase Request → Vendor Quote → Purchase Order → Goods Receipt → Vendor Invoice → Paid. Separation-of-duties gates enforced.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="btn btn-primary" onclick="toast('New PR','Opening purchase request…')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+              <span class="btxt">New request</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="md-split">
+          <!-- MASTER: PR list -->
+          <div class="md-list">
+            <div class="md-list-head">
+              <span class="mlh-title">Purchase requests</span>
+              <span class="mlh-count" id="procCount">9 open</span>
+              <span class="ch-spacer" style="flex:1"></span>
+              <button class="icon-btn" style="width:26px;height:26px" aria-label="Filter requests" onclick="toast('Filter','Filter purchase requests')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg>
+              </button>
+            </div>
+            <div class="md-list-scroll" id="procList" role="listbox" aria-label="Purchase requests"><!-- rows injected --></div>
+          </div>
+
+          <!-- DETAIL: lifecycle + line items -->
+          <div class="md-detail" id="procDetail"><!-- injected --></div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SURFACE 4 — PROJECT + BUDGET DETAIL (master-detail + tabs)
+           ==================================================== -->
+      <section class="surface" id="surface-project" aria-label="Project and budget detail">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Projects &amp; Budget</h1>
+            <p class="page-sub">Pick a project to inspect its contract header, versioned budget, and committed-vs-actual margin.</p>
+          </div>
+        </div>
+
+        <div class="md-split">
+          <!-- MASTER: project list -->
+          <div class="md-list">
+            <div class="md-list-head">
+              <span class="mlh-title">Active projects</span>
+              <span class="mlh-count">14</span>
+            </div>
+            <div class="md-list-scroll" id="projList" role="listbox" aria-label="Projects"><!-- rows injected --></div>
+          </div>
+
+          <!-- DETAIL: header + tabs -->
+          <div class="md-detail" id="projDetail"><!-- injected --></div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SURFACE 5 — TIMESHEETS (approvals queue + weekly grid)
+           ==================================================== -->
+      <section class="surface" id="surface-timesheets" aria-label="Timesheets">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Timesheets</h1>
+            <p class="page-sub">Weekly hours by project. Submit for line-manager approval — you cannot approve your own sheet.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="control" onclick="toast('Week','Week picker')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <span class="cap">Week of</span><span class="cval">Jun 2 – Jun 8</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="md-split">
+          <!-- MASTER: approvals queue -->
+          <div class="md-list">
+            <div class="md-list-head">
+              <span class="mlh-title">Approvals queue</span>
+              <span class="mlh-count" id="tsCount">4 awaiting</span>
+            </div>
+            <div class="md-list-scroll" id="tsList" role="listbox" aria-label="Timesheets awaiting action"><!-- rows injected --></div>
+          </div>
+
+          <!-- DETAIL: weekly grid -->
+          <div class="md-detail" id="tsDetail"><!-- injected --></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- floating primitives -->
+<div id="tip" role="tooltip"></div>
+<div id="rowmenu" role="menu" aria-label="Row actions">
+  <button class="menu-item" onclick="menuAct('Open detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Open detail</button>
+  <button class="menu-item" onclick="menuAct('Advance stage')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Advance stage</button>
+  <button class="menu-item" onclick="menuAct('Log activity')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Log activity</button>
+  <div class="menu-sep"></div>
+  <button class="menu-item danger" onclick="menuAct('Mark lost')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> Mark lost</button>
+</div>
+<div id="toast-wrap" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   PMO Portal — IA-1 demo wiring (vanilla, zero-dep).
+   Realistic contracting / EPC / fabrication / services data.
+   USD; figures are illustrative but internally consistent.
+   ============================================================ */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const usd = n => "$" + (Math.abs(n) >= 1e6 ? (n/1e6).toFixed(2)+"M" : Math.abs(n) >= 1e3 ? (n/1e3).toFixed(0)+"K" : n.toLocaleString("en-US"));
+const usdFull = n => "$" + n.toLocaleString("en-US");
+
+/* ---------- toast ---------- */
+function toast(title, body, ok=false){
+  const w = $("#toast-wrap");
+  const t = document.createElement("div");
+  t.className = "toast" + (ok ? " ok" : "");
+  t.innerHTML = (ok
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>')
+    + '<div><b>'+title+'</b><div class="muted text-xs">'+body+'</div></div>';
+  w.appendChild(t);
+  setTimeout(()=>{ t.classList.add("out"); setTimeout(()=>t.remove(),200); }, 2800);
+}
+
+/* ---------- tooltip ---------- */
+const tip = $("#tip");
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest("[data-tip]");
+  if (!el) return;
+  tip.innerHTML = '<div class="tip-h">'+(el.dataset.tipH||"")+'</div><div class="tip-b">'+el.dataset.tip+'</div>';
+  tip.classList.add("show");
+  const r = el.getBoundingClientRect();
+  let x = r.left + r.width/2 - 140, y = r.bottom + 9;
+  x = Math.max(10, Math.min(x, innerWidth - 290));
+  if (y + 120 > innerHeight) y = r.top - 9 - tip.offsetHeight;
+  tip.style.left = x+"px"; tip.style.top = y+"px";
+});
+document.addEventListener("mouseout", e => { if (e.target.closest("[data-tip]")) tip.classList.remove("show"); });
+
+/* ---------- row menu ---------- */
+const rowmenu = $("#rowmenu");
+function openRowMenu(ev){
+  ev.stopPropagation();
+  rowmenu.classList.add("show");
+  let x = ev.clientX, y = ev.clientY;
+  x = Math.min(x, innerWidth - 200); y = Math.min(y, innerHeight - 200);
+  rowmenu.style.left = x+"px"; rowmenu.style.top = y+"px";
+}
+function menuAct(a){ rowmenu.classList.remove("show"); toast(a, "Demo action — no backend wired", true); }
+document.addEventListener("click", e => { if (!e.target.closest("#rowmenu")) rowmenu.classList.remove("show"); });
+
+/* ============================================================
+   ROUTING — rail switches surfaces (master-detail surfaces)
+   ============================================================ */
+const CRUMBS = { dashboard:"Dashboard", pipeline:"Sales Pipeline", procurement:"Procurement", project:"Projects & Budget", timesheets:"Timesheets" };
+function go(surface){
+  $$(".surface").forEach(s => s.classList.toggle("active", s.id === "surface-"+surface));
+  $$(".rail-item[data-surface]").forEach(b => {
+    const on = b.dataset.surface === surface;
+    b.classList.toggle("active", on);
+    if (on) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+  });
+  $("#crumb").textContent = CRUMBS[surface] || "Dashboard";
+  $(".main").scrollTop = 0;
+}
+$$(".rail-item[data-surface]").forEach(b => b.addEventListener("click", () => go(b.dataset.surface)));
+$$(".rail-item.stub").forEach(b => b.addEventListener("click", () => toast("Coming soon", b.textContent.trim().replace(/Soon$/,'').trim()+" is stubbed in this prototype")));
+
+/* ---------- role switcher (top context bar) ---------- */
+const ROLES = ["Executive","Project Manager","Finance","Engineer","Admin"];
+let roleIdx = 0;
+function cycleRole(){
+  roleIdx = (roleIdx + 1) % ROLES.length;
+  $("#roleName").textContent = ROLES[roleIdx];
+  $("#userRole").textContent = ROLES[roleIdx];
+  toast("Role switched", "Viewing as "+ROLES[roleIdx], true);
+}
+function setWrWindow(btn, label){
+  $$(".winrate-dual").length;
+  btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  $("#wrWindow").textContent = label;
+  toast("Win-rate window", label, true);
+}
+
+/* ============================================================
+   SALES PIPELINE — kanban (the strongest screen)
+   ============================================================ */
+const STAGES = [
+  { key:"leads",  name:"Leads",            prob:10, color:"hsl(var(--muted-foreground))" },
+  { key:"pq",     name:"Pre-Qualification",prob:25, color:"hsl(221 83% 53%)" },
+  { key:"quote",  name:"Quotation",        prob:40, color:"hsl(262 83% 58%)" },
+  { key:"tender", name:"Tender",           prob:50, color:"hsl(var(--warning))" },
+  { key:"nego",   name:"Negotiation",      prob:75, color:"hsl(var(--success))" },
+  { key:"won",    name:"Won / Lost",       prob:100,color:"hsl(142 64% 30%)" },
+];
+const DEALS = [
+  { stage:"leads",  cust:"Brightwater Municipal Authority", name:"Coastal pump-station refurbishment", val:3_400_000, ref:"RFI-2026-0418", decision:"2026-08-20", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"leads",  cust:"Granitewerks Aggregates",         name:"Conveyor gallery steel package",     val:2_900_000, ref:"LEAD-26-0392", decision:"2026-09-04", owner:"TQ", oc:"hsl(262 83% 58%)" },
+  { stage:"leads",  cust:"Northvale Logistics Park",        name:"Cross-dock canopy fabrication",      val:3_650_000, ref:"LEAD-26-0401", decision:"2026-09-18", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"leads",  cust:"Aldermoor Estates",               name:"Site enabling works",                val:2_450_000, ref:"LEAD-26-0410", decision:"2026-10-01", owner:"PS", oc:"hsl(var(--warning))" },
+  { stage:"pq",     cust:"Harbourpoint Energy",             name:"Jetty topside modules — Phase 2",    val:4_200_000, ref:"PQ-2026-0066", decision:"2026-07-30", owner:"TQ", oc:"hsl(262 83% 58%)" },
+  { stage:"pq",     cust:"Cedar Lane Health Trust",         name:"Plant-room mechanical fit-out",      val:2_800_000, ref:"PQ-2026-0071", decision:"2026-08-12", owner:"PS", oc:"hsl(var(--warning))" },
+  { stage:"pq",     cust:"Vantage Data Campus",             name:"Chilled-water distribution loop",    val:2_800_000, ref:"PQ-2026-0074", decision:"2026-08-25", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"quote",  cust:"Westgate Transit Agency",         name:"Depot maintenance shed — design-build",val:5_100_000, ref:"QTN-2026-0188", decision:"2026-07-15", owner:"TQ", oc:"hsl(262 83% 58%)" },
+  { stage:"quote",  cust:"Pinemark Cold Storage",           name:"Insulated panel cladding scope",     val:3_300_000, ref:"QTN-2026-0190", decision:"2026-07-22", owner:"PS", oc:"hsl(var(--warning))" },
+  { stage:"quote",  cust:"Riverside Civic Centre",          name:"Atrium structural glazing frame",    val:3_900_000, ref:"QTN-2026-0193", decision:"2026-08-02", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"quote",  cust:"Solgrid Renewables",              name:"Substation foundation civils",       val:2_800_000, ref:"QTN-2026-0195", decision:"2026-08-09", owner:"TQ", oc:"hsl(262 83% 58%)" },
+  { stage:"tender", cust:"Meridian Port Authority",         name:"Container yard hardstand extension", val:4_600_000, ref:"TND-2026-0042", decision:"2026-07-10", owner:"PS", oc:"hsl(var(--warning))" },
+  { stage:"tender", cust:"Foundry & Ironworks Ltd",         name:"Furnace hall structural upgrade",    val:3_700_000, ref:"TND-2026-0045", decision:"2026-07-18", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"tender", cust:"Ashfield Water Utilities",        name:"Reservoir membrane re-line",         val:3_300_000, ref:"TND-2026-0048", decision:"2026-07-26", owner:"TQ", oc:"hsl(262 83% 58%)" },
+  { stage:"nego",   cust:"Harbourpoint Energy",             name:"Module 7 — assembly & hook-up",      val:4_700_000, ref:"NEG-2026-0019", decision:"2026-06-28", owner:"PS", oc:"hsl(var(--warning))" },
+  { stage:"nego",   cust:"Kestrel Pharmaceuticals",         name:"Cleanroom shell & core",             val:3_800_000, ref:"NEG-2026-0021", decision:"2026-07-04", owner:"DM", oc:"hsl(221 83% 53%)" },
+  { stage:"won",    cust:"Westgate Transit Agency",         name:"Bus depot canopy — won",             val:1_900_000, ref:"PO-2026-0231",  decision:"2026-06-01", owner:"TQ", oc:"hsl(262 83% 58%)", won:true },
+  { stage:"won",    cust:"Cedar Lane Health Trust",         name:"Ward HVAC replacement — won",        val:1_900_000, ref:"PO-2026-0236",  decision:"2026-05-29", owner:"PS", oc:"hsl(var(--warning))", won:true },
+];
+function renderKanban(){
+  const k = $("#kanban"); k.innerHTML = "";
+  STAGES.forEach(st => {
+    const cards = DEALS.filter(d => d.stage === st.key);
+    const gross = cards.reduce((s,d)=>s+d.val,0);
+    const wtd = gross * st.prob/100;
+    const col = document.createElement("div");
+    col.className = "kcol";
+    col.innerHTML =
+      '<div class="kcol-head">'
+      + '<div class="kcol-head-top"><span class="kcol-stagedot" style="background:'+st.color+'"></span>'
+      + '<span class="kcol-title">'+st.name+'</span><span class="kcol-count">'+cards.length+'</span></div>'
+      + (st.key!=="won" ? '<div class="kcol-prob">Win probability <span class="kp-pill">'+st.prob+'%</span></div>' : '<div class="kcol-prob">Closed this quarter</div>')
+      + '<div class="kcol-sub"><span class="kcol-total">'+usd(gross)+'</span>'
+      + (st.key!=="won" ? '<span class="kcol-weighted" data-tip-h="Weighted value" data-tip="Gross '+usd(gross)+' × '+st.prob+'% stage probability.">wtd '+usd(wtd)+'</span>' : '<span class="kcol-weighted">booked</span>')
+      + '</div></div>'
+      + '<div class="kcol-body"></div>';
+    const body = col.querySelector(".kcol-body");
+    if (!cards.length){
+      body.innerHTML = '<div class="muted text-xs" style="padding:14px 4px;text-align:center">No deals in this stage</div>';
+    }
+    cards.forEach(d => {
+      const card = document.createElement("article");
+      card.className = "kcard"; card.tabIndex = 0;
+      card.setAttribute("aria-label", d.name+" — "+d.cust+" — "+usdFull(d.val));
+      card.dataset.search = (d.cust+" "+d.name).toLowerCase();
+      const dec = new Date(d.decision).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+      card.innerHTML =
+        '<span class="kgrip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>'
+        + '<div class="kcard-top"><span class="kcard-ico" style="background:'+d.oc+'">'+d.cust.slice(0,2).toUpperCase()+'</span>'
+        + '<div style="min-width:0"><div class="kcard-name">'+d.name+'</div><div class="kcard-cust">'+d.cust+'</div></div></div>'
+        + '<div class="kcard-val">'+usd(d.val)+'</div>'
+        + (d.won ? '<div class="kcard-wval"><span class="status won" style="height:19px;font-size:11px"><span class="sdot"></span>Won — booked</span></div>'
+                 : '<div class="kcard-wval">weighted '+usd(d.val*st.prob/100)+' · '+st.prob+'%</div>')
+        + '<div class="kcard-foot"><span class="kcard-ref">'+d.ref+'</span><span class="kf-spacer"></span>'
+        + '<span class="kcard-date" data-tip-h="Decision date" data-tip="Customer / contract decision expected '+new Date(d.decision).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})+'."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'+dec+'</span>'
+        + '<span class="owner-av" style="background:'+d.oc+'" title="Owner">'+d.owner+'</span></div>';
+      card.addEventListener("click", () => toast(d.name, d.cust+" · "+usdFull(d.val), true));
+      body.appendChild(card);
+    });
+    k.appendChild(col);
+  });
+}
+function filterKanban(q){
+  q = q.trim().toLowerCase();
+  $$("#kanban .kcard").forEach(c => c.style.display = (!q || c.dataset.search.includes(q)) ? "" : "none");
+}
+
+/* ============================================================
+   PROCUREMENT — master list + lifecycle detail
+   PR→VQ→PO→GR→VI→Paid ; auto refs PREFIX-YYMMDD####
+   ============================================================ */
+const LIFECYCLE = [
+  { key:"PR",   label:"Purchase Request", short:"PR" },
+  { key:"VQ",   label:"Vendor Quote",     short:"VQ" },
+  { key:"PO",   label:"Purchase Order",   short:"PO" },
+  { key:"GR",   label:"Goods Receipt",    short:"GR" },
+  { key:"VI",   label:"Vendor Invoice",   short:"VI" },
+  { key:"Paid", label:"Paid",             short:"$" },
+];
+const PRS = [
+  { id:"PR-2606050007", title:"Structural steel — Module 7 hook-up", project:"Harbourpoint Module 7", vendor:"Foundry & Ironworks Ltd", stage:3, val:842_500, oc:"hsl(var(--warning))", requester:"Marcus Adeyemi",
+    items:[ {n:"S355 universal beams, 457×191", q:42, r:9_850}, {n:"Gusset plates, laser-cut 20mm", q:120, r:185}, {n:"HSFG bolt assemblies M24", q:640, r:34} ],
+    refs:[ {t:"PR", id:"PR-2606050007", on:true}, {t:"VQ", id:"VQ-2606080014", on:true}, {t:"PO", id:"PO-2606100022", on:true}, {t:"GR", id:"GR-2606180009", on:false} ],
+    gate:"ready" },
+  { id:"PR-2606040003", title:"Chilled-water pumps & VSDs", project:"Vantage Data Campus", vendor:"Solgrid Mechanical", stage:2, val:516_200, oc:"hsl(221 83% 53%)", requester:"Priya Sundaram",
+    items:[ {n:"End-suction pump, 75kW", q:4, r:88_400}, {n:"Variable-speed drive, 90kW", q:4, r:24_600}, {n:"Inertia bases, fabricated", q:4, r:6_750} ],
+    refs:[ {t:"PR", id:"PR-2606040003", on:true}, {t:"VQ", id:"VQ-2606070011", on:true}, {t:"PO", id:"PO-2606110025", on:false} ],
+    gate:"warn" },
+  { id:"PR-2606050011", title:"Insulated cladding panels", project:"Pinemark Cold Storage", vendor:"Northvale Panels", stage:1, val:389_900, oc:"hsl(262 83% 58%)", requester:"Daniela Moreau",
+    items:[ {n:"PIR panel, 150mm, foodgrade", q:1850, r:148}, {n:"Flashings & trims, prefinished", q:1, r:42_400}, {n:"Fixings & sealant kit", q:1, r:18_900} ],
+    refs:[ {t:"PR", id:"PR-2606050011", on:true}, {t:"VQ", id:"VQ-2606090018", on:true} ],
+    gate:"warn" },
+  { id:"PR-2606030002", title:"Site welfare & cabins (hire)", project:"Westgate Depot", vendor:"Aldermoor Hire", stage:5, val:74_300, oc:"hsl(var(--success))", requester:"Tomas Quirke",
+    items:[ {n:"Welfare unit, 16-person (12wk)", q:2, r:21_600}, {n:"Drying room cabin (12wk)", q:1, r:14_900}, {n:"Generator 60kVA (12wk)", q:1, r:16_200} ],
+    refs:[ {t:"PR", id:"PR-2606030002", on:true}, {t:"VQ", id:"VQ-2606040005", on:true}, {t:"PO", id:"PO-2606050008", on:true}, {t:"GR", id:"GR-2606070003", on:true}, {t:"VI", id:"VI-2606200017", on:true}, {t:"Paid", id:"PE-2606280004", on:true} ],
+    gate:"done" },
+  { id:"PR-2606050015", title:"Membrane re-line consumables", project:"Ashfield Reservoir", vendor:"—", stage:0, val:128_700, oc:"hsl(var(--muted-foreground))", requester:"Priya Sundaram",
+    items:[ {n:"HDPE liner, 2mm textured", q:4200, r:18.5}, {n:"Extrusion weld rod", q:80, r:46}, {n:"Geotextile underlay 400gsm", q:4200, r:6.2} ],
+    refs:[ {t:"PR", id:"PR-2606050015", on:true} ],
+    gate:"submitted" },
+];
+const PROC_STAGE_NAMES = ["Requested","Quoted","Ordered","Received","Invoiced","Paid"];
+let curPR = 0;
+function renderProcList(){
+  const l = $("#procList"); l.innerHTML = "";
+  PRS.forEach((p,i) => {
+    const total = p.items.reduce((s,it)=>s+it.q*it.r,0);
+    const b = document.createElement("button");
+    b.className = "md-row" + (i===curPR ? " selected" : "");
+    b.setAttribute("role","option"); b.setAttribute("aria-selected", i===curPR);
+    b.innerHTML =
+      '<span class="md-row-ico" style="background:'+p.oc+'">'+LIFECYCLE[p.stage].short+'</span>'
+      + '<span class="md-row-body"><span class="md-row-title">'+p.title+'</span>'
+      + '<span class="md-row-meta"><span class="pc-id">'+p.id+'</span> · '+p.project+'</span>'
+      + '<span class="md-row-meta">'+stageBadge(p)+'</span></span>'
+      + '<span class="md-row-amt">'+usd(total)+'</span>';
+    b.addEventListener("click", () => { curPR = i; renderProcList(); renderProcDetail(); });
+    l.appendChild(b);
+  });
+  $("#procCount").textContent = PRS.length + " open";
+}
+function stageBadge(p){
+  if (p.gate==="done") return '<span class="status won"><span class="sdot"></span>Paid · closed</span>';
+  if (p.gate==="submitted") return '<span class="status draft"><span class="sdot"></span>Awaiting approval</span>';
+  if (p.gate==="warn") return '<span class="status warn"><span class="sdot"></span>'+PROC_STAGE_NAMES[p.stage]+' · gate</span>';
+  return '<span class="status open"><span class="sdot"></span>'+PROC_STAGE_NAMES[p.stage]+'</span>';
+}
+function renderProcDetail(){
+  const p = PRS[curPR];
+  const total = p.items.reduce((s,it)=>s+it.q*it.r,0);
+  const d = $("#procDetail");
+  // stepper
+  let steps = LIFECYCLE.map((s,idx) => {
+    let cls = idx < p.stage ? "done" : idx === p.stage ? "current" : "";
+    // GR is skippable for the hire example (services) — show skipped marker on PR-...0002 at GR if relevant
+    let inner = idx < p.stage
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>'
+      : (idx+1);
+    return '<div class="step '+cls+'"><div class="step-connector"></div><div class="step-dot">'+inner+'</div>'
+      + '<div class="step-label">'+s.label+'</div><div class="step-meta">'+s.short+'</div></div>';
+  }).join("");
+
+  // gate banner — separation of duties
+  let gate;
+  if (p.gate==="done") gate = '<div class="gate ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg><div class="gate-body"><b>Lifecycle complete.</b><div class="gate-sub">Payment entry PE-2606280004 cleared. All separation-of-duties gates satisfied.</div></div></div>';
+  else if (p.gate==="warn") gate = '<div class="gate"><svg class="warnico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><div class="gate-body"><b>Approval gate — separation of duties.</b><div class="gate-sub">'+p.requester+' raised this request and cannot approve their own PO. Routed to the budget owner for the '+PROC_STAGE_NAMES[p.stage]+' transition.</div></div><button class="btn btn-primary btn-sm" onclick="toast(\'Routed\',\'Sent to budget owner for approval\',true)">Request approval</button></div>';
+  else if (p.gate==="submitted") gate = '<div class="gate blocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><div class="gate-body"><b>Vendor quotes not yet attached.</b><div class="gate-sub">At least one supplier quotation must be linked before this request can advance to Purchase Order.</div></div><button class="btn btn-outline btn-sm" onclick="toast(\'Quote\',\'Attach vendor quotation\',true)">Attach quote</button></div>';
+  else gate = '<div class="gate ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M13 6l6 6-6 6"/></svg><div class="gate-body"><b>Ready to advance.</b><div class="gate-sub">Goods receipt can be recorded once delivery is confirmed on site.</div></div><button class="btn btn-primary btn-sm" onclick="toast(\'Advanced\',\'Recorded goods receipt\',true)">Record receipt</button></div>';
+
+  // line items
+  let rows = p.items.map(it => '<tr><td>'+it.n+'</td><td class="num">'+it.q.toLocaleString("en-US")+'</td><td class="num">'+usdFull(it.r)+'</td><td class="num">'+usdFull(it.q*it.r)+'</td></tr>').join("");
+  // refs / doc chain
+  let chips = p.refs.map(r => '<span class="docref">'+(r.on?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>':'')+'<span class="dr-type">'+r.t+'</span><span class="dr-id">'+r.id+'</span></span>').join("");
+
+  d.innerHTML =
+    '<div class="detail-hero solo">'
+    + '<div class="dh-top"><span class="dh-ico" style="background:'+p.oc+'">'+LIFECYCLE[p.stage].short+'</span>'
+    + '<div style="min-width:0"><div class="dh-title">'+p.title+'</div>'
+    + '<div class="dh-sub"><span class="pc-id">'+p.id+'</span><span>·</span><span>'+p.project+'</span><span>·</span><span>Vendor: '+p.vendor+'</span></div></div>'
+    + '<div class="dh-actions"><button class="btn btn-outline btn-sm" onclick="toast(\'History\',\'Audit trail\',true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg> History</button>'
+    + '<button class="btn btn-outline btn-sm btn-icon-only" aria-label="More actions" onclick="openRowMenu(event)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button></div></div>'
+    + '<div class="dh-stats"><div class="dh-stat"><div class="ds-label">PR total</div><div class="ds-val">'+usd(total)+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Stage</div><div class="ds-val" style="font-size:14px">'+PROC_STAGE_NAMES[p.stage]+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Requested by</div><div class="ds-val" style="font-size:14px">'+p.requester+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Line items</div><div class="ds-val">'+p.items.length+'</div></div></div></div>'
+    // body card
+    + '<div class="card" style="border-radius:0 0 var(--radius) var(--radius);border-top:none;padding:18px">'
+    + '<div class="card-head" style="padding:0 0 12px;border:none"><h3>Lifecycle</h3><span class="ch-spacer"></span><span class="ch-sub">gated transitions · skippable steps shown dashed</span></div>'
+    + '<div class="stepper">'+steps+'</div>'
+    + gate
+    + '<div class="card-head" style="padding:6px 0 10px;border:none"><h3>Line items</h3></div>'
+    + '<table class="li-table"><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead><tbody>'+rows
+    + '</tbody><tfoot><tr><td colspan="3">Total</td><td class="num">'+usdFull(total)+'</td></tr></tfoot></table>'
+    + '<div class="card-head" style="padding:16px 0 10px;border:none"><h3>Linked documents</h3><span class="ch-spacer"></span><span class="ch-sub">auto refs · PREFIX-YYMMDD####</span></div>'
+    + '<div style="display:flex;gap:9px;flex-wrap:wrap">'+chips+'</div>'
+    + '</div>';
+  $$("#procList .md-row").forEach((r,i)=>{ r.classList.toggle("selected", i===curPR); r.setAttribute("aria-selected", i===curPR); });
+}
+
+/* ============================================================
+   PROJECTS + BUDGET — master list + header/tabs detail
+   ============================================================ */
+const BUDGET_CATS = [
+  { name:"Labor",         color:"hsl(221 83% 53%)" },
+  { name:"Materials",     color:"hsl(262 83% 58%)" },
+  { name:"Subcontractors",color:"hsl(var(--warning))" },
+  { name:"Equipment",     color:"hsl(var(--success))" },
+  { name:"Permits & Fees",color:"hsl(0 72% 55%)" },
+  { name:"Overheads",     color:"hsl(190 70% 45%)" },
+  { name:"Contingency",   color:"hsl(var(--muted-foreground))" },
+];
+const PROJECTS = [
+  { id:"PRJ-0142", name:"Harbourpoint Module 7", client:"Harbourpoint Energy", status:"Ongoing", contract:7_350_000, proposed:7_120_000, poRef:"CPO-HP-2451", poDate:"2026-02-11", oc:"hsl(var(--warning))",
+    budget:[ {b:1_180_000,a:1_242_000}, {b:1_650_000,a:1_588_000}, {b:2_100_000,a:1_980_000}, {b:620_000,a:540_000}, {b:140_000,a:122_000}, {b:410_000,a:398_000}, {b:300_000,a:60_000} ] },
+  { id:"PRJ-0138", name:"Westgate Depot — design-build", client:"Westgate Transit Agency", status:"Ongoing", contract:5_100_000, proposed:4_980_000, poRef:"CPO-WT-1180", poDate:"2026-01-22", oc:"hsl(262 83% 58%)",
+    budget:[ {b:920_000,a:710_000}, {b:1_240_000,a:980_000}, {b:1_380_000,a:1_120_000}, {b:480_000,a:360_000}, {b:90_000,a:88_000}, {b:300_000,a:240_000}, {b:210_000,a:0} ] },
+  { id:"PRJ-0151", name:"Vantage chilled-water loop", client:"Vantage Data Campus", status:"Ongoing", contract:3_240_000, proposed:3_180_000, poRef:"CPO-VD-3092", poDate:"2026-03-04", oc:"hsl(221 83% 53%)",
+    budget:[ {b:540_000,a:300_000}, {b:880_000,a:516_000}, {b:740_000,a:410_000}, {b:360_000,a:180_000}, {b:60_000,a:48_000}, {b:180_000,a:120_000}, {b:130_000,a:0} ] },
+  { id:"PRJ-0129", name:"Cedar Lane plant-room fit-out", client:"Cedar Lane Health Trust", status:"Close Out", contract:2_810_000, proposed:2_760_000, poRef:"CPO-CL-0904", poDate:"2025-11-18", oc:"hsl(var(--success))",
+    budget:[ {b:480_000,a:471_000}, {b:720_000,a:715_000}, {b:640_000,a:651_000}, {b:280_000,a:268_000}, {b:50_000,a:50_000}, {b:160_000,a:158_000}, {b:90_000,a:12_000} ] },
+];
+let curProj = 0, projTab = "budget", budgetVer = "v3";
+function renderProjList(){
+  const l = $("#projList"); l.innerHTML = "";
+  PROJECTS.forEach((p,i) => {
+    const spent = p.budget.reduce((s,c)=>s+c.a,0);
+    const b = document.createElement("button");
+    b.className = "md-row" + (i===curProj ? " selected" : "");
+    b.setAttribute("role","option"); b.setAttribute("aria-selected", i===curProj);
+    const stCls = p.status==="Close Out" ? "won" : "open";
+    b.innerHTML =
+      '<span class="md-row-ico" style="background:'+p.oc+'">'+p.name.slice(0,2).toUpperCase()+'</span>'
+      + '<span class="md-row-body"><span class="md-row-title">'+p.name+'</span>'
+      + '<span class="md-row-meta"><span class="pc-id">'+p.id+'</span> · '+p.client+'</span>'
+      + '<span class="md-row-meta"><span class="status '+stCls+'"><span class="sdot"></span>'+p.status+'</span></span></span>'
+      + '<span class="md-row-amt">'+usd(p.contract)+'</span>';
+    b.addEventListener("click", () => { curProj=i; renderProjList(); renderProjDetail(); });
+    l.appendChild(b);
+  });
+}
+function renderProjDetail(){
+  const p = PROJECTS[curProj];
+  const totB = p.budget.reduce((s,c)=>s+c.b,0);
+  const totA = p.budget.reduce((s,c)=>s+c.a,0);
+  const committed = Math.round(totB*0.18);
+  const marginContract = p.contract - totB;
+  const marginWtd = Math.round(marginContract*0.92); // dual-lens weighted view
+  const d = $("#projDetail");
+
+  // budget rows
+  let rows = p.budget.map((c,idx) => {
+    const cat = BUDGET_CATS[idx];
+    const pct = c.b ? Math.round(c.a/c.b*100) : 0;
+    const over = c.a > c.b;
+    const cls = over ? "over" : pct > 90 ? "warn" : "";
+    return '<tr><td><span class="cat-dot" style="background:'+cat.color+'"></span>'+cat.name+'</td>'
+      + '<td class="num">'+usdFull(c.b)+'</td>'
+      + '<td class="num"><span class="money'+(over?' ':'')+'" '+(over?'style="color:hsl(var(--destructive))"':'')+'>'+usdFull(c.a)+'</span></td>'
+      + '<td><span class="bud-bar-cell"><span class="bud-bar"><i class="'+cls+'" style="width:'+Math.min(pct,100)+'%"></i></span>'
+      + '<span class="bud-pct"'+(over?' style="color:hsl(var(--destructive))"':'')+'>'+pct+'%</span></span></td></tr>';
+  }).join("");
+
+  const tabBtn = (k,label) => '<button class="detail-tab'+(projTab===k?' on':'')+'" onclick="setProjTab(\''+k+'\')">'+label+'</button>';
+
+  let pane;
+  if (projTab==="budget"){
+    pane =
+      '<div class="version-bar">'
+      + '<span class="text-xs muted font-medium" style="margin-right:4px">Budget version</span>'
+      + '<button class="vchip" onclick="setVer(this,\'v1\')">v1 <span class="v-badge draft-b">Archived</span></button>'
+      + '<button class="vchip" onclick="setVer(this,\'v2\')">v2 <span class="v-badge draft-b">Archived</span></button>'
+      + '<button class="vchip active" onclick="setVer(this,\'v3\')">v3 <span class="v-badge active-b">Active</span></button>'
+      + '<button class="vchip" onclick="setVer(this,\'draft\')">v4 <span class="v-badge draft-b">Draft</span></button>'
+      + '<span style="flex:1"></span>'
+      + '<span class="text-xs muted">Only the <b style="color:hsl(var(--foreground))">Active</b> version is authoritative for margin.</span>'
+      + '</div>'
+      + '<table class="li-table"><thead><tr><th>Cost category</th><th class="num">Budgeted</th><th class="num">Actual</th><th>Consumed</th></tr></thead><tbody>'+rows
+      + '</tbody><tfoot><tr><td>Total (7 categories)</td><td class="num">'+usdFull(totB)+'</td><td class="num">'+usdFull(totA)+'</td><td><span class="bud-bar-cell"><span class="bud-bar"><i style="width:'+Math.round(totA/totB*100)+'%"></i></span><span class="bud-pct">'+Math.round(totA/totB*100)+'%</span></span></td></tr></tfoot></table>';
+  } else if (projTab==="overview"){
+    pane = '<div class="winrate-dual">'
+      + '<div class="wr-cell"><div class="wr-cap">Budget vs actual</div><div class="wr-big">'+Math.round(totA/totB*100)+'%</div><div class="wr-sub">'+usd(totA)+' of '+usd(totB)+' consumed</div><div class="wr-track"><i style="width:'+Math.min(Math.round(totA/totB*100),100)+'%;background:hsl(var(--primary))"></i></div></div>'
+      + '<div class="wr-cell"><div class="wr-cap">Committed spend (open POs)</div><div class="wr-big">'+usd(committed)+'</div><div class="wr-sub">locked against active budget</div><div class="wr-track"><i style="width:'+Math.round(committed/totB*100)+'%;background:hsl(var(--warning))"></i></div></div>'
+      + '</div>';
+  } else {
+    pane = '<div class="empty-state"><div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11H3v10h6zM21 3h-6v18h6zM15 7H9v14h6z"/></svg></div><h4>No tasks scheduled yet</h4><p>This project has no work-breakdown tasks. Import a programme or add the first task to populate the Gantt.</p><button class="btn btn-primary btn-sm" onclick="toast(\'Task\',\'New task form\',true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Add first task</button></div>';
+  }
+
+  d.innerHTML =
+    '<div class="detail-hero">'
+    + '<div class="dh-top"><span class="dh-ico" style="background:'+p.oc+'">'+p.name.slice(0,2).toUpperCase()+'</span>'
+    + '<div style="min-width:0"><div class="dh-title">'+p.name+'</div>'
+    + '<div class="dh-sub"><span class="pc-id">'+p.id+'</span><span>·</span><span>'+p.client+'</span><span>·</span>'
+    + '<span class="status '+(p.status==="Close Out"?"won":"open")+'"><span class="sdot"></span>'+p.status+'</span></div></div>'
+    + '<div class="dh-actions"><button class="btn btn-outline btn-sm" onclick="toast(\'Edit\',\'Edit project header\',true)">Edit</button></div></div>'
+    + '<div class="dh-stats">'
+    + '<div class="dh-stat"><div class="ds-label">Contract value</div><div class="ds-val">'+usd(p.contract)+'</div></div>'
+    + '<div class="dh-stat" data-tip-h="Proposed vs contract" data-tip="Proposed '+usdFull(p.proposed)+' vs awarded contract '+usdFull(p.contract)+'."><div class="ds-label">Proposed value</div><div class="ds-val" style="font-size:14px">'+usd(p.proposed)+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Margin (contract lens)</div><div class="ds-val '+(marginContract>=0?'pos':'neg')+'" style="font-size:14px">'+usd(marginContract)+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Customer PO</div><div class="ds-val" style="font-size:13px"><span class="pc-id">'+p.poRef+'</span><div class="text-xs muted" style="font-weight:400;margin-top:1px">'+new Date(p.poDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+'</div></div></div>'
+    + '</div></div>'
+    + '<div class="detail-tabs">'+tabBtn("overview","Overview")+tabBtn("budget","Budget")+tabBtn("tasks","Tasks")+'</div>'
+    + '<div class="detail-pane">'+pane+'</div>';
+  $$("#projList .md-row").forEach((r,i)=>{ r.classList.toggle("selected", i===curProj); r.setAttribute("aria-selected", i===curProj); });
+}
+function setProjTab(k){ projTab=k; renderProjDetail(); }
+function setVer(btn,v){ budgetVer=v; if(v!=="v3") toast("Budget version","Viewing "+v+" (read-only — not the Active authoritative version)"); renderProjDetail(); }
+
+/* ============================================================
+   TIMESHEETS — approvals queue + weekly grid
+   ============================================================ */
+const TS = [
+  { id:"TS-260602-014", user:"Marcus Adeyemi", role:"Engineer", status:"Submitted", oc:"hsl(221 83% 53%)", initials:"MA", self:false,
+    rows:[ {p:"Harbourpoint Module 7", code:"PRJ-0142", c:"hsl(var(--warning))", h:[8,8,8,6,8,0,0]}, {p:"Vantage chilled-water loop", code:"PRJ-0151", c:"hsl(221 83% 53%)", h:[0,0,0,2,0,0,0]} ] },
+  { id:"TS-260602-018", user:"Priya Sundaram", role:"Engineer", status:"Submitted", oc:"hsl(262 83% 58%)", initials:"PS", self:false,
+    rows:[ {p:"Westgate Depot", code:"PRJ-0138", c:"hsl(262 83% 58%)", h:[8,8,4,8,8,0,0]}, {p:"Ashfield Reservoir", code:"PRJ-0160", c:"hsl(var(--success))", h:[0,0,4,0,0,0,0]} ] },
+  { id:"TS-260602-021", user:"Tomas Quirke", role:"Project Manager", status:"Rejected", oc:"hsl(var(--warning))", initials:"TQ", self:false,
+    rows:[ {p:"Westgate Depot", code:"PRJ-0138", c:"hsl(262 83% 58%)", h:[8,8,8,8,9,0,0]} ] },
+  { id:"TS-260602-009", user:"Renata Halverson (you)", role:"Executive", status:"Submitted", oc:"hsl(221 83% 53%)", initials:"RH", self:true,
+    rows:[ {p:"Harbourpoint Module 7", code:"PRJ-0142", c:"hsl(var(--warning))", h:[4,4,4,4,4,0,0]}, {p:"Internal — bid management", code:"INT-0007", c:"hsl(var(--muted-foreground))", h:[4,4,4,4,4,0,0]} ] },
+];
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DATES = ["Jun 2","Jun 3","Jun 4","Jun 5","Jun 6","Jun 7","Jun 8"];
+let curTS = 0;
+function renderTsList(){
+  const l = $("#tsList"); l.innerHTML = "";
+  TS.forEach((t,i) => {
+    const total = t.rows.reduce((s,r)=>s+r.h.reduce((a,b)=>a+b,0),0);
+    const b = document.createElement("button");
+    b.className = "md-row" + (i===curTS ? " selected" : "");
+    b.setAttribute("role","option"); b.setAttribute("aria-selected", i===curTS);
+    const st = t.status==="Submitted" ? "open" : t.status==="Approved" ? "won" : t.status==="Rejected" ? "lost" : "draft";
+    b.innerHTML =
+      '<span class="owner-av" style="background:'+t.oc+'">'+t.initials+'</span>'
+      + '<span class="md-row-body"><span class="md-row-title">'+t.user+'</span>'
+      + '<span class="md-row-meta"><span class="pc-id">'+t.id+'</span> · '+t.role+'</span>'
+      + '<span class="md-row-meta"><span class="status '+st+'"><span class="sdot"></span>'+t.status+'</span></span></span>'
+      + '<span class="md-row-amt">'+total+'h</span>';
+    b.addEventListener("click", () => { curTS=i; renderTsList(); renderTsDetail(); });
+    l.appendChild(b);
+  });
+}
+function renderTsDetail(){
+  const t = TS[curTS];
+  const colTotals = [0,0,0,0,0,0,0];
+  let body = t.rows.map(r => {
+    const cells = r.h.map((h,di) => {
+      colTotals[di]+=h;
+      const weekend = di>=5;
+      const cls = "ts-cell" + (weekend?" weekend":"") + (h>0?" filled":"");
+      return '<td><input class="'+cls+'" type="text" value="'+(h||"")+'" aria-label="'+r.p+' '+DAYS[di]+'" '+(t.status!=="Draft"?'readonly':'')+'></td>';
+    }).join("");
+    const rt = r.h.reduce((a,b)=>a+b,0);
+    return '<tr><td class="proj-col"><span class="ts-proj"><span class="ts-proj-dot" style="background:'+r.c+'"></span>'
+      + '<span><span class="ts-proj-name">'+r.p+'</span><br><span class="ts-proj-code">'+r.code+'</span></span></span></td>'
+      + cells + '<td class="ts-total">'+rt+'</td></tr>';
+  }).join("");
+  const grand = colTotals.reduce((a,b)=>a+b,0);
+
+  // action region depends on self / status (separation of duties)
+  let action;
+  if (t.self){
+    action = '<div class="gate blocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><div class="gate-body"><b>You cannot approve your own timesheet.</b><div class="gate-sub">Separation of duties — this sheet is routed to your line manager. You may withdraw it while it is still Submitted.</div></div><button class="btn btn-outline btn-sm" onclick="toast(\'Withdrawn\',\'Timesheet returned to Draft\',true)">Withdraw</button></div>';
+  } else if (t.status==="Submitted"){
+    action = '<div class="gate ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg><div class="gate-body"><b>Awaiting your approval.</b><div class="gate-sub">Approving accepts the whole week ('+grand+'h) for '+t.user+'. Reject to return it with a note.</div></div>'
+      + '<button class="btn btn-outline btn-sm" onclick="toast(\'Rejected\',\'Returned to '+t.user+' with a note\',false)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg> Reject</button>'
+      + '<button class="btn btn-primary btn-sm" onclick="toast(\'Approved\',\''+t.user+'\\\'s week approved\',true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg> Approve week</button></div>';
+  } else if (t.status==="Rejected"){
+    action = '<div class="gate blocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg><div class="gate-body"><b>Rejected — Fri shows 9h with no overtime note.</b><div class="gate-sub">Returned to '+t.user+' on Jun 4. Awaiting re-submission with corrected hours.</div></div></div>';
+  } else {
+    action = '<div class="gate ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg><div class="gate-body"><b>Approved.</b></div></div>';
+  }
+
+  const st = t.status==="Submitted" ? "open" : t.status==="Approved" ? "won" : t.status==="Rejected" ? "lost" : "draft";
+  $("#tsDetail").innerHTML =
+    '<div class="detail-hero solo">'
+    + '<div class="dh-top"><span class="dh-ico" style="background:'+t.oc+'">'+t.initials+'</span>'
+    + '<div style="min-width:0"><div class="dh-title">'+t.user+'</div>'
+    + '<div class="dh-sub"><span class="pc-id">'+t.id+'</span><span>·</span><span>'+t.role+'</span><span>·</span><span>Week of Jun 2 – Jun 8, 2026</span>'
+    + '<span class="status '+st+'"><span class="sdot"></span>'+t.status+'</span></div></div></div>'
+    + '<div class="dh-stats"><div class="dh-stat"><div class="ds-label">Total hours</div><div class="ds-val">'+grand+'h</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Projects</div><div class="ds-val">'+t.rows.length+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Billable days</div><div class="ds-val">'+colTotals.filter((h,i)=>i<5&&h>0).length+'</div></div>'
+    + '<div class="dh-stat"><div class="ds-label">Status</div><div class="ds-val" style="font-size:14px">'+t.status+'</div></div></div></div>'
+    + '<div class="card" style="border-radius:0 0 var(--radius) var(--radius);border-top:none;padding:16px">'
+    + '<div class="table-scroll"><table class="ts-grid"><thead><tr><th class="proj-col">Project</th>'
+    + DAYS.map((d,i)=>'<th>'+d+'<div class="ts-day-total">'+DATES[i]+'</div></th>').join("")+'<th>Total</th></tr></thead>'
+    + '<tbody>'+body+'</tbody>'
+    + '<tfoot><tr><td class="proj-col">Daily total</td>'+colTotals.map(h=>'<td>'+h+'</td>').join("")+'<td>'+grand+'h</td></tr></tfoot></table></div>'
+    + action + '</div>';
+  $$("#tsList .md-row").forEach((r,i)=>{ r.classList.toggle("selected", i===curTS); r.setAttribute("aria-selected", i===curTS); });
+  $("#tsCount").textContent = TS.filter(x=>x.status==="Submitted").length + " awaiting";
+}
+
+/* ---------- LOADING SKELETON demo on procurement first paint ---------- */
+function procSkeleton(){
+  const l = $("#procList");
+  l.innerHTML = Array.from({length:5}).map(()=>(
+    '<div class="sk-row"><div class="sk" style="width:30px;height:30px;border-radius:7px"></div>'
+    + '<div style="flex:1"><div class="sk" style="height:11px;width:70%;margin-bottom:7px"></div><div class="sk" style="height:9px;width:45%"></div></div></div>'
+  )).join("");
+  $("#procDetail").innerHTML = '<div class="card"><div class="card-body"><div class="sk" style="height:18px;width:50%;margin-bottom:14px"></div><div class="sk" style="height:64px;width:100%;margin-bottom:14px"></div><div class="sk" style="height:160px;width:100%"></div></div></div>';
+}
+
+/* ---------- init ---------- */
+renderKanban();
+procSkeleton();
+setTimeout(()=>{ renderProcList(); renderProcDetail(); }, 650); // demonstrate loading→loaded
+renderProjList(); renderProjDetail();
+renderTsList(); renderTsDetail();
+
+/* keyboard: Esc closes menu/tooltip */
+document.addEventListener("keydown", e => { if (e.key==="Escape"){ rowmenu.classList.remove("show"); tip.classList.remove("show"); } });
+</script>
+</body>
+</html>
