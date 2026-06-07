@@ -1,7 +1,9 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type ProjectRow = Tables<'projects'>;
+export type ProjectStatus = ProjectRow['status'];
 
 /** A project row with client + PM names resolved in SQL (kills render-time .find(), F-7). */
 export type ProjectWithRefs = ProjectRow & {
@@ -10,6 +12,51 @@ export type ProjectWithRefs = ProjectRow & {
 };
 
 const SELECT = '*, client:companies(name), pm:profiles(full_name)';
+
+/** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
+interface PostgrestErrorLike {
+  message: string;
+  code?: string;
+}
+
+/** Re-throws an `AppError` preserving the Postgres error `code` for `classifyMutationError`. */
+function throwWrite(error: PostgrestErrorLike): never {
+  throw new AppError(error.message, error.code);
+}
+
+/**
+ * The only two statuses a project/opportunity may be CREATED in (Director decision,
+ * crud-components §9.1): a sales `Leads` opportunity or an `Internal Project`. An
+ * on-hand/won project is reached ONLY via the `transition_project` win path — never
+ * created directly — so the state-machine seam stays intact. Used by the create form
+ * options and guarded again here (defence in depth) before any insert.
+ */
+export const PROJECT_ORIGINATION_STATUSES: readonly ProjectStatus[] = [
+  'Leads',
+  'Internal Project',
+];
+
+/** The fields a create-deal form supplies. org_id is NEVER among them — RLS stamps it. */
+export interface CreateProjectInput {
+  name: string;
+  /** Must be an origination status (Leads / Internal Project). */
+  status: ProjectStatus;
+  client_id: string | null;
+  project_manager_id: string | null;
+  contract_value: number;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+/** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
+export interface ProjectHeaderInput {
+  name: string;
+  code: string | null;
+  client_id: string | null;
+  project_manager_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
 
 /**
  * List projects for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
@@ -30,4 +77,89 @@ export async function listProjects(
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProjectWithRefs[];
+}
+
+/**
+ * Create a new opportunity (AC-PRJ-003). org_id is NEVER sent — the column default +
+ * the `projects_write` WITH CHECK (org_id = auth_org_id() AND role in the 4 write-roles)
+ * are the authority. The origination status is constrained to Leads / Internal Project
+ * (an on-hand/won project is reached only via `transition_project`); a non-origination
+ * status is rejected here BEFORE any insert (defence in depth — the state machine, not a
+ * direct create, owns the win). Returns the new row. Throws an `AppError` (code preserved,
+ * e.g. `42501` when a non-write-role is denied) on failure.
+ */
+export async function createProject(input: CreateProjectInput): Promise<ProjectRow> {
+  if (!PROJECT_ORIGINATION_STATUSES.includes(input.status)) {
+    throw new AppError(
+      `Invalid origination status "${input.status}". A project can only be created as a Lead or an Internal Project; an on-hand project is reached by winning a deal.`,
+      'P0001',
+    );
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .insert({
+      name: input.name,
+      status: input.status,
+      client_id: input.client_id,
+      project_manager_id: input.project_manager_id,
+      contract_value: input.contract_value,
+      start_date: input.start_date,
+      end_date: input.end_date,
+    })
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return data as ProjectRow;
+}
+
+/**
+ * Update a project's HEADER fields (name/code/client/PM/dates) by id (AC-PRJ-004). org_id
+ * is NEVER sent — `projects_write` scopes the update to the caller's org and gates the role.
+ * Deliberately excludes `contract_value` (SoD-gated → `setProjectContractValue` RPC) and the
+ * RPC-only `status`/`decided_at`/`customer_contract_ref`/`contract_date` columns (0008 grant).
+ * Throws an `AppError` (code preserved) on failure.
+ */
+export async function updateProjectHeader(id: string, input: ProjectHeaderInput): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      name: input.name,
+      code: input.code,
+      client_id: input.client_id,
+      project_manager_id: input.project_manager_id,
+      start_date: input.start_date,
+      end_date: input.end_date,
+    })
+    .eq('id', id);
+  if (error) throwWrite(error);
+}
+
+/**
+ * Soft-archive a project by stamping `archived_at` (AC-PRJ-005) so it drops out of the
+ * default list (ADR-0018). org_id is NEVER sent — `projects_write` scopes the update; the
+ * `archived_at` column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
+ */
+export async function archiveProject(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throwWrite(error);
+}
+
+/**
+ * Set a project's `contract_value` through the SoD-scoped security-definer RPC (AC-PRJ-006,
+ * ADR-0019). `contract_value` is removed from the direct-UPDATE column grant in 0014, so this
+ * RPC is the SOLE writer of that column. The RPC re-asserts org + role + status: a PM may set
+ * it while the project is pre-win; on a WON/on-hand project only Executive/Finance/Admin may
+ * (segregation of duties). org_id is NEVER sent — the RPC re-derives org from auth context.
+ * A rejection surfaces as an `AppError` preserving the Postgres code (`42501` SoD/role,
+ * `P0001` illegal state, `P0002` not found) for `classifyMutationError`.
+ */
+export async function setProjectContractValue(id: string, value: number): Promise<void> {
+  const { error } = await supabase.rpc('set_project_contract_value', {
+    p_id: id,
+    p_value: value,
+  });
+  if (error) throwWrite(error as PostgrestErrorLike);
 }

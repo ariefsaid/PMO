@@ -7,7 +7,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // (d) a thrown DAL error is normalized to an AppError (code preserved).
 // ---------------------------------------------------------------------------
 
-vi.mock('@/src/lib/db/projects', () => ({ listProjects: vi.fn() }));
+vi.mock('@/src/lib/db/projects', () => ({
+  listProjects: vi.fn(),
+  createProject: vi.fn(),
+  updateProjectHeader: vi.fn(),
+  archiveProject: vi.fn(),
+  setProjectContractValue: vi.fn(),
+}));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn() }));
 vi.mock('@/src/lib/db/companies', () => ({
@@ -76,7 +82,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('each repository exposes its expected methods', () => {
-    expect(Object.keys(repositories.project).sort()).toEqual(['get', 'list', 'transition']);
+    expect(Object.keys(repositories.project).sort()).toEqual(
+      ['archive', 'create', 'get', 'list', 'setContractValue', 'transition', 'updateHeader'].sort(),
+    );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
     );
@@ -114,6 +122,33 @@ describe('delegation — methods pass args through and return the DAL result', (
     const opts = { customerContractRef: 'PO-9' };
     await repositories.project.transition('p1', 'Won, Pending KoM' as never, opts);
     expect(projectTransitionsDal.transitionProject).toHaveBeenCalledWith('p1', 'Won, Pending KoM', opts);
+  });
+
+  it('project.create delegates to createProject', async () => {
+    const input = { name: 'New', status: 'Leads' } as never;
+    vi.mocked(projectsDal.createProject).mockResolvedValue({ id: 'p9' } as never);
+    const result = await repositories.project.create(input);
+    expect(projectsDal.createProject).toHaveBeenCalledWith(input);
+    expect((result as { id: string }).id).toBe('p9');
+  });
+
+  it('project.updateHeader delegates to updateProjectHeader', async () => {
+    const input = { name: 'Renamed' } as never;
+    vi.mocked(projectsDal.updateProjectHeader).mockResolvedValue(undefined);
+    await repositories.project.updateHeader('p1', input);
+    expect(projectsDal.updateProjectHeader).toHaveBeenCalledWith('p1', input);
+  });
+
+  it('project.archive delegates to archiveProject', async () => {
+    vi.mocked(projectsDal.archiveProject).mockResolvedValue(undefined);
+    await repositories.project.archive('p1');
+    expect(projectsDal.archiveProject).toHaveBeenCalledWith('p1');
+  });
+
+  it('project.setContractValue delegates to setProjectContractValue (SoD RPC)', async () => {
+    vi.mocked(projectsDal.setProjectContractValue).mockResolvedValue(undefined);
+    await repositories.project.setContractValue('p1', 5140000);
+    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith('p1', 5140000);
   });
 
   it('company.listClients delegates to listClientCompanies', async () => {
