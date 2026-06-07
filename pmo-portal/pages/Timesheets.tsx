@@ -31,6 +31,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import {
   type EditRow,
+  computeTotals,
   diffEntries,
   gridIsValid,
   parseHourCell,
@@ -182,7 +183,8 @@ const TimesheetsPage: React.FC = () => {
     if (editRows !== seedRows) setEditRows(seedRows);
   }
 
-  // Server entries shaped for diffEntries (id/project/date/hours per cell).
+  // Server entries shaped for diffEntries (id/project/date/hours/notes per cell). `notes` lets the
+  // diff detect a note-only edit (hours unchanged) and re-upsert it instead of silently dropping it.
   const serverEntriesForDiff = useMemo(
     () =>
       currentWeekEntries.map((e) => ({
@@ -190,6 +192,7 @@ const TimesheetsPage: React.FC = () => {
         project_id: e.project_id,
         entry_date: e.entry_date,
         hours: e.hours,
+        notes: e.notes ?? null,
       })),
     [currentWeekEntries]
   );
@@ -218,6 +221,10 @@ const TimesheetsPage: React.FC = () => {
     return set;
   }, [editRows]);
   const editValid = useMemo(() => gridIsValid(editRows), [editRows]);
+  // The week's totals from edited (string) state — invalid cells gate to 0 — via the same pure
+  // selector the grid footer uses, so the header weekly total and the footer grand total agree
+  // (no inline raw double-reduce that would count an invalid "25" as 25). FR-TSE-013.
+  const editTotals = useMemo(() => computeTotals(editRows), [editRows]);
 
   // Edited rows shaped for TimesheetGrid (numeric hours for display) + the note map.
   const editGridRows = useMemo<TimesheetGridRow[]>(
@@ -524,7 +531,7 @@ const TimesheetsPage: React.FC = () => {
             data-testid="timesheets-weekly-total"
             className="ml-auto text-[13px] tabular text-muted-foreground"
           >
-            {(editable ? editGridRows.reduce((s, r) => s + r.hours.reduce((a, b) => a + b, 0), 0) : weeklyTotal).toFixed(1)}{' '}
+            {(editable ? editTotals.weekly : weeklyTotal).toFixed(1)}{' '}
             h this week
           </span>
         </div>

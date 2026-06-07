@@ -569,6 +569,21 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
   });
 
+  it('AC-TSE-012: the header weekly total gates invalid cells to 0 (agrees with the grid footer, not a raw sum)', async () => {
+    // Empty editable week; add a project, type a VALID 6h Mon + an INVALID 25 Tue.
+    // The header must route through computeTotals (invalid→0): 6.0h, NOT 31.0h.
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '6');
+    const tue = screen.getByLabelText('Acme Internal Platform, Tue hours');
+    await userEvent.type(tue, '25');
+    // Header total gates the invalid cell to 0 → 6.0; the grid footer agrees.
+    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('6.0');
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('6');
+  });
+
   it('AC-TSE-011: blank/0/24 cells leave Save enabled', async () => {
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
