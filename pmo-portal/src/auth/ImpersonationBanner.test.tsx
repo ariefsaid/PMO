@@ -51,6 +51,9 @@ describe('<ImpersonationBanner> (ADR-0016)', () => {
     expect(banner).toHaveTextContent(/admin/i);
     // The copy must explain writes run as the real role (no silent mislead).
     expect(banner).toHaveTextContent(/writes run as your real role/i);
+    // Verbatim rbac-visibility.md wording, period form (NO em-dash — house rule).
+    expect(banner).toHaveTextContent('Viewing as Engineer. Writes run as your real role, Admin.');
+    expect(banner.textContent ?? '').not.toContain('—');
   });
 
   it('ADR-0016: the banner is announced politely (aria-live, role=status — no focus steal)', () => {

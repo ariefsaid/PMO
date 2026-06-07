@@ -26,7 +26,7 @@ export const ImpersonationBanner: React.FC = () => {
     >
       <Icon name="admin" />
       <span>
-        Viewing as <strong>{effectiveRole}</strong> — writes run as your real role,{' '}
+        Viewing as <strong>{effectiveRole}</strong>. Writes run as your real role,{' '}
         <strong>{realRole}</strong>.
       </span>
     </div>
