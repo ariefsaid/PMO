@@ -88,6 +88,25 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
+
+  it('AC-CO-001: each company_type renders a DISTINCT tinted pill (Client/Vendor/Internal differentiated)', () => {
+    renderPage();
+    // The Type column pill is the closest pill ancestor of the type label inside its row.
+    const pillBg = (label: string, rowName: string) => {
+      const row = screen.getByText(rowName).closest('tr')!;
+      return within(row).getByText(label).closest('span')!.className;
+    };
+    const client = pillBg('Client', 'Cascade Port Authority'); // blue (open)
+    const vendor = pillBg('Vendor', 'Steelforge Fabrication'); // violet
+    const internal = pillBg('Internal', 'Internal Holdings'); // green (won)
+    expect(client).toContain('bg-primary/10');
+    expect(vendor).toContain('bg-violet/12');
+    expect(internal).toContain('bg-success/12');
+    // Vendor and Internal are no longer the same grey neutral fill.
+    expect(vendor).not.toContain('bg-secondary');
+    expect(internal).not.toContain('bg-secondary');
+    expect(vendor).not.toBe(internal);
+  });
 });
 
 describe('Companies index — states', () => {
@@ -225,5 +244,26 @@ describe('Companies delete (AC-CO-006)', () => {
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/Still in use/i);
     expect(toast).toHaveTextContent(/Archive it instead/i);
+  });
+
+  it('AC-CO-006: an in-use (23503) delete renders an inline GateNotice naming the company + an Archive-instead recovery path', async () => {
+    mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
+    renderPage('Admin');
+    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
+    // The inline GateNotice (block-delete-if-referenced) names the company and offers recovery.
+    const gate = await screen.findByTestId('company-delete-gate');
+    expect(gate).toHaveTextContent(/Cascade Port Authority/);
+    expect(gate).toHaveTextContent(/referenced/i);
+    // "Archive instead" opens the archive confirm for that same company (no second click needed).
+    await userEvent.click(within(gate).getByRole('button', { name: /Archive instead/i }));
+    expect(
+      screen.getByRole('button', { name: /Archive company/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Archive Cascade Port Authority\?/i)).toBeInTheDocument();
+    // Confirming the archive runs the archive mutation for that company.
+    await userEvent.click(screen.getByRole('button', { name: /Archive company/i }));
+    await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('c1'));
   });
 });

@@ -12,6 +12,7 @@ import {
   SelectField,
   FormSection,
   FormGrid,
+  GateNotice,
   useEntityForm,
   useToast,
   Button,
@@ -29,11 +30,17 @@ import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/compani
 type TypeFilter = 'All' | CompanyType;
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 
-/** Tinted-status pill per company_type — quiet neutral tints, label carries identity. */
+/**
+ * Tinted-status pill per company_type — three DISTINCT hues (crud-companies.html):
+ * Client = blue (`open`), Vendor = categorical violet, Internal = green (`won`). Each
+ * carries a darkened-AA text + a leading dot + its own label, so the types read apart
+ * by hue AND label (never color-only). Type pills are non-interactive categorization,
+ * so violet is the sanctioned accent here.
+ */
 const TYPE_PILL: Record<CompanyType, StatusVariant> = {
   Client: 'open',
-  Vendor: 'progress',
-  Internal: 'neutral',
+  Vendor: 'violet',
+  Internal: 'won',
 };
 
 const TYPE_OPTIONS = [
@@ -66,6 +73,10 @@ const Companies: React.FC = () => {
   const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<CompanyRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
+  // In-use delete block (23503): the company whose hard-delete the RPC refused
+  // because it is still referenced. Drives the inline GateNotice + Archive-instead
+  // recovery path (crud-components §5.3).
+  const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
 
   const canCreate = may('create', 'company');
   const canEdit = may('edit', 'company');
@@ -136,6 +147,7 @@ const Companies: React.FC = () => {
       await remove.mutateAsync(target.id);
       toast('Company deleted', target.name, 'success');
       setDeleteTarget(null);
+      setBlockedCompany(null);
     } catch (err) {
       // Centralized classification (ADR-0017): 23503 foreign_key_violation (referenced by
       // projects/procurements/profiles) → "Still in use"; for that case surface the recovery
@@ -150,6 +162,9 @@ const Companies: React.FC = () => {
         'warning',
       );
       setDeleteTarget(null);
+      // A referenced company also renders a persistent inline GateNotice (the toast
+      // auto-dismisses; the gate keeps the recovery path within reach).
+      setBlockedCompany(isInUse ? target : null);
     }
   };
 
@@ -171,6 +186,33 @@ const Companies: React.FC = () => {
         )}
       </div>
 
+      {/* In-use delete block (23503) — inline GateNotice with an Archive-instead
+          recovery path. Persists until the user archives or dismisses it. */}
+      {blockedCompany && (
+        <GateNotice variant="blocked" className="mb-3.5" data-testid="company-delete-gate">
+          <div>
+            <b className="font-semibold">{blockedCompany.name}</b> is referenced by other
+            records and can&rsquo;t be deleted. Archive it instead to remove it from new records
+            while keeping the audit trail.
+            <div className="mt-2.5 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setArchiveTarget(blockedCompany);
+                  setBlockedCompany(null);
+                }}
+              >
+                Archive instead
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setBlockedCompany(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </GateNotice>
+      )}
+
       {/* Toolbar */}
       {state !== 'loading' && (
         <Toolbar standalone>
@@ -185,7 +227,11 @@ const Companies: React.FC = () => {
             aria-label="Search companies"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            containerClassName="ml-auto"
+            // Below `sm` the toolbar stacks: `basis-full` forces the search onto
+            // its own full-width row and `min-w-0` drops the base min-w-[190px]
+            // clip, so it shrinks to the viewport and stays reachable at 375px. At
+            // `sm`+ it right-aligns at its natural width (ml-auto).
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         </Toolbar>
       )}
