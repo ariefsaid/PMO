@@ -87,6 +87,12 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   pgTAP as the leading token of the test description; Playwright as the leading token of the `test(...)`
   title with file `e2e/<AC-id>-<slug>.spec.ts`. An AC may be referenced at multiple layers but has exactly
   one owning layer (recorded in the plan's traceability table).
+- **BDD authoring rule (binding).** A test encodes the **user's real, intuitive journey to the task's goal**
+  and asserts that **goal** — the app conforms to the test, never the test to the app. On failure: fix the
+  **app**; only for a *deliberate* UX change (e.g. a new confirm-before-write step, back-nav moving to the
+  breadcrumb) do you update the journey *steps*, and the goal-oracle still stays intact. **Never bend an
+  assertion to the app's current state to go green** (don't downgrade "Back navigates to the pipeline" to
+  "a Back element exists"). Full statement: `.claude/agents/qa-acceptance.md` "Authoring principle".
 
 ## Tech stack & commands (run inside `pmo-portal/`)
 - React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).

@@ -29,7 +29,11 @@ never write app code yourself — you delegate and **verify**.
 6. **Secure (when relevant)** — `security-auditor` (opus) for ANY change to auth, RLS, tenancy, a new
    RPC/view, or a public surface. It must attempt live cross-org/escalation exploits, not just read.
 7. **Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. The curated e2e
-   journeys must pass live.
+   journeys must pass live. **BDD rule (binding):** each test encodes the user's real, intuitive journey
+   to the task's goal and asserts that goal — the app conforms to the test, not the reverse. When a test
+   fails, fix the **app**; only for a *deliberate* UX change (e.g. a new confirm step, back-nav moving to
+   the breadcrumb) do you update the journey *steps*, and even then the goal-oracle stays intact. Never
+   reshape a test to match the app's current state to go green (see qa-acceptance "Authoring principle").
 8. **Ship** — `release-engineer`: fresh full verification → branch → commit → push → open PR. **It
    never merges.** Then the **Director merges** (see §6) and syncs.
 
