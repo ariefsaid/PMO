@@ -47,37 +47,65 @@ describe('DataTable', () => {
     expect(onSort).toHaveBeenCalledWith('name');
   });
 
-  it('#6: rows with onActivate expose role="link" for AT announcement', () => {
+  it('a11y: activatable body rows keep their implicit role="row" (NOT role="link"), so getByRole("row") finds them', () => {
     render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={vi.fn()} />
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={vi.fn()}
+        rowLabel={(r) => `Open ${r.name}`}
+      />
     );
     const alphaRow = screen.getByText('Alpha').closest('tr')!;
-    expect(alphaRow).toHaveAttribute('role', 'link');
+    // The invalid role="link" override is gone — the <tr> keeps role="row".
+    expect(alphaRow).not.toHaveAttribute('role', 'link');
+    // header row + 2 body rows are all discoverable as rows.
+    expect(screen.getAllByRole('row').length).toBe(rows.length + 1);
   });
 
-  it('#5: row focus ring uses the design-system ring token with positive (outset) offset, not inset', () => {
-    render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={vi.fn()} />
-    );
-    const alphaRow = screen.getByText('Alpha').closest('tr')!;
-    // Must use focus-visible:outline-offset-2 (positive outset) — NOT focus-visible:-outline-offset-2 (inset/black)
-    expect(alphaRow.className).toContain('focus-visible:outline-offset-2');
-    expect(alphaRow.className).not.toContain('focus-visible:-outline-offset-2');
-    // Must use ring token for the outline color
-    expect(alphaRow.className).toContain('focus-visible:outline-ring');
-  });
-
-  it('row click and Enter both call onActivate', async () => {
+  it('a11y: each activatable row exposes a focusable button carrying the row accessible name', async () => {
     const onActivate = vi.fn();
     render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onActivate={onActivate} />
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => `Open ${r.name}`}
+      />
     );
-    await userEvent.click(screen.getByText('Alpha'));
-    expect(onActivate).toHaveBeenCalledWith(rows[0]);
-    const betaRow = screen.getByText('Beta').closest('tr')!;
-    betaRow.focus();
+    const openAlpha = screen.getByRole('button', { name: 'Open Alpha' });
+    // ring token + positive (outset) offset — never the inset/black variant.
+    expect(openAlpha.className).toContain('focus-visible:outline-offset-2');
+    expect(openAlpha.className).not.toContain('focus-visible:-outline-offset-2');
+    expect(openAlpha.className).toContain('focus-visible:outline-ring');
+    // keyboard activation: focus the button and press Enter.
+    openAlpha.focus();
     await userEvent.keyboard('{Enter}');
+    expect(onActivate).toHaveBeenCalledWith(rows[0]);
+  });
+
+  it('row click activates (pointer convenience) without double-firing the in-cell button', async () => {
+    const onActivate = vi.fn();
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => `Open ${r.name}`}
+      />
+    );
+    // click the row body (a non-button cell) → one activation
+    await userEvent.click(screen.getByText('980'));
+    expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(rows[1]);
+    onActivate.mockClear();
+    // click the in-cell button → exactly one activation (stopPropagation prevents the row's too)
+    await userEvent.click(screen.getByRole('button', { name: 'Open Alpha' }));
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate).toHaveBeenCalledWith(rows[0]);
   });
 
   it('state="empty" renders ListState empty in place of the body', () => {

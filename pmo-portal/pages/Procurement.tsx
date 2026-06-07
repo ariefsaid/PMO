@@ -219,6 +219,7 @@ const ProcurementPage: React.FC = () => {
           columns={columns}
           rowKey={(r) => r.id}
           onActivate={onOpen}
+          rowLabel={(r) => `Open ${r.title}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No requests match your filters"
           emptySub="Try a different status, search term, or clear the filters."

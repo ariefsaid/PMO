@@ -111,6 +111,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       columns={columns}
       rowKey={(r) => r.id}
       onActivate={(r) => openPR(navigate, r)}
+      rowLabel={(r) => `Open ${r.title}`}
       state={rows.length === 0 ? 'empty' : undefined}
       emptyTitle="No purchase requests for this project yet"
       emptySub="Requests raised against this project will appear here through their lifecycle."

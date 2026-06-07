@@ -240,6 +240,7 @@ const SalesPipeline: React.FC = () => {
           columns={tableColumns}
           rowKey={(r) => r.id}
           onActivate={onOpen}
+          rowLabel={(r) => `Open ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No deals match your search"
           emptySub="Try a different name or customer."

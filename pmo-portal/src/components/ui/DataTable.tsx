@@ -36,6 +36,15 @@ export interface DataTableProps<Row> {
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
   onActivate?: (row: Row) => void;
+  /**
+   * Accessible name for the row's activation control. When provided alongside
+   * `onActivate`, the first column's content is wrapped in a real focusable
+   * `<button>` carrying this name — so each row has a keyboard- and
+   * screen-reader-reachable affordance WITHOUT overriding the `<tr>`'s implicit
+   * `role="row"`. Omit when the first cell already renders its own focusable
+   * control (e.g. a name button) to avoid nesting interactive elements.
+   */
+  rowLabel?: (row: Row) => string;
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
@@ -68,6 +77,7 @@ export function DataTable<Row>({
   columns,
   rowKey,
   onActivate,
+  rowLabel,
   selectedKey,
   sort,
   onSort,
@@ -156,38 +166,54 @@ export function DataTable<Row>({
               rows.map((row) => {
                 const key = rowKey(row);
                 const selected = key === selectedKey;
+                // The <tr> keeps its IMPLICIT role="row" (never role="link",
+                // which breaks table-row semantics and hides body rows from
+                // getByRole('row')). Whole-row onClick stays as a pointer
+                // convenience; the keyboard/screen-reader affordance is the
+                // real <button> rendered into the first cell when `rowLabel`
+                // is supplied (see below).
                 return (
                   <tr
                     key={key}
-                    role={onActivate ? 'link' : undefined}
-                    tabIndex={onActivate ? 0 : undefined}
-                    onClick={() => onActivate?.(row)}
-                    onKeyDown={(e) => {
-                      if (onActivate && (e.key === 'Enter' || e.key === ' ')) {
-                        e.preventDefault();
-                        onActivate(row);
-                      }
-                    }}
+                    onClick={onActivate ? () => onActivate(row) : undefined}
                     className={cn(
                       'group border-b border-border/70 last:border-b-0 transition-colors',
                       onActivate && 'cursor-pointer hover:bg-accent/60',
-                      selected && 'bg-primary/[0.07]',
-                      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+                      selected && 'bg-primary/[0.07]'
                     )}
                   >
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
-                          alignClass(col.align),
-                          col.align === 'num' && 'tabular',
-                          col.colClassName
-                        )}
-                      >
-                        {col.cell(row)}
-                      </td>
-                    ))}
+                    {columns.map((col, colIndex) => {
+                      const activatable = onActivate && rowLabel && colIndex === 0;
+                      return (
+                        <td
+                          key={col.key}
+                          className={cn(
+                            'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
+                            alignClass(col.align),
+                            col.align === 'num' && 'tabular',
+                            col.colClassName
+                          )}
+                        >
+                          {activatable ? (
+                            <button
+                              type="button"
+                              aria-label={rowLabel(row)}
+                              onClick={(e) => {
+                                // The <tr> onClick already activates; stop it so
+                                // the row doesn't fire onActivate twice.
+                                e.stopPropagation();
+                                onActivate(row);
+                              }}
+                              className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                            >
+                              {col.cell(row)}
+                            </button>
+                          ) : (
+                            col.cell(row)
+                          )}
+                        </td>
+                      );
+                    })}
                     {rowMenu && (
                       <td className="px-2 align-middle">
                         <RowMenu items={rowMenu(row)} />
