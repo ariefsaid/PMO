@@ -44,10 +44,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }),
 }));
-const openRecord = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+const navigate = vi.fn();
+// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
 const renderPage = () => render(<MemoryRouter><Procurement /></MemoryRouter>);
@@ -58,7 +59,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     procState.isPending = false;
     procState.isError = false;
     sessionStorage.clear();
-    openRecord.mockClear();
+    navigate.mockClear();
   });
 
   it('renders seeded requests with joined project name (AC-501)', () => {
@@ -93,12 +94,10 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('prstage-vq')).getByText('Workstations & AV')).toBeInTheDocument();
   });
 
-  it('activating a row opens a procurement record tab', async () => {
+  it('AC-NAV-006: activating a row navigates to the procurement detail route (no tab)', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Workstations & AV'));
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'procurement:pc1', module: 'procurement' }),
-    );
+    expect(navigate).toHaveBeenCalledWith('/procurement/pc1');
   });
 });
 

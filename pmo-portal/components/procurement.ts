@@ -1,4 +1,3 @@
-import type { WorkspaceContextValue } from '@/src/components/shell';
 import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
@@ -145,21 +144,14 @@ export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): Lifec
 }
 
 /**
- * Opens (or refocuses) the procurement's workspace record tab with its HUMAN
- * label (master plan §4.2 tab integration). The PR ref is the mono code badge;
- * re-opening the same PR refocuses the existing tab. Mirrors `openOpportunity`.
+ * Navigates to the procurement's detail route (AC-NAV-006). With the workspace
+ * tab layer removed, the row drill is a plain react-router navigate; the URL is
+ * the single source of truth and the top-bar breadcrumb derives from it.
+ * Mirrors `openOpportunity`.
  */
 export function openPR(
-  ws: Pick<WorkspaceContextValue, 'openRecord'>,
-  pr: { id: string; title: string; code?: string | null },
+  navigate: (path: string) => void,
+  pr: { id: string },
 ): void {
-  ws.openRecord({
-    id: `procurement:${pr.id}`,
-    kind: 'record',
-    path: `/procurement/${pr.id}`,
-    icon: 'cart',
-    label: pr.title,
-    code: pr.code ?? pr.id.slice(0, 7),
-    module: 'procurement',
-  });
+  navigate(`/procurement/${pr.id}`);
 }

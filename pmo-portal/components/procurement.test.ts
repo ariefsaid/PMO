@@ -108,31 +108,17 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
   });
 });
 
-describe('procurement helper — openPR opens a record tab with the human label', () => {
-  it('calls ws.openRecord with the PR ref code + title label', () => {
-    const openRecord = vi.fn();
-    openPR(
-      { openRecord },
-      { id: 'proc-1', title: 'Structural steel', code: 'PR-2606040001' },
-    );
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'procurement:proc-1',
-        kind: 'record',
-        path: '/procurement/proc-1',
-        icon: 'cart',
-        label: 'Structural steel',
-        code: 'PR-2606040001',
-        module: 'procurement',
-      }),
-    );
+describe('procurement helper — openPR navigates to the detail route (AC-NAV-006)', () => {
+  it('AC-NAV-006: navigates to /procurement/:id (no tab)', () => {
+    const navigate = vi.fn();
+    openPR(navigate, { id: 'proc-1' });
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-1');
   });
 
-  it('falls back to the short id when no code is set', () => {
-    const openRecord = vi.fn();
-    openPR({ openRecord }, { id: 'proc-abcdef12', title: 'Crane hire', code: null });
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'proc-ab' }),
-    );
+  it('AC-NAV-006: navigates by id (the full record row carries more fields; only id is read)', () => {
+    const navigate = vi.fn();
+    const row = { id: 'proc-abcdef12', title: 'Crane hire', code: null };
+    openPR(navigate, row);
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-abcdef12');
   });
 });

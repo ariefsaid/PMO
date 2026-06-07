@@ -6,8 +6,8 @@ import {
   LifecycleStepper,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -32,7 +32,7 @@ export interface ProcurementTabProps {
  * → StatusPill.
  */
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useProcurements();
 
   const rows = useMemo(
@@ -110,7 +110,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       rows={rows}
       columns={columns}
       rowKey={(r) => r.id}
-      onActivate={(r) => openPR(ws, r)}
+      onActivate={(r) => openPR(navigate, r)}
       state={rows.length === 0 ? 'empty' : undefined}
       emptyTitle="No purchase requests for this project yet"
       emptySub="Requests raised against this project will appear here through their lifecycle."
