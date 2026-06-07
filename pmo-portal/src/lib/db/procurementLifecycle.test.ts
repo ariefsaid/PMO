@@ -27,6 +27,7 @@ import {
   createReceipt,
   createInvoice,
   createQuotation,
+  ProcurementError,
 } from './procurementLifecycle';
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,29 @@ describe('transitionProcurement', () => {
   it('AC-806: transitionProcurement surfaces the RPC 42501/P0001 error (does not swallow) (FR-PROC-003/004)', async () => {
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
     await expect(transitionProcurement('proc-id', 'Approved')).rejects.toThrow('not authorized');
+  });
+
+  it('AC-806: preserves the Postgres error.code on the thrown error (P0001 illegal-stage)', async () => {
+    makeRpcBuilder({
+      data: null,
+      error: { message: 'illegal transition', code: 'P0001' },
+    });
+    await expect(transitionProcurement('proc-id', 'Approved')).rejects.toMatchObject({
+      message: 'illegal transition',
+      code: 'P0001',
+    });
+  });
+
+  it('AC-806: preserves the 42501 not-permitted (SoD) error.code on the thrown error', async () => {
+    makeRpcBuilder({
+      data: null,
+      error: { message: 'permission denied', code: '42501' },
+    });
+    const err = await transitionProcurement('proc-id', 'Paid').catch((e) => e);
+    expect(err).toBeInstanceOf(ProcurementError);
+    expect((err as ProcurementError).code).toBe('42501');
+    // the verbatim RPC message is preserved as the secondary detail
+    expect((err as ProcurementError).message).toBe('permission denied');
   });
 
   it('calls rpc with correct param names: p_id, p_to, p_notes (FR-PROC-003)', async () => {

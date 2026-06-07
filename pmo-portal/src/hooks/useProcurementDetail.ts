@@ -6,6 +6,7 @@ import {
   createQuotation as dalCreateQuotation,
   createReceipt as dalCreateReceipt,
   createInvoice as dalCreateInvoice,
+  ProcurementError,
   type ProcurementDetail,
   type ProcurementStatus,
   type ProcurementReceiptRow,
@@ -57,14 +58,16 @@ export function useProcurementMutations(id: string) {
     queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
   };
 
-  const transition = useMutation<void, Error, { to: ProcurementStatus; notes?: string }>({
+  // Error type is ProcurementError so consumers can read `.code` (P0001 /
+  // 42501) type-safely and classify the toast (no code-dropping).
+  const transition = useMutation<void, ProcurementError, { to: ProcurementStatus; notes?: string }>({
     mutationFn: ({ to, notes }) => transitionProcurement(id, to, notes),
     onSuccess: invalidateDetail,
   });
 
   const createQuotation = useMutation<
     Tables<'procurement_quotations'>,
-    Error,
+    ProcurementError,
     { vendorId: string; totalAmount: number; receivedDate: string }
   >({
     mutationFn: ({ vendorId, totalAmount, receivedDate }) =>
@@ -74,7 +77,7 @@ export function useProcurementMutations(id: string) {
 
   const createReceipt = useMutation<
     ProcurementReceiptRow,
-    Error,
+    ProcurementError,
     { status: 'Partial' | 'Complete'; receiptDate: string }
   >({
     mutationFn: ({ status, receiptDate }) => dalCreateReceipt(id, status, receiptDate),
@@ -83,7 +86,7 @@ export function useProcurementMutations(id: string) {
 
   const createInvoice = useMutation<
     ProcurementInvoiceRow,
-    Error,
+    ProcurementError,
     { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string }
   >({
     mutationFn: ({ status, invoiceDate }) => dalCreateInvoice(id, status, invoiceDate),
