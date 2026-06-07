@@ -36,6 +36,7 @@ const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
+const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 
 const AppRoutes: React.FC = () => (
@@ -52,7 +53,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/timesheets" element={<TimesheetsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/tasks" element={<PlaceholderPage title="Tasks" />} />
-      <Route path="/companies" element={<PlaceholderPage title="Companies" />} />
+      <Route path="/companies" element={<CompaniesPage />} />
       <Route path="/work-orders" element={<PlaceholderPage title="Work Orders" />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<PlaceholderPage title="Administration" />} />
