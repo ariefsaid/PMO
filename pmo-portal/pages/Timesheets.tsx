@@ -16,7 +16,7 @@ import {
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { entriesByProject, recentEntries, type FlatEntry } from '@/src/lib/timesheet-derive';
+import { entriesByProject, type FlatEntry } from '@/src/lib/timesheet-derive';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
