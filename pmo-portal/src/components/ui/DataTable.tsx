@@ -269,23 +269,32 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
           role="menu"
           className="absolute right-0 z-50 mt-1 min-w-[160px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
-          {items.map((item) => (
-            <button
-              key={item.label}
-              role="menuitem"
-              type="button"
-              onClick={() => {
-                item.onClick();
-                setOpen(false);
-              }}
-              className={cn(
-                'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                item.danger && 'text-destructive'
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
+          {items.map((item, i) => {
+            // destructive-nav-separation: spatially separate the first danger item
+            // from the non-danger items above it with a hairline divider (matches the
+            // crud-companies.html `.menu-sep` above Delete). No separator when the
+            // danger item is first/only, or for consecutive danger items.
+            const needsSep = item.danger && i > 0 && !items[i - 1].danger;
+            return (
+              <React.Fragment key={item.label}>
+                {needsSep && <div role="separator" className="my-1 h-px bg-border" />}
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    item.onClick();
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
+                    item.danger && 'text-destructive'
+                  )}
+                >
+                  {item.label}
+                </button>
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
     </div>

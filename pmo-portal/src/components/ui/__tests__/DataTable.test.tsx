@@ -182,4 +182,42 @@ describe('DataTable', () => {
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
+
+  it('separates a danger item from the items above it with a hairline separator (destructive-nav-separation)', async () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [
+          { label: 'Edit', onClick: vi.fn() },
+          { label: 'Archive', onClick: vi.fn() },
+          { label: 'Delete', danger: true, onClick: vi.fn() },
+        ]}
+      />
+    );
+    await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+    const menu = screen.getByRole('menu');
+    const sep = within(menu).getByRole('separator');
+    expect(sep).toBeInTheDocument();
+    // The separator sits ABOVE Delete (between Archive and Delete).
+    const items = Array.from(menu.children);
+    const sepIndex = items.indexOf(sep);
+    const deleteIndex = items.findIndex((el) => el.textContent === 'Delete');
+    expect(sepIndex).toBeGreaterThan(-1);
+    expect(deleteIndex).toBe(sepIndex + 1);
+  });
+
+  it('does NOT render a separator when a danger item is the only / first item', async () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [{ label: 'Delete', danger: true, onClick: vi.fn() }]}
+      />
+    );
+    await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+    expect(within(screen.getByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
+  });
 });

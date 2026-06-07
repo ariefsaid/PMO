@@ -67,13 +67,24 @@
 }
 
 @layer base {
+  /* Root font-size MUST be 16px so rem-based Tailwind utilities resolve to their
+     DESIGN.md sizes: h-8 = 2rem = 32px controls, text-sm = 0.875rem = 14px body,
+     text-xs = 0.75rem = 12px label. A 14px root would render the whole app at
+     87.5% scale (h-8 → 28px), which is the app-wide control-scale defect. */
+  html {
+    font-size: 16px;
+  }
   html, body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-size: 14px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
+  }
+  /* Default inherited text is the 14px DESIGN.md body size; explicit text-*
+     utilities (the vast majority of text) override this per element. */
+  body {
+    font-size: 14px;
   }
 
   /* The Tabular-Numbers Rule — apply to every figure that can change/compare. */

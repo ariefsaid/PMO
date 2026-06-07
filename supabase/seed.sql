@@ -198,14 +198,27 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a1'
   where id = '00000000-0000-0000-0000-0000000000a2';  -- Alice → Bob
 
 -- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
+-- DATE-DRIFT FIX: the week_start is RELATIVE to today — date_trunc('week', current_date) is the
+-- ISO-week Monday (satisfies the week_is_monday CHECK), so the seeded sheets are ALWAYS the current
+-- week regardless of the real clock. The UI's "current week" (Mon-of-today) therefore always matches
+-- these sheets, so the e2e (AC-911 submit→approve, AC-TSE-021 entry) land on the seeded data.
+--
+-- TIMEZONE CONTRACT: this seed runs in the local Supabase DB session, which is always UTC, so
+-- `current_date` here is the UTC calendar date. The UI derives "the current week" from the BROWSER's
+-- clock — so the browser must resolve the same UTC date for the seeded week to match. The Playwright
+-- e2e therefore pins the browser context to `timezoneId: 'UTC'` (playwright.config.ts), making the
+-- UI's current-week Monday == this seed's `date_trunc('week', current_date)` Monday on ANY host and
+-- in CI (which is UTC end-to-end anyway). Do NOT switch this to a host-local timezone expression:
+-- the seed session has no portable way to know the developer's host timezone.
 insert into timesheets (id, user_id, week_start_date, status) values
-  ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4','2026-06-01','Draft'),  -- Engineer; 2026-06-01 is a Monday
-  ('70000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2','2026-06-01','Draft');  -- PM
+  ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4',date_trunc('week', current_date)::date,'Draft'),  -- Engineer; Monday of the current UTC week
+  ('70000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',date_trunc('week', current_date)::date,'Draft');  -- PM
+-- entry_date = Monday + N days, so all entries fall WITHIN the relative current week.
 insert into timesheet_entries (timesheet_id, project_id, entry_date, hours, notes) values
-  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','2026-06-01',8,'Site coordination'),
-  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','2026-06-02',8,'Drawings review'),
-  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001','2026-06-01',6,'Client workshop'),
-  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001','2026-06-02',4,'Status report');
+  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,8,'Site coordination'),
+  ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,8,'Drawings review'),
+  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,6,'Client workshop'),
+  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,4,'Status report');
 
 -- tasks + one dependency
 insert into tasks (id, project_id, name, start_date, end_date, assignee_id, status) values

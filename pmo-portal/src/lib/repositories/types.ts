@@ -14,7 +14,7 @@
 import type { ProjectRow, ProjectWithRefs } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
-import type { CompanyRow } from '@/src/lib/db/companies';
+import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
@@ -44,7 +44,20 @@ export interface ProjectRepository {
 }
 
 export interface CompanyRepository {
+  /** Client companies only — the FK picker for project/opportunity clients. */
   listClients(): Promise<CompanyRow[]>;
+  /** All companies in the org (archived hidden by default), optionally filtered by type. */
+  list(params?: { type?: CompanyType }): Promise<CompanyRow[]>;
+  /** A single company by id, or null when not found / not readable. */
+  get(id: string): Promise<CompanyRow | null>;
+  /** Create a company (org_id stamped by RLS, never sent). */
+  create(input: CompanyInput): Promise<CompanyRow>;
+  /** Update a company's name + type. */
+  update(id: string, input: CompanyInput): Promise<void>;
+  /** Soft-archive a company (stamps archived_at). */
+  archive(id: string): Promise<void>;
+  /** Hard-delete a company; rejects with AppError code 23503 if referenced. */
+  delete(id: string): Promise<void>;
 }
 
 export interface ProfileRepository {

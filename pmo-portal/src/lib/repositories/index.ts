@@ -14,7 +14,15 @@ import { toAppError } from '@/src/lib/appError';
 import { listProjects } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
 import { transitionProject } from '@/src/lib/db/projectTransitions';
-import { listClientCompanies } from '@/src/lib/db/companies';
+import {
+  listClientCompanies,
+  listCompanies,
+  getCompany,
+  createCompany,
+  updateCompany,
+  archiveCompany,
+  deleteCompany,
+} from '@/src/lib/db/companies';
 import { listProjectManagers } from '@/src/lib/db/profiles';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
@@ -75,6 +83,12 @@ const project: ProjectRepository = {
 
 const company: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
+  list: (params) => wrap(() => listCompanies(params)),
+  get: (id) => wrap(() => getCompany(id)),
+  create: (input) => wrap(() => createCompany(input)),
+  update: (id, input) => wrap(() => updateCompany(id, input)),
+  archive: (id) => wrap(() => archiveCompany(id)),
+  delete: (id) => wrap(() => deleteCompany(id)),
 };
 
 const profile: ProfileRepository = {

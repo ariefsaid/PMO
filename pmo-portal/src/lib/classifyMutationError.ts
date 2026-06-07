@@ -8,6 +8,7 @@
  *   P0001 → illegal state/stage transition (RAISE EXCEPTION in a state-machine RPC)
  *   42501 → insufficient privilege / SoD (RLS or RPC role check)
  *   23505 → unique-constraint violation (duplicate)
+ *   23503 → foreign-key violation (the row is still referenced — e.g. an in-use company delete)
  *   else  → generic "Update failed"
  *
  * The code is read structurally (any error exposing a string `.code` — `AppError`,
@@ -27,6 +28,8 @@ export function classifyMutationError(err: unknown): { headline: string; detail:
       return { headline: "You don't have permission to do that.", detail };
     case '23505':
       return { headline: 'That already exists.', detail };
+    case '23503':
+      return { headline: 'Still in use', detail };
     default:
       return { headline: 'Update failed', detail };
   }

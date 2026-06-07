@@ -27,6 +27,17 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     });
   });
 
+  it('23503 → still-in-use headline, verbatim FK message as detail (in-use delete)', () => {
+    const e = Object.assign(
+      new Error('update or delete on table "companies" violates foreign key constraint'),
+      { code: '23503' },
+    );
+    expect(classifyMutationError(e)).toEqual({
+      headline: 'Still in use',
+      detail: 'update or delete on table "companies" violates foreign key constraint',
+    });
+  });
+
   it('reads the code carried by an AppError instance', () => {
     const e = new AppError('nope', '42501');
     expect(classifyMutationError(e).headline).toBe("You don't have permission to do that.");

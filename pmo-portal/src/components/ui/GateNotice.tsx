@@ -2,14 +2,18 @@ import React from 'react';
 import { cn } from './cn';
 import { Icon } from './icons';
 
-export interface GateNoticeProps {
+export interface GateNoticeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant: 'blocked' | 'ready';
   children: React.ReactNode;
-  className?: string;
 }
 
 /** Separation-of-duties / readiness gate banner. AA darkened text variants. */
-export const GateNotice: React.FC<GateNoticeProps> = ({ variant, children, className }) => (
+export const GateNotice: React.FC<GateNoticeProps> = ({
+  variant,
+  children,
+  className,
+  ...rest
+}) => (
   <div
     className={cn(
       'flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px] [&_svg]:mt-px [&_svg]:size-[17px] [&_svg]:shrink-0',
@@ -18,6 +22,7 @@ export const GateNotice: React.FC<GateNoticeProps> = ({ variant, children, class
         : 'border-success/35 bg-success/10 text-[hsl(142_64%_28%)] [&_svg]:text-success',
       className
     )}
+    {...rest}
   >
     <Icon name={variant === 'blocked' ? 'lock' : 'check'} />
     <div>{children}</div>

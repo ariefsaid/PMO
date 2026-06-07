@@ -25,10 +25,11 @@ describe('StatusPill', () => {
     expect(pill.style.color).toBe('rgb(24, 70, 170)');
   });
 
-  it('#4: label text is 12px per DESIGN.md label token (not text-xs which is 10.5px on 14px base)', () => {
+  it('#4: label text is 12px per DESIGN.md label token (explicit text-[12px], not the rem-scale text-xs)', () => {
     render(<StatusPill variant="open">Check size</StatusPill>);
     const pill = screen.getByText('Check size').closest('span')!;
-    // Must use text-[12px] explicit pixel class, not text-xs (which resolves to 0.75rem = 10.5px on our 14px base)
+    // Pin the DESIGN.md 12px label token with an explicit pixel class so the pill
+    // size is immune to the root rem scale, rather than the rem-derived text-xs.
     expect(pill.className).toContain('text-[12px]');
     expect(pill.className).not.toContain('text-xs');
   });
@@ -85,6 +86,24 @@ describe('StatusPill', () => {
     const pill = screen.getByText('Submitted').closest('span')!;
     expect(pill.className).toContain('bg-primary/10');
     expect(pill.style.color).toBe('rgb(24, 70, 170)'); // hsl(221 75% 38%)
+  });
+
+  /**
+   * Categorical `violet` variant — the third pill hue (Companies type = Vendor).
+   * DESIGN.md sanctions violet for NON-interactive categorization (type pills are
+   * not actions). Tinted violet/12 bg + the darkened-AA text hsl(262 60% 42%) from
+   * crud-companies.html (7.4:1 on white — clears AA). Distinct from open (blue) and
+   * won/Internal (green) so the three company types are differentiated by hue AND
+   * label, never color-only (the dot + label carry it).
+   */
+  it('maps violet to the categorical violet tint + darkened AA text (Vendor type pill)', () => {
+    render(<StatusPill variant="violet">Vendor</StatusPill>);
+    const pill = screen.getByText('Vendor').closest('span')!;
+    expect(pill.className).toContain('bg-violet/12');
+    // hsl(262 60% 42%) == rgb(90,43,171) — the darkened violet, not the base hue.
+    expect(pill.style.color).toBe('rgb(90, 43, 171)');
+    const dot = pill.querySelector('[data-pill-dot]') as HTMLElement;
+    expect(dot.style.background).toBe('hsl(var(--violet))');
   });
 });
 
