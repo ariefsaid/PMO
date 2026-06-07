@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   PageHeader,
   Card,
@@ -15,7 +15,7 @@ import {
   useToast,
   type StatTile,
 } from '@/src/components/ui';
-import { BackBar, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -135,7 +135,7 @@ const ProcurementDetails: React.FC = () => {
   const { procurementId } = useParams<{ procurementId: string }>();
   const { effectiveRole } = useEffectiveRole();
   const { currentUser } = useAuth();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const detailQuery = useProcurementDetail(procurementId);
@@ -147,25 +147,10 @@ const ProcurementDetails: React.FC = () => {
   const [showCreateVI, setShowCreateVI] = useState(false);
 
   const data = detailQuery.data;
-  const title = data?.title;
 
-  // Hydrate the synthetic record tab's label to the human title once resolved.
-  useEffect(() => {
-    if (title && procurementId) {
-      ws.openRecord({
-        id: `procurement:${procurementId}`,
-        kind: 'record',
-        path: `/procurement/${procurementId}`,
-        icon: 'cart',
-        label: title,
-        code: data?.code ?? procurementId,
-        module: 'procurement',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, procurementId, data?.code]);
-
-  const goBack = () => ws.openModule('procurement');
+  // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
+  // breadcrumb resolves the record title from the cached list in App.tsx.
+  const goBack = () => navigate('/procurement');
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {

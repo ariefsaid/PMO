@@ -39,14 +39,13 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole }),
 }));
 
-// Shell + toast: the IA-3 detail page lives in the workspace shell and emits a
-// success toast on transition. Mock them so the page renders without providers.
-const openModule = vi.fn();
-const openRecord = vi.fn();
+// Toast: the IA-3 detail page emits a success toast on transition. Tabs are
+// gone — back-nav is a plain react-router navigate (AC-NAV-007).
+const navigate = vi.fn();
 const toast = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -202,6 +201,14 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     detailState.data = undefined;
     renderPage();
     expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {
+    navigate.mockClear();
+    detailState.isPending = true;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Procurement/i }));
+    expect(navigate).toHaveBeenCalledWith('/procurement');
   });
 });
 
