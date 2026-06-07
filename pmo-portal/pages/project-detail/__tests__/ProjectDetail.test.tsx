@@ -33,11 +33,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-const openModule = vi.fn();
-const openRecord = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+// Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
+const navigate = vi.fn();
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
 const renderAt = (path: string) =>
@@ -55,6 +55,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
+    navigate.mockClear();
   });
 
   it('renders the header from the real cached row and defaults to the Overview tab (AC-F/G, OQ-4)', () => {
@@ -117,5 +118,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/does-not-exist');
     expect(screen.getByText(/Project not found/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+  });
+
+  it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
+    projectsState.data = [];
+    renderAt('/projects/does-not-exist');
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith('/projects');
   });
 });

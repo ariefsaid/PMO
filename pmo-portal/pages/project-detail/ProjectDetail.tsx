@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, ListState, type TabItem } from '@/src/components/ui';
-import { BackBar, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import OverviewTab from './tabs/OverviewTab';
@@ -32,7 +32,7 @@ const TABS: TabItem<PTab>[] = [
 const ProjectDetail: React.FC = () => {
   const { projectId = '' } = useParams<{ projectId: string }>();
   const location = useLocation();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { data, isPending } = useProjects();
 
   const project = useMemo(
@@ -43,23 +43,10 @@ const ProjectDetail: React.FC = () => {
   const isBudgetDeepLink = location.pathname.endsWith('/budget');
   const [tab, setTab] = useState<PTab>(isBudgetDeepLink ? 'budget' : 'overview');
 
-  const goBack = () => ws.openModule('projects');
-
-  // Hydrate the workspace record tab's label to the human name once resolved.
-  useEffect(() => {
-    if (project) {
-      ws.openRecord({
-        id: `projects:${project.id}`,
-        kind: 'record',
-        path: `/projects/${project.id}`,
-        icon: 'folder',
-        label: project.name,
-        code: project.code ?? project.id.slice(0, 8),
-        module: 'projects',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.name, project?.code]);
+  // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
+  // breadcrumb resolves the record name from the cached list in App.tsx, so no
+  // per-page label hydration is needed once the tab layer is gone.
+  const goBack = () => navigate('/projects');
 
   if (!project) {
     if (isPending) {
