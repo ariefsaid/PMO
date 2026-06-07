@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   PageHeader,
@@ -15,7 +15,7 @@ import {
   useToast,
   type PageStat,
 } from '@/src/components/ui';
-import { BackBar, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useOpportunity } from '@/src/lib/db/opportunity';
 import { useAuth } from '@/src/auth/useAuth';
@@ -48,7 +48,7 @@ function stageDot(status: string): string {
 
 const OpportunityDetail: React.FC = () => {
   const { opportunityId = '' } = useParams<{ opportunityId: string }>();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -70,22 +70,6 @@ const OpportunityDetail: React.FC = () => {
   const [refError, setRefError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
-  // Hydrate the synthetic record tab's label to the human name once resolved.
-  useEffect(() => {
-    if (name && opportunityId) {
-      ws.openRecord({
-        id: `sales:${opportunityId}`,
-        kind: 'record',
-        path: `/sales/${opportunityId}`,
-        icon: 'pipe',
-        label: name,
-        code: opp?.code ?? opportunityId,
-        module: 'sales',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, opportunityId, opp?.code]);
-
   const legalTargets = useMemo(
     () => (status ? (LEGAL_PROJECT_TRANSITIONS[status] ?? []) : []),
     [status],
@@ -95,7 +79,8 @@ const OpportunityDetail: React.FC = () => {
   const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
   const isTerminal = status ? projectStatusGroup(status as never) !== 'pipeline' : false;
 
-  const goBack = () => ws.openModule('sales');
+  // Back to the Sales Pipeline index — a plain navigate, no tab (AC-NAV-007).
+  const goBack = () => navigate('/sales');
 
   // ── States ─────────────────────────────────────────────────────────────────
   if (pipelinePending && oppPending) {
@@ -141,7 +126,6 @@ const OpportunityDetail: React.FC = () => {
       setShowWonPanel(false);
       setContractRef('');
       setContractDate('');
-      ws.setDirty(`sales:${opportunityId}`, false);
       toast('Deal updated', `Moved to ${to}`, 'success');
     } catch (err) {
       // Surface the RPC error verbatim — it carries the P0001 SoD message.
@@ -262,7 +246,6 @@ const OpportunityDetail: React.FC = () => {
                     onChange={(e) => {
                       setContractRef(e.target.value);
                       setRefError(null);
-                      ws.setDirty(`sales:${opportunityId}`, true);
                     }}
                     aria-invalid={!!refError}
                     aria-describedby={refError ? 'won-ref-err' : undefined}
@@ -288,7 +271,6 @@ const OpportunityDetail: React.FC = () => {
                     onChange={(e) => {
                       setContractDate(e.target.value);
                       setDateError(null);
-                      ws.setDirty(`sales:${opportunityId}`, true);
                     }}
                     aria-invalid={!!dateError}
                     aria-describedby={dateError ? 'won-date-err' : undefined}
@@ -309,10 +291,7 @@ const OpportunityDetail: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setShowWonPanel(false);
-                      ws.setDirty(`sales:${opportunityId}`, false);
-                    }}
+                    onClick={() => setShowWonPanel(false)}
                   >
                     Cancel
                   </Button>

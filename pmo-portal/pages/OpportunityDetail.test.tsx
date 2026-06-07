@@ -34,8 +34,7 @@ const oppState: { data: Record<string, unknown> | null | undefined; isPending: b
 
 const transitionProject = vi.fn().mockResolvedValue(undefined);
 const invalidateQueries = vi.fn();
-const openModule = vi.fn();
-const openRecord = vi.fn();
+const navigate = vi.fn();
 const toast = vi.fn();
 
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
@@ -51,9 +50,10 @@ vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries }) };
 });
-vi.mock('@/src/components/shell', async (orig) => {
+// Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -72,8 +72,7 @@ const renderAt = (id: string) =>
 beforeEach(() => {
   transitionProject.mockClear().mockResolvedValue(undefined);
   invalidateQueries.mockClear();
-  openModule.mockClear();
-  openRecord.mockClear();
+  navigate.mockClear();
   toast.mockClear();
   pipelineState.isPending = false;
   pipelineState.isError = false;
@@ -111,11 +110,11 @@ describe('OpportunityDetail (AC-SP-208)', () => {
     expect(journey).toBeInTheDocument();
   });
 
-  it('AC-SP-207: hydrates the synthetic tab label to the human name on mount', () => {
+  it('AC-SP-207: renders the resolved human name in the header (no tab to hydrate)', () => {
     renderAt('p2');
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'sales:p2', label: 'Northwind ERP Rollout' }),
-    );
+    // The record name resolves into the page header; the breadcrumb label is
+    // sourced route-side in App.tsx, so the page no longer registers a tab.
+    expect(screen.getByRole('heading', { name: /Northwind ERP Rollout/i })).toBeInTheDocument();
   });
 
   it('AC-SP-208: an unknown id (after load) shows not-found + BackBar', () => {
@@ -126,14 +125,14 @@ describe('OpportunityDetail (AC-SP-208)', () => {
     expect(screen.getByRole('button', { name: /Back to Sales Pipeline/i })).toBeInTheDocument();
   });
 
-  it('AC-SP-208 / I7: the not-found BackBar navigates back to the sales module', () => {
+  it('AC-NAV-007 / I7: the not-found BackBar navigates back to the sales module index (no tab)', () => {
     // BackBar is retained on the not-found branch (the only escape route there);
-    // it still navigates back to the sales module.
+    // it now does a plain navigate('/sales').
     oppState.data = null;
     pipelineState.data = { stages: [], projects: [] };
     renderAt('ghost');
     fireEvent.click(screen.getByRole('button', { name: /Back to Sales Pipeline/i }));
-    expect(openModule).toHaveBeenCalledWith('sales');
+    expect(navigate).toHaveBeenCalledWith('/sales');
   });
 });
 
