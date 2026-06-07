@@ -17,5 +17,5 @@ export {
   type TabKind,
   DASHBOARD_TAB,
 } from './workspaceTabs';
-export { MODULES, moduleTab, tabForPath } from './routeMatch';
+export { MODULES, moduleTab, tabForPath, breadcrumbForPath } from './routeMatch';
 export { deriveBreadcrumb, PLACEHOLDER_TITLES } from './deriveBreadcrumb';
