@@ -190,6 +190,14 @@
 @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
 
+/* ---------- Confirm dialog entrance (scale+fade; scrim crossfade) ----------
+   Both are auto-disabled by the global prefers-reduced-motion rule above
+   (animation-duration → 0), degrading the dialog to an instant crossfade. */
+.confirm-anim { animation: confirmIn 0.15s ease-out; }
+@keyframes confirmIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
+.confirm-scrim-anim { animation: confirmScrimIn 0.15s ease-out; }
+@keyframes confirmScrimIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* ---------- Command palette panel entrance ---------- */
 .cmdk-anim { animation: cmdkin 0.14s ease; }
 @keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
