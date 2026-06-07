@@ -1,5 +1,8 @@
 import React from 'react';
 import { cn } from './cn';
+import { Button } from './Button';
+import { Icon } from './icons';
+import { computeTotals, type EditRow } from '@/src/lib/timesheet-edit';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -22,6 +25,23 @@ export interface TimesheetGridProps {
   days: TimesheetDay[];
   rows: TimesheetGridRow[];
   className?: string;
+  /**
+   * Editable mode (timesheet-entry FR-TSE-001): each cell becomes a labelled
+   * numeric input, a per-row note input and a per-row delete control appear, and
+   * totals derive from the edited (string) state. When false/omitted the grid is
+   * the shipped read-only surface — byte-for-byte unchanged.
+   */
+  editable?: boolean;
+  /** Per-row note text, keyed by row id (editable mode). */
+  notes?: Record<string, string>;
+  /** "<rowId>:<dayIdx>" of cells that fail client validation (editable mode). */
+  invalidCells?: Set<string>;
+  /** Fired on each keystroke into an hour cell (rowId, dayIndex 0–6, raw string). */
+  onCellChange?: (rowId: string, dayIndex: number, raw: string) => void;
+  /** Fired on each keystroke into a row's note input. */
+  onNoteChange?: (rowId: string, note: string) => void;
+  /** Fired when a row's delete control is activated (page stages a ConfirmDialog). */
+  onDeleteRow?: (rowId: string) => void;
 }
 
 /** Format hours with a tabular figure; trims trailing zeros (8 not 8.00). */
@@ -31,14 +51,43 @@ function fmt(n: number): string {
 
 /**
  * Weekly hours grid (DESIGN.md `tsgrid`): project rows × 7 day cells, weekend
- * tinting, per-row + per-day + grand totals. Cells are read-only here (entry
- * editing is a separate, deferred capability) but carry per-cell `aria-label`s
- * so screen readers can address each {project, day} figure. Filled cells get a
- * faint `primary` wash; empty cells show a centred dot placeholder.
+ * tinting, per-row + per-day + grand totals. In read-only mode cells are static
+ * (a faint `primary` wash on filled cells, a centred dot on empty) and carry
+ * per-cell `aria-label`s. In editable mode each cell is a labelled numeric input
+ * (NFR-TSE-A11Y-001), a per-row note input and a delete control appear, and totals
+ * track the edited values live via `computeTotals` (FR-TSE-012/013).
  */
-export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, className }) => {
-  const dailyTotals = days.map((_, i) => rows.reduce((sum, r) => sum + (r.hours[i] ?? 0), 0));
-  const grandTotal = dailyTotals.reduce((a, b) => a + b, 0);
+export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
+  days,
+  rows,
+  className,
+  editable = false,
+  notes,
+  invalidCells,
+  onCellChange,
+  onNoteChange,
+  onDeleteRow,
+}) => {
+  // Read-only totals: the shipped numeric reduce. Editable totals: derive from
+  // the (string) edited state via the pure, memo-friendly computeTotals selector.
+  const editTotals = React.useMemo(() => {
+    if (!editable) return null;
+    const editRows: EditRow[] = rows.map((r) => ({
+      project_id: r.id,
+      project: r.project,
+      code: r.code,
+      hours: r.hours.map((h) => String(h)),
+      note: notes?.[r.id] ?? '',
+    }));
+    return computeTotals(editRows);
+  }, [editable, rows, notes]);
+
+  const dailyTotals = editTotals
+    ? editTotals.perDay
+    : days.map((_, i) => rows.reduce((sum, r) => sum + (r.hours[i] ?? 0), 0));
+  const grandTotal = editTotals
+    ? editTotals.weekly
+    : dailyTotals.reduce((a, b) => a + b, 0);
 
   return (
     <div className={cn('overflow-x-auto', className)}>
@@ -72,11 +121,18 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
             >
               Total
             </th>
+            {editable && (
+              <th scope="col" className="h-[38px] w-[44px] border-b border-border bg-card">
+                <span className="sr-only">Row actions</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
-            const rowTotal = r.hours.reduce((a, b) => a + b, 0);
+          {rows.map((r, rowIdx) => {
+            const rowTotal = editTotals
+              ? editTotals.perRow[rowIdx]
+              : r.hours.reduce((a, b) => a + b, 0);
             return (
               <tr key={r.id} className="border-b border-border/70">
                 <td className="sticky left-0 z-[1] bg-card px-3 py-2.5 align-middle">
@@ -89,11 +145,54 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
                         {r.code}
                       </div>
                     )}
+                    {editable && (
+                      <input
+                        type="text"
+                        aria-label={`${r.project} note`}
+                        placeholder="Add a note"
+                        value={notes?.[r.id] ?? ''}
+                        onChange={(e) => onNoteChange?.(r.id, e.target.value)}
+                        className="mt-1 h-7 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground placeholder:text-muted-foreground"
+                      />
+                    )}
                   </div>
                 </td>
                 {r.hours.map((h, i) => {
-                  const filled = h > 0;
                   const weekend = days[i]?.weekend;
+                  if (editable) {
+                    const invalid = invalidCells?.has(`${r.id}:${i}`) ?? false;
+                    return (
+                      <td
+                        key={i}
+                        className={cn('p-1 align-middle', weekend && 'bg-secondary/60')}
+                      >
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.25"
+                          min={0}
+                          max={24}
+                          aria-label={`${r.project}, ${days[i]?.label} hours`}
+                          aria-invalid={invalid || undefined}
+                          value={h === 0 ? '' : fmt(h)}
+                          onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
+                          className={cn(
+                            'mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
+                            invalid ? 'border-destructive' : 'border-border'
+                          )}
+                        />
+                        {invalid && (
+                          <span
+                            role="alert"
+                            className="mt-0.5 block text-center text-[11px] leading-tight text-destructive"
+                          >
+                            0–24 only
+                          </span>
+                        )}
+                      </td>
+                    );
+                  }
+                  const filled = h > 0;
                   return (
                     <td
                       key={i}
@@ -119,6 +218,18 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
                 >
                   {rowTotal > 0 ? fmt(rowTotal) : '·'}
                 </td>
+                {editable && (
+                  <td className="px-1 text-center align-middle">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label={`Delete ${r.project} row`}
+                      onClick={() => onDeleteRow?.(r.id)}
+                    >
+                      <Icon name="x" />
+                    </Button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -146,6 +257,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({ days, rows, classN
             >
               {fmt(grandTotal)}
             </td>
+            {editable && <td className="bg-secondary/40" />}
           </tr>
         </tfoot>
       </table>

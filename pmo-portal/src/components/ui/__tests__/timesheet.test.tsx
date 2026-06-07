@@ -66,6 +66,116 @@ describe('TimesheetGrid', () => {
   });
 });
 
+describe('TimesheetGrid (editable mode)', () => {
+  it('AC-TSE-001: editable grid renders hour inputs + per-row delete when editable', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [8, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable />);
+    // 7 editable cells → 7 spinbutton inputs (input type=number/inputMode decimal).
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs.length).toBe(7);
+    // Per-row delete control with an accessible name.
+    expect(
+      screen.getByRole('button', { name: 'Delete Acme Platform row' }),
+    ).toBeInTheDocument();
+  });
+
+  it('the read-only branch (editable false) keeps the shipped read-only cells unchanged', () => {
+    render(<TimesheetGrid days={days} rows={rows} />);
+    // Read-only path renders the dot placeholder + no inputs.
+    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    const empty = screen.getByLabelText('Greystone Hospital MEP, Mon hours');
+    expect(empty).toHaveTextContent('·');
+  });
+
+  it('AC-TSE-007: typing into a cell calls onCellChange and does not write', async () => {
+    const onCellChange = vi.fn();
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [0, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable onCellChange={onCellChange} />);
+    const tue = screen.getByLabelText('Acme Platform, Tue hours');
+    await userEvent.type(tue, '8');
+    // The last call carries (rowId, dayIndex=1, raw='8') — no DAL/mutation exists in the grid.
+    expect(onCellChange).toHaveBeenLastCalledWith('p1', 1, '8');
+  });
+
+  it('AC-TSE-008: editing the row note calls onNoteChange', async () => {
+    const onNoteChange = vi.fn();
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [0, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(
+      <TimesheetGrid
+        days={days}
+        rows={editRows}
+        editable
+        notes={{ p1: '' }}
+        onNoteChange={onNoteChange}
+      />,
+    );
+    const note = screen.getByLabelText('Acme Platform note');
+    await userEvent.type(note, 'x');
+    expect(onNoteChange).toHaveBeenLastCalledWith('p1', 'x');
+  });
+
+  it('AC-TSE-009/010: an invalid cell shows an inline error and marks aria-invalid', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [25, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(
+      <TimesheetGrid
+        days={days}
+        rows={editRows}
+        editable
+        invalidCells={new Set(['p1:0'])}
+      />,
+    );
+    const mon = screen.getByLabelText('Acme Platform, Mon hours');
+    expect(mon).toHaveAttribute('aria-invalid', 'true');
+    // An inline alert near the cell (not color-only).
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(/0.?24/);
+    // A valid cell is not marked invalid.
+    const tue = screen.getByLabelText('Acme Platform, Tue hours');
+    expect(tue).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('AC-TSE-012: editable grid totals reflect edited cell values live', () => {
+    const editRows: TimesheetGridRow[] = [
+      // hours as numbers; the page passes parsed numbers for display, edit strings via value
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [6, 4, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable />);
+    expect(screen.getByTestId('tsgrid-row-total-p1')).toHaveTextContent('10');
+    expect(screen.getByTestId('tsgrid-daily-total-0')).toHaveTextContent('6');
+    expect(screen.getByTestId('tsgrid-daily-total-1')).toHaveTextContent('4');
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('10');
+  });
+
+  it('AC-TSE-013: activating row delete calls onDeleteRow with the row id', async () => {
+    const onDeleteRow = vi.fn();
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [0, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable onDeleteRow={onDeleteRow} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Acme Platform row' }));
+    expect(onDeleteRow).toHaveBeenCalledWith('p1');
+  });
+
+  it('NFR-TSE-A11Y-001: every editable cell has aria-label "<project>, <weekday> hours"', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [0, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable />);
+    for (const d of days) {
+      const cell = screen.getByLabelText(`Acme Platform, ${d.label} hours`);
+      expect(cell.tagName).toBe('INPUT');
+    }
+  });
+});
+
 describe('ErrBanner', () => {
   it('renders as role=status (an expected returned-week state, not an alert failure)', () => {
     render(<ErrBanner title="Returned for changes" sub="Fix Fri and resubmit." />);
