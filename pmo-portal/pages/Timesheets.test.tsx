@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import { ToastProvider } from '@/src/components/ui';
 import Timesheets from './Timesheets';
 
 // Seeded PM week (2026-06-01): 6 + 4 = 10.0 hours, one project.
@@ -38,7 +40,14 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-const renderPage = () => render(<MemoryRouter><Timesheets /></MemoryRouter>);
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <Timesheets />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
 beforeEach(() => {
   sessionStorage.clear(); // reset the persisted view so each test starts on the grid
@@ -224,7 +233,7 @@ describe('Timesheets submit button', () => {
     submitMutate.mockClear();
   });
 
-  it("AC-911 (UI): the weekly grid shows an enabled Submit button for the owner's own Draft sheet and calls the submit mutation (FR-TS-004)", () => {
+  it("T1/AC-911 (UI): the weekly grid shows an enabled Submit button for the owner's own Draft sheet; clicking it opens a confirm and the submit mutation fires only on Confirm, then toasts (FR-TS-004)", async () => {
     // pmSheet has user_id 'u-alice' and useAuth returns id 'u-alice' → isOwner=true
     // week_start_date must match the current week; Timesheets page uses today's week
     // so we set a Draft sheet matching the current week string
@@ -244,14 +253,31 @@ describe('Timesheets submit button', () => {
     tsState.isPending = false;
     tsState.isError = false;
 
+    // submit.mutate(vars, { onSuccess }) — invoke onSuccess so the toast runs.
+    submitMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
     renderPage();
 
     const submitBtn = screen.getByRole('button', { name: /submit timesheet/i });
     expect(submitBtn).toBeInTheDocument();
     expect(submitBtn).not.toBeDisabled();
 
-    fireEvent.click(submitBtn);
-    expect(submitMutate).toHaveBeenCalledWith({ id: 'ts-draft' });
+    await userEvent.click(submitBtn);
+    // Owner rule: the first click must NOT submit.
+    expect(submitMutate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    // Commit via the dialog's confirm button (scoped to the dialog).
+    const { getByRole } = within(dialog);
+    await userEvent.click(getByRole('button', { name: /^Submit timesheet$/i }));
+    expect(submitMutate).toHaveBeenCalledWith(
+      { id: 'ts-draft' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });

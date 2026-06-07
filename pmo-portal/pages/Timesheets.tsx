@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   CardHead,
+  ConfirmDialog,
   ErrBanner,
   Icon,
   ListState,
@@ -12,6 +13,7 @@ import {
   ViewToggle,
   HoursBar,
   EntryList,
+  useToast,
   type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
@@ -55,8 +57,11 @@ const TimesheetsPage: React.FC = () => {
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit } = useTimesheetMutations();
   const { currentUser } = useAuth();
+  const { toast } = useToast();
   const signedInUserId = currentUser?.id;
   const [view, setView] = useTimesheetsView();
+  // T1: the Submit button stages this confirm; nothing submits on a single click.
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
   // Pending-approval count for the queue toggle badge (shared cache; cheap).
   const { data: awaiting } = useTimesheetsAwaitingApproval();
@@ -164,6 +169,39 @@ const TimesheetsPage: React.FC = () => {
     ? timesheetActions(currentTimesheet.status as TimesheetStatus, Boolean(isOwner), false)
     : { submit: false, approve: false, reject: false };
 
+  // T1: commit the week for approval, toast on resolve (§6.7). The RPC contract
+  // (submit_timesheet { id }) is preserved; the confirm only gates the click.
+  const commitSubmit = () => {
+    if (!currentTimesheet) return;
+    submit.mutate(
+      { id: currentTimesheet.id },
+      {
+        onSuccess: () => {
+          setConfirmSubmit(false);
+          toast('Timesheet submitted', 'Sent to your line manager for approval', 'success');
+        },
+        onError: (err: unknown) => {
+          setConfirmSubmit(false);
+          toast('Submit failed', err instanceof Error ? err.message : undefined, 'warning');
+        },
+      },
+    );
+  };
+
+  // T1 confirm dialog — shared across the grid-view renders below.
+  const submitConfirm = confirmSubmit && currentTimesheet && (
+    <ConfirmDialog
+      open
+      tone="default"
+      title="Submit this week for approval?"
+      description="This sends the whole week to your line manager. You can't edit it again until it's returned."
+      confirmLabel="Submit timesheet"
+      loading={submit.isPending}
+      onCancel={() => setConfirmSubmit(false)}
+      onConfirm={commitSubmit}
+    />
+  );
+
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (
     <>
@@ -178,7 +216,7 @@ const TimesheetsPage: React.FC = () => {
         {view === 'grid' && actions.submit && (
           <Button
             variant="primary"
-            onClick={() => submit.mutate({ id: currentTimesheet!.id })}
+            onClick={() => setConfirmSubmit(true)}
             loading={submit.isPending}
           >
             <Icon name="check" />
@@ -323,6 +361,8 @@ const TimesheetsPage: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {submitConfirm}
     </div>
   );
 };

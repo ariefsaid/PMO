@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ApprovalRow,
   Button,
+  ConfirmDialog,
   GateNotice,
   Icon,
   ListState,
   StatusPill,
+  useToast,
   type StatusVariant,
 } from '@/src/components/ui';
 import { TimesheetStatus } from '../../types';
@@ -40,9 +42,41 @@ function weekLabel(weekStart: string): string {
  * the caller's own sheets, and `timesheetActions` never offers approve/reject on
  * an owned sheet. The RPC is the authoritative SoD enforcer; this gates affordances.
  */
+/** A staged, not-yet-committed approval action awaiting the ConfirmDialog
+ *  (owner rule: nothing approves/returns on a single click; T2/T3). */
+type PendingApproval = { kind: 'approve' | 'return'; id: string; name: string };
+
 export const ApprovalsQueue: React.FC = () => {
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const { approve, reject } = useTimesheetMutations();
+  const { toast } = useToast();
+  const [pending, setPending] = useState<PendingApproval | null>(null);
+
+  // T2/T3: commit the staged action and toast on resolve (§6.7). The RPC contract
+  // (approve_timesheet / reject_timesheet { id }) is preserved; the confirm only
+  // gates the click. P0001 SoD message passes through verbatim in the toast.
+  const commitApproval = () => {
+    if (!pending) return;
+    const mutation = pending.kind === 'approve' ? approve : reject;
+    const okHeadline = pending.kind === 'approve' ? 'Timesheet approved' : 'Timesheet returned';
+    const okDetail =
+      pending.kind === 'approve'
+        ? `${pending.name}'s week approved`
+        : `Sent back to ${pending.name} for changes`;
+    mutation.mutate(
+      { id: pending.id },
+      {
+        onSuccess: () => {
+          setPending(null);
+          toast(okHeadline, okDetail, 'success');
+        },
+        onError: (err: unknown) => {
+          setPending(null);
+          toast('Action failed', err instanceof Error ? err.message : undefined, 'warning');
+        },
+      },
+    );
+  };
 
   if (isPending) {
     return (
@@ -111,7 +145,13 @@ export const ApprovalsQueue: React.FC = () => {
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => approve.mutate({ id: sheet.id })}
+                    onClick={() =>
+                      setPending({
+                        kind: 'approve',
+                        id: sheet.id,
+                        name: sheet.owner?.full_name ?? 'this report',
+                      })
+                    }
                     loading={approve.isPending}
                   >
                     <Icon name="check" />
@@ -122,7 +162,13 @@ export const ApprovalsQueue: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => reject.mutate({ id: sheet.id })}
+                    onClick={() =>
+                      setPending({
+                        kind: 'return',
+                        id: sheet.id,
+                        name: sheet.owner?.full_name ?? 'this report',
+                      })
+                    }
                     loading={reject.isPending}
                   >
                     Return
@@ -132,6 +178,29 @@ export const ApprovalsQueue: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* T2 approve = default-tone confirm; T3 return = destructive modal. The
+          destructive solid fill appears only on the Return-timesheet confirm. */}
+      {pending && (
+        <ConfirmDialog
+          open
+          tone={pending.kind === 'approve' ? 'default' : 'destructive'}
+          title={
+            pending.kind === 'approve'
+              ? `Approve ${pending.name}'s week?`
+              : `Return ${pending.name}'s timesheet?`
+          }
+          description={
+            pending.kind === 'approve'
+              ? `This approves ${pending.name}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.`
+              : `This sends ${pending.name}'s week back for changes. They'll need to correct and resubmit it.`
+          }
+          confirmLabel={pending.kind === 'approve' ? 'Approve' : 'Return timesheet'}
+          loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
+          onCancel={() => setPending(null)}
+          onConfirm={commitApproval}
+        />
       )}
     </section>
   );
