@@ -16,6 +16,7 @@ import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { ProfileRow } from '@/src/lib/db/profiles';
+import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
@@ -62,6 +63,12 @@ export interface CompanyRepository {
 
 export interface ProfileRepository {
   listProjectManagers(): Promise<ProfileRow[]>;
+  /** All profiles in the caller's org — the Administration › Users directory + manager FK picker. */
+  listUsers(): Promise<UserRow[]>;
+  /** Change a user's role (Admin-only via profiles_admin_write RLS). */
+  updateUserRole(id: string, role: UserRole): Promise<void>;
+  /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
+  assignUserManager(id: string, managerId: string | null): Promise<void>;
 }
 
 export interface ProcurementRepository {

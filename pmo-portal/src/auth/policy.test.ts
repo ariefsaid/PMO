@@ -52,6 +52,15 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('create', 'user')).toEqual(['Admin']);
   });
 
+  it('AC-AU-002: edit user (role/manager) = Admin only', () => {
+    expect(allowedRoles('edit', 'user')).toEqual(['Admin']);
+  });
+
+  it('AC-AU-002: view user directory = Admin·Exec (Exec read-only, §J); PM/Finance/Engineer no', () => {
+    // rbac-visibility §J: Exec can OPEN Administration and SEE a read-only user list.
+    expect(allowedRoles('view', 'user')).toEqual(['Admin', 'Executive']);
+  });
+
   // ── archive ────────────────────────────────────────────────────────────
   it('ADR-0016: archive project/company = Admin·Exec only', () => {
     expect(allowedRoles('archive', 'project')).toEqual(['Admin', 'Executive']);

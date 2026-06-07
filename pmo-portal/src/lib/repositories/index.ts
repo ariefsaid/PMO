@@ -24,6 +24,7 @@ import {
   deleteCompany,
 } from '@/src/lib/db/companies';
 import { listProjectManagers } from '@/src/lib/db/profiles';
+import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
   getProcurementDetail,
@@ -93,6 +94,9 @@ const company: CompanyRepository = {
 
 const profile: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
+  listUsers: () => wrap(() => listUsers()),
+  updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
+  assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
 };
 
 const procurement: ProcurementRepository = {

@@ -20,6 +20,11 @@ vi.mock('@/src/lib/db/companies', () => ({
   deleteCompany: vi.fn(),
 }));
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn() }));
+vi.mock('@/src/lib/db/adminUsers', () => ({
+  listUsers: vi.fn(),
+  updateUserRole: vi.fn(),
+  assignUserManager: vi.fn(),
+}));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   getProcurementDetail: vi.fn(),
@@ -60,6 +65,7 @@ import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
 import * as profilesDal from '@/src/lib/db/profiles';
+import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
@@ -80,7 +86,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
     );
-    expect(Object.keys(repositories.profile).sort()).toEqual(['listProjectManagers']);
+    expect(Object.keys(repositories.profile).sort()).toEqual(
+      ['assignUserManager', 'listProjectManagers', 'listUsers', 'updateUserRole'].sort(),
+    );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       ['createInvoice', 'createQuotation', 'createReceipt', 'get', 'list', 'transition'].sort(),
     );
@@ -168,6 +176,24 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(profilesDal.listProjectManagers).mockResolvedValue([] as never);
     await repositories.profile.listProjectManagers();
     expect(profilesDal.listProjectManagers).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-AU-001/003/004: profile admin-users methods delegate to the adminUsers DAL', async () => {
+    vi.mocked(adminUsersDal.listUsers).mockResolvedValue([] as never);
+    vi.mocked(adminUsersDal.updateUserRole).mockResolvedValue(undefined);
+    vi.mocked(adminUsersDal.assignUserManager).mockResolvedValue(undefined);
+
+    await repositories.profile.listUsers();
+    expect(adminUsersDal.listUsers).toHaveBeenCalledTimes(1);
+
+    await repositories.profile.updateUserRole('u2', 'Executive' as never);
+    expect(adminUsersDal.updateUserRole).toHaveBeenCalledWith('u2', 'Executive');
+
+    await repositories.profile.assignUserManager('u3', 'mgr-1');
+    expect(adminUsersDal.assignUserManager).toHaveBeenCalledWith('u3', 'mgr-1');
+
+    await repositories.profile.assignUserManager('u3', null);
+    expect(adminUsersDal.assignUserManager).toHaveBeenLastCalledWith('u3', null);
   });
 
   it('procurement.list / get / transition / create* delegate', async () => {
