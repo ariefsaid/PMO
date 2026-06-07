@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  CRUD MOCKUP · COMPANIES MANAGEMENT
+  ============================================================================
+  Product : PMO Portal — Companies (master data: client / vendor / both)
+  Source  : docs/design/crud-components.md §9.2, §5.3 ; docs/design/rbac-visibility.md §D
+  Tokens  : :root block + component classes COPIED VERBATIM from
+            docs/design-mockups/proposal-IA-3-hybrid.html (shadcn-vue HSL Token System A).
+            No new hex, no new font, no new border color, no new radius.
+
+  WHAT THIS SHOWS (all states, ERP idioms):
+   • Index DataTable with a Type filter segmented control + "Show archived" toggle.
+   • Header single primary CTA "New company" (ui-ux-pro-max primary-action).
+   • Row ⋯ menu → Edit / Archive / Delete (danger, spatially separated).
+   • Create / edit modal (EntityFormModal) with labelled fields, required asterisks,
+     a validation-error field + error summary, field grouping, native select/email/tel.
+   • Archive confirm (ConfirmDialog tone=default).
+   • In-use delete-block GateNotice (§5.3): "referenced by N — Archive instead".
+   • Loading skeleton, empty state, load-error banner, an archived (dimmed) row.
+   • RBAC: this view rendered as Admin (sees Delete). Notes call out PM/Exec deltas.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — Companies (CRUD mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens — COPIED VERBATIM from proposal-IA-3-hybrid.html :root ===== */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 4% 40%;            /* darkened to 40% L for AA (DESIGN.md) */
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 22 78% 26%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    --violet: 262 83% 58%; /* categorical accent (KPI/avatar/timeline only — never an action color) */
+    --radius: 0.5rem;
+    --rail-w: 224px;
+    --header-h: 56px;
+    --tabstrip-h: 40px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: hsl(var(--background)); color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility; font-size: 14px; line-height: 1.45; }
+
+  .font-bold { font-weight: 700; } .font-semibold { font-weight: 600; } .font-medium { font-weight: 500; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+  .text-xs { font-size: 12px; }
+
+  /* ===== App shell (rail + header + main) — verbatim structure ===== */
+  .app { display: grid; grid-template-columns: var(--rail-w) 1fr; grid-template-rows: var(--header-h) 1fr;
+    grid-template-areas: "rail header" "rail main"; height: 100vh; width: 100vw; overflow: hidden; }
+  .rail { grid-area: rail; background: hsl(var(--card)); border-right: 1px solid hsl(var(--border));
+    display: flex; flex-direction: column; min-height: 0; }
+  .rail-brand { height: var(--header-h); display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    border-bottom: 1px solid hsl(var(--border)); flex-shrink: 0; }
+  .rail-logo { width: 28px; height: 28px; border-radius: 7px; background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground)); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .rail-brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .rail-brand-sub { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: -2px; }
+  .rail-nav { padding: 10px; overflow-y: auto; flex: 1; min-height: 0; }
+  .rail-group-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); padding: 14px 8px 6px; }
+  .rail-item { display: flex; align-items: center; gap: 11px; height: 36px; padding: 0 10px;
+    border-radius: calc(var(--radius) - 2px); color: hsl(var(--foreground)); font-size: 13.5px; font-weight: 500;
+    cursor: pointer; user-select: none; width: 100%; border: none; background: transparent; text-align: left; font-family: inherit; }
+  .rail-item:hover { background: hsl(var(--accent)); }
+  .rail-item.active { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); font-weight: 600; }
+  .rail-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke-width: 2; }
+
+  .header { grid-area: header; background: hsl(var(--background)); border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center; gap: 14px; padding: 0 20px; z-index: 30; }
+  .breadcrumb { display: flex; align-items: center; gap: 7px; font-size: 13.5px; min-width: 0; }
+  .breadcrumb a { color: hsl(var(--muted-foreground)); text-decoration: none; white-space: nowrap; }
+  .breadcrumb a:hover { color: hsl(var(--foreground)); }
+  .breadcrumb .sep { color: hsl(var(--muted-foreground)); opacity: .5; }
+  .breadcrumb .current { font-weight: 600; color: hsl(var(--foreground)); }
+  .header-spacer { flex: 1; }
+  .role-switch { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 11px;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius); background: hsl(var(--background));
+    font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); font-family: inherit; }
+  .role-switch svg { width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+  .role-switch .rs-cap { color: hsl(var(--muted-foreground)); font-weight: 400; }
+  .avatar { width: 28px; height: 28px; border-radius: 999px;
+    background: linear-gradient(135deg, hsl(221 83% 53%), hsl(262 83% 58%)); color: #fff; display: grid;
+    place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+
+  .main { grid-area: main; overflow-y: auto; overflow-x: hidden; background: hsl(var(--secondary) / 0.35); }
+  .main-inner { padding: 20px 24px 64px; max-width: 1280px; margin: 0 auto; }
+
+  .page-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 80ch; }
+  .page-head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ===== Buttons ===== */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer;
+    white-space: nowrap; user-select: none; font-family: inherit;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease, transform .05s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+  .btn-destructive:hover { background: hsl(var(--destructive) / 0.9); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn:disabled, .btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+  /* ===== Toolbar ===== */
+  .toolbar { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none; padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .seg { display: inline-flex; align-items: center; height: 32px; padding: 2px; background: hsl(var(--secondary));
+    border-radius: var(--radius); gap: 2px; }
+  .seg button { height: 28px; padding: 0 11px; font-size: 13px; font-weight: 500; border: none; background: transparent;
+    color: hsl(var(--muted-foreground)); border-radius: calc(var(--radius) - 3px); cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, color .12s ease, box-shadow .12s ease; }
+  .seg button:hover { color: hsl(var(--foreground)); }
+  .seg button.on { background: hsl(var(--background)); color: hsl(var(--foreground)); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.1); }
+  .toolbar-spacer { flex: 1; }
+  .search-mini { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
+    border-radius: var(--radius); background: hsl(var(--background)); min-width: 190px; }
+  .search-mini svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .search-mini input { border: none; outline: none; background: transparent; font-size: 13.5px; font-family: inherit; width: 100%; color: hsl(var(--foreground)); }
+  .search-mini input::placeholder { color: hsl(var(--muted-foreground)); }
+  /* archive toggle = the documented 16px custom checkbox */
+  .check-toggle { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 6px; font-size: 13px;
+    color: hsl(var(--foreground)); cursor: pointer; user-select: none; border-radius: var(--radius); background: transparent;
+    border: none; font-family: inherit; }
+  .check-toggle:hover { background: hsl(var(--accent)); }
+  .cbox { width: 16px; height: 16px; border: 1.5px solid hsl(var(--input)); border-radius: 4px; display: grid; place-items: center;
+    flex-shrink: 0; color: transparent; }
+  .cbox svg { width: 11px; height: 11px; stroke-width: 3; }
+  .check-toggle[aria-checked="true"] .cbox { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+
+  /* ===== Data table ===== */
+  .table-wrap { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.grid thead th { position: sticky; top: 0; background: hsl(var(--card)); height: 38px; text-align: left; font-size: 11.5px;
+    font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: hsl(var(--muted-foreground)); padding: 0 12px;
+    border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; user-select: none; z-index: 2; }
+  th.num, td.num { text-align: right; } th.center, td.center { text-align: center; }
+  table.grid thead th.sortable { cursor: pointer; }
+  table.grid thead th.sortable:hover { color: hsl(var(--foreground)); }
+  table.grid thead th .sortglyph { margin-left: 5px; opacity: .9; }
+  table.grid tbody td { height: 56px; padding: 8px 12px; border-bottom: 1px solid hsl(var(--border) / 0.7); vertical-align: middle; white-space: nowrap; }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid tbody tr.row { cursor: pointer; transition: background .1s ease; }
+  table.grid tbody tr.row:hover { background: hsl(var(--accent) / 0.6); }
+  table.grid tbody tr.row:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+  table.grid tbody tr.archived td { opacity: .55; }
+  .co { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .co-ico { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #fff; }
+  .co-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .co-name { font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+  .co-contact { font-size: 11.5px; color: hsl(var(--muted-foreground)); line-height: 1.2; }
+  td .ref { color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
+
+  /* row ⋯ menu trigger — hidden until row hover (DataTable convention) */
+  .rowmenu-btn { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; border: none;
+    background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; opacity: 0; transition: opacity .12s ease, background .12s ease; }
+  tr.row:hover .rowmenu-btn, .rowmenu-btn[aria-expanded="true"] { opacity: 1; }
+  .rowmenu-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .rowmenu-btn:focus-visible { opacity: 1; }
+  .rowmenu-btn svg { width: 16px; height: 16px; }
+
+  /* ===== Status pills ===== */
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .status.client { background: hsl(221 83% 53% / 0.1); color: hsl(221 70% 45%); }
+  .status.client .sdot { background: hsl(221 83% 53%); }
+  .status.vendor { background: hsl(262 83% 58% / 0.12); color: hsl(262 60% 42%); }
+  .status.vendor .sdot { background: hsl(262 83% 58%); }
+  .status.both { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.both .sdot { background: hsl(var(--success)); }
+  .status.neutral { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+  .status.neutral .sdot { background: hsl(var(--muted-foreground)); }
+
+  .table-foot { display: flex; align-items: center; gap: 16px; padding: 11px 14px; border-top: 1.5px solid hsl(var(--border));
+    background: hsl(var(--secondary) / 0.4); font-size: 13px; }
+  .table-foot .foot-label { color: hsl(var(--muted-foreground)); font-weight: 500; }
+
+  /* ===== Empty / loading / error ===== */
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 56px 24px; text-align: center; }
+  .empty-ico { width: 52px; height: 52px; border-radius: 14px; background: hsl(var(--secondary)); display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+  .empty-ico svg { width: 24px; height: 24px; stroke-width: 1.75; }
+  .empty-title { font-size: 15px; font-weight: 600; }
+  .empty-sub { font-size: 13px; color: hsl(var(--muted-foreground)); max-width: 44ch; }
+  .err-banner { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius);
+    background: hsl(var(--destructive) / 0.07); border: 1px solid hsl(var(--destructive) / 0.3); }
+  .err-banner svg { width: 20px; height: 20px; color: hsl(var(--destructive)); flex-shrink: 0; }
+  .err-banner .eb-title { font-size: 13.5px; font-weight: 600; color: hsl(0 72% 42%); }
+  .err-banner .eb-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .err-banner .eb-spacer { flex: 1; }
+  .skel { background: linear-gradient(90deg, hsl(var(--secondary)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--secondary)) 75%);
+    background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 6px; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .skel-line { height: 12px; margin: 7px 0; }
+
+  /* ===== Row menu popover ===== */
+  .rowmenu { position: fixed; min-width: 168px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08); padding: 5px; z-index: 400; }
+  .rowmenu button { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 9px; border: none;
+    background: transparent; color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; border-radius: 6px; cursor: pointer; text-align: left; }
+  .rowmenu button:hover { background: hsl(var(--accent)); }
+  .rowmenu button svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); }
+  .rowmenu button.danger { color: hsl(var(--destructive)); }
+  .rowmenu button.danger svg { color: hsl(var(--destructive)); }
+  .menu-sep { height: 1px; background: hsl(var(--border)); margin: 4px 0; }
+
+  /* ===== Modal (EntityFormModal) + ConfirmDialog ===== */
+  .scrim { position: fixed; inset: 0; background: hsl(240 10% 4% / 0.45); backdrop-filter: blur(3px); z-index: 800;
+    display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; overflow-y: auto; }
+  .scrim[hidden] { display: none; } /* UA [hidden] is overridden by display:flex above; restore it (mirrors .rowmenu) */
+  .modal { width: 100%; max-width: 520px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: 10px; box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); display: flex; flex-direction: column; max-height: 84vh; animation: modalin .14s ease; }
+  @keyframes modalin { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+  .modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid hsl(var(--border)); }
+  .modal-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .modal-head .mh-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .modal-head .mh-spacer { flex: 1; }
+  .icon-close { width: 30px; height: 30px; border-radius: 7px; border: none; background: transparent; color: hsl(var(--muted-foreground));
+    display: grid; place-items: center; cursor: pointer; }
+  .icon-close:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-close svg { width: 17px; height: 17px; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-foot { display: flex; align-items: center; gap: 8px; padding: 13px 18px; border-top: 1px solid hsl(var(--border)); }
+  .modal-foot .mf-spacer { flex: 1; }
+
+  /* ===== Form primitives ===== */
+  fieldset.fs { border: none; padding: 0; margin: 0 0 18px; }
+  fieldset.fs:last-of-type { margin-bottom: 0; }
+  legend.fs-legend { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; padding-bottom: 10px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.col-span-2 { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 600; line-height: 1.3; color: hsl(var(--foreground)); }
+  .field label .req { color: hsl(var(--destructive)); margin-left: 2px; }
+  .field .helper { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .inp { height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; width: 100%; }
+  .inp::placeholder { color: hsl(var(--muted-foreground)); }
+  .inp:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  select.inp { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737380' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 15px; padding-right: 30px; }
+  textarea.inp { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+  /* error field state (DESIGN.md proposed error tokens: destructive border + destructive helper) */
+  .field.invalid .inp { border-color: hsl(var(--destructive)); }
+  .field.invalid .inp:focus-visible { outline-color: hsl(var(--destructive)); }
+  .field-err { display: flex; align-items: center; gap: 5px; font-size: 12px; color: hsl(0 72% 45%); }
+  .field-err svg { width: 13px; height: 13px; flex-shrink: 0; }
+  /* read-only value row (NOT a greyed input — read-only-distinction) */
+  .ro-val { font-size: 13.5px; padding: 6px 0; }
+  /* error summary banner inside the form */
+  .form-errsum { display: flex; gap: 10px; padding: 11px 13px; border-radius: var(--radius); margin-bottom: 16px;
+    background: hsl(var(--destructive) / 0.07); border: 1px solid hsl(var(--destructive) / 0.3); }
+  .form-errsum svg { width: 17px; height: 17px; color: hsl(var(--destructive)); flex-shrink: 0; margin-top: 1px; }
+  .form-errsum .es-title { font-size: 13px; font-weight: 600; color: hsl(0 72% 42%); }
+  .form-errsum a { font-size: 12.5px; color: hsl(var(--destructive)); display: block; text-decoration: none; }
+  .form-errsum a:hover { text-decoration: underline; }
+
+  /* ConfirmDialog */
+  .confirm { width: 100%; max-width: 420px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: 10px; box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); padding: 20px; animation: modalin .14s ease; }
+  .confirm-ico { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; margin-bottom: 12px; }
+  .confirm-ico.danger { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+  .confirm-ico.warn { background: hsl(var(--warning) / 0.18); color: hsl(38 92% 40%); }
+  .confirm-ico svg { width: 19px; height: 19px; }
+  .confirm h2 { font-size: 16px; font-weight: 700; }
+  .confirm p { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 6px; line-height: 1.5; }
+  .confirm-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+  /* GateNotice (block-delete-if-referenced) */
+  .gate { display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border-radius: var(--radius); font-size: 13px; margin-top: 4px; }
+  .gate svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+  .gate.blocked { background: hsl(var(--warning) / 0.12); border: 1px solid hsl(var(--warning) / 0.4); color: hsl(var(--warning-foreground)); }
+  .gate.blocked svg { color: hsl(38 92% 40%); }
+  .gate b { font-weight: 700; }
+  .gate .gate-actions { margin-top: 10px; display: flex; gap: 8px; }
+
+  /* layout helpers for the "states gallery" callouts */
+  .demo-band { display: flex; align-items: center; gap: 8px; margin: 26px 0 10px; }
+  .demo-band .db-line { flex: 1; height: 1px; background: hsl(var(--border)); }
+  .demo-band .db-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .note { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 8px; padding-left: 2px; }
+  .note b { color: hsl(var(--foreground)); font-weight: 600; }
+
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+  @media (max-width: 920px) {
+    :root { --rail-w: 0px; }
+    .app { grid-template-columns: 0 1fr; }
+    .rail { display: none; }
+    .main-inner { padding: 14px 12px 60px; }
+    .modal { max-width: none; }
+    .co-contact { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skel { animation: none; }
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<a href="#main" class="sr-only">Skip to main content</a>
+<div class="app">
+  <!-- RAIL -->
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-brand">
+      <div class="rail-logo" aria-hidden="true">P</div>
+      <div><div class="rail-brand-name">PMO Portal</div><div class="rail-brand-sub">Meridian Contracting Group</div></div>
+    </div>
+    <nav class="rail-nav" aria-label="Sections">
+      <div class="rail-group-label">Overview</div>
+      <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</button>
+      <div class="rail-group-label">Delivery</div>
+      <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Projects</button>
+      <button class="rail-item active" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>Companies</button>
+    </nav>
+  </aside>
+
+  <!-- HEADER -->
+  <header class="header" role="banner">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="#">PMO Portal</a><span class="sep">›</span><span class="current">Companies</span></nav>
+    <div class="header-spacer"></div>
+    <button class="role-switch" aria-label="Switch role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="rs-cap">View as</span><span>Admin</span></button>
+    <span class="avatar" aria-hidden="true">AO</span>
+  </header>
+
+  <!-- MAIN -->
+  <main class="main" id="main" tabindex="-1">
+    <div class="main-inner">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Companies</h1>
+          <p class="page-sub">Clients and vendors used across projects and procurement. Master data, no separation-of-duties; the widest write set (incl. Finance).</p>
+        </div>
+        <div class="page-head-actions">
+          <!-- ui-ux-pro-max primary-action: ONE primary CTA per screen. Gated to can('create','company') = Admin·Exec·PM·Finance. -->
+          <button class="btn btn-primary" onclick="openCreate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>New company</button>
+        </div>
+      </div>
+
+      <!-- ===== INDEX TABLE (loaded state) ===== -->
+      <div class="toolbar">
+        <div class="seg" role="tablist" aria-label="Filter by type">
+          <button role="tab" aria-selected="true" class="on" onclick="setType(this)">All</button>
+          <button role="tab" aria-selected="false" onclick="setType(this)">Clients</button>
+          <button role="tab" aria-selected="false" onclick="setType(this)">Vendors</button>
+          <button role="tab" aria-selected="false" onclick="setType(this)">Both</button>
+        </div>
+        <button class="check-toggle" id="archToggle" role="checkbox" aria-checked="true" onclick="toggleArch()">
+          <span class="cbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg></span>
+          Show archived
+        </button>
+        <div class="toolbar-spacer"></div>
+        <div class="search-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Search companies…" aria-label="Search companies"/></div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th class="sortable" aria-sort="ascending">Company <span class="sortglyph" aria-hidden="true">↑</span></th>
+                <th>Type</th>
+                <th>Primary contact</th>
+                <th class="num">Projects</th>
+                <th class="num">Procurements</th>
+                <th class="center"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="row" tabindex="0">
+                <td><div class="co"><span class="co-ico" style="background:hsl(221 83% 53%)">CP</span><div class="co-meta"><span class="co-name">Cascade Port Authority</span><span class="co-contact">procurement@cascadeport.gov</span></div></div></td>
+                <td><span class="status client"><span class="sdot"></span>Client</span></td>
+                <td>Dana Whitfield</td>
+                <td class="num tnum">4</td>
+                <td class="num tnum">11</td>
+                <td class="center"><button class="rowmenu-btn" aria-label="Actions for Cascade Port Authority" aria-haspopup="true" onclick="openMenu(event, false)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></td>
+              </tr>
+              <tr class="row" tabindex="0">
+                <td><div class="co"><span class="co-ico" style="background:hsl(262 83% 58%)">SF</span><div class="co-meta"><span class="co-name">Steelforge Fabrication</span><span class="co-contact">sales@steelforge.example</span></div></div></td>
+                <td><span class="status vendor"><span class="sdot"></span>Vendor</span></td>
+                <td>Marcus Idris</td>
+                <td class="num tnum">0</td>
+                <td class="num tnum">7</td>
+                <td class="center"><button class="rowmenu-btn" aria-label="Actions for Steelforge Fabrication" aria-haspopup="true" onclick="openMenu(event, false)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></td>
+              </tr>
+              <tr class="row" tabindex="0">
+                <td><div class="co"><span class="co-ico" style="background:hsl(142 71% 45%)">AI</span><div class="co-meta"><span class="co-name">Aldridge Infrastructure</span><span class="co-contact">contracts@aldridge-infra.example</span></div></div></td>
+                <td><span class="status both"><span class="sdot"></span>Both</span></td>
+                <td>Priya Venkatesh</td>
+                <td class="num tnum">3</td>
+                <td class="num tnum">5</td>
+                <td class="center"><button class="rowmenu-btn" aria-label="Actions for Aldridge Infrastructure" aria-haspopup="true" onclick="openMenu(event, false)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></td>
+              </tr>
+              <tr class="row" tabindex="0">
+                <td><div class="co"><span class="co-ico" style="background:hsl(199 89% 48%)">WV</span><div class="co-meta"><span class="co-name">Westvale Logistics</span><span class="co-contact">ops@westvale.example</span></div></div></td>
+                <td><span class="status vendor"><span class="sdot"></span>Vendor</span></td>
+                <td>Helena Strand</td>
+                <td class="num tnum">0</td>
+                <td class="num tnum">0</td>
+                <td class="center"><button class="rowmenu-btn" aria-label="Actions for Westvale Logistics" aria-haspopup="true" onclick="openMenu(event, true)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button></td>
+              </tr>
+              <!-- Edge: archived row, dimmed, neutral pill + Restore -->
+              <tr class="row archived" tabindex="0">
+                <td><div class="co"><span class="co-ico" style="background:hsl(240 4% 60%)">OQ</span><div class="co-meta"><span class="co-name">Oldquay Surveys <span class="status neutral" style="margin-left:6px"><span class="sdot"></span>Archived</span></span><span class="co-contact">defunct vendor — kept for audit</span></div></div></td>
+                <td><span class="status vendor"><span class="sdot"></span>Vendor</span></td>
+                <td>—</td>
+                <td class="num tnum">1</td>
+                <td class="num tnum">2</td>
+                <td class="center"><button class="btn btn-outline btn-sm">Restore</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span class="foot-label">5 companies</span></div>
+      </div>
+      <p class="note"><b>RBAC (this view = Admin):</b> Admin sees Edit · Archive · Delete in the row menu. <b>PM / Exec / Finance</b> see Edit (and Exec/Admin see Archive); only <b>Admin</b> sees Delete. <b>Engineer</b> has no Companies nav at all — the surface is hidden, not disabled.</p>
+
+      <!-- ===== STATE GALLERY: loading / empty / error ===== -->
+      <div class="demo-band"><span class="db-label">Loading state</span><span class="db-line"></span></div>
+      <div class="table-wrap" style="border-radius:var(--radius)">
+        <div style="padding:8px 12px">
+          <div class="skel skel-line" style="width:72%"></div>
+          <div class="skel skel-line" style="width:54%"></div>
+          <div class="skel skel-line" style="width:63%"></div>
+          <div class="skel skel-line" style="width:48%"></div>
+        </div>
+      </div>
+
+      <div class="demo-band"><span class="db-label">Empty state</span><span class="db-line"></span></div>
+      <div class="table-wrap" style="border-radius:var(--radius)">
+        <div class="empty">
+          <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></div>
+          <div class="empty-title">No companies yet</div>
+          <div class="empty-sub">Add your first client or vendor to start linking projects and purchase requests to a directory.</div>
+          <button class="btn btn-primary" onclick="openCreate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>New company</button>
+        </div>
+      </div>
+
+      <div class="demo-band"><span class="db-label">Load-error state</span><span class="db-line"></span></div>
+      <div class="err-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div class="eb-spacer"><div class="eb-title">Couldn't load companies</div><div class="eb-sub">The request failed. Check your connection and try again.</div></div>
+        <button class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Retry</button>
+      </div>
+
+      <div class="demo-band"><span class="db-label">Open the dialogs</span><span class="db-line"></span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="openCreate()">New / edit company modal</button>
+        <button class="btn btn-outline" onclick="openCreate(true)">Modal with validation errors</button>
+        <button class="btn btn-outline" onclick="openArchive()">Archive confirm</button>
+        <button class="btn btn-outline" onclick="openDeleteBlocked()">Delete-blocked (in use)</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== ROW MENU POPOVER ===== -->
+<div class="rowmenu" id="rowmenu" role="menu" hidden>
+  <button role="menuitem" onclick="closeMenu();openCreate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>
+  <button role="menuitem" onclick="closeMenu();openArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>Archive</button>
+  <div class="menu-sep" id="menuSep"></div>
+  <button role="menuitem" class="danger" id="menuDelete" onclick="closeMenu();onDelete()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete</button>
+</div>
+
+<!-- ===== CREATE / EDIT MODAL (EntityFormModal) ===== -->
+<div class="scrim" id="formScrim" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+    <form onsubmit="event.preventDefault();closeForm()">
+      <div class="modal-head">
+        <div><h2 id="formTitle">New company</h2><div class="mh-sub">Add a client or vendor to the directory</div></div>
+        <div class="mh-spacer"></div>
+        <button type="button" class="icon-close" aria-label="Close" onclick="closeForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <!-- error summary (focus-management + error-summary) — only shown in the error variant -->
+        <div class="form-errsum" id="errSum" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <div><div class="es-title">Fix 2 fields before saving</div><a href="#f-name">Company name is required</a><a href="#f-email">Email isn't valid</a></div>
+        </div>
+
+        <fieldset class="fs">
+          <legend class="fs-legend">Identity</legend>
+          <div class="form-grid">
+            <div class="field col-span-2" id="field-name">
+              <label for="f-name">Company name <span class="req" aria-hidden="true">*</span></label>
+              <input class="inp" id="f-name" type="text" placeholder="e.g. Cascade Port Authority" aria-required="true" autocomplete="organization" />
+              <span class="field-err" id="err-name" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Company name is required.</span>
+            </div>
+            <div class="field">
+              <label for="f-type">Type <span class="req" aria-hidden="true">*</span></label>
+              <select class="inp" id="f-type" aria-required="true">
+                <option>Client</option><option>Vendor</option><option>Both</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-ref">Reference code</label>
+              <input class="inp font-mono" id="f-ref" type="text" placeholder="optional" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="fs">
+          <legend class="fs-legend">Primary contact</legend>
+          <div class="form-grid">
+            <div class="field">
+              <label for="f-contact">Contact name</label>
+              <input class="inp" id="f-contact" type="text" placeholder="Full name" autocomplete="name" />
+            </div>
+            <div class="field" id="field-email">
+              <label for="f-email">Email</label>
+              <input class="inp" id="f-email" type="email" inputmode="email" placeholder="name@company.com" autocomplete="email" />
+              <span class="field-err" id="err-email" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Enter a valid email address.</span>
+            </div>
+            <div class="field">
+              <label for="f-phone">Phone</label>
+              <input class="inp" id="f-phone" type="tel" inputmode="tel" placeholder="+1 555 0100" autocomplete="tel" />
+            </div>
+            <div class="field col-span-2">
+              <label for="f-notes">Notes</label>
+              <textarea class="inp" id="f-notes" placeholder="Anything useful about this company"></textarea>
+              <span class="helper">Visible to anyone who can view this company.</span>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="modal-foot">
+        <span class="mf-spacer"></span>
+        <button type="button" class="btn btn-outline" onclick="closeForm()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save company</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== ARCHIVE CONFIRM ===== -->
+<div class="scrim" id="archiveScrim" hidden style="align-items:center">
+  <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="archiveTitle">
+    <div class="confirm-ico warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg></div>
+    <h2 id="archiveTitle">Archive Steelforge Fabrication?</h2>
+    <p>It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.</p>
+    <div class="confirm-foot">
+      <button class="btn btn-outline" onclick="closeArchive()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeArchive()">Archive company</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DELETE-BLOCKED (in use) — GateNotice, NOT a destructive confirm (§5.3) ===== -->
+<div class="scrim" id="deleteScrim" hidden style="align-items:center">
+  <div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="deleteTitle" style="max-width:460px">
+    <div class="confirm-ico danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></div>
+    <h2 id="deleteTitle">Can't delete Cascade Port Authority</h2>
+    <div class="gate blocked">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <div>
+        <b>This company is referenced by 4 projects and 11 procurements</b> and can't be deleted. Archive it instead to remove it from new records while keeping the audit trail.
+        <div class="gate-actions">
+          <button class="btn btn-outline btn-sm" onclick="closeDelete();openArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>Archive instead</button>
+        </div>
+      </div>
+    </div>
+    <div class="confirm-foot"><button class="btn btn-outline" onclick="closeDelete()">Close</button></div>
+  </div>
+</div>
+
+<script>
+  /* type filter (segmented) */
+  function setType(btn){ document.querySelectorAll('[role="tablist"] [role="tab"]').forEach(b=>{b.classList.remove('on');b.setAttribute('aria-selected','false');}); btn.classList.add('on'); btn.setAttribute('aria-selected','true'); }
+  /* show archived custom checkbox */
+  function toggleArch(){ const t=document.getElementById('archToggle'); t.setAttribute('aria-checked', t.getAttribute('aria-checked')==='true'?'false':'true'); }
+
+  /* row ⋯ menu — `hasDelete` toggles the Delete (Admin-only) item to demo gating */
+  const menu = document.getElementById('rowmenu');
+  function openMenu(e, hasDelete){
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    document.getElementById('menuDelete').style.display = hasDelete ? '' : 'none';
+    document.getElementById('menuSep').style.display = hasDelete ? '' : 'none';
+    menu.hidden = false;
+    menu.style.top = (r.bottom + 4) + 'px';
+    menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+    e.currentTarget.setAttribute('aria-expanded','true');
+  }
+  function closeMenu(){ menu.hidden = true; document.querySelectorAll('[aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false')); }
+  document.addEventListener('click', e=>{ if(!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+
+  /* modal + dialogs */
+  function openCreate(withErrors){
+    document.getElementById('formScrim').hidden = false;
+    const sum = document.getElementById('errSum');
+    [['err-name','field-name'],['err-email','field-email']].forEach(([err,field])=>{
+      document.getElementById(err).hidden = !withErrors;
+      document.getElementById(field).classList.toggle('invalid', !!withErrors);
+    });
+    sum.hidden = !withErrors;
+    if(withErrors){ document.getElementById('f-name').focus(); } else { document.getElementById('f-name').focus(); }
+  }
+  function closeForm(){ document.getElementById('formScrim').hidden = true; }
+  function openArchive(){ document.getElementById('archiveScrim').hidden = false; }
+  function closeArchive(){ document.getElementById('archiveScrim').hidden = true; }
+  function onDelete(){ openDeleteBlocked(); }
+  function openDeleteBlocked(){ document.getElementById('deleteScrim').hidden = false; }
+  function closeDelete(){ document.getElementById('deleteScrim').hidden = true; }
+
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeMenu(); closeForm(); closeArchive(); closeDelete(); } });
+</script>
+</body>
+</html>

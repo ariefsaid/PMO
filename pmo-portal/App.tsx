@@ -6,6 +6,7 @@ import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import LoginPage from '@/src/auth/LoginPage';
 import {
@@ -157,6 +158,7 @@ const ShellChrome: React.FC = () => {
             onToggleRail={() => setRailOpen((v) => !v)}
           />
         }
+        banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
       >

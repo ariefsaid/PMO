@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
 import { ConfirmDialog, useToast } from '@/src/components/ui';
 import {
@@ -7,11 +7,6 @@ import {
   projectStatusGroup,
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
-
-// ---------------------------------------------------------------------------
-// Write-role gate — the RPC is the real authority; this is cosmetic only (ADR-0008)
-// ---------------------------------------------------------------------------
-const WRITE_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
 
 interface ProjectStatusControlProps {
   project: {
@@ -23,13 +18,14 @@ interface ProjectStatusControlProps {
 
 /**
  * Per-project status-change control (AC-1004, FR-PR-005/011, NFR-PR-UI-001).
- * Cosmetically gated by useEffectiveRole to write roles (Admin/Executive/PM/Finance).
+ * Cosmetically gated via can('transition','project') on the REAL JWT role (ADR-0016)
+ * to the write roles (Admin/Executive/PM/Finance) — the RPC is the real authority.
  * Offers exactly the legal next statuses for the project's current status.
  * When the target is 'Won, Pending KoM', prompts for customer contract ref + date.
  * Surfaces RPC errors inline (not swallowed).
  */
 const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) => {
-  const { effectiveRole } = useEffectiveRole();
+  const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
 
@@ -41,8 +37,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
   // staged here and only commits when the ConfirmDialog's Confirm is pressed.
   const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
 
-  // Cosmetic gate: hide for non-write roles (RPC is the real authority)
-  if (!WRITE_ROLES.has(effectiveRole ?? '')) return null;
+  // Cosmetic gate on the REAL role (ADR-0016): hide for non-write roles. The RPC
+  // is the real authority — gating on realRole keeps the affordance honest under
+  // Admin impersonation (the banner explains the view-as state).
+  if (!can('transition', 'project')) return null;
 
   const legalTargets = (LEGAL_PROJECT_TRANSITIONS[project.status as string] ?? []) as ProjectStatus[];
 

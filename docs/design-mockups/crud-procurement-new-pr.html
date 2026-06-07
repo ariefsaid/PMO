@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  CRUD MOCKUP · NEW PURCHASE REQUEST  (header + line items + quotations)
+  ============================================================================
+  Product : PMO Portal — Raise procurement request
+  Source  : docs/design/crud-components.md §9.3 (PR header), §9.4 (line items),
+            §9.5 (quotations + select-quote), §3 (inline add-row), §6 (states)
+            docs/design/rbac-visibility.md §E / §E2
+  Tokens  : :root + component classes COPIED VERBATIM from proposal-IA-3-hybrid.html.
+            No new hex / font / border color / radius.
+
+  WHAT THIS SHOWS:
+   • PR header form: title (req), project (Combobox FK), need-by (DateField),
+     justification (TextArea). "Raise request" is available to ANY member incl. Engineer
+     (requester server-stamped) — this view is rendered as an Engineer raising their own PR.
+   • Editable LINE-ITEMS table (inline add-row): description, qty x unit price → line total
+     (tabular, derived), per-row delete, footer total. Empty + one filled row.
+   • QUOTATIONS section: inline-add (vendor Combobox, VQ#, total) + a quotations table where
+     one quote is SELECTED (the select-quote action that sets is_selected + syncs the header).
+   • All states: required asterisk, the single primary CTA, derived totals, the
+     "Mark-Paid/Approve hidden — you are the requester" SoD GateNotice, disabled "Attach file"
+     (Storage deferred) with a tooltip-style note.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — New Purchase Request (CRUD mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: 0 0% 100%; --foreground: 240 10% 3.9%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%; --popover-foreground: 240 10% 3.9%; --primary: 221.2 83.2% 53.3%; --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%; --secondary-foreground: 240 5.9% 10%; --muted: 240 4.8% 95.9%; --muted-foreground: 240 4% 40%;
+    --accent: 240 4.8% 95.9%; --accent-foreground: 240 5.9% 10%; --destructive: 0 84.2% 60.2%; --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%; --warning-foreground: 22 78% 26%; --success: 142 71% 45%; --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%; --input: 240 5.9% 90%; --ring: 221.2 83.2% 53.3%; --violet: 262 83% 58%; --radius: 0.5rem; --header-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; background: hsl(var(--secondary) / 0.35); color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.45; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 24px 80px; }
+  .backbar { margin-bottom: 14px; }
+  .back-btn { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 8px; border: 1px solid hsl(var(--input));
+    border-radius: var(--radius); background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .back-btn:hover { background: hsl(var(--accent)); }
+  .back-btn svg { width: 15px; height: 15px; stroke-width: 2; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 84ch; }
+  .note { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 10px; }
+  .note b { color: hsl(var(--foreground)); font-weight: 600; }
+
+  /* ===== Buttons ===== */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .05s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn:disabled, .btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+  /* ===== Cards / sections ===== */
+  .card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 16px; }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid hsl(var(--border)); }
+  .card-head h3 { font-size: 14px; font-weight: 600; }
+  .card-head .ch-spacer { flex: 1; }
+  .card-pad { padding: 16px; }
+
+  /* ===== Form primitives ===== */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.col-span-2 { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 600; line-height: 1.3; color: hsl(var(--foreground)); }
+  .field label .req { color: hsl(var(--destructive)); margin-left: 2px; }
+  .field .helper { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .inp { height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; width: 100%; }
+  .inp::placeholder { color: hsl(var(--muted-foreground)); }
+  .inp:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .inp.num { text-align: right; font-variant-numeric: tabular-nums; }
+  textarea.inp { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+
+  /* ===== Combobox trigger (closed) ===== */
+  .combo-trigger { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 10px; width: 100%;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius); background: hsl(var(--background)); cursor: pointer; font-family: inherit; font-size: 13.5px; color: hsl(var(--foreground)); }
+  .combo-trigger:hover { border-color: hsl(var(--primary) / 0.5); }
+  .combo-trigger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .combo-trigger .ct-placeholder { color: hsl(var(--muted-foreground)); flex: 1; text-align: left; }
+  .combo-trigger .ct-chip { display: inline-flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+  .combo-trigger .ct-chip .av { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .combo-trigger .chev { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+
+  /* ===== Line-items / quotations editable table ===== */
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.grid thead th { background: hsl(var(--card)); height: 38px; text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em;
+    text-transform: uppercase; color: hsl(var(--muted-foreground)); padding: 0 12px; border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; }
+  th.num, td.num { text-align: right; } th.center, td.center { text-align: center; }
+  table.grid tbody td { padding: 8px 12px; border-bottom: 1px solid hsl(var(--border) / 0.7); vertical-align: middle; }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid tbody td .money { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .li-inp { height: 30px; padding: 0 9px; border: 1px solid hsl(var(--input)); border-radius: 6px; background: hsl(var(--background));
+    color: hsl(var(--foreground)); font-size: 13px; font-family: inherit; width: 100%; }
+  .li-inp.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .li-inp::placeholder { color: hsl(var(--muted-foreground)); }
+  .li-inp:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .row-del { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; display: grid; place-items: center; }
+  .row-del:hover { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+  .row-del svg { width: 15px; height: 15px; }
+  /* the inline add-row foot */
+  .addrow td { background: hsl(var(--secondary) / 0.35); }
+  .li-foot { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-top: 1.5px solid hsl(var(--border)); background: hsl(var(--secondary) / 0.4); }
+  .li-foot .lf-spacer { flex: 1; }
+  .li-foot .lf-label { font-size: 12.5px; color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .li-foot .lf-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  /* empty child-section row */
+  .child-empty { padding: 22px 16px; text-align: center; }
+  .child-empty .ce-title { font-size: 13.5px; font-weight: 600; }
+  .child-empty .ce-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 3px; }
+
+  /* selected-quote pill */
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; }
+  .status.won { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.won .sdot { background: hsl(var(--success)); }
+  tr.selected-quote td { background: hsl(var(--success) / 0.06); }
+
+  /* SoD GateNotice */
+  .gate { display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border-radius: var(--radius); font-size: 13px; }
+  .gate svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+  .gate.blocked { background: hsl(var(--warning) / 0.12); border: 1px solid hsl(var(--warning) / 0.4); color: hsl(var(--warning-foreground)); }
+  .gate.blocked svg { color: hsl(38 92% 40%); }
+  .gate b { font-weight: 700; }
+
+  /* disabled attach (storage deferred) — with a visible hint */
+  .attach-disabled { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px; border: 1px dashed hsl(var(--input));
+    border-radius: var(--radius); background: hsl(var(--secondary) / 0.5); color: hsl(var(--muted-foreground)); font-size: 13px; cursor: not-allowed; }
+  .attach-disabled svg { width: 14px; height: 14px; }
+
+  .demo-band { display: flex; align-items: center; gap: 8px; margin: 30px 0 14px; }
+  .demo-band .db-line { flex: 1; height: 1px; background: hsl(var(--border)); }
+  .demo-band .db-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+  @media (max-width: 680px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .col-hide-sm { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="backbar"><button class="back-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Procurement</button></div>
+  <h1 class="page-title">Raise a purchase request</h1>
+  <p class="page-sub">Anyone can raise a request; you are recorded as the requester. After you submit it, a different approver reviews it (separation of duties). Add line items and supplier quotations below.</p>
+
+  <form onsubmit="event.preventDefault()">
+    <!-- ===== HEADER ===== -->
+    <div class="card" style="margin-top:18px">
+      <div class="card-head"><h3>Request details</h3></div>
+      <div class="card-pad">
+        <div class="form-grid">
+          <div class="field col-span-2">
+            <label for="pr-title">Title <span class="req" aria-hidden="true">*</span></label>
+            <input class="inp" id="pr-title" type="text" placeholder="e.g. Welding consumables — Q3 restock" aria-required="true" />
+          </div>
+          <div class="field">
+            <label id="pr-proj-lbl">Project</label>
+            <button type="button" class="combo-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="pr-proj-lbl">
+              <span class="ct-chip"><span class="av" style="background:hsl(221 83% 53%)">HT</span>Harborside Terminal</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+          <div class="field">
+            <label for="pr-needby">Need by</label>
+            <input class="inp" id="pr-needby" type="date" value="2026-07-15" />
+          </div>
+          <div class="field col-span-2">
+            <label for="pr-just">Justification</label>
+            <textarea class="inp" id="pr-just" placeholder="Why is this needed? What happens without it?"></textarea>
+            <span class="helper">Helps approvers decide quickly. Editable by you while the request is Draft.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== LINE ITEMS (inline editable table) ===== -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Line items</h3>
+        <span class="muted" style="font-size:12.5px">qty × unit price → line total</span>
+        <div class="ch-spacer"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="grid" aria-label="Line items">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="num" style="width:90px">Qty</th>
+              <th class="num" style="width:140px">Unit price</th>
+              <th class="num" style="width:140px">Line total</th>
+              <th class="center" style="width:48px"><span class="sr-only">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input class="li-inp" type="text" value="MIG welding wire 1.2mm (15kg spool)" aria-label="Line 1 description" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" value="24" aria-label="Line 1 quantity" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" value="86.00" aria-label="Line 1 unit price" /></td>
+              <td class="num"><span class="money">$2,064.00</span></td>
+              <td class="center"><button type="button" class="row-del" aria-label="Remove line 1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+            </tr>
+            <tr>
+              <td><input class="li-inp" type="text" value="Shielding gas — Argon/CO2 mix (cylinder)" aria-label="Line 2 description" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" value="6" aria-label="Line 2 quantity" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" value="142.50" aria-label="Line 2 unit price" /></td>
+              <td class="num"><span class="money">$855.00</span></td>
+              <td class="center"><button type="button" class="row-del" aria-label="Remove line 2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+            </tr>
+            <!-- inline add-row -->
+            <tr class="addrow">
+              <td><input class="li-inp" type="text" placeholder="Add an item…" aria-label="New item description" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" placeholder="0" aria-label="New item quantity" /></td>
+              <td class="num"><input class="li-inp num" type="text" inputmode="decimal" placeholder="0.00" aria-label="New item unit price" /></td>
+              <td class="num"><span class="money muted">—</span></td>
+              <td class="center"><button type="button" class="btn btn-ghost btn-sm" aria-label="Add line item" style="padding:0 7px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="li-foot">
+        <span class="lf-spacer"></span>
+        <span class="lf-label">Estimated total</span>
+        <span class="lf-val tnum">$2,919.00</span>
+      </div>
+    </div>
+
+    <!-- ===== QUOTATIONS ===== -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Supplier quotations</h3>
+        <div class="ch-spacer"></div>
+        <button type="button" class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>Add quotation</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="grid" aria-label="Supplier quotations">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th class="col-hide-sm">VQ ref</th>
+              <th class="num">Quoted total</th>
+              <th class="col-hide-sm">Documents</th>
+              <th class="center">Selected</th>
+              <th class="center" style="width:120px"><span class="sr-only">Action</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="selected-quote">
+              <td><b style="font-weight:600">Steelforge Fabrication</b></td>
+              <td class="col-hide-sm font-mono muted">VQ-2606-014</td>
+              <td class="num"><span class="money">$2,710.00</span></td>
+              <td class="col-hide-sm"><span class="attach-disabled" title="File upload coming soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach (soon)</span></td>
+              <td class="center"><span class="status won"><span class="sdot"></span>Selected</span></td>
+              <td class="center"><button type="button" class="btn btn-ghost btn-sm" disabled>Selected</button></td>
+            </tr>
+            <tr>
+              <td><b style="font-weight:600">Apex Industrial Supply</b></td>
+              <td class="col-hide-sm font-mono muted">VQ-2606-015</td>
+              <td class="num"><span class="money">$2,944.00</span></td>
+              <td class="col-hide-sm"><span class="attach-disabled" title="File upload coming soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach (soon)</span></td>
+              <td class="center">—</td>
+              <td class="center"><button type="button" class="btn btn-outline btn-sm">Select quote</button></td>
+            </tr>
+            <tr>
+              <td><b style="font-weight:600">Northvale Welding Co.</b></td>
+              <td class="col-hide-sm font-mono muted">VQ-2606-016</td>
+              <td class="num"><span class="money">$3,180.00</span></td>
+              <td class="col-hide-sm"><span class="attach-disabled" title="File upload coming soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach (soon)</span></td>
+              <td class="center">—</td>
+              <td class="center"><button type="button" class="btn btn-outline btn-sm">Select quote</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="li-foot">
+        <span class="lf-spacer"></span>
+        <span class="lf-label">Selected quote sets the PR value</span>
+        <span class="lf-val tnum">$2,710.00</span>
+      </div>
+    </div>
+
+    <!-- ===== inline-add quotation (the small entry form) ===== -->
+    <div class="demo-band"><span class="db-label">Add quotation — inline entry</span><span class="db-line"></span></div>
+    <div class="card card-pad">
+      <div class="form-grid">
+        <div class="field">
+          <label id="q-vendor-lbl">Vendor <span class="req" aria-hidden="true">*</span></label>
+          <button type="button" class="combo-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="q-vendor-lbl">
+            <span class="ct-placeholder">Select a vendor…</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="field">
+          <label for="q-ref">VQ reference</label>
+          <input class="inp font-mono" id="q-ref" type="text" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label for="q-total">Quoted total <span class="req" aria-hidden="true">*</span></label>
+          <input class="inp num" id="q-total" type="text" inputmode="decimal" placeholder="0.00" aria-required="true" />
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <span class="attach-disabled" title="File upload coming soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach file — coming soon</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn btn-ghost btn-sm">Cancel</button>
+        <button type="button" class="btn btn-outline btn-sm">Add quotation</button>
+      </div>
+    </div>
+
+    <!-- ===== SoD GateNotice — requester can't self-approve ===== -->
+    <div class="demo-band"><span class="db-label">After submit — what the requester sees</span><span class="db-line"></span></div>
+    <div class="gate blocked" style="margin-bottom:16px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div><b>Approve and Pay are hidden because you raised this request.</b> Separation of duties means a different person reviews and approves it. You can still edit it while it is Draft, submit it, or cancel it.</div>
+    </div>
+
+    <!-- ===== ACTIONS — single primary CTA ===== -->
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="button" class="btn btn-ghost">Save draft</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-outline">Cancel</button>
+      <button type="submit" class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>Submit request</button>
+    </div>
+    <p class="note"><b>ERP idioms applied:</b> one primary CTA (Submit), line totals are derived and tabular, the inline add-row keeps small child records in their parent table, file attachment is a visibly-disabled affordance (Storage deferred) rather than a broken control, and the requester's Approve/Pay are hidden with a GateNotice that explains why (not silently absent).</p>
+  </form>
+</div>
+
+<script>
+  /* derive line totals + footer total live (qty × unit price) */
+  function fmt(n){ return "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function recompute(){
+    let total = 0;
+    document.querySelectorAll('table[aria-label="Line items"] tbody tr').forEach(tr=>{
+      if(tr.classList.contains('addrow')) return;
+      const cells = tr.querySelectorAll('.li-inp.num');
+      const qty = parseFloat((cells[0]?.value||'').replace(/,/g,'')) || 0;
+      const rate = parseFloat((cells[1]?.value||'').replace(/,/g,'')) || 0;
+      const lt = qty * rate;
+      const out = tr.querySelector('.money');
+      if(out){ out.textContent = lt ? fmt(lt) : '—'; out.classList.toggle('muted', !lt); }
+      total += lt;
+    });
+    const foot = document.querySelector('.li-foot .lf-val');
+    if(foot) foot.textContent = fmt(total);
+  }
+  document.querySelectorAll('table[aria-label="Line items"] .li-inp.num').forEach(i=>i.addEventListener('input', recompute));
+  recompute();
+</script>
+</body>
+</html>

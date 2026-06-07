@@ -6,6 +6,9 @@ export interface AppShellProps {
   rail: React.ReactNode;
   header: React.ReactNode;
   children: React.ReactNode;
+  /** Optional full-bleed strip pinned to the top of `main` (e.g. the
+   *  impersonation banner). Rendered above the padded content container. */
+  banner?: React.ReactNode;
   /** Mobile drawer open state (controlled by the shell consumer / ContextBar). */
   railOpen?: boolean;
   onCloseRail?: () => void;
@@ -21,6 +24,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   rail,
   header,
   children,
+  banner,
   railOpen = false,
   onCloseRail,
 }) => {
@@ -72,6 +76,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         className="main-scroll overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none"
         style={{ gridArea: 'main' }}
       >
+        {banner}
         <div className="mx-auto max-w-[1600px] px-6 pb-16 pt-5">{children}</div>
       </main>
 

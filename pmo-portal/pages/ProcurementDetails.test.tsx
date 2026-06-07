@@ -42,10 +42,13 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Finance' }),
 }));
 
-// Default role — overridden in specific tests
+// Default role — overridden in specific tests. ADR-0016: the page now gates write
+// affordances on the REAL JWT role, so the mock returns realRole alongside
+// effectiveRole (equal here — no impersonation in these specs). Behavior is unchanged;
+// this mirrors the realRole field already supplied by the Budget/StatusControl tests.
 let mockEffectiveRole = 'Finance';
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole }),
+  useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole, realRole: mockEffectiveRole }),
 }));
 
 // Toast: the IA-3 detail page emits a success toast on transition. Tabs are

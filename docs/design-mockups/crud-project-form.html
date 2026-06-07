@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  CRUD MOCKUP · PROJECT / OPPORTUNITY — create + edit form (with contract_value SoD)
+  ============================================================================
+  Product : PMO Portal — New deal / Edit project (opportunity)
+  Source  : docs/design/crud-components.md §9.1, §3, §4 (Combobox FK picker), §5.2 (SoD)
+            docs/design/rbac-visibility.md §B2 (contract_value gating row)
+  Tokens  : :root + component classes COPIED VERBATIM from proposal-IA-3-hybrid.html.
+            No new hex / font / border color / radius.
+
+  WHAT THIS SHOWS:
+   • EntityFormModal "New deal": name (req), client company (Combobox FK), PM (Combobox FK),
+     origination status (native SelectField), estimated contract value (NumberField),
+     customer contract ref, + progressive-disclosure "More details" (description, dates).
+   • Combobox states: closed value-chip, OPEN with type-ahead + loading + empty(+create) + error rows.
+   • THE contract_value SoD TREATMENT on a WON project, rendered TWO ways side by side:
+       - PM view  → contract value is READ-ONLY (static value row, not a greyed input) + lock note.
+       - Exec/Finance view → contract value is EDITABLE via an InlineEditField + an audit confirm
+         whose copy NAMES the segregation-of-duties reason (§5.2 / ADR-0019).
+   • All form states: required asterisks, inline field error, error summary, helper text,
+     read-only-distinction, disabled submit while invalid.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — Project form + contract_value SoD (CRUD mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: 0 0% 100%; --foreground: 240 10% 3.9%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%; --popover-foreground: 240 10% 3.9%; --primary: 221.2 83.2% 53.3%; --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%; --secondary-foreground: 240 5.9% 10%; --muted: 240 4.8% 95.9%; --muted-foreground: 240 4% 40%;
+    --accent: 240 4.8% 95.9%; --accent-foreground: 240 5.9% 10%; --destructive: 0 84.2% 60.2%; --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%; --warning-foreground: 22 78% 26%; --success: 142 71% 45%; --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%; --input: 240 5.9% 90%; --ring: 221.2 83.2% 53.3%; --violet: 262 83% 58%; --radius: 0.5rem; --header-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; background: hsl(var(--secondary) / 0.35); color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.45; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 80px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 84ch; }
+  .demo-band { display: flex; align-items: center; gap: 8px; margin: 34px 0 14px; }
+  .demo-band .db-line { flex: 1; height: 1px; background: hsl(var(--border)); }
+  .demo-band .db-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .note { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 10px; }
+  .note b { color: hsl(var(--foreground)); font-weight: 600; }
+
+  /* ===== Buttons ===== */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .05s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn:disabled, .btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+  /* ===== Modal (EntityFormModal) — shown inline (no scrim) so the form is always visible ===== */
+  .modal { width: 100%; max-width: 540px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: 10px; box-shadow: 0 10px 30px hsl(240 10% 8% / 0.10); display: flex; flex-direction: column; }
+  .modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid hsl(var(--border)); }
+  .modal-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .modal-head .mh-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .modal-head .mh-spacer { flex: 1; }
+  .icon-close { width: 30px; height: 30px; border-radius: 7px; border: none; background: transparent; color: hsl(var(--muted-foreground)); display: grid; place-items: center; cursor: pointer; }
+  .icon-close:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-close svg { width: 17px; height: 17px; }
+  .modal-body { padding: 16px 18px; }
+  .modal-foot { display: flex; align-items: center; gap: 8px; padding: 13px 18px; border-top: 1px solid hsl(var(--border)); }
+  .modal-foot .mf-spacer { flex: 1; }
+
+  /* ===== Form primitives ===== */
+  fieldset.fs { border: none; padding: 0; margin: 0 0 18px; }
+  legend.fs-legend { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; padding-bottom: 10px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.col-span-2 { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 600; line-height: 1.3; color: hsl(var(--foreground)); }
+  .field label .req { color: hsl(var(--destructive)); margin-left: 2px; }
+  .field .helper { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .inp { height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; width: 100%; }
+  .inp::placeholder { color: hsl(var(--muted-foreground)); }
+  .inp:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .inp.num { text-align: right; font-variant-numeric: tabular-nums; }
+  select.inp { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737380' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 15px; padding-right: 30px; }
+  textarea.inp { height: auto; min-height: 64px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+  .money-inp { position: relative; }
+  .money-inp .cur { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13.5px; color: hsl(var(--muted-foreground)); pointer-events: none; }
+  .money-inp .inp { padding-left: 22px; }
+  .field.invalid .inp { border-color: hsl(var(--destructive)); }
+  .field.invalid .inp:focus-visible { outline-color: hsl(var(--destructive)); }
+  .field-err { display: flex; align-items: center; gap: 5px; font-size: 12px; color: hsl(0 72% 45%); }
+  .field-err svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .form-errsum { display: flex; gap: 10px; padding: 11px 13px; border-radius: var(--radius); margin-bottom: 16px;
+    background: hsl(var(--destructive) / 0.07); border: 1px solid hsl(var(--destructive) / 0.3); }
+  .form-errsum svg { width: 17px; height: 17px; color: hsl(var(--destructive)); flex-shrink: 0; margin-top: 1px; }
+  .form-errsum .es-title { font-size: 13px; font-weight: 600; color: hsl(0 72% 42%); }
+  .form-errsum a { font-size: 12.5px; color: hsl(var(--destructive)); display: block; text-decoration: none; }
+  .form-errsum a:hover { text-decoration: underline; }
+
+  /* progressive disclosure */
+  .disclose { width: 100%; display: flex; align-items: center; gap: 7px; height: 34px; border: none; background: transparent;
+    color: hsl(var(--primary)); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0; }
+  .disclose svg { width: 15px; height: 15px; transition: transform .12s ease; }
+  .disclose[aria-expanded="true"] svg { transform: rotate(90deg); }
+  .disclose-body { padding-top: 6px; }
+
+  /* ===== Combobox (FK picker) ===== */
+  .combo { position: relative; }
+  .combo-trigger { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 10px; width: 100%;
+    border: 1px solid hsl(var(--input)); border-radius: var(--radius); background: hsl(var(--background)); cursor: pointer; font-family: inherit; font-size: 13.5px; color: hsl(var(--foreground)); }
+  .combo-trigger:hover { border-color: hsl(var(--primary) / 0.5); }
+  .combo-trigger:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .combo-trigger .ct-placeholder { color: hsl(var(--muted-foreground)); flex: 1; text-align: left; }
+  .combo-trigger .ct-chip { display: inline-flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+  .combo-trigger .ct-chip .av { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .combo-trigger .ct-chip .av.round { border-radius: 999px; }
+  .combo-trigger .chev { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .combo-pop { position: absolute; z-index: 50; top: calc(100% + 5px); left: 0; right: 0; background: hsl(var(--popover));
+    border: 1px solid hsl(var(--border)); border-radius: var(--radius); box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08); overflow: hidden; }
+  .combo-search { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-bottom: 1px solid hsl(var(--border)); }
+  .combo-search svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); }
+  .combo-search input { border: none; outline: none; background: transparent; font-size: 13.5px; font-family: inherit; width: 100%; color: hsl(var(--foreground)); }
+  .combo-list { max-height: 220px; overflow-y: auto; padding: 5px; }
+  .combo-opt { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 9px; border-radius: 6px; cursor: pointer; font-size: 13.5px; }
+  .combo-opt:hover { background: hsl(var(--accent)); }
+  .combo-opt[aria-selected="true"] { background: hsl(var(--primary) / 0.07); }
+  .combo-opt[aria-selected="true"] .ck { opacity: 1; }
+  .combo-opt .av { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .combo-opt .av.round { border-radius: 999px; }
+  .combo-opt .co-sub { color: hsl(var(--muted-foreground)); font-size: 11.5px; }
+  .combo-opt .ck { margin-left: auto; opacity: 0; color: hsl(var(--primary)); }
+  .combo-opt .ck svg { width: 15px; height: 15px; stroke-width: 2.5; }
+  .combo-skel { padding: 6px 9px; }
+  .combo-skel .skel { background: linear-gradient(90deg, hsl(var(--secondary)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--secondary)) 75%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 6px; height: 14px; margin: 9px 0; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .combo-msg { padding: 14px 12px; text-align: center; font-size: 12.5px; color: hsl(var(--muted-foreground)); }
+  .combo-msg .combo-create { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; color: hsl(var(--primary)); font-weight: 600; cursor: pointer; }
+  .combo-msg .combo-create svg { width: 14px; height: 14px; }
+  .combo-msg.err { color: hsl(0 72% 45%); }
+
+  /* ===== Project detail header (for the SoD treatment context) ===== */
+  .phead { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 18px 20px; }
+  .phead-top { display: flex; align-items: flex-start; gap: 14px; }
+  .phead-ico { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; flex-shrink: 0; }
+  .phead-name { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+  .phead-meta { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; }
+  .status.won { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.won .sdot { background: hsl(var(--success)); }
+
+  .sod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .sod-card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; }
+  .sod-role { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); border-radius: 999px; padding: 3px 10px; margin-bottom: 14px; }
+  .val-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid hsl(var(--border) / 0.7); }
+  .val-row:last-child { border-bottom: none; }
+  .val-row .vl { font-size: 12.5px; color: hsl(var(--muted-foreground)); }
+  .val-row .vv { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* the contract_value field treatments */
+  .cv-readonly { display: flex; align-items: center; gap: 9px; }
+  .cv-readonly .lock { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); border-radius: 999px; padding: 2px 8px; }
+  .cv-readonly .lock svg { width: 12px; height: 12px; }
+  .cv-editable { display: flex; align-items: center; gap: 8px; }
+  .cv-editable .money-inp { width: 150px; }
+  .lock-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: hsl(var(--secondary) / 0.6); border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+  .lock-note svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; color: hsl(var(--muted-foreground)); }
+  .sod-gate { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; font-size: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: hsl(var(--warning) / 0.12); border: 1px solid hsl(var(--warning) / 0.4); color: hsl(var(--warning-foreground)); }
+  .sod-gate svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; color: hsl(38 92% 40%); }
+
+  /* ConfirmDialog (audit-stamped SoD confirm) */
+  .scrim { position: fixed; inset: 0; background: hsl(240 10% 4% / 0.45); backdrop-filter: blur(3px); z-index: 800; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .scrim[hidden] { display: none; } /* UA [hidden] is overridden by display:flex above; restore it (mirrors .rowmenu) */
+  .confirm { width: 100%; max-width: 460px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border)); border-radius: 10px;
+    box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); padding: 20px; animation: modalin .14s ease; }
+  @keyframes modalin { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+  .confirm-ico { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; margin-bottom: 12px; background: hsl(var(--warning) / 0.18); color: hsl(38 92% 40%); }
+  .confirm-ico svg { width: 19px; height: 19px; }
+  .confirm h2 { font-size: 16px; font-weight: 700; }
+  .confirm p { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 6px; line-height: 1.5; }
+  .confirm .sod-reason { display: flex; gap: 9px; margin-top: 14px; padding: 11px 13px; border-radius: var(--radius); background: hsl(var(--secondary) / 0.6); border: 1px solid hsl(var(--border)); font-size: 12.5px; }
+  .confirm .sod-reason svg { width: 16px; height: 16px; flex-shrink: 0; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .confirm-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+  @media (max-width: 760px) {
+    .sod-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .combo-skel .skel { animation: none; }
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="page-title">Project / Opportunity — create &amp; edit</h1>
+  <p class="page-sub">The "New deal" EntityFormModal and the contract_value separation-of-duties treatment on a won project. Create/edit = Admin·Exec·PM; Finance is excluded from project create/edit (FE stricter than RLS) but is an authority on the won-project value.</p>
+
+  <!-- ===== A) NEW DEAL FORM (default) ===== -->
+  <div class="demo-band"><span class="db-label">A · New deal (create) — default</span><span class="db-line"></span></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t1">
+    <form onsubmit="event.preventDefault()">
+      <div class="modal-head">
+        <div><h2 id="t1">New deal</h2><div class="mh-sub">Create an opportunity in the sales pipeline</div></div>
+        <div class="mh-spacer"></div>
+        <button type="button" class="icon-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <fieldset class="fs">
+          <div class="form-grid">
+            <div class="field col-span-2">
+              <label for="d-name">Opportunity name <span class="req" aria-hidden="true">*</span></label>
+              <input class="inp" id="d-name" type="text" value="Harborside Terminal — Civil Works" aria-required="true" />
+            </div>
+
+            <!-- Combobox: client company (closed, with a selected chip) -->
+            <div class="field">
+              <label id="d-client-lbl">Client company <span class="req" aria-hidden="true">*</span></label>
+              <div class="combo">
+                <button type="button" class="combo-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="d-client-lbl" onclick="toggleCombo('clientPop',this)">
+                  <span class="ct-chip"><span class="av" style="background:hsl(221 83% 53%)">CP</span>Cascade Port Authority</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Combobox: PM (closed, placeholder) -->
+            <div class="field">
+              <label id="d-pm-lbl">Project manager</label>
+              <div class="combo">
+                <button type="button" class="combo-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="d-pm-lbl" onclick="toggleCombo('pmPop',this)">
+                  <span class="ct-placeholder">Assign a PM…</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- native SelectField: short fixed enum -->
+            <div class="field">
+              <label for="d-stage">Origination stage</label>
+              <select class="inp" id="d-stage">
+                <option>Lead</option><option>Internal project</option>
+              </select>
+              <span class="helper">On-hand is reached only by winning a deal, never created directly.</span>
+            </div>
+
+            <!-- NumberField (estimated contract value) -->
+            <div class="field">
+              <label for="d-value">Estimated value</label>
+              <div class="money-inp"><span class="cur">$</span><input class="inp num" id="d-value" type="text" inputmode="decimal" value="4,820,000" /></div>
+              <span class="helper">Estimate, pre-win. Editable by Admin·Exec·PM.</span>
+            </div>
+
+            <div class="field col-span-2">
+              <label for="d-ref">Customer contract reference</label>
+              <input class="inp font-mono" id="d-ref" type="text" value="CPA-RFP-0118" placeholder="optional" />
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- progressive disclosure -->
+        <button type="button" class="disclose" aria-expanded="false" aria-controls="moreBody" onclick="toggleDisclose(this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></svg>More details (description, dates)
+        </button>
+        <div class="disclose-body" id="moreBody" hidden>
+          <div class="form-grid">
+            <div class="field col-span-2">
+              <label for="d-desc">Description</label>
+              <textarea class="inp" id="d-desc" placeholder="Scope, context, key risks"></textarea>
+            </div>
+            <div class="field"><label for="d-start">Expected start</label><input class="inp" id="d-start" type="date" /></div>
+            <div class="field"><label for="d-decision">Decision date</label><input class="inp" id="d-decision" type="date" /></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="mf-spacer"></span>
+        <button type="button" class="btn btn-outline">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create deal</button>
+      </div>
+    </form>
+  </div>
+  <p class="note"><b>Combobox idiom (ui-ux-pro-max system-controls):</b> long data-driven FKs (client, PM) use a searchable combobox with a value chip; short fixed enums (origination stage) keep the native select. Open the pickers below to see all states.</p>
+
+  <!-- ===== B) COMBOBOX STATES ===== -->
+  <div class="demo-band"><span class="db-label">B · Combobox FK picker — open states</span><span class="db-line"></span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+    <!-- populated -->
+    <div>
+      <div class="note" style="margin:0 0 8px"><b>Loaded + type-ahead</b></div>
+      <div class="combo">
+        <div class="combo-pop" style="position:static;box-shadow:none">
+          <div class="combo-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" value="ca" aria-label="Search companies" /></div>
+          <div class="combo-list" role="listbox" aria-label="Companies">
+            <div class="combo-opt" role="option" aria-selected="true"><span class="av" style="background:hsl(221 83% 53%)">CP</span>Cascade Port Authority<span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg></span></div>
+            <div class="combo-opt" role="option"><span class="av" style="background:hsl(199 89% 48%)">CW</span>Camden Waterworks<span class="co-sub" style="margin-left:6px">Client</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- loading -->
+    <div>
+      <div class="note" style="margin:0 0 8px"><b>Loading</b></div>
+      <div class="combo">
+        <div class="combo-pop" style="position:static;box-shadow:none">
+          <div class="combo-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Search companies…" aria-label="Search companies" /></div>
+          <div class="combo-skel"><div class="skel" style="width:72%"></div><div class="skel" style="width:58%"></div><div class="skel" style="width:65%"></div></div>
+        </div>
+      </div>
+    </div>
+    <!-- empty + create -->
+    <div>
+      <div class="note" style="margin:0 0 8px"><b>No matches (+ inline create)</b></div>
+      <div class="combo">
+        <div class="combo-pop" style="position:static;box-shadow:none">
+          <div class="combo-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" value="zephyr" aria-label="Search companies" /></div>
+          <div class="combo-msg">No company matches "zephyr".<span class="combo-create" role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>Create "Zephyr"</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- error -->
+    <div>
+      <div class="note" style="margin:0 0 8px"><b>Option-fetch error</b></div>
+      <div class="combo">
+        <div class="combo-pop" style="position:static;box-shadow:none">
+          <div class="combo-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Search companies…" aria-label="Search companies" /></div>
+          <div class="combo-msg err">Couldn't load companies.<span class="combo-create" role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Retry</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== C) VALIDATION ERRORS ===== -->
+  <div class="demo-band"><span class="db-label">C · Validation errors (on submit)</span><span class="db-line"></span></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t2">
+    <div class="modal-head"><div><h2 id="t2">New deal</h2></div></div>
+    <div class="modal-body">
+      <div class="form-errsum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div><div class="es-title">Fix 2 fields before saving</div><a href="#e-name">Opportunity name is required</a><a href="#e-client">Select a client company</a></div>
+      </div>
+      <div class="form-grid">
+        <div class="field col-span-2 invalid">
+          <label for="e-name">Opportunity name <span class="req" aria-hidden="true">*</span></label>
+          <input class="inp" id="e-name" type="text" placeholder="e.g. Harborside Terminal — Civil Works" aria-required="true" aria-invalid="true" aria-describedby="e-name-err" />
+          <span class="field-err" id="e-name-err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Opportunity name is required.</span>
+        </div>
+        <div class="field invalid">
+          <label id="e-client-lbl">Client company <span class="req" aria-hidden="true">*</span></label>
+          <button type="button" class="combo-trigger" id="e-client" role="combobox" aria-expanded="false" aria-invalid="true" aria-labelledby="e-client-lbl" style="border-color:hsl(var(--destructive))"><span class="ct-placeholder">Select a company…</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></button>
+          <span class="field-err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Select a client company.</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot"><span class="mf-spacer"></span><button class="btn btn-outline">Cancel</button><button class="btn btn-primary" disabled>Create deal</button></div>
+  </div>
+  <p class="note">On submit-with-errors: a top error summary appears, focus moves to the first invalid field, each field shows an inline <code>role="alert"</code> message with an icon (state never by color alone), and the submit button is disabled until valid.</p>
+
+  <!-- ===== D) contract_value SoD on a WON project ===== -->
+  <div class="demo-band"><span class="db-label">D · contract_value SoD — WON project (ADR-0019)</span><span class="db-line"></span></div>
+  <div class="phead" style="margin-bottom:16px">
+    <div class="phead-top">
+      <span class="phead-ico" style="background:hsl(221 83% 53%)">CP</span>
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="phead-name">Harborside Terminal — Civil Works</span><span class="status won"><span class="sdot"></span>Won</span></div>
+        <div class="phead-meta">Cascade Port Authority · <span class="font-mono">OPP-2041</span> · won May 12, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sod-grid">
+    <!-- PM view: read-only -->
+    <div class="sod-card">
+      <span class="sod-role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Project Manager view</span>
+      <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+      <div class="val-row">
+        <span class="vl">Contract value</span>
+        <span class="cv-readonly">
+          <span class="vv">$4,820,000</span>
+          <span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Read-only</span>
+        </span>
+      </div>
+      <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+      <div class="lock-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div>Once a project is won, the contract value is locked for the PM. Only Executive or Finance can change it, and the change is recorded.</div>
+      </div>
+    </div>
+
+    <!-- Exec / Finance view: editable via InlineEditField + audit confirm -->
+    <div class="sod-card">
+      <span class="sod-role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Executive / Finance view</span>
+      <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+      <div class="val-row">
+        <span class="vl">Contract value</span>
+        <span class="cv-editable">
+          <span class="money-inp"><span class="cur">$</span><input class="inp num" type="text" inputmode="decimal" value="4,820,000" aria-label="Contract value" /></span>
+          <button class="btn btn-primary btn-sm" onclick="openSod()">Save</button>
+          <button class="btn btn-ghost btn-sm">Cancel</button>
+        </span>
+      </div>
+      <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+      <div class="sod-gate">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div>Changing the value on a won project is a segregation-of-duties action and is recorded. Saving opens an audit confirmation.</div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>read-only-distinction:</b> the PM sees a static value row with a "Read-only" lock pill, not a greyed-out input. The Exec/Finance view uses an InlineEditField that commits through the scoped RPC behind the confirm below. Pre-win, both PM and Exec can edit the value freely (no lock).</p>
+</div>
+
+<!-- ===== SoD audit confirm (ConfirmDialog tone=default) ===== -->
+<div class="scrim" id="sodScrim" hidden>
+  <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="sodTitle">
+    <div class="confirm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h2 id="sodTitle">Change the contract value?</h2>
+    <p>You are changing the contract value of a won project from <b class="tnum">$4,820,000</b> to <b class="tnum">$5,140,000</b>.</p>
+    <div class="sod-reason">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <div>Changing the contract value on a won project is a segregation-of-duties action and is recorded against your name, date, and the previous value.</div>
+    </div>
+    <div class="confirm-foot">
+      <button class="btn btn-outline" onclick="closeSod()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeSod()">Change and record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let openPop = null;
+  function toggleCombo(id, trigger){
+    // demo: this mockup shows the open states in section B; here we just flip aria-expanded
+    const exp = trigger.getAttribute('aria-expanded') === 'true';
+    trigger.setAttribute('aria-expanded', exp ? 'false' : 'true');
+  }
+  function toggleDisclose(btn){
+    const exp = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', exp ? 'false' : 'true');
+    document.getElementById('moreBody').hidden = exp;
+  }
+  function openSod(){ document.getElementById('sodScrim').hidden = false; }
+  function closeSod(){ document.getElementById('sodScrim').hidden = true; }
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSod(); });
+</script>
+</body>
+</html>
