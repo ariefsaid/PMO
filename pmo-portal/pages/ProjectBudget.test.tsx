@@ -443,4 +443,97 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
     resetState();
   });
+
+  // T3/T4: AC-BD-02 — defaults to Active version, shows Active status pill in selector bar
+  it('AC-BD-02: defaults selection to Active version when present (even if not first in array)', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeVersion, draftVersion];
+    renderPage();
+    const selectorBar = screen.getByTestId('version-selector');
+    // The selector bar pill should show "Active"
+    expect(selectorBar.textContent).toContain('Active');
+    // The combobox value should be the active version's id
+    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
+    expect(combobox.value).toBe(activeVersion.id);
+    resetState();
+  });
+
+  // T5/T6: AC-BD-04 — switching selection swaps the single card (AC-BD-05: never stacked)
+  it('AC-BD-04: switching version selector swaps to the selected version card', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    renderPage();
+    // Default = Active; draftVersion has a 'Developers' line item
+    expect(screen.queryByText('Developers')).not.toBeInTheDocument();
+    // Switch to draft
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /version/i }), draftVersion.id);
+    expect(screen.getByText('Developers')).toBeInTheDocument();
+    // Only one version-card in the DOM (AC-BD-05)
+    expect(screen.getAllByTestId('version-card')).toHaveLength(1);
+    resetState();
+  });
+
+  // T7: AC-BD-06 — single-version still shows the selector
+  it('AC-BD-06: selector is still present when only one version exists', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    renderPage();
+    expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId('version-card')).toHaveLength(1);
+    resetState();
+  });
+
+  // T8: AC-BD-03 — no-Active fallback: highest Draft wins over Archived
+  it('AC-BD-03: no Active version — defaults to highest-version Draft', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion, draftVersion]; // no Active
+    renderPage();
+    const selectorBar = screen.getByTestId('version-selector');
+    expect(selectorBar.textContent).toContain('Draft');
+    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
+    expect(combobox.value).toBe(draftVersion.id);
+    resetState();
+  });
+
+  // T9: AC-BD-09 — delete-selected-draft self-heals
+  it('AC-BD-09: selecting deleted Draft self-heals to default (Active) without crash', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    const { rerender } = renderPage();
+    // Select the draft
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /version/i }), draftVersion.id);
+    expect(screen.getByText('Developers')).toBeInTheDocument();
+    // Simulate mutation: draft is deleted, only active remains
+    versionsState.data = [activeVersion];
+    rerender(
+      <MemoryRouter>
+        <ProjectBudget projectId="p-1" />
+      </MemoryRouter>
+    );
+    // Should fall back to active, no crash
+    const selectorBar = screen.getByTestId('version-selector');
+    expect(selectorBar.textContent).toContain('Active');
+    expect(screen.queryByText('Developers')).not.toBeInTheDocument();
+    resetState();
+  });
+
+  // T10a: A4/N1 — option text for a Draft contains "(Draft)" not color-only
+  it('A4/N1: option text includes "(Draft)" for draft version (not color-only status)', () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    const combobox = screen.getByRole('combobox', { name: /version/i });
+    expect(combobox.textContent).toContain('(Draft)');
+    resetState();
+  });
+
+  // T10b: N2 — no em-dash in selector/option text
+  it('N2: no em-dash in selector or option text', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    const { getByTestId } = renderPage();
+    const selectorBar = getByTestId('version-selector');
+    expect(selectorBar.textContent).not.toContain('—'); // em-dash —
+    resetState();
+  });
 });

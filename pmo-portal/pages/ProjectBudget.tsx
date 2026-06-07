@@ -344,8 +344,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Derive versions early so useMemo is unconditional (Rules of Hooks)
-  const versions = (versionsQuery.data ?? []) as BudgetVersionWithItems[];
+  // Derive versions early so useMemo is unconditional (Rules of Hooks).
+  // Memoized to give a stable array reference (avoids react-hooks/exhaustive-deps warning on
+  // the selected memo below).
+  const versions = useMemo<BudgetVersionWithItems[]>(
+    () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
+    [versionsQuery.data]
+  );
   const derivedTotal = budgetQuery.data ?? 0;
 
   // AC-BD-02/03: default-resolution priority: explicit pick → Active → highest Draft → highest Archived → first
