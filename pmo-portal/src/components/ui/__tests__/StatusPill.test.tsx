@@ -25,10 +25,11 @@ describe('StatusPill', () => {
     expect(pill.style.color).toBe('rgb(24, 70, 170)');
   });
 
-  it('#4: label text is 12px per DESIGN.md label token (not text-xs which is 10.5px on 14px base)', () => {
+  it('#4: label text is 12px per DESIGN.md label token (explicit text-[12px], not the rem-scale text-xs)', () => {
     render(<StatusPill variant="open">Check size</StatusPill>);
     const pill = screen.getByText('Check size').closest('span')!;
-    // Must use text-[12px] explicit pixel class, not text-xs (which resolves to 0.75rem = 10.5px on our 14px base)
+    // Pin the DESIGN.md 12px label token with an explicit pixel class so the pill
+    // size is immune to the root rem scale, rather than the rem-derived text-xs.
     expect(pill.className).toContain('text-[12px]');
     expect(pill.className).not.toContain('text-xs');
   });
