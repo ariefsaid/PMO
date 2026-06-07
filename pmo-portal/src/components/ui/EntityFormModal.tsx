@@ -121,8 +121,11 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     }
   }, [hasSummary, errorSummary]);
 
-  // Focus trap within the dialog.
+  // Focus trap within the dialog. Suspended while the discard ConfirmDialog is
+  // open — that dialog runs its own trap and owns the focus cycle, so the form
+  // trap must not fight it (would yank focus back into the form fields).
   const onTrapKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (confirmDiscard) return;
     if (e.key !== 'Tab') return;
     const root = dialogRef.current;
     if (!root) return;
@@ -139,7 +142,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
       e.preventDefault();
       first.focus();
     }
-  }, []);
+  }, [confirmDiscard]);
 
   if (!open) return null;
 
@@ -160,6 +163,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
           aria-describedby={subtitle ? subId : undefined}
           tabIndex={-1}
           onKeyDown={onTrapKeyDown}
+          // While the discard ConfirmDialog is open it owns focus + AT; make the
+          // form dialog inert so the background can't be tabbed into or read.
+          inert={confirmDiscard || undefined}
+          aria-hidden={confirmDiscard || undefined}
           className={cn(
             'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] flex-col rounded-lg border border-border bg-popover',
             'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',

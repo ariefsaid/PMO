@@ -172,6 +172,47 @@ describe('EntityFormModal: dirty-discard confirm', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
+
+  it('with the discard dialog open, the form-modal trap is suspended so Tab stays inside the ConfirmDialog', async () => {
+    render(
+      <EntityFormModal {...baseProps} dirty onClose={vi.fn()}>
+        <TextField label="Name" value="x" onChange={() => {}} />
+      </EntityFormModal>,
+    );
+    // Grab the form dialog BEFORE opening the confirm (it goes aria-hidden after).
+    const formDialog = screen.getByRole('dialog');
+
+    // Open the discard confirm.
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    const discardDialog = await screen.findByRole('alertdialog');
+    const keep = screen.getByRole('button', { name: /Keep editing/i });
+    const discard = screen.getByRole('button', { name: /^Discard$/i });
+
+    // The form dialog is made inert + aria-hidden so the ConfirmDialog owns focus + AT.
+    expect(formDialog).toHaveAttribute('aria-hidden', 'true');
+    expect(formDialog).toHaveAttribute('inert');
+
+    // Focus the last button of the ConfirmDialog and Tab from there — the
+    // ConfirmDialog's own trap should wrap to its first button, and the
+    // form-modal trap must NOT steal focus back into the form dialog.
+    discard.focus();
+    fireEvent.keyDown(discardDialog, { key: 'Tab' });
+    expect(keep).toHaveFocus();
+
+    // The form modal's OWN trap must be suspended while confirmDiscard is open.
+    // Put focus on the form's last focusable, then Tab on the form dialog: with
+    // a live trap this would wrap to the first form field; suspended, it's a
+    // no-op (the ConfirmDialog owns the focus cycle, not the form modal).
+    const formFocusables = formDialog.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    const firstFormFocusable = formFocusables[0];
+    const lastFormFocusable = formFocusables[formFocusables.length - 1];
+    lastFormFocusable.focus();
+    fireEvent.keyDown(formDialog, { key: 'Tab' });
+    expect(firstFormFocusable).not.toHaveFocus();
+    expect(lastFormFocusable).toHaveFocus();
+  });
 });
 
 describe('EntityFormModal: error summary anchor focus-move', () => {
