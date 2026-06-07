@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 
 export type TimesheetRow = Tables<'timesheets'>;
 export type TimesheetEntryRow = Tables<'timesheet_entries'>;
@@ -33,4 +34,77 @@ export async function listTimesheets(userId: string): Promise<TimesheetWithEntri
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Write path — entry editing (timesheet-entry spec FR-TSE-017; ADR-0015).
+// security-invoker posture: NO org_id / user_id-as-authority is ever sent. RLS
+// (timesheets_insert + the hardened timesheet_entries_write WITH CHECK) is the
+// sole authority for whose Draft sheet an entry may land on. Each fn throws a
+// TimesheetWriteError preserving the PostgREST/PG error.code (mirrors
+// procurementLifecycle.ts) so the hook/UI can classify the toast.
+// ---------------------------------------------------------------------------
+
+/** Shape of a PostgREST error (only the fields we surface). */
+interface PostgrestErrorLike {
+  message: string;
+  code?: string;
+}
+
+/**
+ * Carries the verbatim PostgREST message AND the Postgres error `code`
+ * (e.g. `42501` RLS-rejected, `23505` unique-violation) so the UI can classify
+ * the failure. Extends Error, so `err instanceof Error` / `.message` keep working.
+ */
+export class TimesheetWriteError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'TimesheetWriteError';
+    this.code = code;
+  }
+}
+
+/** Throws a TimesheetWriteError preserving both message and code. */
+function throwWrite(error: PostgrestErrorLike): never {
+  throw new TimesheetWriteError(error.message, error.code);
+}
+
+/**
+ * Inserts a Draft timesheet for (self, weekStartDate) and returns the new row. org_id is NEVER
+ * sent — the column default + the `timesheets_insert` WITH CHECK (user_id = auth.uid()) are the
+ * authority. `userId` (the signed-in user) is supplied by the hook from useAuth (FR-TSE-011/017).
+ */
+export async function createDraftTimesheet(
+  weekStartDate: string,
+  userId: string,
+): Promise<TimesheetRow> {
+  const { data, error } = await supabase
+    .from('timesheets')
+    .insert({ user_id: userId, week_start_date: weekStartDate, status: 'Draft' })
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return data as TimesheetRow;
+}
+
+/**
+ * Upserts entries on the (timesheet_id, project_id, entry_date) unique key (ADR-0015), so a retried
+ * Save converges (FR-TSE-012/017). org_id is NEVER sent. A no-op for an empty list.
+ */
+export async function upsertTimesheetEntries(entries: EntryUpsert[]): Promise<void> {
+  if (entries.length === 0) return;
+  const { error } = await supabase
+    .from('timesheet_entries')
+    .upsert(entries, { onConflict: 'timesheet_id,project_id,entry_date' });
+  if (error) throwWrite(error);
+}
+
+/**
+ * Deletes a single entry by id (a zeroed/cleared cell). org_id is NEVER sent — RLS
+ * (timesheet_entries_write USING) scopes the delete to the caller's own Draft sheet (FR-TSE-012/017).
+ */
+export async function deleteTimesheetEntry(id: string): Promise<void> {
+  const { error } = await supabase.from('timesheet_entries').delete().eq('id', id);
+  if (error) throwWrite(error);
 }
