@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath } from '../routeMatch';
-import { PLACEHOLDER_TITLES } from '../deriveBreadcrumb';
+import { breadcrumbForPath, recordLabelForPath, PLACEHOLDER_TITLES } from '../routeMatch';
 
 /**
- * Route-derived breadcrumb helper (supersedes the tab-backed `deriveBreadcrumb`
- * once the tab layer is removed). The helper is pure: a module-segment crumb's
+ * Route-derived breadcrumb helper (replaces the tab-backed `deriveBreadcrumb`).
+ * The helper is pure: a module-segment crumb's
  * `onClick` is built from a `navigate` fn passed in, so the helper never reaches
  * into the router itself. URL is the single source of truth (the existing
  * invariant) — the crumbs are derived from `pathname`, never from tab state.

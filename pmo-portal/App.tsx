@@ -12,9 +12,7 @@ import {
   AppShell,
   Rail,
   ContextBar,
-  TabStrip,
   CommandPalette,
-  WorkspaceTabsProvider,
   MODULES,
   breadcrumbForPath,
   recordLabelForPath,
@@ -134,7 +132,6 @@ const ShellChrome: React.FC = () => {
             onToggleRail={() => setRailOpen((v) => !v)}
           />
         }
-        tabstrip={<TabStrip onOpenPalette={openPalette} />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
       >
@@ -155,11 +152,9 @@ const Shell: React.FC = () => {
   const { role } = useAuth();
   return (
     <ImpersonationProvider realRole={role}>
-      <WorkspaceTabsProvider>
-        <ToastProvider>
-          <ShellChrome />
-        </ToastProvider>
-      </WorkspaceTabsProvider>
+      <ToastProvider>
+        <ShellChrome />
+      </ToastProvider>
     </ImpersonationProvider>
   );
 };

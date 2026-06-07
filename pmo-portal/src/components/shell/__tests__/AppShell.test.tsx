@@ -7,25 +7,23 @@ import { AppShell } from '../AppShell';
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('AppShell', () => {
-  it('renders the grid areas (rail/header/tabstrip/main slots)', () => {
+  it('renders the grid areas (rail/header/main slots)', () => {
     wrap(
       <AppShell
         rail={<div data-testid="rail-slot" />}
         header={<div data-testid="header-slot" />}
-        tabstrip={<div data-testid="tabstrip-slot" />}
       >
         <div>page content</div>
       </AppShell>
     );
     expect(screen.getByTestId('rail-slot')).toBeInTheDocument();
     expect(screen.getByTestId('header-slot')).toBeInTheDocument();
-    expect(screen.getByTestId('tabstrip-slot')).toBeInTheDocument();
     expect(screen.getByText('page content')).toBeInTheDocument();
   });
 
   it('main is a programmatically-focusable landmark with id=main', () => {
     wrap(
-      <AppShell rail={null} header={null} tabstrip={null}>
+      <AppShell rail={null} header={null}>
         <div>x</div>
       </AppShell>
     );
@@ -36,12 +34,48 @@ describe('AppShell', () => {
 
   it('renders a skip-to-main link', () => {
     wrap(
-      <AppShell rail={null} header={null} tabstrip={null}>
+      <AppShell rail={null} header={null}>
         <div>x</div>
       </AppShell>
     );
     const skip = screen.getByRole('link', { name: /skip to main content/i });
     expect(skip).toHaveAttribute('href', '#main');
+  });
+
+  // AC-NAV-001 — the tab layer is fully removed. No browser-style workspace
+  // tab strip should exist anywhere in the shell.
+  it('AC-NAV-001: renders no workspace tab strip (no tablist, no gridArea:tabstrip)', () => {
+    const { container } = wrap(
+      <AppShell
+        rail={<div data-testid="rail-slot">nav</div>}
+        header={<div data-testid="header-slot">bar</div>}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+    // No element claims the "Open workspace tabs" tablist role.
+    expect(
+      screen.queryByRole('tablist', { name: /open workspace tabs/i })
+    ).not.toBeInTheDocument();
+    // No element occupies the removed `tabstrip` grid area.
+    const tabstripArea = Array.from(container.querySelectorAll<HTMLElement>('*')).find(
+      (el) => el.style.gridArea === 'tabstrip'
+    );
+    expect(tabstripArea).toBeUndefined();
+  });
+
+  // AC-NAV-002 — the grid drops from 3 rows to 2 (header + main) with the
+  // two-area template; the rail spans both rows.
+  it('AC-NAV-002: grid has exactly two rows and the rail/header/main areas', () => {
+    const { container } = wrap(
+      <AppShell rail={<div>nav</div>} header={<div>bar</div>}>
+        <div>x</div>
+      </AppShell>
+    );
+    const grid = container.querySelector<HTMLElement>('.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.style.gridTemplateRows).toBe('var(--header-h) 1fr');
+    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
   });
 
   // C1-a/c regression — the persistent grid-area rail is hidden ≤920px by the
@@ -50,11 +84,7 @@ describe('AppShell', () => {
   // NOT on the Rail <aside> itself (that would also blank the drawer copy).
   it('wraps the persistent grid-area rail in a .rail-persistent container', () => {
     const { container } = wrap(
-      <AppShell
-        rail={<div data-testid="rail-slot">nav</div>}
-        header={null}
-        tabstrip={null}
-      >
+      <AppShell rail={<div data-testid="rail-slot">nav</div>} header={null}>
         <div>x</div>
       </AppShell>
     );
@@ -70,12 +100,7 @@ describe('AppShell', () => {
   // so the ≤920px hide never touches it: the drawer always shows nav.
   it('renders the rail inside the open mobile drawer WITHOUT the persistent hide', () => {
     const { container } = wrap(
-      <AppShell
-        rail={<div data-testid="rail-slot">nav</div>}
-        header={null}
-        tabstrip={null}
-        railOpen
-      >
+      <AppShell rail={<div data-testid="rail-slot">nav</div>} header={null} railOpen>
         <div>x</div>
       </AppShell>
     );

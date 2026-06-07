@@ -1,8 +1,6 @@
 import { matchPath } from 'react-router-dom';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
-import { PLACEHOLDER_TITLES } from './deriveBreadcrumb';
-import { DASHBOARD_TAB, type WorkspaceTab } from './workspaceTabs';
 
 interface ModuleDef {
   module: string;
@@ -14,7 +12,7 @@ interface ModuleDef {
   detail?: { pattern: string; param: string };
 }
 
-/** The module IA — index + detail routes the workspace strip tracks. */
+/** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
   { module: 'dashboard', icon: 'grid', label: 'Dashboard', path: '/' },
   {
@@ -41,52 +39,20 @@ export const MODULES: ModuleDef[] = [
   { module: 'timesheets', icon: 'clock', label: 'Timesheets', path: '/timesheets' },
 ];
 
-/** Record-tab icon per owning module. */
-const RECORD_ICON: Record<string, IconName> = {
-  sales: 'pipe',
-  procurement: 'cart',
-  projects: 'folder',
-};
-
 /**
- * Derive the workspace tab a URL maps to (URL is the source of truth).
- * Detail routes become `record` tabs; index routes become `module` tabs.
- * Returns null when the path matches no tracked module (router falls back to
- * the dashboard route, which maps to the dashboard tab via the `/` match).
+ * C5 — placeholder route titles. These routes are intentionally NOT registered
+ * as modules (they have no rail entry / ⌘K target yet), so a URL-derived
+ * breadcrumb has no module to resolve and would otherwise fall back to
+ * "Dashboard". This map is the single source of their page title, kept in sync
+ * with the placeholder `<Route>` titles in App.tsx.
  */
-export function tabForPath(pathname: string): WorkspaceTab | null {
-  for (const m of MODULES) {
-    // Detail route → record tab (check before the index so /sales/:id wins).
-    if (m.detail) {
-      const match = matchPath({ path: m.detail.pattern, end: true }, pathname);
-      if (match) {
-        const id = match.params[m.detail.param] ?? '';
-        return {
-          id: `${m.module}:${id}`,
-          kind: 'record',
-          path: pathname,
-          icon: RECORD_ICON[m.module] ?? 'doc',
-          label: id, // hydrated to a human label by the consuming surface
-          code: id,
-          module: m.module,
-        };
-      }
-    }
-    // Index route → module tab.
-    if (matchPath({ path: m.path, end: true }, pathname)) {
-      if (m.module === 'dashboard') return { ...DASHBOARD_TAB };
-      return {
-        id: m.module,
-        kind: 'module',
-        path: m.path,
-        icon: m.icon,
-        label: m.label,
-        module: m.module,
-      };
-    }
-  }
-  return null;
-}
+export const PLACEHOLDER_TITLES: Record<string, string> = {
+  '/tasks': 'Tasks',
+  '/companies': 'Companies',
+  '/work-orders': 'Work Orders',
+  '/reports': 'Reports',
+  '/administration': 'Administration',
+};
 
 /**
  * Route-derived top-bar breadcrumb (URL is the single source of truth — the
@@ -101,7 +67,7 @@ export function tabForPath(pathname: string): WorkspaceTab | null {
  *   cold deep-link (label not yet known) it shows a neutral "Loading…" — never
  *   the raw URL id (fixes the M3/M4 UUID leak).
  * - Placeholder route (`/companies`, `/tasks`, …) → its own page label, not
- *   "Dashboard" (AC-NAV-005), via the shared `PLACEHOLDER_TITLES` map.
+ *   "Dashboard" (AC-NAV-005), via the `PLACEHOLDER_TITLES` map.
  * - Unknown route → a single Dashboard crumb (the `*` route renders the
  *   dashboard).
  *
@@ -177,19 +143,4 @@ export function recordLabelForPath(
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
 
   return undefined;
-}
-
-/** The module tab for a rail click. */
-export function moduleTab(moduleKey: string): WorkspaceTab | null {
-  const m = MODULES.find((x) => x.module === moduleKey);
-  if (!m) return null;
-  if (m.module === 'dashboard') return { ...DASHBOARD_TAB };
-  return {
-    id: m.module,
-    kind: 'module',
-    path: m.path,
-    icon: m.icon,
-    label: m.label,
-    module: m.module,
-  };
 }

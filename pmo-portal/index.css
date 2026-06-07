@@ -26,7 +26,7 @@
   --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;
   /* --- Geometry --- */
   --radius: 0.5rem;
-  --rail-w: 224px;                   --header-h: 56px;   --tabstrip-h: 40px;
+  --rail-w: 224px;                   --header-h: 56px;
   color-scheme: light;
 }
 
@@ -196,8 +196,7 @@
 
 /* ---------- Scrollbar polish (from reference) ---------- */
 .main-scroll::-webkit-scrollbar,
-.kanban-scroll::-webkit-scrollbar,
-.tabstrip-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
+.kanban-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
 .main-scroll::-webkit-scrollbar-thumb,
 .kanban-scroll::-webkit-scrollbar-thumb {
   background: hsl(240 5% 80%);

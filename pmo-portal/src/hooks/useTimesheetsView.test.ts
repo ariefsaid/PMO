@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readTimesheetsView, writeTimesheetsView } from './useTimesheetsView';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 describe('useTimesheetsView — persisted Grid/Approvals toggle (Issue 6)', () => {
   beforeEach(() => sessionStorage.clear());

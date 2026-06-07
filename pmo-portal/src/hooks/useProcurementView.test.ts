@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readProcurementView, writeProcurementView } from './useProcurementView';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 describe('useProcurementView — persisted Table/Board toggle (Issue 3)', () => {
   beforeEach(() => sessionStorage.clear());
