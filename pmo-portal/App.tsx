@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -17,6 +17,7 @@ import {
   WorkspaceTabsProvider,
   useWorkspaceTabs,
   MODULES,
+  deriveBreadcrumb,
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
@@ -60,6 +61,7 @@ const AppRoutes: React.FC = () => (
 // ── Shell chrome (inside the workspace provider) ───────────────────────────
 const ShellChrome: React.FC = () => {
   const ws = useWorkspaceTabs();
+  const { pathname } = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
@@ -82,19 +84,12 @@ const ShellChrome: React.FC = () => {
     setPaletteOpen(true);
   }, []);
 
-  // Breadcrumb derives from the active workspace tab.
+  // Breadcrumb derives from the active workspace tab, with a pathname fallback
+  // so placeholder routes (not tracked modules) read their own title (C5).
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
-    const active = ws.tabs.find((t) => t.id === ws.activeId);
-    if (!active) return [{ label: 'Dashboard' }];
-    if (active.kind === 'record') {
-      const mod = MODULES.find((m) => m.module === active.module);
-      return [
-        { label: mod?.label ?? active.module, onClick: () => ws.openModule(active.module) },
-        { label: active.label },
-      ];
-    }
-    return [{ label: active.label }];
-  }, [ws]);
+    const active = ws.tabs.find((t) => t.id === ws.activeId) ?? null;
+    return deriveBreadcrumb(active, pathname, ws.openModule);
+  }, [ws, pathname]);
 
   // Palette items: Navigate to each module + a small Actions group. Record
   // search is sourced from cached lists in a follow-up surface issue.

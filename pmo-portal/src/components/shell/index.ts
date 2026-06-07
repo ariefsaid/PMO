@@ -18,3 +18,4 @@ export {
   DASHBOARD_TAB,
 } from './workspaceTabs';
 export { MODULES, moduleTab, tabForPath } from './routeMatch';
+export { deriveBreadcrumb, PLACEHOLDER_TITLES } from './deriveBreadcrumb';
