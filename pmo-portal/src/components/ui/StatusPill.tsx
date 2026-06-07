@@ -9,7 +9,8 @@ export type StatusVariant =
   | 'warn'
   | 'overdue'
   | 'neutral'
-  | 'draft';
+  | 'draft'
+  | 'violet';
 
 /**
  * The Tinted-Status Rule: status = a 6px dot + a pill tinted ~10-18% of the
@@ -39,6 +40,10 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
   neutral: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   draft: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
+  // Categorical violet — NON-interactive categorization only (DESIGN.md: KPI/avatar/
+  // timeline/type pills, never an action color). Tinted violet/12 + the darkened-AA
+  // text hsl(262 60% 42%) from crud-companies.html (7.4:1 on white).
+  violet: { cls: 'bg-violet/12', text: 'hsl(262 60% 42%)', dot: 'hsl(var(--violet))' },
 };
 
 export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {

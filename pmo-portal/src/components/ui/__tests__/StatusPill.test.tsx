@@ -87,6 +87,24 @@ describe('StatusPill', () => {
     expect(pill.className).toContain('bg-primary/10');
     expect(pill.style.color).toBe('rgb(24, 70, 170)'); // hsl(221 75% 38%)
   });
+
+  /**
+   * Categorical `violet` variant — the third pill hue (Companies type = Vendor).
+   * DESIGN.md sanctions violet for NON-interactive categorization (type pills are
+   * not actions). Tinted violet/12 bg + the darkened-AA text hsl(262 60% 42%) from
+   * crud-companies.html (7.4:1 on white — clears AA). Distinct from open (blue) and
+   * won/Internal (green) so the three company types are differentiated by hue AND
+   * label, never color-only (the dot + label carry it).
+   */
+  it('maps violet to the categorical violet tint + darkened AA text (Vendor type pill)', () => {
+    render(<StatusPill variant="violet">Vendor</StatusPill>);
+    const pill = screen.getByText('Vendor').closest('span')!;
+    expect(pill.className).toContain('bg-violet/12');
+    // hsl(262 60% 42%) == rgb(90,43,171) — the darkened violet, not the base hue.
+    expect(pill.style.color).toBe('rgb(90, 43, 171)');
+    const dot = pill.querySelector('[data-pill-dot]') as HTMLElement;
+    expect(dot.style.background).toBe('hsl(var(--violet))');
+  });
 });
 
 describe('Badge (count)', () => {
