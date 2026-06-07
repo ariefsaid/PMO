@@ -9,6 +9,11 @@ import { signIn } from './helpers';
 // rather than P002 "Northwind ERP Rollout". P002 is mutated by AC-1011 and read by AC-1117;
 // pointing AC-SP at a distinct project ensures full-suite ordering-independence (no shared
 // mutable row between specs). P011 is seeded in 'Tender Submitted' state on every db reset.
+//
+// NOTE (feat/ui-polish I7): the in-page BackBar ("Back to Sales Pipeline" button) was
+// intentionally removed on the success render — the top-bar breadcrumb owns wayfinding.
+// AC-SP-207 now asserts that the breadcrumb link "Sales Pipeline" navigates back to /sales
+// instead of the removed button.
 test('AC-SP-207: opens an opportunity from the Kanban board into its detail page and tab', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
 
@@ -24,15 +29,22 @@ test('AC-SP-207: opens an opportunity from the Kanban board into its detail page
   await page.getByText('Highfield Bridge Survey').first().click();
   await page.waitForURL('**/sales/**');
 
-  // Detail page: header name + BackBar + the deal-stage journey.
+  // Detail page: header name + Deal stage journey stepper.
   await expect(page.getByRole('heading', { name: /Highfield Bridge Survey/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Back to Sales Pipeline/i })).toBeVisible();
   await expect(page.getByLabel('Deal stage journey')).toBeVisible();
 
-  // The Mark-won inline SoD panel reveals two required fields (no modal).
-  await page.getByRole('button', { name: /Mark won/i }).click();
-  await expect(page.getByLabel(/Customer contract reference/i)).toBeVisible();
-  await expect(page.getByLabel(/Contract date/i)).toBeVisible();
+  // I7: the in-page BackBar ("Back to Sales Pipeline" button) was removed.
+  // The breadcrumb (rendered in the top ContextBar, inside nav[aria-label="Breadcrumb"])
+  // owns wayfinding. Assert the breadcrumb "Sales Pipeline" link navigates back to /sales.
+  const breadcrumb = page.getByRole('navigation', { name: /breadcrumb/i });
+  await expect(breadcrumb).toBeVisible();
+  const salesPipelineLink = breadcrumb.getByRole('button', { name: /Sales Pipeline/i });
+  await expect(salesPipelineLink).toBeVisible({ timeout: 10_000 });
+  await salesPipelineLink.click();
+  await page.waitForURL('**/sales');
+
+  // Navigated back — the Kanban board is visible again.
+  await expect(page.getByLabel('Sales pipeline board')).toBeVisible();
 });
 
 test('AC-SP-206: the view toggle switches the body to a Table of deals', async ({ page }) => {
@@ -44,4 +56,18 @@ test('AC-SP-206: the view toggle switches the body to a Table of deals', async (
   // Table view renders P011 (dedicated AC-SP seed row) in a row with a win-% progressbar.
   await expect(page.getByText('Highfield Bridge Survey')).toBeVisible();
   await expect(page.getByRole('progressbar').first()).toBeVisible();
+});
+
+test('AC-SP-208: Mark-won inline SoD panel reveals contract-reference + contract-date fields', async ({ page }) => {
+  await signIn(page, 'exec@acme.test');
+  await page.getByRole('link', { name: /Sales Pipeline/i }).click();
+  await page.waitForURL('**/sales');
+
+  await page.getByText('Highfield Bridge Survey').first().click();
+  await page.waitForURL('**/sales/**');
+
+  // The Mark-won inline SoD panel reveals two required fields (no modal).
+  await page.getByRole('button', { name: /Mark won/i }).click();
+  await expect(page.getByLabel(/Customer contract reference/i)).toBeVisible();
+  await expect(page.getByLabel(/Contract date/i)).toBeVisible();
 });
