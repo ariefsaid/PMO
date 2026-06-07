@@ -45,3 +45,5 @@ export {
 } from './TimesheetGrid';
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
+export { HoursBar, type HoursBarProps } from './HoursBar';
+export { EntryList, type EntryListProps } from './EntryList';
