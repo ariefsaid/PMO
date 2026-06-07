@@ -72,9 +72,10 @@ describe('TimesheetGrid (editable mode)', () => {
       { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [8, 0, 0, 0, 0, 0, 0] },
     ];
     render(<TimesheetGrid days={days} rows={editRows} editable />);
-    // 7 editable cells → 7 spinbutton inputs (input type=number/inputMode decimal).
-    const inputs = screen.getAllByRole('spinbutton');
+    // 7 editable hour cells → 7 labelled text inputs (inputMode=decimal preserves "7.").
+    const inputs = days.map((d) => screen.getByLabelText(`Acme Platform, ${d.label} hours`));
     expect(inputs.length).toBe(7);
+    inputs.forEach((el) => expect(el.tagName).toBe('INPUT'));
     // Per-row delete control with an accessible name.
     expect(
       screen.getByRole('button', { name: 'Delete Acme Platform row' }),
@@ -83,10 +84,11 @@ describe('TimesheetGrid (editable mode)', () => {
 
   it('the read-only branch (editable false) keeps the shipped read-only cells unchanged', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
-    // Read-only path renders the dot placeholder + no inputs.
-    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    // Read-only path renders the dot placeholder + no editable inputs at all.
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     const empty = screen.getByLabelText('Greystone Hospital MEP, Mon hours');
     expect(empty).toHaveTextContent('·');
+    expect(empty.tagName).toBe('DIV');
   });
 
   it('AC-TSE-007: typing into a cell calls onCellChange and does not write', async () => {
@@ -162,6 +164,24 @@ describe('TimesheetGrid (editable mode)', () => {
     render(<TimesheetGrid days={days} rows={editRows} editable onDeleteRow={onDeleteRow} />);
     await userEvent.click(screen.getByRole('button', { name: 'Delete Acme Platform row' }));
     expect(onDeleteRow).toHaveBeenCalledWith('p1');
+  });
+
+  it('editable cells reflect the raw edit string (preserves in-progress values like "7." and a typed "0")', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [7.5, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(
+      <TimesheetGrid
+        days={days}
+        rows={editRows}
+        editable
+        // raw strings as the user typed them — the input must show these verbatim
+        rawHours={{ p1: ['7.', '0', '', '', '', '', ''] }}
+      />,
+    );
+    expect((screen.getByLabelText('Acme Platform, Mon hours') as HTMLInputElement).value).toBe('7.');
+    // A typed "0" stays "0", not blanked.
+    expect((screen.getByLabelText('Acme Platform, Tue hours') as HTMLInputElement).value).toBe('0');
   });
 
   it('NFR-TSE-A11Y-001: every editable cell has aria-label "<project>, <weekday> hours"', () => {

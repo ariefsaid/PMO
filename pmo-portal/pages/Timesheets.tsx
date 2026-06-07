@@ -232,6 +232,10 @@ const TimesheetsPage: React.FC = () => {
     () => Object.fromEntries(editRows.map((r) => [r.project_id, r.note])),
     [editRows]
   );
+  const editRawHours = useMemo(
+    () => Object.fromEntries(editRows.map((r) => [r.project_id, r.hours])),
+    [editRows]
+  );
 
   const setCell = (rowId: string, dayIndex: number, raw: string) =>
     setEditRows((rows) =>
@@ -537,6 +541,7 @@ const TimesheetsPage: React.FC = () => {
               rows={editGridRows}
               editable
               notes={editNotes}
+              rawHours={editRawHours}
               invalidCells={invalidCells}
               onCellChange={setCell}
               onNoteChange={setNote}

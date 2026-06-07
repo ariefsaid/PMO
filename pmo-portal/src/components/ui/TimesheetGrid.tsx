@@ -34,6 +34,13 @@ export interface TimesheetGridProps {
   editable?: boolean;
   /** Per-row note text, keyed by row id (editable mode). */
   notes?: Record<string, string>;
+  /**
+   * Raw, as-typed cell strings keyed by row id (editable mode), length-7 each.
+   * When present these are shown verbatim so in-progress values ("7.", a typed
+   * "0", a leading blank) are preserved instead of round-tripping through a
+   * numeric parse. Falls back to the numeric `rows[].hours` when absent.
+   */
+  rawHours?: Record<string, string[]>;
   /** "<rowId>:<dayIdx>" of cells that fail client validation (editable mode). */
   invalidCells?: Set<string>;
   /** Fired on each keystroke into an hour cell (rowId, dayIndex 0–6, raw string). */
@@ -63,6 +70,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   className,
   editable = false,
   notes,
+  rawHours,
   invalidCells,
   onCellChange,
   onNoteChange,
@@ -161,20 +169,22 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                   const weekend = days[i]?.weekend;
                   if (editable) {
                     const invalid = invalidCells?.has(`${r.id}:${i}`) ?? false;
+                    // Prefer the raw as-typed string so in-progress values survive;
+                    // fall back to the numeric (blank for 0) when no raw map is given.
+                    const raw = rawHours?.[r.id]?.[i];
+                    const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
                     return (
                       <td
                         key={i}
                         className={cn('p-1 align-middle', weekend && 'bg-secondary/60')}
                       >
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.25"
-                          min={0}
-                          max={24}
+                          autoComplete="off"
                           aria-label={`${r.project}, ${days[i]?.label} hours`}
                           aria-invalid={invalid || undefined}
-                          value={h === 0 ? '' : fmt(h)}
+                          value={value}
                           onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
                           className={cn(
                             'mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',

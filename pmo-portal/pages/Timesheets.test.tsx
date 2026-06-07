@@ -439,8 +439,8 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
-    // Editable cells are inputs.
-    expect(screen.getAllByRole('spinbutton').length).toBeGreaterThan(0);
+    // Editable cells are inputs (the Mon hour cell is an INPUT, not a DIV).
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('INPUT');
     expect(screen.getByLabelText(/add a project/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
   });
@@ -458,7 +458,8 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     tsState.data = currentDraftSheet('Submitted') as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
-    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    // The hour cell is a static DIV (read-only), not an editable INPUT.
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('DIV');
     expect(screen.queryByLabelText(/add a project/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
   });
@@ -467,7 +468,7 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     tsState.data = currentDraftSheet('Approved') as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
-    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('DIV');
     expect(screen.queryByLabelText(/add a project/i)).toBeNull();
   });
 });
