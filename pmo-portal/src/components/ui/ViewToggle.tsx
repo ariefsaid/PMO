@@ -63,7 +63,8 @@ export function ViewToggle<V extends string = string>({
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'inline-flex h-7 items-center gap-1.5 rounded-[5px] px-[11px] text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
+              // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).
+              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-[11px] text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
               '[&_svg]:size-[14px]',
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'

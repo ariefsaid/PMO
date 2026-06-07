@@ -63,7 +63,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         type="button"
         aria-label="Open navigation menu"
         onClick={onToggleRail}
-        className="mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
+        className="touch-target mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
       >
         <Icon name="cols" />
       </button>
@@ -77,7 +77,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         aria-label="Open command palette"
         aria-keyshortcuts="Meta+K Control+K"
         onClick={onOpenPalette}
-        className="cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background pl-[11px] pr-[9px] text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
+        className="touch-target cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background pl-[11px] pr-[9px] text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
       >
         <Icon name="search" />
         <span className="cmdk-label flex-1 text-left max-[921px]:hidden">Search or jump to…</span>
@@ -93,7 +93,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             ? `Notifications, ${notificationCount} unread`
             : 'Notifications'
         }
-        className="relative grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
+        className="touch-target relative grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
       >
         <Icon name="bell" />
         {notificationCount > 0 && (

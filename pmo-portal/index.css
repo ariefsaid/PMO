@@ -209,6 +209,29 @@
   .cmdk-row { padding-top: 11px; padding-bottom: 11px; }
 }
 
+/* ---------- Touch target (WCAG 2.5.5 Target Size, AA) ----------
+   On a coarse pointer (touch), grow the HIT AREA of compact controls (32px
+   header icon buttons, 28px segmented-control buttons, the 15px KPI help "?")
+   to >=44x44 via a centered transparent ::before overlay — WITHOUT changing the
+   element's own visual size. Inert on fine pointers (mouse), so the dense
+   desktop layout is unchanged. Hook: add the `.touch-target` class. */
+.touch-target { touch-action: manipulation; }
+@media (pointer: coarse) {
+  .touch-target { position: relative; }
+  .touch-target::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
+    /* transparent — the overlay only extends the pointer hit region. */
+  }
+}
+
 /* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
    global prefers-reduced-motion rule (animation-duration → 0). */
 .cmdk-skeleton { position: relative; overflow: hidden; }
