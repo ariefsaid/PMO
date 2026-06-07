@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Button,
   Card,
+  CardHead,
   ErrBanner,
   Icon,
   ListState,
@@ -9,10 +10,13 @@ import {
   TimesheetGrid,
   Toolbar,
   ViewToggle,
+  HoursBar,
+  EntryList,
   type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
+import { entriesByProject, recentEntries, type FlatEntry } from '@/src/lib/timesheet-derive';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
@@ -122,6 +126,21 @@ const TimesheetsPage: React.FC = () => {
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
     [currentWeekEntries]
+  );
+
+  // T11/T12: By-project summary from gridRows (already memoized above)
+  const byProject = useMemo(
+    () => entriesByProject(currentWeekEntries),
+    [currentWeekEntries]
+  );
+
+  // T13: Recent entries this week, sorted newest-first (re-wrap as FlatEntry shape)
+  const recentWeekEntries = useMemo<FlatEntry[]>(
+    () =>
+      [...currentWeekEntries]
+        .sort((a, b) => b.entry_date.localeCompare(a.entry_date))
+        .map((e) => ({ ...e, sheetId: currentTimesheet?.id ?? '' })),
+    [currentWeekEntries, currentTimesheet]
   );
 
   const stepWeek = (delta: number) => {
@@ -275,6 +294,35 @@ const TimesheetsPage: React.FC = () => {
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
       </Card>
+
+      {/* T11-T13: Two-up surround panels — only when the week has hours */}
+      {gridRows.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 min-[920px]:grid-cols-2">
+          {/* T11/T12 — By project this week */}
+          <Card>
+            <CardHead>By project this week</CardHead>
+            <div className="px-4 pb-3.5">
+              <div role="group" aria-label="By project this week" className="flex flex-col">
+                {byProject.map((row) => (
+                  <HoursBar
+                    key={row.projectId}
+                    label={row.name}
+                    code={row.code}
+                    hours={row.hours}
+                    maxHours={weeklyTotal}
+                  />
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {/* T13 — Recent entries this week */}
+          <Card>
+            <CardHead>Recent entries this week</CardHead>
+            <EntryList entries={recentWeekEntries} />
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
