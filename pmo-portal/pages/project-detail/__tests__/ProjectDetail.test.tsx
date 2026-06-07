@@ -72,14 +72,19 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
-  it('renders the Tasks/Documents/Timesheets placeholders (deferred, AC-K)', async () => {
+  it('renders the Tasks/Documents placeholder tabs (deferred, AC-K)', async () => {
     renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Tasks' }));
     expect(screen.getByText(/Task scheduling is coming soon/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
     expect(screen.getByText(/Document management is coming soon/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('tab', { name: 'Timesheets' }));
-    expect(screen.getByText(/Project time tracking is coming soon/i)).toBeInTheDocument();
+  });
+
+  it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', () => {
+    renderAt('/projects/p1');
+    const tablist = screen.getByRole('tablist', { name: /project sections/i });
+    const tabs = Array.from(tablist.querySelectorAll('[role="tab"]')).map((t) => t.textContent);
+    expect(tabs).not.toContain('Timesheets');
   });
 
   it('pre-selects the Budget tab on the /budget deep-link route', () => {
