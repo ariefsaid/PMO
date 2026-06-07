@@ -55,7 +55,9 @@ export const EngineerDashboard: React.FC = () => {
           vs={current ? `week of ${current.week_start_date}` : undefined}
           help="Total hours on your most recent timesheet." />
         <KPITile testId="kpi-timesheet-status" tone="violet" icon="doc" label="Timesheet status"
-          value={current ? <StatusPill variant={timesheetVariant(current.status)}>{current.status}</StatusPill> : '—'}
+          value={current
+            ? <StatusPill variant={timesheetVariant(current.status)}>{current.status}</StatusPill>
+            : <span className="text-muted-foreground">None this period</span>}
           loading={isPending}
           help="The status of your most recent timesheet." />
       </section>

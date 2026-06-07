@@ -101,7 +101,18 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
-  it('shows an error with a Back-to-Projects action when the project is absent', () => {
+  it('I7: the success render drops the redundant in-page BackBar + Breadcrumb', () => {
+    renderAt('/projects/p1');
+    expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    // I7: the top-bar breadcrumb owns wayfinding — no in-page BackBar...
+    expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
+    // ...and no in-page Breadcrumb nav landmark.
+    expect(screen.queryByRole('navigation', { name: /breadcrumb/i })).toBeNull();
+    // the project name appears exactly once (the header), not duplicated by a crumb
+    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')).toHaveLength(1);
+  });
+
+  it('I7: the not-found render keeps the "Back to Projects" escape route', () => {
     projectsState.data = [];
     renderAt('/projects/does-not-exist');
     expect(screen.getByText(/Project not found/i)).toBeInTheDocument();

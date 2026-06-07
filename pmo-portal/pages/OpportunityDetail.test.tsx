@@ -86,12 +86,23 @@ beforeEach(() => {
 });
 
 describe('OpportunityDetail (AC-SP-208)', () => {
-  it('AC-SP-208: renders the header with name, status pill, value and the BackBar', () => {
+  it('AC-SP-208 / I7: success render shows the header (no redundant in-page BackBar)', () => {
     renderAt('p2');
     expect(screen.getByRole('heading', { name: /Northwind ERP Rollout/i })).toBeInTheDocument();
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getAllByText((t) => t.includes(formatCurrency(1200000))).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Back to Sales Pipeline/i })).toBeInTheDocument();
+    // I7: the top-bar breadcrumb (Sales Pipeline > record) owns wayfinding —
+    // the in-page BackBar is dropped from the success render.
+    expect(screen.queryByRole('button', { name: /Back to Sales Pipeline/i })).toBeNull();
+  });
+
+  it('G2: an absent Owner reads "Not set" and an absent Decision reads "Pending" (no em-dash)', () => {
+    oppState.data = { ...oppState.data!, pm: null, decided_at: null };
+    renderAt('p2');
+    expect(screen.getByText('Not set')).toBeInTheDocument(); // Owner
+    expect(screen.getByText('Pending')).toBeInTheDocument(); // Decision
+    // when present, real values still render
+    expect(screen.queryByText('—')).toBeNull();
   });
 
   it('AC-SP-208: the deal-stage journey marks the current stage', () => {
@@ -115,8 +126,12 @@ describe('OpportunityDetail (AC-SP-208)', () => {
     expect(screen.getByRole('button', { name: /Back to Sales Pipeline/i })).toBeInTheDocument();
   });
 
-  it('AC-SP-208: BackBar navigates back to the sales module', () => {
-    renderAt('p2');
+  it('AC-SP-208 / I7: the not-found BackBar navigates back to the sales module', () => {
+    // BackBar is retained on the not-found branch (the only escape route there);
+    // it still navigates back to the sales module.
+    oppState.data = null;
+    pipelineState.data = { stages: [], projects: [] };
+    renderAt('ghost');
     fireEvent.click(screen.getByRole('button', { name: /Back to Sales Pipeline/i }));
     expect(openModule).toHaveBeenCalledWith('sales');
   });

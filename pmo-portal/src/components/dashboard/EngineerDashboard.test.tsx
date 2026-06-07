@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { EngineerDashboard } from './EngineerDashboard';
@@ -22,14 +22,26 @@ const sheets = [
   },
 ];
 
+const tsState: { data: typeof sheets | []; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = {
+  data: sheets,
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+};
 vi.mock('@/src/hooks/useTimesheets', () => ({
-  useTimesheets: () => ({ data: sheets, isPending: false, isError: false, refetch: vi.fn() }),
+  useTimesheets: () => tsState,
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'eng-1', org_id: 'o1' }, role: 'Engineer' }),
 }));
 
 const renderPane = () => render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
+
+beforeEach(() => {
+  tsState.data = sheets;
+  tsState.isPending = false;
+  tsState.isError = false;
+});
 
 describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
   it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
@@ -48,6 +60,13 @@ describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('shows the latest timesheet status pill', () => {
     renderPane();
     expect(screen.getByText('Draft')).toBeInTheDocument();
+  });
+  it('G4: with no current timesheet, the status reads "None this period" (no em-dash)', () => {
+    tsState.data = [];
+    renderPane();
+    const tile = screen.getByTestId('kpi-timesheet-status');
+    expect(tile).toHaveTextContent('None this period');
+    expect(tile.textContent).not.toContain('—');
   });
   it('does NOT render a tasks coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();

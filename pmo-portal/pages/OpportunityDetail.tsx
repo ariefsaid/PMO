@@ -175,16 +175,19 @@ const OpportunityDetail: React.FC = () => {
     { label: 'Value', value: formatCurrency(value) },
     { label: 'Win probability', value: formatPercent(winProb) },
     { label: 'Weighted', value: formatCurrency(weighted) },
-    { label: 'Owner', value: opp?.pm?.full_name ?? '—' },
+    { label: 'Owner', value: opp?.pm?.full_name ?? 'Not set' },
     {
       label: 'Decision',
-      value: opp?.decided_at ? new Date(opp.decided_at).toLocaleDateString() : '—',
+      value: opp?.decided_at ? new Date(opp.decided_at).toLocaleDateString() : 'Pending',
     },
   ];
 
   return (
     <div>
-      <BackBar label="Sales Pipeline" onBack={goBack} />
+      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
+          (Sales Pipeline > record) owns wayfinding. BackBar is kept on the
+          loading / not-found branches above, where there is no in-page header
+          to orient from and the crumb shows only the raw id. */}
       <PageHeader
         icon={(name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={stageDot(liveStatus)}

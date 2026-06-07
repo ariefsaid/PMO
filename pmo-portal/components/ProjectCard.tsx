@@ -79,14 +79,21 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen }) => {
         </div>
       </dl>
 
-      {/* Dual utilization bars */}
-      <div className="flex flex-col gap-1.5">
+      {/* Dual utilization bars — labeled (I6): a 2-col [label | bar] mini-grid
+          so each bar's meaning is explicit (the orphaned-bars fix). Labels use
+          the `label` type token (12px/600 muted-foreground). */}
+      <div
+        data-testid="project-card-bars"
+        className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
+      >
+        <span className="text-[12px] font-semibold text-muted-foreground">Committed</span>
         <ProgressBar
           value={Math.round(committedPct)}
           tone="warning"
           showValue
           aria-label={`Committed: ${Math.round(committedPct)}% of contract`}
         />
+        <span className="text-[12px] font-semibold text-muted-foreground">Actual</span>
         <ProgressBar
           value={Math.round(actualPct)}
           showValue
