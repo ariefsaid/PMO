@@ -262,7 +262,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         </tbody>
         <tfoot>
           <tr className="border-t-[1.5px] border-border bg-secondary/40">
-            <td className="sticky left-0 z-[1] bg-secondary/40 px-3 py-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+            <td className="sticky left-0 z-[1] bg-card px-3 py-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
               Daily total
             </td>
             {dailyTotals.map((t, i) => (

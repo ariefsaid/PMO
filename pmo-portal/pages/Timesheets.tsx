@@ -514,7 +514,7 @@ const TimesheetsPage: React.FC = () => {
                   if (e.target.value) addProject(e.target.value);
                 }}
                 disabled={pickerOptions.length === 0}
-                className="h-8 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
+                className="touch-target h-8 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
               >
                 <option value="">
                   {pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}
