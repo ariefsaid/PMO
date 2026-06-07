@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Button,
   Toolbar,
   SearchMini,
   ViewToggle,
@@ -8,7 +7,6 @@ import {
   DataTable,
   StatusPill,
   ProgressBar,
-  Icon,
   type Column,
 } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -250,7 +248,6 @@ const Projects: React.FC = () => {
           icon="folder"
           title="No projects yet"
           sub="Projects you create or win will appear here."
-          action={{ label: 'New Project', onClick: () => {}, disabled: true, disabledTitle: 'Project creation is coming soon' }}
         />
       </div>
     );
@@ -355,7 +352,7 @@ const Projects: React.FC = () => {
   );
 };
 
-/** Page head — title + sub + (stub) New Project CTA. */
+/** Page head — title + sub (no creation CTA until project creation ships). */
 const Header: React.FC = () => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
@@ -365,10 +362,6 @@ const Header: React.FC = () => (
         budget, procurement, and detail.
       </p>
     </div>
-    <Button variant="primary" disabled title="Project creation is coming soon">
-      <Icon name="plus" />
-      New Project
-    </Button>
   </div>
 );
 

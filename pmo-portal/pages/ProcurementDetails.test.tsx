@@ -185,6 +185,58 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
     expect(detailState.refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('I7: the loading state keeps the "Back to Procurement" escape route', () => {
+    detailState.isPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('I7: the error state keeps the "Back to Procurement" escape route', () => {
+    detailState.isError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('I7: the not-found state keeps the "Back to Procurement" escape route', () => {
+    detailState.data = undefined;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch-A cleanup: E4 (no disabled Audit trail), H2 (no success BackBar),
+// G5 (stat tiles use "Pending"/"None yet", not em-dash)
+// ---------------------------------------------------------------------------
+describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
+  beforeEach(() => {
+    detailState.data = { ...baseProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('H2: the success render drops the redundant in-page Back bar (top-bar crumb owns wayfinding)', () => {
+    renderPage();
+    // the record loaded — and there is NO in-page "Back to Procurement" bar
+    expect(screen.getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Back to Procurement/i })).toBeNull();
+  });
+
+  it('E4: the success render has no disabled "Audit trail" stub action', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: /Audit trail/i })).toBeNull();
+  });
+
+  it('G5: absent stat values read "Pending" / "None yet", never an em-dash', () => {
+    renderPage();
+    // baseProcurement: no selected quote + no PO → both "Pending"; no receipts → "None yet"
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(2); // Selected quote + PO committed
+    expect(screen.getByText('None yet')).toBeInTheDocument(); // Goods received
+    // the stat-tile area must carry no bare em-dash placeholder
+    expect(screen.getByText('Selected quote').closest('div')?.textContent).not.toContain('—');
+  });
 });
 
 // ---------------------------------------------------------------------------

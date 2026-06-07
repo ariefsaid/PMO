@@ -48,8 +48,8 @@ describe('ProjectDetailHeader', () => {
     expect(screen.getByText(/−\$1,000,000/)).toBeInTheDocument();
   });
 
-  it('renders Edit Project as an outline (stub) action', () => {
+  it('C3: renders no disabled "Edit Project" stub action (a disabled secondary adds nothing)', () => {
     render(<ProjectDetailHeader project={project} />);
-    expect(screen.getByRole('button', { name: /Edit Project/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
   });
 });

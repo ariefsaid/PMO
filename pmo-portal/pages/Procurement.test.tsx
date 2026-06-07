@@ -121,9 +121,16 @@ describe('Procurement index — states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('empty state when zero rows (AC-506)', () => {
+  it('C3: empty state when zero rows teaches with NO dead New request CTA (AC-506)', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New request/i })).toBeNull();
+  });
+
+  it('C3: the page header is not anchored by a disabled New request CTA', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Procurement' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New request/i })).toBeNull();
   });
 });

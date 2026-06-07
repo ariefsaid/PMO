@@ -247,17 +247,17 @@ const ProcurementDetails: React.FC = () => {
     },
     {
       label: 'Selected quote',
-      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : '—',
+      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
       sub: `${p.quotations.length} received`,
     },
     {
       label: 'PO committed',
-      value: p.po_number ? formatCurrency(Number(p.total_value)) : '—',
+      value: p.po_number ? formatCurrency(Number(p.total_value)) : 'Pending',
       sub: p.vendor?.name ?? (p.po_number ? undefined : 'no PO yet'),
     },
     {
       label: 'Goods received',
-      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : '—',
+      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : 'None yet',
       sub: p.receipts.length > 0 ? p.receipts[p.receipts.length - 1].status : 'awaiting delivery',
     },
   ];
@@ -270,7 +270,10 @@ const ProcurementDetails: React.FC = () => {
 
   return (
     <div>
-      <BackBar label="Procurement" onBack={goBack} />
+      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
+          (Procurement > record) owns wayfinding. BackBar is kept on the
+          loading / error / not-found branches above, where there is no in-page
+          header to orient from and the crumb shows only the raw id. */}
       <PageHeader
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
@@ -283,12 +286,6 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={
-          <Button variant="outline" disabled title="Audit trail is coming soon">
-            <Icon name="doc" />
-            Audit trail
-          </Button>
-        }
       />
 
       {/* Full lifecycle node stepper (PR → VQ → PO → GR → VI → Paid) */}

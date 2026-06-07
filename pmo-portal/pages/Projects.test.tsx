@@ -132,16 +132,26 @@ describe('Projects index states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('shows empty state with a New Project CTA when zero rows (AC-406)', () => {
+  it('C3: shows the teaching empty state with NO dead New Project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
     renderPage();
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
+    // C3: no disabled "New Project" button anywhere (header CTA removed + the
+    // page-empty state teaches via its sub copy, not a dead button).
+    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
+  });
+
+  it('C3: the page header is not anchored by a disabled New Project CTA', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
   });
 
   it('shows a filter-no-match empty state with a clear-filters action (AC-D)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'zzzz-no-match');
     expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
+    // the LIVE "Clear filters" action is kept (it actually does something).
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
 });

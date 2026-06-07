@@ -135,7 +135,6 @@ const SalesPipeline: React.FC = () => {
         );
       },
     },
-    { key: 'decision', header: 'Decision', cell: () => '—' },
   ];
 
   // ── States ────────────────────────────────────────────────────────────────
@@ -160,10 +159,6 @@ const SalesPipeline: React.FC = () => {
           <Button variant="outline">
             <Icon name="export" />
             Export
-          </Button>
-          <Button variant="primary" disabled title="Deal creation is coming soon">
-            <Icon name="plus" />
-            New deal
           </Button>
         </div>
       </div>
@@ -232,7 +227,6 @@ const SalesPipeline: React.FC = () => {
           variant="empty"
           title="No opportunities yet"
           sub="Add a lead to start tracking the pipeline."
-          action={{ label: 'New deal', onClick: () => {}, disabled: true, disabledTitle: 'Deal creation is coming soon' }}
         />
       )}
 

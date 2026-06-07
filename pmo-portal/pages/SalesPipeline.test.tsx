@@ -52,10 +52,13 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('AC-SP-202: renders the page title, sub, and action buttons', () => {
+  it('AC-SP-202 / C3: renders the page title, sub, and the live Export action (no dead New deal CTA)', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /New deal/i })).toBeInTheDocument();
+    // C3: the disabled "New deal" primary CTA is removed — a page is not
+    // anchored by a dead button.
+    expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
+    // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
   });
 
@@ -93,21 +96,12 @@ describe('SalesPipeline states (AC-SP-203)', () => {
     expect(pipelineState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-SP-203: empty renders the composed empty state with a New deal action', () => {
+  it('AC-SP-203 / C3: empty renders the teaching empty state with NO dead CTA', () => {
     pipelineState.data = { stages: [], projects: [] };
     renderPage();
     expect(screen.getByText(/No opportunities yet/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /New deal/i }).length).toBeGreaterThan(0);
-  });
-
-  it('AC-A11Y-04: empty-state "New deal" CTA is disabled (matches gated header affordance)', () => {
-    pipelineState.data = { stages: [], projects: [] };
-    renderPage();
-    // The empty-state "New deal" button must be disabled — same gating as the header CTA.
-    const newDealButtons = screen.getAllByRole('button', { name: /New deal/i });
-    newDealButtons.forEach((btn) => {
-      expect(btn).toBeDisabled();
-    });
+    // C3: the empty state teaches via its sub copy — no disabled "New deal" CTA.
+    expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
   });
 });
 
@@ -132,6 +126,12 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
     // win% progressbar with aria-label
     expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
+  });
+
+  it('I3: the data-less "Decision" column of em-dashes is omitted from the table', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    expect(screen.queryByRole('columnheader', { name: /Decision/i })).toBeNull();
   });
 
   it('AC-SP-206: the chosen view persists to sessionStorage', async () => {

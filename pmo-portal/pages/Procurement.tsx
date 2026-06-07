@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Button,
   Toolbar,
   SearchMini,
   ViewToggle,
@@ -8,7 +7,6 @@ import {
   DataTable,
   StatusPill,
   LifecycleStepper,
-  Icon,
   type Column,
 } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -156,10 +154,6 @@ const ProcurementPage: React.FC = () => {
             gates. Open a request to drill into its full lifecycle page.
           </p>
         </div>
-        <Button variant="primary" disabled title="Request creation is coming soon">
-          <Icon name="plus" />
-          New request
-        </Button>
       </div>
 
       {/* Toolbar */}
@@ -212,7 +206,6 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title="No purchase requests yet"
           sub="Requests you raise will appear here through their full lifecycle."
-          action={{ label: 'New request', onClick: () => {}, disabled: true, disabledTitle: 'Request creation is coming soon' }}
         />
       )}
 
