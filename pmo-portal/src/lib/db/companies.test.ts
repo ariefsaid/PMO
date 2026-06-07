@@ -74,6 +74,12 @@ describe('listClientCompanies', () => {
     expect(h.calls.eq).toContainEqual(['type', 'Client']);
     expect(result[0].name).toBe('Innovate Corp');
   });
+  it('excludes archived companies from the FK picker (archived_at IS NULL)', async () => {
+    // An archived company must never be selectable as a project/opportunity client.
+    h.result.value = { data: [], error: null };
+    await listClientCompanies();
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+  });
   it('throws on error', async () => {
     h.result.value = { data: null, error: { message: 'boom' } };
     await expect(listClientCompanies()).rejects.toThrow('boom');

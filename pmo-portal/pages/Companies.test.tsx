@@ -220,9 +220,10 @@ describe('Companies delete (AC-CO-006)', () => {
     await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
-    // the in-use message is surfaced via a warning toast advising Archive instead
+    // the in-use message is surfaced via a warning toast (centralized "Still in use" headline,
+    // ADR-0017) advising Archive instead
     const toast = await screen.findByRole('status');
-    expect(toast).toHaveTextContent(/is still in use/i);
+    expect(toast).toHaveTextContent(/Still in use/i);
     expect(toast).toHaveTextContent(/Archive it instead/i);
   });
 });

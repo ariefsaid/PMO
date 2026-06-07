@@ -26,11 +26,10 @@ test.setTimeout(120_000);
 
 /** Wait for the Companies page to finish its initial data fetch. */
 async function waitReady(page: Page) {
-  // ListState loading renders skeleton elements; wait until gone.
-  await page.waitForFunction(
-    () => document.querySelectorAll('[data-slot="skeleton"]').length === 0,
-    { timeout: 20_000 },
-  );
+  // The loading variant renders <ListState variant="loading"> → data-testid="liststate-loading"
+  // (aria-busy). Wait until that marker is gone, mirroring AC-1011/AC-401's projects-loading wait.
+  // The previous `[data-slot="skeleton"]` selector matched nothing → the wait was a silent no-op.
+  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
 /**

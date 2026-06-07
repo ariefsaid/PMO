@@ -7,15 +7,20 @@
 --   AC-CO-103  a write-role (PM) can archive a company (set archived_at) — and it persists.
 --   AC-CO-104  an Engineer (non-write-role) CANNOT INSERT a company (WITH CHECK denies → 42501).
 --   AC-CO-105  an Engineer (non-write-role) CANNOT UPDATE/archive a company (USING hides it → 0-row no-op).
---   AC-CO-106  hard-delete of a company REFERENCED by a project is REJECTED by the FK guard (23503).
---   AC-CO-107  hard-delete of an UNREFERENCED company SUCCEEDS (the row is gone).
+--   AC-CO-106  hard-delete of a company REFERENCED by a project is REJECTED by the FK guard (23503) — by Admin.
+--   AC-CO-107  hard-delete of an UNREFERENCED company SUCCEEDS by Admin (the row is gone).
 --   AC-CO-108  cross-org write is denied: org-B PM cannot INSERT into org-A (WITH CHECK → 42501) and an
 --              org-B PM UPDATE of an org-A company is a silent 0-row no-op (USING hides the row).
+--   AC-CO-109  a write-role PM CANNOT hard-delete a company (restrictive Admin-only DELETE policy → 42501).
+--   AC-CO-110  an Engineer CANNOT hard-delete a company (denied → 42501).
 -- RLS is the enforcement authority; the FE gating is only a clarity projection (rbac-visibility.md §D).
--- No new migration: companies_write is already FOR ALL the 4 write-roles; archived_at exists (0012);
--- the company FK references reject a delete of a referenced row with foreign_key_violation (23503).
+-- Migration 0013 narrows company hard-DELETE to Admin via a RESTRICTIVE delete-only policy
+-- (auth_role() = 'Admin'); companies_write stays FOR ALL the 4 write-roles for INSERT/UPDATE/archive;
+-- archived_at exists (0012); the company FK references reject a delete of a referenced row (23503).
+-- ADR-0018: archive (UPDATE archived_at) stays open to all four write-roles server-side; the
+-- "archive = Admin/Exec" split in §D is an FE-only convention.
 begin;
-select plan(16);
+select plan(20);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- "Org-A" is the DEFAULT org ('00000000-…-0001'): the org_id column default is that literal (0001 schema),
@@ -29,11 +34,13 @@ insert into organizations (id, name) values
 insert into auth.users (id, email) values
   ('00510000-0000-0000-0000-0000000000a1','co-pm@example.com'),
   ('00510000-0000-0000-0000-0000000000a2','co-eng@example.com'),
+  ('00510000-0000-0000-0000-0000000000a3','co-admin@example.com'),
   ('00510000-0000-0000-0000-0000000000b1','co-pm-b@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
   ('00510000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000001','CO PM','co-pm@example.com','Project Manager'),
   ('00510000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-000000000001','CO Eng','co-eng@example.com','Engineer'),
+  ('00510000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-000000000001','CO Admin','co-admin@example.com','Admin'),
   ('00510000-0000-0000-0000-0000000000b1','00510000-0000-0000-0000-000000000002','CO PM B','co-pm-b@example.com','Project Manager');
 
 -- A client company that IS referenced by a project (so its hard-delete must be FK-rejected).
@@ -76,7 +83,19 @@ select lives_ok(
        where id = '00510000-0000-0000-0000-000000000012' $$,
   'AC-CO-105: Engineer archive companies runs without error (USING hides the row → RLS no-op)');
 
+-- AC-CO-110: Engineer cannot hard-delete. The permissive companies_write USING already excludes the
+-- Engineer role, so the DELETE matches no rows AND the restrictive Admin-only policy also fails → no-op.
+-- A delete the Engineer is not permitted to perform is silently a 0-row no-op (USING hides the row).
+select lives_ok(
+  $$ delete from companies where id = '00510000-0000-0000-0000-000000000012' $$,
+  'AC-CO-110: Engineer DELETE companies runs without error (no permissive policy grants it → RLS no-op)');
+
 reset role;
+
+-- Confirm the Engineer deleted nothing: the row still exists.
+select ok(
+  (select exists (select 1 from companies where id = '00510000-0000-0000-0000-000000000012')),
+  'AC-CO-110: Engineer DELETE affected 0 rows (Locked Company still present)');
 
 -- Confirm the Engineer changed nothing: name unchanged, still live (archived_at NULL).
 select is(
@@ -137,13 +156,19 @@ select lives_ok(
        where id = '00510000-0000-0000-0000-000000000011' $$,
   'AC-CO-103: a write-role (PM) can archive a company (set archived_at)');
 
--- AC-CO-106: hard-delete of the company REFERENCED by the project is rejected by the FK guard → 23503.
-select throws_ok(
-  $$ delete from companies where id = '00510000-0000-0000-0000-000000000010' $$,
-  '23503', null,
-  'AC-CO-106: hard-delete of a company referenced by a project is rejected (foreign_key_violation 23503)');
+-- AC-CO-109: a write-role PM CANNOT hard-delete. Migration 0013's RESTRICTIVE Admin-only DELETE policy
+-- fails for a PM, so the row is invisible to the DELETE → silent 0-row no-op (DELETE has no WITH CHECK,
+-- so RLS denial is a no-op, not 42501). The PM keeps INSERT/UPDATE/archive (above) — only DELETE narrows.
+select lives_ok(
+  $$ delete from companies where id = '00510000-0000-0000-0000-000000000011' $$,
+  'AC-CO-109: PM DELETE companies runs without error (restrictive Admin-only DELETE policy → RLS no-op)');
 
 reset role;
+
+-- Confirm the PM deleted nothing: the (now-archived) unreferenced vendor still exists.
+select ok(
+  (select exists (select 1 from companies where id = '00510000-0000-0000-0000-000000000011')),
+  'AC-CO-109: PM DELETE affected 0 rows (the company still exists; only Admin may hard-delete)');
 
 -- AC-CO-101: confirm the PM's INSERT landed in the caller's (default) org (org_id was defaulted, not spoofable).
 select is(
@@ -156,25 +181,34 @@ select ok(
   (select archived_at is not null from companies where id = '00510000-0000-0000-0000-000000000011'),
   'AC-CO-103: companies.archived_at persisted (the archive write took effect)');
 
--- AC-CO-107: hard-delete of an UNREFERENCED company succeeds. The unreferenced vendor was just archived
--- (still a live FK-free row); a write-role deletes it and the row is gone. Use a fresh unreferenced row to
--- keep the archive assertion above stable.
+-- ════════════════════════════════════════════════════════════════════════════
+-- AC-CO-106/107: ADMIN is the only role that may hard-delete (migration 0013).
+-- ════════════════════════════════════════════════════════════════════════════
+-- A fresh unreferenced vendor for the successful Admin delete (keep the archive assertion above stable).
 insert into companies (id, org_id, name, type) values
   ('00510000-0000-0000-0000-000000000013','00000000-0000-0000-0000-000000000001','Deletable Co','Vendor');
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"00510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"00510000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 
+-- AC-CO-106: Admin DELETE of the company REFERENCED by the project passes RLS (Admin) but is rejected by
+-- the FK guard → 23503. (Under 0013 only an Admin even reaches the FK check; a PM is a silent no-op.)
+select throws_ok(
+  $$ delete from companies where id = '00510000-0000-0000-0000-000000000010' $$,
+  '23503', null,
+  'AC-CO-106: Admin hard-delete of a company referenced by a project is rejected (foreign_key_violation 23503)');
+
+-- AC-CO-107: Admin hard-delete of an UNREFERENCED company succeeds (RLS Admin + no FK guard).
 select lives_ok(
   $$ delete from companies where id = '00510000-0000-0000-0000-000000000013' $$,
-  'AC-CO-107: hard-delete of an unreferenced company succeeds (no FK guard, no RLS denial)');
+  'AC-CO-107: Admin hard-delete of an unreferenced company succeeds (no FK guard, no RLS denial)');
 
 reset role;
 
 select is(
   (select count(*)::int from companies where id = '00510000-0000-0000-0000-000000000013'),
   0,
-  'AC-CO-107: the unreferenced company is gone after the hard-delete');
+  'AC-CO-107: the unreferenced company is gone after the Admin hard-delete');
 
 select * from finish();
 rollback;

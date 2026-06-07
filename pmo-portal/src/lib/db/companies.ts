@@ -28,10 +28,16 @@ function throwWrite(error: PostgrestErrorLike): never {
 
 /**
  * Client companies in the caller's org (for the client filter dropdown / FK picker). RLS scopes org.
- * Kept for the existing project/opportunity FK pickers (FR-DAL-005).
+ * Kept for the existing project/opportunity FK pickers (FR-DAL-005). Archived companies
+ * (archived_at IS NOT NULL) are excluded so a soft-archived company can never be selected as the
+ * client on a new project/opportunity (ADR-0018 soft-archive contract).
  */
 export async function listClientCompanies(): Promise<CompanyRow[]> {
-  const { data, error } = await supabase.from('companies').select('*').eq('type', 'Client');
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('type', 'Client')
+    .is('archived_at', null);
   if (error) throw new Error(error.message);
   return data ?? [];
 }

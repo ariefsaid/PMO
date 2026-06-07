@@ -137,19 +137,18 @@ const Companies: React.FC = () => {
       toast('Company deleted', target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
-      // 23503 foreign_key_violation = referenced by projects/procurements/profiles.
-      // Surface the recovery path (Archive instead) rather than a generic failure.
-      const code = (err as { code?: string })?.code;
-      if (code === '23503') {
-        toast(
-          `${target.name} is still in use`,
-          'It is referenced by other records and cannot be deleted. Archive it instead to keep the audit trail.',
-          'warning',
-        );
-      } else {
-        const { headline, detail } = classifyMutationError(err);
-        toast(headline, detail, 'warning');
-      }
+      // Centralized classification (ADR-0017): 23503 foreign_key_violation (referenced by
+      // projects/procurements/profiles) → "Still in use"; for that case surface the recovery
+      // path (Archive instead) as the detail rather than the verbatim FK message.
+      const { headline, detail } = classifyMutationError(err);
+      const isInUse = (err as { code?: string })?.code === '23503';
+      toast(
+        headline,
+        isInUse
+          ? `${target.name} is referenced by other records and can't be deleted. Archive it instead to keep the audit trail.`
+          : detail,
+        'warning',
+      );
       setDeleteTarget(null);
     }
   };
