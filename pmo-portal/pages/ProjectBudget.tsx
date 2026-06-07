@@ -482,24 +482,33 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     deleteLineItem: { tone: 'destructive', title: 'Delete this line item?', confirmLabel: 'Delete' },
   };
 
-  const confirmDescriptions: Record<PendingBudgetConfirm['kind'], (c: PendingBudgetConfirm) => string> = {
-    create: (c) => `This creates a new Draft budget version named "${c.kind === 'create' ? c.name : ''}".`,
+  // Each handler receives its OWN narrowed variant (a per-kind mapped type), so
+  // no fragile in-body re-narrowing (`c.kind === 'create' ? c.name : ''`) is
+  // needed and no empty-string '""' can render (item J). The call site dispatches
+  // through a single helper that ties the handler to the matching variant.
+  type ConfirmDescriptions = {
+    [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => string;
+  };
+  const confirmDescriptions: ConfirmDescriptions = {
+    create: (c) => `This creates a new Draft budget version named "${c.name}".`,
     activate: (c) =>
-      `This makes ${'label' in c ? c.label : 'this version'} the live active budget and supersedes the current active version.`,
-    clone: (c) => `This copies ${'label' in c ? c.label : 'this version'} into a new editable Draft.`,
+      `This makes ${c.label} the live active budget and supersedes the current active version.`,
+    clone: (c) => `This copies ${c.label} into a new editable Draft.`,
     archive: (c) =>
-      `This removes ${'label' in c ? c.label : 'this version'} as the active budget. You can clone it later to revise.`,
-    deleteDraft: (c) =>
-      `This permanently deletes the draft ${'label' in c ? c.label : ''}. This cannot be undone.`,
+      `This removes ${c.label} as the active budget. You can clone it later to revise.`,
+    deleteDraft: (c) => `This permanently deletes the draft ${c.label}. This cannot be undone.`,
     deleteLineItem: () => 'This permanently removes the line item from the draft. This cannot be undone.',
   };
+  const describeConfirm = (c: PendingBudgetConfirm): string =>
+    // Safe: the union is keyed by `kind`, so the handler at c.kind accepts c.
+    (confirmDescriptions[c.kind] as (x: PendingBudgetConfirm) => string)(c);
 
   const budgetConfirm = pendingConfirm && (
     <ConfirmDialog
       open
       tone={confirmCopy[pendingConfirm.kind].tone}
       title={confirmCopy[pendingConfirm.kind].title}
-      description={confirmDescriptions[pendingConfirm.kind](pendingConfirm)}
+      description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
       onCancel={() => setPendingConfirm(null)}

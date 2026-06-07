@@ -380,7 +380,12 @@ describe('ProjectBudget New version form (versions list state)', () => {
     await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v2');
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
     expect(mockCreateVersion).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    // item J: the confirm description names the entered version — never an
+    // empty-string '""' from a fragile kind-narrowing fallback.
+    expect(dialog).toHaveTextContent('named "Budget v2"');
+    expect(dialog).not.toHaveTextContent('named ""');
     await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2' });
   });

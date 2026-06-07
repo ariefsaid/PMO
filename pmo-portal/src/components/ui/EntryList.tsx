@@ -26,7 +26,8 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-        <div className="text-[14px] font-semibold text-foreground">No timesheet entries yet</div>
+        {/* Standardized to match the sibling cards' empty copy (item J). */}
+        <div className="text-[14px] font-semibold text-foreground">No hours logged this week</div>
         <div className="max-w-[40ch] text-[12px] text-muted-foreground">
           Hours you log will show up here.
         </div>

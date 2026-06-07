@@ -69,8 +69,10 @@ describe('T6 — EntryList', () => {
     expect(screen.getByText('Status call')).toBeInTheDocument();
   });
 
-  it('renders empty list state when entries is empty (T6 empty)', () => {
+  it('renders empty list state when entries is empty, copy matching sibling cards (T6 empty / item J)', () => {
     render(<EntryList entries={[]} />);
-    expect(screen.getByText(/No timesheet entries yet/i)).toBeInTheDocument();
+    // Standardized to the sibling cards' copy — not the old "No timesheet entries yet".
+    expect(screen.getByText(/No hours logged this week/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No timesheet entries yet/i)).not.toBeInTheDocument();
   });
 });
