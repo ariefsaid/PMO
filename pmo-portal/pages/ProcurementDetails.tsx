@@ -19,6 +19,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { can } from '@/src/auth/policy';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import {
@@ -35,11 +36,18 @@ import {
 } from '../components/procurement';
 
 // ---------------------------------------------------------------------------
-// Role sets for cosmetic gating (FR-PROC-006, OD-PROC-1 matrix, AC-805)
-// The RPC is the real authority — this is display-only. PRESERVED VERBATIM.
+// Role gates for cosmetic display (FR-PROC-006, OD-PROC-1 matrix, AC-805).
+// The RPC is the real authority — this is display-only. The matrix is BYTE-PRESERVED;
+// ADR-0016 re-points it at the REAL JWT role and routes the entity-level role membership
+// through the shared policy `can()`:
+//   - approve/reject membership = can('transition','procurement') → Admin·Exec·PM·Finance
+//   - sourcing/select-quote membership = can('create','quotation') → Admin·PM·Finance
+// The two procurement-STAGE-specific gates below are not entity-level RBAC (they encode a
+// stage role like "who confirms receipt"), so they remain documented local constants.
 // ---------------------------------------------------------------------------
-const APPROVE_REJECT_ROLES = new Set(['Project Manager', 'Finance', 'Executive', 'Admin']);
-const SOURCING_ROLES = new Set(['Project Manager', 'Finance', 'Admin']);
+const canApproveReject = (role: string) =>
+  can('transition', 'procurement', { realRole: role as never });
+const canSource = (role: string) => can('create', 'quotation', { realRole: role as never });
 const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
@@ -87,10 +95,10 @@ function allowedActions(
   }
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
-  if (legal('Approved') && APPROVE_REJECT_ROLES.has(role) && !isRequester) {
+  if (legal('Approved') && canApproveReject(role) && !isRequester) {
     actions.push({ to: 'Approved', label: 'Approve', variant: 'success' });
   }
-  if (legal('Rejected') && APPROVE_REJECT_ROLES.has(role) && !isRequester) {
+  if (legal('Rejected') && canApproveReject(role) && !isRequester) {
     actions.push({ to: 'Rejected', label: 'Reject', variant: 'destructive' });
   }
 
@@ -100,21 +108,21 @@ function allowedActions(
   }
 
   // Approved → Vendor Quoted / Ordered (skip): PM/Finance/Admin (FR-PROC-008)
-  if (legal('Vendor Quoted') && SOURCING_ROLES.has(role)) {
+  if (legal('Vendor Quoted') && canSource(role)) {
     actions.push({ to: 'Vendor Quoted', label: 'Request Vendor Quotes', variant: 'primary' });
   }
-  if (legal('Ordered') && SOURCING_ROLES.has(role) && status === 'Approved') {
+  if (legal('Ordered') && canSource(role) && status === 'Approved') {
     actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'primary' });
   }
 
   // Vendor Quoted → Quote Selected: PM/Finance/Admin
-  if (legal('Quote Selected') && SOURCING_ROLES.has(role)) {
+  if (legal('Quote Selected') && canSource(role)) {
     actions.push({ to: 'Quote Selected', label: 'Select Quote', variant: 'primary' });
   }
 
   // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
   // legal('Ordered') holds for at most one of these branches — they cannot collide.
-  if (legal('Ordered') && SOURCING_ROLES.has(role) && status === 'Quote Selected') {
+  if (legal('Ordered') && canSource(role) && status === 'Quote Selected') {
     actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'primary' });
   }
 
@@ -158,7 +166,9 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
 
 const ProcurementDetails: React.FC = () => {
   const { procurementId } = useParams<{ procurementId: string }>();
-  const { effectiveRole } = useEffectiveRole();
+  // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
+  // effectiveRole) so the buttons shown match what the RPC will actually honor.
+  const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -225,7 +235,7 @@ const ProcurementDetails: React.FC = () => {
   }
 
   const p: ProcurementDetail = data;
-  const role = effectiveRole ?? '';
+  const role = realRole ?? '';
   const isRequester = p.requested_by_id === currentUser?.id;
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
@@ -238,7 +248,7 @@ const ProcurementDetails: React.FC = () => {
       p.status === 'Received' ||
       p.status === 'Vendor Invoiced' ||
       p.status === 'Paid') &&
-    SOURCING_ROLES.has(role);
+    canSource(role);
   const canShowVIForm =
     (p.status === 'Vendor Invoiced' || p.status === 'Paid') && INVOICE_PAY_ROLES.has(role);
 

@@ -10,8 +10,10 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 // ProjectCard embeds ProjectStatusControl, which uses useToast — needs a provider.
 const render = (ui: ReactElement) => rtlRender(<ToastProvider>{ui}</ToastProvider>);
 
+// ADR-0016: ProjectStatusControl now gates on the REAL JWT role via usePermission,
+// so the mock supplies realRole (equal to effectiveRole — no impersonation here).
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), isError: false, error: null, isPending: false }),

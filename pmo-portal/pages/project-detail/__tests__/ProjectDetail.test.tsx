@@ -19,7 +19,9 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }))
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }) }));
+// ADR-0016: the Budget tab (ProjectBudget) + ProjectStatusControl gate write on the REAL
+// role via usePermission, so the mock supplies realRole (equal to effectiveRole here).
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }) }));
 // Budget tab mounts the real ProjectBudget — stub its data hooks to avoid network.
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),

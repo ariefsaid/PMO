@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
-import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
 import {
   Button,
@@ -18,7 +18,6 @@ import type { Enums } from '@/src/lib/supabase/database.types';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const WRITE_ROLES: Array<Enums<'user_role'>> = ['Admin', 'Executive', 'Project Manager', 'Finance'];
 const BUDGET_CATEGORIES: Array<Enums<'budget_category'>> = [
   'Labor',
   'Materials',
@@ -332,8 +331,10 @@ type PendingBudgetConfirm =
   | { kind: 'deleteLineItem'; id: string; label: string };
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
-  const { effectiveRole } = useEffectiveRole();
-  const canWrite = effectiveRole != null && (WRITE_ROLES as string[]).includes(effectiveRole);
+  // Cosmetic gate on the REAL role (ADR-0016): budget line-item write = the shipped
+  // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
+  const can = usePermission();
+  const canWrite = can('edit', 'budgetLine');
   const { toast } = useToast();
 
   const budgetQuery = useProjectBudget(projectId);
