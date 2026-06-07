@@ -139,9 +139,26 @@ describe('TimesheetGrid (editable mode)', () => {
     // An inline alert near the cell (not color-only).
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/0.?24/);
+    // The input border stays the base destructive (3:1 is fine for a non-text border).
+    expect(mon.className).toContain('border-destructive');
     // A valid cell is not marked invalid.
     const tue = screen.getByLabelText('Acme Platform, Tue hours');
     expect(tue).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('NFR-TSE-A11Y: the inline cell error TEXT uses the darkened destructive variant (≥4.5:1 on white), not base text-destructive', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [25, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(
+      <TimesheetGrid days={days} rows={editRows} editable invalidCells={new Set(['p1:0'])} />,
+    );
+    const alert = screen.getByRole('alert');
+    // jsdom resolves hsl() → rgb(). hsl(0 72% 42%) == rgb(184,30,30) — the darkened red that
+    // clears AA (~6.5:1 on white), NOT the base destructive hsl(0 84.2% 60.2%) at ~3.76:1.
+    expect(alert.style.color).toBe('rgb(184, 30, 30)');
+    // And it must NOT carry the failing text-destructive utility.
+    expect(alert.className).not.toContain('text-destructive');
   });
 
   it('AC-TSE-012: editable grid totals reflect edited cell values live', () => {
@@ -182,6 +199,34 @@ describe('TimesheetGrid (editable mode)', () => {
     expect((screen.getByLabelText('Acme Platform, Mon hours') as HTMLInputElement).value).toBe('7.');
     // A typed "0" stays "0", not blanked.
     expect((screen.getByLabelText('Acme Platform, Tue hours') as HTMLInputElement).value).toBe('0');
+  });
+
+  it('NFR-TSE-A11Y (mobile reach): the per-row delete lives in the sticky project cell so it stays reachable without horizontal scroll', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [8, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(<TimesheetGrid days={days} rows={editRows} editable onDeleteRow={vi.fn()} />);
+    // Exactly one delete control (no duplicate accessible name) and it sits inside the
+    // left, always-visible sticky project cell — not the far-right trailing column that a
+    // 375px viewport scrolls off-screen.
+    const del = screen.getByRole('button', { name: 'Delete Acme Platform row' });
+    const stickyCell = del.closest('td.sticky');
+    expect(stickyCell).not.toBeNull();
+    expect(within(stickyCell as HTMLElement).getByText('Acme Platform')).toBeInTheDocument();
+  });
+
+  it('NFR-TSE-A11Y (WCAG 2.5.5): in-grid controls (cell input, note, delete) carry the touch-target hit-area hook', () => {
+    const editRows: TimesheetGridRow[] = [
+      { id: 'p1', project: 'Acme Platform', code: 'P003', hours: [8, 0, 0, 0, 0, 0, 0] },
+    ];
+    render(
+      <TimesheetGrid days={days} rows={editRows} editable notes={{ p1: '' }} onDeleteRow={vi.fn()} />,
+    );
+    expect(screen.getByLabelText('Acme Platform, Mon hours').className).toContain('touch-target');
+    expect(screen.getByLabelText('Acme Platform note').className).toContain('touch-target');
+    expect(
+      screen.getByRole('button', { name: 'Delete Acme Platform row' }).className,
+    ).toContain('touch-target');
   });
 
   it('NFR-TSE-A11Y-001: every editable cell has aria-label "<project>, <weekday> hours"', () => {

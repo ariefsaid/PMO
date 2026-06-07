@@ -129,11 +129,6 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             >
               Total
             </th>
-            {editable && (
-              <th scope="col" className="h-[38px] w-[44px] border-b border-border bg-card">
-                <span className="sr-only">Row actions</span>
-              </th>
-            )}
           </tr>
         </thead>
         <tbody>
@@ -144,26 +139,55 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             return (
               <tr key={r.id} className="border-b border-border/70">
                 <td className="sticky left-0 z-[1] bg-card px-3 py-2.5 align-middle">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium" title={r.project}>
-                      {r.project}
-                    </div>
-                    {r.code && (
-                      <div className="truncate font-mono text-[11px] text-muted-foreground">
-                        {r.code}
+                  {editable ? (
+                    // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
+                    // (always-visible) cell — so the delete stays reachable at 375px without the
+                    // horizontal scroll that pushes a trailing column off-screen on a phone.
+                    // One delete control, one accessible name.
+                    <div className="flex min-w-0 items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium" title={r.project}>
+                          {r.project}
+                        </div>
+                        {r.code && (
+                          <div className="truncate font-mono text-[11px] text-muted-foreground">
+                            {r.code}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          aria-label={`${r.project} note`}
+                          placeholder="Add a note"
+                          value={notes?.[r.id] ?? ''}
+                          onChange={(e) => onNoteChange?.(r.id, e.target.value)}
+                          // h-8 = the 32px control standard (was h-7/25px). touch-target grows the
+                          // hit-area to ≥44px on coarse pointers without changing the visual size.
+                          className="touch-target mt-1 h-8 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground placeholder:text-muted-foreground"
+                        />
                       </div>
-                    )}
-                    {editable && (
-                      <input
-                        type="text"
-                        aria-label={`${r.project} note`}
-                        placeholder="Add a note"
-                        value={notes?.[r.id] ?? ''}
-                        onChange={(e) => onNoteChange?.(r.id, e.target.value)}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground placeholder:text-muted-foreground"
-                      />
-                    )}
-                  </div>
+                      <Button
+                        className="touch-target shrink-0"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${r.project} row`}
+                        onClick={() => onDeleteRow?.(r.id)}
+                      >
+                        <Icon name="x" />
+                      </Button>
+                    </div>
+                  ) : (
+                    // Read-only branch — byte-for-byte unchanged from the shipped surface.
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium" title={r.project}>
+                        {r.project}
+                      </div>
+                      {r.code && (
+                        <div className="truncate font-mono text-[11px] text-muted-foreground">
+                          {r.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </td>
                 {r.hours.map((h, i) => {
                   const weekend = days[i]?.weekend;
@@ -187,14 +211,18 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                           value={value}
                           onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
                           className={cn(
-                            'mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
+                            'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
                             invalid ? 'border-destructive' : 'border-border'
                           )}
                         />
                         {invalid && (
                           <span
                             role="alert"
-                            className="mt-0.5 block text-center text-[11px] leading-tight text-destructive"
+                            // Darkened destructive text variant (the system's error-text value,
+                            // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
+                            // Base `text-destructive` (60.2% L) is only ~3.76:1 and fails for text.
+                            style={{ color: 'hsl(0 72% 42%)' }}
+                            className="mt-0.5 block text-center text-[11px] leading-tight"
                           >
                             0–24 only
                           </span>
@@ -228,18 +256,6 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 >
                   {rowTotal > 0 ? fmt(rowTotal) : '·'}
                 </td>
-                {editable && (
-                  <td className="px-1 text-center align-middle">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label={`Delete ${r.project} row`}
-                      onClick={() => onDeleteRow?.(r.id)}
-                    >
-                      <Icon name="x" />
-                    </Button>
-                  </td>
-                )}
               </tr>
             );
           })}
@@ -267,7 +283,6 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             >
               {fmt(grandTotal)}
             </td>
-            {editable && <td className="bg-secondary/40" />}
           </tr>
         </tfoot>
       </table>
