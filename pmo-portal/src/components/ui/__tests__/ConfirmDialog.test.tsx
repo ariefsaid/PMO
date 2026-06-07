@@ -145,6 +145,32 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
   });
 });
 
+describe('AC-CONFIRM-005: focus trap (onTrapKeyDown)', () => {
+  it('AC-CONFIRM-005: Tab from the Confirm button wraps focus back to Cancel', () => {
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Mark lost' });
+    // Confirm is the LAST focusable; Tab from it wraps to the first (Cancel).
+    confirm.focus();
+    expect(confirm).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(cancel).toHaveFocus();
+  });
+
+  it('AC-CONFIRM-005: Shift+Tab from the Cancel button wraps focus to Confirm', () => {
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Mark lost' });
+    // Cancel is the FIRST focusable; Shift+Tab from it wraps to the last (Confirm).
+    cancel.focus();
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(confirm).toHaveFocus();
+  });
+});
+
 describe('AC-CONFIRM-006: loading state', () => {
   it('AC-CONFIRM-006: loading => confirm spinner + both buttons disabled + aria-busy', () => {
     render(<ConfirmDialog {...baseProps} loading />);
