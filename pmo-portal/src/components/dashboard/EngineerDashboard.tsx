@@ -5,9 +5,13 @@ import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { StatusPill, type StatusVariant } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
+import { HoursBar } from '@/src/components/ui/HoursBar';
+import { EntryList } from '@/src/components/ui/EntryList';
+import { entriesByProject, recentEntries } from '@/src/lib/timesheet-derive';
 import { DashPageHead, DashGrid } from './layout';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const RECENT_ENTRIES_LIMIT = 8;
 
 function timesheetVariant(status: string): StatusVariant {
   switch (status) {
@@ -24,6 +28,9 @@ function timesheetVariant(status: string): StatusVariant {
  * breakdown. The tasks half (active/completed/list) has NO query/RLS in the
  * codebase, so it is a single coming-soon placeholder — never the legacy mock
  * tasks (plan §4.3 / Open Q7).
+ *
+ * Phase 3 (T7-T10): densified with "This week by project" (real, grouped) and
+ * "Recent entries" (top 8, newest first). No deferred-module slots added.
  */
 export const EngineerDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -35,6 +42,8 @@ export const EngineerDashboard: React.FC = () => {
     () => (current?.entries ?? []).reduce((s, e) => s + (e.hours || 0), 0),
     [current],
   );
+
+  // Hours per day for the existing day-bar card
   const byDay = useMemo(() => {
     const totals = new Array(7).fill(0) as number[];
     for (const e of current?.entries ?? []) {
@@ -44,6 +53,18 @@ export const EngineerDashboard: React.FC = () => {
     return totals;
   }, [current]);
   const maxDay = Math.max(1, ...byDay);
+
+  // T7/T8: Hours grouped by project for the "This week by project" card
+  const byProject = useMemo(
+    () => entriesByProject(current?.entries ?? []),
+    [current],
+  );
+
+  // T9: Flatten all sheets + top 8 recent entries
+  const flatRecent = useMemo(
+    () => recentEntries(sheets ?? [], RECENT_ENTRIES_LIMIT),
+    [sheets],
+  );
 
   return (
     <div className="space-y-4">
@@ -62,7 +83,9 @@ export const EngineerDashboard: React.FC = () => {
           help="The status of your most recent timesheet." />
       </section>
 
+      {/* T8: Two-up DashGrid — Hours This Week (existing) + This week by project (new) */}
       <DashGrid>
+        {/* Left: existing day-bar card */}
         <Card>
           <CardHead>Hours This Week</CardHead>
           <div className="px-4 pb-3.5">
@@ -99,7 +122,45 @@ export const EngineerDashboard: React.FC = () => {
           </div>
         </Card>
 
+        {/* Right: T7/T8 — This week by project */}
+        <Card>
+          <CardHead>This week by project</CardHead>
+          <div className="px-4 pb-3.5">
+            {isError ? (
+              <ListState variant="error" title="Couldn't load your timesheets" onRetry={() => refetch()} />
+            ) : isPending ? (
+              <ListState variant="loading" />
+            ) : byProject.length === 0 ? (
+              <ListState variant="empty" icon="clock" title="No hours logged this week"
+                sub="Log your hours to see a project breakdown." />
+            ) : (
+              <div role="group" aria-label="This week by project" className="flex flex-col">
+                {byProject.map((row) => (
+                  <HoursBar
+                    key={row.projectId}
+                    label={row.name}
+                    code={row.code}
+                    hours={row.hours}
+                    maxHours={hoursThisWeek}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
       </DashGrid>
+
+      {/* T9: Full-width — Recent entries (top 8, newest first) */}
+      <Card>
+        <CardHead>Recent entries</CardHead>
+        {isPending ? (
+          <ListState variant="loading" rows={4} />
+        ) : isError ? (
+          <ListState variant="error" title="Couldn't load recent entries" onRetry={() => refetch()} />
+        ) : (
+          <EntryList entries={flatRecent} />
+        )}
+      </Card>
     </div>
   );
 };

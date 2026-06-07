@@ -52,6 +52,47 @@ describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', 
   });
 });
 
+// ── Phase 3: T7–T10 — densification tests ───────────────────────────────────
+
+describe('EngineerDashboard T7: This week by project bars', () => {
+  it('T7: renders a "This week by project" group with one HoursBar per distinct project', () => {
+    renderPane();
+    const group = screen.getByRole('group', { name: /This week by project/i });
+    expect(group).toBeInTheDocument();
+    // fixture has p1 only — one progressbar
+    expect(group.querySelectorAll('[role="progressbar"]')).toHaveLength(1);
+  });
+  it('T7: shows the project name inside the group', () => {
+    renderPane();
+    const group = screen.getByRole('group', { name: /This week by project/i });
+    expect(group.textContent).toContain('A'); // project name from fixture
+  });
+});
+
+describe('EngineerDashboard T9: Recent entries card', () => {
+  it('T9: renders "Recent entries" heading', () => {
+    renderPane();
+    expect(screen.getByText(/Recent entries/i)).toBeInTheDocument();
+  });
+  it('T9: shows up to 8 recent entries as list items', () => {
+    renderPane();
+    // fixture has 3 entries total
+    expect(document.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('EngineerDashboard T10: single CTA rule', () => {
+  it('T10: empty state for recent entries has NO action button (no competing CTA)', () => {
+    tsState.data = [];
+    renderPane();
+    // hours-card shows Log hours CTA but recent-entries empty must NOT add another
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const logButtons = buttons.filter((b) => /log hours/i.test(b.textContent ?? ''));
+    // At most ONE Log hours button
+    expect(logButtons.length).toBeLessThanOrEqual(1);
+  });
+});
+
 describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('sums hours this week from the latest sheet (8 + 7.5 = 15.5)', () => {
     renderPane();
