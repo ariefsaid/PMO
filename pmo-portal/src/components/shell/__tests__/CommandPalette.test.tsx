@@ -155,6 +155,28 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // AC-CMDK-002: exact code match ranks first inside Records, even when a
+  // competing substring match is present. Proven against the REAL rendered palette.
+  it('AC-CMDK-002: an exact code match renders before a competing substring match', async () => {
+    const recs: PaletteItem[] = [
+      // Title-substring match for "pr-9": ranks AFTER the exact-code row.
+      { id: 'rec-decoy', group: 'Records', title: 'PR-90 staging works', sub: 'Procurement', code: 'PRC-0500', icon: 'cart', run: vi.fn() },
+      // Exact code match for "pr-9": must float to the top of Records.
+      { id: 'rec-exact', group: 'Records', title: 'Crane hire', sub: 'Procurement', code: 'PR-9', icon: 'cart', run: vi.fn() },
+      ...items,
+    ];
+    render(<CommandPalette open items={recs} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByRole('combobox'), 'pr-9');
+    // After the debounce both rows match; the exact-code row must be first.
+    await screen.findByText('Crane hire');
+    const recordOptions = screen
+      .getAllByRole('option')
+      .filter((o) => /Procurement/.test(o.textContent ?? ''));
+    expect(recordOptions).toHaveLength(2);
+    expect(recordOptions[0]).toHaveTextContent('Crane hire'); // exact-code first
+    expect(recordOptions[1]).toHaveTextContent('PR-90 staging works');
+  });
+
   // a11y: a polite live region announces the result count as the filter narrows.
   it('exposes an aria-live result-count region', async () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);

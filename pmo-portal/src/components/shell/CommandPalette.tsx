@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
+import { filterAndCap } from '@/src/hooks/useRecordSearch';
 
 export interface PaletteItem {
   id: string;
@@ -27,8 +28,6 @@ export interface CommandPaletteProps {
   onRetry?: () => void;
 }
 
-/** Per-group result cap so the palette never becomes a wall of rows. */
-const GROUP_CAP = 8;
 /** Skeleton rows shown while the record lists load. */
 const SKELETON_COUNT = 4;
 /** Debounce (ms) applied to the query before filtering (Linear/Raycast feel). */
@@ -45,7 +44,7 @@ interface RenderGroup {
  * ⌘K command palette. role=dialog aria-modal, grouped role=listbox/option,
  * ArrowUp/Down navigate the flat (capped) result order, Enter runs, Esc closes,
  * focus trapped, focus restored to the trigger on close. Records (when present)
- * are searched alongside Navigate/Actions; each group caps at GROUP_CAP rows
+ * are searched alongside Navigate/Actions; each group caps at RECORD_GROUP_CAP rows
  * with a "+N more" footer. Loading shows skeleton rows; an errored record list
  * shows an inline retry note while module navigation keeps working.
  */
@@ -73,42 +72,32 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Build the capped, grouped result set in stable group order. "Records" rows
   // only show while the user is searching; "Navigate"/"Actions" always show.
+  // Filtering, exact-code-first ranking, and the per-group cap are NOT
+  // re-implemented here — they delegate to the single shared `filterAndCap`
+  // (one ranking implementation, one cap constant: RECORD_GROUP_CAP).
   const groups = useMemo<RenderGroup[]>(() => {
     const q = debounced.trim().toLowerCase();
-    const out: RenderGroup[] = [];
+    // Preserve first-seen group order while bucketing rows by group.
+    const order: string[] = [];
+    const byGroup = new Map<string, PaletteItem[]>();
     for (const item of items) {
       // Records are search-only — hide them on an empty query so the default
       // palette is the (always-present) module Navigate group, never blank.
       if (item.group === 'Records' && !q) continue;
-      if (q) {
-        const hit =
-          item.title.toLowerCase().includes(q) ||
-          item.sub?.toLowerCase().includes(q) ||
-          item.code?.toLowerCase().includes(q);
-        if (!hit) continue;
+      if (!byGroup.has(item.group)) {
+        byGroup.set(item.group, []);
+        order.push(item.group);
       }
-      let g = out.find((x) => x.name === item.group);
-      if (!g) {
-        g = { name: item.group, items: [], overflow: 0 };
-        out.push(g);
-      }
-      g.items.push(item);
+      byGroup.get(item.group)!.push(item);
     }
-    // Exact-code match ranks first inside Records; cap every group.
-    for (const g of out) {
-      if (g.name === 'Records' && q) {
-        g.items.sort((a, b) => {
-          const aExact = a.code?.toLowerCase() === q ? 0 : 1;
-          const bExact = b.code?.toLowerCase() === q ? 0 : 1;
-          return aExact - bExact;
-        });
-      }
-      if (g.items.length > GROUP_CAP) {
-        g.overflow = g.items.length - GROUP_CAP;
-        g.items = g.items.slice(0, GROUP_CAP);
-      }
-    }
-    return out;
+    return order.map((name) => {
+      // Records rank exact codes first; on an empty query the group items pass
+      // through unfiltered (q === '' matches everything in filterAndCap).
+      const { items: capped, overflow } = filterAndCap(byGroup.get(name)!, q, {
+        exactCodeFirst: name === 'Records',
+      });
+      return { name, items: capped, overflow };
+    });
   }, [items, debounced]);
 
   // Flat list of the rendered (capped) options — the roving-selection order.

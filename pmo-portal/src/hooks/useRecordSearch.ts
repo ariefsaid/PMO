@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import type { IconName } from '@/src/components/ui/icons';
-import type { PaletteItem } from '@/src/components/shell';
+// Type-only import from the component file (not the barrel) — keeps the
+// value-side dependency one-directional (CommandPalette imports filterAndCap
+// from here; this file only borrows the PaletteItem type, erased at runtime).
+import type { PaletteItem } from '@/src/components/shell/CommandPalette';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
@@ -98,33 +101,57 @@ export interface RankedRecords {
   overflow: number;
 }
 
-/**
- * Filters the record index by a query and ranks the matches:
- * - empty query → no records (records show only while the user is searching);
- * - an exact (case-insensitive) `code` match ranks first (AC-CMDK-002);
- * - otherwise matches keep their index order (already grouped by module);
- * - the result is capped at `RECORD_GROUP_CAP`, with the dropped count returned
- *   as `overflow` for the "+N more — refine your search" footer (AC-CMDK-006).
- *
- * Pure: same inputs → same output, so the palette can call it inside a memo.
- */
-export function rankRecords(records: PaletteItem[], query: string): RankedRecords {
-  const q = query.trim().toLowerCase();
-  if (!q) return { items: [], overflow: 0 };
-
-  const matches = records.filter(
-    (r) => r.title.toLowerCase().includes(q) || r.code?.toLowerCase().includes(q)
+/** Case-insensitive substring match across a palette row's searchable fields. */
+function matchesQuery(item: PaletteItem, q: string): boolean {
+  return (
+    item.title.toLowerCase().includes(q) ||
+    !!item.sub?.toLowerCase().includes(q) ||
+    !!item.code?.toLowerCase().includes(q)
   );
+}
 
-  // Exact code match(es) float to the front; stable for everything else.
-  matches.sort((a, b) => {
-    const aExact = a.code?.toLowerCase() === q ? 0 : 1;
-    const bExact = b.code?.toLowerCase() === q ? 0 : 1;
-    return aExact - bExact;
-  });
+/**
+ * THE single ranking + capping implementation for the ⌘K palette (both the
+ * Records group and every Navigate/Actions group consume it — no inline copy).
+ *
+ * - `q` is the already-lowercased, trimmed query;
+ * - filters by `matchesQuery` (title / sub / code substring);
+ * - when `exactCodeFirst`, an exact (case-insensitive) `code` match floats to
+ *   the front while everything else keeps its stable index order (AC-CMDK-002);
+ * - caps the result at `RECORD_GROUP_CAP`, returning the dropped count as
+ *   `overflow` for the "+N more — refine your search" footer (AC-CMDK-006).
+ *
+ * Pure: same inputs → same output, so callers can use it inside a memo.
+ */
+export function filterAndCap(
+  items: PaletteItem[],
+  q: string,
+  { exactCodeFirst = false }: { exactCodeFirst?: boolean } = {},
+): RankedRecords {
+  const matches = items.filter((item) => matchesQuery(item, q));
+
+  if (exactCodeFirst) {
+    // Exact code match(es) float to the front; stable for everything else.
+    matches.sort((a, b) => {
+      const aExact = a.code?.toLowerCase() === q ? 0 : 1;
+      const bExact = b.code?.toLowerCase() === q ? 0 : 1;
+      return aExact - bExact;
+    });
+  }
 
   return {
     items: matches.slice(0, RECORD_GROUP_CAP),
     overflow: Math.max(0, matches.length - RECORD_GROUP_CAP),
   };
+}
+
+/**
+ * Records-group ranking: empty query → no records (records show only while the
+ * user is searching); otherwise delegates to the shared `filterAndCap` with
+ * exact-code-first ranking. The ONE place Records ranking is defined.
+ */
+export function rankRecords(records: PaletteItem[], query: string): RankedRecords {
+  const q = query.trim().toLowerCase();
+  if (!q) return { items: [], overflow: 0 };
+  return filterAndCap(records, q, { exactCodeFirst: true });
 }
