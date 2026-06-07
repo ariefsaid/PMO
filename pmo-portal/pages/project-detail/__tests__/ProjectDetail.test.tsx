@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -40,13 +41,16 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
+// The Budget tab mounts ProjectBudget, which uses useToast — needs a provider.
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
+        </Routes>
+      </ToastProvider>
     </MemoryRouter>,
   );
 

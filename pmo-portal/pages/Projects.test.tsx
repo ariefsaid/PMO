@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -51,7 +52,15 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderPage = () => render(<MemoryRouter><Projects /></MemoryRouter>);
+// Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <Projects />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
 describe('Projects index — IA-3 (real data)', () => {
   beforeEach(() => {
