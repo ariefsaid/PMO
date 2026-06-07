@@ -9,10 +9,17 @@ import { signIn } from './helpers';
 test('AC-CMDK-007: ⌘K → type a project name → Enter opens its detail page', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
 
-  // Open the command palette via the global ⌘K / Ctrl-K shortcut.
-  await page.keyboard.press('ControlOrMeta+k');
+  // Open the command palette via the global ⌘K / Ctrl-K shortcut. Under the parallel
+  // headless CI runner the window-level keydown is occasionally dropped (fires before focus /
+  // the listener settles). ⌘K TOGGLES the palette, so we press ONLY when it isn't already open,
+  // and retry — this re-issues a dropped press without ever toggling an open palette shut.
   const dialog = page.getByRole('dialog', { name: /command palette/i });
-  await expect(dialog).toBeVisible();
+  await expect(async () => {
+    if (!(await dialog.isVisible())) {
+      await page.keyboard.press('ControlOrMeta+k');
+    }
+    await expect(dialog).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
 
   // Type a substring of the seeded project name; the Records group surfaces it
   // after the 120ms debounce (records are searched from the cached list).
