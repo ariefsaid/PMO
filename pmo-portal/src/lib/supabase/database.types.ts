@@ -1149,6 +1149,10 @@ export type Database = {
         Args: { p_org: string; p_prefix: string }
         Returns: string
       }
+      select_procurement_quote: {
+        Args: { p_quotation_id: string }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string
