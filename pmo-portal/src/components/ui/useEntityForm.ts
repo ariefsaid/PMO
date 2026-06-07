@@ -58,7 +58,11 @@ export function useEntityForm<T extends object>({
   idPrefix,
 }: UseEntityFormOptions<T>): UseEntityForm<T> {
   const [values, setValuesState] = useState<T>(initialValues);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
+  // `surfacedErrors` is the *committed* error map (set on blur/submit). What the
+  // UI shows is derived: a surfaced error is suppressed the moment the live
+  // values pass validation for that field — so we never re-validate inside a
+  // values updater (keeps `setValue` a pure values-only setState).
+  const [surfacedErrors, setSurfacedErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -71,24 +75,26 @@ export function useEntityForm<T extends object>({
     [validate],
   );
 
-  const setValue = useCallback(
-    <K extends keyof T>(field: K, value: T[K]) => {
-      setValuesState((prev) => {
-        const next: T = { ...prev, [field]: value };
-        // If the field already showed an error, clear it live so the user sees
-        // their fix take effect (re-validated fully on the next blur/submit).
-        setErrors((prevErrors) => {
-          if (!prevErrors[field]) return prevErrors;
-          const fieldErrors = runValidate(next);
-          if (fieldErrors[field]) return prevErrors;
-          const { [field]: _drop, ...rest } = prevErrors;
-          return rest as Partial<Record<keyof T, string>>;
-        });
-        return next;
-      });
-    },
-    [runValidate],
-  );
+  // The live validation result for the current values (memoized per values change).
+  const liveErrors = useMemo(() => runValidate(values), [runValidate, values]);
+
+  // What the UI shows: a *surfaced* error, but only while the field still fails
+  // live validation. The instant a keystroke makes the field valid, its error is
+  // suppressed here — a pure derivation, no setState inside a values updater.
+  const errors = useMemo(() => {
+    const out: Partial<Record<keyof T, string>> = {};
+    for (const k of Object.keys(surfacedErrors) as (keyof T)[]) {
+      const msg = surfacedErrors[k];
+      // Keep showing only if the field is still invalid live.
+      if (msg && liveErrors[k]) out[k] = msg;
+    }
+    return out;
+  }, [surfacedErrors, liveErrors]);
+
+  // Pure values-only updater — never schedules a sibling setState.
+  const setValue = useCallback(<K extends keyof T>(field: K, value: T[K]) => {
+    setValuesState((prev) => ({ ...prev, [field]: value }));
+  }, []);
 
   const setValues = useCallback((next: Partial<T>) => {
     setValuesState((prev) => ({ ...prev, ...next }));
@@ -97,18 +103,15 @@ export function useEntityForm<T extends object>({
   const handleBlur = useCallback(
     (field: keyof T) => {
       setTouched((prev) => ({ ...prev, [field]: true }));
-      setValuesState((current) => {
-        const fieldErrors = runValidate(current);
-        setErrors((prev) => {
-          const next = { ...prev };
-          if (fieldErrors[field]) next[field] = fieldErrors[field];
-          else delete next[field];
-          return next;
-        });
-        return current;
+      const fieldErrors = runValidate(values);
+      setSurfacedErrors((prev) => {
+        const next = { ...prev };
+        if (fieldErrors[field]) next[field] = fieldErrors[field];
+        else delete next[field];
+        return next;
       });
     },
-    [runValidate],
+    [runValidate, values],
   );
 
   const handleSubmit = useCallback(
@@ -119,7 +122,7 @@ export function useEntityForm<T extends object>({
         {} as Partial<Record<keyof T, boolean>>,
       );
       setTouched(allTouched);
-      setErrors(allErrors);
+      setSurfacedErrors(allErrors);
       if (Object.keys(allErrors).length > 0) return;
 
       setSubmitting(true);
@@ -136,7 +139,7 @@ export function useEntityForm<T extends object>({
     const target = next ?? initialRef.current;
     initialRef.current = target;
     setValuesState(target);
-    setErrors({});
+    setSurfacedErrors({});
     setTouched({});
     setSubmitting(false);
   }, []);
@@ -146,10 +149,7 @@ export function useEntityForm<T extends object>({
     return (Object.keys(values) as (keyof T)[]).some((k) => values[k] !== init[k]);
   }, [values]);
 
-  const canSubmit = useMemo(
-    () => Object.keys(runValidate(values)).length === 0,
-    [runValidate, values],
-  );
+  const canSubmit = useMemo(() => Object.keys(liveErrors).length === 0, [liveErrors]);
 
   const fieldProps = useCallback(
     <K extends keyof T>(field: K): FieldProps<T[K]> => ({

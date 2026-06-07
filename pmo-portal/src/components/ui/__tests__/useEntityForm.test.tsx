@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import React, { StrictMode } from 'react';
 import { useEntityForm } from '../useEntityForm';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,35 @@ describe('useEntityForm: validate-on-blur (not per keystroke)', () => {
     act(() => result.current.setValue('name', 'Harborside'));
     act(() => result.current.handleBlur('name'));
     expect(result.current.errors.name).toBeUndefined();
+  });
+
+  it('typing a valid value LIVE-clears an already-shown field error (no extra blur needed)', () => {
+    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+    // Surface the error via blur.
+    act(() => result.current.handleBlur('name'));
+    expect(result.current.errors.name).toBe('Opportunity name is required.');
+
+    // Typing a value that satisfies the validator clears the error live.
+    act(() => result.current.setValue('name', 'Harborside'));
+    expect(result.current.errors.name).toBeUndefined();
+  });
+
+  it('setValue updater is PURE — no React warning under StrictMode (no setState inside a setState updater)', () => {
+    // StrictMode double-invokes updaters; a setState nested inside another
+    // setState's updater surfaces as a console.error here. A pure updater stays clean.
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }), {
+        wrapper: ({ children }) => <StrictMode>{children}</StrictMode>,
+      });
+      act(() => result.current.handleBlur('name'));
+      // The setValue that live-clears the already-shown error must not warn.
+      act(() => result.current.setValue('name', 'Harborside'));
+      expect(result.current.errors.name).toBeUndefined();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
