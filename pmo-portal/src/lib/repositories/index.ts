@@ -23,6 +23,14 @@ import {
   archiveCompany,
   deleteCompany,
 } from '@/src/lib/db/companies';
+import {
+  listProjectDocuments,
+  getProjectDocument,
+  createProjectDocument,
+  updateProjectDocument,
+  transitionProjectDocument,
+  deleteProjectDocument,
+} from '@/src/lib/db/documents';
 import { listProjectManagers } from '@/src/lib/db/profiles';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
@@ -60,6 +68,7 @@ import type {
   Repositories,
   ProjectRepository,
   CompanyRepository,
+  DocumentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
@@ -89,6 +98,16 @@ const company: CompanyRepository = {
   update: (id, input) => wrap(() => updateCompany(id, input)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
+};
+
+const document: DocumentRepository = {
+  list: (projectId) => wrap(() => listProjectDocuments(projectId)),
+  get: (id) => wrap(() => getProjectDocument(id)),
+  create: (projectId, input, authorId) =>
+    wrap(() => createProjectDocument(projectId, input, authorId)),
+  update: (id, input) => wrap(() => updateProjectDocument(id, input)),
+  transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
+  delete: (id) => wrap(() => deleteProjectDocument(id)),
 };
 
 const profile: ProfileRepository = {
@@ -135,6 +154,7 @@ const budget: BudgetRepository = {
 export const repositories: Repositories = {
   project,
   company,
+  document,
   profile,
   procurement,
   timesheet,
@@ -145,6 +165,7 @@ export type {
   Repositories,
   ProjectRepository,
   CompanyRepository,
+  DocumentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,

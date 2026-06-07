@@ -19,6 +19,14 @@ vi.mock('@/src/lib/db/companies', () => ({
   archiveCompany: vi.fn(),
   deleteCompany: vi.fn(),
 }));
+vi.mock('@/src/lib/db/documents', () => ({
+  listProjectDocuments: vi.fn(),
+  getProjectDocument: vi.fn(),
+  createProjectDocument: vi.fn(),
+  updateProjectDocument: vi.fn(),
+  transitionProjectDocument: vi.fn(),
+  deleteProjectDocument: vi.fn(),
+}));
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn() }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -59,6 +67,7 @@ import * as projectsDal from '@/src/lib/db/projects';
 import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
+import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
@@ -71,7 +80,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'procurement', 'profile', 'project', 'timesheet'].sort(),
+      ['budget', 'company', 'document', 'procurement', 'profile', 'project', 'timesheet'].sort(),
     );
   });
 
@@ -79,6 +88,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(['get', 'list', 'transition']);
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
+    );
+    expect(Object.keys(repositories.document).sort()).toEqual(
+      ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(['listProjectManagers']);
     expect(Object.keys(repositories.procurement).sort()).toEqual(
@@ -162,6 +174,34 @@ describe('delegation — methods pass args through and return the DAL result', (
       code: '23503',
     });
     await expect(repositories.company.delete('c1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-DOC-001..006: document CRUD + transition methods delegate to the documents DAL fns', async () => {
+    vi.mocked(documentsDal.listProjectDocuments).mockResolvedValue([] as never);
+    vi.mocked(documentsDal.getProjectDocument).mockResolvedValue({ id: 'd1' } as never);
+    vi.mocked(documentsDal.createProjectDocument).mockResolvedValue({ id: 'new' } as never);
+    vi.mocked(documentsDal.updateProjectDocument).mockResolvedValue(undefined);
+    vi.mocked(documentsDal.transitionProjectDocument).mockResolvedValue(undefined);
+    vi.mocked(documentsDal.deleteProjectDocument).mockResolvedValue(undefined);
+
+    await repositories.document.list('p1');
+    expect(documentsDal.listProjectDocuments).toHaveBeenCalledWith('p1');
+
+    await repositories.document.get('d1');
+    expect(documentsDal.getProjectDocument).toHaveBeenCalledWith('d1');
+
+    const input = { code: 'DOC-1', category: 'Drawing', title: 'T', revision: 'A', doc_date: '2026-06-08' };
+    await repositories.document.create('p1', input, 'author-1');
+    expect(documentsDal.createProjectDocument).toHaveBeenCalledWith('p1', input, 'author-1');
+
+    await repositories.document.update('d1', input);
+    expect(documentsDal.updateProjectDocument).toHaveBeenCalledWith('d1', input);
+
+    await repositories.document.transition('d1', 'Issued' as never);
+    expect(documentsDal.transitionProjectDocument).toHaveBeenCalledWith('d1', 'Issued');
+
+    await repositories.document.delete('d1');
+    expect(documentsDal.deleteProjectDocument).toHaveBeenCalledWith('d1');
   });
 
   it('profile.listProjectManagers delegates', async () => {
