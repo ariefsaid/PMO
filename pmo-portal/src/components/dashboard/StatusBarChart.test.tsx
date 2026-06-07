@@ -36,6 +36,25 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(screen.getByText('Paid')).toBeInTheDocument();
   });
 
+  it('AS-4 regression: the figcaption pairs every status text with its dot (never color alone)', () => {
+    const { container } = render(
+      <StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" />,
+    );
+    const caption = container.querySelector('figcaption');
+    expect(caption).not.toBeNull();
+    // one legend item per datum, each carrying both a dot and its status label text
+    const items = Array.from(caption!.querySelectorAll(':scope > span'));
+    expect(items).toHaveLength(data.length);
+    for (const d of data) {
+      const item = items.find((el) => el.textContent?.includes(d.status));
+      expect(item, `legend item for ${d.status}`).toBeDefined();
+      // the dot is aria-hidden and paired with the visible status text
+      const dot = item!.querySelector('[data-testid="legend-dot"]');
+      expect(dot).not.toBeNull();
+      expect(dot!.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
   it('tones each status distinctly via chartTheme (not all the same green fill)', () => {
     render(
       <StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" />,
