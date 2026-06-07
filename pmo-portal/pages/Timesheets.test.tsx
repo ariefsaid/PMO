@@ -40,6 +40,22 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+// ── timesheet-entry write path mocks (Tasks 14–20) ──────────────────────────
+const saveWeekMutate = vi.fn();
+const deleteRowMutate = vi.fn();
+const entryMutations = {
+  saveWeek: { mutate: saveWeekMutate, isPending: false },
+  deleteRow: { mutate: deleteRowMutate, isPending: false },
+};
+vi.mock('@/src/hooks/useTimesheetEntries', () => ({
+  useTimesheetEntryMutations: () => entryMutations,
+}));
+
+const projectsState: { data: unknown[] | undefined } = { data: [] };
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => projectsState,
+}));
+
 const renderPage = () =>
   render(
     <MemoryRouter>
@@ -384,5 +400,285 @@ describe('Timesheets T13: Recent entries this week panel', () => {
     const listItems = document.querySelectorAll('li');
     const listText = Array.from(listItems).map((li) => li.textContent).join('');
     expect(listText).not.toContain('—');
+  });
+});
+
+// ===========================================================================
+// timesheet-entry: editable grid + state machine (Tasks 14–20)
+// ===========================================================================
+
+/** A Draft sheet owned by u-alice for the current week, with one project entry. */
+function currentDraftSheet(status = 'Draft', entries?: unknown[]) {
+  const weekStr = currentWeekStartStr();
+  return [{
+    id: 'ts-draft', user_id: 'u-alice', week_start_date: weekStr, status,
+    submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+    entries: entries ?? [
+      { id: 'ed1', timesheet_id: 'ts-draft', project_id: 'pP', entry_date: weekStr, hours: 8,
+        notes: 'work', project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+    ],
+  }];
+}
+
+const ongoingProjects = [
+  { id: 'pP', name: 'Innovate Corp HQ Fit-Out', code: 'P001', status: 'Ongoing Project', client: null, pm: null },
+  { id: 'pQ', name: 'Acme Internal Platform', code: 'P003', status: 'Ongoing Project', client: null, pm: null },
+  { id: 'pR', name: 'Lead Project', code: 'P099', status: 'Leads', client: null, pm: null },
+];
+
+describe('timesheet-entry: editable gating (Task 14)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    deleteRowMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-TSE-001: a Draft sheet owned by the signed-in user renders the editable grid + Add project + Save', () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    // Editable cells are inputs.
+    expect(screen.getAllByRole('spinbutton').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/add a project/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+  });
+
+  it('AC-TSE-002: an empty week renders an editable empty grid with Add project and issues NO create write on mount', () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    // Add-project picker visible (the empty week is editable since sheet == null).
+    expect(screen.getByLabelText(/add a project/i)).toBeInTheDocument();
+    // No write on mount.
+    expect(saveWeekMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-TSE-003: a Submitted sheet renders read-only (no inputs, no Add, no Save)', () => {
+    tsState.data = currentDraftSheet('Submitted') as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    expect(screen.queryByLabelText(/add a project/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
+  });
+
+  it('AC-TSE-004: an Approved sheet renders read-only', () => {
+    tsState.data = currentDraftSheet('Approved') as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
+    expect(screen.queryByLabelText(/add a project/i)).toBeNull();
+  });
+});
+
+describe('timesheet-entry: project picker (Task 15)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    projectsState.data = ongoingProjects;
+  });
+
+  it("AC-TSE-006: the picker offers only Active projects not already a row (P present + R non-active excluded, Q offered)", async () => {
+    // The Draft sheet already has project pP as a row.
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const picker = screen.getByLabelText(/add a project/i) as HTMLSelectElement;
+    const optionLabels = Array.from(picker.options)
+      .map((o) => o.textContent)
+      .filter((t) => t && !/select a project/i.test(t));
+    expect(optionLabels).toEqual(['Acme Internal Platform']);
+  });
+
+  it('AC-TSE-005: selecting a project from the picker adds an empty editable row (0×7) and writes nothing', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const picker = screen.getByLabelText(/add a project/i) as HTMLSelectElement;
+    await userEvent.selectOptions(picker, 'pQ');
+    // The added project's cells now exist as inputs.
+    expect(screen.getByLabelText('Acme Internal Platform, Mon hours')).toBeInTheDocument();
+    expect(saveWeekMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('timesheet-entry: Save (Tasks 16–17)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-TSE-016: Save on an empty week creates the Draft then upserts entries then toasts success', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    saveWeekMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+    renderPage();
+    // Add a project, enter 8h Monday.
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '8');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(saveWeekMutate).toHaveBeenCalledTimes(1);
+    const arg = saveWeekMutate.mock.calls[0][0];
+    expect(arg.currentTimesheetId).toBeNull();
+    expect(arg.weekStartDate).toBe(currentWeekStartStr());
+    expect(arg.diff.upserts.some((u: { hours: number }) => u.hours === 8)).toBe(true);
+    // Success toast.
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/saved/i));
+  });
+
+  it('AC-TSE-017: Save diffs an existing sheet to upsert changed cells and delete a zeroed cell', async () => {
+    const weekStr = currentWeekStartStr();
+    const wed = new Date(weekStr + 'T00:00:00'); wed.setDate(wed.getDate() + 2);
+    const wedStr = `${wed.getFullYear()}-${String(wed.getMonth() + 1).padStart(2, '0')}-${String(wed.getDate()).padStart(2, '0')}`;
+    tsState.data = currentDraftSheet('Draft', [
+      { id: 'eMon', timesheet_id: 'ts-draft', project_id: 'pP', entry_date: weekStr, hours: 8,
+        notes: null, project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+      { id: 'eWed', timesheet_id: 'ts-draft', project_id: 'pP', entry_date: wedStr, hours: 2,
+        notes: null, project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+    ]) as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    // Change Mon 8 → 6, add Tue 4, clear Wed.
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours');
+    await userEvent.clear(mon); await userEvent.type(mon, '6');
+    const tue = screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours');
+    await userEvent.type(tue, '4');
+    const wedCell = screen.getByLabelText('Innovate Corp HQ Fit-Out, Wed hours');
+    await userEvent.clear(wedCell);
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    const diff = saveWeekMutate.mock.calls[0][0].diff;
+    expect(diff.upserts.find((u: { entry_date: string; hours: number }) => u.entry_date === weekStr)?.hours).toBe(6);
+    expect(diff.upserts.some((u: { hours: number }) => u.hours === 4)).toBe(true);
+    expect(diff.deletes).toContain('eWed');
+  });
+
+  it('AC-TSE-009/010: Save is disabled while a cell is invalid (25) and enabled when all valid', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '25');
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    await userEvent.clear(mon); await userEvent.type(mon, '8');
+    expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
+  });
+
+  it('AC-TSE-011: blank/0/24 cells leave Save enabled', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '24');
+    const tue = screen.getByLabelText('Acme Internal Platform, Tue hours');
+    await userEvent.type(tue, '0');
+    expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
+  });
+
+  it('AC-TSE-018: a Save failure shows a failure toast carrying the error message and keeps the unsaved edits', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    saveWeekMutate.mockImplementation(
+      (_vars: unknown, opts?: { onError?: (e: Error) => void }) =>
+        opts?.onError?.(Object.assign(new Error('rls denied'), { code: '42501' })),
+    );
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '8');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/rls denied/i));
+    // Edit retained — the cell still holds 8.
+    expect((screen.getByLabelText('Acme Internal Platform, Mon hours') as HTMLInputElement).value).toBe('8');
+  });
+});
+
+describe('timesheet-entry: delete row confirm (Task 18)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    deleteRowMutate.mockClear();
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-TSE-013: activating row delete opens a destructive ConfirmDialog and does not remove the row yet', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    // Row still present.
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
+    expect(deleteRowMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-TSE-014: confirming delete removes the row and deletes its persisted entries via deleteRow', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete row/i }));
+    // Persisted row → deleteRow called with the server entry id(s).
+    expect(deleteRowMutate).toHaveBeenCalled();
+    const arg = deleteRowMutate.mock.calls[0][0];
+    expect(arg.entryIds).toContain('ed1');
+    // Row removed from the grid.
+    expect(screen.queryByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeNull();
+  });
+
+  it('AC-TSE-015: cancelling delete keeps the row and issues no delete write', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /cancel/i }));
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
+    expect(deleteRowMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-TSE-014: deleting an unsaved added row makes no DAL call (removed from edit state only)', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    await userEvent.click(screen.getByRole('button', { name: /delete Acme Internal Platform row/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /delete row/i }));
+    expect(deleteRowMutate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Acme Internal Platform, Mon hours')).toBeNull();
+  });
+});
+
+describe('timesheet-entry: loading + error parity (Task 19)', () => {
+  beforeEach(() => { sessionStorage.clear(); projectsState.data = ongoingProjects; });
+
+  it('AC-TSE-020: pending shows the loading skeleton; error shows the error+Retry state', () => {
+    tsState.isPending = true; tsState.isError = false;
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('timesheets-loading')).toBeInTheDocument();
+    unmount();
+    tsState.isPending = false; tsState.isError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    tsState.isError = false;
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+describe('timesheet-entry: a11y (Task 20, NFR-TSE-A11Y-001)', () => {
+  beforeEach(() => { sessionStorage.clear(); projectsState.data = ongoingProjects; });
+
+  it('NFR-TSE-A11Y-001: editable cells are labelled "<project>, <weekday> hours"; the picker is labelled; the delete confirm is an alertdialog', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('INPUT');
+    expect(screen.getByLabelText(/add a project/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveAccessibleName();
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });

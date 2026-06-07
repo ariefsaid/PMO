@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -25,8 +25,16 @@ import {
   useTimesheetMutations,
   useTimesheetsAwaitingApproval,
 } from '@/src/hooks/useTimesheetApproval';
+import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useTimesheetsView } from '@/src/hooks/useTimesheetsView';
+import { useProjects } from '@/src/hooks/useProjects';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
+import {
+  type EditRow,
+  diffEntries,
+  gridIsValid,
+  parseHourCell,
+} from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 
@@ -127,6 +135,173 @@ const TimesheetsPage: React.FC = () => {
       }),
     [weekDates]
   );
+
+  // ── timesheet-entry: editable-state machine (FR-TSE-001/002/003) ───────────
+  // Editable iff the sheet is absent, or the signed-in user owns it AND it is Draft.
+  const editable =
+    currentTimesheet == null ||
+    (currentTimesheet.user_id === signedInUserId && currentTimesheet.status === 'Draft');
+
+  const { saveWeek, deleteRow } = useTimesheetEntryMutations();
+  const { data: allProjects } = useProjects();
+
+  const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
+
+  // Seed the in-memory edit state from the last-fetched server grid. Re-seed when
+  // the week, the sheet identity, or the server entries change (an identity key
+  // keeps editing stable across unrelated re-renders — no write happens here).
+  const seedRows = useMemo<EditRow[]>(
+    () =>
+      gridRows.map((r) => {
+        const note =
+          currentWeekEntries.find((e) => e.project_id === r.id && (e.notes ?? '') !== '')?.notes ??
+          '';
+        return {
+          project_id: r.id,
+          project: r.project,
+          code: r.code,
+          hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
+          note,
+        };
+      }),
+    [gridRows, currentWeekEntries]
+  );
+  const seedKey = useMemo(
+    () =>
+      `${currentTimesheet?.id ?? 'none'}|${weekStartString}|${currentWeekEntries
+        .map((e) => `${e.id}:${e.hours}`)
+        .join(',')}`,
+    [currentTimesheet, weekStartString, currentWeekEntries]
+  );
+  const [editRows, setEditRows] = useState<EditRow[]>(seedRows);
+  const lastSeedKey = useRef<string | null>(null);
+  if (lastSeedKey.current !== seedKey) {
+    lastSeedKey.current = seedKey;
+    if (editRows !== seedRows) setEditRows(seedRows);
+  }
+
+  // Server entries shaped for diffEntries (id/project/date/hours per cell).
+  const serverEntriesForDiff = useMemo(
+    () =>
+      currentWeekEntries.map((e) => ({
+        id: e.id,
+        project_id: e.project_id,
+        entry_date: e.entry_date,
+        hours: e.hours,
+      })),
+    [currentWeekEntries]
+  );
+
+  // Picker options: Active org projects (Ongoing Project) minus those already a row.
+  const presentProjectIds = useMemo(
+    () => new Set(editRows.map((r) => r.project_id)),
+    [editRows]
+  );
+  const pickerOptions = useMemo(
+    () =>
+      (allProjects ?? [])
+        .filter((p) => p.status === 'Ongoing Project' && !presentProjectIds.has(p.id))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allProjects, presentProjectIds]
+  );
+
+  // Live invalid-cell set (color-not-only: drives border + inline alert + aria-invalid).
+  const invalidCells = useMemo(() => {
+    const set = new Set<string>();
+    editRows.forEach((r) => {
+      r.hours.forEach((cell, i) => {
+        if (!parseHourCell(cell).valid) set.add(`${r.project_id}:${i}`);
+      });
+    });
+    return set;
+  }, [editRows]);
+  const editValid = useMemo(() => gridIsValid(editRows), [editRows]);
+
+  // Edited rows shaped for TimesheetGrid (numeric hours for display) + the note map.
+  const editGridRows = useMemo<TimesheetGridRow[]>(
+    () =>
+      editRows.map((r) => ({
+        id: r.project_id,
+        project: r.project,
+        code: r.code,
+        hours: r.hours.map((c) => parseHourCell(c).value || 0),
+      })),
+    [editRows]
+  );
+  const editNotes = useMemo(
+    () => Object.fromEntries(editRows.map((r) => [r.project_id, r.note])),
+    [editRows]
+  );
+
+  const setCell = (rowId: string, dayIndex: number, raw: string) =>
+    setEditRows((rows) =>
+      rows.map((r) =>
+        r.project_id === rowId
+          ? { ...r, hours: r.hours.map((c, i) => (i === dayIndex ? raw : c)) }
+          : r
+      )
+    );
+  const setNote = (rowId: string, note: string) =>
+    setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, note } : r)));
+  const addProject = (projectId: string) => {
+    const proj = (allProjects ?? []).find((p) => p.id === projectId);
+    if (!proj || presentProjectIds.has(projectId)) return;
+    setEditRows((rows) => [
+      ...rows,
+      {
+        project_id: proj.id,
+        project: proj.name,
+        code: proj.code,
+        hours: ['', '', '', '', '', '', ''],
+        note: '',
+      },
+    ]);
+  };
+
+  // Delete-row confirm (mandatory destructive ConfirmDialog — FR-TSE-008/009).
+  const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
+  const rowToDelete = editRows.find((r) => r.project_id === confirmDeleteRowId) ?? null;
+  const confirmDeleteRow = () => {
+    if (!confirmDeleteRowId) return;
+    const persistedEntryIds = currentWeekEntries
+      .filter((e) => e.project_id === confirmDeleteRowId)
+      .map((e) => e.id);
+    // Remove from edit state immediately; delete persisted entries if any exist.
+    setEditRows((rows) => rows.filter((r) => r.project_id !== confirmDeleteRowId));
+    if (persistedEntryIds.length > 0) {
+      deleteRow.mutate(
+        { entryIds: persistedEntryIds },
+        {
+          onSuccess: () => toast('Row deleted', 'Removed this project from the week', 'success'),
+          onError: (err) => toast('Delete failed', err.message, 'warning'),
+        }
+      );
+    }
+    setConfirmDeleteRowId(null);
+  };
+
+  // Save (explicit commit — FR-TSE-011/012/016). Builds the diff, calls saveWeek.
+  const commitSave = () => {
+    const diff = diffEntries(
+      editRows,
+      weekDateStrings,
+      serverEntriesForDiff,
+      currentTimesheet?.id ?? ''
+    );
+    const changeCount = diff.upserts.length + diff.deletes.length;
+    saveWeek.mutate(
+      { currentTimesheetId: currentTimesheet?.id ?? null, weekStartDate: weekStartString, diff },
+      {
+        onSuccess: () =>
+          toast(
+            'Timesheet saved',
+            `${changeCount} ${changeCount === 1 ? 'change' : 'changes'} saved`,
+            'success'
+          ),
+        onError: (err: { message: string }) => toast('Save failed', err.message, 'warning'),
+      }
+    );
+  };
 
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
@@ -311,15 +486,64 @@ const TimesheetsPage: React.FC = () => {
           <StatusPill variant={status ? PILL[status] : 'neutral'}>
             {status === TimesheetStatus.Draft || !status ? 'Draft — not submitted' : status}
           </StatusPill>
+          {editable && (
+            <label
+              htmlFor="ts-add-project"
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground"
+            >
+              <Icon name="plus" aria-hidden />
+              Add project
+              <select
+                id="ts-add-project"
+                aria-label="Add a project"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) addProject(e.target.value);
+                }}
+                disabled={pickerOptions.length === 0}
+                className="h-8 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
+              >
+                <option value="">
+                  {pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}
+                </option>
+                {pickerOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span
             data-testid="timesheets-weekly-total"
             className="ml-auto text-[13px] tabular text-muted-foreground"
           >
-            {weeklyTotal.toFixed(1)} h this week
+            {(editable ? editGridRows.reduce((s, r) => s + r.hours.reduce((a, b) => a + b, 0), 0) : weeklyTotal).toFixed(1)}{' '}
+            h this week
           </span>
         </div>
 
-        {gridRows.length === 0 ? (
+        {editable ? (
+          editGridRows.length === 0 ? (
+            <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
+              <p className="text-sm font-medium text-foreground">No hours logged this week</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Use “Add a project” above to start logging hours.
+              </p>
+            </div>
+          ) : (
+            <TimesheetGrid
+              days={gridDays}
+              rows={editGridRows}
+              editable
+              notes={editNotes}
+              invalidCells={invalidCells}
+              onCellChange={setCell}
+              onNoteChange={setNote}
+              onDeleteRow={(id) => setConfirmDeleteRowId(id)}
+            />
+          )
+        ) : gridRows.length === 0 ? (
           <div data-testid="timesheets-empty">
             <ListState
               variant="empty"
@@ -330,6 +554,20 @@ const TimesheetsPage: React.FC = () => {
           </div>
         ) : (
           <TimesheetGrid days={gridDays} rows={gridRows} />
+        )}
+
+        {editable && (
+          <div className="flex justify-end gap-2 border-t border-border px-3.5 py-2.5">
+            <Button
+              variant="primary"
+              onClick={commitSave}
+              disabled={!editValid || saveWeek.isPending}
+              loading={saveWeek.isPending}
+            >
+              <Icon name="check" />
+              Save
+            </Button>
+          </div>
         )}
       </Card>
 
@@ -363,6 +601,24 @@ const TimesheetsPage: React.FC = () => {
       )}
 
       {submitConfirm}
+
+      {rowToDelete && (
+        <ConfirmDialog
+          open
+          tone="destructive"
+          title="Delete this project row?"
+          description={
+            <>
+              This removes <strong>{rowToDelete.project}</strong> and all its hours from this week.
+              You can add it back, but the entered hours won&rsquo;t be restored.
+            </>
+          }
+          confirmLabel="Delete row"
+          loading={deleteRow.isPending}
+          onCancel={() => setConfirmDeleteRowId(null)}
+          onConfirm={confirmDeleteRow}
+        />
+      )}
     </div>
   );
 };
