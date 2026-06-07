@@ -138,6 +138,10 @@ test(
     await page.goto('/companies');
     await waitReady(page);
 
+    // The toolbar (and its search) only render after the loading state clears.
+    const search = page.getByRole('searchbox', { name: /Search companies/i });
+    await expect(search).toBeVisible({ timeout: 10_000 });
+
     const overflow = await page.evaluate(() => {
       const main = document.querySelector('main')!;
       const input = document.querySelector('input[aria-label="Search companies"]')!;
