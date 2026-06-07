@@ -10,7 +10,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/src/lib/db/projects', () => ({ listProjects: vi.fn() }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn() }));
-vi.mock('@/src/lib/db/companies', () => ({ listClientCompanies: vi.fn() }));
+vi.mock('@/src/lib/db/companies', () => ({
+  listClientCompanies: vi.fn(),
+  listCompanies: vi.fn(),
+  getCompany: vi.fn(),
+  createCompany: vi.fn(),
+  updateCompany: vi.fn(),
+  archiveCompany: vi.fn(),
+  deleteCompany: vi.fn(),
+}));
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn() }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -69,7 +77,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(['get', 'list', 'transition']);
-    expect(Object.keys(repositories.company).sort()).toEqual(['listClients']);
+    expect(Object.keys(repositories.company).sort()).toEqual(
+      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
+    );
     expect(Object.keys(repositories.profile).sort()).toEqual(['listProjectManagers']);
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       ['createInvoice', 'createQuotation', 'createReceipt', 'get', 'list', 'transition'].sort(),
@@ -110,6 +120,48 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(companiesDal.listClientCompanies).mockResolvedValue([] as never);
     await repositories.company.listClients();
     expect(companiesDal.listClientCompanies).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-CO-001..006: company CRUD methods delegate to the companies DAL fns', async () => {
+    vi.mocked(companiesDal.listCompanies).mockResolvedValue([] as never);
+    vi.mocked(companiesDal.getCompany).mockResolvedValue({ id: 'c1' } as never);
+    vi.mocked(companiesDal.createCompany).mockResolvedValue({ id: 'new' } as never);
+    vi.mocked(companiesDal.updateCompany).mockResolvedValue(undefined);
+    vi.mocked(companiesDal.archiveCompany).mockResolvedValue(undefined);
+    vi.mocked(companiesDal.deleteCompany).mockResolvedValue(undefined);
+
+    const params = { type: 'Vendor' as never };
+    await repositories.company.list(params);
+    expect(companiesDal.listCompanies).toHaveBeenCalledWith(params);
+
+    await repositories.company.list();
+    expect(companiesDal.listCompanies).toHaveBeenLastCalledWith(undefined);
+
+    await repositories.company.get('c1');
+    expect(companiesDal.getCompany).toHaveBeenCalledWith('c1');
+
+    const input = { name: 'Globex', type: 'Vendor' as never };
+    await repositories.company.create(input);
+    expect(companiesDal.createCompany).toHaveBeenCalledWith(input);
+
+    await repositories.company.update('c1', input);
+    expect(companiesDal.updateCompany).toHaveBeenCalledWith('c1', input);
+
+    await repositories.company.archive('c1');
+    expect(companiesDal.archiveCompany).toHaveBeenCalledWith('c1');
+
+    await repositories.company.delete('c1');
+    expect(companiesDal.deleteCompany).toHaveBeenCalledWith('c1');
+  });
+
+  it('AC-CO-006: company.delete normalizes a 23503 FK violation to AppError preserving the code', async () => {
+    const fk = Object.assign(new Error('violates foreign key constraint'), { code: '23503' });
+    vi.mocked(companiesDal.deleteCompany).mockRejectedValue(fk);
+    await expect(repositories.company.delete('c1')).rejects.toMatchObject({
+      name: 'AppError',
+      code: '23503',
+    });
+    await expect(repositories.company.delete('c1')).rejects.toBeInstanceOf(AppError);
   });
 
   it('profile.listProjectManagers delegates', async () => {

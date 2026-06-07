@@ -126,6 +126,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          archived_at: string | null
           created_at: string
           id: string
           name: string
@@ -133,6 +134,7 @@ export type Database = {
           type: Database["public"]["Enums"]["company_type"]
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           id?: string
           name: string
@@ -140,6 +142,7 @@ export type Database = {
           type: Database["public"]["Enums"]["company_type"]
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -765,6 +768,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived_at: string | null
           budget: number
           client_id: string | null
           code: string | null
@@ -784,6 +788,7 @@ export type Database = {
           status: Database["public"]["Enums"]["project_status"]
         }
         Insert: {
+          archived_at?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -803,6 +808,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"]
         }
         Update: {
+          archived_at?: string | null
           budget?: number
           client_id?: string | null
           code?: string | null
@@ -1401,3 +1407,4 @@ export const Constants = {
     },
   },
 } as const
+
