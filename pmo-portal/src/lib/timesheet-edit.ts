@@ -78,45 +78,52 @@ export function computeTotals(rows: EditRow[]): GridTotals {
 /**
  * Diffs edited rows vs the last-fetched server entries → upserts (insert/update) + delete ids
  * (FR-TSE-012, §3.2). Per (project_id, entry_date) cell:
- *   - hours > 0 and (no server entry OR changed) → upsert;
+ *   - hours > 0 and (no server entry OR hours changed OR the row note differs from the
+ *     persisted note) → upsert;
  *   - hours 0/blank and a server entry exists → delete that entry's id;
- *   - unchanged → omitted.
+ *   - unchanged (same hours AND same note) → omitted.
  * The row note is written on every upsert of that row (OQ-4 row-level note); empty note ⇒ null.
+ * A note attaches to the row's non-zero entries: a row with no non-zero hours persists NO entry
+ * for the note alone (absence==zero — we never fabricate a 0-hour row just to store a note).
  * No org_id is ever produced — RLS scopes by auth_org_id().
  */
 export function diffEntries(
   rows: EditRow[],
   weekDates: string[],
-  serverEntries: { id: string; project_id: string; entry_date: string; hours: number }[],
+  serverEntries: { id: string; project_id: string; entry_date: string; hours: number; notes?: string | null }[],
   timesheetId: string,
 ): EntryDiff {
-  // Index server entries by "project_id|entry_date" for O(1) lookup.
-  const serverByCell = new Map<string, { id: string; hours: number }>();
+  // Index server entries by "project_id|entry_date" for O(1) lookup. Carry the persisted note so a
+  // note-only edit (hours unchanged) is detected and re-upserted instead of silently dropped.
+  const serverByCell = new Map<string, { id: string; hours: number; notes: string | null }>();
   for (const e of serverEntries) {
-    serverByCell.set(`${e.project_id}|${e.entry_date}`, { id: e.id, hours: e.hours });
+    serverByCell.set(`${e.project_id}|${e.entry_date}`, {
+      id: e.id,
+      hours: e.hours,
+      notes: e.notes ?? null,
+    });
   }
 
   const upserts: EntryUpsert[] = [];
   const deletes: string[] = [];
-  const seenCells = new Set<string>();
 
   for (const r of rows) {
     const notes = r.note.trim() === '' ? null : r.note;
     for (let day = 0; day < 7; day++) {
       const entryDate = weekDates[day];
       const key = `${r.project_id}|${entryDate}`;
-      seenCells.add(key);
       const { value } = parseHourCell(r.hours[day] ?? '');
       const existing = serverByCell.get(key);
       if (value > 0) {
-        // Insert when none exists, or update when hours/notes may have changed.
-        if (!existing || existing.hours !== value) {
+        // Upsert when no entry exists, hours changed, OR the row note differs from what's
+        // persisted on this cell (a note-only edit on an existing entry — previously dropped).
+        const noteChanged = existing ? (existing.notes ?? null) !== notes : false;
+        if (!existing || existing.hours !== value || noteChanged) {
           upserts.push({ timesheet_id: timesheetId, project_id: r.project_id, entry_date: entryDate, hours: value, notes });
         }
-        // (When existing.hours === value the cell is unchanged — omitted. Note-only changes are
-        // not separately diffed here; a row whose any cell changed re-writes the row's notes.)
       } else if (existing) {
-        // Cell zeroed/cleared and a server entry exists → delete it.
+        // Cell zeroed/cleared and a server entry exists → delete it. (A note on a now-zero row
+        // is not persisted — absence==zero; the note had no non-zero entry to attach to.)
         deletes.push(existing.id);
       }
     }

@@ -132,4 +132,36 @@ describe('diffEntries', () => {
     ]);
     expect(diff.deletes).toHaveLength(0);
   });
+
+  it('AC-TSE-017: a note-only edit on a row with an existing entry emits an upsert that re-writes the note', () => {
+    // Server: P/Mon=8 (id se1), note "old". Edited: hours UNCHANGED, note changed to "new".
+    const rows: EditRow[] = [row('P', ['8'], 'new note')];
+    const server = [
+      { id: 'se1', project_id: 'P', entry_date: '2026-06-01', hours: 8, notes: 'old note' },
+    ];
+    const diff = diffEntries(rows, WEEK, server, 'ts1');
+    // The Mon cell is re-upserted carrying the new note even though hours did not change.
+    expect(diff.upserts).toEqual([
+      { timesheet_id: 'ts1', project_id: 'P', entry_date: '2026-06-01', hours: 8, notes: 'new note' },
+    ]);
+    expect(diff.deletes).toHaveLength(0);
+  });
+
+  it('AC-TSE-017: an unchanged note on an unchanged row emits nothing (no spurious upsert)', () => {
+    const rows: EditRow[] = [row('P', ['8'], 'same')];
+    const server = [
+      { id: 'se1', project_id: 'P', entry_date: '2026-06-01', hours: 8, notes: 'same' },
+    ];
+    const diff = diffEntries(rows, WEEK, server, 'ts1');
+    expect(diff.upserts).toHaveLength(0);
+    expect(diff.deletes).toHaveLength(0);
+  });
+
+  it('AC-TSE-017: a note on a row with no non-zero hours persists nothing (absence==zero; no fabricated entries)', () => {
+    // Row has only blank/zero cells; a note alone must not create a 0-hour entry.
+    const rows: EditRow[] = [row('P', ['', '', ''], 'orphan note')];
+    const diff = diffEntries(rows, WEEK, [], 'ts1');
+    expect(diff.upserts).toHaveLength(0);
+    expect(diff.deletes).toHaveLength(0);
+  });
 });
