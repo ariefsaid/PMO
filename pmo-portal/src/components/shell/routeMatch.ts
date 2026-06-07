@@ -49,6 +49,7 @@ export const MODULES: ModuleDef[] = [
 export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/tasks': 'Tasks',
   '/companies': 'Companies',
+  '/incidents': 'Incidents',
   '/work-orders': 'Work Orders',
   '/reports': 'Reports',
   '/administration': 'Administration',

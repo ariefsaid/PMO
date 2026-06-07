@@ -39,6 +39,8 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/tasks', text: 'Tasks', icon: 'table', group: 'Delivery', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
+  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/reports', text: 'Reports', icon: 'cols', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
