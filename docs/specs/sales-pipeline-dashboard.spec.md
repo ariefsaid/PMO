@@ -137,9 +137,15 @@ Seed projects (default org `…0001`):
 |---|---|---|---:|---:|
 | P001 Innovate HQ Fit-Out | Ongoing Project (on-hand) | 5,000,000 | 4,700,000 | 405,000 (PO 85,000 + Paid 320,000) |
 | P003 Acme Internal Platform | Ongoing Project (on-hand) | 3,000,000 | 2,000,000 | 0 |
-| P002 Northwind ERP Rollout | Tender Submitted (pipeline) | 1,200,000 | 1,200,000 | 0 |
-| P010 Regional Services | PQ Submitted (pipeline) | 800,000 | 800,000 | 0 |
+| P002 Northwind ERP Rollout | Tender Submitted (pipeline) | 1,200,000 | 1,000,000 | 0 |
+| P011 Highfield Bridge Survey | Tender Submitted (pipeline) | 950,000 | 950,000 | 0 |
+| P010 Regional Services | PQ Submitted (pipeline) | 800,000 | 600,000 | 0 |
 | P004 Coastal Depot Bid | Loss Tender (loss) | 650,000 | 5,000 | 0 |
+
+> P011 "Highfield Bridge Survey" was added to the seed in **PR #27** (a dedicated second Tender deal so
+> the AC-SP e2e drilldown can win/lose a row without colliding with P002). It makes the pipeline set
+> **3 deals**; its Active budget equals its contract value (contributes 0 to the projected-margin
+> numerator). P002/P010 carry the SPD-S1 reduced budgets (1,000,000 / 600,000).
 
 Committed-spent derivation: only `Ordered` (PROC 002, 85,000) and `Paid` (PROC 005, 320,000) count,
 both on P001 ⇒ P001 spent = 405,000. PROC 001 (Vendor Quoted), 003 (Requested), 004 (Draft) excluded.
@@ -149,15 +155,14 @@ both on P001 ⇒ P001 spent = 405,000. PROC 001 (Vendor Quoted), 003 (Requested)
 - `on_hand_value` = 5,000,000 + 3,000,000 = **8,000,000**
 - `on_hand_margin` = ((5,000,000−405,000) + (3,000,000−0)) / 8,000,000 = 7,595,000 / 8,000,000
   = **0.949375** (UI: **94.9%**)
-- `pipeline_total_value` = 1,200,000 + 800,000 = **2,000,000**
-- `pipeline_weighted_value` = 1,200,000×0.500 + 800,000×0.250 = 600,000 + 200,000 = **800,000**
-- `pipeline_projected_margin` = ((1,200,000−1,200,000) + (800,000−800,000)) / 2,000,000 = 0 / 2,000,000
-  = **0.000** — see **RISK-SPD-1 / seed task SPD-S1**: with current seed both pipeline budgets equal
-  contract_value so projected margin is trivially 0. The seed task adjusts P002/P010 budgets so the
-  oracle is non-trivial (see §8). **After seed task SPD-S1** (P002 budget → 1,000,000; P010 budget →
-  600,000): `pipeline_projected_margin` = ((1,200,000−1,000,000) + (800,000−600,000)) / 2,000,000
-  = 400,000 / 2,000,000 = **0.200** (UI: **20.0%**); `pipeline_weighted_value` unchanged (budget does
-  not affect weighting) = **800,000**.
+- `pipeline_total_value` = 1,200,000 + 950,000 + 800,000 = **2,950,000**
+- `pipeline_weighted_value` = (1,200,000 + 950,000)×0.500 + 800,000×0.250 = 1,075,000 + 200,000
+  = **1,275,000** (Tender deals P002+P011 at 0.500, PQ deal P010 at 0.250).
+- `pipeline_projected_margin` = Σ(contract_value − Active-version-budget) / Σ(contract_value) over the
+  pipeline set. With the SPD-S1 budgets (P002 → 1,000,000; P010 → 600,000) and P011's budget == its
+  contract_value (950,000): `((1,200,000−1,000,000) + (950,000−950,000) + (800,000−600,000)) /
+  2,950,000` = (200,000 + 0 + 200,000) / 2,950,000 = 400,000 / 2,950,000 = **0.135593…** (UI: **13.6%**).
+  `pipeline_weighted_value` is unaffected by budgets.
 
 **Win-rate oracles** (all-time, `p_from`/`p_to` null): W = {P001, P003}, L = {P004}.
 - `win_rate_count` = 2 / (2+1) = **0.666667** (UI: **66.7%**)
@@ -264,11 +269,12 @@ Each AC owned by exactly **one** layer (ADR-0010). Owning layer in the traceabil
   `get_executive_dashboard()` is called as an authenticated default-org user, **Then**
   `on_hand_margin = 0.949375` (±1e-6) and `on_hand_value = 8000000`. (FR-SPD-001)
 - **AC-1101** — *pipeline weighted value.* **Given** the seed pipeline projects + OD-SP-2 config,
-  **When** `get_executive_dashboard()` is called, **Then** `pipeline_weighted_value = 800000`.
-  (FR-SPD-002)
-- **AC-1102** — *pipeline projected margin.* **Given** the seed pipeline projects after seed task
-  SPD-S1 (P002 budget 1,000,000; P010 budget 600,000), **When** `get_executive_dashboard()` is called,
-  **Then** `pipeline_projected_margin = 0.200` (±1e-6) and `pipeline_total_value = 2000000`. (FR-SPD-003)
+  **When** `get_executive_dashboard()` is called, **Then** `pipeline_weighted_value = 1275000`
+  ((1.2M+0.95M)×0.5 + 0.8M×0.25). (FR-SPD-002)
+- **AC-1102** — *pipeline projected margin.* **Given** the seed pipeline projects (P002/P011 Tender +
+  P010 PQ) with the SPD-S1 budgets (P002 1,000,000; P010 600,000; P011 950,000==contract), **When**
+  `get_executive_dashboard()` is called, **Then** `pipeline_projected_margin = 400000/2950000 ≈ 0.135593`
+  (±1e-6) and `pipeline_total_value = 2950000`. (FR-SPD-003)
 - **AC-1103** — *avg_gross_margin removed.* **Given** the deployed schema, **When**
   `get_executive_dashboard()` returns, **Then** the JSON payload has **no** `avg_gross_margin` key and
   **has** keys `on_hand_margin`, `on_hand_value`, `pipeline_weighted_value`,
@@ -297,10 +303,10 @@ Each AC owned by exactly **one** layer (ADR-0010). Owning layer in the traceabil
 
 ### Sales-pipeline RPC — pgTAP
 - **AC-1110** — *pipeline stages weighted.* **Given** the seed pipeline projects, **When**
-  `get_sales_pipeline()` is called, **Then** it returns a `Tender Submitted` stage with count 1, total
-  1,200,000, win_probability 0.500, weighted 600,000, and a `PQ Submitted` stage with count 1, total
-  800,000, win_probability 0.250, weighted 200,000; on-hand/loss/internal statuses are absent.
-  (FR-SPD-010)
+  `get_sales_pipeline()` is called, **Then** it returns a `Tender Submitted` stage with count 2 (P002 +
+  P011), total 2,150,000, win_probability 0.500, weighted 1,075,000, and a `PQ Submitted` stage with
+  count 1, total 800,000, win_probability 0.250, weighted 200,000; on-hand/loss/internal statuses are
+  absent. (FR-SPD-010)
 
 ### DAL / hooks / formatting / toggle / empty — Unit (Vitest/RTL)
 - **AC-1111** — *DAL extended dashboard.* **Given** a mocked `supabase.rpc('get_executive_dashboard')`
@@ -377,16 +383,19 @@ Each AC owned by exactly **one** layer (ADR-0010). Owning layer in the traceabil
 
 ## 8. Seed gap (RISK-SPD-1 → seed task SPD-S1)
 
-With the current `supabase/seed.sql`, both pipeline projects have Active budget == contract_value
-(P002 1,200,000==1,200,000; P010 800,000==800,000), so `pipeline_projected_margin` is trivially 0 — a
+As originally seeded, both pipeline projects had Active budget == contract_value
+(P002 1,200,000==1,200,000; P010 800,000==800,000), so `pipeline_projected_margin` was trivially 0 — a
 degenerate, non-verifiable oracle. **Seed task SPD-S1** reduces the pipeline budgets so the projected
 margin is non-trivial and the pgTAP oracle (AC-1102) is meaningful:
-- P002 ERP Rollout Active budget → 1,000,000 (e.g. Labor 700,000 + Materials 300,000).
-- P010 Regional Services Active budget → 600,000 (e.g. Labor 250,000 + Subcontractors 350,000).
-This yields `pipeline_projected_margin = 0.200` (§3.8). The change is seed-only (dev fixtures), does
-not touch any on-hand/won project, and keeps every project with exactly one Active budget version
-(AC-733 invariant). All other oracle figures (on-hand margin, weighted value, win-rates) are already
-non-trivial in the current seed and need no change.
+- P002 ERP Rollout Active budget → 1,000,000 (Labor 700,000 + Materials 300,000).
+- P010 Regional Services Active budget → 600,000 (Labor 250,000 + Subcontractors 350,000).
+A later change (**PR #27**) added a third pipeline deal, **P011 Highfield Bridge Survey** (Tender
+Submitted, contract 950,000, Active budget 950,000), as an isolated row for the AC-SP e2e drilldown.
+With all three pipeline deals this yields `pipeline_projected_margin = 400,000/2,950,000 ≈ 0.135593`
+and `pipeline_total_value = 2,950,000` (§3.8); P011's budget==contract adds 0 to the numerator but
+raises the denominator. The change is seed-only (dev fixtures), does not touch any on-hand/won project,
+and keeps every project with exactly one Active budget version (AC-733 invariant). On-hand margin and
+the win-rates are unchanged by P011 (it is undecided — no `decided_at`).
 
 ---
 
