@@ -24,10 +24,10 @@ import { formatCurrency } from '@/src/lib/format';
 import {
   isLegalTransition,
   canCancel,
-  ProcurementError,
   type ProcurementStatus,
   type ProcurementDetail,
 } from '@/src/lib/db/procurementLifecycle';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   lifecycleSteps,
   pillVariantForStatus,
@@ -154,31 +154,6 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
     return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
   }
   return null;
-}
-
-/**
- * Classifies a transition/mutation error into a human toast headline by the
- * preserved Postgres/PostgREST code, keeping the verbatim RPC message as the
- * secondary detail (the silent-no-op bug fix — sub-task b):
- *   P0001 => illegal stage transition; 42501 => not permitted / SoD.
- */
-function classifyMutationError(err: unknown): { headline: string; detail: string } {
-  const detail = err instanceof Error ? err.message : 'An error occurred';
-  // Read the preserved Postgres/PostgREST code structurally — it is carried by
-  // ProcurementError but also by any error object exposing a string `.code`.
-  const code =
-    err instanceof ProcurementError
-      ? err.code
-      : typeof (err as { code?: unknown })?.code === 'string'
-        ? (err as { code: string }).code
-        : undefined;
-  if (code === 'P0001') {
-    return { headline: "That move isn't allowed from the current stage.", detail };
-  }
-  if (code === '42501') {
-    return { headline: "You don't have permission to do that.", detail };
-  }
-  return { headline: 'Update failed', detail };
 }
 
 const ProcurementDetails: React.FC = () => {
