@@ -144,6 +144,8 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: 'PM',
+      // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
+      // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
       cell: (p) => (
         <span className="flex items-center gap-1.5">
           <span
@@ -152,7 +154,7 @@ const Projects: React.FC = () => {
           >
             {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
           </span>
-          <span className="max-w-[10ch] truncate">{p.pm?.full_name ?? 'Unassigned'}</span>
+          <span className="whitespace-normal leading-tight">{p.pm?.full_name ?? 'Unassigned'}</span>
         </span>
       ),
     },

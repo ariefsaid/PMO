@@ -199,6 +199,20 @@ describe('Projects table — compact layout (#1)', () => {
       bar.parentElement?.closest('span[class*="min-w-[80px]"]');
     expect(outerSpan).not.toBeNull();
   });
+
+  it('M-D: PM name renders in full and wraps — no tight max-w-[10ch] truncation', () => {
+    renderPage();
+    // Scope to the table body (the toolbar PM filter <select> also lists the name).
+    const tbody = document.querySelector('tbody')!;
+    const pmName = within(tbody as HTMLElement)
+      .getAllByText('Alice Manager')
+      .find((el) => el.tagName === 'SPAN')!;
+    expect(pmName).toBeTruthy();
+    // The name span allows wrapping (whitespace-normal) rather than truncating.
+    expect(pmName.className).toContain('whitespace-normal');
+    expect(pmName.className).not.toContain('truncate');
+    expect(pmName.className).not.toContain('max-w-[10ch]');
+  });
 });
 
 describe('ProjectStatusControl integration (AC-1011 UI)', () => {
