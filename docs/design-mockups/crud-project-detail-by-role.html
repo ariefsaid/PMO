@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  CRUD MOCKUP · PROJECT DETAIL — same surface, FOUR roles side by side
+  ============================================================================
+  Product : PMO Portal — Project detail gating made visible
+  Source  : docs/design/rbac-visibility.md §B2 + §L (per-role mockup checklist),
+            docs/design/crud-components.md §3, §6 (read-only state), Principle 6 (real-role gating)
+  Tokens  : :root + component classes COPIED VERBATIM from proposal-IA-3-hybrid.html.
+            No new hex / font / border color / radius.
+
+  WHAT THIS SHOWS — the SAME project detail rendered for four roles (rbac-visibility §B2 + §L):
+   • ENGINEER (read-only): NO Edit / Archive / Delete chrome; contract_value static; clean
+     read-only surface (not a wall of greyed buttons). HIDDEN affordances are absent.
+   • PROJECT MANAGER: Edit (outline) ONLY. Archive = Admin·Exec only → HIDDEN for PM (no
+     overflow ⋯). contract_value READ-ONLY on this WON project (PM lock, §B2); no Delete.
+   • FINANCE: read-only header + lifecycle like Engineer, EXCEPT contract_value is EDITABLE
+     on a WON project — the ADR-0019 SoD boundary (Exec/Finance may revise a won contract
+     value) — via the inline pencil that opens the audit-stamped confirm. The key gated case.
+   • ADMIN: Edit + Archive + DELETE (danger, in overflow, spatially separated); contract_value
+     pencil opens the SAME audit-stamped confirm (break-glass, still recorded). The
+     IMPERSONATION BANNER is shown because Admin is viewing-as another role while writes
+     run as their real role (ADR-0016 / rbac-visibility §A note 2).
+  Gating reads the REAL JWT role, never the impersonated effectiveRole.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — Project detail by role (CRUD mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: 0 0% 100%; --foreground: 240 10% 3.9%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%; --popover-foreground: 240 10% 3.9%; --primary: 221.2 83.2% 53.3%; --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%; --secondary-foreground: 240 5.9% 10%; --muted: 240 4.8% 95.9%; --muted-foreground: 240 4% 40%;
+    --accent: 240 4.8% 95.9%; --accent-foreground: 240 5.9% 10%; --destructive: 0 84.2% 60.2%; --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%; --warning-foreground: 22 78% 26%; --success: 142 71% 45%; --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%; --input: 240 5.9% 90%; --ring: 221.2 83.2% 53.3%; --violet: 262 83% 58%; --radius: 0.5rem;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; background: hsl(var(--secondary) / 0.35); color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.45; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 26px 22px 80px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 96ch; }
+
+  /* four-column gating comparison (Engineer · PM · Finance · Admin) */
+  .role-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 22px; align-items: start; }
+  .role-col { min-width: 0; }
+  .role-tag { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .role-tag .rt-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); border-radius: 999px; padding: 4px 11px; }
+  .role-tag .rt-badge svg { width: 13px; height: 13px; }
+  .role-tag .rt-cap { font-size: 12px; color: hsl(var(--muted-foreground)); }
+
+  /* ===== Buttons ===== */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .05s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--muted-foreground)); cursor: pointer; }
+  .icon-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  /* ===== Impersonation banner ===== */
+  .imp-banner { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-radius: var(--radius); margin-bottom: 14px;
+    background: hsl(var(--primary) / 0.07); border: 1px solid hsl(var(--primary) / 0.3); font-size: 12.5px; color: hsl(221 70% 38%); }
+  .imp-banner svg { width: 16px; height: 16px; flex-shrink: 0; color: hsl(var(--primary)); }
+  .imp-banner b { font-weight: 700; }
+  .imp-banner .imp-spacer { flex: 1; }
+  .imp-banner .imp-exit { font-weight: 600; color: hsl(var(--primary)); background: transparent; border: none; cursor: pointer; font-family: inherit; font-size: 12.5px; }
+
+  /* ===== Project detail header ===== */
+  .phead { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .phead-top { display: flex; align-items: flex-start; gap: 12px; }
+  .phead-ico { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+  .phead-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  .phead-meta { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-top: 3px; }
+  .phead-actions { display: flex; gap: 6px; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid hsl(var(--border)); flex-wrap: wrap; min-height: 14px; }
+  .phead-actions .pa-spacer { flex: 1; }
+  .phead-actions .pa-none { font-size: 11.5px; color: hsl(var(--muted-foreground)); font-style: italic; }
+
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 21px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; }
+  .status.won { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.won .sdot { background: hsl(var(--success)); }
+
+  /* ===== In-page tabs (read-only across all roles) ===== */
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid hsl(var(--border)); margin-bottom: 12px; }
+  .ptab { height: 34px; padding: 0 11px; font-size: 12.5px; font-weight: 500; color: hsl(var(--muted-foreground)); background: transparent; border: none; cursor: pointer; position: relative; font-family: inherit; }
+  .ptab.active { color: hsl(var(--primary)); font-weight: 600; }
+  .ptab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: hsl(var(--primary)); }
+
+  /* ===== Stat rows / value rows ===== */
+  .card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .card-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .val-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid hsl(var(--border) / 0.7); }
+  .val-row:last-child { border-bottom: none; }
+  .val-row .vl { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .val-row .vv { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cv-lock { display: inline-flex; align-items: center; gap: 8px; }
+  .cv-lock .lock { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; color: hsl(var(--muted-foreground)); background: hsl(var(--secondary)); border-radius: 999px; padding: 2px 7px; }
+  .cv-lock .lock svg { width: 11px; height: 11px; }
+  .cv-edit { display: inline-flex; align-items: center; gap: 6px; }
+  .cv-edit .pencil { width: 26px; height: 26px; border-radius: 6px; border: 1px solid hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--muted-foreground)); display: grid; place-items: center; cursor: pointer; }
+  .cv-edit .pencil:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .cv-edit .pencil svg { width: 13px; height: 13px; }
+
+  /* lifecycle control card */
+  .lc-card .lc-actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .lc-readonly { font-size: 12px; color: hsl(var(--muted-foreground)); display: flex; align-items: center; gap: 7px; }
+  .lc-readonly svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* row menu (header overflow) */
+  .rowmenu { position: fixed; min-width: 160px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08); padding: 5px; z-index: 400; }
+  .rowmenu button { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 9px; border: none; background: transparent;
+    color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; border-radius: 6px; cursor: pointer; text-align: left; }
+  .rowmenu button:hover { background: hsl(var(--accent)); }
+  .rowmenu button svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); }
+  .rowmenu button.danger { color: hsl(var(--destructive)); }
+  .rowmenu button.danger svg { color: hsl(var(--destructive)); }
+  .menu-sep { height: 1px; background: hsl(var(--border)); margin: 4px 0; }
+
+  /* ===== Audit-stamped SoD confirm (mirrors crud-project-form.html sodScrim) ===== */
+  .scrim { position: fixed; inset: 0; background: hsl(240 10% 4% / 0.45); backdrop-filter: blur(3px); z-index: 800; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .scrim[hidden] { display: none; } /* UA [hidden] is overridden by display:flex above; restore it (mirrors .rowmenu) */
+  .confirm { width: 100%; max-width: 460px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border)); border-radius: 10px;
+    box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); padding: 20px; animation: confirmin .14s ease; }
+  @keyframes confirmin { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+  .confirm-ico { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; margin-bottom: 12px; background: hsl(var(--warning) / 0.18); color: hsl(38 92% 40%); }
+  .confirm-ico svg { width: 19px; height: 19px; }
+  .confirm h2 { font-size: 16px; font-weight: 700; }
+  .confirm p { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 6px; line-height: 1.5; }
+  .confirm .sod-reason { display: flex; gap: 9px; margin-top: 14px; padding: 11px 13px; border-radius: var(--radius); background: hsl(var(--secondary) / 0.6); border: 1px solid hsl(var(--border)); font-size: 12.5px; }
+  .confirm .sod-reason svg { width: 16px; height: 16px; flex-shrink: 0; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .confirm-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+  .legend { margin-top: 26px; padding: 14px 16px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); }
+  .legend h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 18px; }
+  .legend-item { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; }
+  .legend-key { font-size: 16px; line-height: 1; flex-shrink: 0; width: 18px; text-align: center; }
+  .legend-item b { font-weight: 600; }
+
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+  @media (max-width: 1180px) {
+    .role-cols { grid-template-columns: repeat(2, 1fr); gap: 22px 18px; }
+  }
+  @media (max-width: 720px) {
+    .role-cols { grid-template-columns: 1fr; gap: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="page-title">Project detail — gating by role</h1>
+  <p class="page-sub">The same project, <b>Harborside Terminal — Civil Works</b> (won), rendered for four roles. Affordances are <b>SHOWN</b> (enabled), <b>HIDDEN</b> (absent, not greyed), or <b>READ-ONLY</b> (static value). Write affordances gate on the real JWT role, never the impersonated view-as role. The most carefully-gated field is <b>contract value on a won project</b>: PM loses it (read-only lock), while <b>Finance</b> and <b>Exec</b> may revise it via an audit-stamped confirm (ADR-0019 segregation of duties); Admin reaches it via break-glass, still audited.</p>
+
+  <div class="role-cols">
+
+    <!-- ================= ENGINEER (read-only) ================= -->
+    <section class="role-col" aria-label="Engineer view">
+      <div class="role-tag">
+        <span class="rt-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a4 4 0 0 0-5.7 5.7l-6 6 2 2 6-6a4 4 0 0 0 5.7-5.7l-2.5 2.5-1.4-1.4 2.5-2.5z"/></svg>Engineer</span>
+        <span class="rt-cap">read-only</span>
+      </div>
+      <div class="phead">
+        <div class="phead-top">
+          <span class="phead-ico" style="background:hsl(221 83% 53%)">HT</span>
+          <div style="flex:1;min-width:0">
+            <div class="phead-name">Harborside Terminal — Civil Works</div>
+            <div class="phead-meta">Cascade Port Authority · <span class="font-mono">OPP-2041</span> <span class="status won" style="margin-left:5px"><span class="sdot"></span>Won</span></div>
+          </div>
+        </div>
+        <!-- HIDDEN: no Edit / Archive / Delete chrome at all -->
+        <div class="phead-actions"><span class="pa-none">No edit actions available</span></div>
+      </div>
+      <div class="ptabs"><button class="ptab active">Overview</button><button class="ptab">Budget</button><button class="ptab">Tasks</button><button class="ptab">Documents</button></div>
+      <div class="card">
+        <div class="card-title">Project details</div>
+        <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+        <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+        <div class="val-row"><span class="vl">Contract value</span><span class="vv">$4,820,000</span></div>
+        <div class="val-row"><span class="vl">Customer ref</span><span class="vv font-mono" style="font-weight:500">CPA-RFP-0118</span></div>
+      </div>
+      <div class="card lc-card">
+        <div class="card-title">Lifecycle</div>
+        <div class="lc-readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Won. Lifecycle is managed by the project team.</div>
+      </div>
+    </section>
+
+    <!-- ================= PROJECT MANAGER ================= -->
+    <section class="role-col" aria-label="Project Manager view">
+      <div class="role-tag">
+        <span class="rt-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Project Manager</span>
+        <span class="rt-cap">edit</span>
+      </div>
+      <div class="phead">
+        <div class="phead-top">
+          <span class="phead-ico" style="background:hsl(221 83% 53%)">HT</span>
+          <div style="flex:1;min-width:0">
+            <div class="phead-name">Harborside Terminal — Civil Works</div>
+            <div class="phead-meta">Cascade Port Authority · <span class="font-mono">OPP-2041</span> <span class="status won" style="margin-left:5px"><span class="sdot"></span>Won</span></div>
+          </div>
+        </div>
+        <!-- SHOWN: Edit only. Archive = Admin·Exec only (rbac §B2) → HIDDEN for PM, so no overflow ⋯. NO Delete. -->
+        <div class="phead-actions">
+          <span class="pa-spacer"></span>
+          <button class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>
+        </div>
+      </div>
+      <div class="ptabs"><button class="ptab active">Overview</button><button class="ptab">Budget</button><button class="ptab">Tasks</button><button class="ptab">Documents</button></div>
+      <div class="card">
+        <div class="card-title">Project details</div>
+        <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+        <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+        <!-- READ-ONLY: contract_value locked on a won project for PM -->
+        <div class="val-row"><span class="vl">Contract value</span><span class="cv-lock"><span class="vv">$4,820,000</span><span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Locked</span></span></div>
+        <div class="val-row"><span class="vl">Customer ref</span><span class="vv font-mono" style="font-weight:500">CPA-RFP-0118</span></div>
+      </div>
+      <div class="card lc-card">
+        <div class="card-title">Lifecycle</div>
+        <div class="lc-actions">
+          <button class="btn btn-outline btn-sm">Re-open</button>
+          <button class="btn btn-outline btn-sm">Put on hold</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FINANCE ================= -->
+    <section class="role-col" aria-label="Finance view">
+      <div class="role-tag">
+        <span class="rt-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Finance</span>
+        <span class="rt-cap">read-only · revises won value</span>
+      </div>
+      <div class="phead">
+        <div class="phead-top">
+          <span class="phead-ico" style="background:hsl(221 83% 53%)">HT</span>
+          <div style="flex:1;min-width:0">
+            <div class="phead-name">Harborside Terminal — Civil Works</div>
+            <div class="phead-meta">Cascade Port Authority · <span class="font-mono">OPP-2041</span> <span class="status won" style="margin-left:5px"><span class="sdot"></span>Won</span></div>
+          </div>
+        </div>
+        <!-- HIDDEN: Finance owns money, not delivery — no Edit / Archive / Delete chrome (rbac §B2, Director decision). -->
+        <div class="phead-actions"><span class="pa-none">No edit actions available</span></div>
+      </div>
+      <div class="ptabs"><button class="ptab active">Overview</button><button class="ptab">Budget</button><button class="ptab">Tasks</button><button class="ptab">Documents</button></div>
+      <div class="card">
+        <div class="card-title">Project details</div>
+        <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+        <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+        <!-- SHOWN (the SoD boundary, ADR-0019): Finance MAY revise contract_value on a WON project → audit-stamped confirm. -->
+        <div class="val-row"><span class="vl">Contract value</span><span class="cv-edit"><span class="vv">$4,820,000</span><button class="pencil" aria-label="Revise contract value (records a segregation-of-duties change)" onclick="openSod()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></span></div>
+        <div class="val-row"><span class="vl">Customer ref</span><span class="vv font-mono" style="font-weight:500">CPA-RFP-0118</span></div>
+      </div>
+      <div class="card lc-card">
+        <div class="card-title">Lifecycle</div>
+        <div class="lc-readonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Won. Lifecycle is managed by the project team.</div>
+      </div>
+    </section>
+
+    <!-- ================= ADMIN (with impersonation banner) ================= -->
+    <section class="role-col" aria-label="Admin view">
+      <div class="role-tag">
+        <span class="rt-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>Admin</span>
+        <span class="rt-cap">edit + archive + delete</span>
+      </div>
+      <!-- Impersonation banner: real ≠ effective. Writes run as REAL role. -->
+      <div class="imp-banner" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div>Viewing as <b>Engineer</b>. Writes still run as your real role, <b>Admin</b>.</div>
+        <span class="imp-spacer"></span>
+        <button class="imp-exit">Exit view-as</button>
+      </div>
+      <div class="phead">
+        <div class="phead-top">
+          <span class="phead-ico" style="background:hsl(221 83% 53%)">HT</span>
+          <div style="flex:1;min-width:0">
+            <div class="phead-name">Harborside Terminal — Civil Works</div>
+            <div class="phead-meta">Cascade Port Authority · <span class="font-mono">OPP-2041</span> <span class="status won" style="margin-left:5px"><span class="sdot"></span>Won</span></div>
+          </div>
+        </div>
+        <!-- SHOWN: Edit + overflow (Archive + Delete danger, spatially separated) -->
+        <div class="phead-actions">
+          <span class="pa-spacer"></span>
+          <button class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>
+          <button class="icon-btn" aria-label="More actions" aria-haspopup="true" onclick="openMenu(event,true)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+      </div>
+      <div class="ptabs"><button class="ptab active">Overview</button><button class="ptab">Budget</button><button class="ptab">Tasks</button><button class="ptab">Documents</button></div>
+      <div class="card">
+        <div class="card-title">Project details</div>
+        <div class="val-row"><span class="vl">Client</span><span class="vv" style="font-weight:500">Cascade Port Authority</span></div>
+        <div class="val-row"><span class="vl">Project manager</span><span class="vv" style="font-weight:500">Desmond Achebe</span></div>
+        <!-- Admin break-glass: can edit contract_value via the SAME audit-stamped SoD confirm (recorded against name, date, previous value) -->
+        <div class="val-row"><span class="vl">Contract value</span><span class="cv-edit"><span class="vv">$4,820,000</span><button class="pencil" aria-label="Edit contract value (break-glass — records a segregation-of-duties change)" onclick="openSod()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></span></div>
+        <div class="val-row"><span class="vl">Customer ref</span><span class="vv font-mono" style="font-weight:500">CPA-RFP-0118</span></div>
+      </div>
+      <div class="card lc-card">
+        <div class="card-title">Lifecycle</div>
+        <div class="lc-actions">
+          <button class="btn btn-outline btn-sm">Re-open</button>
+          <button class="btn btn-outline btn-sm">Put on hold</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- legend -->
+  <div class="legend">
+    <h3>How to read this</h3>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="legend-key" style="color:hsl(var(--success))">●</span><div><b>SHOWN</b> — rendered and enabled (e.g. Edit for PM/Admin; the contract-value pencil for Finance/Admin).</div></div>
+      <div class="legend-item"><span class="legend-key muted">○</span><div><b>HIDDEN</b> — absent entirely, never a greyed dead button (e.g. all actions for Engineer/Finance; Archive for PM; Delete for everyone but Admin).</div></div>
+      <div class="legend-item"><span class="legend-key" style="color:hsl(var(--muted-foreground))">◐</span><div><b>READ-ONLY</b> — a static value with a lock pill, not a disabled input (contract_value for PM on a won project).</div></div>
+      <div class="legend-item"><span class="legend-key" style="color:hsl(var(--warning-foreground))">◆</span><div><b>SoD-conditional</b> — contract_value on a won project is editable only by Finance/Exec (Admin via break-glass), through an audit-stamped confirm.</div></div>
+      <div class="legend-item"><span class="legend-key" style="color:hsl(var(--primary))">▣</span><div><b>Impersonation banner</b> — shown only when real ≠ effective; writes use the real role.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- header overflow menu (Admin only: Archive + Delete) -->
+<div class="rowmenu" id="rowmenu" role="menu" hidden>
+  <button role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>Archive project</button>
+  <div class="menu-sep" id="menuSep"></div>
+  <button role="menuitem" class="danger" id="menuDelete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete project</button>
+</div>
+
+<!-- ===== Audit-stamped SoD confirm (shared by Finance + Admin contract_value pencils) ===== -->
+<div class="scrim" id="sodScrim" hidden>
+  <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="sodTitle">
+    <div class="confirm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+    <h2 id="sodTitle">Revise the contract value?</h2>
+    <p>You are changing the contract value of a <b>won</b> project from <b class="tnum">$4,820,000</b> to <b class="tnum">$5,140,000</b>.</p>
+    <div class="sod-reason">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <div>Changing the contract value on a won project is a segregation-of-duties action and is <b>recorded against your name, the date, and the previous value</b>.</div>
+    </div>
+    <div class="confirm-foot">
+      <button class="btn btn-outline" onclick="closeSod()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeSod()">Change and record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const menu = document.getElementById('rowmenu');
+  function openMenu(e, hasDelete){
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    document.getElementById('menuDelete').style.display = hasDelete ? '' : 'none';
+    document.getElementById('menuSep').style.display = hasDelete ? '' : 'none';
+    menu.hidden = false;
+    menu.style.top = (r.bottom + 4) + 'px';
+    menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+  }
+  document.addEventListener('click', e=>{ if(!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+
+  // Audit-stamped SoD confirm — opened by the Finance + Admin contract_value pencils
+  const sod = document.getElementById('sodScrim');
+  function openSod(){ sod.hidden = false; }
+  function closeSod(){ sod.hidden = true; }
+  sod.addEventListener('click', e=>{ if(e.target === sod) closeSod(); }); // click scrim backdrop to dismiss
+
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ menu.hidden = true; closeSod(); } });
+</script>
+</body>
+</html>
