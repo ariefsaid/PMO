@@ -54,6 +54,21 @@ describe('SalesKanbanBoard (AC-SP-204)', () => {
     expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
   });
 
+  it('C2: every rendered stage-column dot is a DESIGN.md token (no raw cyan/orange literal)', () => {
+    const { container } = render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const dots = Array.from(
+      container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
+    );
+    // one column-head dot per stage (6 columns)
+    expect(dots.length).toBeGreaterThanOrEqual(6);
+    const backgrounds = dots.map((d) => d.style.background);
+    for (const bg of backgrounds) {
+      expect(bg).toMatch(/^hsl\(var\(--/);
+    }
+    expect(backgrounds.some((b) => b.includes('hsl(199'))).toBe(false); // no cyan
+    expect(backgrounds.some((b) => b.includes('hsl(25 95'))).toBe(false); // no orange
+  });
+
   it('AC-1117: the Tender column totals expose a weighted currency value (test id preserved)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const tender = screen.getByTestId('stage-Tender Submitted');

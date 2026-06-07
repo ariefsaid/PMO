@@ -12,17 +12,24 @@ import {
 /**
  * IA-3 Kanban column model (OD-SP-1 / FR-SPD-014). Six columns in fixed order:
  * the five open pipeline stages plus ONE terminal Won/Lost column (Director
- * decision 7). Each `dotColor` is a non-interactive categorical literal HSL,
- * sanctioned by master-plan §5 (the only literals permitted on this surface —
- * flagged for promotion to `stage-*` tokens, Open Q4). They never read as the
- * action blue (One Blue Rule).
+ * decision 7).
+ *
+ * C2 de-rainbow (2026-06-07): the per-stage dots are now a calm
+ * neutral-progression — upstream open stages are `muted-foreground`, the
+ * closest-to-close open stage (Negotiation, the "active" stage) carries the one
+ * blue `primary` accent (One Blue Rule), and the terminal Won/Lost is `success`.
+ * The off-palette cyan (Quotation) and orange (Negotiation) — which mapped to NO
+ * DESIGN.md token — are deleted, as is the categorical violet on Pre-Qual
+ * (categorical violet is not a stage-progression device). Every dot is now an
+ * `hsl(var(--…))` token; this collapses Open Q4 ("promote stage-* to tokens") —
+ * the rainbow was the thing being removed, so distinct per-stage hues are moot.
  */
 export interface SalesColumn {
   /** Display title (may differ from the enum, e.g. "Pre-Qual"). */
   title: string;
   /** The project status enum value(s) this column collects. */
   statuses: string[];
-  /** Categorical stage-dot color (sanctioned literal / token). */
+  /** Stage-dot color — a DESIGN.md `hsl(var(--…))` token (neutral / primary / success). */
   dotColor: string;
   /** e2e test id hook (AC-1117 preserves `stage-Tender Submitted`). */
   testId: string;
@@ -40,25 +47,25 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
   {
     title: 'Pre-Qual',
     statuses: ['PQ Submitted'],
-    dotColor: 'hsl(262 83% 58%)', // categorical violet
+    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical violet)
     testId: 'stage-PQ Submitted',
   },
   {
     title: 'Quotation',
     statuses: ['Quotation Submitted'],
-    dotColor: 'hsl(199 89% 48%)', // categorical cyan (mockup STAGES)
+    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was off-palette cyan)
     testId: 'stage-Quotation Submitted',
   },
   {
     title: 'Tender',
     statuses: ['Tender Submitted'],
-    dotColor: 'hsl(43 96% 56%)', // warning hue, categorical use
+    dotColor: 'hsl(var(--muted-foreground))', // quiet upstream (was categorical warning hue)
     testId: 'stage-Tender Submitted',
   },
   {
     title: 'Negotiation',
     statuses: ['Negotiation'],
-    dotColor: 'hsl(25 95% 53%)', // categorical orange (mockup STAGES)
+    dotColor: 'hsl(var(--primary))', // the one active (closest-to-close) open stage
     testId: 'stage-Negotiation',
   },
   {
