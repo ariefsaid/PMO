@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '@/src/components/ui';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (mirrors Procurement.test.tsx pattern)
@@ -59,7 +60,9 @@ import ProjectBudget from './ProjectBudget';
 const renderPage = (projectId = 'p-1') =>
   render(
     <MemoryRouter>
-      <ProjectBudget projectId={projectId} />
+      <ToastProvider>
+        <ProjectBudget projectId={projectId} />
+      </ToastProvider>
     </MemoryRouter>
   );
 
@@ -216,20 +219,32 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  it('calls activate mutation when Activate clicked', async () => {
+  it('B2: Activate opens a default-tone confirm; mutation fires only on Confirm; toasts on resolve', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /Activate/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    // Owner rule: nothing mutates on the first click.
+    expect(mockActivate).not.toHaveBeenCalled();
+    // Default tone => role=dialog.
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
     resetState();
   });
 
-  it('calls deleteDraft mutation when Delete draft clicked', async () => {
+  it('B5: Delete draft opens a DESTRUCTIVE modal; deleteDraft fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
+    expect(mockDeleteDraft).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    // The confirm button label is "Delete draft" (verb + object).
+    const confirms = screen.getAllByRole('button', { name: /Delete draft/i });
+    // The last one is the dialog's confirm (the trigger is also still labelled "Delete draft").
+    await userEvent.click(confirms[confirms.length - 1]);
     expect(mockDeleteDraft).toHaveBeenCalledWith('v-draft');
     resetState();
   });
@@ -242,12 +257,16 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  it('calls deleteLineItem when Delete button clicked in line-item editor', async () => {
+  it('delete-line-item opens a DESTRUCTIVE modal; deleteLineItem fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
     const deleteBtn = screen.getByRole('button', { name: /Delete line item Labor/i });
     await userEvent.click(deleteBtn);
+    // Owner rule: the row's Delete click stages a confirm, does not write.
+    expect(mockDeleteLineItem).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     expect(mockDeleteLineItem).toHaveBeenCalledWith('li-1');
     resetState();
   });
@@ -274,34 +293,38 @@ describe('ProjectBudget Active version actions', () => {
     resetState();
   });
 
-  it('shows confirmation on Archive click then calls mutation', async () => {
+  it('B4: Archive opens a DESTRUCTIVE modal then calls mutation on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    // Confirmation warning should appear
-    expect(screen.getByText(/Warning: archiving removes the active budget/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Yes, archive/i }));
+    // Owner rule: nothing mutates on the first click; a destructive modal appears.
+    expect(mockArchive).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Archive version/i }));
     expect(mockArchive).toHaveBeenCalledWith('v-active');
     resetState();
   });
 
-  it('can cancel archive confirmation', async () => {
+  it('B4: can cancel archive confirmation', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    expect(screen.queryByText(/Warning/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(mockArchive).not.toHaveBeenCalled();
     resetState();
   });
 
-  it('calls cloneVersion mutation for Active version', async () => {
+  it('B3: Clone opens a default-tone confirm then calls cloneVersion on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
+    expect(mockClone).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
     expect(mockClone).toHaveBeenCalledWith('v-active');
     resetState();
   });
@@ -349,13 +372,16 @@ describe('ProjectBudget New version form (versions list state)', () => {
     expect(screen.getByPlaceholderText(/Version name/i)).toBeInTheDocument();
   });
 
-  it('calls createVersion and closes form on submit in list state', async () => {
+  it('B1: Create opens a confirm in list state; createVersion fires only on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v2');
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    expect(mockCreateVersion).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2' });
   });
 });
@@ -409,13 +435,15 @@ describe('ProjectBudget New version form (empty state)', () => {
     resetState();
   });
 
-  it('calls createVersion and closes form on submit', async () => {
+  it('B1: Create opens a confirm in empty state; createVersion fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    expect(mockCreateVersion).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1' });
     resetState();
   });
@@ -507,7 +535,9 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     versionsState.data = [activeVersion];
     rerender(
       <MemoryRouter>
-        <ProjectBudget projectId="p-1" />
+        <ToastProvider>
+          <ProjectBudget projectId="p-1" />
+        </ToastProvider>
       </MemoryRouter>
     );
     // Should fall back to active, no crash
