@@ -52,6 +52,27 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs[1].label).not.toContain('9f3a-uuid');
   });
 
+  it('item I: while the backing list is still loading, the crumb stays "Loading…"', () => {
+    // recordResolved=false (default) → cold deep-link still loading.
+    const crumbs = breadcrumbForPath('/projects/9f3a-uuid', undefined, undefined, false);
+    expect(crumbs[1].label).toBe('Loading…');
+  });
+
+  it('item I: once the list RESOLVED but the record is absent (not-found), the crumb is "Not found" — never a perpetual "Loading…"', () => {
+    // recordResolved=true + no recordLabel → genuine not-found.
+    const crumbs = breadcrumbForPath('/projects/9f3a-uuid', undefined, undefined, true);
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Projects');
+    expect(crumbs[1].label).toBe('Not found');
+    expect(crumbs[1].label).not.toBe('Loading…');
+    expect(crumbs[1].label).not.toContain('9f3a-uuid');
+  });
+
+  it('item I: a resolved record name still wins over the not-found fallback', () => {
+    const crumbs = breadcrumbForPath('/projects/abc', 'Alpha', undefined, true);
+    expect(crumbs[1]).toEqual({ label: 'Alpha' });
+  });
+
   it('AC-NAV-004: the module segment is a no-op-safe crumb when no navigate fn is provided', () => {
     const crumbs = breadcrumbForPath('/projects/abc', 'Alpha');
     expect(crumbs[0].label).toBe('Projects');

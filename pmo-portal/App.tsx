@@ -71,10 +71,11 @@ const ShellChrome: React.FC = () => {
   // Cached index lists — already fetched by the index pages; read here only to
   // resolve a detail route's human record name for the breadcrumb (no new
   // query). The breadcrumb falls back to "Loading…" on a cold deep-link, never
-  // a raw UUID.
-  const { data: projects } = useProjects();
-  const { data: procurements } = useProcurements();
-  const { data: pipeline } = useSalesPipeline();
+  // a raw UUID — and to "Not found" once the relevant list has resolved without
+  // the record (item I), never a perpetual "Loading…".
+  const { data: projects, isPending: projectsPending } = useProjects();
+  const { data: procurements, isPending: procurementsPending } = useProcurements();
+  const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -109,8 +110,24 @@ const ShellChrome: React.FC = () => {
       opportunities: pipeline?.projects,
       procurements,
     });
-    return breadcrumbForPath(pathname, recordLabel, navigate);
-  }, [pathname, navigate, projects, procurements, pipeline]);
+    // The list that backs THIS detail route has settled (not pending) → an
+    // unresolved record is a genuine not-found, so resolve the crumb to a
+    // friendly label rather than a perpetual "Loading…".
+    const recordResolved =
+      (pathname.startsWith('/projects/') && !projectsPending) ||
+      (pathname.startsWith('/procurement/') && !procurementsPending) ||
+      (pathname.startsWith('/sales/') && !pipelinePending);
+    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved);
+  }, [
+    pathname,
+    navigate,
+    projects,
+    procurements,
+    pipeline,
+    projectsPending,
+    procurementsPending,
+    pipelinePending,
+  ]);
 
   // Palette items: the Records group (cached record index) above the Navigate
   // group (module index routes). The palette filters/caps/ranks both uniformly;

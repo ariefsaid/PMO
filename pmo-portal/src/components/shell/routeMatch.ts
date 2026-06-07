@@ -64,8 +64,11 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
  *   → `[Projects (link) > <record>]`, where the module segment navigates to its
  *   index via the passed-in `navigate` fn so the helper stays pure (AC-NAV-004).
  *   The record segment uses `recordLabel` once the cached list resolves it; on a
- *   cold deep-link (label not yet known) it shows a neutral "Loading…" — never
- *   the raw URL id (fixes the M3/M4 UUID leak).
+ *   cold deep-link while the list is still loading it shows a neutral "Loading…"
+ *   — never the raw URL id (fixes the M3/M4 UUID leak). Once the list has
+ *   RESOLVED but the record is still absent (a genuine not-found, e.g. a bad id),
+ *   it resolves to a friendly "Not found" label instead of a perpetual
+ *   "Loading…" (item I) — driven by the `recordResolved` flag.
  * - Placeholder route (`/companies`, `/tasks`, …) → its own page label, not
  *   "Dashboard" (AC-NAV-005), via the `PLACEHOLDER_TITLES` map.
  * - Unknown route → a single Dashboard crumb (the `*` route renders the
@@ -73,12 +76,14 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
  *
  * `navigate` is optional so the helper is testable in isolation; when omitted
  * the module-segment crumb carries a safe no-op `onClick` so it still renders as
- * a link.
+ * a link. `recordResolved` defaults to false (still loading) so callers that
+ * don't pass it keep the prior cold-deep-link "Loading…" behavior.
  */
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
   navigate?: (path: string) => void,
+  recordResolved = false,
 ): BreadcrumbPart[] {
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
@@ -93,9 +98,13 @@ export function breadcrumbForPath(
       // (covers `/projects/:id` and the `/projects/:id/budget` deep-link).
       const isDetail = !indexMatch && pathname.startsWith(`${m.path}/`);
       if (isDetail) {
+        // recordLabel resolved → the record name; still loading → "Loading…";
+        // resolved-but-absent (bad id / deleted) → "Not found", never a
+        // perpetual "Loading…" once the error card has rendered (item I).
+        const recordCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
         return [
           { label: m.label, onClick: () => navigate?.(m.path) },
-          { label: recordLabel || 'Loading…' },
+          { label: recordCrumb },
         ];
       }
     }
