@@ -97,6 +97,49 @@ describe('Combobox: keyboard navigation', () => {
     await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('Home jumps to the first option, End jumps to the last (then Enter selects)', async () => {
+    const onChange = vi.fn();
+    render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+    const search = screen.getByRole('searchbox');
+
+    fireEvent.keyDown(search, { key: 'End' }); // active = last (v1)
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onChange).toHaveBeenLastCalledWith('v1', OPTIONS[2]);
+  });
+
+  it('Home selects the first option', async () => {
+    const onChange = vi.fn();
+    render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+    const search = screen.getByRole('searchbox');
+
+    // Move down first, then Home should jump back to index 0.
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'Home' });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onChange).toHaveBeenLastCalledWith('c1', OPTIONS[0]);
+  });
+
+  it('scrolls the active option into view when the active index changes', async () => {
+    const scrollSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(() => {});
+    try {
+      render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
+      await userEvent.click(screen.getByRole('combobox'));
+      await screen.findByRole('listbox');
+      const search = screen.getByRole('searchbox');
+      fireEvent.keyDown(search, { key: 'ArrowDown' }); // active -> 0
+      expect(scrollSpy).toHaveBeenCalled();
+    } finally {
+      scrollSpy.mockRestore();
+    }
+  });
 });
 
 describe('Combobox: load states', () => {
@@ -139,6 +182,38 @@ describe('Combobox: load states', () => {
     const createBtn = screen.getByRole('button', { name: /Create company/i });
     await userEvent.click(createBtn);
     expect(onCreate).toHaveBeenCalledWith('Zephyr Tech');
+  });
+
+  it('drops a STALE load that resolves after the popover closed (no setState leak, no stale options)', async () => {
+    // A load that we resolve manually AFTER closing — its result must be ignored.
+    let resolveFn: (v: ComboboxOption[]) => void = () => {};
+    const slowLoad = vi.fn(
+      () =>
+        new Promise<ComboboxOption[]>((res) => {
+          resolveFn = res;
+        }),
+    );
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={slowLoad} />);
+      // Open -> kicks off the load (still pending).
+      await userEvent.click(screen.getByRole('combobox'));
+      expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
+
+      // Close before the load resolves (Escape).
+      fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
+
+      // The stale promise resolves now — its result must be dropped.
+      resolveFn(OPTIONS);
+      // Give microtasks a chance to flush, then assert nothing leaked.
+      await Promise.resolve();
+      expect(screen.queryByRole('option')).not.toBeInTheDocument();
+      // No "can't update state on an unmounted/closed component" warning.
+      expect(errSpy).not.toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 
   it('shows an error state with a retry that re-invokes loadOptions', async () => {

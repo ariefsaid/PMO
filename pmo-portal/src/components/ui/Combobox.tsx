@@ -97,6 +97,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  // Monotonic load token: a resolution is only honored if it is still the
+  // latest in-flight load (drops a stale resolve after close / a re-load).
+  const loadIdRef = useRef(0);
 
   const selected = useMemo(
     () => selectedOption ?? options.find((o) => o.value === value) ?? null,
@@ -112,19 +116,35 @@ export const Combobox: React.FC<ComboboxProps> = ({
   }, [options, query]);
 
   const load = useCallback(() => {
+    const id = ++loadIdRef.current;
     setState('loading');
     loadOptions()
       .then((opts) => {
+        // Drop a stale resolution: a newer load started or the picker closed.
+        if (id !== loadIdRef.current) return;
         setOptions(opts);
         setState('ready');
       })
-      .catch(() => setState('error'));
+      .catch(() => {
+        if (id !== loadIdRef.current) return;
+        setState('error');
+      });
   }, [loadOptions]);
 
   // Load once per open (lazy — never fetches until the picker is opened).
   useEffect(() => {
     if (open && state === 'idle') load();
   }, [open, state, load]);
+
+  // On close, invalidate any in-flight load so its late resolution is ignored,
+  // and reset a still-loading state to idle so the next open re-fetches cleanly
+  // (a 'ready'/'error' result is kept as a cache for an instant reopen).
+  useEffect(() => {
+    if (!open) {
+      loadIdRef.current++;
+      setState((s) => (s === 'loading' ? 'idle' : s));
+    }
+  }, [open]);
 
   // Move focus into the search field when the popover opens.
   useEffect(() => {
@@ -135,6 +155,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
   useEffect(() => {
     setActive(-1);
   }, [query, options]);
+
+  // Keep the active option scrolled into view as the highlight moves with the
+  // keyboard (so a long, data-driven list never highlights an off-screen row).
+  // When options are showing, the list's children are exactly the option rows.
+  useEffect(() => {
+    if (active < 0) return;
+    const el = listRef.current?.children[active] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
 
   // Position the portal popover under the trigger (escapes overflow clipping).
   useLayoutEffect(() => {
@@ -180,6 +209,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      if (filtered.length) setActive(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (filtered.length) setActive(filtered.length - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const opt = filtered[active];
@@ -297,7 +332,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             )}
 
             {state === 'ready' && (
-              <ul id={listId} role="listbox" aria-label={`${noun}s`} className="max-h-[220px] overflow-y-auto p-[5px]">
+              <ul ref={listRef} id={listId} role="listbox" aria-label={`${noun}s`} className="max-h-[220px] overflow-y-auto p-[5px]">
                 {filtered.map((opt, i) => {
                   const isSelected = opt.value === value;
                   const isActive = i === active;
