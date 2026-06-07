@@ -12,6 +12,7 @@ import {
   GateNotice,
   ListState,
   Icon,
+  ConfirmDialog,
   useToast,
   type PageStat,
 } from '@/src/components/ui';
@@ -64,6 +65,9 @@ const OpportunityDetail: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Confirm-before-write (owner rule): forward Advance => default popover,
+  // Mark lost => destructive modal. Mark won keeps its inline SoD panel.
+  const [confirmAction, setConfirmAction] = useState<'advance' | 'lost' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
@@ -126,9 +130,12 @@ const OpportunityDetail: React.FC = () => {
       setShowWonPanel(false);
       setContractRef('');
       setContractDate('');
+      setConfirmAction(null);
       toast('Deal updated', `Moved to ${to}`, 'success');
     } catch (err) {
       // Surface the RPC error verbatim — it carries the P0001 SoD message.
+      // Close the confirm so the verbatim error reads in the inline alert.
+      setConfirmAction(null);
       setError(err instanceof Error ? err.message : 'Transition failed');
     } finally {
       setPending(false);
@@ -206,24 +213,27 @@ const OpportunityDetail: React.FC = () => {
               <GateNotice variant="ready">Ready to advance.</GateNotice>
             )}
 
+            {/* I4 action hierarchy: exactly ONE solid blue (Advance — the
+                primary path); Mark won / Mark lost are quiet outlines
+                distinguished only by a leading status dot (Tinted-Status,
+                color-not-only). The solid destructive fill appears ONLY inside
+                the O3 confirm modal. */}
             {!isTerminal && (
               <div className="flex flex-wrap gap-2">
                 {nextStage && (
-                  <Button variant="outline" disabled={pending} onClick={() => void runTransition(nextStage)}>
+                  <Button variant="primary" disabled={pending} onClick={() => setConfirmAction('advance')}>
                     Advance to {NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}
                   </Button>
                 )}
                 {canWin && (
-                  <Button variant="primary" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                  <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-success" />
                     Mark won
                   </Button>
                 )}
                 {canLose && (
-                  <Button
-                    variant="destructive"
-                    disabled={pending}
-                    onClick={() => void runTransition('Loss Tender')}
-                  >
+                  <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
                     Mark lost
                   </Button>
                 )}
@@ -308,6 +318,32 @@ const OpportunityDetail: React.FC = () => {
           </CardPad>
         </Card>
       </div>
+
+      {/* O1 — forward Advance: lightweight default-tone confirm */}
+      {nextStage && (
+        <ConfirmDialog
+          open={confirmAction === 'advance'}
+          tone="default"
+          title={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}?`}
+          description={`This moves ${name} forward to the ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage} stage.`}
+          confirmLabel={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
+          loading={pending}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => void runTransition(nextStage)}
+        />
+      )}
+
+      {/* O3 — Mark lost: destructive modal (the only solid destructive fill) */}
+      <ConfirmDialog
+        open={confirmAction === 'lost'}
+        tone="destructive"
+        title="Mark deal as lost"
+        description={`This moves ${name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
+        confirmLabel="Mark lost"
+        loading={pending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => void runTransition('Loss Tender')}
+      />
     </div>
   );
 };
