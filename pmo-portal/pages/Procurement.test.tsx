@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import Procurement from './Procurement';
 
 const seed = [
@@ -41,8 +42,15 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+const effRole = { value: 'Project Manager' as string | null };
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: effRole.value, realRole: effRole.value }),
+}));
+// The New-PR create hook (modal is launched from the header) — stubbed so the
+// index test stays focused on the gating + launch affordance.
+const createMutate = vi.fn().mockResolvedValue({ id: 'pc-new' });
+vi.mock('@/src/hooks/useProcurementCrud', () => ({
+  useCreateProcurement: () => ({ mutateAsync: createMutate, isPending: false }),
 }));
 const navigate = vi.fn();
 // Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
@@ -51,7 +59,14 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderPage = () => render(<MemoryRouter><Procurement /></MemoryRouter>);
+const renderPage = () =>
+  render(
+    <ToastProvider>
+      <MemoryRouter>
+        <Procurement />
+      </MemoryRouter>
+    </ToastProvider>,
+  );
 
 describe('Procurement index — IA-3 (real data)', () => {
   beforeEach(() => {
@@ -120,16 +135,41 @@ describe('Procurement index — states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('C3: empty state when zero rows teaches with NO dead New request CTA (AC-506)', () => {
+  it('empty state when zero rows teaches + offers a real Raise request action (AC-PROC-006)', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New request/i })).toBeNull();
+    // The dead disabled CTA was removed in the cleanup round; the CRUD slice
+    // restores a REAL, working create affordance (header CTA + empty-state action).
+    expect(screen.getAllByRole('button', { name: /raise request/i }).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
+  beforeEach(() => {
+    procState.data = seed;
+    procState.isPending = false;
+    procState.isError = false;
+    effRole.value = 'Project Manager';
+    createMutate.mockClear();
+    navigate.mockClear();
   });
 
-  it('C3: the page header is not anchored by a disabled New request CTA', () => {
+  it('AC-PROC-006: a write-role sees the header Raise request CTA', () => {
     renderPage();
-    expect(screen.getByRole('heading', { name: 'Procurement' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New request/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /raise request/i })).toBeInTheDocument();
+  });
+
+  it('AC-PROC-006: an Engineer ALSO sees Raise request (any member may raise)', () => {
+    effRole.value = 'Engineer';
+    renderPage();
+    expect(screen.getByRole('button', { name: /raise request/i })).toBeInTheDocument();
+  });
+
+  it('AC-PROC-006: clicking Raise request opens the New PR dialog', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /raise request/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
   });
 });

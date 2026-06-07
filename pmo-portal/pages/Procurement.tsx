@@ -7,11 +7,18 @@ import {
   DataTable,
   StatusPill,
   LifecycleStepper,
+  Button,
+  Icon,
+  useToast,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { NewProcurementModal } from './procurement/NewProcurementModal';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -49,10 +56,17 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 const ProcurementPage: React.FC = () => {
   useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
   const navigate = useNavigate();
+  const may = usePermission();
+  const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
+  const create = useCreateProcurement();
   const [view, setView] = useProcurementView();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
+  const [showNew, setShowNew] = useState(false);
+
+  // Raise request is open to ANY member incl. Engineer (requester server-stamped).
+  const canCreate = may('create', 'procurement');
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -154,6 +168,12 @@ const ProcurementPage: React.FC = () => {
             gates. Open a request to drill into its full lifecycle page.
           </p>
         </div>
+        {canCreate && (
+          <Button variant="primary" onClick={() => setShowNew(true)}>
+            <Icon name="plus" />
+            Raise request
+          </Button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -206,6 +226,9 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title="No purchase requests yet"
           sub="Requests you raise will appear here through their full lifecycle."
+          action={
+            canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined
+          }
         />
       )}
 
@@ -223,6 +246,23 @@ const ProcurementPage: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No requests match your filters"
           emptySub="Try a different status, search term, or clear the filters."
+        />
+      )}
+
+      {/* Raise a new PR → on success, land on its detail page to add line items. */}
+      {showNew && (
+        <NewProcurementModal
+          onClose={() => setShowNew(false)}
+          onCreate={(input) => create.mutateAsync(input)}
+          onCreated={(id) => {
+            setShowNew(false);
+            toast('Request created', 'Add line items and quotations next', 'success');
+            navigate(`/procurement/${id}`);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
         />
       )}
     </div>
