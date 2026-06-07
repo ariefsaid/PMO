@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { breadcrumbForPath } from '../routeMatch';
+import { breadcrumbForPath, recordLabelForPath } from '../routeMatch';
 import { PLACEHOLDER_TITLES } from '../deriveBreadcrumb';
 
 /**
@@ -86,5 +86,47 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     const crumbs = breadcrumbForPath('/projects/abc/budget', 'Alpha', navigate);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1]).toEqual({ label: 'Alpha' });
+  });
+});
+
+/**
+ * `recordLabelForPath` resolves a detail route's record name from the cached
+ * index lists (the same lists the ⌘K palette indexes) — the breadcrumb's
+ * `recordLabel` source. Pure: it reads the passed-in lists, never a query.
+ * It must return the human title, never a raw URL id (fixes M3/M4).
+ */
+describe('recordLabelForPath (cached-list label resolution)', () => {
+  const lists = {
+    projects: [
+      { id: 'p1', name: 'Innovate HQ Fit-Out' },
+      { id: 'p2', name: 'Northwind ERP' },
+    ],
+    opportunities: [{ id: 'o1', name: 'Acme Deal' }],
+    procurements: [{ id: 'pr1', title: 'Crane hire' }],
+  };
+
+  it('resolves a project detail route to the project name', () => {
+    expect(recordLabelForPath('/projects/p1', lists)).toBe('Innovate HQ Fit-Out');
+  });
+
+  it('resolves the /budget deep-link to the same project name', () => {
+    expect(recordLabelForPath('/projects/p2/budget', lists)).toBe('Northwind ERP');
+  });
+
+  it('resolves an opportunity detail route to the opportunity name', () => {
+    expect(recordLabelForPath('/sales/o1', lists)).toBe('Acme Deal');
+  });
+
+  it('resolves a procurement detail route to the procurement title', () => {
+    expect(recordLabelForPath('/procurement/pr1', lists)).toBe('Crane hire');
+  });
+
+  it('returns undefined for a module index route (no record)', () => {
+    expect(recordLabelForPath('/projects', lists)).toBeUndefined();
+    expect(recordLabelForPath('/', lists)).toBeUndefined();
+  });
+
+  it('returns undefined (never the raw id) for an unresolved detail route — cold deep-link', () => {
+    expect(recordLabelForPath('/projects/9f3a-not-cached', lists)).toBeUndefined();
   });
 });

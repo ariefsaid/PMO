@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -15,12 +15,15 @@ import {
   TabStrip,
   CommandPalette,
   WorkspaceTabsProvider,
-  useWorkspaceTabs,
   MODULES,
-  deriveBreadcrumb,
+  breadcrumbForPath,
+  recordLabelForPath,
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
+import { useProjects } from '@/src/hooks/useProjects';
+import { useProcurements } from '@/src/hooks/useProcurements';
+import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
@@ -60,11 +63,19 @@ const AppRoutes: React.FC = () => (
 
 // ── Shell chrome (inside the workspace provider) ───────────────────────────
 const ShellChrome: React.FC = () => {
-  const ws = useWorkspaceTabs();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
+
+  // Cached index lists — already fetched by the index pages; read here only to
+  // resolve a detail route's human record name for the breadcrumb (no new
+  // query). The breadcrumb falls back to "Loading…" on a cold deep-link, never
+  // a raw UUID.
+  const { data: projects } = useProjects();
+  const { data: procurements } = useProcurements();
+  const { data: pipeline } = useSalesPipeline();
 
   // Global ⌘K / Ctrl-K → open the command palette.
   useEffect(() => {
@@ -84,26 +95,32 @@ const ShellChrome: React.FC = () => {
     setPaletteOpen(true);
   }, []);
 
-  // Breadcrumb derives from the active workspace tab, with a pathname fallback
-  // so placeholder routes (not tracked modules) read their own title (C5).
+  // Breadcrumb derives from the ROUTE (URL is the source of truth) — no tab
+  // state. A detail route resolves its record name from the cached index lists;
+  // a placeholder route reads its own page title; the module segment navigates
+  // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
-    const active = ws.tabs.find((t) => t.id === ws.activeId) ?? null;
-    return deriveBreadcrumb(active, pathname, ws.openModule);
-  }, [ws, pathname]);
+    const recordLabel = recordLabelForPath(pathname, {
+      projects,
+      opportunities: pipeline?.projects,
+      procurements,
+    });
+    return breadcrumbForPath(pathname, recordLabel, navigate);
+  }, [pathname, navigate, projects, procurements, pipeline]);
 
-  // Palette items: Navigate to each module + a small Actions group. Record
-  // search is sourced from cached lists in a follow-up surface issue.
+  // Palette items: Navigate to each module. Record search is added in a
+  // follow-up surface issue (Phase E); this preserves the existing module-nav
+  // Navigate group via a plain route navigate.
   const paletteItems = useMemo<PaletteItem[]>(
-    () => [
-      ...MODULES.map((m) => ({
+    () =>
+      MODULES.map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
         title: m.label,
         icon: m.icon,
-        run: () => ws.openModule(m.module),
+        run: () => navigate(m.path),
       })),
-    ],
-    [ws]
+    [navigate]
   );
 
   return (

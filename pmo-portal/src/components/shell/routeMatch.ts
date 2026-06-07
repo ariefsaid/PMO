@@ -143,6 +143,42 @@ export function breadcrumbForPath(
   return [{ label: 'Dashboard' }];
 }
 
+/** Cached index lists the breadcrumb reads to resolve a detail route's name. */
+export interface RecordLists {
+  projects?: { id: string; name: string }[];
+  opportunities?: { id: string; name: string }[];
+  procurements?: { id: string; title: string }[];
+}
+
+/**
+ * Resolves a detail route's record name from the cached index lists (the same
+ * lists the ⌘K palette indexes) — the breadcrumb's `recordLabel` source. Pure:
+ * it reads the passed-in lists, never a query. Returns the human title, or
+ * `undefined` when the path is not a detail route or the record is not yet
+ * cached (a cold deep-link) — never the raw URL id (fixes M3/M4).
+ */
+export function recordLabelForPath(
+  pathname: string,
+  lists: RecordLists,
+): string | undefined {
+  const idFrom = (prefix: string): string | undefined => {
+    if (!pathname.startsWith(`${prefix}/`)) return undefined;
+    // segment after the module prefix, dropping any trailing `/budget` etc.
+    return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
+  };
+
+  const projectId = idFrom('/projects');
+  if (projectId) return lists.projects?.find((p) => p.id === projectId)?.name;
+
+  const salesId = idFrom('/sales');
+  if (salesId) return lists.opportunities?.find((o) => o.id === salesId)?.name;
+
+  const procurementId = idFrom('/procurement');
+  if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
+
+  return undefined;
+}
+
 /** The module tab for a rail click. */
 export function moduleTab(moduleKey: string): WorkspaceTab | null {
   const m = MODULES.find((x) => x.module === moduleKey);
