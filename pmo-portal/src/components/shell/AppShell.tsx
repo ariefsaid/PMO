@@ -47,7 +47,12 @@ export const AppShell: React.FC<AppShellProps> = ({
     <div
       className="grid h-screen w-screen overflow-hidden"
       style={{
-        gridTemplateColumns: 'var(--rail-w) 1fr',
+        // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
+        // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
+        // main column past the viewport at narrow widths — clipping right-edge
+        // content (e.g. the Companies toolbar search at 375px). The 0 minimum lets
+        // the track shrink so inner `overflow-x-auto` scrollers own their width.
+        gridTemplateColumns: 'var(--rail-w) minmax(0, 1fr)',
         gridTemplateRows: 'var(--header-h) 1fr',
         gridTemplateAreas: '"rail header" "rail main"',
       }}
@@ -73,7 +78,12 @@ export const AppShell: React.FC<AppShellProps> = ({
         id="main"
         ref={mainRef}
         tabIndex={-1}
-        className="main-scroll overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none"
+        // min-w-0: a CSS-grid item defaults to min-width:auto, which lets a wide
+        // child (a nowrap data table / toolbar) blow the `1fr` track past the
+        // viewport at narrow widths — clipping right-edge content (e.g. the
+        // Companies toolbar search at 375px). min-w-0 lets the track constrain
+        // the content so inner `overflow-x-auto` scrollers handle their own width.
+        className="main-scroll min-w-0 overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none"
         style={{ gridArea: 'main' }}
       >
         {banner}
