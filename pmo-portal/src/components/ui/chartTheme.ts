@@ -42,3 +42,19 @@ export const chartTheme = {
 } as const;
 
 export type ChartTheme = typeof chartTheme;
+
+/** Tint percentage for status bar fills — the Tinted-Status Rule (~12-18%). */
+export const STATUS_BAR_TINT = 15;
+
+/**
+ * Tints a resolvable status-hue color string (`hsl(var(--token))`) to the
+ * Tinted-Status fill used for status-bar charts — the bar's MEANING is its
+ * status, so it carries the status's own hue, TINTED (never a fully-saturated
+ * categorical fill, never the One-Blue action color). Uses color-mix so it
+ * stays on-token (no raw hex) and resolves against :root at render time. The
+ * solid hue is kept for the legend dot, mirroring the StatusPill dot+tint
+ * pattern.
+ */
+export function tintStatusFill(color: string, tint: number = STATUS_BAR_TINT): string {
+  return `color-mix(in srgb, ${color} ${tint}%, transparent)`;
+}
