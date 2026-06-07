@@ -7,17 +7,15 @@ import ProjectDetailHeader from './ProjectDetailHeader';
 import OverviewTab from './tabs/OverviewTab';
 import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
-import TimesheetsTab from './tabs/TimesheetsTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 
-type PTab = 'overview' | 'budget' | 'procurement' | 'timesheets' | 'tasks' | 'documents';
+type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
 
 const TABS: TabItem<PTab>[] = [
   { value: 'overview', label: 'Overview' },
   { value: 'budget', label: 'Budget' },
   { value: 'procurement', label: 'Procurement' },
-  { value: 'timesheets', label: 'Timesheets' },
   { value: 'tasks', label: 'Tasks' },
   { value: 'documents', label: 'Documents' },
 ];
@@ -101,7 +99,6 @@ const ProjectDetail: React.FC = () => {
         {tab === 'overview' && <OverviewTab project={project} />}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-        {tab === 'timesheets' && <TimesheetsTab />}
         {tab === 'tasks' && <TasksTab />}
         {tab === 'documents' && <DocumentsTab />}
       </div>
