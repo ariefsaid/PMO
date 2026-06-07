@@ -4,14 +4,17 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SALES_COLUMNS } from '@/components/salesPipeline';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
-/** Open (non-terminal) statuses + their categorical dot, from the shared model. */
-const STAGE_META = SALES_COLUMNS.filter((c) => !c.terminal).flatMap((c) =>
-  c.statuses.map((status) => ({ status, color: c.dotColor })),
+/** Open (non-terminal) statuses, from the shared sales model. */
+const OPEN_STATUSES = new Set(
+  SALES_COLUMNS.filter((c) => !c.terminal).flatMap((c) => c.statuses),
 );
-const OPEN_STATUSES = new Set(STAGE_META.map((m) => m.status));
-const colorFor = (status: string, i: number) =>
-  STAGE_META.find((m) => m.status === status)?.color ??
-  chartTheme.categorical[i % chartTheme.categorical.length];
+/**
+ * C1 de-rainbow: every bar uses the single `primary` token. These bars measure
+ * weighted value, not status — so color need not vary; the per-stage `<span>`
+ * label already gives each bar its identity (color-not-only). This removes the
+ * categorical/violet rainbow the audit flagged on the PQ bar.
+ */
+const BAR_FILL = chartTheme.series.primary;
 
 export interface ProjectedMarginBarsProps {
   /** Probability-adjusted portfolio margin (exec RPC, already loaded). */
@@ -45,9 +48,8 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
       </div>
 
       <div className="flex flex-col gap-1">
-        {open.map((s, i) => {
+        {open.map((s) => {
           const pct = Math.round((s.weighted_value / max) * 100);
-          const color = colorFor(s.status as string, i);
           return (
             <div key={s.status as string} className="flex items-center gap-2.5 py-[5px]">
               <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{s.status}</span>
@@ -61,7 +63,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
               >
                 <span
                   className="block h-full rounded-full"
-                  style={{ width: `${pct}%`, background: color }}
+                  style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
               <span className="w-[68px] shrink-0 text-right text-xs font-semibold tabular">

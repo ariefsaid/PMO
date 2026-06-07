@@ -13,8 +13,8 @@ import {
   type FunnelStage,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
@@ -32,7 +32,7 @@ const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
 const SalesPipeline: React.FC = () => {
   const { data, isPending, isError, refetch } = useSalesPipeline();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
 
@@ -78,7 +78,7 @@ const SalesPipeline: React.FC = () => {
     };
   });
 
-  const onOpen = (p: PipelineProject) => openOpportunity(ws, p);
+  const onOpen = (p: PipelineProject) => openOpportunity(navigate, p);
 
   const tableColumns: Column<PipelineProject>[] = [
     {
@@ -135,7 +135,6 @@ const SalesPipeline: React.FC = () => {
         );
       },
     },
-    { key: 'decision', header: 'Decision', cell: () => '—' },
   ];
 
   // ── States ────────────────────────────────────────────────────────────────
@@ -160,10 +159,6 @@ const SalesPipeline: React.FC = () => {
           <Button variant="outline">
             <Icon name="export" />
             Export
-          </Button>
-          <Button variant="primary" disabled title="Deal creation is coming soon">
-            <Icon name="plus" />
-            New deal
           </Button>
         </div>
       </div>
@@ -232,7 +227,6 @@ const SalesPipeline: React.FC = () => {
           variant="empty"
           title="No opportunities yet"
           sub="Add a lead to start tracking the pipeline."
-          action={{ label: 'New deal', onClick: () => {}, disabled: true, disabledTitle: 'Deal creation is coming soon' }}
         />
       )}
 
@@ -246,6 +240,7 @@ const SalesPipeline: React.FC = () => {
           columns={tableColumns}
           rowKey={(r) => r.id}
           onActivate={onOpen}
+          rowLabel={(r) => `Open ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No deals match your search"
           emptySub="Try a different name or customer."

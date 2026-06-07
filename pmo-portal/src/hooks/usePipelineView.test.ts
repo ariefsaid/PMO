@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { readPipelineView, writePipelineView, usePipelineView } from './usePipelineView';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 describe('pipeline view persistence (AC-SP-201)', () => {
   beforeEach(() => sessionStorage.clear());

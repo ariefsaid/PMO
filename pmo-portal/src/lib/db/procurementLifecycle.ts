@@ -10,6 +10,37 @@ export type ProcurementReceiptRow = Tables<'procurement_receipts'>;
 export type ProcurementInvoiceRow = Tables<'procurement_invoices'>;
 export type ProcurementStatus = ProcurementRow['status'];
 
+// ---------------------------------------------------------------------------
+// Error contract — preserve the Postgres/PostgREST error.code through the DAL
+// ---------------------------------------------------------------------------
+
+/** Shape of a Supabase RPC / PostgREST error (only the fields we surface). */
+interface RpcErrorLike {
+  message: string;
+  code?: string;
+}
+
+/**
+ * Carries the verbatim RPC message AND the Postgres/PostgREST error `code`
+ * (e.g. `P0001` illegal-stage, `42501` not-permitted/SoD) so the UI can
+ * classify the toast by code instead of dropping it to a generic message.
+ * Extends Error, so existing `err instanceof Error` / `.message` consumers
+ * keep working unchanged.
+ */
+export class ProcurementError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'ProcurementError';
+    this.code = code;
+  }
+}
+
+/** Throws a ProcurementError that preserves both message and code. */
+function throwRpc(error: RpcErrorLike): never {
+  throw new ProcurementError(error.message, error.code);
+}
+
 export type ProcurementDetail = ProcurementWithRefs & {
   approved_by: { full_name: string } | null;
   quotations: Tables<'procurement_quotations'>[];
@@ -114,7 +145,7 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .select(DETAIL_SELECT)
     .eq('id', id)
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throwRpc(error);
   return data as unknown as ProcurementDetail;
 }
 
@@ -136,8 +167,8 @@ export async function transitionProcurement(
     p_id: id,
     p_to: to,
     p_notes: notes ?? null,
-  })) as unknown as { data: null; error: { message: string } | null };
-  if (error) throw new Error(error.message);
+  })) as unknown as { data: null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
 }
 
 /**
@@ -155,8 +186,8 @@ export async function createQuotation(
     p_vendor_id: vendorId,
     p_total_amount: totalAmount,
     p_received_date: receivedDate,
-  })) as unknown as { data: Tables<'procurement_quotations'>; error: { message: string } | null };
-  if (error) throw new Error(error.message);
+  })) as unknown as { data: Tables<'procurement_quotations'>; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
   return data;
 }
 
@@ -173,8 +204,8 @@ export async function createReceipt(
     p_procurement_id: procurementId,
     p_status: status,
     p_receipt_date: receiptDate,
-  })) as unknown as { data: ProcurementReceiptRow; error: { message: string } | null };
-  if (error) throw new Error(error.message);
+  })) as unknown as { data: ProcurementReceiptRow; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
   return data;
 }
 
@@ -191,7 +222,7 @@ export async function createInvoice(
     p_procurement_id: procurementId,
     p_status: status,
     p_invoice_date: invoiceDate,
-  })) as unknown as { data: ProcurementInvoiceRow; error: { message: string } | null };
-  if (error) throw new Error(error.message);
+  })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
   return data;
 }

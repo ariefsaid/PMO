@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Button,
   Toolbar,
   SearchMini,
   ViewToggle,
@@ -8,12 +7,11 @@ import {
   DataTable,
   StatusPill,
   LifecycleStepper,
-  Icon,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -50,7 +48,7 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 
 const ProcurementPage: React.FC = () => {
   useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useProcurements();
   const [view, setView] = useProcurementView();
   const [search, setSearch] = useState('');
@@ -72,7 +70,7 @@ const ProcurementPage: React.FC = () => {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [all, search, filter]);
 
-  const onOpen = (p: ProcurementWithRefs) => openPR(ws, p);
+  const onOpen = (p: ProcurementWithRefs) => openPR(navigate, p);
 
   const columns: Column<ProcurementWithRefs>[] = [
     {
@@ -156,10 +154,6 @@ const ProcurementPage: React.FC = () => {
             gates. Open a request to drill into its full lifecycle page.
           </p>
         </div>
-        <Button variant="primary" disabled title="Request creation is coming soon">
-          <Icon name="plus" />
-          New request
-        </Button>
       </div>
 
       {/* Toolbar */}
@@ -212,7 +206,6 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title="No purchase requests yet"
           sub="Requests you raise will appear here through their full lifecycle."
-          action={{ label: 'New request', onClick: () => {}, disabled: true, disabledTitle: 'Request creation is coming soon' }}
         />
       )}
 
@@ -226,6 +219,7 @@ const ProcurementPage: React.FC = () => {
           columns={columns}
           rowKey={(r) => r.id}
           onActivate={onOpen}
+          rowLabel={(r) => `Open ${r.title}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No requests match your filters"
           emptySub="Try a different status, search term, or clear the filters."

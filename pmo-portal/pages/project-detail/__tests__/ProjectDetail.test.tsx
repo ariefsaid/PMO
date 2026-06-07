@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -33,20 +34,23 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-const openModule = vi.fn();
-const openRecord = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+// Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
+const navigate = vi.fn();
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
+// The Budget tab mounts ProjectBudget, which uses useToast — needs a provider.
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
+        </Routes>
+      </ToastProvider>
     </MemoryRouter>,
   );
 
@@ -55,6 +59,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
+    navigate.mockClear();
   });
 
   it('renders the header from the real cached row and defaults to the Overview tab (AC-F/G, OQ-4)', () => {
@@ -101,10 +106,28 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
-  it('shows an error with a Back-to-Projects action when the project is absent', () => {
+  it('I7: the success render drops the redundant in-page BackBar + Breadcrumb', () => {
+    renderAt('/projects/p1');
+    expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    // I7: the top-bar breadcrumb owns wayfinding — no in-page BackBar...
+    expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
+    // ...and no in-page Breadcrumb nav landmark.
+    expect(screen.queryByRole('navigation', { name: /breadcrumb/i })).toBeNull();
+    // the project name appears exactly once (the header), not duplicated by a crumb
+    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')).toHaveLength(1);
+  });
+
+  it('I7: the not-found render keeps the "Back to Projects" escape route', () => {
     projectsState.data = [];
     renderAt('/projects/does-not-exist');
     expect(screen.getByText(/Project not found/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+  });
+
+  it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
+    projectsState.data = [];
+    renderAt('/projects/does-not-exist');
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith('/projects');
   });
 });

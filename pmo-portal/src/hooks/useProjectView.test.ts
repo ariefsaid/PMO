@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readProjectView, writeProjectView } from './useProjectView';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 describe('useProjectView persistence (VIEW.project)', () => {
   beforeEach(() => sessionStorage.clear());

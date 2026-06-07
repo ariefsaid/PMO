@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 /** The two Projects index body layouts (ViewToggle options). */
 export type ProjectView = 'table' | 'cards';

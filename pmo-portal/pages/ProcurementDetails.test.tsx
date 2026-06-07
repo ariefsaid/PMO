@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+
+// Clicks the Confirm button inside the active confirm dialog (the
+// confirm-before-write gate now wraps every mutation). Works for both the
+// default (role="dialog") and destructive (role="alertdialog") surfaces.
+async function confirmInDialog(label: RegExp | string) {
+  // Wait for whichever surface mounted, then click its confirm button.
+  const dialog = await screen.findByRole('dialog').catch(() => screen.findByRole('alertdialog'));
+  await userEvent.click(within(dialog).getByRole('button', { name: label }));
+}
 
 // ---------------------------------------------------------------------------
 // Mutable hook state (mutable so each test can set it via beforeEach)
@@ -39,14 +48,13 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole }),
 }));
 
-// Shell + toast: the IA-3 detail page lives in the workspace shell and emits a
-// success toast on transition. Mock them so the page renders without providers.
-const openModule = vi.fn();
-const openRecord = vi.fn();
+// Toast: the IA-3 detail page emits a success toast on transition. Tabs are
+// gone — back-nav is a plain react-router navigate (AC-NAV-007).
+const navigate = vi.fn();
 const toast = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule, openRecord, setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -185,6 +193,66 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
     expect(detailState.refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('I7: the loading state keeps the "Back to Procurement" escape route', () => {
+    detailState.isPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('I7: the error state keeps the "Back to Procurement" escape route', () => {
+    detailState.isError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('I7: the not-found state keeps the "Back to Procurement" escape route', () => {
+    detailState.data = undefined;
+    renderPage();
+    expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
+  });
+
+  it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {
+    navigate.mockClear();
+    detailState.isPending = true;
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Procurement/i }));
+    expect(navigate).toHaveBeenCalledWith('/procurement');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch-A cleanup: E4 (no disabled Audit trail), H2 (no success BackBar),
+// G5 (stat tiles use "Pending"/"None yet", not em-dash)
+// ---------------------------------------------------------------------------
+describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
+  beforeEach(() => {
+    detailState.data = { ...baseProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('H2: the success render drops the redundant in-page Back bar (top-bar crumb owns wayfinding)', () => {
+    renderPage();
+    // the record loaded — and there is NO in-page "Back to Procurement" bar
+    expect(screen.getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Back to Procurement/i })).toBeNull();
+  });
+
+  it('E4: the success render has no disabled "Audit trail" stub action', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: /Audit trail/i })).toBeNull();
+  });
+
+  it('G5: absent stat values read "Pending" / "None yet", never an em-dash', () => {
+    renderPage();
+    // baseProcurement: no selected quote + no PO → both "Pending"; no receipts → "None yet"
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(2); // Selected quote + PO committed
+    expect(screen.getByText('None yet')).toBeInTheDocument(); // Goods received
+    // the stat-tile area must carry no bare em-dash placeholder
+    expect(screen.getByText('Selected quote').closest('div')?.textContent).not.toContain('—');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -234,6 +302,22 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /pay/i })).not.toBeInTheDocument();
   });
+
+  it('item G: a destructive action is a quiet OUTLINE at rest; the solid red is only in the confirm dialog', async () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const rejectBtn = screen.getByRole('button', { name: /reject/i });
+    // at rest: outline (background fill + input border), NOT the solid destructive fill
+    expect(rejectBtn.className).toContain('border-input');
+    expect(rejectBtn.className).toContain('bg-background');
+    expect(rejectBtn.className).not.toContain('bg-destructive');
+    // opening the confirm dialog surfaces the solid red confirm (the only solid fill)
+    await userEvent.click(rejectBtn);
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: /reject/i });
+    expect(confirm.className).toContain('bg-destructive');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -248,21 +332,25 @@ describe('AC-805: transition mutations called on action click', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  it('AC-805: clicking Approve calls transition mutation with Approved', async () => {
+  it('AC-805: clicking Approve then confirming calls transition mutation with Approved', async () => {
     // Finance user, not the requester → allowed
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    // confirm-before-write: the mutation has NOT fired on the first click
+    expect(mockTransition).not.toHaveBeenCalled();
+    await confirmInDialog(/approve/i);
     await waitFor(() => expect(mockTransition).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'Approved' })
     ));
   });
 
-  it('AC-805: clicking Submit calls transition mutation with Requested', async () => {
+  it('AC-805: clicking Submit then confirming calls transition mutation with Requested', async () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await confirmInDialog(/submit request/i);
     await waitFor(() => expect(mockTransition).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'Requested' })
     ));
@@ -281,11 +369,12 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     mockEffectiveRole = 'Finance';
   });
 
-  it('AC-805: entering notes + Approve calls transition mutation with the notes argument', async () => {
+  it('AC-805: entering notes + Approve + confirm calls transition mutation with the notes argument', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Within budget — approved.');
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await confirmInDialog(/approve/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'Approved', notes: 'Within budget — approved.' })
@@ -293,11 +382,15 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805: entering notes + Reject calls transition mutation with the notes argument', async () => {
+  it('AC-805 / P2: entering notes + Reject opens a destructive confirm; confirm passes the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
     await userEvent.click(screen.getByRole('button', { name: /reject/i }));
+    // Reject is destructive → alertdialog surface
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(mockTransition).not.toHaveBeenCalled();
+    await confirmInDialog(/reject/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'Rejected', notes: 'Over budget.' })
@@ -376,10 +469,29 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.getByRole('button', { name: /mark vendor invoiced/i })).toBeInTheDocument();
   });
 
-  it('Vendor Invoiced status shows Mark as Paid for Finance', () => {
-    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other' };
+  it('Vendor Invoiced status shows Mark as Paid for Finance (not the approver)', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-someone-else',
+    };
     renderPage();
     expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+  });
+
+  it('SoD-b: Mark as Paid is NOT offered to the Finance user who approved the request', () => {
+    // current user is u-alice (Finance). They also approved → the RPC's SoD-b
+    // ALWAYS rejects pay-by-approver, so the UI must not offer the action.
+    mockEffectiveRole = 'Finance';
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-alice',
+    };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('Quote Selected status shows Generate Purchase Order for Finance', () => {
@@ -418,15 +530,90 @@ describe('AC-806: mutation error renders in UI', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  it('AC-806: shows RPC error message when transition mutation fails', async () => {
+  it('AC-806: shows RPC error message when transition mutation fails (after confirm)', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     mockTransition.mockRejectedValueOnce(new Error('not authorized (42501)'));
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await confirmInDialog(/approve/i);
     await waitFor(() =>
       expect(screen.getByText(/not authorized/i)).toBeInTheDocument()
     );
     mockTransition.mockResolvedValue(undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P1/P2 — confirm severity + sub-task (b) error-code classification
+// ---------------------------------------------------------------------------
+describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+    mockTransition.mockClear().mockResolvedValue(undefined);
+    toast.mockClear();
+  });
+
+  it('P1: a forward action (Mark as Paid) opens a DEFAULT-tone popover confirm', async () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-someone-else',
+    };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    // default tone => role="dialog", NOT alertdialog
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(mockTransition).not.toHaveBeenCalled();
+  });
+
+  it('P2: a destructive action (Cancel) opens an alertdialog; only confirm fires the transition', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage();
+    // requester (u-alice) may cancel a Requested PR (canCancel early)
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(mockTransition).not.toHaveBeenCalled();
+    // commit button reads "Cancel request" (disambiguated from the dialog's own Cancel)
+    await confirmInDialog(/cancel request/i);
+    await waitFor(() =>
+      expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
+    );
+  });
+
+  it('sub-task b: a P0001 failure toasts the illegal-stage headline + verbatim detail', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const e = Object.assign(new Error('illegal transition Requested→Approved'), { code: 'P0001' });
+    mockTransition.mockRejectedValueOnce(e);
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await confirmInDialog(/approve/i);
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        "That move isn't allowed from the current stage.",
+        expect.stringContaining('illegal transition'),
+        'warning',
+      ),
+    );
+  });
+
+  it('sub-task b: a 42501 failure toasts the not-permitted (SoD) headline', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const e = Object.assign(new Error('permission denied for transition_procurement'), { code: '42501' });
+    mockTransition.mockRejectedValueOnce(e);
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await confirmInDialog(/approve/i);
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        "You don't have permission to do that.",
+        expect.stringContaining('permission denied'),
+        'warning',
+      ),
+    );
   });
 });
 
@@ -469,11 +656,14 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
   });
 
-  it('submitting GR form calls createReceipt mutation', async () => {
+  it('P3: submitting GR form opens a confirm; createReceipt fires only on confirm', async () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-gr'));
     await userEvent.click(screen.getByTestId('btn-save-gr'));
+    // confirm-before-write: not fired yet
+    expect(mockCreateReceipt).not.toHaveBeenCalled();
+    await confirmInDialog(/save gr/i);
     await waitFor(() =>
       expect(mockCreateReceipt).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'Complete' })
@@ -528,11 +718,13 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     expect(screen.getByTestId('vi-status-select')).toBeInTheDocument();
   });
 
-  it('submitting VI form calls createInvoice mutation', async () => {
+  it('P4: submitting VI form opens a confirm; createInvoice fires only on confirm', async () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));
     await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    await confirmInDialog(/save vi/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'Received' })

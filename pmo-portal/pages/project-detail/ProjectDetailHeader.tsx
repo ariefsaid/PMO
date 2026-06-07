@@ -1,5 +1,5 @@
 import React from 'react';
-import { PageHeader, StatTiles, StatusPill, Button, type StatTile } from '@/src/components/ui';
+import { PageHeader, StatTiles, StatusPill, type StatTile } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
@@ -67,11 +67,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
           </StatusPill>
         }
         meta={meta || undefined}
-        actions={
-          <Button variant="outline" disabled title="Project editing is coming soon">
-            Edit Project
-          </Button>
-        }
       />
       <StatTiles tiles={tiles} columns={5} className="mb-4" />
     </>

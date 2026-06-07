@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { chartTheme } from '@/src/components/ui/chartTheme';
+import { chartTheme, tintStatusFill } from '@/src/components/ui/chartTheme';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, tooltipCursorFill, axisTickStyle } from './chartChrome';
 
@@ -78,7 +78,9 @@ export function StatusBarChart<S extends string>({
           />
           <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={!prefersReducedMotion}>
             {data.map((d) => (
-              <Cell key={d.status} fill={toneFor(d.status)} />
+              // Tinted status-hue fill (Tinted-Status Rule) — never a saturated
+              // categorical fill. The solid hue is reserved for the legend dot.
+              <Cell key={d.status} fill={tintStatusFill(toneFor(d.status))} />
             ))}
           </Bar>
         </BarChart>

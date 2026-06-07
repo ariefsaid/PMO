@@ -18,7 +18,11 @@ Establish the design system before any UI issue builds on it.
 
 ## 2. Per-UI-issue loop
 Slots into the Director per-issue loop **between Build and Accept** (so a feature's data/logic lands
-under TDD, then its UI is designed, built, and reviewed):
+under TDD, then its UI is designed, built, and reviewed). The **BDD authoring rule** still governs the
+Accept step that follows: tests encode the user's real journey to the goal and assert that goal — when a
+UI change alters the *intended* journey (e.g. a new confirm step, back-nav moving to the breadcrumb),
+update the e2e *steps*, never weaken the goal-oracle to match the rendered app (see `CLAUDE.md` →
+"BDD authoring rule" and `.claude/agents/qa-acceptance.md`).
 1. **Design-plan** *(`impeccable shape` + `ui-ux-pro-max` `plan`)* — `design-architect` → layout,
    component breakdown, all states (loading / empty / error / edge), responsive breakpoints, WCAG-AA
    a11y, and which `DESIGN.md` tokens each piece uses. (May be a `## Design` section in the eng-planner plan.)

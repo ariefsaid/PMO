@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   PageHeader,
   Card,
@@ -12,10 +12,11 @@ import {
   StatTiles,
   ListState,
   Icon,
+  ConfirmDialog,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
-import { BackBar, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -23,6 +24,7 @@ import { formatCurrency } from '@/src/lib/format';
 import {
   isLegalTransition,
   canCancel,
+  ProcurementError,
   type ProcurementStatus,
   type ProcurementDetail,
 } from '@/src/lib/db/procurementLifecycle';
@@ -43,6 +45,26 @@ const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
+/** A staged, not-yet-committed mutation awaiting the ConfirmDialog. */
+type PendingConfirm =
+  | {
+      kind: 'transition';
+      to: ProcurementStatus;
+      title: string;
+      confirmLabel: string;
+      tone: 'default' | 'destructive';
+    }
+  | {
+      kind: 'createGR';
+      status: 'Partial' | 'Complete';
+      receiptDate: string;
+    }
+  | {
+      kind: 'createVI';
+      status: 'Received' | 'Scheduled' | 'Paid';
+      invoiceDate: string;
+    };
+
 /**
  * Returns the list of (from→to) transitions that should be shown to this role.
  * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006). PRESERVED:
@@ -53,6 +75,7 @@ function allowedActions(
   status: ProcurementStatus,
   role: string,
   isRequester: boolean,
+  isApprover: boolean,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -105,8 +128,10 @@ function allowedActions(
     actions.push({ to: 'Vendor Invoiced', label: 'Mark Vendor Invoiced', variant: 'primary' });
   }
 
-  // Vendor Invoiced → Paid: Finance only, not the approver (SoD-b checked server-side; cosmetically allow)
-  if (legal('Paid') && INVOICE_PAY_ROLES.has(role)) {
+  // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
+  // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
+  // so offering it cosmetically produced a "click that does nothing" — gate it.
+  if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover) {
     actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'success' });
   }
 
@@ -131,11 +156,36 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
   return null;
 }
 
+/**
+ * Classifies a transition/mutation error into a human toast headline by the
+ * preserved Postgres/PostgREST code, keeping the verbatim RPC message as the
+ * secondary detail (the silent-no-op bug fix — sub-task b):
+ *   P0001 => illegal stage transition; 42501 => not permitted / SoD.
+ */
+function classifyMutationError(err: unknown): { headline: string; detail: string } {
+  const detail = err instanceof Error ? err.message : 'An error occurred';
+  // Read the preserved Postgres/PostgREST code structurally — it is carried by
+  // ProcurementError but also by any error object exposing a string `.code`.
+  const code =
+    err instanceof ProcurementError
+      ? err.code
+      : typeof (err as { code?: unknown })?.code === 'string'
+        ? (err as { code: string }).code
+        : undefined;
+  if (code === 'P0001') {
+    return { headline: "That move isn't allowed from the current stage.", detail };
+  }
+  if (code === '42501') {
+    return { headline: "You don't have permission to do that.", detail };
+  }
+  return { headline: 'Update failed', detail };
+}
+
 const ProcurementDetails: React.FC = () => {
   const { procurementId } = useParams<{ procurementId: string }>();
   const { effectiveRole } = useEffectiveRole();
   const { currentUser } = useAuth();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const detailQuery = useProcurementDetail(procurementId);
@@ -145,27 +195,15 @@ const ProcurementDetails: React.FC = () => {
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
+  // Confirm-before-write (owner rule): a transition action / GR / VI is staged
+  // here and only commits when the ConfirmDialog's Confirm is pressed.
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const data = detailQuery.data;
-  const title = data?.title;
 
-  // Hydrate the synthetic record tab's label to the human title once resolved.
-  useEffect(() => {
-    if (title && procurementId) {
-      ws.openRecord({
-        id: `procurement:${procurementId}`,
-        kind: 'record',
-        path: `/procurement/${procurementId}`,
-        icon: 'cart',
-        label: title,
-        code: data?.code ?? procurementId,
-        module: 'procurement',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, procurementId, data?.code]);
-
-  const goBack = () => ws.openModule('procurement');
+  // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
+  // breadcrumb resolves the record title from the cached list in App.tsx.
+  const goBack = () => navigate('/procurement');
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -214,7 +252,9 @@ const ProcurementDetails: React.FC = () => {
   const p: ProcurementDetail = data;
   const role = effectiveRole ?? '';
   const isRequester = p.requested_by_id === currentUser?.id;
-  const actions = allowedActions(p.status, role, isRequester);
+  // SoD-b: a user cannot pay a request they themselves approved.
+  const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
+  const actions = allowedActions(p.status, role, isRequester, isApprover);
   const selectedQuote = p.quotations.find((q) => q.is_selected);
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
@@ -227,17 +267,68 @@ const ProcurementDetails: React.FC = () => {
   const canShowVIForm =
     (p.status === 'Vendor Invoiced' || p.status === 'Paid') && INVOICE_PAY_ROLES.has(role);
 
-  // ── Transition handler (AC-805, AC-806) — PRESERVED RPC contract ─────────
-  const handleTransition = async (to: ProcurementStatus) => {
+  // ── Stage a transition for confirmation (owner rule: no single-click write).
+  //    Destructive targets (Reject / Cancel) open the destructive modal; all
+  //    forward steps open the lightweight default confirm. PRESERVED RPC contract.
+  const stageTransition = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
+    setMutationError(null);
+    const destructive = action.variant === 'destructive';
+    // Disambiguate the destructive "Cancel" action from the dialog's own
+    // Cancel button: the commit reads "Cancel request" (plan P2 copy).
+    const confirmLabel = action.to === 'Cancelled' ? 'Cancel request' : action.label;
+    setPendingConfirm({
+      kind: 'transition',
+      to: action.to,
+      title: destructive ? `${action.label} this request` : `Move request to ${action.to}?`,
+      confirmLabel,
+      tone: destructive ? 'destructive' : 'default',
+    });
+  };
+
+  // ── Commit the staged mutation (AC-805, AC-806). Toast is classified by the
+  //    preserved RPC error code (sub-task b) so an illegal-stage / SoD failure
+  //    reads as such instead of a silent no-op.
+  const commitConfirm = async () => {
+    if (!pendingConfirm) return;
     setMutationError(null);
     try {
-      await mutations.transition.mutateAsync({ to, notes: notesInput || undefined });
-      setNotesInput('');
-      toast('Request updated', `Moved to ${to}`, 'success');
+      if (pendingConfirm.kind === 'transition') {
+        await mutations.transition.mutateAsync({
+          to: pendingConfirm.to,
+          notes: notesInput || undefined,
+        });
+        setNotesInput('');
+        toast('Request updated', `Moved to ${pendingConfirm.to}`, 'success');
+      } else if (pendingConfirm.kind === 'createGR') {
+        await mutations.createReceipt.mutateAsync({
+          status: pendingConfirm.status,
+          receiptDate: pendingConfirm.receiptDate,
+        });
+        setShowCreateGR(false);
+        toast('Goods receipt recorded', undefined, 'success');
+      } else {
+        await mutations.createInvoice.mutateAsync({
+          status: pendingConfirm.status,
+          invoiceDate: pendingConfirm.invoiceDate,
+        });
+        setShowCreateVI(false);
+        toast('Vendor invoice recorded', undefined, 'success');
+      }
+      setPendingConfirm(null);
     } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'An error occurred');
+      // Close the confirm; surface the classified toast + keep the verbatim
+      // inline error (forms keep redundant errors — that is correct).
+      setPendingConfirm(null);
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setMutationError(detail);
     }
   };
+
+  const confirmInFlight =
+    mutations.transition.isPending ||
+    mutations.createReceipt.isPending ||
+    mutations.createInvoice.isPending;
 
   const stats: StatTile[] = [
     {
@@ -247,17 +338,17 @@ const ProcurementDetails: React.FC = () => {
     },
     {
       label: 'Selected quote',
-      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : '—',
+      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
       sub: `${p.quotations.length} received`,
     },
     {
       label: 'PO committed',
-      value: p.po_number ? formatCurrency(Number(p.total_value)) : '—',
+      value: p.po_number ? formatCurrency(Number(p.total_value)) : 'Pending',
       sub: p.vendor?.name ?? (p.po_number ? undefined : 'no PO yet'),
     },
     {
       label: 'Goods received',
-      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : '—',
+      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : 'None yet',
       sub: p.receipts.length > 0 ? p.receipts[p.receipts.length - 1].status : 'awaiting delivery',
     },
   ];
@@ -270,7 +361,10 @@ const ProcurementDetails: React.FC = () => {
 
   return (
     <div>
-      <BackBar label="Procurement" onBack={goBack} />
+      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
+          (Procurement > record) owns wayfinding. BackBar is kept on the
+          loading / error / not-found branches above, where there is no in-page
+          header to orient from and the crumb shows only the raw id. */}
       <PageHeader
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
@@ -283,12 +377,6 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={
-          <Button variant="outline" disabled title="Audit trail is coming soon">
-            <Icon name="doc" />
-            Audit trail
-          </Button>
-        }
       />
 
       {/* Full lifecycle node stepper (PR → VQ → PO → GR → VI → Paid) */}
@@ -350,9 +438,15 @@ const ProcurementDetails: React.FC = () => {
               {actions.map((action) => (
                 <Button
                   key={action.to}
-                  variant={action.variant}
+                  // The solid `destructive` fill belongs ONLY inside the confirm
+                  // dialog (the system's single solid status fill) — at rest a
+                  // destructive action (Reject / Cancel) is a quiet OUTLINE so it
+                  // does not compete with the blue primary (the I4 two-solid-fills
+                  // tell). stageTransition still reads action.variant for the
+                  // dialog tone, so the confirm dialog stays red.
+                  variant={action.variant === 'destructive' ? 'outline' : action.variant}
                   loading={mutations.transition.isPending}
-                  onClick={() => handleTransition(action.to)}
+                  onClick={() => stageTransition(action)}
                 >
                   {action.label}
                 </Button>
@@ -384,19 +478,16 @@ const ProcurementDetails: React.FC = () => {
             ) : (
               <form
                 data-testid="form-create-gr"
-                onSubmit={async (e) => {
+                onSubmit={(e) => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
                   setMutationError(null);
-                  try {
-                    await mutations.createReceipt.mutateAsync({
-                      status: fd.get('gr-status') as 'Partial' | 'Complete',
-                      receiptDate: fd.get('gr-date') as string,
-                    });
-                    setShowCreateGR(false);
-                  } catch (err) {
-                    setMutationError(err instanceof Error ? err.message : 'An error occurred');
-                  }
+                  // Stage the GR for confirmation (commit fires on Confirm).
+                  setPendingConfirm({
+                    kind: 'createGR',
+                    status: fd.get('gr-status') as 'Partial' | 'Complete',
+                    receiptDate: fd.get('gr-date') as string,
+                  });
                 }}
                 className="flex flex-wrap items-end gap-3"
               >
@@ -446,19 +537,16 @@ const ProcurementDetails: React.FC = () => {
             ) : (
               <form
                 data-testid="form-create-vi"
-                onSubmit={async (e) => {
+                onSubmit={(e) => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
                   setMutationError(null);
-                  try {
-                    await mutations.createInvoice.mutateAsync({
-                      status: fd.get('vi-status') as 'Received' | 'Scheduled' | 'Paid',
-                      invoiceDate: fd.get('vi-date') as string,
-                    });
-                    setShowCreateVI(false);
-                  } catch (err) {
-                    setMutationError(err instanceof Error ? err.message : 'An error occurred');
-                  }
+                  // Stage the VI for confirmation (commit fires on Confirm).
+                  setPendingConfirm({
+                    kind: 'createVI',
+                    status: fd.get('vi-status') as 'Received' | 'Scheduled' | 'Paid',
+                    invoiceDate: fd.get('vi-date') as string,
+                  });
                 }}
                 className="flex flex-wrap items-end gap-3"
               >
@@ -558,6 +646,39 @@ const ProcurementDetails: React.FC = () => {
           </CardPad>
         </Card>
       )}
+
+      {/* P1-P4 — confirm-before-write. One dialog drives every staged mutation;
+          forward steps + GR/VI are default-tone, Reject/Cancel are destructive. */}
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        tone={pendingConfirm?.kind === 'transition' ? pendingConfirm.tone : 'default'}
+        title={
+          pendingConfirm?.kind === 'transition'
+            ? pendingConfirm.title
+            : pendingConfirm?.kind === 'createGR'
+              ? 'Record this goods receipt?'
+              : 'Record this vendor invoice?'
+        }
+        description={
+          pendingConfirm?.kind === 'transition'
+            ? pendingConfirm.tone === 'destructive'
+              ? 'This is a terminal action for this request and cannot be undone.'
+              : `This moves ${p.title} to its next lifecycle stage.`
+            : pendingConfirm?.kind === 'createGR'
+              ? `This records a ${pendingConfirm.status.toLowerCase()} goods receipt against ${p.title}.`
+              : `This records a vendor invoice against ${p.title}.`
+        }
+        confirmLabel={
+          pendingConfirm?.kind === 'transition'
+            ? pendingConfirm.confirmLabel
+            : pendingConfirm?.kind === 'createGR'
+              ? 'Save GR'
+              : 'Save VI'
+        }
+        loading={confirmInFlight}
+        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => void commitConfirm()}
+      />
     </div>
   );
 };

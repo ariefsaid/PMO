@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, ListState, type TabItem } from '@/src/components/ui';
-import { BackBar, Breadcrumb, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import OverviewTab from './tabs/OverviewTab';
@@ -23,8 +23,8 @@ const TABS: TabItem<PTab>[] = [
 /**
  * Route shell for `/projects/:projectId` — loads the project from the
  * `useProjects()` cache (no new project-by-id DAL; the row already carries
- * client/pm/contract/spent/customer_contract_ref). Renders BackBar +
- * Breadcrumb, the header, and the in-page Tabs (`ptabs`, local UI state — they
+ * client/pm/contract/spent/customer_contract_ref). Renders the header and the
+ * in-page Tabs (`ptabs`, local UI state — they
  * do NOT create global workspace tabs). Default tab = Overview (OQ-4); the
  * `/budget` deep-link pre-selects Budget. A cold deep-link shows ListState
  * loading, a truly-absent project shows an error with a Back-to-Projects action.
@@ -32,7 +32,7 @@ const TABS: TabItem<PTab>[] = [
 const ProjectDetail: React.FC = () => {
   const { projectId = '' } = useParams<{ projectId: string }>();
   const location = useLocation();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { data, isPending } = useProjects();
 
   const project = useMemo(
@@ -43,23 +43,10 @@ const ProjectDetail: React.FC = () => {
   const isBudgetDeepLink = location.pathname.endsWith('/budget');
   const [tab, setTab] = useState<PTab>(isBudgetDeepLink ? 'budget' : 'overview');
 
-  const goBack = () => ws.openModule('projects');
-
-  // Hydrate the workspace record tab's label to the human name once resolved.
-  useEffect(() => {
-    if (project) {
-      ws.openRecord({
-        id: `projects:${project.id}`,
-        kind: 'record',
-        path: `/projects/${project.id}`,
-        icon: 'folder',
-        label: project.name,
-        code: project.code ?? project.id.slice(0, 8),
-        module: 'projects',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.name, project?.code]);
+  // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
+  // breadcrumb resolves the record name from the cached list in App.tsx, so no
+  // per-page label hydration is needed once the tab layer is gone.
+  const goBack = () => navigate('/projects');
 
   if (!project) {
     if (isPending) {
@@ -85,18 +72,16 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div>
-      <BackBar label="Projects" onBack={goBack} />
-      <Breadcrumb
-        className="mb-3.5"
-        parts={[{ label: 'Projects', onClick: goBack }, { label: project.name }]}
-      />
-
+      {/* I7: no in-page BackBar / Breadcrumb on the success render — the top-bar
+          breadcrumb (Projects > record) is the single wayfinding surface. Both
+          are kept on the loading / not-found branches above, where there is no
+          in-page header to orient from and the crumb shows only the raw id. */}
       <ProjectDetailHeader project={project} />
 
       <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" />
 
       <div role="tabpanel">
-        {tab === 'overview' && <OverviewTab project={project} />}
+        {tab === 'overview' && <OverviewTab project={project} setTab={setTab} />}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
         {tab === 'tasks' && <TasksTab />}

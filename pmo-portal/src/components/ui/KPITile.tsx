@@ -92,7 +92,7 @@ export function KPITile<L extends string = string>({
               tabIndex={0}
               role="button"
               aria-label={`Help: ${label}`}
-              className="ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
+              className="touch-target ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
             >
               <Icon name="help" />
             </span>

@@ -26,7 +26,7 @@ const pipelineState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: { stages: seedStages, projects: seedProjects }, isPending: false, isError: false, refetch: vi.fn() };
 
-const openRecord = vi.fn();
+const navigate = vi.fn();
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
@@ -36,26 +36,30 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
-vi.mock('@/src/components/shell', async (orig) => {
+// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
 const renderPage = () => render(<MemoryRouter><SalesPipeline /></MemoryRouter>);
 
 beforeEach(() => {
   sessionStorage.clear();
-  openRecord.mockClear();
+  navigate.mockClear();
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
   pipelineState.isError = false;
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('AC-SP-202: renders the page title, sub, and action buttons', () => {
+  it('AC-SP-202 / C3: renders the page title, sub, and the live Export action (no dead New deal CTA)', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /New deal/i })).toBeInTheDocument();
+    // C3: the disabled "New deal" primary CTA is removed — a page is not
+    // anchored by a dead button.
+    expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
+    // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
   });
 
@@ -93,21 +97,12 @@ describe('SalesPipeline states (AC-SP-203)', () => {
     expect(pipelineState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-SP-203: empty renders the composed empty state with a New deal action', () => {
+  it('AC-SP-203 / C3: empty renders the teaching empty state with NO dead CTA', () => {
     pipelineState.data = { stages: [], projects: [] };
     renderPage();
     expect(screen.getByText(/No opportunities yet/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /New deal/i }).length).toBeGreaterThan(0);
-  });
-
-  it('AC-A11Y-04: empty-state "New deal" CTA is disabled (matches gated header affordance)', () => {
-    pipelineState.data = { stages: [], projects: [] };
-    renderPage();
-    // The empty-state "New deal" button must be disabled — same gating as the header CTA.
-    const newDealButtons = screen.getAllByRole('button', { name: /New deal/i });
-    newDealButtons.forEach((btn) => {
-      expect(btn).toBeDisabled();
-    });
+    // C3: the empty state teaches via its sub copy — no disabled "New deal" CTA.
+    expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
   });
 });
 
@@ -134,6 +129,12 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
   });
 
+  it('I3: the data-less "Decision" column of em-dashes is omitted from the table', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    expect(screen.queryByRole('columnheader', { name: /Decision/i })).toBeNull();
+  });
+
   it('AC-SP-206: the chosen view persists to sessionStorage', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
@@ -141,19 +142,17 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   });
 });
 
-describe('SalesPipeline drill-down (AC-SP-207)', () => {
-  it('AC-SP-207: clicking a card opens a record tab with the human label', () => {
+describe('SalesPipeline drill-down (AC-SP-207 / AC-NAV-006)', () => {
+  it('AC-NAV-006: clicking a card navigates to the opportunity detail route (no tab)', () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'sales:p2', label: 'Northwind ERP Rollout', module: 'sales' }),
-    );
+    expect(navigate).toHaveBeenCalledWith('/sales/p2');
   });
 
-  it('AC-SP-205: a table row click opens the record tab', async () => {
+  it('AC-NAV-006: a table row click navigates to the opportunity detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
-    expect(openRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'sales:p2' }));
+    expect(navigate).toHaveBeenCalledWith('/sales/p2');
   });
 });

@@ -4,7 +4,6 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
-import { useWorkspaceTabsOptional } from './WorkspaceTabsProvider';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -28,17 +27,15 @@ interface NavItem {
   roles: UserRole[];
   /** Owning rail group. */
   group: 'Overview' | 'Sales' | 'Delivery' | 'Workforce';
-  /** When set, the item is a tracked workspace module (opens a module tab). */
-  moduleKey?: string;
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
-  { to: '/', text: 'Dashboard', icon: 'grid', group: 'Overview', moduleKey: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/projects', text: 'Projects', icon: 'folder', group: 'Delivery', moduleKey: 'projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'Sales', moduleKey: 'sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', moduleKey: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', moduleKey: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  { to: '/', text: 'Dashboard', icon: 'grid', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/projects', text: 'Projects', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/tasks', text: 'Tasks', icon: 'table', group: 'Delivery', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
@@ -53,35 +50,18 @@ const NAV_LINK_BASE =
 
 export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const { effectiveRole } = useEffectiveRole();
-  const ws = useWorkspaceTabsOptional();
   const role = toUserRole(effectiveRole);
 
   if (!role) return null;
 
   const items = ALL_ITEMS.filter((i) => i.roles.includes(role));
 
-  /**
-   * Build the onClick handler for a nav item.
-   *
-   * For module items: call openModule() so the workspace tab strip opens/refocuses
-   * the correct tab. The NavLink still navigates via its href — openModule only
-   * manages tab state (it already calls navigate internally, but the router-driven
-   * URL change from the anchor click is the canonical source of truth and harmless
-   * to call twice for the same path).
-   *
-   * For non-module items: just fire onNavigate (e.g. close mobile drawer).
-   */
-  const makeClickHandler = (item: NavItem) => () => {
-    if (item.moduleKey && ws) ws.openModule(item.moduleKey);
-    onNavigate?.();
-  };
-
   const renderItem = (item: NavItem) => (
     <NavLink
       key={item.to}
       to={item.to}
       end={item.to === '/'}
-      onClick={makeClickHandler(item)}
+      onClick={onNavigate}
       className={({ isActive }: { isActive: boolean }) =>
         cn(
           NAV_LINK_BASE,

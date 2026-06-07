@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -44,13 +45,22 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
-const openRecord = vi.fn();
-vi.mock('@/src/components/shell', async (orig) => {
+const navigate = vi.fn();
+// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
-const renderPage = () => render(<MemoryRouter><Projects /></MemoryRouter>);
+// Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <Projects />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
 describe('Projects index — IA-3 (real data)', () => {
   beforeEach(() => {
@@ -58,7 +68,7 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
-    openRecord.mockClear();
+    navigate.mockClear();
   });
 
   it('renders seeded projects with joined client + PM names (AC-401)', () => {
@@ -85,10 +95,10 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
   });
 
-  it('opens the workspace record tab and navigates when a row is activated (AC-B)', async () => {
+  it('AC-NAV-006: navigates to the project detail route when a row is activated (no tab)', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Innovate Corp HQ Fit-Out'));
-    expect(openRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'projects:p1', path: '/projects/p1' }));
+    expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
   it('filters to Leads via the status SegFilter (AC-403)', async () => {
@@ -132,16 +142,26 @@ describe('Projects index states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('shows empty state with a New Project CTA when zero rows (AC-406)', () => {
+  it('C3: shows the teaching empty state with NO dead New Project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
     renderPage();
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
+    // C3: no disabled "New Project" button anywhere (header CTA removed + the
+    // page-empty state teaches via its sub copy, not a dead button).
+    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
+  });
+
+  it('C3: the page header is not anchored by a disabled New Project CTA', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
   });
 
   it('shows a filter-no-match empty state with a clear-filters action (AC-D)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'zzzz-no-match');
     expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
+    // the LIVE "Clear filters" action is kept (it actually does something).
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
 });
@@ -178,6 +198,20 @@ describe('Projects table — compact layout (#1)', () => {
     const outerSpan = bar.closest('span[class*="min-w-[80px]"]') ??
       bar.parentElement?.closest('span[class*="min-w-[80px]"]');
     expect(outerSpan).not.toBeNull();
+  });
+
+  it('M-D: PM name renders in full and wraps — no tight max-w-[10ch] truncation', () => {
+    renderPage();
+    // Scope to the table body (the toolbar PM filter <select> also lists the name).
+    const tbody = document.querySelector('tbody')!;
+    const pmName = within(tbody as HTMLElement)
+      .getAllByText('Alice Manager')
+      .find((el) => el.tagName === 'SPAN')!;
+    expect(pmName).toBeTruthy();
+    // The name span allows wrapping (whitespace-normal) rather than truncating.
+    expect(pmName.className).toContain('whitespace-normal');
+    expect(pmName.className).not.toContain('truncate');
+    expect(pmName.className).not.toContain('max-w-[10ch]');
   });
 });
 

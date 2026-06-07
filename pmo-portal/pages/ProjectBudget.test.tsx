@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '@/src/components/ui';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (mirrors Procurement.test.tsx pattern)
@@ -59,7 +60,9 @@ import ProjectBudget from './ProjectBudget';
 const renderPage = (projectId = 'p-1') =>
   render(
     <MemoryRouter>
-      <ProjectBudget projectId={projectId} />
+      <ToastProvider>
+        <ProjectBudget projectId={projectId} />
+      </ToastProvider>
     </MemoryRouter>
   );
 
@@ -178,7 +181,9 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    // "Draft" appears in the selector-bar pill AND in the VersionCard (intentional reinforcement per plan §2)
+    const draftMatches = screen.getAllByText('Draft');
+    expect(draftMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 
@@ -186,7 +191,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    const activeMatches = screen.getAllByText('Active');
+    expect(activeMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 
@@ -194,7 +200,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    expect(screen.getByText('Archived')).toBeInTheDocument();
+    const archivedMatches = screen.getAllByText('Archived');
+    expect(archivedMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 });
@@ -212,20 +219,32 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  it('calls activate mutation when Activate clicked', async () => {
+  it('B2: Activate opens a default-tone confirm; mutation fires only on Confirm; toasts on resolve', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /Activate/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    // Owner rule: nothing mutates on the first click.
+    expect(mockActivate).not.toHaveBeenCalled();
+    // Default tone => role=dialog.
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
     resetState();
   });
 
-  it('calls deleteDraft mutation when Delete draft clicked', async () => {
+  it('B5: Delete draft opens a DESTRUCTIVE modal; deleteDraft fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
+    expect(mockDeleteDraft).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    // The confirm button label is "Delete draft" (verb + object).
+    const confirms = screen.getAllByRole('button', { name: /Delete draft/i });
+    // The last one is the dialog's confirm (the trigger is also still labelled "Delete draft").
+    await userEvent.click(confirms[confirms.length - 1]);
     expect(mockDeleteDraft).toHaveBeenCalledWith('v-draft');
     resetState();
   });
@@ -238,12 +257,16 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
-  it('calls deleteLineItem when Delete button clicked in line-item editor', async () => {
+  it('delete-line-item opens a DESTRUCTIVE modal; deleteLineItem fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
     const deleteBtn = screen.getByRole('button', { name: /Delete line item Labor/i });
     await userEvent.click(deleteBtn);
+    // Owner rule: the row's Delete click stages a confirm, does not write.
+    expect(mockDeleteLineItem).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     expect(mockDeleteLineItem).toHaveBeenCalledWith('li-1');
     resetState();
   });
@@ -270,34 +293,38 @@ describe('ProjectBudget Active version actions', () => {
     resetState();
   });
 
-  it('shows confirmation on Archive click then calls mutation', async () => {
+  it('B4: Archive opens a DESTRUCTIVE modal then calls mutation on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    // Confirmation warning should appear
-    expect(screen.getByText(/Warning: archiving removes the active budget/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Yes, archive/i }));
+    // Owner rule: nothing mutates on the first click; a destructive modal appears.
+    expect(mockArchive).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Archive version/i }));
     expect(mockArchive).toHaveBeenCalledWith('v-active');
     resetState();
   });
 
-  it('can cancel archive confirmation', async () => {
+  it('B4: can cancel archive confirmation', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    expect(screen.queryByText(/Warning/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(mockArchive).not.toHaveBeenCalled();
     resetState();
   });
 
-  it('calls cloneVersion mutation for Active version', async () => {
+  it('B3: Clone opens a default-tone confirm then calls cloneVersion on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
+    expect(mockClone).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
     expect(mockClone).toHaveBeenCalledWith('v-active');
     resetState();
   });
@@ -345,13 +372,21 @@ describe('ProjectBudget New version form (versions list state)', () => {
     expect(screen.getByPlaceholderText(/Version name/i)).toBeInTheDocument();
   });
 
-  it('calls createVersion and closes form on submit in list state', async () => {
+  it('B1: Create opens a confirm in list state; createVersion fires only on Confirm', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v2');
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    expect(mockCreateVersion).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    // item J: the confirm description names the entered version — never an
+    // empty-string '""' from a fragile kind-narrowing fallback.
+    expect(dialog).toHaveTextContent('named "Budget v2"');
+    expect(dialog).not.toHaveTextContent('named ""');
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2' });
   });
 });
@@ -405,13 +440,15 @@ describe('ProjectBudget New version form (empty state)', () => {
     resetState();
   });
 
-  it('calls createVersion and closes form on submit', async () => {
+  it('B1: Create opens a confirm in empty state; createVersion fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    expect(mockCreateVersion).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1' });
     resetState();
   });
@@ -423,6 +460,115 @@ describe('ProjectBudget New version form (empty state)', () => {
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByPlaceholderText(/Version name/i)).not.toBeInTheDocument();
+    resetState();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProjectBudget version selector (budget-dropdown)
+// ---------------------------------------------------------------------------
+describe('ProjectBudget version selector (budget-dropdown)', () => {
+  // T1/T2: AC-BD-01 — labelled selector present when ≥1 version exists
+  it('AC-BD-01: renders a labelled "Version" combobox with ≥1 version', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    renderPage();
+    expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
+    resetState();
+  });
+
+  // T3/T4: AC-BD-02 — defaults to Active version, shows Active status pill in selector bar
+  it('AC-BD-02: defaults selection to Active version when present (even if not first in array)', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeVersion, draftVersion];
+    renderPage();
+    const selectorBar = screen.getByTestId('version-selector');
+    // The selector bar pill should show "Active"
+    expect(selectorBar.textContent).toContain('Active');
+    // The combobox value should be the active version's id
+    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
+    expect(combobox.value).toBe(activeVersion.id);
+    resetState();
+  });
+
+  // T5/T6: AC-BD-04 — switching selection swaps the single card (AC-BD-05: never stacked)
+  it('AC-BD-04: switching version selector swaps to the selected version card', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    renderPage();
+    // Default = Active; draftVersion has a 'Developers' line item
+    expect(screen.queryByText('Developers')).not.toBeInTheDocument();
+    // Switch to draft
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /version/i }), draftVersion.id);
+    expect(screen.getByText('Developers')).toBeInTheDocument();
+    // Only one version-card in the DOM (AC-BD-05)
+    expect(screen.getAllByTestId('version-card')).toHaveLength(1);
+    resetState();
+  });
+
+  // T7: AC-BD-06 — single-version still shows the selector
+  it('AC-BD-06: selector is still present when only one version exists', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    renderPage();
+    expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId('version-card')).toHaveLength(1);
+    resetState();
+  });
+
+  // T8: AC-BD-03 — no-Active fallback: highest Draft wins over Archived
+  it('AC-BD-03: no Active version — defaults to highest-version Draft', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion, draftVersion]; // no Active
+    renderPage();
+    const selectorBar = screen.getByTestId('version-selector');
+    expect(selectorBar.textContent).toContain('Draft');
+    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
+    expect(combobox.value).toBe(draftVersion.id);
+    resetState();
+  });
+
+  // T9: AC-BD-09 — delete-selected-draft self-heals
+  it('AC-BD-09: selecting deleted Draft self-heals to default (Active) without crash', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    const { rerender } = renderPage();
+    // Select the draft
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /version/i }), draftVersion.id);
+    expect(screen.getByText('Developers')).toBeInTheDocument();
+    // Simulate mutation: draft is deleted, only active remains
+    versionsState.data = [activeVersion];
+    rerender(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectBudget projectId="p-1" />
+        </ToastProvider>
+      </MemoryRouter>
+    );
+    // Should fall back to active, no crash
+    const selectorBar = screen.getByTestId('version-selector');
+    expect(selectorBar.textContent).toContain('Active');
+    expect(screen.queryByText('Developers')).not.toBeInTheDocument();
+    resetState();
+  });
+
+  // T10a: A4/N1 — option text for a Draft contains "(Draft)" not color-only
+  it('A4/N1: option text includes "(Draft)" for draft version (not color-only status)', () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    const combobox = screen.getByRole('combobox', { name: /version/i });
+    expect(combobox.textContent).toContain('(Draft)');
+    resetState();
+  });
+
+  // T10b: N2 — no em-dash in selector/option text
+  it('N2: no em-dash in selector or option text', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    const { getByTestId } = renderPage();
+    const selectorBar = getByTestId('version-selector');
+    expect(selectorBar.textContent).not.toContain('—'); // em-dash —
     resetState();
   });
 });

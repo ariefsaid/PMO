@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import { ToastProvider } from '@/src/components/ui';
 import Timesheets from './Timesheets';
 
 // Seeded PM week (2026-06-01): 6 + 4 = 10.0 hours, one project.
@@ -38,7 +40,14 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-const renderPage = () => render(<MemoryRouter><Timesheets /></MemoryRouter>);
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <Timesheets />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
 beforeEach(() => {
   sessionStorage.clear(); // reset the persisted view so each test starts on the grid
@@ -203,9 +212,14 @@ describe('Timesheets #5: grid rows grouped by project only', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    // Only ONE row for 'Alpha Project' — not two
-    const projectCells = screen.getAllByText('Alpha Project');
-    expect(projectCells).toHaveLength(1);
+    // Only ONE row for 'Alpha Project' in the GRID — not two.
+    // (The project name may also appear in the "By project this week" / "Recent entries" panels
+    // so we scope the assertion to the table element itself.)
+    const table = document.querySelector('table');
+    const gridProjectCells = table ? Array.from(table.querySelectorAll('td')).filter(
+      (td) => td.textContent?.includes('Alpha Project')
+    ) : [];
+    expect(gridProjectCells).toHaveLength(1);
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
 });
@@ -219,7 +233,7 @@ describe('Timesheets submit button', () => {
     submitMutate.mockClear();
   });
 
-  it("AC-911 (UI): the weekly grid shows an enabled Submit button for the owner's own Draft sheet and calls the submit mutation (FR-TS-004)", () => {
+  it("T1/AC-911 (UI): the weekly grid shows an enabled Submit button for the owner's own Draft sheet; clicking it opens a confirm and the submit mutation fires only on Confirm, then toasts (FR-TS-004)", async () => {
     // pmSheet has user_id 'u-alice' and useAuth returns id 'u-alice' → isOwner=true
     // week_start_date must match the current week; Timesheets page uses today's week
     // so we set a Draft sheet matching the current week string
@@ -239,14 +253,31 @@ describe('Timesheets submit button', () => {
     tsState.isPending = false;
     tsState.isError = false;
 
+    // submit.mutate(vars, { onSuccess }) — invoke onSuccess so the toast runs.
+    submitMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
     renderPage();
 
     const submitBtn = screen.getByRole('button', { name: /submit timesheet/i });
     expect(submitBtn).toBeInTheDocument();
     expect(submitBtn).not.toBeDisabled();
 
-    fireEvent.click(submitBtn);
-    expect(submitMutate).toHaveBeenCalledWith({ id: 'ts-draft' });
+    await userEvent.click(submitBtn);
+    // Owner rule: the first click must NOT submit.
+    expect(submitMutate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    // Commit via the dialog's confirm button (scoped to the dialog).
+    const { getByRole } = within(dialog);
+    await userEvent.click(getByRole('button', { name: /^Submit timesheet$/i }));
+    expect(submitMutate).toHaveBeenCalledWith(
+      { id: 'ts-draft' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
   });
@@ -274,5 +305,84 @@ describe('Timesheets submit button', () => {
     expect(screen.queryByRole('button', { name: /submit timesheet/i })).toBeNull();
 
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+// ── Phase 4: T11–T13 — Timesheet grid surround densification ────────────────
+
+/** Helper: get the Monday of the current week in YYYY-MM-DD form (matches Timesheets page logic). */
+function currentWeekStartStr(): string {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(today);
+  monday.setDate(diff);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+}
+
+function currentWeekSheet() {
+  const weekStr = currentWeekStartStr();
+  const tue = new Date(weekStr + 'T00:00:00');
+  tue.setDate(tue.getDate() + 1);
+  const tueStr = `${tue.getFullYear()}-${String(tue.getMonth() + 1).padStart(2, '0')}-${String(tue.getDate()).padStart(2, '0')}`;
+  return [{
+    id: 'ts-cw', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+    submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+    entries: [
+      { id: 'ec1', timesheet_id: 'ts-cw', project_id: 'pr1', entry_date: weekStr, hours: 6,
+        notes: 'Planning session', project: { name: 'Alpha Project', code: 'A001' } },
+      { id: 'ec2', timesheet_id: 'ts-cw', project_id: 'pr2', entry_date: tueStr, hours: 4,
+        notes: null, project: { name: 'Beta Corp', code: null } },
+    ],
+  }];
+}
+
+describe('Timesheets T11: By-project-this-week panel from gridRows', () => {
+  beforeEach(() => { sessionStorage.clear(); });
+
+  it('T11: renders "By project this week" panel with one bar per distinct project', () => {
+    tsState.data = currentWeekSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    const group = screen.getByRole('group', { name: /By project this week/i });
+    expect(group).toBeInTheDocument();
+    expect(group.querySelectorAll('[role="progressbar"]').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('T11: an empty week shows exactly one empty state, not separate panel empties', () => {
+    tsState.data = [];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    // Only the grid card's empty state renders
+    expect(screen.getByTestId('timesheets-empty')).toBeInTheDocument();
+    // The by-project panel must NOT render when gridRows is empty
+    expect(screen.queryByRole('group', { name: /By project this week/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('Timesheets T13: Recent entries this week panel', () => {
+  beforeEach(() => { sessionStorage.clear(); });
+
+  it('T13: renders "Recent entries this week" panel with notes', () => {
+    tsState.data = currentWeekSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    expect(screen.getByText(/Recent entries this week/i)).toBeInTheDocument();
+  });
+
+  it('T13: shows "No note" for null notes (not em-dash in entry rows)', () => {
+    tsState.data = currentWeekSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    // ec2 has notes=null → EntryList renders "No note" text
+    expect(screen.getAllByText('No note').length).toBeGreaterThanOrEqual(1);
+    // Confirm no em-dash placeholder within list items
+    const listItems = document.querySelectorAll('li');
+    const listText = Array.from(listItems).map((li) => li.textContent).join('');
+    expect(listText).not.toContain('—');
   });
 });

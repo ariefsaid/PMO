@@ -24,6 +24,12 @@ export { ProgressBar, type ProgressBarProps, type ProgressTone } from './Progres
 export { ListState, type ListStateProps } from './ListState';
 export { Tooltip, type TooltipProps } from './Tooltip';
 export { ToastProvider, ToastView, useToast, type ToastKind } from './Toast';
+export {
+  ConfirmDialog,
+  type ConfirmDialogProps,
+  type ConfirmTone,
+  type ConfirmSurface,
+} from './ConfirmDialog';
 
 export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
 export {
@@ -45,3 +51,5 @@ export {
 } from './TimesheetGrid';
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
+export { HoursBar, type HoursBarProps } from './HoursBar';
+export { EntryList, type EntryListProps } from './EntryList';

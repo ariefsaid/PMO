@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { VIEWS_STORAGE_KEY } from '@/src/components/shell/workspaceTabs';
+import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 /** The two Timesheets body layouts (ViewToggle options). */
 export type TimesheetsView = 'grid' | 'approvals';

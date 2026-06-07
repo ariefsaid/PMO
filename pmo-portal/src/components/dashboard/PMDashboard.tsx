@@ -94,7 +94,8 @@ export const PMDashboard: React.FC = () => {
                 {mine.map((p) => {
                   // Only show a margin figure for in-delivery projects that have real spend.
                   // Zero-spend (Tender/Loss rows) would produce (contract - 0)/contract = 100%
-                  // which is misleading — show "—" instead (I2 fix).
+                  // which is misleading — show the muted "Not set" instead (I2 fix; G3
+                  // replaces the bare em-dash with concrete copy).
                   const isActive = p.status === 'Ongoing Project' || p.status === 'Internal Project';
                   const hasSpend = p.spent > 0 && p.contract_value > 0;
                   const margin = isActive && hasSpend
@@ -110,8 +111,10 @@ export const PMDashboard: React.FC = () => {
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.name}</span>
                       <StatusPill variant={statusVariant(p.status)}>{p.status}</StatusPill>
-                      <span className={`w-16 text-right text-[13px] font-bold tabular ${marginClass}`}>
-                        {margin !== null ? `${margin.toFixed(1)}%` : '—'}
+                      <span
+                        className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
+                      >
+                        {margin !== null ? `${margin.toFixed(1)}%` : 'Not set'}
                       </span>
                     </li>
                   );

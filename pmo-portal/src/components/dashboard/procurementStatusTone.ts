@@ -22,7 +22,12 @@ export function procurementStatusTone(status: ProcurementStatus): SeriesColor {
     case 'Received':
     case 'Paid':
       return chartTheme.series.success;
-    // in-flight — committed / progressing through the order
+    // in-flight — not-yet-started + committed / progressing through the order.
+    // C1 de-rainbow: Draft moved here (was the categorical violet). Draft is
+    // "not-yet-started", not a category — blue is the in-flight default; the
+    // categorical violet is reserved for non-status use, and a 5th hue on a
+    // status chart is the rainbow. Net: at most 4 status-meaning hues.
+    case 'Draft':
     case 'Approved':
     case 'Quote Selected':
     case 'Ordered':
@@ -36,9 +41,6 @@ export function procurementStatusTone(status: ProcurementStatus): SeriesColor {
     case 'Rejected':
     case 'Cancelled':
       return chartTheme.series.destructive;
-    // neutral — not yet started
-    case 'Draft':
-      return chartTheme.series.violet;
     default: {
       // Exhaustiveness guard: a new enum value will fail to compile here.
       const _exhaustive: never = status;

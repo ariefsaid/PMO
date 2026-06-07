@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -6,7 +6,6 @@ import React from 'react';
 import { Rail } from '../Rail';
 
 let effectiveRole = 'Executive';
-const openModule = vi.fn();
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
@@ -16,23 +15,6 @@ vi.mock('@/src/auth/impersonation', () => ({
     viewAs: vi.fn(),
   }),
 }));
-vi.mock('../WorkspaceTabsProvider', async (orig) => {
-  const actual = await orig<typeof import('../WorkspaceTabsProvider')>();
-  return {
-    ...actual,
-    useWorkspaceTabsOptional: () => ({
-      tabs: [
-        { id: 'dashboard', kind: 'module', path: '/', icon: 'grid', label: 'Dashboard', module: 'dashboard' },
-      ],
-      activeId: 'dashboard',
-      openModule,
-      openRecord: vi.fn(),
-      closeTab: vi.fn(),
-      selectTab: vi.fn(),
-      setDirty: vi.fn(),
-    }),
-  };
-});
 
 const renderRail = () =>
   render(
@@ -41,11 +23,7 @@ const renderRail = () =>
     </MemoryRouter>
   );
 
-beforeEach(() => {
-  openModule.mockClear();
-});
-
-describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011)', () => {
+describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
   it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Reports', () => {
     effectiveRole = 'Executive';
     renderRail();
@@ -85,6 +63,19 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011)',
     expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 
+  // AC-NAV-009: the rail re-gates when the effective (impersonated) role changes.
+  it('AC-NAV-009: re-gates the item set under role impersonation', () => {
+    effectiveRole = 'Engineer';
+    const { unmount } = renderRail();
+    // Engineer cannot see Sales Pipeline.
+    expect(screen.queryByText('Sales Pipeline')).not.toBeInTheDocument();
+    unmount();
+    // Impersonate Executive → Sales Pipeline becomes visible.
+    effectiveRole = 'Executive';
+    renderRail();
+    expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
+  });
+
   it('renders Overline group labels', () => {
     effectiveRole = 'Executive';
     renderRail();
@@ -113,25 +104,9 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011)',
   it('active item carries aria-current=page — AC-AUTH-003', () => {
     effectiveRole = 'Executive';
     renderRail();
-    // Dashboard is active (activeId=dashboard, module=dashboard)
+    // Dashboard is active at the default `/` route (URL is the source of truth).
     const dash = screen.getByRole('link', { name: /Dashboard/ });
     expect(dash).toHaveAttribute('aria-current', 'page');
-  });
-
-  // Clicking a rail item with a moduleKey must still call openModule for tab state
-  it('clicking a rail item calls openModule for workspace tab sync', async () => {
-    effectiveRole = 'Executive';
-    renderRail();
-    await userEvent.click(screen.getByRole('link', { name: /Sales Pipeline/ }));
-    expect(openModule).toHaveBeenCalledWith('sales');
-  });
-
-  // Items without a moduleKey (Approvals, Tasks, Companies, Reports) do NOT call openModule
-  it('clicking an item without moduleKey does not call openModule', async () => {
-    effectiveRole = 'Executive';
-    renderRail();
-    await userEvent.click(screen.getByRole('link', { name: /Approvals/ }));
-    expect(openModule).not.toHaveBeenCalled();
   });
 
   it('onNavigate callback fires when a nav link is clicked', async () => {

@@ -1,4 +1,3 @@
-import type { WorkspaceContextValue } from '@/src/components/shell';
 import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
@@ -55,13 +54,24 @@ export function stageIndexForStatus(status: ProcurementStatus): number {
   return STATUS_TO_STAGE[s] ?? 0;
 }
 
-/** StatusPill variant: Paid → won, Rejected/Cancelled → lost, Draft → draft, else open. */
+/**
+ * StatusPill variant: Paid → won, Rejected/Cancelled → lost, Draft → draft, all
+ * other in-flight statuses → `progress` (the quiet neutral pill).
+ *
+ * I1 fix: the list pill shows each record's OWN stage (not a board column), so
+ * there is no single "active" stage to render blue — collapsing every in-flight
+ * status to the blue `open` produced three identical blue pills (Purchase
+ * Request / Vendor Quote / Purchase Order). They are now neutral `progress`,
+ * differentiated from each other by their distinct `stageLabelForStatus` label
+ * and the row's lifecycle pip stepper (color-not-only). The blue `open` variant
+ * is retained for surfaces with a genuine single active item (e.g. sales).
+ */
 export function pillVariantForStatus(status: ProcurementStatus): StatusVariant {
   const s = status as string;
   if (s === 'Paid') return 'won';
   if (TERMINAL_OFF_TRACK.has(s)) return 'lost';
   if (s === 'Draft') return 'draft';
-  return 'open';
+  return 'progress';
 }
 
 /**
@@ -134,21 +144,14 @@ export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): Lifec
 }
 
 /**
- * Opens (or refocuses) the procurement's workspace record tab with its HUMAN
- * label (master plan §4.2 tab integration). The PR ref is the mono code badge;
- * re-opening the same PR refocuses the existing tab. Mirrors `openOpportunity`.
+ * Navigates to the procurement's detail route (AC-NAV-006). With the workspace
+ * tab layer removed, the row drill is a plain react-router navigate; the URL is
+ * the single source of truth and the top-bar breadcrumb derives from it.
+ * Mirrors `openOpportunity`.
  */
 export function openPR(
-  ws: Pick<WorkspaceContextValue, 'openRecord'>,
-  pr: { id: string; title: string; code?: string | null },
+  navigate: (path: string) => void,
+  pr: { id: string },
 ): void {
-  ws.openRecord({
-    id: `procurement:${pr.id}`,
-    kind: 'record',
-    path: `/procurement/${pr.id}`,
-    icon: 'cart',
-    label: pr.title,
-    code: pr.code ?? pr.id.slice(0, 7),
-    module: 'procurement',
-  });
+  navigate(`/procurement/${pr.id}`);
 }

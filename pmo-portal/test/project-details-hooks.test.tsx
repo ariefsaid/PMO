@@ -40,10 +40,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/components/shell', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openModule: vi.fn(), openRecord: vi.fn(), setDirty: vi.fn(), selectTab: vi.fn(), closeTab: vi.fn(), tabs: [], activeId: '' }) };
-});
+// ProjectDetail + ProcurementTab no longer use the workspace tab API — they
+// navigate via the real react-router (this test needs the real useNavigate for
+// its NavDriver), so no shell mock is required.
 
 function NavDriver({ to }: { to: string }) {
   const navigate = useNavigate();

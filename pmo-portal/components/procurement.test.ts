@@ -31,12 +31,21 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
     expect(stageIndexForStatus('Cancelled' as ProcurementStatus)).toBe(-1);
   });
 
-  it('pill variant: Paid → won, Rejected/Cancelled → lost, else open', () => {
+  it('I1: pill variant — Paid → won, Rejected/Cancelled → lost, Draft → draft, in-flight → progress (neutral, not blue)', () => {
     expect(pillVariantForStatus('Paid' as ProcurementStatus)).toBe('won');
     expect(pillVariantForStatus('Rejected' as ProcurementStatus)).toBe('lost');
     expect(pillVariantForStatus('Cancelled' as ProcurementStatus)).toBe('lost');
-    expect(pillVariantForStatus('Ordered' as ProcurementStatus)).toBe('open');
     expect(pillVariantForStatus('Draft' as ProcurementStatus)).toBe('draft');
+    // The three look-alike in-flight statuses become the neutral `progress`
+    // variant — distinct from each other by LABEL, distinct from the blue `open`
+    // reading; removes the I1 "3 identical blue pills" tell and stays one-blue.
+    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Approved' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Vendor Quoted' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Quote Selected' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Ordered' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Received' as ProcurementStatus)).toBe('progress');
+    expect(pillVariantForStatus('Vendor Invoiced' as ProcurementStatus)).toBe('progress');
   });
 
   it('stage label: Paid → "Paid", terminal → status, else the stage full name', () => {
@@ -46,13 +55,19 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
     expect(stageLabelForStatus('Rejected' as ProcurementStatus)).toBe('Rejected');
   });
 
-  it('Draft label is "Draft" (not "Purchase Request") — color-not-only: label+color must both distinguish Draft from Requested', () => {
-    // Draft → neutral grey (`draft` variant) + "Draft" label
+  it('I1: Draft vs Requested are distinguished by LABEL (color-not-only) — both quiet, neither the blue open', () => {
+    // Draft → `draft` variant + "Draft" label
     expect(stageLabelForStatus('Draft' as ProcurementStatus)).toBe('Draft');
     expect(pillVariantForStatus('Draft' as ProcurementStatus)).toBe('draft');
-    // Requested → blue (`open` variant) + "Purchase Request" label
+    // Requested → neutral `progress` variant + the distinct "Purchase Request"
+    // label (no longer the blue `open` — the in-flight stages are quiet now,
+    // differentiated from each other by label + the row's lifecycle pip stepper).
     expect(stageLabelForStatus('Requested' as ProcurementStatus)).toBe('Purchase Request');
-    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('open');
+    expect(pillVariantForStatus('Requested' as ProcurementStatus)).toBe('progress');
+    // the two distinct labels are what carry the difference (AS-4)
+    expect(stageLabelForStatus('Draft' as ProcurementStatus)).not.toBe(
+      stageLabelForStatus('Requested' as ProcurementStatus),
+    );
   });
 });
 
@@ -93,31 +108,17 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
   });
 });
 
-describe('procurement helper — openPR opens a record tab with the human label', () => {
-  it('calls ws.openRecord with the PR ref code + title label', () => {
-    const openRecord = vi.fn();
-    openPR(
-      { openRecord },
-      { id: 'proc-1', title: 'Structural steel', code: 'PR-2606040001' },
-    );
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'procurement:proc-1',
-        kind: 'record',
-        path: '/procurement/proc-1',
-        icon: 'cart',
-        label: 'Structural steel',
-        code: 'PR-2606040001',
-        module: 'procurement',
-      }),
-    );
+describe('procurement helper — openPR navigates to the detail route (AC-NAV-006)', () => {
+  it('AC-NAV-006: navigates to /procurement/:id (no tab)', () => {
+    const navigate = vi.fn();
+    openPR(navigate, { id: 'proc-1' });
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-1');
   });
 
-  it('falls back to the short id when no code is set', () => {
-    const openRecord = vi.fn();
-    openPR({ openRecord }, { id: 'proc-abcdef12', title: 'Crane hire', code: null });
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'proc-ab' }),
-    );
+  it('AC-NAV-006: navigates by id (the full record row carries more fields; only id is read)', () => {
+    const navigate = vi.fn();
+    const row = { id: 'proc-abcdef12', title: 'Crane hire', code: null };
+    openPR(navigate, row);
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-abcdef12');
   });
 });

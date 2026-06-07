@@ -77,18 +77,19 @@ describe('PMDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => 
 });
 
 describe('PMDashboard Project Status margin — no false-green (I2)', () => {
-  it('shows margin for active ongoing projects only — "—" for zero-spend/non-active rows', () => {
+  it('G3/I2: shows margin for active ongoing projects only — "Not set" (no em-dash) for non-active rows', () => {
     // mine fixture: p1=Ongoing+spend, p2=Won pending (not active), p3=Loss Tender (not active), p4=On Hold, p5=Leads
     renderPane();
     // p1: Ongoing, spent=1M, contract=4M → margin = (4M-1M)/4M = 75% → should show a % figure
-    // p3: Loss Tender, not active → should show "—"
-    // Verify "—" appears for non-active rows (Loss Tender, Won Pending KoM, On Hold, Leads)
     const allText = document.body.textContent ?? '';
     expect(allText).toContain('75.0%');
-    // Non-active rows get "—" not a percentage
+    // G3: non-active Project-Status rows read a concrete "Not set" margin value,
+    // never a bare em-dash placeholder (the "—" in the section heading separator
+    // is typographic, not a value placeholder, so we scope to the list rows).
     const listItems = document.querySelectorAll('ul li');
     const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project C'));
-    expect(lossTenderItem?.textContent).toContain('—');
+    expect(lossTenderItem?.textContent).toContain('Not set');
+    expect(lossTenderItem?.textContent).not.toContain('—');
     expect(lossTenderItem?.textContent).not.toMatch(/\d+\.\d+%/);
   });
   it('does not emit text-success on non-active project margin cells', () => {

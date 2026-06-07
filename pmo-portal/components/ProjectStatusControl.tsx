@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
+import { ConfirmDialog, useToast } from '@/src/components/ui';
 import {
   LEGAL_PROJECT_TRANSITIONS,
+  projectStatusGroup,
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 
@@ -29,11 +31,15 @@ interface ProjectStatusControlProps {
 const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) => {
   const { effectiveRole } = useEffectiveRole();
   const mutation = useProjectTransition();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<ProjectStatus | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
+  // Confirm-before-write (owner rule, PR1-PR3): a chosen non-win target is
+  // staged here and only commits when the ConfirmDialog's Confirm is pressed.
+  const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
 
   // Cosmetic gate: hide for non-write roles (RPC is the real authority)
   if (!WRITE_ROLES.has(effectiveRole ?? '')) return null;
@@ -43,16 +49,35 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
   // No transitions available (e.g. Internal Project terminal)
   if (legalTargets.length === 0) return null;
 
+  const isDestructiveTarget = (target: ProjectStatus) =>
+    projectStatusGroup(target as never) === 'lost';
+
   const handleTargetSelect = (target: ProjectStatus) => {
     if (target === 'Won, Pending KoM') {
-      // Prompt for contract ref + date before submitting
+      // PR2 (unchanged): the inline win form's Confirm IS the confirm step.
       setPendingTarget(target);
       setContractRef('');
       setContractDate('');
     } else {
-      // Immediate transition
+      // PR1 forward / PR3 loss: stage the target; the ConfirmDialog commits it.
+      // Nothing writes to the DB on this single click (owner rule).
       setOpen(false);
-      mutation.mutate({ id: project.id, to: target, opts: undefined });
+      setConfirmTarget(target);
+    }
+  };
+
+  // Commit the staged target and toast on resolve (§6.7). mutateAsync surfaces
+  // RPC errors verbatim (the inline alert + warning toast both keep the message).
+  const commitConfirm = async () => {
+    const target = confirmTarget;
+    if (!target) return;
+    try {
+      await mutation.mutateAsync({ id: project.id, to: target, opts: undefined });
+      setConfirmTarget(null);
+      toast('Project updated', `Moved to ${target}`, 'success');
+    } catch (err) {
+      setConfirmTarget(null);
+      toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
     }
   };
 
@@ -178,6 +203,29 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
             </button>
           </div>
         </form>
+      )}
+
+      {/* PR1 (forward) / PR3 (loss) confirm-before-write. The win path (PR2)
+          keeps its inline form above and never reaches here. */}
+      {confirmTarget && (
+        <ConfirmDialog
+          open
+          tone={isDestructiveTarget(confirmTarget) ? 'destructive' : 'default'}
+          title={
+            isDestructiveTarget(confirmTarget)
+              ? 'Mark project as lost'
+              : `Move project to ${confirmTarget}?`
+          }
+          description={
+            isDestructiveTarget(confirmTarget)
+              ? 'This moves the project to a terminal lost stage. You can still review it, but it leaves the active pipeline.'
+              : `This moves the project forward to the ${confirmTarget} stage.`
+          }
+          confirmLabel={isDestructiveTarget(confirmTarget) ? 'Mark lost' : `Move to ${confirmTarget}`}
+          loading={mutation.isPending}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={() => void commitConfirm()}
+        />
       )}
     </div>
   );

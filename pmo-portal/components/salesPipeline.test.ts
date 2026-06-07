@@ -40,6 +40,33 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(SALES_COLUMNS[3].statuses).toEqual(['Tender Submitted']);
   });
 
+  it('C2: every dotColor is a DESIGN.md token (no off-palette cyan/orange literals)', () => {
+    for (const col of SALES_COLUMNS) {
+      expect(col.dotColor).toMatch(/^hsl\(var\(--/);
+    }
+    // the off-palette cyan (Quotation) and orange (Negotiation) are gone
+    const colors = SALES_COLUMNS.map((c) => c.dotColor);
+    expect(colors).not.toContain('hsl(199 89% 48%)'); // cyan
+    expect(colors).not.toContain('hsl(25 95% 53%)'); // orange
+    expect(colors).not.toContain('hsl(262 83% 58%)'); // categorical violet (was Pre-Qual)
+  });
+
+  it('C2: calm neutral upstream, exactly one --primary open stage (active), success terminal', () => {
+    // upstream open stages are quiet neutral; Negotiation (closest-to-close) is
+    // the single blue accent on the band (One Blue Rule); terminal is success.
+    expect(SALES_COLUMNS[0].dotColor).toBe('hsl(var(--muted-foreground))'); // Leads
+    expect(SALES_COLUMNS[1].dotColor).toBe('hsl(var(--muted-foreground))'); // Pre-Qual
+    expect(SALES_COLUMNS[2].dotColor).toBe('hsl(var(--muted-foreground))'); // Quotation
+    expect(SALES_COLUMNS[3].dotColor).toBe('hsl(var(--muted-foreground))'); // Tender
+    expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--primary))'); // Negotiation (active)
+    expect(SALES_COLUMNS[5].dotColor).toBe('hsl(var(--success))'); // Won/Lost terminal
+    // exactly one OPEN column carries the blue accent
+    const openPrimary = SALES_COLUMNS.filter(
+      (c) => !c.terminal && c.dotColor === 'hsl(var(--primary))',
+    );
+    expect(openPrimary).toHaveLength(1);
+  });
+
   it('AC-SP-204: weightedValue multiplies contract_value by win_probability (computed client-side)', () => {
     expect(weightedValue(project())).toBe(600_000);
     expect(weightedValue(project({ contract_value: 800_000, win_probability: 0.25 }))).toBe(200_000);
@@ -52,20 +79,10 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(pillVariantForStatus('Loss Tender')).toBe('lost');
   });
 
-  it('AC-SP-207: openOpportunity opens a record tab with the human label, code and module', () => {
-    const openRecord = vi.fn();
-    openOpportunity({ openRecord } as never, project({ id: 'abc', name: 'Acme Deal' }));
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'sales:abc',
-        kind: 'record',
-        path: '/sales/abc',
-        icon: 'pipe',
-        label: 'Acme Deal',
-        code: 'abc',
-        module: 'sales',
-      }),
-    );
+  it('AC-NAV-006: openOpportunity navigates to the opportunity detail route (no tab)', () => {
+    const navigate = vi.fn();
+    openOpportunity(navigate, project({ id: 'abc', name: 'Acme Deal' }));
+    expect(navigate).toHaveBeenCalledWith('/sales/abc');
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {

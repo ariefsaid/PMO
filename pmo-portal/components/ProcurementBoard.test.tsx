@@ -50,6 +50,24 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
     expect(onOpen.mock.calls[0][0].id).toBe('p1');
   });
 
+  it('I2: column dots follow ONE convention — neutral upstream, success terminal, no blue column', () => {
+    const { container } = render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
+    const dots = Array.from(
+      container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
+    );
+    // one column-head dot per stage (6 stages)
+    expect(dots).toHaveLength(6);
+    const backgrounds = dots.map((d) => d.style.background);
+    // the five upstream stages (pr, vq, po, gr, vi) are quiet neutral
+    expect(backgrounds.slice(0, 5)).toEqual(
+      Array(5).fill('hsl(var(--muted-foreground))'),
+    );
+    // the terminal Payment stage is success
+    expect(backgrounds[5]).toBe('hsl(var(--success))');
+    // no blue/primary column dot remains (matches the sales board convention)
+    expect(backgrounds.some((b) => b.includes('--primary'))).toBe(false);
+  });
+
   it('excludes terminal off-track (Rejected/Cancelled) requests from the board', () => {
     render(
       <ProcurementBoard

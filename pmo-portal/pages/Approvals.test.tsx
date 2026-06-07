@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
+import { ToastProvider } from '@/src/components/ui';
 import ApprovalsPage from './Approvals';
 
 // ---------------------------------------------------------------------------
@@ -71,7 +73,14 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
   },
 ];
 
-const renderPage = () => render(<MemoryRouter><ApprovalsPage /></MemoryRouter>);
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <ApprovalsPage />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
 beforeEach(() => {
   queryState.data = undefined;
@@ -146,10 +155,13 @@ describe('Approvals page data', () => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page actions', () => {
-  it("AC-911 (UI): an Approvals row for a report's Submitted sheet offers Approve and Return; clicking Approve calls the approve mutation with the row id (FR-TS-005)", () => {
+  it("T2/AC-911 (UI): an Approvals row offers Approve and Return; Approve opens a default-tone confirm and the approve mutation fires only on Confirm, then toasts (FR-TS-005)", async () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
+    approveMutation.mutate = vi.fn(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
     renderPage();
 
     const approveBtn = screen.getByRole('button', { name: /approve/i });
@@ -158,17 +170,38 @@ describe('Approvals page actions', () => {
     expect(approveBtn).toBeInTheDocument();
     expect(returnBtn).toBeInTheDocument();
 
-    fireEvent.click(approveBtn);
-    expect(approveMutation.mutate).toHaveBeenCalledWith({ id: 'ts-1' });
+    await userEvent.click(approveBtn);
+    // Owner rule: nothing approves on the first click.
+    expect(approveMutation.mutate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
+    expect(approveMutation.mutate).toHaveBeenCalledWith(
+      { id: 'ts-1' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
   });
 
-  it('clicking Return calls the reject mutation with the row id', () => {
+  it('T3: Return opens a DESTRUCTIVE modal and the reject mutation fires only on Confirm', async () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
+    rejectMutation.mutate = vi.fn(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /return/i }));
-    expect(rejectMutation.mutate).toHaveBeenCalledWith({ id: 'ts-1' });
+    await userEvent.click(screen.getByRole('button', { name: /return/i }));
+    expect(rejectMutation.mutate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /Return timesheet/i }));
+    expect(rejectMutation.mutate).toHaveBeenCalledWith(
+      { id: 'ts-1' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
   });
 });

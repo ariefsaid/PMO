@@ -5,7 +5,6 @@ import { cn } from '@/src/components/ui/cn';
 export interface AppShellProps {
   rail: React.ReactNode;
   header: React.ReactNode;
-  tabstrip: React.ReactNode;
   children: React.ReactNode;
   /** Mobile drawer open state (controlled by the shell consumer / ContextBar). */
   railOpen?: boolean;
@@ -13,7 +12,7 @@ export interface AppShellProps {
 }
 
 /**
- * The CSS-grid app shell: rail / header / tabstrip / main. `main` is a
+ * The CSS-grid app shell: rail / header / main. `main` is a
  * programmatically-focusable landmark (skip-link target + focus-on-route-
  * change). ≤920px: the rail collapses (--rail-w:0 via index.css media query)
  * and renders as an overlay drawer instead.
@@ -21,7 +20,6 @@ export interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = ({
   rail,
   header,
-  tabstrip,
   children,
   railOpen = false,
   onCloseRail,
@@ -46,8 +44,8 @@ export const AppShell: React.FC<AppShellProps> = ({
       className="grid h-screen w-screen overflow-hidden"
       style={{
         gridTemplateColumns: 'var(--rail-w) 1fr',
-        gridTemplateRows: 'var(--header-h) var(--tabstrip-h) 1fr',
-        gridTemplateAreas: '"rail header" "rail tabstrip" "rail main"',
+        gridTemplateRows: 'var(--header-h) 1fr',
+        gridTemplateAreas: '"rail header" "rail main"',
       }}
     >
       <a
@@ -66,7 +64,6 @@ export const AppShell: React.FC<AppShellProps> = ({
       </div>
 
       {header}
-      {tabstrip}
 
       <main
         id="main"

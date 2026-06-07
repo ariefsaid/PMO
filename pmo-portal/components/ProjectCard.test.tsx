@@ -1,9 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import ProjectCard from './ProjectCard';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+// ProjectCard embeds ProjectStatusControl, which uses useToast — needs a provider.
+const render = (ui: ReactElement) => rtlRender(<ToastProvider>{ui}</ToastProvider>);
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager' }),
@@ -73,5 +78,19 @@ describe('ProjectCard', () => {
   it('has a carrier with the project-card testid', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByTestId('project-card')).toBeInTheDocument();
+  });
+
+  it('I6: labels each utilization bar ("Committed" / "Actual") adjacent to its ProgressBar', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} />);
+    const bars = screen.getByTestId('project-card-bars');
+    // both bars present, each keeping its descriptive aria-label (color-not-only)
+    const committedBar = screen.getByLabelText(/Committed: \d+% of contract/i);
+    const actualBar = screen.getByLabelText(/Actual spend: \d+% of contract/i);
+    expect(bars).toContainElement(committedBar);
+    expect(bars).toContainElement(actualBar);
+    // a visible leading label for each bar inside the bars block
+    const labels = Array.from(bars.querySelectorAll('span')).map((s) => s.textContent);
+    expect(labels).toContain('Committed');
+    expect(labels).toContain('Actual');
   });
 });

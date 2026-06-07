@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -12,14 +12,17 @@ import {
   AppShell,
   Rail,
   ContextBar,
-  TabStrip,
   CommandPalette,
-  WorkspaceTabsProvider,
-  useWorkspaceTabs,
   MODULES,
+  breadcrumbForPath,
+  recordLabelForPath,
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
+import { useProjects } from '@/src/hooks/useProjects';
+import { useProcurements } from '@/src/hooks/useProcurements';
+import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
@@ -59,10 +62,25 @@ const AppRoutes: React.FC = () => (
 
 // ── Shell chrome (inside the workspace provider) ───────────────────────────
 const ShellChrome: React.FC = () => {
-  const ws = useWorkspaceTabs();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
+
+  // Cached index lists — already fetched by the index pages; read here only to
+  // resolve a detail route's human record name for the breadcrumb (no new
+  // query). The breadcrumb falls back to "Loading…" on a cold deep-link, never
+  // a raw UUID — and to "Not found" once the relevant list has resolved without
+  // the record (item I), never a perpetual "Loading…".
+  const { data: projects, isPending: projectsPending } = useProjects();
+  const { data: procurements, isPending: procurementsPending } = useProcurements();
+  const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
+
+  // ⌘K record search: index the three cached lists into Records rows that open
+  // the matching detail route. Reads the same caches as the breadcrumb — no new
+  // query. (AC-CMDK-001/003/004/005)
+  const recordSearch = useRecordSearch(navigate);
 
   // Global ⌘K / Ctrl-K → open the command palette.
   useEffect(() => {
@@ -82,33 +100,50 @@ const ShellChrome: React.FC = () => {
     setPaletteOpen(true);
   }, []);
 
-  // Breadcrumb derives from the active workspace tab.
+  // Breadcrumb derives from the ROUTE (URL is the source of truth) — no tab
+  // state. A detail route resolves its record name from the cached index lists;
+  // a placeholder route reads its own page title; the module segment navigates
+  // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
-    const active = ws.tabs.find((t) => t.id === ws.activeId);
-    if (!active) return [{ label: 'Dashboard' }];
-    if (active.kind === 'record') {
-      const mod = MODULES.find((m) => m.module === active.module);
-      return [
-        { label: mod?.label ?? active.module, onClick: () => ws.openModule(active.module) },
-        { label: active.label },
-      ];
-    }
-    return [{ label: active.label }];
-  }, [ws]);
+    const recordLabel = recordLabelForPath(pathname, {
+      projects,
+      opportunities: pipeline?.projects,
+      procurements,
+    });
+    // The list that backs THIS detail route has settled (not pending) → an
+    // unresolved record is a genuine not-found, so resolve the crumb to a
+    // friendly label rather than a perpetual "Loading…".
+    const recordResolved =
+      (pathname.startsWith('/projects/') && !projectsPending) ||
+      (pathname.startsWith('/procurement/') && !procurementsPending) ||
+      (pathname.startsWith('/sales/') && !pipelinePending);
+    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved);
+  }, [
+    pathname,
+    navigate,
+    projects,
+    procurements,
+    pipeline,
+    projectsPending,
+    procurementsPending,
+    pipelinePending,
+  ]);
 
-  // Palette items: Navigate to each module + a small Actions group. Record
-  // search is sourced from cached lists in a follow-up surface issue.
+  // Palette items: the Records group (cached record index) above the Navigate
+  // group (module index routes). The palette filters/caps/ranks both uniformly;
+  // Records only show while the user is searching, Navigate always shows.
   const paletteItems = useMemo<PaletteItem[]>(
     () => [
+      ...recordSearch.records,
       ...MODULES.map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
         title: m.label,
         icon: m.icon,
-        run: () => ws.openModule(m.module),
+        run: () => navigate(m.path),
       })),
     ],
-    [ws]
+    [navigate, recordSearch.records]
   );
 
   return (
@@ -122,7 +157,6 @@ const ShellChrome: React.FC = () => {
             onToggleRail={() => setRailOpen((v) => !v)}
           />
         }
-        tabstrip={<TabStrip onOpenPalette={openPalette} />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
       >
@@ -133,6 +167,9 @@ const ShellChrome: React.FC = () => {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
         returnFocusTo={paletteTriggerRef.current}
+        loading={recordSearch.isPending}
+        error={recordSearch.isError}
+        onRetry={recordSearch.refetch}
       />
     </>
   );
@@ -143,11 +180,9 @@ const Shell: React.FC = () => {
   const { role } = useAuth();
   return (
     <ImpersonationProvider realRole={role}>
-      <WorkspaceTabsProvider>
-        <ToastProvider>
-          <ShellChrome />
-        </ToastProvider>
-      </WorkspaceTabsProvider>
+      <ToastProvider>
+        <ShellChrome />
+      </ToastProvider>
     </ImpersonationProvider>
   );
 };

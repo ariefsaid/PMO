@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Button,
   Toolbar,
   SearchMini,
   ViewToggle,
@@ -8,12 +7,11 @@ import {
   DataTable,
   StatusPill,
   ProgressBar,
-  Icon,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjects, useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { formatCurrency } from '@/src/lib/format';
@@ -45,7 +43,7 @@ function utilizationPct(p: ProjectWithRefs): number {
 
 const Projects: React.FC = () => {
   useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
@@ -96,17 +94,8 @@ const Projects: React.FC = () => {
     setSearch('');
   };
 
-  const onOpen = (p: ProjectWithRefs) => {
-    ws.openRecord({
-      id: `projects:${p.id}`,
-      kind: 'record',
-      path: `/projects/${p.id}`,
-      icon: 'folder',
-      label: p.name,
-      code: p.code ?? p.id.slice(0, 8),
-      module: 'projects',
-    });
-  };
+  // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
+  const onOpen = (p: ProjectWithRefs) => navigate(`/projects/${p.id}`);
 
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -155,6 +144,8 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: 'PM',
+      // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
+      // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
       cell: (p) => (
         <span className="flex items-center gap-1.5">
           <span
@@ -163,7 +154,7 @@ const Projects: React.FC = () => {
           >
             {(p.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase()}
           </span>
-          <span className="max-w-[10ch] truncate">{p.pm?.full_name ?? 'Unassigned'}</span>
+          <span className="whitespace-normal leading-tight">{p.pm?.full_name ?? 'Unassigned'}</span>
         </span>
       ),
     },
@@ -250,7 +241,6 @@ const Projects: React.FC = () => {
           icon="folder"
           title="No projects yet"
           sub="Projects you create or win will appear here."
-          action={{ label: 'New Project', onClick: () => {}, disabled: true, disabledTitle: 'Project creation is coming soon' }}
         />
       </div>
     );
@@ -355,7 +345,7 @@ const Projects: React.FC = () => {
   );
 };
 
-/** Page head — title + sub + (stub) New Project CTA. */
+/** Page head — title + sub (no creation CTA until project creation ships). */
 const Header: React.FC = () => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
@@ -365,10 +355,6 @@ const Header: React.FC = () => (
         budget, procurement, and detail.
       </p>
     </div>
-    <Button variant="primary" disabled title="Project creation is coming soon">
-      <Icon name="plus" />
-      New Project
-    </Button>
   </div>
 );
 

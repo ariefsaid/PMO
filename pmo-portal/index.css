@@ -26,7 +26,7 @@
   --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;
   /* --- Geometry --- */
   --radius: 0.5rem;
-  --rail-w: 224px;                   --header-h: 56px;   --tabstrip-h: 40px;
+  --rail-w: 224px;                   --header-h: 56px;
   color-scheme: light;
 }
 
@@ -190,14 +190,62 @@
 @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
 
+/* ---------- Confirm dialog entrance (scale+fade; scrim crossfade) ----------
+   Both are auto-disabled by the global prefers-reduced-motion rule above
+   (animation-duration → 0), degrading the dialog to an instant crossfade. */
+.confirm-anim { animation: confirmIn 0.15s ease-out; }
+@keyframes confirmIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
+.confirm-scrim-anim { animation: confirmScrimIn 0.15s ease-out; }
+@keyframes confirmScrimIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* ---------- Command palette panel entrance ---------- */
 .cmdk-anim { animation: cmdkin 0.14s ease; }
 @keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
+/* Palette rows: drop the 300ms tap delay; grow padding (not visual weight) so
+   the row clears the 44px touch target on a coarse pointer. */
+.cmdk-row { touch-action: manipulation; }
+@media (pointer: coarse) {
+  .cmdk-row { padding-top: 11px; padding-bottom: 11px; }
+}
+
+/* ---------- Touch target (WCAG 2.5.5 Target Size, AA) ----------
+   On a coarse pointer (touch), grow the HIT AREA of compact controls (32px
+   header icon buttons, 28px segmented-control buttons, the 15px KPI help "?")
+   to >=44x44 via a centered transparent ::before overlay — WITHOUT changing the
+   element's own visual size. Inert on fine pointers (mouse), so the dense
+   desktop layout is unchanged. Hook: add the `.touch-target` class. */
+.touch-target { touch-action: manipulation; }
+@media (pointer: coarse) {
+  .touch-target { position: relative; }
+  .touch-target::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
+    /* transparent — the overlay only extends the pointer hit region. */
+  }
+}
+
+/* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
+   global prefers-reduced-motion rule (animation-duration → 0). */
+.cmdk-skeleton { position: relative; overflow: hidden; }
+.cmdk-skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(240 5% 100% / 0.6), transparent);
+  transform: translateX(-100%);
+  animation: cmdkShimmer 1.2s ease-in-out infinite;
+}
+@keyframes cmdkShimmer { to { transform: translateX(100%); } }
+
 /* ---------- Scrollbar polish (from reference) ---------- */
 .main-scroll::-webkit-scrollbar,
-.kanban-scroll::-webkit-scrollbar,
-.tabstrip-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
+.kanban-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
 .main-scroll::-webkit-scrollbar-thumb,
 .kanban-scroll::-webkit-scrollbar-thumb {
   background: hsl(240 5% 80%);

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   PageHeader,
@@ -12,10 +12,11 @@ import {
   GateNotice,
   ListState,
   Icon,
+  ConfirmDialog,
   useToast,
   type PageStat,
 } from '@/src/components/ui';
-import { BackBar, useWorkspaceTabs } from '@/src/components/shell';
+import { BackBar } from '@/src/components/shell';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useOpportunity } from '@/src/lib/db/opportunity';
 import { useAuth } from '@/src/auth/useAuth';
@@ -48,7 +49,7 @@ function stageDot(status: string): string {
 
 const OpportunityDetail: React.FC = () => {
   const { opportunityId = '' } = useParams<{ opportunityId: string }>();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -64,27 +65,14 @@ const OpportunityDetail: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Confirm-before-write (owner rule): forward Advance => default popover,
+  // Mark lost => destructive modal. Mark won keeps its inline SoD panel.
+  const [confirmAction, setConfirmAction] = useState<'advance' | 'lost' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
   const [refError, setRefError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
-
-  // Hydrate the synthetic record tab's label to the human name once resolved.
-  useEffect(() => {
-    if (name && opportunityId) {
-      ws.openRecord({
-        id: `sales:${opportunityId}`,
-        kind: 'record',
-        path: `/sales/${opportunityId}`,
-        icon: 'pipe',
-        label: name,
-        code: opp?.code ?? opportunityId,
-        module: 'sales',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, opportunityId, opp?.code]);
 
   const legalTargets = useMemo(
     () => (status ? (LEGAL_PROJECT_TRANSITIONS[status] ?? []) : []),
@@ -95,7 +83,8 @@ const OpportunityDetail: React.FC = () => {
   const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
   const isTerminal = status ? projectStatusGroup(status as never) !== 'pipeline' : false;
 
-  const goBack = () => ws.openModule('sales');
+  // Back to the Sales Pipeline index — a plain navigate, no tab (AC-NAV-007).
+  const goBack = () => navigate('/sales');
 
   // ── States ─────────────────────────────────────────────────────────────────
   if (pipelinePending && oppPending) {
@@ -141,10 +130,12 @@ const OpportunityDetail: React.FC = () => {
       setShowWonPanel(false);
       setContractRef('');
       setContractDate('');
-      ws.setDirty(`sales:${opportunityId}`, false);
+      setConfirmAction(null);
       toast('Deal updated', `Moved to ${to}`, 'success');
     } catch (err) {
       // Surface the RPC error verbatim — it carries the P0001 SoD message.
+      // Close the confirm so the verbatim error reads in the inline alert.
+      setConfirmAction(null);
       setError(err instanceof Error ? err.message : 'Transition failed');
     } finally {
       setPending(false);
@@ -175,16 +166,19 @@ const OpportunityDetail: React.FC = () => {
     { label: 'Value', value: formatCurrency(value) },
     { label: 'Win probability', value: formatPercent(winProb) },
     { label: 'Weighted', value: formatCurrency(weighted) },
-    { label: 'Owner', value: opp?.pm?.full_name ?? '—' },
+    { label: 'Owner', value: opp?.pm?.full_name ?? 'Not set' },
     {
       label: 'Decision',
-      value: opp?.decided_at ? new Date(opp.decided_at).toLocaleDateString() : '—',
+      value: opp?.decided_at ? new Date(opp.decided_at).toLocaleDateString() : 'Pending',
     },
   ];
 
   return (
     <div>
-      <BackBar label="Sales Pipeline" onBack={goBack} />
+      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
+          (Sales Pipeline > record) owns wayfinding. BackBar is kept on the
+          loading / not-found branches above, where there is no in-page header
+          to orient from and the crumb shows only the raw id. */}
       <PageHeader
         icon={(name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={stageDot(liveStatus)}
@@ -219,24 +213,27 @@ const OpportunityDetail: React.FC = () => {
               <GateNotice variant="ready">Ready to advance.</GateNotice>
             )}
 
+            {/* I4 action hierarchy: exactly ONE solid blue (Advance — the
+                primary path); Mark won / Mark lost are quiet outlines
+                distinguished only by a leading status dot (Tinted-Status,
+                color-not-only). The solid destructive fill appears ONLY inside
+                the O3 confirm modal. */}
             {!isTerminal && (
               <div className="flex flex-wrap gap-2">
                 {nextStage && (
-                  <Button variant="outline" disabled={pending} onClick={() => void runTransition(nextStage)}>
+                  <Button variant="primary" disabled={pending} onClick={() => setConfirmAction('advance')}>
                     Advance to {NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}
                   </Button>
                 )}
                 {canWin && (
-                  <Button variant="primary" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                  <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-success" />
                     Mark won
                   </Button>
                 )}
                 {canLose && (
-                  <Button
-                    variant="destructive"
-                    disabled={pending}
-                    onClick={() => void runTransition('Loss Tender')}
-                  >
+                  <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
                     Mark lost
                   </Button>
                 )}
@@ -259,7 +256,6 @@ const OpportunityDetail: React.FC = () => {
                     onChange={(e) => {
                       setContractRef(e.target.value);
                       setRefError(null);
-                      ws.setDirty(`sales:${opportunityId}`, true);
                     }}
                     aria-invalid={!!refError}
                     aria-describedby={refError ? 'won-ref-err' : undefined}
@@ -285,7 +281,6 @@ const OpportunityDetail: React.FC = () => {
                     onChange={(e) => {
                       setContractDate(e.target.value);
                       setDateError(null);
-                      ws.setDirty(`sales:${opportunityId}`, true);
                     }}
                     aria-invalid={!!dateError}
                     aria-describedby={dateError ? 'won-date-err' : undefined}
@@ -306,10 +301,7 @@ const OpportunityDetail: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setShowWonPanel(false);
-                      ws.setDirty(`sales:${opportunityId}`, false);
-                    }}
+                    onClick={() => setShowWonPanel(false)}
                   >
                     Cancel
                   </Button>
@@ -326,6 +318,32 @@ const OpportunityDetail: React.FC = () => {
           </CardPad>
         </Card>
       </div>
+
+      {/* O1 — forward Advance: lightweight default-tone confirm */}
+      {nextStage && (
+        <ConfirmDialog
+          open={confirmAction === 'advance'}
+          tone="default"
+          title={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}?`}
+          description={`This moves ${name} forward to the ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage} stage.`}
+          confirmLabel={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
+          loading={pending}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => void runTransition(nextStage)}
+        />
+      )}
+
+      {/* O3 — Mark lost: destructive modal (the only solid destructive fill) */}
+      <ConfirmDialog
+        open={confirmAction === 'lost'}
+        tone="destructive"
+        title="Mark deal as lost"
+        description={`This moves ${name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
+        confirmLabel="Mark lost"
+        loading={pending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => void runTransition('Loss Tender')}
+      />
     </div>
   );
 };

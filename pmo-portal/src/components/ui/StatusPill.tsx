@@ -1,7 +1,15 @@
 import React from 'react';
 import { cn } from './cn';
 
-export type StatusVariant = 'open' | 'won' | 'lost' | 'warn' | 'overdue' | 'neutral' | 'draft';
+export type StatusVariant =
+  | 'open'
+  | 'progress'
+  | 'won'
+  | 'lost'
+  | 'warn'
+  | 'overdue'
+  | 'neutral'
+  | 'draft';
 
 /**
  * The Tinted-Status Rule: status = a 6px dot + a pill tinted ~10-18% of the
@@ -21,6 +29,10 @@ interface PillStyle {
 
 const STYLES: Record<StatusVariant, PillStyle> = {
   open: { cls: 'bg-primary/10', text: 'hsl(221 75% 38%)', dot: 'hsl(var(--primary))' },
+  // I1: quiet neutral in-flight pill — differentiates non-active stages from the
+  // single blue `open` by tint, while the distinct stage LABEL carries identity
+  // (so it is never color-only, and never invents a per-stage hue = the rainbow).
+  progress: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
   won: { cls: 'bg-success/12', text: 'hsl(142 64% 30%)', dot: 'hsl(var(--success))' },
   lost: { cls: 'bg-destructive/10', text: 'hsl(0 72% 45%)', dot: 'hsl(var(--destructive))' },
   warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },

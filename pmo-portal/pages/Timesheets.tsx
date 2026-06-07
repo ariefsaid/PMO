@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import {
   Button,
   Card,
+  CardHead,
+  ConfirmDialog,
   ErrBanner,
   Icon,
   ListState,
@@ -9,10 +11,14 @@ import {
   TimesheetGrid,
   Toolbar,
   ViewToggle,
+  HoursBar,
+  EntryList,
+  useToast,
   type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
+import { entriesByProject, type FlatEntry } from '@/src/lib/timesheet-derive';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
@@ -51,8 +57,11 @@ const TimesheetsPage: React.FC = () => {
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit } = useTimesheetMutations();
   const { currentUser } = useAuth();
+  const { toast } = useToast();
   const signedInUserId = currentUser?.id;
   const [view, setView] = useTimesheetsView();
+  // T1: the Submit button stages this confirm; nothing submits on a single click.
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
   // Pending-approval count for the queue toggle badge (shared cache; cheap).
   const { data: awaiting } = useTimesheetsAwaitingApproval();
@@ -124,6 +133,21 @@ const TimesheetsPage: React.FC = () => {
     [currentWeekEntries]
   );
 
+  // T11/T12: By-project summary from gridRows (already memoized above)
+  const byProject = useMemo(
+    () => entriesByProject(currentWeekEntries),
+    [currentWeekEntries]
+  );
+
+  // T13: Recent entries this week, sorted newest-first (re-wrap as FlatEntry shape)
+  const recentWeekEntries = useMemo<FlatEntry[]>(
+    () =>
+      [...currentWeekEntries]
+        .sort((a, b) => b.entry_date.localeCompare(a.entry_date))
+        .map((e) => ({ ...e, sheetId: currentTimesheet?.id ?? '' })),
+    [currentWeekEntries, currentTimesheet]
+  );
+
   const stepWeek = (delta: number) => {
     const next = new Date(currentDate);
     next.setDate(next.getDate() + delta * 7);
@@ -145,6 +169,39 @@ const TimesheetsPage: React.FC = () => {
     ? timesheetActions(currentTimesheet.status as TimesheetStatus, Boolean(isOwner), false)
     : { submit: false, approve: false, reject: false };
 
+  // T1: commit the week for approval, toast on resolve (§6.7). The RPC contract
+  // (submit_timesheet { id }) is preserved; the confirm only gates the click.
+  const commitSubmit = () => {
+    if (!currentTimesheet) return;
+    submit.mutate(
+      { id: currentTimesheet.id },
+      {
+        onSuccess: () => {
+          setConfirmSubmit(false);
+          toast('Timesheet submitted', 'Sent to your line manager for approval', 'success');
+        },
+        onError: (err: unknown) => {
+          setConfirmSubmit(false);
+          toast('Submit failed', err instanceof Error ? err.message : undefined, 'warning');
+        },
+      },
+    );
+  };
+
+  // T1 confirm dialog — shared across the grid-view renders below.
+  const submitConfirm = confirmSubmit && currentTimesheet && (
+    <ConfirmDialog
+      open
+      tone="default"
+      title="Submit this week for approval?"
+      description="This sends the whole week to your line manager. You can't edit it again until it's returned."
+      confirmLabel="Submit timesheet"
+      loading={submit.isPending}
+      onCancel={() => setConfirmSubmit(false)}
+      onConfirm={commitSubmit}
+    />
+  );
+
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (
     <>
@@ -159,7 +216,7 @@ const TimesheetsPage: React.FC = () => {
         {view === 'grid' && actions.submit && (
           <Button
             variant="primary"
-            onClick={() => submit.mutate({ id: currentTimesheet!.id })}
+            onClick={() => setConfirmSubmit(true)}
             loading={submit.isPending}
           >
             <Icon name="check" />
@@ -275,6 +332,37 @@ const TimesheetsPage: React.FC = () => {
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
       </Card>
+
+      {/* T11-T13: Two-up surround panels — only when the week has hours */}
+      {gridRows.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 min-[920px]:grid-cols-2">
+          {/* T11/T12 — By project this week */}
+          <Card>
+            <CardHead>By project this week</CardHead>
+            <div className="px-4 pb-3.5">
+              <div role="group" aria-label="By project this week" className="flex flex-col">
+                {byProject.map((row) => (
+                  <HoursBar
+                    key={row.projectId}
+                    label={row.name}
+                    code={row.code}
+                    hours={row.hours}
+                    maxHours={weeklyTotal}
+                  />
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {/* T13 — Recent entries this week */}
+          <Card>
+            <CardHead>Recent entries this week</CardHead>
+            <EntryList entries={recentWeekEntries} />
+          </Card>
+        </div>
+      )}
+
+      {submitConfirm}
     </div>
   );
 };
