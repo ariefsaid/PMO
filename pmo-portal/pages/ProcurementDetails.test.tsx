@@ -435,10 +435,29 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.getByRole('button', { name: /mark vendor invoiced/i })).toBeInTheDocument();
   });
 
-  it('Vendor Invoiced status shows Mark as Paid for Finance', () => {
-    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other' };
+  it('Vendor Invoiced status shows Mark as Paid for Finance (not the approver)', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-someone-else',
+    };
     renderPage();
     expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+  });
+
+  it('SoD-b: Mark as Paid is NOT offered to the Finance user who approved the request', () => {
+    // current user is u-alice (Finance). They also approved → the RPC's SoD-b
+    // ALWAYS rejects pay-by-approver, so the UI must not offer the action.
+    mockEffectiveRole = 'Finance';
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-alice',
+    };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('Quote Selected status shows Generate Purchase Order for Finance', () => {

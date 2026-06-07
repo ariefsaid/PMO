@@ -53,6 +53,7 @@ function allowedActions(
   status: ProcurementStatus,
   role: string,
   isRequester: boolean,
+  isApprover: boolean,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -105,8 +106,10 @@ function allowedActions(
     actions.push({ to: 'Vendor Invoiced', label: 'Mark Vendor Invoiced', variant: 'primary' });
   }
 
-  // Vendor Invoiced → Paid: Finance only, not the approver (SoD-b checked server-side; cosmetically allow)
-  if (legal('Paid') && INVOICE_PAY_ROLES.has(role)) {
+  // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
+  // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
+  // so offering it cosmetically produced a "click that does nothing" — gate it.
+  if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover) {
     actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'success' });
   }
 
@@ -199,7 +202,9 @@ const ProcurementDetails: React.FC = () => {
   const p: ProcurementDetail = data;
   const role = effectiveRole ?? '';
   const isRequester = p.requested_by_id === currentUser?.id;
-  const actions = allowedActions(p.status, role, isRequester);
+  // SoD-b: a user cannot pay a request they themselves approved.
+  const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
+  const actions = allowedActions(p.status, role, isRequester, isApprover);
   const selectedQuote = p.quotations.find((q) => q.is_selected);
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
