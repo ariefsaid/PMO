@@ -207,6 +207,7 @@ describe('getProcurementDetail', () => {
       vendor: { name: 'ACME Corp' },
       requested_by: { full_name: 'Alice' },
       approved_by: null,
+      items: [],
       quotations: [],
       receipts: [],
       invoices: [],
@@ -216,8 +217,9 @@ describe('getProcurementDetail', () => {
     const result = await getProcurementDetail('proc-1');
 
     expect(mockFrom).toHaveBeenCalledWith('procurements');
+    // items:procurement_items(*) added for the editable line-items table (CRUD slice).
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
+      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), items:procurement_items(*), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'proc-1');
     expect(mockSingle).toHaveBeenCalled();

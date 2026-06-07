@@ -33,6 +33,17 @@ import {
   createInvoice,
 } from '@/src/lib/db/procurementLifecycle';
 import {
+  createProcurement,
+  updateProcurementHeader,
+  createProcurementItem,
+  updateProcurementItem,
+  deleteProcurementItem,
+  selectProcurementQuote,
+  listProcurementDocuments,
+  createProcurementDocument,
+  deleteProcurementDocument,
+} from '@/src/lib/db/procurementCrud';
+import {
   listTimesheets,
   createDraftTimesheet,
   upsertTimesheetEntries,
@@ -105,6 +116,16 @@ const procurement: ProcurementRepository = {
     wrap(() => createReceipt(procurementId, status, receiptDate)),
   createInvoice: (procurementId, status, invoiceDate) =>
     wrap(() => createInvoice(procurementId, status, invoiceDate)),
+  create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
+  updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
+  createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
+  updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
+  deleteItem: (id) => wrap(() => deleteProcurementItem(id)),
+  selectQuote: (quotationId) => wrap(() => selectProcurementQuote(quotationId)),
+  listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
+  createDocument: (procurementId, input) =>
+    wrap(() => createProcurementDocument(procurementId, input)),
+  deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
 };
 
 const timesheet: TimesheetRepository = {

@@ -28,6 +28,17 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   createReceipt: vi.fn(),
   createInvoice: vi.fn(),
 }));
+vi.mock('@/src/lib/db/procurementCrud', () => ({
+  createProcurement: vi.fn(),
+  updateProcurementHeader: vi.fn(),
+  createProcurementItem: vi.fn(),
+  updateProcurementItem: vi.fn(),
+  deleteProcurementItem: vi.fn(),
+  selectProcurementQuote: vi.fn(),
+  listProcurementDocuments: vi.fn(),
+  createProcurementDocument: vi.fn(),
+  deleteProcurementDocument: vi.fn(),
+}));
 vi.mock('@/src/lib/db/timesheets', () => ({
   listTimesheets: vi.fn(),
   createDraftTimesheet: vi.fn(),
@@ -62,6 +73,7 @@ import * as companiesDal from '@/src/lib/db/companies';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
+import * as procCrudDal from '@/src/lib/db/procurementCrud';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
@@ -82,7 +94,23 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(['listProjectManagers']);
     expect(Object.keys(repositories.procurement).sort()).toEqual(
-      ['createInvoice', 'createQuotation', 'createReceipt', 'get', 'list', 'transition'].sort(),
+      [
+        'create',
+        'createDocument',
+        'createInvoice',
+        'createItem',
+        'createQuotation',
+        'createReceipt',
+        'deleteDocument',
+        'deleteItem',
+        'get',
+        'list',
+        'listDocuments',
+        'selectQuote',
+        'transition',
+        'updateHeader',
+        'updateItem',
+      ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'reject', 'submit', 'upsertEntries'].sort(),
@@ -195,6 +223,60 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07');
     expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07');
+  });
+
+  it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
+    vi.mocked(procCrudDal.createProcurement).mockResolvedValue({ id: 'pr9' } as never);
+    vi.mocked(procCrudDal.updateProcurementHeader).mockResolvedValue(undefined);
+    vi.mocked(procCrudDal.createProcurementItem).mockResolvedValue({ id: 'it1' } as never);
+    vi.mocked(procCrudDal.updateProcurementItem).mockResolvedValue(undefined);
+    vi.mocked(procCrudDal.deleteProcurementItem).mockResolvedValue(undefined);
+    vi.mocked(procCrudDal.selectProcurementQuote).mockResolvedValue(undefined);
+    vi.mocked(procCrudDal.listProcurementDocuments).mockResolvedValue([] as never);
+    vi.mocked(procCrudDal.createProcurementDocument).mockResolvedValue({ id: 'd1' } as never);
+    vi.mocked(procCrudDal.deleteProcurementDocument).mockResolvedValue(undefined);
+
+    await repositories.procurement.create({ title: 'T', projectId: null, vendorId: null }, 'u1');
+    expect(procCrudDal.createProcurement).toHaveBeenCalledWith(
+      { title: 'T', projectId: null, vendorId: null },
+      'u1',
+    );
+
+    await repositories.procurement.updateHeader('pr9', { title: 'T2', projectId: null, vendorId: null });
+    expect(procCrudDal.updateProcurementHeader).toHaveBeenCalledWith('pr9', {
+      title: 'T2',
+      projectId: null,
+      vendorId: null,
+    });
+
+    await repositories.procurement.createItem('pr9', { name: 'W', quantity: 2, rate: 5 });
+    expect(procCrudDal.createProcurementItem).toHaveBeenCalledWith('pr9', { name: 'W', quantity: 2, rate: 5 });
+
+    await repositories.procurement.updateItem('it1', { rate: 6 });
+    expect(procCrudDal.updateProcurementItem).toHaveBeenCalledWith('it1', { rate: 6 });
+
+    await repositories.procurement.deleteItem('it1');
+    expect(procCrudDal.deleteProcurementItem).toHaveBeenCalledWith('it1');
+
+    await repositories.procurement.selectQuote('q1');
+    expect(procCrudDal.selectProcurementQuote).toHaveBeenCalledWith('q1');
+
+    await repositories.procurement.listDocuments('pr9');
+    expect(procCrudDal.listProcurementDocuments).toHaveBeenCalledWith('pr9');
+
+    await repositories.procurement.createDocument('pr9', {
+      type: 'PO',
+      referenceNumber: null,
+      status: 'Draft',
+    });
+    expect(procCrudDal.createProcurementDocument).toHaveBeenCalledWith('pr9', {
+      type: 'PO',
+      referenceNumber: null,
+      status: 'Draft',
+    });
+
+    await repositories.procurement.deleteDocument('d1');
+    expect(procCrudDal.deleteProcurementDocument).toHaveBeenCalledWith('d1');
   });
 
   it('timesheet methods delegate to the timesheet DAL fns', async () => {
