@@ -74,7 +74,11 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
           <div key={stage.key} data-testid={`prstage-${stage.key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
               title={stage.full}
-              dotColor={stage.key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
+              // I2 — ONE board convention (matches the sales board): quiet
+              // neutral upstream columns, the status hue only at the terminal.
+              // The board groups ALL records by stage, so there is no single
+              // "active" stage to render blue (mirrors the procurement pill).
+              dotColor={stage.key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'}
               count={items.length}
               totals={
                 items.length > 0 ? (
