@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -7,7 +7,22 @@ import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
 import Timesheets from './Timesheets';
 
-// Seeded PM week (2026-06-01): 6 + 4 = 10.0 hours, one project.
+// ── Clock-pin (date-drift fix) ───────────────────────────────────────────────
+// The Timesheets page computes "the current week" from `new Date()`. The fixtures
+// below pin a fixed week (2026-06-01 Monday) as the current week, so the component's
+// derived current week deterministically matches the mocked/seeded data on ANY real
+// date. Pin the clock to Wed 2026-06-03 12:00 (inside that week). `shouldAdvanceTime`
+// keeps user-event's internal timers (delays) live so async interactions still resolve.
+const PINNED_NOW = new Date('2026-06-03T12:00:00');
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(PINNED_NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// Seeded PM week (2026-06-01, the pinned current week): 6 + 4 = 10.0 hours, one project.
 const pmSheet = [{
   id: 'ts-pm', user_id: 'u-alice', week_start_date: '2026-06-01', status: 'Draft',
   submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
