@@ -244,6 +244,21 @@ insert into budget_line_items (budget_version_id, category, description, budgete
   ('50000000-0000-0000-0000-000000000006','Labor','Tender preparation',5000,0);
 update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000006';
 
+-- P011 "Highfield Bridge Survey" — a second Tender Submitted project used exclusively by the
+-- AC-SP e2e drilldown spec (AC-SP-206/207). Keeping it distinct from P002 prevents ordering-
+-- dependent state mutation: AC-SP-207 wins/loses this deal; AC-1117 and AC-1011 act on P002,
+-- so the two specs never share a row that gets mutated. code='P011' satisfies unique(org_id,code).
+insert into projects (id, code, name, status, client_id, project_manager_id,
+                      contract_value, budget, spent) values
+  ('40000000-0000-0000-0000-000000000011','P011','Highfield Bridge Survey','Tender Submitted',
+   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   950000,0,0);
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000011','40000000-0000-0000-0000-000000000011',1,'Tender Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('50000000-0000-0000-0000-000000000011','Labor','Survey preparation',950000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000011';
+
 -- incident report (neutral; schema-only MVP)
 insert into incident_reports (incident_date, type, severity, location, description, status, reported_by) values
   ('2026-03-15','Near Miss','Low','Regional Site B','Trip hazard reported and cleared','Closed','00000000-0000-0000-0000-0000000000a4');
