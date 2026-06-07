@@ -6,7 +6,8 @@
 --   create policy timesheet_entries_write on timesheet_entries for all
 --     using (org_id = auth_org_id() and exists (select 1 from timesheets t
 --       where t.id = timesheet_entries.timesheet_id and t.user_id = auth.uid() and t.status = 'Draft'))
---     with check (org_id = auth_org_id());   -- (the OLD, leaky clause)
+--     with check (org_id = auth_org_id());   -- (the OLD, leaky clause: no own/Draft post-image
+--                                            --  guard AND no parent-project org guard)
 
 -- (1) Collapse any pre-existing duplicate (timesheet_id, project_id, entry_date) rows so the new
 -- unique constraint applies cleanly. Sum hours; keep the min(id); merge distinct notes. Defensive:
@@ -42,11 +43,21 @@ alter table timesheet_entries
 -- (3) Close the WITH CHECK hole (§1.2): the POST-image entry's parent timesheet must be the
 -- caller's OWN and Draft — mirror the USING clause. Without this a same-org user could insert/
 -- update an entry onto another user's (or a non-Draft) sheet. security-invoker posture: no RPC.
+-- (3b) Parent-PROJECT org guard (NFR-TSE-TENANCY-001, audit HIGH-2): the entry's parent project
+-- must also be in the caller's org — mirroring every sibling child-table policy in 0002_rls.sql
+-- (tasks/budget_versions/project_documents/procurement_items/…). Without it an org-A user could
+-- persist an org-B project_id onto their OWN org-A Draft entry (reproduced via INSERT, UPDATE, and
+-- the upsert path). The guard is in BOTH USING and WITH CHECK (pre- and post-image project must be
+-- in-org). This MUST stay: it is the only thing pinning the foreign-key target to the tenant.
 drop policy timesheet_entries_write on timesheet_entries;
 create policy timesheet_entries_write on timesheet_entries for all
   using (org_id = auth_org_id() and exists (
     select 1 from timesheets t where t.id = timesheet_entries.timesheet_id
-      and t.user_id = auth.uid() and t.status = 'Draft'))
+      and t.user_id = auth.uid() and t.status = 'Draft')
+    and exists (select 1 from public.projects p
+      where p.id = timesheet_entries.project_id and p.org_id = auth_org_id()))
   with check (org_id = auth_org_id() and exists (
     select 1 from timesheets t where t.id = timesheet_entries.timesheet_id
-      and t.user_id = auth.uid() and t.status = 'Draft'));
+      and t.user_id = auth.uid() and t.status = 'Draft')
+    and exists (select 1 from public.projects p
+      where p.id = timesheet_entries.project_id and p.org_id = auth_org_id()));

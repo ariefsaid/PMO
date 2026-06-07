@@ -64,6 +64,20 @@ Drop and recreate `timesheet_entries_write` so its **WITH CHECK** clause require
 closes the write-time hole (FR-TSE-018). The migration carries the explicit OLD-clause rollback block as a
 comment.
 
+### 3b. Add the parent-PROJECT org guard (NFR-TSE-TENANCY-001, audit HIGH-2)
+
+The security-auditor found a residual write-time tenancy defect via live exploit: the policy guarded the
+parent **timesheet** (own + Draft + org) but **not** the parent **project**'s org — so an org-A user could
+persist an org-B `project_id` onto their **own** org-A Draft entry (reproduced via INSERT, UPDATE, and the
+upsert path). Every sibling child-table policy in `0002_rls.sql` (`tasks`, `budget_versions`,
+`project_documents`, `procurement_items`, …) carries the parent-org guard
+`exists (select 1 from public.projects p where p.id = <child>.project_id and p.org_id = auth_org_id())`;
+the entry policy now does too, in **both** the USING and the WITH CHECK clauses (the pre- and post-image
+project must be in the caller's org). This pins the `project_id` foreign-key target to the tenant. The fix
+is folded into migration `0011` (pre-prod, not yet merged) rather than shipped as a separate `0012`, and the
+rollback comment notes the OLD clause lacked both the own/Draft post-image guard and this project-org guard.
+Proven by pgTAP `0049`.
+
 **Security-invoker posture (NFR-TSE-SEC-001):** there is **no** `security definer` entry-write RPC and
 **no** `org_id` argument anywhere in the write path. All entry writes go through RLS **as the caller**; the
 hardened `timesheet_entries_write` policy is the sole authority for *whose* sheet an entry may land on. The
@@ -97,8 +111,9 @@ expressible as RLS, so the simpler, lower-privilege invoker path is correct (YAG
 **Positive:**
 - Save's per-cell commit is an idempotent upsert (retry-safe; no duplicate cells).
 - The write-time tenancy/ownership hole is closed: it is impossible for any authenticated user to
-  insert/update a `timesheet_entries` row whose parent timesheet is not their own Draft sheet, regardless of
-  the `org_id` supplied (proven by pgTAP `0046`/`0047`/`0048`).
+  insert/update a `timesheet_entries` row whose parent timesheet is not their own Draft sheet, nor whose
+  parent project is outside their org, regardless of the `org_id` supplied (proven by pgTAP
+  `0046`/`0047`/`0048`/`0049`).
 - No new privileged surface: the write path stays `security invoker`, RLS-scoped, `org_id`-free.
 
 **Negative / risks:**
