@@ -231,8 +231,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab }) => {
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Variance</dt>
                   <dd
                     data-testid="budget-variance"
-                    className="mt-0.5 text-[15px] font-bold tabular"
-                    style={snapshot.variance < 0 ? { color: 'hsl(var(--destructive))' } : undefined}
+                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance < 0 ? ' text-destructive' : ''}`}
                   >
                     {snapshot.variance < 0 ? '' : '+'}{formatCurrency(snapshot.variance)}
                   </dd>
@@ -252,6 +251,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab }) => {
                       code={null}
                       hours={cat.amount}
                       maxHours={snapshot.activeTotal}
+                      // Budget figures are money — currency-format them (reusing
+                      // the Budget tab's formatter) so they never render "2000000h".
+                      formatValue={formatCurrency}
                     />
                   ))}
                 </div>

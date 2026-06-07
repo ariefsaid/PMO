@@ -205,10 +205,13 @@ describe('OverviewTab T16: Budget snapshot card', () => {
   it('T16: shows negative variance in destructive color when spent > activeTotal', () => {
     // spent(400k) > active(150k) → variance = -250k
     const { container } = renderTab();
-    // Check for the destructive text class on the variance element
+    // Check for the destructive text utility class on the variance element
+    // (item J: token utility class, not an inline hsl(var(--destructive)) style).
     const negativeEl = container.querySelector('[data-testid="budget-variance"]');
     expect(negativeEl).not.toBeNull();
     expect(negativeEl!.textContent).toContain('-');
+    expect(negativeEl!.className).toContain('text-destructive');
+    expect(negativeEl!.getAttribute('style')).toBeNull();
   });
 
   it('T16: shows category breakdown bars', () => {
@@ -216,6 +219,15 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     // Labour and Materials from activeVersion
     expect(screen.getByText('Labour')).toBeInTheDocument();
     expect(screen.getByText('Materials')).toBeInTheDocument();
+  });
+
+  it('item F: by-category figures render as currency, never the raw "Nh" hours suffix', () => {
+    renderTab();
+    // Labour 100k + Materials 50k from activeVersion, currency-formatted.
+    expect(screen.getByText('$100,000')).toBeInTheDocument();
+    expect(screen.getByText('$50,000')).toBeInTheDocument();
+    // the buggy unformatted "100000h" / "50000h" must NOT appear
+    expect(screen.queryByText(/\b\d+h\b/)).not.toBeInTheDocument();
   });
 
   it('T16: empty state when no Active budget version exists', () => {
