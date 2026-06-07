@@ -53,3 +53,40 @@ export { ErrBanner, type ErrBannerProps } from './ErrBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { EntryList, type EntryListProps } from './EntryList';
+
+// --- CRUD form primitives (Phase 1, crud-components §2) ---
+export {
+  FieldShell,
+  FieldError,
+  TextField,
+  NumberField,
+  TextArea,
+  SelectField,
+  FormRow,
+  FormGrid,
+  FormSection,
+  FormActions,
+  type FieldShellProps,
+  type FieldErrorProps,
+  type TextFieldProps,
+  type NumberFieldProps,
+  type TextAreaProps,
+  type SelectFieldProps,
+  type SelectOption,
+  type FormGridProps,
+  type FormSectionProps,
+  type FormActionsProps,
+} from './FormFields';
+export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox';
+export {
+  EntityFormModal,
+  type EntityFormModalProps,
+  type ErrorSummaryItem,
+} from './EntityFormModal';
+export {
+  useEntityForm,
+  type UseEntityForm,
+  type UseEntityFormOptions,
+  type ValidateFn,
+  type FieldProps,
+} from './useEntityForm';
