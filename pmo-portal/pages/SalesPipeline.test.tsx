@@ -26,7 +26,7 @@ const pipelineState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: { stages: seedStages, projects: seedProjects }, isPending: false, isError: false, refetch: vi.fn() };
 
-const openRecord = vi.fn();
+const navigate = vi.fn();
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
@@ -36,16 +36,17 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
-vi.mock('@/src/components/shell', async (orig) => {
+// Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
+vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useWorkspaceTabs: () => ({ openRecord, openModule: vi.fn(), setDirty: vi.fn() }) };
+  return { ...actual, useNavigate: () => navigate };
 });
 
 const renderPage = () => render(<MemoryRouter><SalesPipeline /></MemoryRouter>);
 
 beforeEach(() => {
   sessionStorage.clear();
-  openRecord.mockClear();
+  navigate.mockClear();
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
   pipelineState.isError = false;
@@ -141,19 +142,17 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   });
 });
 
-describe('SalesPipeline drill-down (AC-SP-207)', () => {
-  it('AC-SP-207: clicking a card opens a record tab with the human label', () => {
+describe('SalesPipeline drill-down (AC-SP-207 / AC-NAV-006)', () => {
+  it('AC-NAV-006: clicking a card navigates to the opportunity detail route (no tab)', () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'sales:p2', label: 'Northwind ERP Rollout', module: 'sales' }),
-    );
+    expect(navigate).toHaveBeenCalledWith('/sales/p2');
   });
 
-  it('AC-SP-205: a table row click opens the record tab', async () => {
+  it('AC-NAV-006: a table row click navigates to the opportunity detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
-    expect(openRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'sales:p2' }));
+    expect(navigate).toHaveBeenCalledWith('/sales/p2');
   });
 });

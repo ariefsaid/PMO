@@ -1,5 +1,4 @@
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import type { WorkspaceContextValue } from '@/src/components/shell';
 import type { StatusVariant } from '@/src/components/ui';
 import type { LifecycleStep } from '@/src/components/ui';
 import {
@@ -96,24 +95,15 @@ export function formatPercent(probability: number): string {
 }
 
 /**
- * Opens (or refocuses) the opportunity's workspace record tab with its HUMAN
- * label (AC-SP-207). Passing `project.name` means the reducer stores it; a later
- * synthetic URL re-open (Back/Forward) will not overwrite it. Re-opening the same
- * deal refocuses the existing tab.
+ * Navigates to the opportunity's detail route (AC-NAV-006). With the workspace
+ * tab layer removed, the row drill is a plain react-router navigate — the URL is
+ * the single source of truth and the top-bar breadcrumb derives from it.
  */
 export function openOpportunity(
-  ws: Pick<WorkspaceContextValue, 'openRecord'>,
-  project: Pick<PipelineProject, 'id' | 'name'>,
+  navigate: (path: string) => void,
+  project: Pick<PipelineProject, 'id'>,
 ): void {
-  ws.openRecord({
-    id: `sales:${project.id}`,
-    kind: 'record',
-    path: `/sales/${project.id}`,
-    icon: 'pipe',
-    label: project.name,
-    code: project.id,
-    module: 'sales',
-  });
+  navigate(`/sales/${project.id}`);
 }
 
 /**

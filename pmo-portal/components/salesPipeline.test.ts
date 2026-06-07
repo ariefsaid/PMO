@@ -79,20 +79,10 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(pillVariantForStatus('Loss Tender')).toBe('lost');
   });
 
-  it('AC-SP-207: openOpportunity opens a record tab with the human label, code and module', () => {
-    const openRecord = vi.fn();
-    openOpportunity({ openRecord } as never, project({ id: 'abc', name: 'Acme Deal' }));
-    expect(openRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'sales:abc',
-        kind: 'record',
-        path: '/sales/abc',
-        icon: 'pipe',
-        label: 'Acme Deal',
-        code: 'abc',
-        module: 'sales',
-      }),
-    );
+  it('AC-NAV-006: openOpportunity navigates to the opportunity detail route (no tab)', () => {
+    const navigate = vi.fn();
+    openOpportunity(navigate, project({ id: 'abc', name: 'Acme Deal' }));
+    expect(navigate).toHaveBeenCalledWith('/sales/abc');
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {

@@ -13,8 +13,8 @@ import {
   type FunnelStage,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
@@ -32,7 +32,7 @@ const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
 const SalesPipeline: React.FC = () => {
   const { data, isPending, isError, refetch } = useSalesPipeline();
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
 
@@ -78,7 +78,7 @@ const SalesPipeline: React.FC = () => {
     };
   });
 
-  const onOpen = (p: PipelineProject) => openOpportunity(ws, p);
+  const onOpen = (p: PipelineProject) => openOpportunity(navigate, p);
 
   const tableColumns: Column<PipelineProject>[] = [
     {
