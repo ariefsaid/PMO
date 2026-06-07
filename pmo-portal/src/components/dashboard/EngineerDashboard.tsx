@@ -49,7 +49,7 @@ export const EngineerDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title="My Dashboard" sub="Your hours this week and timesheet status." />
 
-      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3">
+      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <KPITile testId="kpi-hours-week" tone="blue" icon="clock" label="Hours this week"
           value={`${hoursThisWeek}`} loading={isPending}
           vs={current ? `week of ${current.week_start_date}` : undefined}
@@ -58,9 +58,6 @@ export const EngineerDashboard: React.FC = () => {
           value={current ? <StatusPill variant={timesheetVariant(current.status)}>{current.status}</StatusPill> : '—'}
           loading={isPending}
           help="The status of your most recent timesheet." />
-        <KPITile testId="kpi-tasks" tone="cyan" icon="check" label="My tasks"
-          value="—" vs="task tracking coming soon"
-          help="Task tracking is a deferred follow-up — no tasks query exists yet." />
       </section>
 
       <DashGrid>
@@ -100,15 +97,6 @@ export const EngineerDashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card>
-          <CardHead>My Tasks</CardHead>
-          <ListState
-            variant="empty"
-            icon="check"
-            title="Task tracking is coming soon"
-            sub="Per-engineer task assignments need a new backend slice; tracked as a follow-up."
-          />
-        </Card>
       </DashGrid>
     </div>
   );

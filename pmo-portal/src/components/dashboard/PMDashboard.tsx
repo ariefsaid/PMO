@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
@@ -29,7 +28,6 @@ function statusVariant(status: string): StatusVariant {
  * timesheet count (plan §4.1, Open Q5).
  */
 export const PMDashboard: React.FC = () => {
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { data: projects, isPending, isError, refetch } = useProjects();
   const { data: awaiting } = useTimesheetsAwaitingApproval();
@@ -66,7 +64,7 @@ export const PMDashboard: React.FC = () => {
           help="Your projects whose actual spend exceeds 90% of budget." />
         <KPITile testId="kpi-timesheets-awaiting" tone="violet" icon="clock" label="Timesheets awaiting"
           value={String(awaitingCount)} vs="submitted, pending your review"
-          help="Submitted timesheets awaiting your approval. Procurement approvals are a deferred follow-up." />
+          help="Submitted timesheets awaiting your approval." />
       </section>
 
       <DashGrid>
@@ -124,16 +122,6 @@ export const PMDashboard: React.FC = () => {
         </Card>
       </DashGrid>
 
-      <Card>
-        <CardHead>Procurement approvals</CardHead>
-        <ListState
-          variant="empty"
-          icon="cart"
-          title="Procurement approvals — coming soon"
-          sub="A per-PM procurement approvals queue needs a new backend slice; tracked as a follow-up."
-          action={{ label: 'Open Approvals', onClick: () => navigate('/approvals') }}
-        />
-      </Card>
     </div>
   );
 };

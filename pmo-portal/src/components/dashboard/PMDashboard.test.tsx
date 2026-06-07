@@ -53,9 +53,9 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     renderPane();
     expect(screen.getByTestId('kpi-timesheets-awaiting')).toHaveTextContent('2');
   });
-  it('renders the procurement-approvals half as a coming-soon placeholder (not summed)', () => {
+  it('does NOT render a procurement-approvals coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();
-    expect(screen.getByText(/Procurement approvals — coming soon/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
   });
   it('renders a toned status pill per project status (won/lost/on-hold/neutral)', () => {
     renderPane();

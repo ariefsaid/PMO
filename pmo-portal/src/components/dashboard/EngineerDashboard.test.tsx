@@ -36,7 +36,6 @@ describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', 
     const { container } = renderPane();
     const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
     expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).toContain('min-[920px]:grid-cols-3');
     expect(band.className).not.toContain('sm:grid-cols');
   });
 });
@@ -50,9 +49,9 @@ describe('EngineerDashboard (real hours, deferred tasks)', () => {
     renderPane();
     expect(screen.getByText('Draft')).toBeInTheDocument();
   });
-  it('renders the tasks block as a single coming-soon placeholder (no mock tasks)', () => {
+  it('does NOT render a tasks coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();
-    expect(screen.getByText(/Task tracking is coming soon/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Task tracking is coming soon/i)).not.toBeInTheDocument();
   });
   it('renders a weekly-hours breakdown labelled for a11y', () => {
     renderPane();
