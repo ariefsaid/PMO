@@ -63,6 +63,29 @@ describe('StatusPill', () => {
     expect(pill.className).toContain('bg-secondary');
     expect(pill.className).toContain('text-muted-foreground');
   });
+
+  /**
+   * I1: the in-flight `progress` variant — a quiet neutral pill (secondary fill +
+   * secondary-foreground text + muted-foreground dot) so non-active procurement
+   * stages are differentiated from the single blue `open` by tint AND label, not
+   * by inventing a per-stage hue (which would recreate the rainbow on pills).
+   */
+  it('I1: progress variant is a quiet neutral pill (secondary fill, secondary-foreground text, muted dot)', () => {
+    render(<StatusPill variant="progress">Purchase Order</StatusPill>);
+    const pill = screen.getByText('Purchase Order').closest('span')!;
+    expect(pill.className).toContain('bg-secondary');
+    expect(pill.className).toContain('text-secondary-foreground');
+    const dot = pill.querySelector('[data-pill-dot]') as HTMLElement;
+    expect(dot).not.toBeNull();
+    expect(dot.style.background).toBe('hsl(var(--muted-foreground))');
+  });
+
+  it('I1: open stays the blue tint + darkened-AA text (progress did not change open)', () => {
+    render(<StatusPill variant="open">Submitted</StatusPill>);
+    const pill = screen.getByText('Submitted').closest('span')!;
+    expect(pill.className).toContain('bg-primary/10');
+    expect(pill.style.color).toBe('rgb(24, 70, 170)'); // hsl(221 75% 38%)
+  });
 });
 
 describe('Badge (count)', () => {

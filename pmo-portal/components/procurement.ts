@@ -55,13 +55,24 @@ export function stageIndexForStatus(status: ProcurementStatus): number {
   return STATUS_TO_STAGE[s] ?? 0;
 }
 
-/** StatusPill variant: Paid → won, Rejected/Cancelled → lost, Draft → draft, else open. */
+/**
+ * StatusPill variant: Paid → won, Rejected/Cancelled → lost, Draft → draft, all
+ * other in-flight statuses → `progress` (the quiet neutral pill).
+ *
+ * I1 fix: the list pill shows each record's OWN stage (not a board column), so
+ * there is no single "active" stage to render blue — collapsing every in-flight
+ * status to the blue `open` produced three identical blue pills (Purchase
+ * Request / Vendor Quote / Purchase Order). They are now neutral `progress`,
+ * differentiated from each other by their distinct `stageLabelForStatus` label
+ * and the row's lifecycle pip stepper (color-not-only). The blue `open` variant
+ * is retained for surfaces with a genuine single active item (e.g. sales).
+ */
 export function pillVariantForStatus(status: ProcurementStatus): StatusVariant {
   const s = status as string;
   if (s === 'Paid') return 'won';
   if (TERMINAL_OFF_TRACK.has(s)) return 'lost';
   if (s === 'Draft') return 'draft';
-  return 'open';
+  return 'progress';
 }
 
 /**
