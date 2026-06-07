@@ -438,7 +438,13 @@ const ProcurementDetails: React.FC = () => {
               {actions.map((action) => (
                 <Button
                   key={action.to}
-                  variant={action.variant}
+                  // The solid `destructive` fill belongs ONLY inside the confirm
+                  // dialog (the system's single solid status fill) — at rest a
+                  // destructive action (Reject / Cancel) is a quiet OUTLINE so it
+                  // does not compete with the blue primary (the I4 two-solid-fills
+                  // tell). stageTransition still reads action.variant for the
+                  // dialog tone, so the confirm dialog stays red.
+                  variant={action.variant === 'destructive' ? 'outline' : action.variant}
                   loading={mutations.transition.isPending}
                   onClick={() => stageTransition(action)}
                 >

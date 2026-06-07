@@ -302,6 +302,22 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /pay/i })).not.toBeInTheDocument();
   });
+
+  it('item G: a destructive action is a quiet OUTLINE at rest; the solid red is only in the confirm dialog', async () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const rejectBtn = screen.getByRole('button', { name: /reject/i });
+    // at rest: outline (background fill + input border), NOT the solid destructive fill
+    expect(rejectBtn.className).toContain('border-input');
+    expect(rejectBtn.className).toContain('bg-background');
+    expect(rejectBtn.className).not.toContain('bg-destructive');
+    // opening the confirm dialog surfaces the solid red confirm (the only solid fill)
+    await userEvent.click(rejectBtn);
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: /reject/i });
+    expect(confirm.className).toContain('bg-destructive');
+  });
 });
 
 // ---------------------------------------------------------------------------
