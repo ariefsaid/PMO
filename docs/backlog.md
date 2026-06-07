@@ -62,21 +62,33 @@ issues (all missed by unit+pgTAP+spec-review). Production hardening since: **CI 
 also fixed a silently-red verify job) and the **procurements_update SoD bypass is closed** (PR #18) — the
 transition-RPC-bypass class is now shut on all 4 state machines. `main` @ `e95cf50`, PRs #13–#19 merged.
 
-## ▶ RESUME HERE (next session, after reload) — UI/UX design pass
-The **UI/UX agentic harness is built + committed** (this session): 3 agents `design-architect` / `ui-implementer`
-/ `design-reviewer` (`.claude/agents/`), the cycle in `docs/design-workflow.md`, and vendored skills
-**impeccable / taste / ui-ux-pro-max** (gitignored; `scripts/vendor-skills.sh`; each agent maps to specific
-skill-commands — see design-workflow.md). **NOT yet run.** Immediate next step:
-1. **Reverse-engineer `DESIGN.md`** — dispatch `design-architect` (it runs `impeccable document`→`extract`→`distill`)
-   to extract the existing app's de-facto design system from `pmo-portal/` → `DESIGN.md` at repo root.
-   *(Blocked this session only because newly-authored agents aren't dispatchable until a session reload — hence
-   the compact+reload. After reload, `design-architect` is available.)*
-2. **Owner signs off `DESIGN.md`** (taste = owner's gate).
-3. Then run **ProjectDetails decomposition** + **per-role sub-dashboards** (the 2 mockData survivors) and any new
-   UI through the per-UI-issue design cycle (design-plan → ui-implement → design-review → owner UX sign-off).
+## ✅ UI REALIGNMENT PROGRAM — COMPLETE (2026-06-07, `main`@25d6963)
+The whole app was re-skinned to the owner-approved **RIS IA-3 identity** (`DESIGN.md` reverse-engineered from
+`RIS-portal-2/docs/design-mockups/*.html`; mockups in `docs/design-mockups/proposal-*.html`; master plan +
+per-surface plans in `docs/plans/2026-06-06-ui-*.md`). Shell = 224px grouped rail + context bar + ⌘K palette +
+tabbed workspace + index→full-page-detail w/ view toggles; light-only; RIS tokens verbatim. Ran via
+design-architect→ui-implementer→design-reviewer (every surface got a **rendered visual + contrast/AA review**).
+Shipped PRs:
+- **#20** procurement `profiles` ambiguous-embed fix (PGRST201 — list was broken for all roles).
+- **#21 Foundation** (token pipeline, shell, ~20 primitives). **#22 Sales Pipeline** (kanban/table + opportunity detail).
+- **#23 Procurement** (table/board + PR lifecycle detail). **#24 Projects + ProjectDetails decomposition**
+  (the ~1250-line god-component dismantled into `pages/project-detail/`). **#25 Dashboard + per-role** (status-chart
+  fix). **#26 Timesheets/Approvals** (grid/queue). **#27 cleanup** (e2e isolation + placeholder removal).
+- Two app-wide primitive bugs the **visual gate caught** (unit tests passed while broken): Tailwind-v4 `<alpha-value>`
+  dead-color-pipeline + invisible outline-`Button` border. (Both banked to memory.)
 
-Other open threads: **hosting/deploy** (owner-gated, ADR-0006); **deferred prototype modules** scope decision
-(below); the polish/debt follow-ups.
+### Deferred (placeholders REMOVED; features tracked; await owner scope decision)
+- Pipeline RPC-widen (contract-ref/decision-date/PM on cards + PM filter) — low value (empty for in-pipeline deals).
+- **Project-level timesheets view** — needs a cross-user, project-scoped RLS read + a visibility/auth decision (owner-level).
+- 3 dashboard data-slices — committed-spend-by-category donut, per-PM approvals count, engineer-tasks.
+- The prototype modules below (Tasks/Documents/Work-Orders/Reports/Companies/Administration).
+
+### Open follow-ups / debt
+- **Auth/LoginPage + RequireAuth still off-token** (not one of the 6 app surfaces) — needs a small reskin pass.
+- **e2e test-hardening**: full *local* suite has seed-coupling (AC-1011/AC-816/AC-911 share seeded entities → fail in
+  some local full-suite orderings; **CI passes**). Harden by giving each mutation spec a dedicated seed row (pattern:
+  AC-SP now uses P011). Not urgent.
+- **hosting/deploy** (owner-gated, ADR-0006); **deferred prototype modules** scope decision (below).
 
 ## Deferred prototype modules — OWNER SCOPE DECISION pending
 The original prototype had these as `PlaceholderPage` stubs; the approved MVP cut kept them as placeholders.
