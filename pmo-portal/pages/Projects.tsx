@@ -9,9 +9,9 @@ import {
   ProgressBar,
   type Column,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjects, useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
-import { useWorkspaceTabs } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { formatCurrency } from '@/src/lib/format';
@@ -43,7 +43,7 @@ function utilizationPct(p: ProjectWithRefs): number {
 
 const Projects: React.FC = () => {
   useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
-  const ws = useWorkspaceTabs();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
@@ -94,17 +94,8 @@ const Projects: React.FC = () => {
     setSearch('');
   };
 
-  const onOpen = (p: ProjectWithRefs) => {
-    ws.openRecord({
-      id: `projects:${p.id}`,
-      kind: 'record',
-      path: `/projects/${p.id}`,
-      icon: 'folder',
-      label: p.name,
-      code: p.code ?? p.id.slice(0, 8),
-      module: 'projects',
-    });
-  };
+  // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
+  const onOpen = (p: ProjectWithRefs) => navigate(`/projects/${p.id}`);
 
   const columns: Column<ProjectWithRefs>[] = [
     {
