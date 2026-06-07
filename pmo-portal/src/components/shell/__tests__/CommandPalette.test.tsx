@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CommandPalette, type PaletteItem } from '../CommandPalette';
 
@@ -21,11 +21,14 @@ describe('CommandPalette', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('typing filters the options', async () => {
+  it('typing filters the options (after the debounce)', async () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), 'proc');
-    expect(screen.getByText('Procurement')).toBeInTheDocument();
-    expect(screen.queryByText('Sales Pipeline')).not.toBeInTheDocument();
+    // 120ms debounce before the filter applies.
+    expect(await screen.findByText('Procurement')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText('Sales Pipeline')).not.toBeInTheDocument()
+    );
   });
 
   it('ArrowDown moves aria-selected; Enter runs the selected item', async () => {
@@ -55,10 +58,10 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('no-match shows an empty state', async () => {
+  it('no-match shows an empty state (after the debounce)', async () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), 'zzzzz');
-    expect(screen.getByText(/no results/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no results/i)).toBeInTheDocument();
   });
 
   it('returns focus to the trigger on close', async () => {
@@ -89,5 +92,75 @@ describe('CommandPalette', () => {
     const opts = screen.getAllByRole('option');
     expect(opts[1]).toHaveAttribute('aria-selected', 'false');
     expect(opts[1].className).not.toMatch(/bg-primary\/10/);
+  });
+
+  // ── Phase E: record search states ──────────────────────────────────────────
+
+  // AC-CMDK-004: record lists still fetching → skeleton rows, Navigate still shows.
+  it('AC-CMDK-004: loading shows skeleton rows (not a spinner) and Navigate still renders', () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} loading />);
+    expect(screen.getAllByTestId('cmdk-skeleton-row').length).toBeGreaterThan(0);
+    // Navigate group still works during record-list loading (graceful degradation).
+    expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
+  });
+
+  // AC-CMDK-005: a record list errored → inline retry note + Navigate still works.
+  it('AC-CMDK-005: error shows an inline retry note and Navigate still renders', async () => {
+    const onRetry = vi.fn();
+    render(<CommandPalette open items={items} onClose={vi.fn()} error onRetry={onRetry} />);
+    expect(screen.getByText(/couldn.t load records/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /retry/i });
+    await userEvent.click(retry);
+    expect(onRetry).toHaveBeenCalled();
+    // Module navigation is unaffected by the record-list error.
+    expect(screen.getByText('Procurement')).toBeInTheDocument();
+  });
+
+  // AC-CMDK-006: a group with > cap matches shows 8 rows + a "+N more" footer.
+  it('AC-CMDK-006: caps a group at 8 rows and shows a "+N more" footer', async () => {
+    const many: PaletteItem[] = Array.from({ length: 11 }, (_, i) => ({
+      id: `rec-${i}`,
+      group: 'Records',
+      title: `Record match ${i}`,
+      sub: 'Project',
+      icon: 'folder',
+      run: vi.fn(),
+    }));
+    render(<CommandPalette open items={many} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByRole('combobox'), 'record match');
+    // "+3 more" overflow footer (11 - 8), after the debounce.
+    expect(await screen.findByText(/\+3 more/i)).toBeInTheDocument();
+    expect(screen.getByText(/refine your search/i)).toBeInTheDocument();
+    // Only the cap renders as options.
+    const recordOptions = screen
+      .getAllByRole('option')
+      .filter((o) => /Record match/.test(o.textContent ?? ''));
+    expect(recordOptions).toHaveLength(8);
+  });
+
+  // AC-CMDK-003: a Records row Enter runs its `run` and closes.
+  it('AC-CMDK-003: pressing Enter on a record row runs it and closes', async () => {
+    const run = vi.fn();
+    const onClose = vi.fn();
+    const recs: PaletteItem[] = [
+      { id: 'rec-1', group: 'Records', title: 'Harbour Expansion', sub: 'Project', code: 'PRJ-0142', icon: 'folder', run },
+      ...items,
+    ];
+    render(<CommandPalette open items={recs} onClose={onClose} />);
+    await userEvent.type(screen.getByRole('combobox'), 'harbour');
+    // Wait for the debounced filter so the record row is the selected option.
+    await screen.findByText('Harbour Expansion');
+    await userEvent.keyboard('{Enter}');
+    expect(run).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // a11y: a polite live region announces the result count as the filter narrows.
+  it('exposes an aria-live result-count region', async () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const live = screen.getByTestId('cmdk-live-count');
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    await userEvent.type(screen.getByRole('combobox'), 'proc');
+    await waitFor(() => expect(within(live).getByText(/result/i)).toBeInTheDocument());
   });
 });

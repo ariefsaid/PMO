@@ -194,6 +194,24 @@
 .cmdk-anim { animation: cmdkin 0.14s ease; }
 @keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
+/* Palette rows: drop the 300ms tap delay; grow padding (not visual weight) so
+   the row clears the 44px touch target on a coarse pointer. */
+.cmdk-row { touch-action: manipulation; }
+@media (pointer: coarse) {
+  .cmdk-row { padding-top: 11px; padding-bottom: 11px; }
+}
+
+/* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
+   global prefers-reduced-motion rule (animation-duration → 0). */
+.cmdk-skeleton { position: relative; overflow: hidden; }
+.cmdk-skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(240 5% 100% / 0.6), transparent);
+  transform: translateX(-100%);
+  animation: cmdkShimmer 1.2s ease-in-out infinite;
+}
+@keyframes cmdkShimmer { to { transform: translateX(100%); } }
+
 /* ---------- Scrollbar polish (from reference) ---------- */
 .main-scroll::-webkit-scrollbar,
 .kanban-scroll::-webkit-scrollbar { height: 9px; width: 9px; }

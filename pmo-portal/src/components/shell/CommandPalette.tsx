@@ -19,39 +19,107 @@ export interface CommandPaletteProps {
   onClose: () => void;
   /** Element to restore focus to when the palette closes (closes mockup gap). */
   returnFocusTo?: HTMLElement | null;
+  /** Record lists are still fetching → show skeleton rows (not a spinner). */
+  loading?: boolean;
+  /** A record list query failed → show the inline retry note. */
+  error?: boolean;
+  /** Re-run the failed record-list queries (wired to the retry affordance). */
+  onRetry?: () => void;
+}
+
+/** Per-group result cap so the palette never becomes a wall of rows. */
+const GROUP_CAP = 8;
+/** Skeleton rows shown while the record lists load. */
+const SKELETON_COUNT = 4;
+/** Debounce (ms) applied to the query before filtering (Linear/Raycast feel). */
+const FILTER_DEBOUNCE_MS = 120;
+
+interface RenderGroup {
+  name: string;
+  items: PaletteItem[];
+  /** Matches dropped by the cap → drives the "+N more" footer. */
+  overflow: number;
 }
 
 /**
  * ⌘K command palette. role=dialog aria-modal, grouped role=listbox/option,
- * ArrowUp/Down navigate, Enter runs, Esc closes, focus trapped, focus restored
- * to the trigger on close.
+ * ArrowUp/Down navigate the flat (capped) result order, Enter runs, Esc closes,
+ * focus trapped, focus restored to the trigger on close. Records (when present)
+ * are searched alongside Navigate/Actions; each group caps at GROUP_CAP rows
+ * with a "+N more" footer. Loading shows skeleton rows; an errored record list
+ * shows an inline retry note while module navigation keeps working.
  */
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   items,
   onClose,
   returnFocusTo,
+  loading = false,
+  error = false,
+  onRetry,
 }) => {
   const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (i) =>
-        i.title.toLowerCase().includes(q) ||
-        i.sub?.toLowerCase().includes(q) ||
-        i.code?.toLowerCase().includes(q)
-    );
-  }, [items, query]);
+  // Debounce the query before filtering so typing across a large record index
+  // stays smooth (ui-ux-pro-max debounce-throttle).
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query), FILTER_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Build the capped, grouped result set in stable group order. "Records" rows
+  // only show while the user is searching; "Navigate"/"Actions" always show.
+  const groups = useMemo<RenderGroup[]>(() => {
+    const q = debounced.trim().toLowerCase();
+    const out: RenderGroup[] = [];
+    for (const item of items) {
+      // Records are search-only — hide them on an empty query so the default
+      // palette is the (always-present) module Navigate group, never blank.
+      if (item.group === 'Records' && !q) continue;
+      if (q) {
+        const hit =
+          item.title.toLowerCase().includes(q) ||
+          item.sub?.toLowerCase().includes(q) ||
+          item.code?.toLowerCase().includes(q);
+        if (!hit) continue;
+      }
+      let g = out.find((x) => x.name === item.group);
+      if (!g) {
+        g = { name: item.group, items: [], overflow: 0 };
+        out.push(g);
+      }
+      g.items.push(item);
+    }
+    // Exact-code match ranks first inside Records; cap every group.
+    for (const g of out) {
+      if (g.name === 'Records' && q) {
+        g.items.sort((a, b) => {
+          const aExact = a.code?.toLowerCase() === q ? 0 : 1;
+          const bExact = b.code?.toLowerCase() === q ? 0 : 1;
+          return aExact - bExact;
+        });
+      }
+      if (g.items.length > GROUP_CAP) {
+        g.overflow = g.items.length - GROUP_CAP;
+        g.items = g.items.slice(0, GROUP_CAP);
+      }
+    }
+    return out;
+  }, [items, debounced]);
+
+  // Flat list of the rendered (capped) options — the roving-selection order.
+  const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const resultCount = flatItems.length;
 
   // Reset + focus the input on open.
   useEffect(() => {
     if (open) {
       setQuery('');
+      setDebounced('');
       setSelected(0);
       // focus after paint
       const t = setTimeout(() => inputRef.current?.focus(), 0);
@@ -68,8 +136,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Keep the selection in range as the filter narrows.
   useEffect(() => {
-    setSelected((s) => Math.min(s, Math.max(0, filtered.length - 1)));
-  }, [filtered.length]);
+    setSelected((s) => Math.min(s, Math.max(0, resultCount - 1)));
+  }, [resultCount]);
 
   if (!open) return null;
 
@@ -79,13 +147,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       onClose();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelected((s) => Math.min(s + 1, filtered.length - 1));
+      setSelected((s) => Math.min(s + 1, resultCount - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelected((s) => Math.max(s - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const item = filtered[selected];
+      const item = flatItems[selected];
       if (item) {
         item.run();
         onClose();
@@ -97,18 +165,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   };
 
-  // Group the filtered items in stable group order.
-  const groups: { name: string; items: PaletteItem[] }[] = [];
-  for (const item of filtered) {
-    let g = groups.find((x) => x.name === item.group);
-    if (!g) {
-      g = { name: item.group, items: [] };
-      groups.push(g);
-    }
-    g.items.push(item);
-  }
-
   let flatIndex = -1;
+  const hasResults = resultCount > 0;
 
   return (
     <div
@@ -148,8 +206,53 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           </span>
         </div>
 
-        <div id="cmdk-list" role="listbox" aria-label="Command results" className="max-h-[380px] overflow-y-auto p-1.5">
-          {filtered.length === 0 ? (
+        {/* Polite live region: announces the result count as the filter narrows. */}
+        <span data-testid="cmdk-live-count" aria-live="polite" className="sr-only">
+          {hasResults ? `${resultCount} result${resultCount === 1 ? '' : 's'}` : ''}
+        </span>
+
+        <div
+          id="cmdk-list"
+          role="listbox"
+          aria-label="Command results"
+          className="max-h-[380px] overflow-y-auto p-1.5"
+        >
+          {/* A record list failed — keep module nav working, offer a retry. */}
+          {error && (
+            <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive">
+              <span>Couldn’t load records.</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="rounded-[5px] border border-border bg-background px-2 py-0.5 text-[12px] font-semibold text-foreground hover:bg-accent"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Records still fetching — skeleton rows matching the 44px row geometry. */}
+          {loading && (
+            <div aria-hidden>
+              <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                Records
+              </div>
+              {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+                <div
+                  key={i}
+                  data-testid="cmdk-skeleton-row"
+                  className="cmdk-row flex items-center gap-[11px] rounded-[7px] px-2.5 py-[9px]"
+                >
+                  <span className="cmdk-skeleton size-7 shrink-0 rounded-[7px] bg-secondary" />
+                  <span className="cmdk-skeleton h-3.5 flex-1 rounded-[4px] bg-secondary" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!hasResults && !loading ? (
             <div className="px-2.5 py-8 text-center text-[13px] text-muted-foreground">
               No results for “{query}”
             </div>
@@ -172,17 +275,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         onClose();
                       }}
                       className={cn(
-                        'flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
-                        isSel
-                          ? 'bg-primary/10 text-foreground'
-                          : 'hover:bg-accent'
+                        'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                        isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
                       )}
                     >
                       <span className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-secondary text-muted-foreground [&_svg]:size-[15px]">
                         <Icon name={item.icon} />
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-px">
-                        <span className="font-medium leading-tight">{item.title}</span>
+                        <span className="truncate font-medium leading-tight">{item.title}</span>
                         {item.sub && (
                           <span className="text-[11.5px] leading-tight text-muted-foreground">
                             {item.sub}
@@ -190,13 +291,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         )}
                       </span>
                       {item.code && (
-                        <span className="font-mono text-[11px] text-muted-foreground">
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                           {item.code}
                         </span>
                       )}
                     </div>
                   );
                 })}
+                {group.overflow > 0 && (
+                  <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                    +{group.overflow} more — refine your search
+                  </div>
+                )}
               </div>
             ))
           )}

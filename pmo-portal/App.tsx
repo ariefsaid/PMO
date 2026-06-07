@@ -22,6 +22,7 @@ import type { BreadcrumbPart } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
@@ -75,6 +76,11 @@ const ShellChrome: React.FC = () => {
   const { data: procurements } = useProcurements();
   const { data: pipeline } = useSalesPipeline();
 
+  // ⌘K record search: index the three cached lists into Records rows that open
+  // the matching detail route. Reads the same caches as the breadcrumb — no new
+  // query. (AC-CMDK-001/003/004/005)
+  const recordSearch = useRecordSearch(navigate);
+
   // Global ⌘K / Ctrl-K → open the command palette.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,19 +112,21 @@ const ShellChrome: React.FC = () => {
     return breadcrumbForPath(pathname, recordLabel, navigate);
   }, [pathname, navigate, projects, procurements, pipeline]);
 
-  // Palette items: Navigate to each module. Record search is added in a
-  // follow-up surface issue (Phase E); this preserves the existing module-nav
-  // Navigate group via a plain route navigate.
+  // Palette items: the Records group (cached record index) above the Navigate
+  // group (module index routes). The palette filters/caps/ranks both uniformly;
+  // Records only show while the user is searching, Navigate always shows.
   const paletteItems = useMemo<PaletteItem[]>(
-    () =>
-      MODULES.map((m) => ({
+    () => [
+      ...recordSearch.records,
+      ...MODULES.map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
         title: m.label,
         icon: m.icon,
         run: () => navigate(m.path),
       })),
-    [navigate]
+    ],
+    [navigate, recordSearch.records]
   );
 
   return (
@@ -142,6 +150,9 @@ const ShellChrome: React.FC = () => {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
         returnFocusTo={paletteTriggerRef.current}
+        loading={recordSearch.isPending}
+        error={recordSearch.isError}
+        onRetry={recordSearch.refetch}
       />
     </>
   );
