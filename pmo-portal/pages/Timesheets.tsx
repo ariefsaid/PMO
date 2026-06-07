@@ -147,9 +147,13 @@ const TimesheetsPage: React.FC = () => {
 
   const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
 
-  // Seed the in-memory edit state from the last-fetched server grid. Re-seed when
-  // the week, the sheet identity, or the server entries change (an identity key
-  // keeps editing stable across unrelated re-renders — no write happens here).
+  // Seed the in-memory edit state from the last-fetched server grid. Re-seed ONLY when the
+  // week, sheet identity, or sheet editability changes — NOT when entry content changes.
+  // Keying on entry content would let every post-mutation invalidation refetch (the async
+  // onSuccess after Save/Delete) re-seed and clobber unsaved local edits (e.g. delete a row,
+  // re-add a project + type hours, then have the delete's refetch wipe the re-added row).
+  // Week navigation, the none→real draft-id transition on first Save, and Draft→Submitted all
+  // change this key and still correctly re-seed; a same-week post-mutation refetch does not.
   const seedRows = useMemo<EditRow[]>(
     () =>
       gridRows.map((r) => {
@@ -168,10 +172,8 @@ const TimesheetsPage: React.FC = () => {
   );
   const seedKey = useMemo(
     () =>
-      `${currentTimesheet?.id ?? 'none'}|${weekStartString}|${currentWeekEntries
-        .map((e) => `${e.id}:${e.hours}`)
-        .join(',')}`,
-    [currentTimesheet, weekStartString, currentWeekEntries]
+      `${currentTimesheet?.id ?? 'none'}|${currentTimesheet?.status ?? 'none'}|${weekStartString}`,
+    [currentTimesheet?.id, currentTimesheet?.status, weekStartString]
   );
   const [editRows, setEditRows] = useState<EditRow[]>(seedRows);
   const lastSeedKey = useRef<string | null>(null);

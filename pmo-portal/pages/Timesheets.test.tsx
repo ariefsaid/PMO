@@ -652,6 +652,64 @@ describe('timesheet-entry: delete row confirm (Task 18)', () => {
   });
 });
 
+describe('timesheet-entry: re-seed identity (Task 16 regression)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    deleteRowMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-TSE-016 (regression): a same-week refetch does not clobber unsaved edit-state', async () => {
+    // Mirrors the e2e step-8 clobber: on an empty editable Draft week the user re-adds a
+    // project + types hours locally; a delete's invalidation refetch then lands with the
+    // server entries now EMPTY (its content differs from the moment we seeded) for the SAME
+    // sheet id / week / status. The unsaved local row must NOT be re-seeded away.
+    const weekStr = currentWeekStartStr();
+    // Before the refetch the server still has the old persisted row (pP). The user will
+    // then add a DIFFERENT project locally; an async delete-invalidation refetch lands
+    // with the server now EMPTY — content changed, so the buggy seedKey re-seeds.
+    const sheetWith = (entries: unknown[]) => [{
+      id: 'ts-draft', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries,
+    }];
+    tsState.data = sheetWith([
+      { id: 'ed1', timesheet_id: 'ts-draft', project_id: 'pP', entry_date: weekStr, hours: 8,
+        notes: 'work', project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+    ]) as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+
+    const { rerender } = renderPage();
+
+    // ── Local edit: add a SECOND project row (pQ = Acme Internal Platform) and type hours.
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    await userEvent.type(screen.getByLabelText('Acme Internal Platform, Mon hours'), '5');
+    expect((screen.getByLabelText('Acme Internal Platform, Mon hours') as HTMLInputElement).value).toBe('5');
+
+    // ── A post-mutation invalidation refetch lands: useTimesheets returns a NEW array
+    //    reference whose entry CONTENT differs (the old row is now gone server-side) for the
+    //    SAME sheet id / week / status. This is exactly what a Save or Delete onSuccess
+    //    invalidation produces — and the bug keyed re-seed on entry CONTENT, wiping the
+    //    unsaved local row.
+    tsState.data = sheetWith([]) as unknown as TimesheetWithEntries[];
+    rerender(
+      <MemoryRouter>
+        <ToastProvider>
+          <Timesheets />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    // ── The unsaved local row + its typed hours MUST survive the refetch (not re-seeded away).
+    expect(screen.getByLabelText('Acme Internal Platform, Mon hours')).toBeInTheDocument();
+    expect((screen.getByLabelText('Acme Internal Platform, Mon hours') as HTMLInputElement).value).toBe('5');
+
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
 describe('timesheet-entry: loading + error parity (Task 19)', () => {
   beforeEach(() => { sessionStorage.clear(); projectsState.data = ongoingProjects; });
 
