@@ -178,7 +178,9 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    // "Draft" appears in the selector-bar pill AND in the VersionCard (intentional reinforcement per plan §2)
+    const draftMatches = screen.getAllByText('Draft');
+    expect(draftMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 
@@ -186,7 +188,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    const activeMatches = screen.getAllByText('Active');
+    expect(activeMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 
@@ -194,7 +197,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    expect(screen.getByText('Archived')).toBeInTheDocument();
+    const archivedMatches = screen.getAllByText('Archived');
+    expect(archivedMatches.length).toBeGreaterThanOrEqual(1);
     resetState();
   });
 });
@@ -423,6 +427,20 @@ describe('ProjectBudget New version form (empty state)', () => {
     await userEvent.click(screen.getByRole('button', { name: /New version/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByPlaceholderText(/Version name/i)).not.toBeInTheDocument();
+    resetState();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProjectBudget version selector (budget-dropdown)
+// ---------------------------------------------------------------------------
+describe('ProjectBudget version selector (budget-dropdown)', () => {
+  // T1/T2: AC-BD-01 — labelled selector present when ≥1 version exists
+  it('AC-BD-01: renders a labelled "Version" combobox with ≥1 version', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion, draftVersion];
+    renderPage();
+    expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
     resetState();
   });
 });

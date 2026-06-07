@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
@@ -342,6 +342,24 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
 
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Derive versions early so useMemo is unconditional (Rules of Hooks)
+  const versions = (versionsQuery.data ?? []) as BudgetVersionWithItems[];
+  const derivedTotal = budgetQuery.data ?? 0;
+
+  // AC-BD-02/03: default-resolution priority: explicit pick → Active → highest Draft → highest Archived → first
+  const selected = useMemo<BudgetVersionWithItems | null>(() => {
+    if (versions.length === 0) return null;
+    const byId = selectedId ? versions.find((v) => v.id === selectedId) : undefined;
+    if (byId) return byId;
+    return (
+      versions.find((v) => v.status === 'Active') ??
+      [...versions].reverse().find((v) => v.status === 'Draft') ??
+      [...versions].reverse().find((v) => v.status === 'Archived') ??
+      versions[0]
+    );
+  }, [versions, selectedId]);
 
   // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
@@ -366,9 +384,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       />
     );
   }
-
-  const versions = versionsQuery.data ?? [];
-  const derivedTotal = budgetQuery.data ?? 0;
 
   const head = (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -418,7 +433,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     );
   }
 
-  // Normal state: versions list
+  // Normal state: version selector + single card (AC-BD-01/04/05)
+  const selectFieldCls =
+    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+
   return (
     <div className="flex flex-col gap-4">
       {head}
@@ -436,11 +454,52 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         />
       )}
 
+      {/* AC-BD-01: Version selector bar */}
+      <Toolbar
+        standalone
+        className="flex flex-wrap items-center gap-2 py-2"
+        data-testid="version-selector"
+      >
+        {/* A1: visible label wired to select */}
+        <label
+          htmlFor="budget-version-select"
+          className="text-[12px] font-semibold text-muted-foreground"
+        >
+          Version
+        </label>
+        {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
+        <select
+          id="budget-version-select"
+          aria-label="Version"
+          value={selected?.id ?? ''}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className={`${selectFieldCls} min-w-[200px] max-w-xs`}
+        >
+          {versions.map((v) => (
+            // A4/N1/N2: status in text (not color only), no em-dash, no emoji
+            <option key={v.id} value={v.id}>
+              {`v${v.version} · ${v.name} (${v.status})`}
+            </option>
+          ))}
+        </select>
+        {/* A4/A5: status pill — tinted, darkened AA text, dot + text (not color-only) */}
+        {selected && (
+          <StatusPill variant={VERSION_PILL[selected.status]}>{selected.status}</StatusPill>
+        )}
+        {/* A6: tabular total in selector bar so it's visible without scrolling */}
+        {selected && (
+          <span className="ml-auto text-[13px] font-semibold tabular">
+            {formatCurrency(selected.total)}
+          </span>
+        )}
+      </Toolbar>
+
+      {/* AC-BD-05: exactly ONE VersionCard */}
       <div className="flex flex-col gap-4">
-        {versions.map((version) => (
+        {selected && (
           <VersionCard
-            key={version.id}
-            version={version}
+            key={selected.id}
+            version={selected}
             canWrite={canWrite}
             onActivate={(id) => mutations.activate.mutateAsync(id)}
             onArchive={(id) => mutations.archive.mutateAsync(id)}
@@ -451,7 +510,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             }
             onDeleteLineItem={(id) => mutations.deleteLineItem.mutateAsync(id)}
           />
-        ))}
+        )}
       </div>
     </div>
   );
