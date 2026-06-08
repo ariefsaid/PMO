@@ -29,10 +29,11 @@ update the e2e *steps*, never weaken the goal-oracle to match the rendered app (
 2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
    `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
    design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
-3. **Design-review** *(`design-review` engine + `impeccable critique` & `audit`; `taste` AI-tells;
-   `ui-ux-pro-max` `review`/`check`)* — `design-reviewer` renders the running app, **screenshots** each
-   state at the plan's breakpoints, and audits against `DESIGN.md` + the design-plan (token fidelity,
-   hierarchy, states, AI-slop, a11y, interaction perf). Read-only on source.
+3. **Design-review — the standing THREE-LENS battery** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the other two (this gap let real IxD/IA defects ship). Findings write to `review/*.md`.
+   - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste` AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA, interaction perf, vs `DESIGN.md` + the design-plan.
+   - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough; `ui-ux-pro-max` `primary-action`/`progressive-disclosure`/`success-feedback`)* — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* (e.g. timesheet Save↔Submit split across a view change.)
+   - **(c) IA / structure & navigation** *(Nielsen #4 Consistency + IA first-principles + ERP/CRM/PSA domain conventions)* — **one canonical home/URL per entity**, no list/route overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent breadcrumb/back. *Structure, not flow.* (e.g. one record → two lists → two detail pages.)
+   Reusable: the IxD-audit and IA-audit **workflow scripts** are saved under the session's workflow scripts and re-run on demand; their directed prompts are the source of truth for what each lens hunts. Real owner-flagged defects become **calibration anchors** in the prompts.
 4. **Fix round (if needed)** — issues route back to `ui-implementer`; `design-reviewer` re-checks
    with before/after. Repeat until ship-clean.
 5. **Owner visual UX sign-off** — the owner approves the look on a real artifact.
@@ -47,6 +48,13 @@ from the per-issue build:
 4. Repeat until the owner **signs off**.
 
 This loop is gated by the **owner**, not the gates — visual quality is a judgment call.
+
+## 3a. e2e encodes the NATURAL journey, not the app's current shape (discovery → regression)
+The review battery (§2.3) **discovers** UX issues and makes the judgment calls; **e2e locks the observable ones so they can't regress.** Author each acceptance test to the user's *ideal, conventional* journey and assert the **convention-invariants + the expected post-states** — so the test is RED until the app behaves naturally (the binding BDD rule, sharpened). The anti-pattern that let real defects pass: authoring the e2e *to the app's current steps* (e.g. AC-TSE-021 walked save→summary→submit and only asserted "submitted", so the unnatural flow stayed green). Write them the owner's way:
+- *"When a PM creates a project, opening it from **either** the Projects list **or** the Pipeline resolves to **ONE** detail page (same URL), showing the stage-appropriate lens."* — the IA canonical-view invariant.
+- *"On the timesheet entry screen the engineer sees **Save and Submit together** from first paint; on **Save**, the entered hours persist with a quiet confirmation and no forced summary view; on **Submit**, the week becomes read-only Submitted."* — co-located primaries + the explicit post-states.
+
+**Rule: every confirmed IxD/IA finding becomes a regression invariant at the lowest sufficient layer** (ADR-0010) — observable flow/structure → e2e/component test; data-logic (honest numbers, list scoping) → unit/pgTAP. Discovery (the agent battery) feeds regression (the test pyramid); the battery then re-runs to find the next unforeseen class.
 
 ## 4. Storybook
 When the shared component library is extracted (Phase 3, per `docs/product-expectations.md`), each
