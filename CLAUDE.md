@@ -94,6 +94,13 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   assertion to the app's current state to go green** (don't downgrade "Back navigates to the pipeline" to
   "a Back element exists"). Full statement: `.claude/agents/qa-acceptance.md` "Authoring principle".
 
+## Architecture patterns (binding for new features — the CRUD/RBAC foundation, ADR-0016/0017/0018/0019)
+The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow its patterns, not re-invent them:
+- **3 layers / repository seam (ADR-0017):** FE → a typed **repository** per entity (`src/lib/repositories/*`, the API seam over the DAL) → Supabase. Hooks consume `repositories`/`useQuery`; never thread DAL calls or `org_id` from the client (RLS + column defaults/triggers stamp `org_id`).
+- **Authorization (ADR-0016):** gate every create/edit/delete/approve affordance with `can(action, entity, ctx)` / `<CanWrite>` / `usePermission` (`src/auth/policy.ts`) on the **real JWT role** (impersonation is view-only + banner). `can()` is **UX only** — **RLS is the enforcement authority**; the FE may be stricter than RLS.
+- **Server-enforced SoD + destructive deletes (ADR-0019):** if a rule is real SoD (e.g. approver≠author, `contract_value`-on-won) or a destructive delete (Admin-only), enforce it via a security-definer RPC / restrictive RLS policy + a pgTAP proof — not just a hidden button. Soft-archive (`archived_at`, ADR-0018) over hard-delete; referenced rows FK-block (23503 → "in use").
+- **UI:** build forms with the shared primitives (`EntityFormModal`/`useEntityForm`/`TextField`/`SelectField`/`Combobox`/`FormGrid`/`FieldError`), confirm destructive writes with `ConfirmDialog`, classify errors with `classifyMutationError`. Strictly `DESIGN.md` tokens (root font is 16px → 32px controls). Reference template: the **Companies** slice (`pages/Companies.tsx` + `src/lib/db/companies.ts`).
+
 ## Tech stack & commands (run inside `pmo-portal/`)
 - React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).
 - `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · `npx playwright test` (e2e).
