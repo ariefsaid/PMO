@@ -28,6 +28,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   }),
   useClientCompanies: () => ({ data: [], isError: false }),
