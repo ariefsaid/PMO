@@ -83,8 +83,6 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
   it('AC-NAV-005: a placeholder route reads its OWN page label, not "Dashboard"', () => {
     expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies' }]);
-    expect(breadcrumbForPath('/tasks')).toEqual([{ label: 'Tasks' }]);
-    expect(breadcrumbForPath('/work-orders')).toEqual([{ label: 'Work Orders' }]);
     expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Reports' }]);
     expect(breadcrumbForPath('/administration')).toEqual([{ label: 'Administration' }]);
   });

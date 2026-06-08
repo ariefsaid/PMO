@@ -136,6 +136,17 @@ export const Combobox: React.FC<ComboboxProps> = ({
     if (open && state === 'idle') load();
   }, [open, state, load]);
 
+  // Re-load when the option SOURCE changes while the picker is open (the async FK
+  // source — e.g. useClientCompanies — may resolve to [] on the very first open
+  // then populate; without this the picker would cache the empty result and never
+  // show options). `load` identity changes iff `loadOptions` does, so this fires
+  // exactly when the underlying data source changed, not on unrelated re-renders.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    if (open && state !== 'idle' && loadRef.current !== load) load();
+    loadRef.current = load;
+  }, [open, state, load]);
+
   // On close, invalidate any in-flight load so its late resolution is ignored,
   // and reset a still-loading state to idle so the next open re-fetches cleanly
   // (a 'ready'/'error' result is kept as a cache for an instant reopen).

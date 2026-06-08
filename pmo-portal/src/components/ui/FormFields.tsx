@@ -59,6 +59,12 @@ export interface FieldShellProps {
   error?: React.ReactNode;
   /** Span the full grid width inside a FormGrid. */
   fullWidth?: boolean;
+  /**
+   * Visually hide the label (kept as the accessible name via sr-only) for an
+   * in-row / inline control where a visible caption would be noise — e.g. the
+   * Tasks status `SelectField` inside a table cell. a11y is preserved.
+   */
+  hideLabel?: boolean;
   className?: string;
   /** Render-prop receives the wired control props. */
   children: (ctl: {
@@ -80,6 +86,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   className,
   children,
 }) => {
@@ -94,7 +101,10 @@ export const FieldShell: React.FC<FieldShellProps> = ({
     <div className={cn('flex flex-col gap-1.5', fullWidth && 'col-span-full', className)}>
       <label
         htmlFor={fieldId}
-        className="text-[12px] font-semibold leading-[1.3] text-foreground"
+        className={cn(
+          'text-[12px] font-semibold leading-[1.3] text-foreground',
+          hideLabel && 'sr-only',
+        )}
       >
         {label}
         {required && (
@@ -305,6 +315,8 @@ export interface SelectFieldProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  /** Visually hide the label (kept as the accessible name) for an in-row control. */
+  hideLabel?: boolean;
   /** Optional leading placeholder option. */
   placeholder?: string;
 }
@@ -322,6 +334,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   placeholder,
   className,
   ...rest
@@ -333,6 +346,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
     helper={helper}
     error={error}
     fullWidth={fullWidth}
+    hideLabel={hideLabel}
   >
     {(ctl) => (
       <select

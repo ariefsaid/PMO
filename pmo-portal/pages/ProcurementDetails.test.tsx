@@ -20,6 +20,7 @@ const detailState = {
   data: undefined as Record<string, unknown> | undefined,
   isPending: false,
   isError: false,
+  error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
 };
 
@@ -36,6 +37,41 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
   }),
+}));
+
+// CRUD slice hooks (editing paths). Stubbed so the detail-page tests can assert
+// the affordances + delegation without a live repository.
+const mockUpdateHeader = vi.fn().mockResolvedValue(undefined);
+const mockCreateItem = vi.fn().mockResolvedValue({ id: 'it-new' });
+const mockUpdateItem = vi.fn().mockResolvedValue(undefined);
+const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
+const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
+const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
+const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
+const docsState = {
+  data: [] as Record<string, unknown>[],
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+};
+vi.mock('@/src/hooks/useProcurementCrud', () => ({
+  useProcurementCrudMutations: () => ({
+    updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
+    createItem: { mutateAsync: mockCreateItem, isPending: false },
+    updateItem: { mutateAsync: mockUpdateItem, isPending: false },
+    deleteItem: { mutateAsync: mockDeleteItem, isPending: false },
+    selectQuote: { mutateAsync: mockSelectQuote, isPending: false },
+    createDocument: { mutateAsync: mockCreateDocument, isPending: false },
+    deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
+  }),
+  useProcurementDocuments: () => docsState,
+}));
+
+// FK pickers (header edit project/vendor, quotation vendor) read cached option
+// hooks; stub them so the detail test needs no QueryClient.
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -91,6 +127,7 @@ const baseProcurement = {
   vendor: null,
   requested_by: { full_name: 'Alice Manager' },
   approved_by: null,
+  items: [],
   quotations: [],
   receipts: [],
   invoices: [],
@@ -167,6 +204,7 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     detailState.data = undefined;
     detailState.isPending = false;
     detailState.isError = false;
+    detailState.error = null;
     detailState.refetch = vi.fn();
     mockEffectiveRole = 'Finance';
   });
@@ -177,11 +215,13 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     expect(screen.getByTestId('procurement-loading')).toBeInTheDocument();
   });
 
-  it('AC-804: renders procurement-empty when query resolves with no data', () => {
+  it('AC-804: renders the no-access state when query resolves with no data', () => {
     detailState.isPending = false;
     detailState.data = undefined;
     renderPage();
-    expect(screen.getByTestId('procurement-empty')).toBeInTheDocument();
+    // A resolved-but-empty record is the same honest "no access / not found"
+    // state as an RLS-filtered miss (polish #3) — no blank main area.
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });
 
   it('AC-804: renders error state with Retry button when query errors', () => {
@@ -573,14 +613,15 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('P2: a destructive action (Cancel) opens an alertdialog; only confirm fires the transition', async () => {
+  it('P2: a destructive action (Cancel request) opens an alertdialog; only confirm fires the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    // requester (u-alice) may cancel a Requested PR (canCancel early)
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    // requester (u-alice) may cancel a Requested PR (canCancel early). The page
+    // terminal action reads "Cancel request" (double-negative cleanup, polish #2).
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    // commit button reads "Cancel request" (disambiguated from the dialog's own Cancel)
+    // commit button reads "Cancel request" (disambiguated from the dialog's own dismiss)
     await confirmInDialog(/cancel request/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
@@ -743,5 +784,180 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     const cancelBtns = screen.getAllByRole('button', { name: /^Cancel$/i });
     await userEvent.click(cancelBtns[cancelBtns.length - 1]);
     expect(screen.queryByTestId('form-create-vi')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRUD slice — line items / quotations / select-quote / header-edit / documents
+// (AC-PROC-002..005). Verifies the sections wire in + gate by status/role.
+// ---------------------------------------------------------------------------
+const draftByAlice = {
+  ...baseProcurement,
+  status: 'Draft' as const,
+  requested_by_id: 'u-alice', // u-alice is the mocked currentUser → requester
+  items: [
+    {
+      id: 'it1', org_id: 'org-1', procurement_id: 'proc-001',
+      name: 'Welding wire', description: null, quantity: 10, rate: 50, amount: 500,
+    },
+  ],
+};
+
+describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-002..005)', () => {
+  beforeEach(() => {
+    detailState.data = draftByAlice;
+    detailState.isPending = false;
+    detailState.isError = false;
+    docsState.data = [];
+    docsState.isPending = false;
+    docsState.isError = false;
+    mockEffectiveRole = 'Project Manager';
+    mockUpdateHeader.mockClear();
+    mockCreateItem.mockClear();
+    mockDeleteItem.mockClear();
+    mockSelectQuote.mockClear();
+    mockCreateDocument.mockClear();
+  });
+
+  it('AC-PROC-003: line items section renders the editable add-row while Draft for the requester', () => {
+    renderPage();
+    expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
+    expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+    expect(screen.getByText('Welding wire')).toBeInTheDocument();
+  });
+
+  it('AC-PROC-003: line items are READ-ONLY once the PR leaves Draft (no add-row)', () => {
+    detailState.data = { ...draftByAlice, status: 'Approved' as const };
+    renderPage();
+    expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
+    expect(screen.queryByTestId('line-item-add-row')).toBeNull();
+  });
+
+  it('AC-PROC-002: the Draft-header edit affordance shows for the requester while Draft', () => {
+    renderPage();
+    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('AC-PROC-002: header-edit is HIDDEN for a non-requester', () => {
+    detailState.data = { ...draftByAlice, requested_by_id: 'u-someone-else' };
+    renderPage();
+    expect(screen.queryByTestId('edit-header')).toBeNull();
+  });
+
+  it('AC-PROC-004: the Select-quote action shows at Vendor Quoted for a sourcing role', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Quoted' as const,
+      requested_by_id: 'u-other',
+      quotations: [
+        {
+          id: 'q2', org_id: 'org-1', procurement_id: 'proc-001', vendor_id: 'v2',
+          total_amount: 2944, vq_number: 'VQ-2', is_selected: false, reference: null,
+          received_date: '2026-06-01', file_url: null,
+        },
+      ],
+    };
+    renderPage();
+    expect(screen.getByRole('button', { name: /select quote vq-2/i })).toBeInTheDocument();
+  });
+
+  it('AC-PROC-005: the Documents section renders (over procurement_documents) with an Add affordance for a manager', () => {
+    renderPage();
+    expect(screen.getByTestId('documents-section')).toBeInTheDocument();
+    expect(screen.getByTestId('add-document')).toBeInTheDocument();
+  });
+
+  it('AC-PROC-005: Documents Add affordance is HIDDEN for an Engineer (no procDoc create)', () => {
+    mockEffectiveRole = 'Engineer';
+    // An Engineer requester still sees their own line items (Draft) but cannot manage documents.
+    renderPage();
+    expect(screen.getByTestId('documents-section')).toBeInTheDocument();
+    expect(screen.queryByTestId('add-document')).toBeNull();
+  });
+
+  it('AC-PROC-003: an Engineer requester CAN edit their own Draft line items', () => {
+    mockEffectiveRole = 'Engineer';
+    renderPage();
+    // u-alice is the requester AND the mocked currentUser → the add-row shows for the Engineer requester.
+    expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UI-POLISH — One-Blue + copy disambiguation + no-access deep-link
+// ---------------------------------------------------------------------------
+describe('UI-POLISH: procurement detail surface refinements', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    detailState.refetch = vi.fn();
+    mockTransition.mockClear();
+    mockEffectiveRole = 'Finance';
+  });
+
+  // Polish #1 — Approve is the single primary blue; Reject stays a quiet outline.
+  it('polish#1: Approve renders as the PRIMARY blue (not success-green)', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const approve = screen.getByRole('button', { name: /^approve$/i });
+    expect(approve.className).toContain('bg-primary');
+    expect(approve.className).not.toContain('bg-success');
+  });
+
+  it('polish#1: Reject stays a quiet outline at rest (no solid fill competing with Approve)', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const reject = screen.getByRole('button', { name: /^reject$/i });
+    expect(reject.className).toContain('border-input');
+    expect(reject.className).not.toContain('bg-destructive');
+    expect(reject.className).not.toContain('bg-success');
+  });
+
+  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
+  // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
+  it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    // dismiss is the non-destructive button: "Keep request"
+    expect(within(dialog).getByRole('button', { name: /^keep request$/i })).toBeInTheDocument();
+    // the dialog must NOT carry a bare "Cancel" dismiss (the double-negative tell)
+    expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
+  });
+
+  it('polish#2: "Keep request" dismisses the dialog WITHOUT firing the transition', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^keep request$/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(mockTransition).not.toHaveBeenCalled();
+  });
+
+  // Polish #3 — an Engineer deep-linking a record they cannot read (RLS no-rows,
+  // PGRST116) gets a clear "no access" state, not a blank main area or a raw error.
+  it('polish#3: a no-access (PGRST116) record renders a "no access" gate, not a generic error', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.isError = true;
+    detailState.error = Object.assign(new Error('no rows'), { code: 'PGRST116' });
+    detailState.data = undefined;
+    renderPage();
+    const gate = screen.getByTestId('procurement-no-access');
+    expect(gate).toBeInTheDocument();
+    expect(gate).toHaveTextContent(/don.?t have access to this record/i);
+    // it must NOT fall through to the generic "Couldn't load" transient-error state
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('polish#3: a genuine transient error (no PGRST116 code) still shows the retry error state', () => {
+    detailState.isError = true;
+    detailState.error = new Error('network down');
+    detailState.data = undefined;
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });

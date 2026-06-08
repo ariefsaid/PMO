@@ -41,8 +41,12 @@ function throwRpc(error: RpcErrorLike): never {
   throw new ProcurementError(error.message, error.code);
 }
 
+export type ProcurementItemRow = Tables<'procurement_items'>;
+
 export type ProcurementDetail = ProcurementWithRefs & {
   approved_by: { full_name: string } | null;
+  /** Editable line items (CRUD+RBAC Procurement slice) joined into the detail. */
+  items: ProcurementItemRow[];
   quotations: Tables<'procurement_quotations'>[];
   receipts: ProcurementReceiptRow[];
   invoices: ProcurementInvoiceRow[];
@@ -130,6 +134,7 @@ const DETAIL_SELECT = [
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
+  'items:procurement_items(*)',
   'quotations:procurement_quotations(*)',
   'receipts:procurement_receipts(*)',
   'invoices:procurement_invoices(*)',

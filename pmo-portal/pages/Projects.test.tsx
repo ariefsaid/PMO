@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { AppError } from '@/src/lib/appError';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -32,15 +33,27 @@ const seedWithWon = [
 ];
 
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
+// Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
+// on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
+const { roleBox, projectMutations } = vi.hoisted(() => ({
+  roleBox: { value: 'Project Manager' },
+  projectMutations: {
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  },
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
   useProjectManagers: () => ({ data: [{ id: 'u-alice', full_name: 'Alice Manager' }] }),
+  useProjectMutations: () => projectMutations,
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager', canImpersonate: false, viewAs: vi.fn() }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
@@ -53,14 +66,16 @@ vi.mock('react-router-dom', async (orig) => {
 });
 
 // Projects rows embed ProjectStatusControl, which uses useToast — needs a provider.
-const renderPage = () =>
-  render(
+const renderPage = (role = 'Project Manager') => {
+  roleBox.value = role;
+  return render(
     <MemoryRouter>
       <ToastProvider>
         <Projects />
       </ToastProvider>
     </MemoryRouter>,
   );
+};
 
 describe('Projects index — IA-3 (real data)', () => {
   beforeEach(() => {
@@ -239,5 +254,93 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
     projectsState.data = seed as unknown as ProjectWithRefs[];
+  });
+});
+
+// ── New deal create + RBAC gating (AC-PRJ-003 / AC-PRJ-007) ──────────────────
+describe('Projects index — New deal create + gating', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    navigate.mockClear();
+    roleBox.value = 'Project Manager';
+    Object.values(projectMutations).forEach((m) => {
+      m.mutateAsync.mockReset();
+      m.mutateAsync.mockResolvedValue({ id: 'p9', name: 'New', status: 'Leads' });
+      m.isPending = false;
+    });
+  });
+
+  it('AC-PRJ-007: a delivery role (PM) sees the "New deal" CTA', () => {
+    renderPage('Project Manager');
+    expect(screen.getByRole('button', { name: /new deal/i })).toBeInTheDocument();
+  });
+
+  it('AC-PRJ-007: Finance does NOT see "New deal" (FE stricter than RLS — Finance owns money, not delivery)', () => {
+    renderPage('Finance');
+    expect(screen.queryByRole('button', { name: /new deal/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-007: Engineer does NOT see "New deal" (read-only index)', () => {
+    renderPage('Engineer');
+    expect(screen.queryByRole('button', { name: /new deal/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-003: "New deal" opens the create modal; required name + client validation blocks submit', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // Submit empty → validation errors, mutation NOT called
+    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    expect((await screen.findAllByText(/name is required/i)).length).toBeGreaterThan(0);
+    expect(projectMutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-PRJ-003: a valid create submits name/status/client/PM/value to the mutation (origination = Leads)', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/opportunity name/i), 'Harborside Terminal');
+    // Client company is a Combobox FK picker — open, search, select.
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
+    const listbox = await screen.findByRole('listbox', { name: /compan/i });
+    await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Create deal$/i }));
+    await waitFor(() =>
+      expect(projectMutations.create.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Harborside Terminal',
+          status: 'Leads',
+          client_id: 'c2',
+        }),
+      ),
+    );
+  });
+
+  it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    const dialog = screen.getByRole('dialog');
+    const select = within(dialog).getByLabelText(/origination stage/i) as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.value);
+    expect(options).toEqual(['Leads', 'Internal Project']);
+    expect(options).not.toContain('Ongoing Project');
+    expect(options).not.toContain('Won, Pending KoM');
+  });
+
+  it('AC-PRJ-003: a create rejected by RLS (42501) surfaces a classified warning toast', async () => {
+    projectMutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/opportunity name/i), 'Blocked Deal');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
+    const listbox = await screen.findByRole('listbox', { name: /compan/i });
+    await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Create deal$/i }));
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

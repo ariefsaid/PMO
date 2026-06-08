@@ -18,10 +18,19 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
+import {
+  useProcurementCrudMutations,
+  useProcurementDocuments,
+} from '@/src/hooks/useProcurementCrud';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
+import { LineItemsSection } from './procurement/LineItemsSection';
+import { QuotationsSection } from './procurement/QuotationsSection';
+import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
+import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import {
   isLegalTransition,
   canCancel,
@@ -60,6 +69,9 @@ type PendingConfirm =
       to: ProcurementStatus;
       title: string;
       confirmLabel: string;
+      /** Dismiss-button label; defaults to "Cancel" but the PR-cancel flow uses
+       *  "Keep request" so the dismiss never reads as "cancel the cancellation". */
+      cancelLabel?: string;
       tone: 'default' | 'destructive';
     }
   | {
@@ -96,7 +108,11 @@ function allowedActions(
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
   if (legal('Approved') && canApproveReject(role) && !isRequester) {
-    actions.push({ to: 'Approved', label: 'Approve', variant: 'success' });
+    // Approve is the single per-screen CTA at this stage → the One-Blue `primary`
+    // (polish #1). It previously read solid `success` green, which competed with
+    // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
+    // quiet outline so only one affordance carries weight.
+    actions.push({ to: 'Approved', label: 'Approve', variant: 'primary' });
   }
   if (legal('Rejected') && canApproveReject(role) && !isRequester) {
     actions.push({ to: 'Rejected', label: 'Reject', variant: 'destructive' });
@@ -143,9 +159,11 @@ function allowedActions(
     actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'success' });
   }
 
-  // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B)
+  // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page
+  // action reads "Cancel request" (verb + object) so it never reads as a bare
+  // "Cancel" that could be mistaken for dismissing the screen (polish #2).
   if (legal('Cancelled') && canCancel(role, isRequester, status)) {
-    actions.push({ to: 'Cancelled', label: 'Cancel', variant: 'destructive' });
+    actions.push({ to: 'Cancelled', label: 'Cancel request', variant: 'destructive' });
   }
 
   return actions;
@@ -169,12 +187,15 @@ const ProcurementDetails: React.FC = () => {
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
+  const crud = useProcurementCrudMutations(procurementId ?? '');
+  const docsQuery = useProcurementDocuments(procurementId);
 
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
@@ -202,7 +223,33 @@ const ProcurementDetails: React.FC = () => {
     );
   }
 
-  // ── Error (AC-804) ────────────────────────────────────────────────────────
+  // ── No access / not found (polish #3) ────────────────────────────────────
+  // A record the viewer cannot read under RLS comes back as a single-row miss
+  // (PostgREST `PGRST116`), surfaced through the query's error. Rather than the
+  // blank main area / generic transient-error state, render a clear, calm
+  // "no access" notice (an Engineer reaching a PR that isn't theirs is the canonical
+  // case). RLS is the real authority; this is the honest UI projection of it.
+  const errCode = (detailQuery.error as { code?: string } | null | undefined)?.code;
+  const isNoAccess = errCode === 'PGRST116';
+  if (isNoAccess || (!detailQuery.isError && !data && !detailQuery.isPending)) {
+    return (
+      <>
+        <BackBar label="Procurement" onBack={goBack} />
+        {/* BackBar above already carries the "Back to Procurement" escape route,
+            so the empty state does not repeat it (avoids a duplicate control). */}
+        <div data-testid="procurement-no-access">
+          <ListState
+            variant="empty"
+            icon="lock"
+            title="You don't have access to this record"
+            sub="This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests."
+          />
+        </div>
+      </>
+    );
+  }
+
+  // ── Error (AC-804) — a genuine transient failure (offer Retry) ───────────
   if (detailQuery.isError) {
     return (
       <>
@@ -217,23 +264,6 @@ const ProcurementDetails: React.FC = () => {
     );
   }
 
-  // ── Empty / not-found (AC-804) ───────────────────────────────────────────
-  if (!data) {
-    return (
-      <>
-        <BackBar label="Procurement" onBack={goBack} />
-        <div data-testid="procurement-empty">
-          <ListState
-            variant="error"
-            icon="inbox"
-            title="Procurement not found"
-            sub="This procurement does not exist or you don't have access to it."
-          />
-        </div>
-      </>
-    );
-  }
-
   const p: ProcurementDetail = data;
   const role = realRole ?? '';
   const isRequester = p.requested_by_id === currentUser?.id;
@@ -241,6 +271,26 @@ const ProcurementDetails: React.FC = () => {
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   const actions = allowedActions(p.status, role, isRequester, isApprover);
   const selectedQuote = p.quotations.find((q) => q.is_selected);
+
+  // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
+  const isDraft = p.status === 'Draft';
+  const isRejected = p.status === 'Rejected';
+  // Header edit: requester may edit while Draft/Rejected (entity edit + record-scope).
+  const canEditHeader =
+    (isDraft || isRejected) && isRequester && may('edit', 'procurement');
+  // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
+  const canEditItems = isDraft && (isRequester || may('edit', 'procItem'));
+  // Quotations: sourcing roles add; select offered only while Vendor Quoted.
+  const canAddQuote = may('create', 'quotation');
+  const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
+  // Documents: Admin·Exec·PM·Finance manage; everyone else read-only.
+  const canManageDocs = may('create', 'procDoc');
+
+  // Shared classified-toast helper for the CRUD section mutations.
+  const onMutationError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
   const canShowGRForm =
@@ -258,14 +308,21 @@ const ProcurementDetails: React.FC = () => {
   const stageTransition = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
     const destructive = action.variant === 'destructive';
-    // Disambiguate the destructive "Cancel" action from the dialog's own
-    // Cancel button: the commit reads "Cancel request" (plan P2 copy).
-    const confirmLabel = action.to === 'Cancelled' ? 'Cancel request' : action.label;
+    const isCancel = action.to === 'Cancelled';
+    // The commit verb (action.label is already "Cancel request" for the cancel
+    // flow). The dismiss is "Keep request" ONLY for the cancel flow so the three
+    // Cancels disambiguate (polish #2): page action "Cancel request" → confirm
+    // "Cancel request" / "Keep request". Other destructive moves keep "Cancel".
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
-      title: destructive ? `${action.label} this request` : `Move request to ${action.to}?`,
-      confirmLabel,
+      title: isCancel
+        ? 'Cancel this request?'
+        : destructive
+          ? `${action.label} this request`
+          : `Move request to ${action.to}?`,
+      confirmLabel: action.label,
+      cancelLabel: isCancel ? 'Keep request' : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
   };
@@ -380,6 +437,23 @@ const ProcurementDetails: React.FC = () => {
           />
         </CardPad>
       </Card>
+
+      {/* Draft-header edit (requester while Draft/Rejected) */}
+      {canEditHeader && (
+        <ProcurementHeaderEdit
+          title={p.title}
+          projectId={p.project_id}
+          projectName={p.project?.name ?? null}
+          vendorId={p.vendor_id}
+          vendorName={p.vendor?.name ?? null}
+          busy={crud.updateHeader.isPending}
+          onError={onMutationError}
+          onSave={async (patch) => {
+            await crud.updateHeader.mutateAsync(patch);
+            toast('Request updated', 'Header saved', 'success');
+          }}
+        />
+      )}
 
       {/* SoD / readiness gate */}
       {gateMsg ? (
@@ -570,33 +644,44 @@ const ProcurementDetails: React.FC = () => {
         </Card>
       )}
 
-      {/* Line items + linked quotations */}
+      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
+      <LineItemsSection
+        items={p.items}
+        editable={canEditItems}
+        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
+        onError={onMutationError}
+        onAdd={async (input) => {
+          await crud.createItem.mutateAsync(input);
+          toast('Line item added', input.name, 'success');
+        }}
+        onUpdate={async (id, patch) => {
+          await crud.updateItem.mutateAsync({ id, patch });
+          toast('Line item updated', patch.name, 'success');
+        }}
+        onDelete={async (id) => {
+          await crud.deleteItem.mutateAsync(id);
+          toast('Line item removed', undefined, 'success');
+        }}
+      />
+
+      {/* Quotations (add + select-quote) + document trail */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHead>Linked quotations</CardHead>
-          <CardPad className="flex flex-col gap-px">
-            {p.quotations.length === 0 ? (
-              <p className="py-2 text-[13px] text-muted-foreground">No quotations received yet.</p>
-            ) : (
-              p.quotations.map((q) => (
-                <div
-                  key={q.id}
-                  className="flex items-center gap-2.5 border-b border-dashed border-border py-2.5 last:border-b-0"
-                >
-                  <span
-                    aria-hidden
-                    className={`size-[9px] shrink-0 rounded-full ${q.is_selected ? 'bg-success' : 'bg-secondary'}`}
-                  />
-                  {q.vq_number && <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>}
-                  {q.is_selected && <StatusPill variant="won">Selected</StatusPill>}
-                  <span className="ml-auto text-[13.5px] font-semibold tabular">
-                    {formatCurrency(Number(q.total_amount))}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardPad>
-        </Card>
+        <QuotationsSection
+          quotations={p.quotations}
+          canAdd={canAddQuote}
+          canSelect={canSelectQuote}
+          addBusy={mutations.createQuotation.isPending}
+          selectBusy={crud.selectQuote.isPending}
+          onError={onMutationError}
+          onAdd={async (input) => {
+            await mutations.createQuotation.mutateAsync(input);
+            toast('Quotation added', undefined, 'success');
+          }}
+          onSelect={async (quotationId) => {
+            await crud.selectQuote.mutateAsync(quotationId);
+            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+          }}
+        />
 
         <Card>
           <CardHead>Document trail</CardHead>
@@ -613,6 +698,26 @@ const ProcurementDetails: React.FC = () => {
           </CardPad>
         </Card>
       </div>
+
+      {/* Documents metadata register (over the previously-dead procurement_documents) */}
+      <ProcurementDocumentsSection
+        documents={docsQuery.data ?? []}
+        loading={docsQuery.isPending}
+        error={docsQuery.isError}
+        onRetry={() => docsQuery.refetch()}
+        editable={canManageDocs}
+        addBusy={crud.createDocument.isPending}
+        deleteBusy={crud.deleteDocument.isPending}
+        onError={onMutationError}
+        onAdd={async (input) => {
+          await crud.createDocument.mutateAsync(input);
+          toast('Document added', input.type, 'success');
+        }}
+        onDelete={async (id) => {
+          await crud.deleteDocument.mutateAsync(id);
+          toast('Document removed', undefined, 'success');
+        }}
+      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (
@@ -659,6 +764,9 @@ const ProcurementDetails: React.FC = () => {
             : pendingConfirm?.kind === 'createGR'
               ? 'Save GR'
               : 'Save VI'
+        }
+        cancelLabel={
+          pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
         onCancel={() => setPendingConfirm(null)}

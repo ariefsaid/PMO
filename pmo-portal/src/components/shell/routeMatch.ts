@@ -47,9 +47,9 @@ export const MODULES: ModuleDef[] = [
  * with the placeholder `<Route>` titles in App.tsx.
  */
 export const PLACEHOLDER_TITLES: Record<string, string> = {
-  '/tasks': 'Tasks',
+  // /tasks + /work-orders routes removed — see App.tsx (Tasks live in the project tab).
   '/companies': 'Companies',
-  '/work-orders': 'Work Orders',
+  '/incidents': 'Incidents',
   '/reports': 'Reports',
   '/administration': 'Administration',
 };

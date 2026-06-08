@@ -49,6 +49,19 @@ values
    'authenticated','authenticated','admin@acme.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  -- AC-911 ISOLATION (mirrors the P011 pattern): a DEDICATED engineer + their line manager used ONLY by
+  -- the AC-911 submit→approve e2e, so no other spec mutates their timesheets/profiles and the test is
+  -- ordering-independent in the full parallel suite. b1 = dedicated engineer; b2 = dedicated PM (manager).
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000b1',
+   'authenticated','authenticated','ts-approve-eng@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000b2',
+   'authenticated','authenticated','ts-approve-mgr@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', '')
 on conflict (id) do nothing;
 
@@ -70,6 +83,12 @@ values
    'email', now(), now(), now()),
   ('admin@acme.test','00000000-0000-0000-0000-0000000000a5',
    jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a5','email','admin@acme.test'),
+   'email', now(), now(), now()),
+  ('ts-approve-eng@acme.test','00000000-0000-0000-0000-0000000000b1',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b1','email','ts-approve-eng@acme.test'),
+   'email', now(), now(), now()),
+  ('ts-approve-mgr@acme.test','00000000-0000-0000-0000-0000000000b2',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b2','email','ts-approve-mgr@acme.test'),
    'email', now(), now(), now())
 on conflict (provider_id, provider) do nothing;
 
@@ -79,7 +98,11 @@ insert into profiles (id, company_id, full_name, email, role, title, location, s
   ('00000000-0000-0000-0000-0000000000a2','c0000000-0000-0000-0000-000000000001','Alice Manager','pm@acme.test','Project Manager','Senior PM','HQ','{"PMP","PMI-SP"}',85),
   ('00000000-0000-0000-0000-0000000000a3','c0000000-0000-0000-0000-000000000001','Carol Finance','finance@acme.test','Finance','Finance Lead','HQ','{"CPA"}',75),
   ('00000000-0000-0000-0000-0000000000a4','c0000000-0000-0000-0000-000000000001','Dave Engineer','engineer@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',90),
-  ('00000000-0000-0000-0000-0000000000a5','c0000000-0000-0000-0000-000000000001','Erin Admin','admin@acme.test','Admin','System Administrator','HQ','{}',10);
+  ('00000000-0000-0000-0000-0000000000a5','c0000000-0000-0000-0000-000000000001','Erin Admin','admin@acme.test','Admin','System Administrator','HQ','{}',10),
+  -- AC-911 ISOLATION actors (dedicated; manager_id set below). Distinct names so the e2e can scope
+  -- to "Grace TSApprove" in the approval queue without colliding with the shared Dave/Alice fixtures.
+  ('00000000-0000-0000-0000-0000000000b1','c0000000-0000-0000-0000-000000000001','Grace TSApprove','ts-approve-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',90),
+  ('00000000-0000-0000-0000-0000000000b2','c0000000-0000-0000-0000-000000000001','Heidi TSManager','ts-approve-mgr@acme.test','Project Manager','Senior PM','HQ','{"PMP"}',80);
 
 -- projects (neutral names; PM = Alice; client = Innovate Corp)
 insert into projects (id, code, name, status, client_id, project_manager_id, contract_value, budget, spent, start_date, end_date) values
@@ -196,6 +219,9 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
   where id = '00000000-0000-0000-0000-0000000000a4';  -- Dave → Alice
 update profiles set manager_id = '00000000-0000-0000-0000-0000000000a1'
   where id = '00000000-0000-0000-0000-0000000000a2';  -- Alice → Bob
+-- AC-911 ISOLATION chain: Grace (b1, dedicated engineer) reports to Heidi (b2, dedicated PM).
+update profiles set manager_id = '00000000-0000-0000-0000-0000000000b2'
+  where id = '00000000-0000-0000-0000-0000000000b1';  -- Grace → Heidi
 
 -- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
 -- DATE-DRIFT FIX: the week_start is RELATIVE to today — date_trunc('week', current_date) is the
@@ -212,13 +238,20 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a1'
 -- the seed session has no portable way to know the developer's host timezone.
 insert into timesheets (id, user_id, week_start_date, status) values
   ('70000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a4',date_trunc('week', current_date)::date,'Draft'),  -- Engineer; Monday of the current UTC week
-  ('70000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',date_trunc('week', current_date)::date,'Draft');  -- PM
+  ('70000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',date_trunc('week', current_date)::date,'Draft'),  -- PM
+  -- AC-911 ISOLATION: Grace's (b1) DEDICATED current-week Draft sheet — the ONLY sheet the AC-911
+  -- submit→approve e2e mutates, so no other spec's reset/ordering affects it (the flake's root cause:
+  -- AC-911 previously shared Dave's sheet …001 with AC-TSE-021 / AC-904 fixtures).
+  ('70000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000b1',date_trunc('week', current_date)::date,'Draft');
 -- entry_date = Monday + N days, so all entries fall WITHIN the relative current week.
 insert into timesheet_entries (timesheet_id, project_id, entry_date, hours, notes) values
   ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,8,'Site coordination'),
   ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,8,'Drawings review'),
   ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,6,'Client workshop'),
-  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,4,'Status report');
+  ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,4,'Status report'),
+  -- Grace's dedicated current-week entries (8h + 8h) so her sheet is a non-empty, submittable Draft.
+  ('70000000-0000-0000-0000-0000000000b1','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,8,'Site survey'),
+  ('70000000-0000-0000-0000-0000000000b1','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,8,'Report drafting');
 
 -- tasks + one dependency
 insert into tasks (id, project_id, name, start_date, end_date, assignee_id, status) values

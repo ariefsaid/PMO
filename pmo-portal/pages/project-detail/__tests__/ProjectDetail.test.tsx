@@ -15,7 +15,19 @@ const seed = [
 ] as unknown as ProjectWithRefs[];
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => projectsState,
+  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
+  useProjectMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  }),
+  useClientCompanies: () => ({ data: [], isError: false }),
+  useProjectManagers: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -35,6 +47,30 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+// Tasks tab mounts the real TasksTab — stub its data hooks (empty register) to avoid network.
+vi.mock('@/src/hooks/useTasks', () => ({
+  useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAssignableProfiles: () => ({ data: [], isPending: false, isError: false }),
+  useTaskMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    updateStatus: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    addDependency: { mutateAsync: vi.fn(), isPending: false },
+    removeDependency: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+// The Documents tab is now a real register (no longer a deferred placeholder); stub its
+// data hooks so the shell test stays a pure shell test (no network / no QueryClient needed).
+vi.mock('@/src/hooks/useDocuments', () => ({
+  useDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useDocumentMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    transition: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }));
 // Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
 const navigate = vi.fn();
@@ -79,12 +115,24 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
-  it('renders the Tasks/Documents placeholder tabs (deferred, AC-K)', async () => {
+  it('switches to the real Tasks tab and shows its empty register (AC-TASK-001)', async () => {
     renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Tasks' }));
-    expect(screen.getByText(/Task scheduling is coming soon/i)).toBeInTheDocument();
+    // Tasks is now a real CRUD surface (no longer a "coming soon" placeholder).
+    expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
+    // PM (a structure write-role) sees the gated New task affordance.
+    expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
+  });
+
+  it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', async () => {
+    renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect(screen.getByText(/Document management is coming soon/i)).toBeInTheDocument();
+    // The deferred "coming soon" placeholder is gone — this is now a real register.
+    expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
+    // PM is a master-data write-role → the gated Add document affordance is present
+    // (header CTA + the empty-state teach action both carry the label).
+    expect(screen.getAllByRole('button', { name: /Add document/i }).length).toBeGreaterThan(0);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', () => {

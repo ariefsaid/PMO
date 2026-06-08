@@ -52,6 +52,15 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('create', 'user')).toEqual(['Admin']);
   });
 
+  it('AC-AU-002: edit user (role/manager) = Admin only', () => {
+    expect(allowedRoles('edit', 'user')).toEqual(['Admin']);
+  });
+
+  it('AC-AU-002: view user directory = Admin·Exec (Exec read-only, §J); PM/Finance/Engineer no', () => {
+    // rbac-visibility §J: Exec can OPEN Administration and SEE a read-only user list.
+    expect(allowedRoles('view', 'user')).toEqual(['Admin', 'Executive']);
+  });
+
   // ── archive ────────────────────────────────────────────────────────────
   it('ADR-0016: archive project/company = Admin·Exec only', () => {
     expect(allowedRoles('archive', 'project')).toEqual(['Admin', 'Executive']);
@@ -96,6 +105,22 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
       'Project Manager',
       'Finance',
     ]);
+  });
+
+  // ── incident investigate/close workflow (rbac-visibility.md §G) ───────────
+  it('AC-IN-007: edit incident (investigate detail) = managers only Admin·Exec·PM (Finance/Engineer no)', () => {
+    expect(allowedRoles('edit', 'incident')).toEqual(['Admin', 'Executive', 'Project Manager']);
+  });
+
+  it('AC-IN-007: incidentClose transition (Open→Investigating→Closed) = managers only Admin·Exec·PM', () => {
+    // Only managers may advance/close; a reporter who is an Engineer can file but not close.
+    expect(allowedRoles('transition', 'incidentClose')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+    ]);
+    expect(can('transition', 'incidentClose', { realRole: 'Engineer' })).toBe(false);
+    expect(can('transition', 'incidentClose', { realRole: 'Finance' })).toBe(false);
   });
 });
 

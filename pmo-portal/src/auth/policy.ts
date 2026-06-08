@@ -1,4 +1,5 @@
 import type { Role } from './AuthContext';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /**
  * FE authorization primitive (ADR-0016).
@@ -69,13 +70,10 @@ const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_v
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
 /** WON / on-hand statuses for the contract_value SoD (ADR-0019). A value on any of
- *  these is past the pre-win boundary and edits require money authority (Exec/Finance). */
-const ON_HAND_STATUSES = new Set([
-  'Won, Pending KoM',
-  'Ongoing Project',
-  'On Hold',
-  'Close Out',
-]);
+ *  these is past the pre-win boundary and edits require money authority (Exec/Finance).
+ *  The membership list is the single shared `ON_HAND_STATUSES` (projectTransitions.ts) —
+ *  deduped so the SoD boundary and the lifecycle group never drift apart. */
+const ON_HAND_SET = new Set<string>(ON_HAND_STATUSES);
 
 /**
  * The policy table. Each entry is `entity -> action -> predicate`. A predicate returns
@@ -96,7 +94,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // contract_value SoD: pre-win = delivery roles; on a won/on-hand project = money authority.
     editContractValue: (role, ctx) => {
       const status = ctx.record?.status ?? '';
-      return ON_HAND_STATUSES.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
+      return ON_HAND_SET.has(status) ? has(MONEY_AUTHORITY, role) : has(DELIVERY, role);
     },
   },
   company: {
@@ -163,6 +161,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   user: {
+    // Exec may VIEW a read-only user directory (rbac-visibility §J); write is Admin-only.
+    view: allow(ARCHIVE_ROLES), // Admin·Executive
     create: allow(ADMIN),
     edit: allow(ADMIN),
     archive: allow(ADMIN),

@@ -11,7 +11,14 @@
  * imports `repositories` and never changes.
  */
 import { toAppError } from '@/src/lib/appError';
-import { listProjects } from '@/src/lib/db/projects';
+import {
+  listProjects,
+  createProject,
+  updateProjectHeader,
+  archiveProject,
+  deleteProject,
+  setProjectContractValue,
+} from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
 import { transitionProject } from '@/src/lib/db/projectTransitions';
 import {
@@ -23,7 +30,26 @@ import {
   archiveCompany,
   deleteCompany,
 } from '@/src/lib/db/companies';
-import { listProjectManagers } from '@/src/lib/db/profiles';
+import {
+  listProjectDocuments,
+  getProjectDocument,
+  createProjectDocument,
+  updateProjectDocument,
+  transitionProjectDocument,
+  deleteProjectDocument,
+} from '@/src/lib/db/documents';
+import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
+import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
+import {
+  listTasks,
+  getTask,
+  createTask,
+  updateTask,
+  updateTaskStatus,
+  deleteTask,
+  addDependency,
+  removeDependency,
+} from '@/src/lib/db/tasks';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
   getProcurementDetail,
@@ -32,6 +58,17 @@ import {
   createReceipt,
   createInvoice,
 } from '@/src/lib/db/procurementLifecycle';
+import {
+  createProcurement,
+  updateProcurementHeader,
+  createProcurementItem,
+  updateProcurementItem,
+  deleteProcurementItem,
+  selectProcurementQuote,
+  listProcurementDocuments,
+  createProcurementDocument,
+  deleteProcurementDocument,
+} from '@/src/lib/db/procurementCrud';
 import {
   listTimesheets,
   createDraftTimesheet,
@@ -56,14 +93,25 @@ import {
   archiveVersion,
   deleteDraftVersion,
 } from '@/src/lib/db/budgets';
+import {
+  listIncidents,
+  getIncident,
+  createIncident,
+  updateIncident,
+  transitionIncident,
+  deleteIncident,
+} from '@/src/lib/db/incidents';
 import type {
   Repositories,
   ProjectRepository,
   CompanyRepository,
+  DocumentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
   BudgetRepository,
+  TaskRepository,
+  IncidentRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -79,6 +127,11 @@ const project: ProjectRepository = {
   list: (params) => wrap(() => listProjects(params)),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
+  create: (input) => wrap(() => createProject(input)),
+  updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
+  archive: (id) => wrap(() => archiveProject(id)),
+  delete: (id) => wrap(() => deleteProject(id)),
+  setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 
 const company: CompanyRepository = {
@@ -91,8 +144,33 @@ const company: CompanyRepository = {
   delete: (id) => wrap(() => deleteCompany(id)),
 };
 
+const document: DocumentRepository = {
+  list: (projectId) => wrap(() => listProjectDocuments(projectId)),
+  get: (id) => wrap(() => getProjectDocument(id)),
+  create: (projectId, input, authorId) =>
+    wrap(() => createProjectDocument(projectId, input, authorId)),
+  update: (id, input) => wrap(() => updateProjectDocument(id, input)),
+  transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
+  delete: (id) => wrap(() => deleteProjectDocument(id)),
+};
+
 const profile: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
+  listOrgProfiles: () => wrap(() => listOrgProfiles()),
+  listUsers: () => wrap(() => listUsers()),
+  updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
+  assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
+};
+
+const task: TaskRepository = {
+  list: (projectId) => wrap(() => listTasks(projectId)),
+  get: (id) => wrap(() => getTask(id)),
+  create: (input) => wrap(() => createTask(input)),
+  update: (id, patch) => wrap(() => updateTask(id, patch)),
+  updateStatus: (id, status) => wrap(() => updateTaskStatus(id, status)),
+  delete: (id) => wrap(() => deleteTask(id)),
+  addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
+  removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
 
 const procurement: ProcurementRepository = {
@@ -105,6 +183,16 @@ const procurement: ProcurementRepository = {
     wrap(() => createReceipt(procurementId, status, receiptDate)),
   createInvoice: (procurementId, status, invoiceDate) =>
     wrap(() => createInvoice(procurementId, status, invoiceDate)),
+  create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
+  updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
+  createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
+  updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
+  deleteItem: (id) => wrap(() => deleteProcurementItem(id)),
+  selectQuote: (quotationId) => wrap(() => selectProcurementQuote(quotationId)),
+  listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
+  createDocument: (procurementId, input) =>
+    wrap(() => createProcurementDocument(procurementId, input)),
+  deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
 };
 
 const timesheet: TimesheetRepository = {
@@ -131,22 +219,37 @@ const budget: BudgetRepository = {
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
 };
 
+const incident: IncidentRepository = {
+  list: (params) => wrap(() => listIncidents(params)),
+  get: (id) => wrap(() => getIncident(id)),
+  create: (input) => wrap(() => createIncident(input)),
+  update: (id, input) => wrap(() => updateIncident(id, input)),
+  transition: (id, status) => wrap(() => transitionIncident(id, status)),
+  delete: (id) => wrap(() => deleteIncident(id)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
   company,
+  document,
   profile,
   procurement,
   timesheet,
   budget,
+  task,
+  incident,
 };
 
 export type {
   Repositories,
   ProjectRepository,
   CompanyRepository,
+  DocumentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
   BudgetRepository,
+  TaskRepository,
+  IncidentRepository,
 } from './types';

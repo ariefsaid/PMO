@@ -24,7 +24,7 @@ const renderRail = () =>
   );
 
 describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
-  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Reports', () => {
+  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Incidents/Reports', () => {
     effectiveRole = 'Executive';
     renderRail();
     for (const name of [
@@ -35,18 +35,29 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
       'Timesheets',
       'Approvals',
       'Companies',
+      'Incidents',
       'Reports',
     ]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
   });
 
+  // AC-IN-006: Incidents is visible to EVERY role (any member may file) — incl. Engineer,
+  // who otherwise has the most restricted nav (rbac-visibility.md §A).
+  it('AC-IN-006: Incidents nav is shown for Engineer (all roles see Incidents)', () => {
+    effectiveRole = 'Engineer';
+    renderRail();
+    expect(screen.getByRole('link', { name: /Incidents/ })).toBeInTheDocument();
+  });
+
   it('Engineer sees the Engineer subset, not the restricted nav', () => {
     effectiveRole = 'Engineer';
     renderRail();
-    for (const name of ['Dashboard', 'Projects', 'Timesheets', 'Tasks']) {
+    // Tasks is no longer a top-level nav (it lives in the project Tasks tab).
+    for (const name of ['Dashboard', 'Projects', 'Timesheets', 'Incidents']) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    expect(screen.queryByText('Tasks')).not.toBeInTheDocument();
     for (const name of ['Sales Pipeline', 'Procurement', 'Companies', 'Reports']) {
       expect(screen.queryByText(name)).not.toBeInTheDocument();
     }

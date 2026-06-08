@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import React, { useEffect } from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../pages/project-detail/ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -22,6 +23,16 @@ const project = {
 
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
+  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
+  useProjectMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  }),
+  useClientCompanies: () => ({ data: [], isError: false }),
+  useProjectManagers: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -55,12 +66,14 @@ function NavDriver({ to }: { to: string }) {
 
 function renderAt(projectId: string) {
   return render(
-    <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
-      <Routes>
-        <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        <Route path="/projects" element={<div>projects-list</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          <Route path="/projects" element={<div>projects-list</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   );
 }
 
@@ -78,13 +91,15 @@ describe('ProjectDetail hooks order (F-1, AC-005)', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     act(() => {
       render(
-        <MemoryRouter initialEntries={['/projects/INVALID']}>
-          <NavDriver to={VALID_ID} />
-          <Routes>
-            <Route path="/projects/:projectId" element={<ProjectDetail />} />
-            <Route path="/projects" element={<div>projects-list</div>} />
-          </Routes>
-        </MemoryRouter>,
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/projects/INVALID']}>
+            <NavDriver to={VALID_ID} />
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectDetail />} />
+              <Route path="/projects" element={<div>projects-list</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>,
       );
     });
     const hooksOrderError = errorSpy.mock.calls.some((args) =>

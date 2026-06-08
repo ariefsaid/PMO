@@ -7,13 +7,24 @@ import {
   DataTable,
   StatusPill,
   ProgressBar,
+  SelectField,
+  Button,
+  Icon,
+  useToast,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useProjects, useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
+import { usePermission } from '@/src/auth/usePermission';
+import {
+  useProjects,
+  useClientCompanies,
+  useProjectManagers,
+  useProjectMutations,
+} from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjectView } from '@/src/hooks/useProjectView';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -21,6 +32,7 @@ import { ProjectStatus as ProjectStatusEnum } from '../types';
 import { pillVariantForProjectStatus, projectIconColor } from '../components/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
+import ProjectFormModal from '../components/ProjectFormModal';
 
 /** The IA-3 status group SegFilter (legacy "smart tabs", re-skinned). */
 type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Leads' | 'Completed';
@@ -43,17 +55,24 @@ function utilizationPct(p: ProjectWithRefs): number {
 
 const Projects: React.FC = () => {
   useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
+  const may = usePermission();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
   const { data: projectManagers = [] } = useProjectManagers();
+  const { create } = useProjectMutations();
+
+  const canCreate = may('create', 'project');
 
   const [view, setView] = useProjectView();
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [filterClient, setFilterClient] = useState('All');
   const [filterPM, setFilterPM] = useState('All');
   const [search, setSearch] = useState('');
+  // null = closed; true = the create-deal modal is open.
+  const [createOpen, setCreateOpen] = useState(false);
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
@@ -84,6 +103,23 @@ const Projects: React.FC = () => {
       );
   }, [all, filter, filterClient, filterPM, search, currentUser?.id]);
 
+  // Filter-select option lists (the tokened SelectField consumes {value,label});
+  // the leading "All …" sentinel value is the cleared state.
+  const customerFilterOptions = useMemo(
+    () => [
+      { value: 'All', label: 'All customers' },
+      ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [clientCompanies],
+  );
+  const pmFilterOptions = useMemo(
+    () => [
+      { value: 'All', label: 'All managers' },
+      ...projectManagers.map((u) => ({ value: u.id, label: u.full_name })),
+    ],
+    [projectManagers],
+  );
+
   const filtersActive =
     filter !== 'All' || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
 
@@ -96,6 +132,23 @@ const Projects: React.FC = () => {
 
   // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
   const onOpen = (p: ProjectWithRefs) => navigate(`/projects/${p.id}`);
+
+  // The create-deal modal — rendered in every page state (the gated CTA in Header
+  // can open it from loading/error/empty/success alike). Hidden when createOpen is false.
+  const createModal = createOpen ? (
+    <ProjectFormModal
+      onClose={() => setCreateOpen(false)}
+      onSubmit={async (input) => {
+        await create.mutateAsync(input);
+        toast('Deal created', input.name, 'success');
+        setCreateOpen(false);
+      }}
+      onError={(err) => {
+        const { headline, detail } = classifyMutationError(err);
+        toast(headline, detail, 'warning');
+      }}
+    />
+  ) : null;
 
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -210,10 +263,11 @@ const Projects: React.FC = () => {
   if (isPending) {
     return (
       <div>
-        <Header />
+        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
         </div>
+        {createModal}
       </div>
     );
   }
@@ -221,13 +275,14 @@ const Projects: React.FC = () => {
   if (isError || !data) {
     return (
       <div>
-        <Header />
+        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
         <ListState
           variant="error"
           title="Couldn't load projects"
           sub="Something went wrong fetching your projects."
           onRetry={() => refetch()}
         />
+        {createModal}
       </div>
     );
   }
@@ -235,20 +290,24 @@ const Projects: React.FC = () => {
   if (all.length === 0) {
     return (
       <div>
-        <Header />
+        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
         <ListState
           variant="empty"
           icon="folder"
           title="No projects yet"
           sub="Projects you create or win will appear here."
+          action={
+            canCreate ? { label: 'New deal', onClick: () => setCreateOpen(true) } : undefined
+          }
         />
+        {createModal}
       </div>
     );
   }
 
   return (
     <div>
-      <Header />
+      <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
 
       <Toolbar standalone>
         <ViewToggle<'table' | 'cards'>
@@ -266,32 +325,22 @@ const Projects: React.FC = () => {
           onChange={setFilter}
           ariaLabel="Status filter"
         />
-        <select
-          aria-label="Filter by customer"
+        <SelectField
+          hideLabel
+          label="Filter by customer"
           value={filterClient}
-          onChange={(e) => setFilterClient(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="All">All customers</option>
-          {clientCompanies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter by project manager"
+          onChange={setFilterClient}
+          options={customerFilterOptions}
+          className="w-auto"
+        />
+        <SelectField
+          hideLabel
+          label="Filter by project manager"
           value={filterPM}
-          onChange={(e) => setFilterPM(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="All">All managers</option>
-          {projectManagers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.full_name}
-            </option>
-          ))}
-        </select>
+          onChange={setFilterPM}
+          options={pmFilterOptions}
+          className="w-auto"
+        />
         <SearchMini
           placeholder="Search projects…"
           aria-label="Search projects"
@@ -341,12 +390,19 @@ const Projects: React.FC = () => {
           ))}
         </div>
       )}
+      {createModal}
     </div>
   );
 };
 
-/** Page head — title + sub (no creation CTA until project creation ships). */
-const Header: React.FC = () => (
+interface HeaderProps {
+  /** Render the single primary "New deal" CTA (gated by can('create','project')). */
+  canCreate?: boolean;
+  onNew?: () => void;
+}
+
+/** Page head — title + sub + the gated "New deal" primary CTA (the single per-screen primary). */
+const Header: React.FC<HeaderProps> = ({ canCreate, onNew }) => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">Projects</h1>
@@ -355,6 +411,12 @@ const Header: React.FC = () => (
         budget, procurement, and detail.
       </p>
     </div>
+    {canCreate && onNew && (
+      <Button variant="primary" onClick={onNew}>
+        <Icon name="plus" />
+        New deal
+      </Button>
+    )}
   </div>
 );
 

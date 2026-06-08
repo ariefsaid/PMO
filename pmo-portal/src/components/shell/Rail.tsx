@@ -37,8 +37,11 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  { to: '/tasks', text: 'Tasks', icon: 'table', group: 'Delivery', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
+  // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
+  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/reports', text: 'Reports', icon: 'cols', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
