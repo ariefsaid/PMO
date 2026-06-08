@@ -18,10 +18,19 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
+import {
+  useProcurementCrudMutations,
+  useProcurementDocuments,
+} from '@/src/hooks/useProcurementCrud';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
+import { LineItemsSection } from './procurement/LineItemsSection';
+import { QuotationsSection } from './procurement/QuotationsSection';
+import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
+import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import {
   isLegalTransition,
   canCancel,
@@ -169,12 +178,15 @@ const ProcurementDetails: React.FC = () => {
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
+  const crud = useProcurementCrudMutations(procurementId ?? '');
+  const docsQuery = useProcurementDocuments(procurementId);
 
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
@@ -241,6 +253,26 @@ const ProcurementDetails: React.FC = () => {
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   const actions = allowedActions(p.status, role, isRequester, isApprover);
   const selectedQuote = p.quotations.find((q) => q.is_selected);
+
+  // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
+  const isDraft = p.status === 'Draft';
+  const isRejected = p.status === 'Rejected';
+  // Header edit: requester may edit while Draft/Rejected (entity edit + record-scope).
+  const canEditHeader =
+    (isDraft || isRejected) && isRequester && may('edit', 'procurement');
+  // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
+  const canEditItems = isDraft && (isRequester || may('edit', 'procItem'));
+  // Quotations: sourcing roles add; select offered only while Vendor Quoted.
+  const canAddQuote = may('create', 'quotation');
+  const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
+  // Documents: Admin·Exec·PM·Finance manage; everyone else read-only.
+  const canManageDocs = may('create', 'procDoc');
+
+  // Shared classified-toast helper for the CRUD section mutations.
+  const onMutationError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
   const canShowGRForm =
@@ -380,6 +412,23 @@ const ProcurementDetails: React.FC = () => {
           />
         </CardPad>
       </Card>
+
+      {/* Draft-header edit (requester while Draft/Rejected) */}
+      {canEditHeader && (
+        <ProcurementHeaderEdit
+          title={p.title}
+          projectId={p.project_id}
+          projectName={p.project?.name ?? null}
+          vendorId={p.vendor_id}
+          vendorName={p.vendor?.name ?? null}
+          busy={crud.updateHeader.isPending}
+          onError={onMutationError}
+          onSave={async (patch) => {
+            await crud.updateHeader.mutateAsync(patch);
+            toast('Request updated', 'Header saved', 'success');
+          }}
+        />
+      )}
 
       {/* SoD / readiness gate */}
       {gateMsg ? (
@@ -570,33 +619,44 @@ const ProcurementDetails: React.FC = () => {
         </Card>
       )}
 
-      {/* Line items + linked quotations */}
+      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
+      <LineItemsSection
+        items={p.items}
+        editable={canEditItems}
+        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
+        onError={onMutationError}
+        onAdd={async (input) => {
+          await crud.createItem.mutateAsync(input);
+          toast('Line item added', input.name, 'success');
+        }}
+        onUpdate={async (id, patch) => {
+          await crud.updateItem.mutateAsync({ id, patch });
+          toast('Line item updated', patch.name, 'success');
+        }}
+        onDelete={async (id) => {
+          await crud.deleteItem.mutateAsync(id);
+          toast('Line item removed', undefined, 'success');
+        }}
+      />
+
+      {/* Quotations (add + select-quote) + document trail */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHead>Linked quotations</CardHead>
-          <CardPad className="flex flex-col gap-px">
-            {p.quotations.length === 0 ? (
-              <p className="py-2 text-[13px] text-muted-foreground">No quotations received yet.</p>
-            ) : (
-              p.quotations.map((q) => (
-                <div
-                  key={q.id}
-                  className="flex items-center gap-2.5 border-b border-dashed border-border py-2.5 last:border-b-0"
-                >
-                  <span
-                    aria-hidden
-                    className={`size-[9px] shrink-0 rounded-full ${q.is_selected ? 'bg-success' : 'bg-secondary'}`}
-                  />
-                  {q.vq_number && <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>}
-                  {q.is_selected && <StatusPill variant="won">Selected</StatusPill>}
-                  <span className="ml-auto text-[13.5px] font-semibold tabular">
-                    {formatCurrency(Number(q.total_amount))}
-                  </span>
-                </div>
-              ))
-            )}
-          </CardPad>
-        </Card>
+        <QuotationsSection
+          quotations={p.quotations}
+          canAdd={canAddQuote}
+          canSelect={canSelectQuote}
+          addBusy={mutations.createQuotation.isPending}
+          selectBusy={crud.selectQuote.isPending}
+          onError={onMutationError}
+          onAdd={async (input) => {
+            await mutations.createQuotation.mutateAsync(input);
+            toast('Quotation added', undefined, 'success');
+          }}
+          onSelect={async (quotationId) => {
+            await crud.selectQuote.mutateAsync(quotationId);
+            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+          }}
+        />
 
         <Card>
           <CardHead>Document trail</CardHead>
@@ -613,6 +673,26 @@ const ProcurementDetails: React.FC = () => {
           </CardPad>
         </Card>
       </div>
+
+      {/* Documents metadata register (over the previously-dead procurement_documents) */}
+      <ProcurementDocumentsSection
+        documents={docsQuery.data ?? []}
+        loading={docsQuery.isPending}
+        error={docsQuery.isError}
+        onRetry={() => docsQuery.refetch()}
+        editable={canManageDocs}
+        addBusy={crud.createDocument.isPending}
+        deleteBusy={crud.deleteDocument.isPending}
+        onError={onMutationError}
+        onAdd={async (input) => {
+          await crud.createDocument.mutateAsync(input);
+          toast('Document added', input.type, 'success');
+        }}
+        onDelete={async (id) => {
+          await crud.deleteDocument.mutateAsync(id);
+          toast('Document removed', undefined, 'success');
+        }}
+      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (

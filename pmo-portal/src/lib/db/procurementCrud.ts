@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { ProcurementError, type ProcurementStatus } from './procurementLifecycle';
+import { ProcurementError } from './procurementLifecycle';
 
 // ---------------------------------------------------------------------------
 // Procurement CRUD DAL (CRUD+RBAC program, Procurement slice). Sits beside the
@@ -57,17 +57,15 @@ export async function createProcurement(
   input: NewProcurementInput,
   requestedById: string,
 ): Promise<Tables<'procurements'>> {
-  const row: Record<string, unknown> = {
-    title: input.title,
-    status: 'Draft',
-    requested_by_id: requestedById,
-  };
-  if (input.projectId) row.project_id = input.projectId;
-  if (input.vendorId) row.vendor_id = input.vendorId;
-
   const { data, error } = await supabase
     .from('procurements')
-    .insert(row)
+    .insert({
+      title: input.title,
+      status: 'Draft',
+      requested_by_id: requestedById,
+      project_id: input.projectId,
+      vendor_id: input.vendorId,
+    })
     .select()
     .single();
   if (error) throwWrite(error);
@@ -124,17 +122,15 @@ export async function createProcurementItem(
   procurementId: string,
   input: ProcurementItemInput,
 ): Promise<ProcurementItemRow> {
-  const row: Record<string, unknown> = {
-    procurement_id: procurementId,
-    name: input.name,
-    quantity: input.quantity,
-    rate: input.rate,
-  };
-  if (input.description !== undefined) row.description = input.description;
-
   const { data, error } = await supabase
     .from('procurement_items')
-    .insert(row)
+    .insert({
+      procurement_id: procurementId,
+      name: input.name,
+      quantity: input.quantity,
+      rate: input.rate,
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    })
     .select()
     .single();
   if (error) throwWrite(error);
@@ -153,7 +149,7 @@ export async function updateProcurementItem(
   id: string,
   patch: ProcurementItemPatch,
 ): Promise<void> {
-  const set: Record<string, unknown> = {};
+  const set: Partial<Pick<ProcurementItemRow, 'name' | 'quantity' | 'rate' | 'description'>> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.quantity !== undefined) set.quantity = patch.quantity;
   if (patch.rate !== undefined) set.rate = patch.rate;
@@ -225,16 +221,14 @@ export async function createProcurementDocument(
   procurementId: string,
   input: ProcurementDocumentInput,
 ): Promise<ProcurementDocumentRow> {
-  const row: Record<string, unknown> = {
-    procurement_id: procurementId,
-    type: input.type,
-    status: input.status,
-  };
-  if (input.referenceNumber) row.reference_number = input.referenceNumber;
-
   const { data, error } = await supabase
     .from('procurement_documents')
-    .insert(row)
+    .insert({
+      procurement_id: procurementId,
+      type: input.type,
+      status: input.status,
+      ...(input.referenceNumber ? { reference_number: input.referenceNumber } : {}),
+    })
     .select()
     .single();
   if (error) throwWrite(error);
