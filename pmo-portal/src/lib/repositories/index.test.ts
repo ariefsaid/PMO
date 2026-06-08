@@ -12,6 +12,7 @@ vi.mock('@/src/lib/db/projects', () => ({
   createProject: vi.fn(),
   updateProjectHeader: vi.fn(),
   archiveProject: vi.fn(),
+  deleteProject: vi.fn(),
   setProjectContractValue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
@@ -130,7 +131,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'get', 'list', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      ['archive', 'create', 'delete', 'get', 'list', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
@@ -217,6 +218,17 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(projectsDal.archiveProject).mockResolvedValue(undefined);
     await repositories.project.archive('p1');
     expect(projectsDal.archiveProject).toHaveBeenCalledWith('p1');
+  });
+
+  it('AC-PRJ-007: project.delete delegates to deleteProject and normalizes the error to AppError', async () => {
+    vi.mocked(projectsDal.deleteProject).mockResolvedValue(undefined);
+    await repositories.project.delete('p1');
+    expect(projectsDal.deleteProject).toHaveBeenCalledWith('p1');
+
+    const fk = Object.assign(new Error('referenced'), { code: '23503' });
+    vi.mocked(projectsDal.deleteProject).mockRejectedValue(fk);
+    await expect(repositories.project.delete('p1')).rejects.toMatchObject({ code: '23503' });
+    await expect(repositories.project.delete('p1')).rejects.toBeInstanceOf(AppError);
   });
 
   it('project.setContractValue delegates to setProjectContractValue (SoD RPC)', async () => {

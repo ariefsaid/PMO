@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   PageHeader,
   StatTiles,
@@ -56,10 +57,12 @@ function parseMoney(raw: string): number {
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) => {
   const may = usePermission();
   const { toast } = useToast();
-  const { updateHeader, archive, setContractValue } = useProjectMutations();
+  const { updateHeader, archive, remove, setContractValue } = useProjectMutations();
+  const navigate = useNavigate();
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
@@ -77,6 +80,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
 
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
+  const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
   const canEditValue = may('editContractValue', 'project', { record: { status } });
 
   const meta = [
@@ -147,6 +151,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
     }
   };
 
+  // Hard delete (Admin-only). On success the record no longer exists → route back to
+  // the index. On a referenced-project block (23503) the classified toast points the
+  // user at Archive instead; the confirm itself was left open is closed regardless.
+  const onDeleteConfirm = async () => {
+    try {
+      await remove.mutateAsync(project.id);
+      toast('Project deleted', project.name, 'success');
+      setDeleteOpen(false);
+      navigate('/projects');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setDeleteOpen(false);
+    }
+  };
+
   const actions = (
     <>
       {canEdit && (
@@ -157,6 +177,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
       {canArchive && (
         <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
           Archive
+        </Button>
+      )}
+      {canDelete && (
+        // Quiet ghost trigger with destructive text (the solid red stays inside the
+        // confirm — crud-components §2.2 "one solid destructive"); spatially after the
+        // safer Archive (destructive-nav-separation).
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setDeleteOpen(true)}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          Delete
         </Button>
       )}
     </>
@@ -172,7 +205,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
           <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
         }
         meta={meta || undefined}
-        actions={canEdit || canArchive ? actions : undefined}
+        actions={canEdit || canArchive || canDelete ? actions : undefined}
       />
       <StatTiles tiles={tiles} columns={5} className="mb-4" />
 
@@ -264,6 +297,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveOpen(false)}
+      />
+
+      {/* Hard-delete confirm (destructive tone, Admin-only). Names the irreversibility +
+          recommends Archive as the recoverable alternative (error-recovery). */}
+      <ConfirmDialog
+        open={deleteOpen}
+        tone="destructive"
+        title={`Delete ${project.name}?`}
+        description="This permanently removes the project and its budget, tasks, and documents. It can't be undone, and a project with procurement or logged time can't be deleted. Archive it instead if you only need to hide it."
+        confirmLabel="Delete project"
+        loading={remove.isPending}
+        onConfirm={onDeleteConfirm}
+        onCancel={() => setDeleteOpen(false)}
       />
 
       {/* contract_value SoD audit confirm (default tone) — names the SoD reason in the body. */}

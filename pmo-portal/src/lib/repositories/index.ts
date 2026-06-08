@@ -16,6 +16,7 @@ import {
   createProject,
   updateProjectHeader,
   archiveProject,
+  deleteProject,
   setProjectContractValue,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
@@ -129,6 +130,7 @@ const project: ProjectRepository = {
   create: (input) => wrap(() => createProject(input)),
   updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
   archive: (id) => wrap(() => archiveProject(id)),
+  delete: (id) => wrap(() => deleteProject(id)),
   setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 

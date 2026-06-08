@@ -48,7 +48,8 @@ export interface SetContractValueArgs {
 
 /**
  * Project CRUD mutations over the repository seam (ADR-0017): create a new opportunity,
- * edit the header, soft-archive, and set the SoD-gated contract_value (via the scoped RPC,
+ * edit the header, soft-archive, hard-delete (Admin-only FE gate), and set the SoD-gated
+ * contract_value (via the scoped RPC,
  * ADR-0019). Each invalidates the `['projects', …]` query family on success so every cached
  * list + the project-detail view refetch. Errors propagate as `AppError` (code preserved) for
  * the caller to classify via `classifyMutationError`. RLS/RPC remain the enforcement authority.
@@ -78,11 +79,18 @@ export function useProjectMutations() {
     onSuccess: invalidate,
   });
 
+  // Hard delete (Admin-only in the FE gate). Irreversible; rejects 23503 when the
+  // project is referenced (procurement / timesheet). Archive is the safe default.
+  const remove = useMutation({
+    mutationFn: (id: string) => repositories.project.delete(id),
+    onSuccess: invalidate,
+  });
+
   const setContractValue = useMutation({
     mutationFn: ({ id, value }: SetContractValueArgs) =>
       repositories.project.setContractValue(id, value),
     onSuccess: invalidate,
   });
 
-  return { create, updateHeader, archive, setContractValue };
+  return { create, updateHeader, archive, remove, setContractValue };
 }

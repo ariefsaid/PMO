@@ -73,6 +73,8 @@ export interface ProjectRepository {
   updateHeader(id: string, input: ProjectHeaderInput): Promise<void>;
   /** Soft-archive a project (stamps archived_at). */
   archive(id: string): Promise<void>;
+  /** Hard-delete a project (Admin-only in the FE gate); rejects 23503 if referenced. */
+  delete(id: string): Promise<void>;
   /** Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial. */
   setContractValue(id: string, value: number): Promise<void>;
 }

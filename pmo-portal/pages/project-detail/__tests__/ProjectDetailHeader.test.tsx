@@ -15,6 +15,7 @@ const { roleBox, projectMutations } = vi.hoisted(() => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
@@ -123,6 +124,39 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', () => {
     renderHeader('Project Manager');
     expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-007: Admin sees the hard-Delete action', () => {
+    renderHeader('Admin');
+    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+  });
+
+  it.each(['Executive', 'Project Manager', 'Finance', 'Engineer'])(
+    'AC-PRJ-007: %s does NOT see the hard-Delete action (Admin-only)',
+    (role) => {
+      renderHeader(role);
+      expect(screen.queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
+    },
+  );
+
+  it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
+    renderHeader('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    // Nothing is deleted on the trigger click — only after the confirm.
+    expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
+    await waitFor(() => expect(projectMutations.remove.mutateAsync).toHaveBeenCalledWith('p1'));
+  });
+
+  it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
+    projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
+    renderHeader('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
+    const toast = await screen.findByRole('status');
+    expect(toast).toBeInTheDocument();
   });
 
   it('AC-PRJ-004: Edit opens the edit-header modal pre-filled with the project name', async () => {

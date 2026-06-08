@@ -148,6 +148,27 @@ export async function archiveProject(id: string): Promise<void> {
 }
 
 /**
+ * Hard-delete a project by id (AC-PRJ-007). org_id is NEVER sent — RLS scopes the row.
+ * Throws an `AppError` (code preserved) so the caller can classify the toast.
+ *
+ * GATING NOTE (FE stricter than RLS — flagged, not a bug): the FE gate
+ * `can('delete','project')` is Admin-only (rbac-visibility §K). The current server
+ * `projects_write` policy (0002) is `FOR ALL` to the 4 write-roles, so it does NOT yet
+ * restrict DELETE to Admin the way `companies_admin_delete` (0013) / `project_documents`
+ * (0017) do. The FE hide is therefore the only Admin-only narrowing today — a deliberate
+ * UI stricture, never the security boundary. The matching `projects_admin_delete`
+ * restrictive policy + pgTAP are a SERVER gap to close (see report). A project that has
+ * procurement requests or logged timesheet entries (FK RESTRICT) fails with 23503, which
+ * the destructive confirm surfaces as a classified toast; budget/task/document children
+ * cascade-delete (0001 `on delete cascade`). Archive (soft) stays the recommended path;
+ * this hard delete is the irreversible escape hatch.
+ */
+export async function deleteProject(id: string): Promise<void> {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) throwWrite(error);
+}
+
+/**
  * Set a project's `contract_value` through the SoD-scoped security-definer RPC (AC-PRJ-006,
  * ADR-0019). `contract_value` is removed from the direct-UPDATE column grant in 0014, so this
  * RPC is the SOLE writer of that column. The RPC re-asserts org + role + status: a PM may set

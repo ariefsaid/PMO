@@ -22,6 +22,7 @@ import {
   createProject,
   updateProjectHeader,
   archiveProject,
+  deleteProject,
   setProjectContractValue,
 } from './projects';
 import { AppError } from '@/src/lib/appError';
@@ -50,6 +51,7 @@ function makeWriteBuilder(resolved: { data: unknown; error: unknown }) {
   const calls = {
     insert: [] as unknown[],
     update: [] as unknown[],
+    delete: 0,
     eq: [] as unknown[],
     select: 0,
     single: 0,
@@ -61,6 +63,10 @@ function makeWriteBuilder(resolved: { data: unknown; error: unknown }) {
   };
   builder.update = (arg: unknown) => {
     calls.update.push(arg);
+    return builder;
+  };
+  builder.delete = () => {
+    calls.delete++;
     return builder;
   };
   builder.eq = (...args: unknown[]) => {
@@ -263,6 +269,24 @@ describe('AC-PRJ-005 archiveProject (soft-archive via archived_at)', () => {
   it('AC-PRJ-005: throws AppError with code on a denied archive', async () => {
     makeWriteBuilder({ data: null, error: { message: 'denied', code: '42501' } });
     await expect(archiveProject('p1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
+  it('AC-PRJ-007: deletes by id, NEVER org_id', async () => {
+    const calls = makeWriteBuilder({ data: null, error: null });
+    await deleteProject('p1');
+    expect(mockFrom).toHaveBeenCalledWith('projects');
+    expect(calls.delete).toBe(1);
+    expect(calls.eq).toContainEqual(['id', 'p1']);
+    expect(JSON.stringify(calls.eq)).not.toContain('org_id');
+  });
+
+  it('AC-PRJ-007: throws AppError preserving the Postgres code on a denied/blocked delete', async () => {
+    makeWriteBuilder({ data: null, error: { message: 'denied', code: '42501' } });
+    await expect(deleteProject('p1')).rejects.toBeInstanceOf(AppError);
+    makeWriteBuilder({ data: null, error: { message: 'referenced', code: '23503' } });
+    await expect(deleteProject('p1')).rejects.toMatchObject({ code: '23503' });
   });
 });
 

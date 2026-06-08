@@ -9,6 +9,7 @@ const { project } = vi.hoisted(() => ({
     create: vi.fn(),
     updateHeader: vi.fn(),
     archive: vi.fn(),
+    delete: vi.fn(),
     setContractValue: vi.fn(),
   },
 }));
@@ -30,6 +31,7 @@ beforeEach(() => {
   project.create.mockResolvedValue({ id: 'p9', name: 'New', status: 'Leads' });
   project.updateHeader.mockResolvedValue(undefined);
   project.archive.mockResolvedValue(undefined);
+  project.delete.mockResolvedValue(undefined);
   project.setContractValue.mockResolvedValue(undefined);
 });
 
@@ -77,6 +79,17 @@ describe('useProjectMutations', () => {
       await result.current.archive.mutateAsync('p1');
     });
     expect(project.archive).toHaveBeenCalledWith('p1');
+  });
+
+  it('AC-PRJ-007: remove invokes the repository delete with the id and invalidates the project family', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.remove.mutateAsync('p1');
+    });
+    expect(project.delete).toHaveBeenCalledWith('p1');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
   });
 
   it('AC-PRJ-006: setContractValue invokes the SoD RPC repository with id + value', async () => {
