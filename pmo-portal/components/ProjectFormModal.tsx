@@ -102,10 +102,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onError,
 }) => {
   const isEdit = mode === 'editHeader';
-  const { data: clients = [], isPending: clientsPending, isError: clientsError, refetch: refetchClients } =
-    useClientCompanies();
-  const { data: managers = [], isPending: pmPending, isError: pmError, refetch: refetchPm } =
-    useProjectManagers();
+  const { data: clients = [], isError: clientsError } = useClientCompanies();
+  const { data: managers = [], isError: pmError } = useProjectManagers();
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -195,11 +193,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       }
     });
   };
-
-  // useClientPicker depends on the live clients/pm being loaded; the combobox
-  // shows its own loading state, so we surface a loading flag in the loadOptions.
-  void clientsPending;
-  void pmPending;
 
   return (
     <EntityFormModal
