@@ -35,3 +35,8 @@ test-results
 
 # agent worktrees (transient)
 .claude/worktrees/
+
+# Transient design-review artifacts (screenshots, Playwright-MCP dumps, audit scratch — regenerated per review)
+.playwright-mcp/
+/review/
+/pmo-*.png
