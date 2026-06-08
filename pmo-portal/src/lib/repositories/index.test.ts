@@ -79,6 +79,14 @@ vi.mock('@/src/lib/db/budgets', () => ({
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
 }));
+vi.mock('@/src/lib/db/incidents', () => ({
+  listIncidents: vi.fn(),
+  getIncident: vi.fn(),
+  createIncident: vi.fn(),
+  updateIncident: vi.fn(),
+  transitionIncident: vi.fn(),
+  deleteIncident: vi.fn(),
+}));
 
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
@@ -94,13 +102,14 @@ import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
 import * as tasksDal from '@/src/lib/db/tasks';
+import * as incidentsDal from '@/src/lib/db/incidents';
 
 beforeEach(() => vi.clearAllMocks());
 
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'incident', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
     );
   });
 
@@ -141,6 +150,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'listVersions', 'updateLineItem'].sort(),
+    );
+    expect(Object.keys(repositories.incident).sort()).toEqual(
+      ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
     );
   });
 });
@@ -460,6 +472,50 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.budget.deleteDraftVersion('v1');
     expect(budgetsDal.deleteDraftVersion).toHaveBeenCalledWith('v1');
+  });
+
+  it('AC-IN-001..005: incident methods delegate to the incidents DAL fns', async () => {
+    vi.mocked(incidentsDal.listIncidents).mockResolvedValue([] as never);
+    vi.mocked(incidentsDal.getIncident).mockResolvedValue({ id: 'i1' } as never);
+    vi.mocked(incidentsDal.createIncident).mockResolvedValue({ id: 'new' } as never);
+    vi.mocked(incidentsDal.updateIncident).mockResolvedValue(undefined);
+    vi.mocked(incidentsDal.transitionIncident).mockResolvedValue(undefined);
+    vi.mocked(incidentsDal.deleteIncident).mockResolvedValue(undefined);
+
+    const params = { status: 'Open' as never };
+    await repositories.incident.list(params);
+    expect(incidentsDal.listIncidents).toHaveBeenCalledWith(params);
+
+    await repositories.incident.list();
+    expect(incidentsDal.listIncidents).toHaveBeenLastCalledWith(undefined);
+
+    await repositories.incident.get('i1');
+    expect(incidentsDal.getIncident).toHaveBeenCalledWith('i1');
+
+    const input = { incident_date: '2026-06-08', type: 'Near Miss', severity: 'Low' as never };
+    await repositories.incident.create(input);
+    expect(incidentsDal.createIncident).toHaveBeenCalledWith(input);
+
+    await repositories.incident.update('i1', input);
+    expect(incidentsDal.updateIncident).toHaveBeenCalledWith('i1', input);
+
+    await repositories.incident.transition('i1', 'Investigating' as never);
+    expect(incidentsDal.transitionIncident).toHaveBeenCalledWith('i1', 'Investigating');
+
+    await repositories.incident.delete('i1');
+    expect(incidentsDal.deleteIncident).toHaveBeenCalledWith('i1');
+  });
+
+  it('AC-IN-004: incident.transition normalizes a 42501 RLS denial to AppError preserving the code', async () => {
+    const sod = Object.assign(new Error('permission denied'), { code: '42501' });
+    vi.mocked(incidentsDal.transitionIncident).mockRejectedValue(sod);
+    await expect(repositories.incident.transition('i1', 'Closed' as never)).rejects.toMatchObject({
+      name: 'AppError',
+      code: '42501',
+    });
+    await expect(
+      repositories.incident.transition('i1', 'Closed' as never),
+    ).rejects.toBeInstanceOf(AppError);
   });
 });
 

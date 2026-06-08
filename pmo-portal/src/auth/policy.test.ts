@@ -97,6 +97,22 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
       'Finance',
     ]);
   });
+
+  // ── incident investigate/close workflow (rbac-visibility.md §G) ───────────
+  it('AC-IN-007: edit incident (investigate detail) = managers only Admin·Exec·PM (Finance/Engineer no)', () => {
+    expect(allowedRoles('edit', 'incident')).toEqual(['Admin', 'Executive', 'Project Manager']);
+  });
+
+  it('AC-IN-007: incidentClose transition (Open→Investigating→Closed) = managers only Admin·Exec·PM', () => {
+    // Only managers may advance/close; a reporter who is an Engineer can file but not close.
+    expect(allowedRoles('transition', 'incidentClose')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+    ]);
+    expect(can('transition', 'incidentClose', { realRole: 'Engineer' })).toBe(false);
+    expect(can('transition', 'incidentClose', { realRole: 'Finance' })).toBe(false);
+  });
 });
 
 describe('can() — contract_value SoD branch (ADR-0019, rbac-visibility.md §B2)', () => {

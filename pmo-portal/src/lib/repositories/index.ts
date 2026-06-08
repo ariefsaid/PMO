@@ -83,6 +83,14 @@ import {
   archiveVersion,
   deleteDraftVersion,
 } from '@/src/lib/db/budgets';
+import {
+  listIncidents,
+  getIncident,
+  createIncident,
+  updateIncident,
+  transitionIncident,
+  deleteIncident,
+} from '@/src/lib/db/incidents';
 import type {
   Repositories,
   ProjectRepository,
@@ -92,6 +100,7 @@ import type {
   TimesheetRepository,
   BudgetRepository,
   TaskRepository,
+  IncidentRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -185,6 +194,15 @@ const budget: BudgetRepository = {
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
 };
 
+const incident: IncidentRepository = {
+  list: (params) => wrap(() => listIncidents(params)),
+  get: (id) => wrap(() => getIncident(id)),
+  create: (input) => wrap(() => createIncident(input)),
+  update: (id, input) => wrap(() => updateIncident(id, input)),
+  transition: (id, status) => wrap(() => transitionIncident(id, status)),
+  delete: (id) => wrap(() => deleteIncident(id)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -194,6 +212,7 @@ export const repositories: Repositories = {
   timesheet,
   budget,
   task,
+  incident,
 };
 
 export type {
@@ -205,4 +224,5 @@ export type {
   TimesheetRepository,
   BudgetRepository,
   TaskRepository,
+  IncidentRepository,
 } from './types';

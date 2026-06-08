@@ -51,6 +51,11 @@ import type {
   NewLineItem,
 } from '@/src/lib/db/budgets';
 import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
+import type {
+  IncidentRow,
+  IncidentInput,
+  IncidentStatus,
+} from '@/src/lib/db/incidents';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -179,6 +184,21 @@ export interface BudgetRepository {
   deleteDraftVersion(versionId: string): Promise<void>;
 }
 
+export interface IncidentRepository {
+  /** All incidents in the org (newest first), optionally filtered by workflow status. */
+  list(params?: { status?: IncidentStatus }): Promise<IncidentRow[]>;
+  /** A single incident by id, or null when not found / not readable. */
+  get(id: string): Promise<IncidentRow | null>;
+  /** File an incident — any member; org_id/status/reporter server-stamped, never sent. */
+  create(input: IncidentInput): Promise<IncidentRow>;
+  /** Update an incident's editable detail fields (managers only at the RLS layer). */
+  update(id: string, input: IncidentInput): Promise<void>;
+  /** Advance the workflow status (Open→Investigating→Closed); managers only (RLS). */
+  transition(id: string, status: IncidentStatus): Promise<void>;
+  /** Hard-delete an incident (Admin only). */
+  delete(id: string): Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -188,4 +208,5 @@ export interface Repositories {
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
   task: TaskRepository;
+  incident: IncidentRepository;
 }
