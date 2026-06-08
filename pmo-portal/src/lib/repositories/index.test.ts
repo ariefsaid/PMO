@@ -25,7 +25,17 @@ vi.mock('@/src/lib/db/companies', () => ({
   archiveCompany: vi.fn(),
   deleteCompany: vi.fn(),
 }));
-vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn() }));
+vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn(), listOrgProfiles: vi.fn() }));
+vi.mock('@/src/lib/db/tasks', () => ({
+  listTasks: vi.fn(),
+  getTask: vi.fn(),
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  updateTaskStatus: vi.fn(),
+  deleteTask: vi.fn(),
+  addDependency: vi.fn(),
+  removeDependency: vi.fn(),
+}));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   getProcurementDetail: vi.fn(),
@@ -83,13 +93,14 @@ import * as procCrudDal from '@/src/lib/db/procurementCrud';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
+import * as tasksDal from '@/src/lib/db/tasks';
 
 beforeEach(() => vi.clearAllMocks());
 
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'procurement', 'profile', 'project', 'timesheet'].sort(),
+      ['budget', 'company', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
     );
   });
 
@@ -100,7 +111,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
     );
-    expect(Object.keys(repositories.profile).sort()).toEqual(['listProjectManagers']);
+    expect(Object.keys(repositories.profile).sort()).toEqual(
+      ['listOrgProfiles', 'listProjectManagers'].sort(),
+    );
+    expect(Object.keys(repositories.task).sort()).toEqual(
+      ['addDependency', 'create', 'delete', 'get', 'list', 'removeDependency', 'update', 'updateStatus'].sort(),
+    );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       [
         'create',
@@ -231,6 +247,58 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(profilesDal.listProjectManagers).mockResolvedValue([] as never);
     await repositories.profile.listProjectManagers();
     expect(profilesDal.listProjectManagers).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-TASK-008: profile.listOrgProfiles delegates to listOrgProfiles', async () => {
+    vi.mocked(profilesDal.listOrgProfiles).mockResolvedValue([] as never);
+    await repositories.profile.listOrgProfiles();
+    expect(profilesDal.listOrgProfiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-TASK-001..007: task methods delegate to the tasks DAL fns', async () => {
+    vi.mocked(tasksDal.listTasks).mockResolvedValue([] as never);
+    vi.mocked(tasksDal.getTask).mockResolvedValue({ id: 't1' } as never);
+    vi.mocked(tasksDal.createTask).mockResolvedValue({ id: 'new' } as never);
+    vi.mocked(tasksDal.updateTask).mockResolvedValue(undefined);
+    vi.mocked(tasksDal.updateTaskStatus).mockResolvedValue(undefined);
+    vi.mocked(tasksDal.deleteTask).mockResolvedValue(undefined);
+    vi.mocked(tasksDal.addDependency).mockResolvedValue(undefined);
+    vi.mocked(tasksDal.removeDependency).mockResolvedValue(undefined);
+
+    await repositories.task.list('p1');
+    expect(tasksDal.listTasks).toHaveBeenCalledWith('p1');
+
+    await repositories.task.get('t1');
+    expect(tasksDal.getTask).toHaveBeenCalledWith('t1');
+
+    const input = { project_id: 'p1', name: 'T', status: 'To Do' as never, assignee_id: null };
+    await repositories.task.create(input);
+    expect(tasksDal.createTask).toHaveBeenCalledWith(input);
+
+    await repositories.task.update('t1', { name: 'X' });
+    expect(tasksDal.updateTask).toHaveBeenCalledWith('t1', { name: 'X' });
+
+    await repositories.task.updateStatus('t1', 'Done' as never);
+    expect(tasksDal.updateTaskStatus).toHaveBeenCalledWith('t1', 'Done');
+
+    await repositories.task.delete('t1');
+    expect(tasksDal.deleteTask).toHaveBeenCalledWith('t1');
+
+    await repositories.task.addDependency('t2', 't1');
+    expect(tasksDal.addDependency).toHaveBeenCalledWith('t2', 't1');
+
+    await repositories.task.removeDependency('t2', 't1');
+    expect(tasksDal.removeDependency).toHaveBeenCalledWith('t2', 't1');
+  });
+
+  it('AC-TASK-005: task.updateStatus normalizes a 42501 RLS denial to AppError preserving the code', async () => {
+    const denied = Object.assign(new Error('permission denied'), { code: '42501' });
+    vi.mocked(tasksDal.updateTaskStatus).mockRejectedValue(denied);
+    await expect(repositories.task.updateStatus('t1', 'Done' as never)).rejects.toMatchObject({
+      name: 'AppError',
+      code: '42501',
+    });
+    await expect(repositories.task.updateStatus('t1', 'Done' as never)).rejects.toBeInstanceOf(AppError);
   });
 
   it('procurement.list / get / transition / create* delegate', async () => {

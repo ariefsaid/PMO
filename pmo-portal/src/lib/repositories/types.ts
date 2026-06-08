@@ -50,6 +50,7 @@ import type {
   BudgetLineItemRow,
   NewLineItem,
 } from '@/src/lib/db/budgets';
+import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -84,6 +85,27 @@ export interface CompanyRepository {
 
 export interface ProfileRepository {
   listProjectManagers(): Promise<ProfileRow[]>;
+  /** All profiles in the org — the Tasks assignee picker source. */
+  listOrgProfiles(): Promise<ProfileRow[]>;
+}
+
+export interface TaskRepository {
+  /** Per-project tasks with assignee + dependency edges. */
+  list(projectId: string): Promise<TaskWithRefs[]>;
+  /** A single task by id, or null when not found / not readable. */
+  get(id: string): Promise<TaskWithRefs | null>;
+  /** Create a task (org_id stamped by RLS, never sent). */
+  create(input: TaskInput): Promise<TaskRow>;
+  /** Update structure fields (name/assignee/dates/status) — managers. */
+  update(id: string, patch: TaskPatch): Promise<void>;
+  /** Update ONLY the status column — the assignee (Engineer own-task) path. */
+  updateStatus(id: string, status: TaskStatus): Promise<void>;
+  /** Hard-delete a task (cascades dependencies). */
+  delete(id: string): Promise<void>;
+  /** Add a dependency edge (taskId depends on dependsOnId). */
+  addDependency(taskId: string, dependsOnId: string): Promise<void>;
+  /** Remove a dependency edge. */
+  removeDependency(taskId: string, dependsOnId: string): Promise<void>;
 }
 
 export interface ProcurementRepository {
@@ -165,4 +187,5 @@ export interface Repositories {
   procurement: ProcurementRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
+  task: TaskRepository;
 }

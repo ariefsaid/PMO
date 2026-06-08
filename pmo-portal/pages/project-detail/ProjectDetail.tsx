@@ -84,7 +84,7 @@ const ProjectDetail: React.FC = () => {
         {tab === 'overview' && <OverviewTab project={project} setTab={setTab} />}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-        {tab === 'tasks' && <TasksTab />}
+        {tab === 'tasks' && <TasksTab projectId={project.id} />}
         {tab === 'documents' && <DocumentsTab />}
       </div>
     </div>
