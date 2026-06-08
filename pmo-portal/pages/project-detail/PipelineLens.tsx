@@ -64,9 +64,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Confirm-before-write: forward Advance => default popover, Mark lost => destructive modal.
-  // Mark won keeps its inline SoD panel (the consequential capture IS the confirm).
-  const [confirmAction, setConfirmAction] = useState<'advance' | 'lost' | null>(null);
+  // Write policy (OD-UX-1): a routine reversible forward Advance is SINGLE-CLICK + a toast
+  // (no modal) — aligned to procurement + Tasks. Only the terminal/destructive `Mark lost`
+  // opens a destructive confirm; `Mark won` keeps its inline SoD capture (that consequential
+  // capture IS the confirm).
+  const [confirmAction, setConfirmAction] = useState<'lost' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
@@ -173,7 +175,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             {!isTerminal && (
               <div className="flex flex-wrap gap-2">
                 {nextStage && (
-                  <Button variant="primary" disabled={pending} onClick={() => setConfirmAction('advance')}>
+                  <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
                     Advance to {NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}
                   </Button>
                 )}
@@ -267,19 +269,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
         </Card>
       </div>
 
-      {/* Forward Advance: lightweight default-tone confirm. */}
-      {nextStage && (
-        <ConfirmDialog
-          open={confirmAction === 'advance'}
-          tone="default"
-          title={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}?`}
-          description={`This moves ${project.name} forward to the ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage} stage.`}
-          confirmLabel={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
-          loading={pending}
-          onCancel={() => setConfirmAction(null)}
-          onConfirm={() => void runTransition(nextStage)}
-        />
-      )}
+      {/* Forward Advance has no confirm (OD-UX-1): it commits on a single click + a toast
+          (see the Advance button above). Only the terminal Mark-lost confirms. */}
 
       {/* Mark lost: destructive modal (the only solid destructive fill). */}
       <ConfirmDialog
