@@ -200,6 +200,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 <div className="text-[12px] font-semibold text-muted-foreground">
                   Record the won deal
                 </div>
+                {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
+                    contract value on win, above the capture inputs. */}
+                <div className="text-[13px] text-foreground">
+                  Booking <strong className="font-semibold tabular">{formatCurrency(value)}</strong>{' '}
+                  to contract value on win
+                </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-[12px] font-semibold">
                     Customer contract reference
