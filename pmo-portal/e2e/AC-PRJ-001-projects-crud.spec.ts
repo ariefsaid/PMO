@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, pickComboboxOption, openPipelineCard } from './helpers';
 
 /**
  * AC-PRJ-001  Projects / Opportunities CRUD — real user journeys (binding BDD authoring principle).
@@ -57,10 +57,10 @@ test(
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
     await dialog.getByLabel(/opportunity name/i).fill(dealName);
-    // Client company FK picker (Combobox): open, then pick the first option.
-    await dialog.getByRole('combobox', { name: /client company/i }).click();
-    const clientList = page.getByRole('listbox');
-    await clientList.getByRole('option').first().click();
+    // Client company FK picker (Combobox): wait for the async option list to settle, then pick the
+    // first option (the bare listbox.option.first().click() races the lazy load→ready re-render →
+    // a lost selection that blocks the Create-deal submit; see helpers.pickComboboxOption).
+    await pickComboboxOption(dialog, page, /client company/i, 'first');
     await dialog.getByRole('button', { name: /^Create deal$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
@@ -69,8 +69,9 @@ test(
     await expect(page.getByText(dealName).first()).toBeVisible({ timeout: 15_000 });
 
     // ── Step 2: AC-PRJ-004 — PM edits the header on the canonical detail page ───
-    await page.getByText(dealName).first().click();
-    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
+    // openPipelineCard retries the click until /projects/:id is reached (the card click→navigate
+    // can be swallowed if fired pre-hydration under parallel-suite load).
+    await openPipelineCard(page, dealName);
     await page.getByRole('button', { name: /^Edit$/i }).click();
 
     const editDialog = page.getByRole('dialog');
@@ -88,9 +89,7 @@ test(
     await page.getByRole('button', { name: /sign out/i }).click().catch(() => {});
     await login(page, 'exec@acme.test');
     await page.goto('/sales');
-    await expect(page.getByText(editedName).first()).toBeVisible({ timeout: 15_000 });
-    await page.getByText(editedName).first().click();
-    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
+    await openPipelineCard(page, editedName);
 
     await page.getByRole('button', { name: /Archive/i }).click();
     const archiveDialog = page.getByRole('alertdialog');

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, openPipelineCard } from './helpers';
 
 // AC-SP-207/208/209: index-first Sales Pipeline — Kanban/Table toggle, card → opportunity
 // detail page (record tab + label hydration), and the win/loss SoD panel. Curated cross-stack
@@ -29,9 +29,9 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
   await expect(board).toBeVisible();
 
   // Drill into P011 "Highfield Bridge Survey" (dedicated AC-SP isolation seed row).
-  await page.getByText('Highfield Bridge Survey').first().click();
-  // Model B: the canonical detail route is /projects/:id.
-  await page.waitForURL('**/projects/**');
+  // openPipelineCard retries the click until the canonical /projects/:id route is reached (the
+  // card's click→navigate can be swallowed if fired pre-hydration under parallel-suite load).
+  await openPipelineCard(page, 'Highfield Bridge Survey');
 
   // Detail page: header name + Deal stage journey stepper (the pipeline lens).
   await expect(page.getByRole('heading', { name: /Highfield Bridge Survey/i })).toBeVisible();
@@ -67,8 +67,7 @@ test('AC-SP-208: Mark-won inline SoD panel reveals contract-reference + contract
   await page.getByRole('link', { name: /Sales Pipeline/i }).click();
   await page.waitForURL('**/sales');
 
-  await page.getByText('Highfield Bridge Survey').first().click();
-  await page.waitForURL('**/projects/**');
+  await openPipelineCard(page, 'Highfield Bridge Survey');
 
   // The Mark-won inline SoD panel reveals two required fields (no modal).
   await page.getByRole('button', { name: /Mark won/i }).click();

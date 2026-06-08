@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, pickComboboxOption, openPipelineCard } from './helpers';
 
 /**
  * Model B — ONE canonical project/opportunity record (ADR-0020).
@@ -12,9 +12,18 @@ import { login } from './helpers';
  *                  from the active Projects list (disjoint stage partitions).
  * AC-IXD-PROJ-002  the legacy `/sales/:id` route redirects (replace) to `/projects/:id`.
  *
- * Seed (seed.sql): P001 "Innovate Corp HQ Fit-Out" = Ongoing Project (on-hand → in Projects list,
- * delivery lens); P002 "Northwind ERP Rollout" = Tender Submitted (pipeline → in Pipeline, NOT in
- * Projects list, pipeline lens). pm@acme.test owns them.
+ * Seed (seed.sql):
+ *   • P002 "Northwind ERP Rollout" = Tender Submitted (pipeline → in Pipeline, NOT in Projects list,
+ *     pipeline lens). pm@acme.test owns it.
+ *   • P003 "Acme Internal Platform" = Ongoing Project (on-hand → in Projects list, delivery lens) is
+ *     this spec's READ-ONLY on-hand example. It is NEVER mutated by any spec (AC-TSE-021 / AC-IXD-TS-001
+ *     only reference it as a timesheet picker option — they create timesheet_entries, never touch the
+ *     project row), so this spec's on-hand half is ordering-independent in the full parallel suite.
+ *     P001 was the prior choice but AC-PRJ-006 mutates P001's contract_value, coupling the two specs;
+ *     repointing to P003 decouples them. (A *new* dedicated on-hand row was rejected: the dashboard
+ *     on_hand_margin formula sum(contract_value−spent)/sum(contract_value) means ANY extra on-hand
+ *     project shifts on_hand_value + on_hand_margin + win-rate, so a new row could not be oracle-
+ *     neutral; P003 already exists and is provably unmutated, so it adds zero pgTAP drift.)
  */
 
 test.setTimeout(120_000);
@@ -42,8 +51,11 @@ test(
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
     await dialog.getByLabel(/opportunity name/i).fill(dealName);
-    await dialog.getByRole('combobox', { name: /client company/i }).click();
-    await page.getByRole('listbox').getByRole('option').first().click();
+    // Robust FK pick: wait for the async option list to settle before selecting (the bare
+    // listbox.option.first().click() races the lazy load→ready re-render → a lost selection that
+    // then blocks the Create-deal submit on the "Select a company" validation error — the dominant
+    // create-flow flake under the single-DB parallel suite). See helpers.pickComboboxOption.
+    await pickComboboxOption(dialog, page, /client company/i, 'first');
     await dialog.getByRole('button', { name: /^Create deal$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
@@ -58,8 +70,9 @@ test(
 
     // ── AC-IXD-PROJ-001 (pipeline half): opening the deal from the Pipeline lands on
     //    the canonical /projects/:id detail with the PIPELINE lens. ───────────────
-    await page.getByText(dealName).first().click();
-    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
+    // openPipelineCard retries the click until /projects/:id is reached (the card click→navigate
+    // can be swallowed if fired pre-hydration under parallel-suite load).
+    await openPipelineCard(page, dealName);
     await expect(page).not.toHaveURL(/\/sales\//);
     await expect(page.getByRole('heading', { name: dealName })).toBeVisible({ timeout: 15_000 });
     // pipeline lens markers: the deal-stage journey + the Advance affordance
@@ -73,7 +86,9 @@ test(
     //    list lands on the SAME canonical /projects/:id route, with the DELIVERY lens. ──
     await page.goto('/projects');
     await waitProjectsReady(page);
-    const onHandName = 'Innovate Corp HQ Fit-Out';
+    // P003 "Acme Internal Platform" — a READ-ONLY on-hand seed project no spec mutates (see header
+    // note). Decoupled from P001 (which AC-PRJ-006 mutates) so this half is ordering-independent.
+    const onHandName = 'Acme Internal Platform';
     await projectRow(page, onHandName).getByRole('button', { name: onHandName, exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
     await expect(page.getByRole('heading', { name: onHandName })).toBeVisible({ timeout: 15_000 });

@@ -62,6 +62,18 @@ values
    'authenticated','authenticated','ts-approve-mgr@acme.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  -- AC-IXD-TS-001 ISOLATION (mirrors the P011 / Grace-b1 pattern): a DEDICATED engineer used ONLY by
+  -- the AC-IXD-TS-001 save-then-submit e2e. AC-IXD-TS-001 and AC-TSE-021 BOTH sign in as the shared
+  -- engineer@ and BOTH "step forward to the first empty week", so under the single-DB parallel suite
+  -- they raced on the SAME (engineer@, first-empty-week) timesheet — one's save/submit clobbered the
+  -- other. A dedicated engineer (b3) gives AC-IXD-TS-001 its own per-week timesheet space that no
+  -- other spec touches, so it is ordering-independent. b3 has NO seeded timesheet → its current week
+  -- is empty from first paint.
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000b3',
+   'authenticated','authenticated','ts-colocated-eng@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', '')
 on conflict (id) do nothing;
 
@@ -89,6 +101,9 @@ values
    'email', now(), now(), now()),
   ('ts-approve-mgr@acme.test','00000000-0000-0000-0000-0000000000b2',
    jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b2','email','ts-approve-mgr@acme.test'),
+   'email', now(), now(), now()),
+  ('ts-colocated-eng@acme.test','00000000-0000-0000-0000-0000000000b3',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b3','email','ts-colocated-eng@acme.test'),
    'email', now(), now(), now())
 on conflict (provider_id, provider) do nothing;
 
@@ -102,7 +117,11 @@ insert into profiles (id, company_id, full_name, email, role, title, location, s
   -- AC-911 ISOLATION actors (dedicated; manager_id set below). Distinct names so the e2e can scope
   -- to "Grace TSApprove" in the approval queue without colliding with the shared Dave/Alice fixtures.
   ('00000000-0000-0000-0000-0000000000b1','c0000000-0000-0000-0000-000000000001','Grace TSApprove','ts-approve-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',90),
-  ('00000000-0000-0000-0000-0000000000b2','c0000000-0000-0000-0000-000000000001','Heidi TSManager','ts-approve-mgr@acme.test','Project Manager','Senior PM','HQ','{"PMP"}',80);
+  ('00000000-0000-0000-0000-0000000000b2','c0000000-0000-0000-0000-000000000001','Heidi TSManager','ts-approve-mgr@acme.test','Project Manager','Senior PM','HQ','{"PMP"}',80),
+  -- AC-IXD-TS-001 ISOLATION actor: a dedicated engineer with NO seeded timesheet (its current week is
+  -- empty), used ONLY by AC-IXD-TS-001 so its save→submit journey never collides with AC-TSE-021 /
+  -- AC-911 on the shared engineer@'s weeks. Distinct name for unambiguous queue/grid scoping.
+  ('00000000-0000-0000-0000-0000000000b3','c0000000-0000-0000-0000-000000000001','Ivan TSColocated','ts-colocated-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',88);
 
 -- projects (neutral names; PM = Alice; client = Innovate Corp)
 insert into projects (id, code, name, status, client_id, project_manager_id, contract_value, budget, spent, start_date, end_date) values
@@ -150,6 +169,9 @@ update budget_versions set status = 'Active' where id in (
 insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at) values
   ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Workstations & AV','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Quoted',150000,null,'2026-02-05T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000002','PROC-2026-001','Network Infrastructure','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Ordered',85000,'c0000000-0000-0000-0000-000000000004','2026-01-10T00:00:00Z'),
+  -- PROC-2026-002 (…003): Requested, $22,500. The dedicated row AC-IXD-WP-002 (Approve-confirm)
+  -- transitions Requested→Approved. Read by NO other spec, so the transition is ordering-safe; keep
+  -- it that way (do not point another spec at …003 in a 'Requested' state).
   ('60000000-0000-0000-0000-000000000003','PROC-2026-002','Safety Equipment & PPE','40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4','Requested',22500,null,'2026-01-20T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000004','PROC-2026-003','Survey Software Licenses','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Draft',9800,null,'2026-01-25T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Office Fit-Out Furniture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Paid',320000,'c0000000-0000-0000-0000-000000000005','2025-12-01T00:00:00Z'),

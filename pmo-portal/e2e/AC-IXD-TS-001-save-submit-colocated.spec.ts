@@ -14,14 +14,20 @@ import { login } from './helpers';
 // Convention-invariant: co-located primaries (Save + Submit in one footer zone),
 // explicit post-states (Save → still editable; Submit → read-only Submitted).
 //
-// Seed-collision guard (binding): AC-911 owns the seeded 2026-06-01 Draft sheet;
-// AC-TSE-021 builds on "Acme Internal Platform". This journey steps FORWARD to a
-// fresh empty editable week and builds on "Acme Internal Platform" too — the
-// page is single-user per week, so a distinct future week keeps these disjoint.
+// Seed-collision guard (binding): this journey signs in as a DEDICATED engineer
+// (ts-colocated-eng@acme.test, profile b3 in seed.sql) that NO other spec touches.
+// Previously it shared the engineer@ account with AC-TSE-021 — and both specs
+// "step forward to the first empty week", so under the single-DB parallel suite
+// they raced on the SAME (engineer@, first-empty-week) timesheet (one's save/submit
+// clobbered the other → a nondeterministic-ordering flake). A dedicated engineer
+// gives this journey its own per-week timesheet space, so it is ordering-independent.
+// b3 has no seeded timesheet, so its current week is empty; the journey still steps
+// FORWARD to a fresh week for fidelity (a brand-new, no-draft week).
 
 test.setTimeout(120_000);
 
-const ENGINEER = 'engineer@acme.test';
+// DEDICATED engineer (no seeded timesheet) — see the seed-collision guard above.
+const ENGINEER = 'ts-colocated-eng@acme.test';
 const PROJECT_NAME = 'Acme Internal Platform';
 
 /** Navigate forward week-by-week until the grid is empty (no rows) and editable. */

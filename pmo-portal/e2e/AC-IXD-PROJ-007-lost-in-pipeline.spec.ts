@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, openPipelineCard } from './helpers';
 
 /**
  * AC-IXD-PROJ-007 (Model B, ADR-0020): a Loss Tender (lost) deal is sales history, not delivery
@@ -42,8 +42,9 @@ test(
     const lostCard = lostColumn.getByText(LOST_DEAL).first();
     await lostCard.scrollIntoViewIfNeeded();
     await expect(lostCard).toBeVisible();
-    await lostCard.click();
-    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
+    // openPipelineCard retries the click until /projects/:id is reached (the card click→navigate
+    // can be swallowed if fired pre-hydration under parallel-suite load).
+    await openPipelineCard(page, LOST_DEAL, lostColumn);
     await expect(page.getByRole('heading', { name: LOST_DEAL })).toBeVisible({ timeout: 15_000 });
 
     // ── It is reachable behind the "Lost" TABLE filter ───────────────────────

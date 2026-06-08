@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, openPipelineCard } from './helpers';
 
 // AC-1011 — Win a deal end-to-end (single curated journey).
 //
@@ -28,12 +28,11 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // The Tender-stage deal lives in the Sales Pipeline (not the active Projects list).
   await page.goto('/sales');
   await expect(page.getByLabel('Sales pipeline board')).toBeVisible({ timeout: 15_000 });
-  await page.getByText(DEAL_NAME).first().click();
 
   // Model B: the deal opens at the canonical /projects/:id route with the pipeline lens.
-  // Wait for the drilldown navigation to settle before asserting the lens (the board re-renders
-  // as the pipeline query resolves, so the click→navigate is async).
-  await page.waitForURL(/\/projects\/[0-9a-f-]+/, { timeout: 15_000 });
+  // openPipelineCard retries the click until that route is reached — the board re-renders as the
+  // pipeline query resolves, so a click→navigate fired pre-hydration can be swallowed under load.
+  await openPipelineCard(page, DEAL_NAME);
   await expect(page.getByLabel('Deal stage journey')).toBeVisible({ timeout: 15_000 });
 
   // Mark won → the inline SoD capture (no modal) reveals contract ref + date.
