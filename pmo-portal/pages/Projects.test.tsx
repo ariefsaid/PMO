@@ -116,11 +116,25 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
-  it('filters to Leads via the status SegFilter (AC-403)', async () => {
+  // Model B (ADR-0020): the pre-win "Leads" partition lives in the Sales Pipeline now, so the
+  // Projects status SegFilter no longer offers a "Leads" tab; the surviving filters are
+  // All / My Projects / Ongoing / Completed.
+  it('AC-IXD-PROJ-001a: the status SegFilter does NOT offer a "Leads" tab (leads live in the Pipeline)', () => {
     renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /Leads/ }));
-    expect(screen.getByText('Regional Services Program')).toBeInTheDocument();
-    expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    expect(within(statusTabs).queryByRole('tab', { name: /^Leads$/ })).toBeNull();
+    expect(within(statusTabs).getByRole('tab', { name: /^All$/ })).toBeInTheDocument();
+    expect(within(statusTabs).getByRole('tab', { name: /^My Projects$/ })).toBeInTheDocument();
+    expect(within(statusTabs).getByRole('tab', { name: /^Ongoing$/ })).toBeInTheDocument();
+    expect(within(statusTabs).getByRole('tab', { name: /^Completed$/ })).toBeInTheDocument();
+  });
+
+  it('filters to Ongoing via the status SegFilter (AC-403)', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Ongoing$/ }));
+    // Ongoing = Won/Ongoing/On-Hold delivery work; the pre-win deals are excluded.
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
 
   it('filters by search (AC-404)', async () => {

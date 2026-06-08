@@ -1,6 +1,7 @@
 import { matchPath } from 'react-router-dom';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
+import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
 
 interface ModuleDef {
   module: string;
@@ -78,12 +79,20 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
  * the module-segment crumb carries a safe no-op `onClick` so it still renders as
  * a link. `recordResolved` defaults to false (still loading) so callers that
  * don't pass it keep the prior cold-deep-link "Loading…" behavior.
+ *
+ * Model B (ADR-0020, AC-IXD-PROJ-005): `/projects/:id` is the ONE canonical detail route for
+ * every project/opportunity, so its breadcrumb ancestry follows the record's STAGE rather than
+ * the URL prefix — a `pipeline | lost` record reads `Sales Pipeline > <name>` (and links back
+ * to `/sales`), an `onHand | internal` record reads `Projects > <name>`. The caller resolves
+ * the record's status group from the cached lists (`recordStatusForPath`) and threads it in via
+ * `recordStatusGroup`; when omitted it defaults to the module's own ancestry (back-compat).
  */
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
   navigate?: (path: string) => void,
   recordResolved = false,
+  recordStatusGroup?: ProjectStatusGroup,
 ): BreadcrumbPart[] {
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
@@ -102,8 +111,16 @@ export function breadcrumbForPath(
         // resolved-but-absent (bad id / deleted) → "Not found", never a
         // perpetual "Loading…" once the error card has rendered (item I).
         const recordCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+        // Model B: a project detail route's parent crumb is the record's STAGE home, not the
+        // module the URL happens to sit under. A pipeline | lost record's home is the Sales
+        // Pipeline; otherwise the active Projects list.
+        const isPipelineStage =
+          m.module === 'projects' &&
+          (recordStatusGroup === 'pipeline' || recordStatusGroup === 'lost');
+        const parentLabel = isPipelineStage ? 'Sales Pipeline' : m.label;
+        const parentPath = isPipelineStage ? '/sales' : m.path;
         return [
-          { label: m.label, onClick: () => navigate?.(m.path) },
+          { label: parentLabel, onClick: () => navigate?.(parentPath) },
           { label: recordCrumb },
         ];
       }
@@ -125,6 +142,52 @@ export interface RecordLists {
   procurements?: { id: string; title: string }[];
 }
 
+/** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
+export interface RecordStatusLists {
+  /** The active Projects partition (on-hand ∪ internal). */
+  projects?: { id: string; status: string }[];
+  /** The Sales Pipeline partition (pre-win + lost) — wins the lookup when ids overlap. */
+  opportunities?: { id: string; status: string }[];
+}
+
+/** Extract a `/projects/:id` id (dropping any trailing `/budget`), else undefined. */
+function projectIdFromPath(pathname: string): string | undefined {
+  if (!pathname.startsWith('/projects/')) return undefined;
+  return pathname.slice('/projects/'.length).split('/')[0] || undefined;
+}
+
+/**
+ * Resolves a `/projects/:id` route's status from the cached lists (AC-IXD-PROJ-005). The
+ * pipeline (opportunities) list takes precedence: under Model B the active projects list no
+ * longer holds pre-win/lost rows, so a pipeline record is found ONLY in the pipeline cache, and
+ * preferring it keeps the stage correct even during a brief post-win cache overlap. Returns the
+ * raw status string (the caller maps it through `projectStatusGroup`), or undefined when the
+ * path is not a project detail route or the id is not yet cached.
+ */
+export function recordStatusForPath(
+  pathname: string,
+  lists: RecordStatusLists,
+): string | undefined {
+  const id = projectIdFromPath(pathname);
+  if (!id) return undefined;
+  const fromPipeline = lists.opportunities?.find((o) => o.id === id)?.status;
+  if (fromPipeline) return fromPipeline;
+  return lists.projects?.find((p) => p.id === id)?.status;
+}
+
+/**
+ * The `ProjectStatusGroup` for a `/projects/:id` route resolved from the cached lists, or
+ * undefined when unresolved. A thin convenience over `recordStatusForPath` + `projectStatusGroup`
+ * for App.tsx to thread into `breadcrumbForPath` (Model B, AC-IXD-PROJ-005).
+ */
+export function recordStatusGroupForPath(
+  pathname: string,
+  lists: RecordStatusLists,
+): ProjectStatusGroup | undefined {
+  const status = recordStatusForPath(pathname, lists);
+  return status ? projectStatusGroup(status as never) : undefined;
+}
+
 /**
  * Resolves a detail route's record name from the cached index lists (the same
  * lists the ⌘K palette indexes) — the breadcrumb's `recordLabel` source. Pure:
@@ -143,7 +206,15 @@ export function recordLabelForPath(
   };
 
   const projectId = idFrom('/projects');
-  if (projectId) return lists.projects?.find((p) => p.id === projectId)?.name;
+  if (projectId) {
+    // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
+    // internal record is in the active projects list; a pre-win / lost record is in the
+    // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
+    return (
+      lists.projects?.find((p) => p.id === projectId)?.name ??
+      lists.opportunities?.find((o) => o.id === projectId)?.name
+    );
+  }
 
   const salesId = idFrom('/sales');
   if (salesId) return lists.opportunities?.find((o) => o.id === salesId)?.name;

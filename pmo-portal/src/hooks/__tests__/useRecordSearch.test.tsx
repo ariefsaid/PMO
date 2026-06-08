@@ -57,7 +57,10 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
-  it('indexes pipeline opportunities → /sales/:id and procurements → /procurement/:id', () => {
+  // Model B (ADR-0020): a pipeline record drills to the ONE canonical route /projects/:id
+  // (was /sales/:id) — the deliberate UX change; the goal (open the record's detail page)
+  // is preserved.
+  it('indexes pipeline opportunities → /projects/:id and procurements → /procurement/:id', () => {
     state.pipeline = {
       data: { stages: [], projects: [{ id: 'o1', name: 'Acme Tender' }] },
       isPending: false,
@@ -73,7 +76,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     const opp = result.current.records.find((r) => r.title === 'Acme Tender');
     expect(opp?.sub).toBe('Sales Pipeline');
     opp!.run();
-    expect(navigate).toHaveBeenCalledWith('/sales/o1');
+    expect(navigate).toHaveBeenCalledWith('/projects/o1');
 
     const pr = result.current.records.find((r) => r.title === 'Crane hire');
     expect(pr?.sub).toBe('Procurement');

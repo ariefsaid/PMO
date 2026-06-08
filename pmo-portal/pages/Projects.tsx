@@ -34,18 +34,16 @@ import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 
-/** The IA-3 status group SegFilter (legacy "smart tabs", re-skinned). */
-type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Leads' | 'Completed';
-const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Leads', 'Completed'];
+/**
+ * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
+ * Sales Pipeline now (listProjects is scoped to on-hand ∪ internal), so the Projects list has
+ * no leads to filter — the "Leads" tab is removed. Surviving filters: All / My Projects /
+ * Ongoing / Completed.
+ */
+type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed';
+const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed'];
 
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
-const LEADS = [
-  ProjectStatusEnum.Leads,
-  ProjectStatusEnum.PQSubmitted,
-  ProjectStatusEnum.QuotationSubmitted,
-  ProjectStatusEnum.TenderSubmitted,
-  ProjectStatusEnum.Negotiation,
-] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 /** Utilization tone: ≤55 neutral(primary) · 55–100 warning · >100 destructive. */
@@ -85,8 +83,6 @@ const Projects: React.FC = () => {
             return p.project_manager_id === currentUser?.id;
           case 'Ongoing':
             return ONGOING.includes(p.status as string);
-          case 'Leads':
-            return LEADS.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
           default:
@@ -407,8 +403,8 @@ const Header: React.FC<HeaderProps> = ({ canCreate, onNew }) => (
     <div>
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">Projects</h1>
       <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Track every project and lead from pipeline through delivery. Open one to drill into its
-        budget, procurement, and detail.
+        Track your active and completed projects. Open one to drill into its budget, procurement,
+        and detail. Pre-win deals live in the Sales Pipeline.
       </p>
     </div>
     {canCreate && onNew && (

@@ -12,9 +12,12 @@ import { signIn } from './helpers';
 //
 // NOTE (feat/ui-polish I7): the in-page BackBar ("Back to Sales Pipeline" button) was
 // intentionally removed on the success render — the top-bar breadcrumb owns wayfinding.
-// AC-SP-207 now asserts that the breadcrumb link "Sales Pipeline" navigates back to /sales
-// instead of the removed button.
-test('AC-SP-207: opens an opportunity from the Kanban board into its detail page and tab', async ({ page }) => {
+// AC-SP-207 asserts that the breadcrumb link "Sales Pipeline" navigates back to /sales.
+//
+// Model B (ADR-0020): a pipeline deal opens at the ONE canonical detail route /projects/:id
+// (was /sales/:id), with the stage-adaptive PIPELINE lens; its breadcrumb ancestry follows the
+// stage, so a pre-win deal still reads "Sales Pipeline > <name>" and the crumb links to /sales.
+test('AC-SP-207: opens a deal from the Kanban board into its canonical detail page (pipeline lens)', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
 
   // Navigate to the Sales Pipeline via the rail NavLink.
@@ -27,9 +30,10 @@ test('AC-SP-207: opens an opportunity from the Kanban board into its detail page
 
   // Drill into P011 "Highfield Bridge Survey" (dedicated AC-SP isolation seed row).
   await page.getByText('Highfield Bridge Survey').first().click();
-  await page.waitForURL('**/sales/**');
+  // Model B: the canonical detail route is /projects/:id.
+  await page.waitForURL('**/projects/**');
 
-  // Detail page: header name + Deal stage journey stepper.
+  // Detail page: header name + Deal stage journey stepper (the pipeline lens).
   await expect(page.getByRole('heading', { name: /Highfield Bridge Survey/i })).toBeVisible();
   await expect(page.getByLabel('Deal stage journey')).toBeVisible();
 
@@ -64,7 +68,7 @@ test('AC-SP-208: Mark-won inline SoD panel reveals contract-reference + contract
   await page.waitForURL('**/sales');
 
   await page.getByText('Highfield Bridge Survey').first().click();
-  await page.waitForURL('**/sales/**');
+  await page.waitForURL('**/projects/**');
 
   // The Mark-won inline SoD panel reveals two required fields (no modal).
   await page.getByRole('button', { name: /Mark won/i }).click();

@@ -179,11 +179,17 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
 // ── AC-PRJ-006 contract_value SoD (ADR-0019) ─────────────────────────────────
 describe('ProjectDetailHeader — contract_value SoD treatment', () => {
-  it('AC-PRJ-006: PRE-WIN, a PM can edit the contract value (no lock)', async () => {
+  // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the PipelineLens,
+  // NOT the delivery header — so the delivery contract-value SoD editor (and the StatTiles
+  // spend summary) are not mounted on a pre-win record. The deal's value is captured at
+  // create-time and surfaced as the PipelineLens "Value" stat; the on-hand SoD lock/edit
+  // distinction (the goal-oracle) is asserted on the on-hand record below.
+  it('AC-IXD-PROJ-004: PRE-WIN, the delivery contract-value editor + spend summary are NOT mounted', () => {
     renderHeader('Project Manager', preWin);
-    // The editable value control is reachable for a delivery role pre-win.
-    expect(screen.getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+    // the delivery StatTiles strip (Contract / Committed / Actual / margin / Spend) is gone too
+    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
   });
 
   it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', () => {

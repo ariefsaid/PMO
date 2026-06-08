@@ -7,12 +7,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockSelect, mockFrom, mockRpc } = vi.hoisted(() => {
+const { mockEq, mockIn, mockSelect, mockFrom, mockRpc } = vi.hoisted(() => {
   const mockEq = vi.fn();
+  const mockIn = vi.fn();
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
-  return { mockEq, mockSelect, mockFrom, mockRpc };
+  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
@@ -25,6 +26,7 @@ import {
   deleteProject,
   setProjectContractValue,
 } from './projects';
+import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { AppError } from '@/src/lib/appError';
 
 /** Wire the builder chain and set what it resolves to. */
@@ -32,11 +34,13 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
     select: mockSelect,
     eq: mockEq,
+    in: mockIn,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
+  mockIn.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
@@ -91,6 +95,7 @@ beforeEach(() => {
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockIn.mockReset();
   mockRpc.mockReset();
 });
 
@@ -123,13 +128,44 @@ describe('listProjects', () => {
     await expect(listProjects()).rejects.toThrow('boom');
   });
 
+  // AC-IXD-PROJ-003 (Model B, ADR-0020): the ACTIVE Projects list is the on-hand ∪ internal
+  // partition. A pre-win pipeline status (Tender Submitted) is EXCLUDED — it lives in the
+  // Sales Pipeline; an Ongoing Project is INCLUDED. The default scope is a single
+  // `.in('status', [...ON_HAND, ...INTERNAL])` PostgREST filter — no status .eq().
+  it('AC-IXD-PROJ-003: default-scopes to the on-hand ∪ internal partition via .in("status", [...])', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects();
+    expect(mockFrom).toHaveBeenCalledWith('projects');
+    // exactly one status .in() filter with the union of on-hand + internal statuses
+    const inStatusCalls = mockIn.mock.calls.filter(([k]) => k === 'status');
+    expect(inStatusCalls).toHaveLength(1);
+    const scoped = inStatusCalls[0][1] as string[];
+    const expected = [...ON_HAND_STATUSES, ...INTERNAL_STATUSES];
+    expect([...scoped].sort()).toEqual([...expected].sort());
+    // a Tender Submitted (pipeline) status is NOT in the active scope; Ongoing Project IS.
+    expect(scoped).not.toContain('Tender Submitted');
+    expect(scoped).not.toContain('Leads');
+    expect(scoped).not.toContain('Loss Tender');
+    expect(scoped).toContain('Ongoing Project');
+    expect(scoped).toContain('Internal Project');
+  });
+
+  it('AC-IXD-PROJ-003: an explicit status override wins over the default partition (e.g. a Lost filter)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ status: 'Loss Tender' });
+    // override → a precise status .eq(), and NOT the default partition .in()
+    expect(mockEq).toHaveBeenCalledWith('status', 'Loss Tender');
+    const inStatusCalls = mockIn.mock.calls.filter(([k]) => k === 'status');
+    expect(inStatusCalls).toHaveLength(0);
+  });
+
   it('calls .eq("status", …) when status param is provided (OD-3)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects({ status: 'Ongoing Project' });
     expect(mockEq).toHaveBeenCalledWith('status', 'Ongoing Project');
   });
 
-  it('does NOT call .eq("status", …) when status param is absent', async () => {
+  it('does NOT call .eq("status", …) when status param is absent (the default uses .in not .eq)', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects();
     const statusCalls = mockEq.mock.calls.filter(([k]) => k === 'status');

@@ -33,8 +33,13 @@ function projectRow(page: Page, name: string) {
 
 // ── AC-PRJ-003 / AC-PRJ-004 / AC-PRJ-005 — full delivery CRUD journey ──────────
 
+// Model B (ADR-0020): a created deal originates as a Leads opportunity → it lives in the Sales
+// Pipeline, NOT the active Projects list. The PM creates it (from the Projects "New deal" CTA),
+// finds it in the Pipeline, opens it at the canonical /projects/:id route (pipeline lens), edits
+// its header there, then an Exec archives it; goal-oracle: created → in the Pipeline, updated
+// after edit, gone from the Pipeline after archive.
 test(
-  'AC-PRJ-003 + AC-PRJ-004 + AC-PRJ-005: PM creates a deal, edits its header, then Exec archives it — goal oracle: row present after create, updated after edit, gone after archive',
+  'AC-PRJ-003 + AC-PRJ-004 + AC-PRJ-005: PM creates a deal (Leads → in the Pipeline), edits its header on the canonical detail page, then Exec archives it',
   async ({ page }) => {
     const runId = Date.now();
     const dealName = `E2E-Deal-${runId}`;
@@ -57,14 +62,14 @@ test(
     const clientList = page.getByRole('listbox');
     await clientList.getByRole('option').first().click();
     await dialog.getByRole('button', { name: /^Create deal$/i }).click();
-
-    // GOAL ORACLE: modal closes; the new deal IS in the index.
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-    const createdRow = projectRow(page, dealName);
-    await expect(createdRow).toBeVisible({ timeout: 15_000 });
 
-    // ── Step 2: AC-PRJ-004 — PM edits the header on the detail page ────────────
-    await createdRow.getByRole('button', { name: dealName, exact: true }).click();
+    // GOAL ORACLE: the new Leads deal is in the Sales Pipeline (not the active Projects list).
+    await page.goto('/sales');
+    await expect(page.getByText(dealName).first()).toBeVisible({ timeout: 15_000 });
+
+    // ── Step 2: AC-PRJ-004 — PM edits the header on the canonical detail page ───
+    await page.getByText(dealName).first().click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
     await page.getByRole('button', { name: /^Edit$/i }).click();
 
@@ -79,15 +84,12 @@ test(
     await expect(editDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('heading', { name: editedName })).toBeVisible({ timeout: 15_000 });
 
-    // ── Step 3: AC-PRJ-005 — Executive archives the project ────────────────────
+    // ── Step 3: AC-PRJ-005 — Executive archives the deal ───────────────────────
     await page.getByRole('button', { name: /sign out/i }).click().catch(() => {});
     await login(page, 'exec@acme.test');
-    await page.goto('/projects');
-    await waitProjectsReady(page);
-
-    const exRow = projectRow(page, editedName);
-    await expect(exRow).toBeVisible({ timeout: 15_000 });
-    await exRow.getByRole('button', { name: editedName, exact: true }).click();
+    await page.goto('/sales');
+    await expect(page.getByText(editedName).first()).toBeVisible({ timeout: 15_000 });
+    await page.getByText(editedName).first().click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
 
     await page.getByRole('button', { name: /Archive/i }).click();
@@ -95,10 +97,9 @@ test(
     await expect(archiveDialog).toBeVisible({ timeout: 8_000 });
     await archiveDialog.getByRole('button', { name: /archive project/i }).click();
 
-    // GOAL ORACLE: back on the index, the archived project is gone from the default list.
-    await page.goto('/projects');
-    await waitProjectsReady(page);
-    await expect(projectRow(page, editedName)).not.toBeVisible({ timeout: 15_000 });
+    // GOAL ORACLE: back in the Pipeline, the archived deal is gone from the default list.
+    await page.goto('/sales');
+    await expect(page.getByText(editedName)).toHaveCount(0, { timeout: 15_000 });
   },
 );
 

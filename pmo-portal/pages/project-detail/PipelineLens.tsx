@@ -1,24 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  PageHeader,
   Card,
   CardHead,
   CardPad,
   Button,
-  StatusPill,
+  StatTiles,
   LifecycleStepper,
   GateNotice,
-  ListState,
   Icon,
   ConfirmDialog,
   useToast,
-  type PageStat,
+  type StatTile,
 } from '@/src/components/ui';
-import { BackBar } from '@/src/components/shell';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
-import { useOpportunity } from '@/src/lib/db/opportunity';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import {
@@ -29,11 +24,10 @@ import {
 } from '@/src/lib/db/projectTransitions';
 import {
   weightedValue,
-  pillVariantForStatus,
   formatPercent,
   dealJourneySteps,
-  SALES_COLUMNS,
-} from '../components/salesPipeline';
+} from '../../components/salesPipeline';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const NEXT_PIPELINE_LABEL: Record<string, string> = {
   Leads: 'Pre-Qual',
@@ -42,31 +36,36 @@ const NEXT_PIPELINE_LABEL: Record<string, string> = {
   'Tender Submitted': 'Negotiation',
 };
 
-function stageDot(status: string): string {
-  const col = SALES_COLUMNS.find((c) => c.statuses.includes(status));
-  return col?.dotColor ?? 'hsl(var(--muted-foreground))';
+export interface PipelineLensProps {
+  /** The canonical project/opportunity row (the active detail record). */
+  project: ProjectWithRefs;
 }
 
-const OpportunityDetail: React.FC = () => {
-  const { opportunityId = '' } = useParams<{ opportunityId: string }>();
-  const navigate = useNavigate();
+/**
+ * The pre-win (pipeline | lost) lens of the canonical `/projects/:id` detail page (Model B,
+ * ADR-0020). Extracted from the retired `OpportunityDetail` route body so the future Model-A
+ * `opportunities` detail page is a lift, not a rewrite. It reads the live status + money from
+ * the passed-in project row and enriches win-probability / weighted from the `useSalesPipeline`
+ * cache, and drives the deal forward through `transitionProject` (the RPC contract is preserved
+ * byte-for-byte). The shared `ProjectDetailHeader` (icon + name + StatusPill + meta) renders
+ * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
+ * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
+ */
+const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
-  const { data: opp, isPending: oppPending } = useOpportunity(opportunityId);
+  const { data: pipeline } = useSalesPipeline();
 
-  // The index cache carries status/value/win_probability; the DAL adds the
-  // richer detail fields. Prefer the cached pipeline row for the live status.
-  const cached = pipeline?.projects.find((p) => p.id === opportunityId);
-  const name = opp?.name ?? cached?.name ?? '';
-  const status = (cached?.status ?? opp?.status) as string | undefined;
+  const liveStatus = project.status as string;
+  // The pipeline projection carries win_probability; the project row carries the value.
+  const cached = pipeline?.projects.find((p) => p.id === project.id);
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Confirm-before-write (owner rule): forward Advance => default popover,
-  // Mark lost => destructive modal. Mark won keeps its inline SoD panel.
+  // Confirm-before-write: forward Advance => default popover, Mark lost => destructive modal.
+  // Mark won keeps its inline SoD panel (the consequential capture IS the confirm).
   const [confirmAction, setConfirmAction] = useState<'advance' | 'lost' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [contractRef, setContractRef] = useState('');
@@ -75,42 +74,15 @@ const OpportunityDetail: React.FC = () => {
   const [dateError, setDateError] = useState<string | null>(null);
 
   const legalTargets = useMemo(
-    () => (status ? (LEGAL_PROJECT_TRANSITIONS[status] ?? []) : []),
-    [status],
+    () => LEGAL_PROJECT_TRANSITIONS[liveStatus] ?? [],
+    [liveStatus],
   );
   const canWin = legalTargets.includes('Won, Pending KoM');
   const canLose = legalTargets.includes('Loss Tender');
   const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
-  const isTerminal = status ? projectStatusGroup(status as never) !== 'pipeline' : false;
+  const isTerminal = projectStatusGroup(liveStatus as never) !== 'pipeline';
 
-  // Back to the Sales Pipeline index — a plain navigate, no tab (AC-NAV-007).
-  const goBack = () => navigate('/sales');
-
-  // ── States ─────────────────────────────────────────────────────────────────
-  if (pipelinePending && oppPending) {
-    return (
-      <>
-        <BackBar label="Sales Pipeline" onBack={goBack} />
-        <ListState variant="loading" rows={6} />
-      </>
-    );
-  }
-  if (!name) {
-    return (
-      <>
-        <BackBar label="Sales Pipeline" onBack={goBack} />
-        <ListState
-          variant="error"
-          icon="inbox"
-          title="Opportunity not found"
-          sub="This deal does not exist or you don't have access to it."
-        />
-      </>
-    );
-  }
-
-  const liveStatus = status as string;
-  const value = opp?.contract_value ?? cached?.contract_value ?? 0;
+  const value = project.contract_value ?? cached?.contract_value ?? 0;
   const winProb = cached?.win_probability ?? 0;
   const weighted = cached ? weightedValue(cached) : 0;
 
@@ -122,11 +94,12 @@ const OpportunityDetail: React.FC = () => {
     setPending(true);
     try {
       // Preserve the RPC contract byte-for-byte: a stage advance / loss passes
-      // exactly two args (no opts), only the Won path carries the SoD opts.
-      if (opts) await transitionProject(opportunityId, to as never, opts);
-      else await transitionProject(opportunityId, to as never);
+      // exactly two args (no opts); only the Won path carries the SoD opts.
+      if (opts) await transitionProject(project.id, to as never, opts);
+      else await transitionProject(project.id, to as never);
       await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
-      await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, opportunityId] });
+      await queryClient.invalidateQueries({ queryKey: ['projects', currentUser?.org_id] });
+      await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, project.id] });
       setShowWonPanel(false);
       setContractRef('');
       setContractDate('');
@@ -154,39 +127,20 @@ const OpportunityDetail: React.FC = () => {
     });
   };
 
-  const meta = [
-    opp?.client?.name ?? cached?.client_name ?? null,
-    opp?.code ? `· ${opp.code}` : null,
-    opp?.customer_contract_ref ? `· ${opp.customer_contract_ref}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const stats: PageStat[] = [
+  const stats: StatTile[] = [
     { label: 'Value', value: formatCurrency(value) },
     { label: 'Win probability', value: formatPercent(winProb) },
     { label: 'Weighted', value: formatCurrency(weighted) },
-    { label: 'Owner', value: opp?.pm?.full_name ?? 'Not set' },
+    { label: 'Owner', value: project.pm?.full_name ?? 'Not set' },
     {
       label: 'Decision',
-      value: opp?.decided_at ? new Date(opp.decided_at).toLocaleDateString() : 'Pending',
+      value: project.decided_at ? new Date(project.decided_at).toLocaleDateString() : 'Pending',
     },
   ];
 
   return (
     <div>
-      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
-          (Sales Pipeline > record) owns wayfinding. BackBar is kept on the
-          loading / not-found branches above, where there is no in-page header
-          to orient from and the crumb shows only the raw id. */}
-      <PageHeader
-        icon={(name.trim().charAt(0) || '•').toUpperCase()}
-        iconColor={stageDot(liveStatus)}
-        name={name}
-        status={<StatusPill variant={pillVariantForStatus(liveStatus as never)}>{liveStatus}</StatusPill>}
-        meta={meta || undefined}
-        stats={stats}
-      />
+      <StatTiles tiles={stats} columns={5} className="mb-4" />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
@@ -213,11 +167,9 @@ const OpportunityDetail: React.FC = () => {
               <GateNotice variant="ready">Ready to advance.</GateNotice>
             )}
 
-            {/* I4 action hierarchy: exactly ONE solid blue (Advance — the
-                primary path); Mark won / Mark lost are quiet outlines
-                distinguished only by a leading status dot (Tinted-Status,
-                color-not-only). The solid destructive fill appears ONLY inside
-                the O3 confirm modal. */}
+            {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
+                / Mark lost are quiet outlines distinguished by a leading status dot
+                (color-not-only). The solid destructive fill appears ONLY inside the confirm. */}
             {!isTerminal && (
               <div className="flex flex-wrap gap-2">
                 {nextStage && (
@@ -298,11 +250,7 @@ const OpportunityDetail: React.FC = () => {
                   <Button variant="primary" size="sm" loading={pending} onClick={submitWon}>
                     Confirm won
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowWonPanel(false)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setShowWonPanel(false)}>
                     Cancel
                   </Button>
                 </div>
@@ -319,13 +267,13 @@ const OpportunityDetail: React.FC = () => {
         </Card>
       </div>
 
-      {/* O1 — forward Advance: lightweight default-tone confirm */}
+      {/* Forward Advance: lightweight default-tone confirm. */}
       {nextStage && (
         <ConfirmDialog
           open={confirmAction === 'advance'}
           tone="default"
           title={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}?`}
-          description={`This moves ${name} forward to the ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage} stage.`}
+          description={`This moves ${project.name} forward to the ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage} stage.`}
           confirmLabel={`Advance to ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
           loading={pending}
           onCancel={() => setConfirmAction(null)}
@@ -333,12 +281,12 @@ const OpportunityDetail: React.FC = () => {
         />
       )}
 
-      {/* O3 — Mark lost: destructive modal (the only solid destructive fill) */}
+      {/* Mark lost: destructive modal (the only solid destructive fill). */}
       <ConfirmDialog
         open={confirmAction === 'lost'}
         tone="destructive"
         title="Mark deal as lost"
-        description={`This moves ${name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
+        description={`This moves ${project.name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
         confirmLabel="Mark lost"
         loading={pending}
         onCancel={() => setConfirmAction(null)}
@@ -348,4 +296,4 @@ const OpportunityDetail: React.FC = () => {
   );
 };
 
-export default OpportunityDetail;
+export default PipelineLens;
