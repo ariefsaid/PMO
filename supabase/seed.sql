@@ -160,11 +160,17 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
   -- role (Finance) clicks "Request Vendor Quotes" (Approved→Vendor Quoted) on a SINGLE click + toast.
   -- requested_by=a2 (pm) so a non-requester Finance user owns the routine forward step (no SoD bearing).
   -- Distinct id so it never collides with the AC-816 / AC-CONFIRM-001 fixtures in a parallel run.
-  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Routine-Write Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Approved',45000,null,'2026-02-22T00:00:00Z'),
+  -- PROJECT = P010 (…003, pipeline/PQ-Submitted), deliberately NOT an on-hand worked-example project:
+  -- the dashboard's on-hand committed-spend aggregate (0009 on_hand → Ordered..Paid) only sums
+  -- procurements on on-hand projects, so an Approved row here cannot drift AC-1100/AC-1105 (0034/0039).
+  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Routine-Write Fixture','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Approved',45000,null,'2026-02-22T00:00:00Z'),
   -- Dedicated Vendor-Invoiced fixture for AC-IXD-WP-002 (financial confirm restates the amount).
   -- finance@ (a3) clicks "Mark as Paid" → a confirm naming $30,000 on the project + requester.
   -- requested_by=a2 (pm), approver=a1 (exec) — distinct from a3 so SoD-b (payer≠approver) passes.
-  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z');
+  -- PROJECT = P010 (…003, pipeline) for the SAME reason: 'Vendor Invoiced' IS in the on-hand
+  -- committed set, so on an on-hand project this $30,000 would shift on_hand_margin (the regression
+  -- the gate caught). Hosting it on a pipeline project keeps the 0034/0039 on-hand oracles true.
+  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z');
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
   ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
   ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000);
