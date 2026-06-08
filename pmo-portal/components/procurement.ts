@@ -1,5 +1,6 @@
 import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
  * IA-3 procurement lifecycle model (master plan §4.2; Wave-1 Area-5 tasks 22-24).
@@ -157,6 +158,67 @@ export function stageLabelForStatus(status: ProcurementStatus): string {
   return STATUS_LABEL[s] ?? s;
 }
 
+// ---------------------------------------------------------------------------
+// AC-IXD-PROC-004 — the selected quotation that backs the "Selected quote" tile
+// + the QuotationsSection row "Selected" pill (PROC-004 re-review).
+// ---------------------------------------------------------------------------
+
+type QuotationRow = Tables<'procurement_quotations'>;
+
+/** The synced header fields the select-quote RPC writes — used as the flag-drift fallback. */
+interface SelectedQuoteHeader {
+  total_value: number | string | null;
+  vendor_id: string | null;
+}
+
+/**
+ * The chosen quotation for a PR — the single source of truth the "Selected quote" StatTile and
+ * the QuotationsSection row marker both read, so the selection binds from the `Quote Selected`
+ * state onward through Paid (AC-IXD-PROC-004), not only at Ordered/Paid.
+ *
+ * Resolution order:
+ *  1. The quotation flagged `is_selected` (set by the `select_procurement_quote` RPC — the canonical
+ *     signal). This is the normal path: selecting a quote sets the flag + syncs the header in one txn.
+ *  2. FLAG-DRIFT FALLBACK — only when the PR is at-or-past `Quote Selected` (a quote IS committed by
+ *     definition of the stage): the quotation whose amount + vendor match the synced header
+ *     (`total_value` / `vendor_id`). This keeps the tile bound even if the flag is somehow absent
+ *     (e.g. a legacy/seed/aborted-flow row), instead of silently reverting to "Pending".
+ *  3. If at-or-past `Quote Selected` and a single quotation exists, that one.
+ *
+ * Returns `undefined` before `Quote Selected` (no quote committed yet) or when no quotation matches —
+ * so the tile correctly stays "Pending" at `Vendor Quoted`.
+ */
+export function selectedQuotation(
+  status: ProcurementStatus,
+  quotations: QuotationRow[],
+  header: SelectedQuoteHeader,
+): QuotationRow | undefined {
+  // 1. The flagged quote always wins, at any stage (the RPC's canonical signal).
+  const flagged = quotations.find((q) => q.is_selected);
+  if (flagged) return flagged;
+
+  // Below the flag-drift fallback only applies once a quote is genuinely committed —
+  // i.e. the PR has reached the VQ node's selected sub-state or beyond (Quote Selected → Paid).
+  // `Vendor Quoted` (idx 2 but not selected) and earlier carry NO committed quote.
+  const committed =
+    status !== 'Vendor Quoted' && stageIndexForStatus(status) >= stageIndexForStatus('Quote Selected' as ProcurementStatus);
+  if (!committed) return undefined;
+
+  // 2. Match the synced header (amount + vendor) the RPC wrote from the selected quote.
+  const total = header.total_value == null ? null : Number(header.total_value);
+  if (total != null) {
+    const byHeader = quotations.find(
+      (q) =>
+        Number(q.total_amount) === total &&
+        (header.vendor_id == null || q.vendor_id === header.vendor_id),
+    );
+    if (byHeader) return byHeader;
+  }
+
+  // 3. A single quotation on a committed PR is the selected one by elimination.
+  return quotations.length === 1 ? quotations[0] : undefined;
+}
+
 /** The reached doc references, keyed by stage, read from the procurement record. */
 export interface DocRefs {
   pr_number?: string | null;
@@ -207,8 +269,12 @@ export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): Lifec
 
   return PR_STAGES.map((st, i) => {
     const state: LifecycleStep['state'] = i < idx ? 'done' : i === idx ? 'current' : 'upcoming';
+    // PROC-001: the ACTIVE node names the SAME canonical state the badge + toast show. This only
+    // diverges for 'Quote Selected', which (PROC-003) shares the macro VQ node but whose honest
+    // status label is "Quote Selected" — so the current node reads that instead of "Vendor Quote".
+    const label = state === 'current' ? stageLabelForStatus(status) : st.full;
     return {
-      label: st.full,
+      label,
       state,
       ref: i <= idx ? (refByStage[i] ?? undefined) : undefined,
     };

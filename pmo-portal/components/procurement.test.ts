@@ -5,6 +5,7 @@ import {
   lifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
+  selectedQuotation,
   openPR,
 } from './procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -91,6 +92,24 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
     ]);
   });
 
+  it('PROC-001: at Quote Selected the current (VQ) node is labelled "Quote Selected" — ONE noun with the badge/toast', () => {
+    // PROC-003 keeps the selection on the VQ node (no PO pre-jump); PROC-001 aligns the
+    // user-facing noun, so the ACTIVE node names the same state the badge + toast show
+    // ("Quote Selected"), not the generic macro-node name "Vendor Quote".
+    const steps = lifecycleSteps('Quote Selected' as ProcurementStatus);
+    const current = steps.find((s) => s.state === 'current')!;
+    expect(current.label).toBe('Quote Selected');
+    // The earlier (done) VQ-adjacent nodes keep their canonical names; only the active node renames.
+    expect(steps[0].label).toBe('Purchase Request');
+    expect(steps[1].label).toBe('Approved');
+  });
+
+  it('PROC-001: at Vendor Quoted the current node keeps its canonical "Vendor Quote" label', () => {
+    const steps = lifecycleSteps('Vendor Quoted' as ProcurementStatus);
+    const current = steps.find((s) => s.state === 'current')!;
+    expect(current.label).toBe('Vendor Quote');
+  });
+
   it('PROC-002: an Approved PR sits at the Approved node (later than Requested)', () => {
     const requested = lifecycleSteps('Requested' as ProcurementStatus);
     const approved = lifecycleSteps('Approved' as ProcurementStatus);
@@ -123,6 +142,76 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
     expect(steps[2].ref).toBe('VQ-2606040002'); // VQ
     expect(steps[3].ref).toBe('PO-2606040003'); // PO
     expect(steps[4].ref).toBeUndefined(); // GR not yet reached
+  });
+});
+
+describe('procurement helper — selectedQuotation (PROC-004 selected-quote binding)', () => {
+  // The chosen quotation that backs the "Selected quote" tile + the row "Selected"
+  // pill. Must bind from the `Quote Selected` state onward through Paid — not only
+  // at Ordered/Paid — so the operator sees which quote (and amount) they committed
+  // to immediately after selecting it.
+  const q = (over: Partial<{ id: string; is_selected: boolean; total_amount: number; vendor_id: string | null }>) => ({
+    id: 'q-x',
+    procurement_id: 'proc-1',
+    vendor_id: null,
+    total_amount: 0,
+    vq_number: null,
+    is_selected: false,
+    reference: null,
+    received_date: '2026-01-01',
+    file_url: null,
+    org_id: 'org-1',
+    created_at: '2026-01-01T00:00:00Z',
+    ...over,
+  });
+
+  it('PROC-004: prefers the quotation flagged is_selected (set by the select-quote RPC)', () => {
+    const chosen = q({ id: 'q-sel', is_selected: true, total_amount: 148000 });
+    const other = q({ id: 'q-other', is_selected: false, total_amount: 152000 });
+    const sel = selectedQuotation('Quote Selected' as ProcurementStatus, [other, chosen], {
+      total_value: 148000,
+      vendor_id: 'v-1',
+    });
+    expect(sel?.id).toBe('q-sel');
+  });
+
+  it('PROC-004: binds from Quote Selected onward — a Quote-Selected PR with a flagged quote resolves it', () => {
+    const chosen = q({ id: 'q-sel', is_selected: true, total_amount: 99000 });
+    const sel = selectedQuotation('Quote Selected' as ProcurementStatus, [chosen], {
+      total_value: 99000,
+      vendor_id: 'v-2',
+    });
+    expect(sel?.id).toBe('q-sel');
+    expect(sel?.total_amount).toBe(99000);
+  });
+
+  it('PROC-004: at-or-past Quote Selected with NO flag set falls back to the header-matching quote (flag-drift resilient)', () => {
+    // A PR forced to Quote Selected without the flag (e.g. legacy/seed/aborted flow):
+    // the synced header total + vendor still identify the committed quote, so the
+    // tile binds instead of reverting to "Pending".
+    const a = q({ id: 'q-a', is_selected: false, total_amount: 152000, vendor_id: 'v-9' });
+    const b = q({ id: 'q-b', is_selected: false, total_amount: 148000, vendor_id: 'v-5' });
+    const sel = selectedQuotation('Ordered' as ProcurementStatus, [a, b], {
+      total_value: 148000,
+      vendor_id: 'v-5',
+    });
+    expect(sel?.id).toBe('q-b');
+  });
+
+  it('PROC-004: before Quote Selected (Vendor Quoted, no flag) there is NO selected quote', () => {
+    const a = q({ id: 'q-a', is_selected: false, total_amount: 152000 });
+    const b = q({ id: 'q-b', is_selected: false, total_amount: 148000 });
+    const sel = selectedQuotation('Vendor Quoted' as ProcurementStatus, [a, b], {
+      total_value: 150000,
+      vendor_id: null,
+    });
+    expect(sel).toBeUndefined();
+  });
+
+  it('PROC-004: no quotations → undefined (tile stays "Pending")', () => {
+    expect(
+      selectedQuotation('Quote Selected' as ProcurementStatus, [], { total_value: 0, vendor_id: null }),
+    ).toBeUndefined();
   });
 });
 

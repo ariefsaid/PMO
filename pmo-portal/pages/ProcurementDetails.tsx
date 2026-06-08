@@ -42,6 +42,7 @@ import {
   lifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
+  selectedQuotation,
   toastStateLabel,
 } from '../components/procurement';
 
@@ -274,7 +275,14 @@ const ProcurementDetails: React.FC = () => {
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   const actions = allowedActions(p.status, role, isRequester, isApprover);
-  const selectedQuote = p.quotations.find((q) => q.is_selected);
+  // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
+  // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
+  // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
+  // with a header-match fallback so the tile never silently reverts to "Pending" on flag drift.
+  const selectedQuote = selectedQuotation(p.status, p.quotations, {
+    total_value: p.total_value,
+    vendor_id: p.vendor_id,
+  });
 
   // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
   const isDraft = p.status === 'Draft';
@@ -729,6 +737,7 @@ const ProcurementDetails: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-2">
         <QuotationsSection
           quotations={p.quotations}
+          selectedId={selectedQuote?.id ?? null}
           canAdd={canAddQuote}
           canSelect={canSelectQuote}
           addBusy={mutations.createQuotation.isPending}

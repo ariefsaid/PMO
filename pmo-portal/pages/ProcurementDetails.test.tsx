@@ -168,6 +168,49 @@ const orderedProcurement = {
   invoices: [],
 };
 
+// A PR right after the user selected a quote: status 'Quote Selected', no PO yet,
+// the chosen quotation flagged is_selected + the header total/vendor synced by the
+// select-quote RPC (PROC-004 re-review fixture).
+const quoteSelectedProcurement = {
+  ...baseProcurement,
+  status: 'Quote Selected' as const,
+  total_value: 148000,
+  po_number: null,
+  vendor_id: 'v-syn',
+  vendor: { name: 'Synergy Systems' },
+  requested_by_id: 'u-other',
+  quotations: [
+    {
+      id: 'q-lo',
+      procurement_id: 'proc-001',
+      vendor_id: 'v-syn',
+      total_amount: 148000,
+      vq_number: 'VQ-2602050001',
+      is_selected: true,
+      reference: 'SYN-Q-220',
+      received_date: '2026-02-05',
+      file_url: null,
+      org_id: 'org-1',
+      created_at: '2026-02-05T00:00:00Z',
+    },
+    {
+      id: 'q-hi',
+      procurement_id: 'proc-001',
+      vendor_id: 'v-apx',
+      total_amount: 152000,
+      vq_number: 'VQ-2602050002',
+      is_selected: false,
+      reference: 'APX-Q-101',
+      received_date: '2026-02-06',
+      file_url: null,
+      org_id: 'org-1',
+      created_at: '2026-02-06T00:00:00Z',
+    },
+  ],
+  receipts: [],
+  invoices: [],
+};
+
 const paidProcurement = {
   ...orderedProcurement,
   status: 'Paid' as const,
@@ -295,6 +338,43 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     expect(screen.getByText('None yet')).toBeInTheDocument(); // Goods received
     // the stat-tile area must carry no bare em-dash placeholder
     expect(screen.getByText('Selected quote').closest('div')?.textContent).not.toContain('—');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-IXD-PROC-004 — the selected-quote tile + row pill bind from Quote Selected
+// (PROC-004 re-review). Before the fix the binding only appeared at Ordered/Paid
+// (keyed off the PO-committed quote), so a freshly-selected quote read
+// "Pending — N received" and no row carried the "Selected" pill.
+// ---------------------------------------------------------------------------
+describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PROC-004)', () => {
+  beforeEach(() => {
+    detailState.data = { ...quoteSelectedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('PROC-004: the "Selected quote" tile shows the chosen quote vendor + amount (not "Pending")', () => {
+    renderPage();
+    const tileLabel = screen.getByText('Selected quote');
+    const tile = tileLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
+    // The selected quote is $148,000 from Synergy Systems — bound from this state.
+    expect(within(tile).getByText('$148,000')).toBeInTheDocument();
+    expect(within(tile).getByText('Synergy Systems')).toBeInTheDocument();
+    // It must NOT read the pre-selection "Pending" / "N received" placeholder.
+    expect(within(tile).queryByText('Pending')).toBeNull();
+    expect(within(tile).queryByText(/received/i)).toBeNull();
+  });
+
+  it('PROC-004: the selected quotation row carries the "Selected" pill', () => {
+    renderPage();
+    const section = screen.getByTestId('quotations-section');
+    // The chosen $148,000 (VQ-2602050001) row shows "Selected"; the $152,000 one does not.
+    expect(within(section).getByText('Selected')).toBeInTheDocument();
+    const selectedRow = within(section).getByText('VQ-2602050001').closest('div')!;
+    expect(within(selectedRow).getByText('Selected')).toBeInTheDocument();
   });
 });
 

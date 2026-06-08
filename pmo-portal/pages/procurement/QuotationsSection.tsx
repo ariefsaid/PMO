@@ -30,6 +30,13 @@ type QuotationRow = Tables<'procurement_quotations'>;
 
 export interface QuotationsSectionProps {
   quotations: QuotationRow[];
+  /**
+   * Id of the chosen quotation (PROC-004) — the page resolves it centrally via
+   * `selectedQuotation()` so the "Selected" row marker binds from the `Quote Selected`
+   * state onward and stays correct even if a row's `is_selected` flag drifts. Falls back
+   * to each row's own `is_selected` when omitted/null.
+   */
+  selectedId?: string | null;
   /** Add-quotation entry shown (sourcing role). */
   canAdd: boolean;
   /** Select-quote action offered (sourcing role AND PR is Vendor Quoted). */
@@ -43,6 +50,7 @@ export interface QuotationsSectionProps {
 
 export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   quotations,
+  selectedId,
   canAdd,
   canSelect,
   onAdd,
@@ -51,6 +59,9 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   addBusy,
   selectBusy,
 }) => {
+  // The chosen quote, resolved by the page (PROC-004); fall back to the row flag when not passed.
+  const isSelected = (q: QuotationRow) =>
+    selectedId != null ? q.id === selectedId : q.is_selected;
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
@@ -118,17 +129,17 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
             >
               <span
                 aria-hidden
-                className={`size-[9px] shrink-0 rounded-full ${q.is_selected ? 'bg-success' : 'bg-secondary'}`}
+                className={`size-[9px] shrink-0 rounded-full ${isSelected(q) ? 'bg-success' : 'bg-secondary'}`}
               />
               {q.vq_number && (
                 <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>
               )}
-              {q.is_selected && <StatusPill variant="won">Selected</StatusPill>}
+              {isSelected(q) && <StatusPill variant="won">Selected</StatusPill>}
               <span className="ml-auto flex items-center gap-2.5">
                 <span className="text-[13.5px] font-semibold tabular">
                   {formatCurrency(Number(q.total_amount))}
                 </span>
-                {canSelect && !q.is_selected && (
+                {canSelect && !isSelected(q) && (
                   <Button
                     size="sm"
                     variant="outline"
