@@ -38,6 +38,7 @@ import {
   deleteProjectDocument,
 } from '@/src/lib/db/documents';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
+import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
 import {
   listTasks,
   getTask,
@@ -154,6 +155,9 @@ const document: DocumentRepository = {
 const profile: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
   listOrgProfiles: () => wrap(() => listOrgProfiles()),
+  listUsers: () => wrap(() => listUsers()),
+  updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
+  assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
 };
 
 const task: TaskRepository = {

@@ -163,6 +163,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   user: {
+    // Exec may VIEW a read-only user directory (rbac-visibility §J); write is Admin-only.
+    view: allow(ARCHIVE_ROLES), // Admin·Executive
     create: allow(ADMIN),
     edit: allow(ADMIN),
     archive: allow(ADMIN),

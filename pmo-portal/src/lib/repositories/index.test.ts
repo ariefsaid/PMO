@@ -34,6 +34,11 @@ vi.mock('@/src/lib/db/documents', () => ({
   deleteProjectDocument: vi.fn(),
 }));
 vi.mock('@/src/lib/db/profiles', () => ({ listProjectManagers: vi.fn(), listOrgProfiles: vi.fn() }));
+vi.mock('@/src/lib/db/adminUsers', () => ({
+  listUsers: vi.fn(),
+  updateUserRole: vi.fn(),
+  assignUserManager: vi.fn(),
+}));
 vi.mock('@/src/lib/db/tasks', () => ({
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -104,6 +109,7 @@ import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
 import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
+import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
@@ -133,7 +139,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(
-      ['listOrgProfiles', 'listProjectManagers'].sort(),
+      ['assignUserManager', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
       ['addDependency', 'create', 'delete', 'get', 'list', 'removeDependency', 'update', 'updateStatus'].sort(),
@@ -305,6 +311,24 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(profilesDal.listOrgProfiles).mockResolvedValue([] as never);
     await repositories.profile.listOrgProfiles();
     expect(profilesDal.listOrgProfiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-AU-001/003/004: profile admin-users methods delegate to the adminUsers DAL', async () => {
+    vi.mocked(adminUsersDal.listUsers).mockResolvedValue([] as never);
+    vi.mocked(adminUsersDal.updateUserRole).mockResolvedValue(undefined);
+    vi.mocked(adminUsersDal.assignUserManager).mockResolvedValue(undefined);
+
+    await repositories.profile.listUsers();
+    expect(adminUsersDal.listUsers).toHaveBeenCalledTimes(1);
+
+    await repositories.profile.updateUserRole('u2', 'Executive' as never);
+    expect(adminUsersDal.updateUserRole).toHaveBeenCalledWith('u2', 'Executive');
+
+    await repositories.profile.assignUserManager('u3', 'mgr-1');
+    expect(adminUsersDal.assignUserManager).toHaveBeenCalledWith('u3', 'mgr-1');
+
+    await repositories.profile.assignUserManager('u3', null);
+    expect(adminUsersDal.assignUserManager).toHaveBeenLastCalledWith('u3', null);
   });
 
   it('AC-TASK-001..007: task methods delegate to the tasks DAL fns', async () => {

@@ -26,6 +26,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
+import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
@@ -97,6 +98,12 @@ export interface ProfileRepository {
   listProjectManagers(): Promise<ProfileRow[]>;
   /** All profiles in the org — the Tasks assignee picker source. */
   listOrgProfiles(): Promise<ProfileRow[]>;
+  /** All profiles in the caller's org — the Administration › Users directory + manager FK picker. */
+  listUsers(): Promise<UserRow[]>;
+  /** Change a user's role (Admin-only via profiles_admin_write RLS). */
+  updateUserRole(id: string, role: UserRole): Promise<void>;
+  /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
+  assignUserManager(id: string, managerId: string | null): Promise<void>;
 }
 
 export interface TaskRepository {
