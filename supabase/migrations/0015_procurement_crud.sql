@@ -138,3 +138,38 @@ create policy procurement_items_requester on procurement_items
                  where p.id = procurement_items.procurement_id
                    and p.org_id = auth_org_id()
                    and p.requested_by_id = auth.uid()));
+
+-- ============================================================================
+-- A3 — procurement_items.org_id inheritance from the parent PR (org_id seam fix).
+--
+-- The client NEVER sends org_id (createProcurementItem omits it — the unspoofable seam). Without this
+-- trigger the column DEFAULT ('…-0001', the legacy org) is stamped on every insert, so a line item on a
+-- PR in ANY OTHER org gets the wrong org_id and the write policies' WITH CHECK (org_id = auth_org_id())
+-- fails with 42501. The other child tables avoid this because they are minted by SECURITY DEFINER RPCs
+-- that compute org from the parent (create_procurement_quotation / _receipt, budget_line_items via
+-- clone_budget_version); procurement_items is the only child written on the direct-INSERT RLS path, so it
+-- needs an equivalent parent-inheritance stamp at the table layer. Multi-tenant-safe: org_id is taken
+-- from the row's OWN parent procurement, not a static default.
+--
+-- BEFORE INSERT, security INVOKER (no definer rights needed — it only reads procurements, which the
+-- caller may already read in-org; the write policies' parent-org guard still authorizes the row).
+-- search_path pinned + schema-qualified (LOW-BV-1). Only fills org_id when the client left it at the
+-- column default / null — an explicitly-sent org_id is preserved so the cross-org spoof tests
+-- (org-B sending org-A's org_id) still hit the WITH CHECK rather than being silently rewritten.
+-- ============================================================================
+create or replace function stamp_procurement_item_org()
+  returns trigger language plpgsql set search_path = public as $$
+begin
+  -- Only inherit when the client did not explicitly set org_id (i.e. it is null or the table default).
+  if new.org_id is null
+     or new.org_id = '00000000-0000-0000-0000-000000000001'::uuid then
+    select p.org_id into new.org_id
+      from public.procurements p
+     where p.id = new.procurement_id;
+  end if;
+  return new;
+end; $$;
+
+create trigger procurement_items_stamp_org
+  before insert on procurement_items
+  for each row execute function stamp_procurement_item_org();

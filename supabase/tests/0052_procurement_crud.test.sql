@@ -14,7 +14,7 @@
 -- RLS/RPC is the enforcement authority; the FE gating is only a clarity projection (rbac-visibility.md §E2).
 -- The 0006 procure-to-pay SoD is untouched — selecting a quote is a sourcing action, not approve/pay.
 begin;
-select plan(15);
+select plan(17);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into organizations (id, name) values

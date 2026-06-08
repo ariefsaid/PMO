@@ -12,7 +12,7 @@
 -- RLS/RPC is the enforcement authority; the FE can('editContractValue',…) gate is only a clarity
 -- projection (rbac-visibility.md §B2). Mirrors policy.ts: pre-win = Admin·Exec·PM; won = Admin·Exec·Finance.
 begin;
-select plan(11);
+select plan(12);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- Org-A is the DEFAULT org ('…-0001'); org_id defaults to it so a default-org write-role satisfies

@@ -14,7 +14,7 @@
 -- (rbac-visibility.md §F). The column pin is realized by the BEFORE UPDATE trigger enforce_assignee_status_only;
 -- the own-row scope by the permissive tasks_update_own_status policy. `is distinct from` is null-safe.
 begin;
-select plan(13);
+select plan(14);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- Org-A is the DEFAULT org ('00000000-…-0001') so a write-role satisfies the org WITH CHECK without

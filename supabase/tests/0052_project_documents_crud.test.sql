@@ -26,7 +26,7 @@
 -- contract only; the SoD is owned by the DocumentsTab unit test (AC-DOC-005). This mirrors the program's
 -- "RLS is the authority; the FE may be stricter" stance (rbac-visibility.md §H, crud-components §5.2).
 begin;
-select plan(15);
+select plan(16);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- Org-A is the DEFAULT org ('00000000-…-0001') so a write-role in it satisfies the WITH CHECK

@@ -17,7 +17,7 @@
 -- RLS is the enforcement authority; the FE gating (Admin-only management, Exec read-only) is a
 -- clarity projection (rbac-visibility.md §J). This slice ships NO migration — these policies pre-exist.
 begin;
-select plan(11);
+select plan(12);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- Org-A is the DEFAULT org ('00000000-…-0001') so auth_org_id() = org-A for these profiles.
