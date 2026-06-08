@@ -165,8 +165,10 @@ const ExecutiveDashboard: React.FC = () => {
             </div>
           </Card>
 
-          <Card>
-            <CardHead>Pipeline — Projected Margin</CardHead>
+          <Card data-testid="dashboard-pipeline-margin">
+            {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
+                ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
+            <CardHead>Pipeline forecast margin</CardHead>
             <div className="px-4 pb-4 pt-3">
               {pipeError ? (
                 <ListState variant="error" title="Couldn't load the pipeline" onRetry={() => refetchPipe()} />

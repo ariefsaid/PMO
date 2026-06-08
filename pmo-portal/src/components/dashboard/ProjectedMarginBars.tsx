@@ -24,7 +24,7 @@ export interface ProjectedMarginBarsProps {
 }
 
 /**
- * Pipeline — Projected Margin: a 30px headline % (the weighted lens) over
+ * Pipeline forecast margin: a 30px headline % (the weighted lens) over
  * per-open-stage weighted-value bars. Real data only — headline from the exec
  * payload, bars from `useSalesPipeline().stages` with Won/Lost terminal stages
  * excluded. Each bar direct-labels its weighted value and carries an aria label.

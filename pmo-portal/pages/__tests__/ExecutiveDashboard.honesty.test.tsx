@@ -103,4 +103,13 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     // The old contradictory name (two metrics under one label) is gone everywhere.
     expect(screen.queryByText(/^Projected margin$/i)).toBeNull();
   });
+
+  it('DASH-002: the pipeline-margin CHART panel heading matches the tile noun "Pipeline forecast margin"', () => {
+    renderPage();
+    // The chart panel that visualizes the same metric reads the SAME canonical noun as the tile —
+    // not the divergent "Pipeline — Projected Margin".
+    const panel = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(panel).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(screen.queryByText(/Pipeline\s*—\s*Projected Margin/i)).toBeNull();
+  });
 });
