@@ -28,6 +28,15 @@ import type {
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
+import type {
+  NewProcurementInput,
+  ProcurementHeaderPatch,
+  ProcurementItemInput,
+  ProcurementItemPatch,
+  ProcurementItemRow,
+  ProcurementDocumentInput,
+  ProcurementDocumentRow,
+} from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type {
   TimesheetRow,
@@ -97,6 +106,28 @@ export interface ProcurementRepository {
     status: 'Received' | 'Scheduled' | 'Paid',
     invoiceDate: string,
   ): Promise<ProcurementInvoiceRow>;
+  // ── CRUD slice (editing paths) ──
+  /** Raise a new PR (Draft); requester stamped from the caller's identity. */
+  create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
+  /** Edit the PR header (requester while Draft/Rejected; RLS is the authority). */
+  updateHeader(id: string, patch: ProcurementHeaderPatch): Promise<void>;
+  /** Add a line item (Draft-gated by RLS). */
+  createItem(procurementId: string, input: ProcurementItemInput): Promise<ProcurementItemRow>;
+  /** Edit a line item (Draft-gated by RLS). */
+  updateItem(id: string, patch: ProcurementItemPatch): Promise<void>;
+  /** Remove a line item (Draft-gated by RLS). */
+  deleteItem(id: string): Promise<void>;
+  /** Select a quotation (sets is_selected + syncs header + advances stage; RPC). */
+  selectQuote(quotationId: string): Promise<void>;
+  /** List the document-metadata register for a PR. */
+  listDocuments(procurementId: string): Promise<ProcurementDocumentRow[]>;
+  /** Add a document-metadata row (file upload deferred). */
+  createDocument(
+    procurementId: string,
+    input: ProcurementDocumentInput,
+  ): Promise<ProcurementDocumentRow>;
+  /** Remove a document-metadata row. */
+  deleteDocument(id: string): Promise<void>;
 }
 
 export interface TimesheetRepository {
