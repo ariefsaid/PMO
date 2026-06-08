@@ -23,7 +23,17 @@ import {
   archiveCompany,
   deleteCompany,
 } from '@/src/lib/db/companies';
-import { listProjectManagers } from '@/src/lib/db/profiles';
+import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
+import {
+  listTasks,
+  getTask,
+  createTask,
+  updateTask,
+  updateTaskStatus,
+  deleteTask,
+  addDependency,
+  removeDependency,
+} from '@/src/lib/db/tasks';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
   getProcurementDetail,
@@ -64,6 +74,7 @@ import type {
   ProcurementRepository,
   TimesheetRepository,
   BudgetRepository,
+  TaskRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -93,6 +104,18 @@ const company: CompanyRepository = {
 
 const profile: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
+  listOrgProfiles: () => wrap(() => listOrgProfiles()),
+};
+
+const task: TaskRepository = {
+  list: (projectId) => wrap(() => listTasks(projectId)),
+  get: (id) => wrap(() => getTask(id)),
+  create: (input) => wrap(() => createTask(input)),
+  update: (id, patch) => wrap(() => updateTask(id, patch)),
+  updateStatus: (id, status) => wrap(() => updateTaskStatus(id, status)),
+  delete: (id) => wrap(() => deleteTask(id)),
+  addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
+  removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
 
 const procurement: ProcurementRepository = {
@@ -139,6 +162,7 @@ export const repositories: Repositories = {
   procurement,
   timesheet,
   budget,
+  task,
 };
 
 export type {
@@ -149,4 +173,5 @@ export type {
   ProcurementRepository,
   TimesheetRepository,
   BudgetRepository,
+  TaskRepository,
 } from './types';
