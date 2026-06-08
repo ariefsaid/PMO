@@ -54,10 +54,10 @@ const AppRoutes: React.FC = () => (
       <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       <Route path="/timesheets" element={<TimesheetsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
-      <Route path="/tasks" element={<PlaceholderPage title="Tasks" />} />
       <Route path="/companies" element={<CompaniesPage />} />
       <Route path="/incidents" element={<IncidentsPage />} />
-      <Route path="/work-orders" element={<PlaceholderPage title="Work Orders" />} />
+      {/* /work-orders removed (owner decision — the route, not just the nav). */}
+      {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
       <Route path="*" element={<ExecutiveDashboard />} />

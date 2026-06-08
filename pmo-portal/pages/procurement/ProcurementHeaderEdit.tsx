@@ -9,6 +9,7 @@ import {
   Combobox,
   FormGrid,
   FormActions,
+  useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
@@ -20,8 +21,24 @@ import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 // flips the request's editable header fields (title + project + vendor) into
 // controls with Save/Cancel; gated by the caller (requester while Draft/Rejected).
 // Inline rather than a giant modal-over-page (the modal-first anti-pattern).
+//
+// Backed by `useEntityForm` (matches NewProcurementModal): one controlled-form
+// helper owns values / dirty / submit / per-field validation, so the title-required
+// rule and the disabled-Save state are the shared form contract, not ad-hoc state.
 // Token-pure (Card / Button / form primitives).
 // ---------------------------------------------------------------------------
+
+interface FormValues {
+  title: string;
+  projectId: string | null;
+  vendorId: string | null;
+}
+
+const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+  const errors: Partial<Record<keyof FormValues, string>> = {};
+  if (!v.title.trim()) errors.title = 'A request title is required.';
+  return errors;
+};
 
 export interface ProcurementHeaderEditProps {
   title: string;
@@ -45,9 +62,14 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   busy,
 }) => {
   const [editing, setEditing] = useState(false);
-  const [titleVal, setTitleVal] = useState(title);
-  const [projVal, setProjVal] = useState<string | null>(projectId);
-  const [vendVal, setVendVal] = useState<string | null>(vendorId);
+
+  const form = useEntityForm<FormValues>({
+    initialValues: { title, projectId, vendorId },
+    validate,
+    idPrefix: 'pr-header-edit',
+  });
+
+  const titleField = form.fieldProps('title');
 
   const { data: projectOptions } = useProjectOptions();
   const { data: vendorOptions } = useVendorOptions();
@@ -61,20 +83,25 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   );
 
   const start = () => {
-    setTitleVal(title);
-    setProjVal(projectId);
-    setVendVal(vendorId);
+    // Re-seed the form from the live props each time editing opens.
+    form.reset({ title, projectId, vendorId });
     setEditing(true);
   };
 
-  const save = async () => {
-    if (!titleVal.trim()) return;
-    try {
-      await onSave({ title: titleVal.trim(), projectId: projVal, vendorId: vendVal });
-      setEditing(false);
-    } catch (err) {
-      onError(err);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void form.handleSubmit(async (values) => {
+      try {
+        await onSave({
+          title: values.title.trim(),
+          projectId: values.projectId,
+          vendorId: values.vendorId,
+        });
+        setEditing(false);
+      } catch (err) {
+        onError(err);
+      }
+    });
   };
 
   if (!editing) {
@@ -96,47 +123,55 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   return (
     <Card className="mb-4" data-testid="header-edit-card">
       <CardHead>Edit request details</CardHead>
-      <CardPad className="flex flex-col gap-4">
-        <FormGrid>
-          <TextField
-            label="Title"
-            required
-            value={titleVal}
-            onChange={setTitleVal}
-            fullWidth
-            placeholder="Request title"
+      <form onSubmit={handleSubmit}>
+        <CardPad className="flex flex-col gap-4">
+          <FormGrid>
+            <TextField
+              id={titleField.id}
+              label="Title"
+              required
+              value={titleField.value}
+              onChange={titleField.onChange}
+              onBlur={titleField.onBlur}
+              error={titleField.error}
+              fullWidth
+              placeholder="Request title"
+            />
+            <Combobox
+              label="Project"
+              noun="project"
+              placeholder={projectName ?? 'Select a project…'}
+              value={form.values.projectId}
+              selectedOption={
+                form.values.projectId && projectName
+                  ? { value: form.values.projectId, label: projectName }
+                  : undefined
+              }
+              onChange={(v) => form.setValue('projectId', v)}
+              loadOptions={loadProjects}
+            />
+            <Combobox
+              label="Vendor"
+              noun="vendor"
+              placeholder={vendorName ?? 'Optional — select a vendor…'}
+              value={form.values.vendorId}
+              selectedOption={
+                form.values.vendorId && vendorName
+                  ? { value: form.values.vendorId, label: vendorName }
+                  : undefined
+              }
+              onChange={(v) => form.setValue('vendorId', v)}
+              loadOptions={loadVendors}
+            />
+          </FormGrid>
+          <FormActions
+            submitLabel="Save request"
+            onCancel={() => setEditing(false)}
+            disabled={!form.canSubmit}
+            loading={busy || form.isSubmitting}
           />
-          <Combobox
-            label="Project"
-            noun="project"
-            placeholder={projectName ?? 'Select a project…'}
-            value={projVal}
-            selectedOption={
-              projVal && projectName ? { value: projVal, label: projectName } : undefined
-            }
-            onChange={(v) => setProjVal(v)}
-            loadOptions={loadProjects}
-          />
-          <Combobox
-            label="Vendor"
-            noun="vendor"
-            placeholder={vendorName ?? 'Optional — select a vendor…'}
-            value={vendVal}
-            selectedOption={
-              vendVal && vendorName ? { value: vendVal, label: vendorName } : undefined
-            }
-            onChange={(v) => setVendVal(v)}
-            loadOptions={loadVendors}
-          />
-        </FormGrid>
-        <FormActions
-          submitLabel="Save request"
-          onCancel={() => setEditing(false)}
-          onSubmit={() => void save()}
-          disabled={!titleVal.trim()}
-          loading={busy}
-        />
-      </CardPad>
+        </CardPad>
+      </form>
     </Card>
   );
 };

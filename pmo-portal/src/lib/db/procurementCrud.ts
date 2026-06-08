@@ -2,6 +2,19 @@ import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementError } from './procurementLifecycle';
 
+// ERROR-TYPE NOTE (intentional ProcurementError reuse, not a divergence): the
+// other CRUD DAL modules (companies / documents / projects / incidents) throw the
+// shared `AppError`. This module deliberately reuses `ProcurementError` so the
+// lifecycle DAL (procurementLifecycle.ts) and the CRUD DAL throw ONE error type
+// across the whole procurement surface — a caller that catches the DAL directly
+// (e.g. useProcurementDetail) handles a single class. It is behaviourally
+// equivalent: `ProcurementError extends Error` and carries a string `.code`, which
+// the repository seam (`toAppError`, appError.ts) reads structurally and normalizes
+// to `AppError` (code preserved) for every consumer that goes through `repositories`.
+// So the seam-level contract ("callers catch AppError with a preserved code") holds
+// regardless. If procurement is ever migrated fully behind the seam, swap this for
+// `AppError` with no behaviour change.
+
 // ---------------------------------------------------------------------------
 // Procurement CRUD DAL (CRUD+RBAC program, Procurement slice). Sits beside the
 // lifecycle DAL (procurementLifecycle.ts) and owns the *editing* paths the

@@ -223,3 +223,69 @@ describe('TasksTab — delete (AC-TASK-006)', () => {
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('t1'));
   });
 });
+
+describe('TasksTab — edit structure (AC-TASK-004)', () => {
+  const openEditFor = async (taskName: string) => {
+    const row = screen.getByText(taskName).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+    return screen.findByRole('dialog');
+  };
+
+  it('AC-TASK-004: a PM opens Edit pre-filled with the task name, renames it, and Save calls update', async () => {
+    renderTab('Project Manager');
+    const dialog = await openEditFor('Survey the site');
+    const nameField = within(dialog).getByLabelText(/task name/i);
+    expect(nameField).toHaveValue('Survey the site');
+    await userEvent.clear(nameField);
+    await userEvent.type(nameField, 'Survey the perimeter');
+    await userEvent.click(within(dialog).getByRole('button', { name: /save task/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const arg = mutations.update.mutateAsync.mock.calls[0][0];
+    expect(arg).toMatchObject({ id: 't1', patch: { name: 'Survey the perimeter' } });
+    // The status-only path must NOT be used for a structure edit.
+    expect(mutations.updateStatus.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('TasksTab — dependency add/remove (AC-TASK-004)', () => {
+  const openEditFor = async (taskName: string) => {
+    const row = screen.getByText(taskName).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
+    return screen.findByRole('dialog');
+  };
+
+  it('AC-TASK-004: adding a dependency edge then saving calls addDependency with the picked task', async () => {
+    // Edit t1 (no existing deps). The only sibling candidate is t2 ("Mobilise crew").
+    renderTab('Project Manager');
+    const dialog = await openEditFor('Survey the site');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /add a dependency/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /mobilise crew/i }));
+    // The picked dependency now appears as a removable chip in the Depends-on list
+    // (the remove button carries the "Remove dependency …" accessible name).
+    expect(
+      within(dialog).getByRole('button', { name: /remove dependency mobilise crew/i }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /save task/i }));
+    await waitFor(() =>
+      expect(mutations.addDependency.mutateAsync).toHaveBeenCalledWith({ taskId: 't1', dependsOnId: 't2' }),
+    );
+    expect(mutations.removeDependency.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-TASK-004: removing an existing dependency then saving calls removeDependency for the dropped edge', async () => {
+    // t2 depends on t1 ("Survey the site"). Remove that edge and save.
+    renderTab('Project Manager');
+    const dialog = await openEditFor('Mobilise crew');
+    await userEvent.click(within(dialog).getByRole('button', { name: /remove dependency survey the site/i }));
+    expect(
+      within(dialog).queryByRole('button', { name: /remove dependency survey the site/i }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /save task/i }));
+    await waitFor(() =>
+      expect(mutations.removeDependency.mutateAsync).toHaveBeenCalledWith({ taskId: 't2', dependsOnId: 't1' }),
+    );
+    expect(mutations.addDependency.mutateAsync).not.toHaveBeenCalled();
+  });
+});
