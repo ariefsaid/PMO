@@ -20,6 +20,11 @@ import type {
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type {
+  ProjectDocumentRow,
+  ProjectDocumentInput,
+  DocStatus,
+} from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
@@ -113,6 +118,25 @@ export interface TaskRepository {
   removeDependency(taskId: string, dependsOnId: string): Promise<void>;
 }
 
+export interface DocumentRepository {
+  /** The per-project document register (metadata only; ordered by code). */
+  list(projectId: string): Promise<ProjectDocumentRow[]>;
+  /** A single document by id, or null when not found / not readable. */
+  get(id: string): Promise<ProjectDocumentRow | null>;
+  /** Create a register entry (org_id stamped by RLS; author_id stamped from the current user). */
+  create(
+    projectId: string,
+    input: ProjectDocumentInput,
+    authorId: string | null,
+  ): Promise<ProjectDocumentRow>;
+  /** Update a document's metadata (never status / author_id / org_id). */
+  update(id: string, input: ProjectDocumentInput): Promise<void>;
+  /** Move the document to the next workflow status (Draft→Issued→Approved/Rejected→Closed). */
+  transition(id: string, status: DocStatus): Promise<void>;
+  /** Hard-delete a document (Admin-only in the FE gate). */
+  delete(id: string): Promise<void>;
+}
+
 export interface ProcurementRepository {
   list(): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
@@ -203,6 +227,7 @@ export interface IncidentRepository {
 export interface Repositories {
   project: ProjectRepository;
   company: CompanyRepository;
+  document: DocumentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
   timesheet: TimesheetRepository;

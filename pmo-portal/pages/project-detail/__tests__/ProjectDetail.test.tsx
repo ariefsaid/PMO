@@ -60,6 +60,17 @@ vi.mock('@/src/hooks/useTasks', () => ({
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+// The Documents tab is now a real register (no longer a deferred placeholder); stub its
+// data hooks so the shell test stays a pure shell test (no network / no QueryClient needed).
+vi.mock('@/src/hooks/useDocuments', () => ({
+  useDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useDocumentMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    transition: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
 // Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => {
@@ -112,10 +123,15 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
   });
 
-  it('renders the Documents placeholder tab (deferred, AC-K)', async () => {
+  it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', async () => {
     renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect(screen.getByText(/Document management is coming soon/i)).toBeInTheDocument();
+    // The deferred "coming soon" placeholder is gone — this is now a real register.
+    expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
+    // PM is a master-data write-role → the gated Add document affordance is present
+    // (header CTA + the empty-state teach action both carry the label).
+    expect(screen.getAllByRole('button', { name: /Add document/i }).length).toBeGreaterThan(0);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', () => {
