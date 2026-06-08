@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -6,7 +6,7 @@ import { Card, CardHead } from '@/src/components/ui/Card';
 import { Button } from '@/src/components/ui/Button';
 import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
-import { useToast } from '@/src/components/ui/Toast';
+import { Tooltip } from '@/src/components/ui/Tooltip';
 import { formatCurrency } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -19,16 +19,12 @@ import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
 
-type MarginLens = 'onhand' | 'weighted';
-
 const ExecutiveDashboard: React.FC = () => {
   const { effectiveRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
   // is the very last statement so no hook is conditional.
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: pipeline, isPending: pipePending, isError: pipeError, refetch: refetchPipe } = useSalesPipeline();
-  const { toast } = useToast();
-  const [lens, setLens] = useState<MarginLens>('onhand');
 
   const procByStatus = useMemo(
     () =>
@@ -88,13 +84,18 @@ const ExecutiveDashboard: React.FC = () => {
           title="Executive Dashboard"
           sub="Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure."
           actions={
-            <Button
-              variant="outline"
-              onClick={() => toast('Generating board pack…', undefined, 'info')}
-            >
-              <Icon name="export" />
-              Board pack
-            </Button>
+            // Board pack export is deferred (OD-UX-3): a visibly-disabled "coming soon" affordance,
+            // never a no-op CTA that fakes a "Generating…" success. A real export lands with the
+            // Reports module. Mirrors the Documents "Attach file" / Admin "Add user" deferred pattern —
+            // a disabled button doesn't fire hover/focus, so the explanatory tooltip wraps a span.
+            <Tooltip content="Board pack export arrives with Reports">
+              <span className="inline-flex">
+                <Button variant="outline" disabled aria-label="Board pack (coming soon)">
+                  <Icon name="export" />
+                  Board pack
+                </Button>
+              </span>
+            </Tooltip>
           }
         />
 
@@ -105,24 +106,23 @@ const ExecutiveDashboard: React.FC = () => {
           aria-label="Portfolio KPIs"
           className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
         >
-          <KPITile testId="kpi-on-hand-margin" tone="green" icon="dollar" label="On-hand margin"
+          {/* Revenue on hand: the tile shows `on_hand_value` — a REVENUE figure (can exceed total
+              contract value), NOT a margin $ (SP-7 honesty). The true realized margin RATIO rides
+              as the `vs` sub. Label names the number. */}
+          <KPITile testId="kpi-on-hand-margin" tone="green" icon="dollar" label="Revenue on hand"
             value={formatCurrency(data.on_hand_value)} vs={`${onHandPct} realized`}
-            help="Realized actual margin on active + closed-out contracts: booked value minus actual cost to date." />
+            help="Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below." />
           <KPITile testId="kpi-pipeline-weighted-value" tone="violet" icon="pipe" label="Pipeline (weighted)"
             value={formatCurrency(data.pipeline_weighted_value)} vs={`of ${formatCurrency(data.pipeline_total_value)} gross`}
             help="Sum of (opportunity value × stage win-probability) across all open stages." />
-          <KPITile<MarginLens>
-            testId="kpi-pipeline-projected-margin" tone="blue" icon="up" label="Projected margin"
-            value={lens === 'onhand' ? onHandPct : weightedPct}
-            help="Two lenses: on-hand (delivered) vs weighted (probability-adjusted pipeline). Toggle to compare."
-            dual={{
-              lens,
-              options: [
-                { value: 'onhand', label: 'On-hand' },
-                { value: 'weighted', label: 'Weighted' },
-              ],
-              onLens: setLens,
-            }} />
+          {/* Pipeline forecast margin: ONE metric, ONE number — the probability-weighted pipeline
+              projected margin only. The on-hand realized % lives on the "Revenue on hand" tile's
+              `vs`, so the prior dual-toggle (two metrics under one name) is dropped (SP-7). */}
+          <KPITile
+            testId="kpi-pipeline-projected-margin" tone="blue" icon="up" label="Pipeline forecast margin"
+            value={weightedPct}
+            vs="probability-weighted"
+            help="Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability)." />
           <KPITile testId="kpi-active-projects" tone="cyan" icon="folder" label="Active projects"
             value={String(data.active_projects)} vs={`${data.projects_at_risk} at-risk`}
             help="Projects currently in delivery." />

@@ -121,23 +121,24 @@ describe('ExecutiveDashboard states', () => {
 });
 
 describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
-  it('AC-1114: renders on-hand margin / pipeline weighted value / projected margin tiles, no avg_gross_margin (FR-SPD-012)', () => {
+  it('AC-1114: renders revenue-on-hand / pipeline weighted value / forecast-margin tiles, no avg_gross_margin (FR-SPD-012)', () => {
     renderPage();
+    // Revenue-on-hand tile carries the on-hand value + realized-margin % as its `vs` sub.
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('94.9%');
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000));
-    // projected margin tile defaults to the on-hand lens (94.9%)
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('94.9%');
+    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
+    // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
-  it('AC-1114: the projected-margin tile toggles lens on-hand↔weighted (FR-SPD-012)', () => {
+  it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle (FR-SPD-012)', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    // on-hand lens = on_hand_margin 94.9%
-    expect(tile).toHaveTextContent('94.9%');
-    // toggle to the weighted lens → pipeline_projected_margin 20.0%
-    fireEvent.click(screen.getByRole('tab', { name: /Weighted/i }));
+    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
     expect(tile).toHaveTextContent('20.0%');
+    expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
+    expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
 });
 
