@@ -1,4 +1,4 @@
-# PMO Portal — backlog & decisions (as of 2026-06-04)
+# PMO Portal — backlog & decisions (living doc; last updated 2026-06-08)
 
 Status snapshot after the autonomous build run. 9 issues shipped & merged to `main` (PRs #1–#9).
 This file is the durable record of what's next; it is NOT loaded as session context (kept out of CLAUDE.md).
@@ -117,17 +117,16 @@ Shipped PRs:
   AC-SP now uses P011). Not urgent.
 - **hosting/deploy** (owner-gated, ADR-0006); **deferred prototype modules** scope decision (below).
 
-## Deferred prototype modules — OWNER SCOPE DECISION pending
-The original prototype had these as `PlaceholderPage` stubs; the approved MVP cut kept them as placeholders.
-NOT built. Owner must decide whether/which to build (asked, not yet answered):
-- **Tasks** (+ `task_dependencies`) — schema READY, no DAL/UI (placeholder route).
-- **Incident/risk register** (`incident_reports`) — schema READY, no UI (was dead data in the prototype).
-- **Document control** (`project_documents`/`procurement_documents`) — schema READY, but **Storage disabled** (re-enable first).
-- **Companies** — read-DAL exists (joins); no management screen (placeholder).
-- **Work Orders** — placeholder, **NO schema table** (never modeled — define or drop).
-- **Reports** — placeholder, no schema (undefined — needs owner definition).
-- **Administration** — user/org/role admin + the admin config engine (= the OD-PROC-6 / B2B multi-tenant bridge; sizeable).
-Schema-ready ones (Tasks/Incidents/Documents) are cheapest — same RPC+RLS+DAL+UI pattern used 5×.
+## (SUPERSEDED) Deferred prototype modules — now mostly built by the CRUD program (2026-06-08)
+This section is HISTORICAL. The owner scope decision was made and most of these shipped in the CRUD program
+(PRs #32/#34/#35 — see "✅ APP-WIDE FE-CRUD + RBAC PROGRAM" above). Current status:
+- ✅ **Tasks** (+ `task_dependencies`) — DONE (project-detail Tasks tab CRUD + engineer-own-status RLS).
+- ✅ **Incident/risk register** (`incident_reports`) — DONE (`/incidents` file/investigate/close).
+- ✅ **Document control** (`project_documents`) — **metadata CRUD DONE** (status SoD); **file upload still deferred** (Supabase Storage disabled — re-enable first).
+- ✅ **Companies** — DONE (management screen, full CRUD).
+- ✅ **Administration** — Admin Users screen DONE (edit role/manager); **user disable + invite-create deferred** (needs a profiles status column + server-side auth-admin); the OD-PROC-6 admin config engine / B2B bridge remains future.
+- ❌ **Work Orders** — route REMOVED (owner decision; never modeled).
+- **Reports** — still a placeholder; the one module genuinely needing owner definition (read-only dashboards/exports).
 
 <details><summary>(superseded) original #5 design notes</summary>
 

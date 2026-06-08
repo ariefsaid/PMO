@@ -126,6 +126,13 @@ boundary means swapping a direct query for an edge-function call later is a one-
 
 ## 3. Target component & file structure
 
+> ⚠️ **CURRENT STATE (2026-06-08) ≠ this target tree — see ADR-0007.** The app is in the *pre-`src`-migration*
+> hybrid state: the app shell + screens live at the **package root** (`pmo-portal/App.tsx`, `index.tsx`,
+> `pages/`, `components/`, `data/mockData.ts`; routing is inline in `App.tsx`, there is **no `routes.tsx`**),
+> while the newer infrastructure (`auth/`, `hooks/`, `lib/db/`, `lib/repositories/`, `components/shell/`,
+> `components/ui/`) lives under `src/` and is imported via the `@/src/...` alias. The tree below is the
+> **aspirational target**, not where files are today — a newcomer should look at the package root for screens.
+
 ### 3.1 Target tree (`pmo-portal/`)
 Introduce a `src/` root (the prototype has files at package root; `baseline §2.2`). Feature-folder layout:
 
