@@ -11,7 +11,7 @@ import {
   ConfirmDialog,
   type ComboboxOption,
 } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { formatCurrency } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -56,10 +56,11 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   const [total, setTotal] = useState('');
   const [selectTarget, setSelectTarget] = useState<QuotationRow | null>(null);
 
-  const loadVendors = useCallback(async (): Promise<ComboboxOption[]> => {
-    const rows = await repositories.company.list({ type: 'Vendor' });
-    return rows.map((c) => ({ value: c.id, label: c.name, sub: 'Vendor' }));
-  }, []);
+  const { data: vendorOptions } = useVendorOptions();
+  const loadVendors = useCallback(
+    async (): Promise<ComboboxOption[]> => vendorOptions ?? [],
+    [vendorOptions],
+  );
 
   const resetAdd = () => {
     setAdding(false);

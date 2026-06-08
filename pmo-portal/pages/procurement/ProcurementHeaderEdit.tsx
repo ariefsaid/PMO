@@ -11,7 +11,7 @@ import {
   FormActions,
   type ComboboxOption,
 } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
@@ -49,14 +49,16 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   const [projVal, setProjVal] = useState<string | null>(projectId);
   const [vendVal, setVendVal] = useState<string | null>(vendorId);
 
-  const loadProjects = useCallback(async (): Promise<ComboboxOption[]> => {
-    const rows = await repositories.project.list();
-    return rows.map((p) => ({ value: p.id, label: p.name, sub: p.code ?? undefined }));
-  }, []);
-  const loadVendors = useCallback(async (): Promise<ComboboxOption[]> => {
-    const rows = await repositories.company.list({ type: 'Vendor' });
-    return rows.map((c) => ({ value: c.id, label: c.name, sub: 'Vendor' }));
-  }, []);
+  const { data: projectOptions } = useProjectOptions();
+  const { data: vendorOptions } = useVendorOptions();
+  const loadProjects = useCallback(
+    async (): Promise<ComboboxOption[]> => projectOptions ?? [],
+    [projectOptions],
+  );
+  const loadVendors = useCallback(
+    async (): Promise<ComboboxOption[]> => vendorOptions ?? [],
+    [vendorOptions],
+  );
 
   const start = () => {
     setTitleVal(title);

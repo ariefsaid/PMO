@@ -4,11 +4,9 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: {
-    project: { list: vi.fn().mockResolvedValue([]) },
-    company: { list: vi.fn().mockResolvedValue([]) },
-  },
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
+  useVendorOptions: () => ({ data: [] }),
 }));
 
 import { ProcurementHeaderEdit } from './ProcurementHeaderEdit';

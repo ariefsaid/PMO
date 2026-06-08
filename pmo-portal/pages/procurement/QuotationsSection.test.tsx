@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: { list: vi.fn().mockResolvedValue([]) } },
+// FK options come from the cached hook ("hooks own data fetching"); mock it so
+// the vendor Combobox has a selectable option without a QueryClient/network.
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useVendorOptions: () => ({
+    data: [
+      { value: 'v1', label: 'Apex Supply', sub: 'Vendor' },
+      { value: 'v2', label: 'Bolt Co', sub: 'Vendor' },
+    ],
+  }),
 }));
 
 import { QuotationsSection } from './QuotationsSection';
@@ -78,5 +85,54 @@ describe('AC-PROC-004 QuotationsSection (entry + select-quote)', () => {
   it('AC-PROC-004: the Add-quotation entry is hidden when canAdd is false', () => {
     renderSection({ canAdd: false });
     expect(screen.queryByTestId('add-quotation')).toBeNull();
+  });
+
+  // ── Add-quote submit (vendor + total → onAdd) ──────────────────────────────
+  it('AC-PROC-004: a filled Add-quotation entry enables + submits the vendor, parsed total, and a received date', async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    renderSection({ quotations: [], onAdd });
+    await userEvent.click(screen.getByTestId('add-quotation'));
+    const form = screen.getByTestId('add-quotation-form');
+
+    // Pick a vendor from the FK Combobox.
+    await userEvent.click(within(form).getByRole('combobox', { name: /vendor/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /apex supply/i }));
+
+    // Enter the quoted total (comma-formatted to assert parsing).
+    await userEvent.type(within(form).getByLabelText(/quoted total/i), '2,710');
+
+    const addBtn = within(form).getByRole('button', { name: /add quotation/i });
+    await waitFor(() => expect(addBtn).toBeEnabled());
+    await userEvent.click(addBtn);
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1));
+    const arg = onAdd.mock.calls[0][0];
+    expect(arg.vendorId).toBe('v1');
+    expect(arg.totalAmount).toBe(2710);
+    expect(arg.receivedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  // ── Error routing — both mutations surface failures via onError ────────────
+  it('AC-PROC-004: an add-quote failure is routed to onError (classified by the caller)', async () => {
+    const boom = new Error('insert failed');
+    const onAdd = vi.fn().mockRejectedValue(boom);
+    const { onError } = renderSection({ quotations: [], onAdd });
+    await userEvent.click(screen.getByTestId('add-quotation'));
+    const form = screen.getByTestId('add-quotation-form');
+    await userEvent.click(within(form).getByRole('combobox', { name: /vendor/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /apex supply/i }));
+    await userEvent.type(within(form).getByLabelText(/quoted total/i), '500');
+    await userEvent.click(within(form).getByRole('button', { name: /add quotation/i }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(boom));
+  });
+
+  it('AC-PROC-004: a select-quote failure is routed to onError', async () => {
+    const boom = new Error('wrong stage');
+    const onSelect = vi.fn().mockRejectedValue(boom);
+    const { onError } = renderSection({ onSelect });
+    await userEvent.click(screen.getByRole('button', { name: /select quote vq-2/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^select quote$/i }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(boom));
   });
 });

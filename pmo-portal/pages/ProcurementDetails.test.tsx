@@ -66,6 +66,13 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementDocuments: () => docsState,
 }));
 
+// FK pickers (header edit project/vendor, quotation vendor) read cached option
+// hooks; stub them so the detail test needs no QueryClient.
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+}));
+
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Finance' }),
 }));

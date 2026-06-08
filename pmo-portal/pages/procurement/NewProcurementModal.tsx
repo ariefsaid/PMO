@@ -8,7 +8,7 @@ import {
   useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
-import { repositories } from '@/src/lib/repositories';
+import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { NewProcurementInput } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
@@ -59,20 +59,19 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
 
   const title = form.fieldProps('title');
 
-  // FK option loaders (lazy — only fetched when a Combobox opens).
-  const loadProjects = useCallback(async (): Promise<ComboboxOption[]> => {
-    const rows = await repositories.project.list();
-    return rows.map((p) => ({
-      value: p.id,
-      label: p.name,
-      sub: p.code ?? undefined,
-    }));
-  }, []);
-
-  const loadVendors = useCallback(async (): Promise<ComboboxOption[]> => {
-    const rows = await repositories.company.list({ type: 'Vendor' });
-    return rows.map((c) => ({ value: c.id, label: c.name, sub: 'Vendor' }));
-  }, []);
+  // FK options come from the cached hooks ("hooks own data fetching"); the
+  // Combobox loader just hands back the already-fetched list (no re-fetch on
+  // popover open — this is what fixes the empty-picker flake).
+  const { data: projectOptions } = useProjectOptions();
+  const { data: vendorOptions } = useVendorOptions();
+  const loadProjects = useCallback(
+    async (): Promise<ComboboxOption[]> => projectOptions ?? [],
+    [projectOptions],
+  );
+  const loadVendors = useCallback(
+    async (): Promise<ComboboxOption[]> => vendorOptions ?? [],
+    [vendorOptions],
+  );
 
   const errorSummary = form.errors.title
     ? [{ fieldId: title.id, message: form.errors.title }]
