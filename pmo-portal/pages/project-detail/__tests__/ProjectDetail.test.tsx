@@ -36,6 +36,19 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// Tasks tab mounts the real TasksTab — stub its data hooks (empty register) to avoid network.
+vi.mock('@/src/hooks/useTasks', () => ({
+  useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAssignableProfiles: () => ({ data: [], isPending: false, isError: false }),
+  useTaskMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    updateStatus: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    addDependency: { mutateAsync: vi.fn(), isPending: false },
+    removeDependency: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
 // Tabs are gone — back-nav is a plain react-router navigate (AC-NAV-007).
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (orig) => {
@@ -79,10 +92,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
-  it('renders the Tasks/Documents placeholder tabs (deferred, AC-K)', async () => {
+  it('switches to the real Tasks tab and shows its empty register (AC-TASK-001)', async () => {
     renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Tasks' }));
-    expect(screen.getByText(/Task scheduling is coming soon/i)).toBeInTheDocument();
+    // Tasks is now a real CRUD surface (no longer a "coming soon" placeholder).
+    expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
+    // PM (a structure write-role) sees the gated New task affordance.
+    expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
+  });
+
+  it('renders the Documents placeholder tab (deferred, AC-K)', async () => {
+    renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
     expect(screen.getByText(/Document management is coming soon/i)).toBeInTheDocument();
   });
