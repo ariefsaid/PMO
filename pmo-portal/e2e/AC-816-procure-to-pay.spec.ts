@@ -4,12 +4,13 @@ import { login } from './helpers';
 // (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
 // stable `data-status` attribute so this oracle survives the presentation change.
 //
-// NOTE (feat/ui-polish confirm-gate): every forward transition button now STAGES
-// a ConfirmDialog (role="dialog") and only commits when the user clicks the
-// confirm button inside the dialog.  Each step below:
-//   1. clicks the action button (stages the confirm)
-//   2. locates the dialog and clicks its confirm button (commits the mutation)
-//   3. asserts the new data-status
+// NOTE (OD-UX-1 write policy, supersedes the old confirm-every-write gate): a
+// ConfirmDialog is shown IFF the write is consequential/financial — the set
+// {Approve, Reject, Cancel, Mark-as-Paid}. The ROUTINE reversible forward steps
+// (Submit Request, Request Vendor Quotes, Generate Purchase Order, Confirm Receipt,
+// Mark Vendor Invoiced) are SINGLE-CLICK + a toast (no modal). GR/VI record-creation
+// forms keep their confirm. The goal-oracle is unchanged: the full PR/PO/GR/VI trail
+// is minted as the deal walks Draft→Paid; only the per-step interaction changed.
 
 // AC-816 — full procure-to-pay happy path: Draft→Requested→Approved→Ordered→Received→
 // Vendor Invoiced→Paid with minted PR#/PO#/GR#/VI# trail.
@@ -44,10 +45,8 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 10_000 });
 
-  // Click action — opens ConfirmDialog (no single-click write)
+  // Submit Request is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
   await page.getByRole('button', { name: 'Submit Request' }).click();
-  // Confirm inside dialog (confirmLabel = action label per stageTransition logic)
-  await confirmVia(page, 'Submit Request');
 
   // Wait for status to advance to Requested and PR# to appear
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 15_000 });
@@ -63,15 +62,13 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await confirmVia(page, 'Approve');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
 
-  // ── Step 3: admin generates PO (Approved → Ordered) ──────────────────────
+  // ── Step 3: admin generates PO (Approved → Ordered) — routine, single click ─
   await page.getByRole('button', { name: 'Generate Purchase Order' }).click();
-  await confirmVia(page, 'Generate Purchase Order');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
   await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 
-  // ── Step 4: admin confirms receipt (Ordered → Received) ──────────────────
+  // ── Step 4: admin confirms receipt (Ordered → Received) — routine, single click ─
   await page.getByRole('button', { name: 'Confirm Receipt' }).click();
-  await confirmVia(page, 'Confirm Receipt');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 15_000 });
 
   // ── Step 5: admin creates GR (Complete) ──────────────────────────────────
@@ -94,8 +91,8 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 10_000 });
 
+  // Mark Vendor Invoiced is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
   await page.getByRole('button', { name: 'Mark Vendor Invoiced' }).click();
-  await confirmVia(page, 'Mark Vendor Invoiced');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 15_000 });
 
   // ── Step 7: finance creates VI (status Paid) ─────────────────────────────

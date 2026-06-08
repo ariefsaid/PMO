@@ -388,12 +388,14 @@ describe('AC-805: transition mutations called on action click', () => {
     ));
   });
 
-  it('AC-805: clicking Submit then confirming calls transition mutation with Requested', async () => {
+  it('AC-805 / AC-IXD-WP-003: clicking Submit (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
-    await confirmInDialog(/submit request/i);
+    // OD-UX-1: routine reversible forward steps are single-click + a toast, no modal.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     await waitFor(() => expect(mockTransition).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'Requested' })
     ));

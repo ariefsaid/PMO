@@ -155,7 +155,16 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
   ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Office Fit-Out Furniture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Paid',320000,'c0000000-0000-0000-0000-000000000005','2025-12-01T00:00:00Z'),
   -- Dedicated Draft fixture for AC-CONFIRM-001 (confirm-gate cancel test). Kept distinct from
   -- PROC-003 (…004, which AC-816 walks Draft→Paid) so the two specs never collide in a parallel run.
-  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','Confirm-Gate Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Draft',12000,null,'2026-02-20T00:00:00Z');
+  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','Confirm-Gate Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Draft',12000,null,'2026-02-20T00:00:00Z'),
+  -- Dedicated Approved fixture for AC-IXD-WP-001 (routine-write-no-confirm, OD-UX-1). A sourcing
+  -- role (Finance) clicks "Request Vendor Quotes" (Approved→Vendor Quoted) on a SINGLE click + toast.
+  -- requested_by=a2 (pm) so a non-requester Finance user owns the routine forward step (no SoD bearing).
+  -- Distinct id so it never collides with the AC-816 / AC-CONFIRM-001 fixtures in a parallel run.
+  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Routine-Write Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Approved',45000,null,'2026-02-22T00:00:00Z'),
+  -- Dedicated Vendor-Invoiced fixture for AC-IXD-WP-002 (financial confirm restates the amount).
+  -- finance@ (a3) clicks "Mark as Paid" → a confirm naming $30,000 on the project + requester.
+  -- requested_by=a2 (pm), approver=a1 (exec) — distinct from a3 so SoD-b (payer≠approver) passes.
+  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z');
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
   ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
   ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000);
@@ -193,6 +202,31 @@ insert into procurement_receipts (procurement_id, gr_number, receipt_date, statu
 update procurements set
   pr_number = 'PR-2601200001'
 where id = '60000000-0000-0000-0000-000000000003';
+
+-- Row 007 (Approved): PR# + an approver (a1/exec, distinct from the a2 requester and the
+-- a3/finance sourcing user) so AC-IXD-WP-001's "Request Vendor Quotes" routine forward step
+-- is SoD-clean for a Finance sourcing user on a single click.
+update procurements set
+  pr_number      = 'PR-2602220001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a1'
+where id = '60000000-0000-0000-0000-000000000007';
+
+-- Row 008 (Vendor Invoiced): full PR/VQ/PO/GR/VI trail so a Finance user (a3, ≠ approver a1)
+-- can "Mark as Paid". AC-IXD-WP-002 asserts the kept financial confirm restates the amount.
+update procurements set
+  pr_number      = 'PR-2602240001',
+  po_number      = 'PO-2602240001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a1'
+where id = '60000000-0000-0000-0000-000000000008';
+
+insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
+  ('60000000-0000-0000-0000-000000000008','c0000000-0000-0000-0000-000000000004','APX-PAY-08',30000,'2026-02-23',true,'VQ-2602240001');
+
+insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
+  ('60000000-0000-0000-0000-000000000008','GR-2602240001','2026-02-24','Complete');
+
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
+  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received');
 
 -- Row 005 (Paid, completed): full PR/VQ/PO trail + a Paid invoice (VI#).
 -- requested_by=a2 (pm), approved_by=a3 (finance) — distinct, satisfies SoD representation.
