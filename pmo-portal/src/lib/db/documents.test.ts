@@ -40,10 +40,16 @@ const h = vi.hoisted(() => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result };
+  // rpc resolves the queued result directly (the transition workflow is RPC-only as of migration 0017).
+  const rpc = vi.fn((...args: unknown[]) => {
+    rpcCalls.push(args);
+    return Promise.resolve(result.value);
+  });
+  const rpcCalls: unknown[][] = [];
+  return { from, rpc, rpcCalls, calls, result };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
   listProjectDocuments,
@@ -57,6 +63,8 @@ import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
   h.from.mockClear();
+  h.rpc.mockClear();
+  h.rpcCalls.length = 0;
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) {
     if (typeof h.calls[k] === 'number') (h.calls[k] as unknown) = 0;
     else (h.calls[k] as unknown[]).length = 0;
@@ -185,20 +193,21 @@ describe('AC-DOC-004 updateProjectDocument (metadata edit)', () => {
   });
 });
 
-describe('AC-DOC-005 transitionProjectDocument (status workflow)', () => {
-  it('AC-DOC-005: sets ONLY the status column by id, NEVER org_id', async () => {
+describe('AC-DOC-005 transitionProjectDocument (status workflow — RPC-only)', () => {
+  it('AC-DOC-005: calls rpc("transition_document_status", {p_doc_id, p_to}), NEVER a direct update / org_id', async () => {
     h.result.value = { data: null, error: null };
     await transitionProjectDocument('d1', 'Issued');
-    expect(h.calls.from).toEqual(['project_documents']);
-    const patch = h.calls.update[0] as Record<string, unknown>;
-    expect(patch).toEqual({ status: 'Issued' });
-    expect(h.calls.eq).toContainEqual(['id', 'd1']);
-    expect(JSON.stringify(patch)).not.toContain('org_id');
+    // Routes through the SECURITY DEFINER RPC (the SOLE writer of status as of migration 0017) —
+    // never a direct table UPDATE (which the server now rejects with 42501).
+    expect(h.rpcCalls[0]).toEqual(['transition_document_status', { p_doc_id: 'd1', p_to: 'Issued' }]);
+    expect(h.calls.update.length).toBe(0);
+    expect(JSON.stringify(h.rpcCalls)).not.toContain('org_id');
   });
 
-  it('AC-DOC-005: throws AppError with code on a denied transition', async () => {
-    h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
+  it('AC-DOC-005: throws AppError preserving the PG code on a denied transition (SoD 42501 / illegal P0001)', async () => {
+    h.result.value = { data: null, error: { message: 'separation of duties', code: '42501' } };
     await expect(transitionProjectDocument('d1', 'Approved')).rejects.toMatchObject({ code: '42501' });
+    await expect(transitionProjectDocument('d1', 'Approved')).rejects.toBeInstanceOf(AppError);
   });
 });
 

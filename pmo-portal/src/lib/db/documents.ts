@@ -129,21 +129,26 @@ export async function updateProjectDocument(id: string, input: ProjectDocumentIn
 
 /**
  * Move a document to the next workflow status (AC-DOC-005): Draft → Issued → Approved/Rejected → Closed.
- * Updates ONLY the `status` column by id. org_id is NEVER sent — RLS scopes the update. The
- * approver-≠-author SoD is gated in the FE (and is the RLS write-role authority); a slip-through
- * still fails at the DB and surfaces a classified toast. Throws an `AppError` (code preserved) on failure.
+ * Routes through the SECURITY DEFINER `transition_document_status` RPC (migration 0017) — the SOLE
+ * writer of `project_documents.status`. The RPC re-asserts org + the master-data role gate + the legal
+ * status map + the approver-≠-author SoD (the actor moving a document to Approved/Rejected may NOT be
+ * its author). org_id is NEVER sent — the RPC derives it from auth context. A direct table UPDATE of
+ * `status` is denied server-side (the column is no longer granted), so this RPC is the only path. The
+ * error `code` is preserved (42501 not-permitted/SoD, P0001 illegal-stage) so the UI classifies the toast.
  */
 export async function transitionProjectDocument(id: string, status: DocStatus): Promise<void> {
-  const { error } = await supabase
-    .from('project_documents')
-    .update({ status })
-    .eq('id', id);
+  const { error } = (await supabase.rpc('transition_document_status', {
+    p_doc_id: id,
+    p_to: status,
+  })) as unknown as { data: null; error: PostgrestErrorLike | null };
   if (error) throwWrite(error);
 }
 
 /**
- * Hard-delete a document by id (AC-DOC-006; Admin-only in the FE gate). org_id is NEVER sent —
- * RLS scopes the delete. Throws an `AppError` (code preserved) on failure.
+ * Hard-delete a document by id (AC-DOC-006) — Admin only. The `project_documents_delete_admin_only`
+ * restrictive RLS policy (migration 0017) is the server authority; the FE gate is the clarity
+ * projection. A non-Admin delete is a silent 0-row no-op. org_id is NEVER sent — RLS scopes the
+ * delete. Throws an `AppError` (code preserved) on failure.
  */
 export async function deleteProjectDocument(id: string): Promise<void> {
   const { error } = await supabase.from('project_documents').delete().eq('id', id);

@@ -1132,6 +1132,13 @@ export type Database = {
         Args: { p_id: string; p_value: number }
         Returns: undefined
       }
+      transition_document_status: {
+        Args: {
+          p_doc_id: string
+          p_to: Database["public"]["Enums"]["doc_status"]
+        }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string

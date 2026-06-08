@@ -9,7 +9,9 @@ export type IncidentStatus = IncidentRow['status']; // 'Open' | 'Investigating' 
 /**
  * The fields a "File incident" form supplies. org_id, status and reported_by are NEVER
  * among them — RLS stamps org_id (companies_write-style WITH CHECK), the column default
- * sets status='Open', and reported_by is server-resolved (auth.uid()).
+ * sets status='Open', and reported_by is stamped server-side from auth.uid() by the
+ * `incident_reports_stamp_reporter` BEFORE INSERT trigger (migration 0017 — the audit
+ * authenticity fix; it was previously never populated).
  */
 export interface IncidentInput {
   incident_date: string; // ISO date (yyyy-mm-dd)
@@ -67,9 +69,10 @@ export async function getIncident(id: string): Promise<IncidentRow | null> {
 /**
  * File an incident (AC-IN-003) — available to ANY member. org_id is NEVER sent (the column
  * default + `incident_reports_insert` WITH CHECK org_id = auth_org_id() are the authority);
- * `status` is NOT sent (the column default 'Open' applies); `reported_by` is resolved
- * server-side. Empty optional fields (location/description) are omitted so they persist as
- * NULL rather than ''. Returns the new row. Throws an `AppError` (code preserved) on failure.
+ * `status` is NOT sent (the column default 'Open' applies); `reported_by` is stamped
+ * server-side from auth.uid() by the BEFORE INSERT trigger (never sent from the client).
+ * Empty optional fields (location/description) are omitted so they persist as NULL rather
+ * than ''. Returns the new row. Throws an `AppError` (code preserved) on failure.
  */
 export async function createIncident(input: IncidentInput): Promise<IncidentRow> {
   const insert: TablesInsert<'incident_reports'> = {
@@ -119,9 +122,10 @@ export async function transitionIncident(id: string, status: IncidentStatus): Pr
 }
 
 /**
- * Hard-delete an incident by id (AC-IN-005) — Admin only (FE-gated; RLS update policy is the
- * server authority). org_id is NEVER sent — RLS scopes the delete. Throws an `AppError`
- * (code preserved) on failure.
+ * Hard-delete an incident by id (AC-IN-005) — Admin only. The `incident_reports_delete_admin_only`
+ * RLS policy (migration 0017: org_id = auth_org_id() AND auth_role() = 'Admin') is the server
+ * authority; the FE gate is the clarity projection. A non-Admin delete is a silent 0-row no-op.
+ * org_id is NEVER sent — RLS scopes the delete. Throws an `AppError` (code preserved) on failure.
  */
 export async function deleteIncident(id: string): Promise<void> {
   const { error } = await supabase.from('incident_reports').delete().eq('id', id);
