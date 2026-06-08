@@ -23,7 +23,7 @@ import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -93,6 +93,13 @@ const ShellChrome: React.FC = () => {
   const { data: projects, isPending: projectsPending } = useProjects();
   const { data: procurements, isPending: procurementsPending } = useProcurements();
   const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
+  // Blocker 1 (AC-IXD-PROJ-005, ADR-0020 §4): a Loss-Tender deal opened at /projects/:id lives in
+  // NEITHER the active-projects cache (excluded by the Wave-1 listProjects scoping) nor the open-
+  // pipeline cache (get_sales_pipeline returns only the five open stages). Read the lost-deals list
+  // (the same cache the Sales Pipeline shows in its "Lost" column) and UNION it into the
+  // `opportunities` array threaded into the breadcrumb resolvers, so a lost record resolves to its
+  // name + the Sales-Pipeline ancestry instead of "Projects > Not found".
+  const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -122,9 +129,13 @@ const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
+    // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
+    // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
+    // unioned in here or its crumb resolves to "Projects > Not found".
+    const opportunities = [...(pipeline?.projects ?? []), ...(lostDeals ?? [])];
     const recordLabel = recordLabelForPath(pathname, {
       projects,
-      opportunities: pipeline?.projects,
+      opportunities,
       procurements,
     });
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
@@ -133,14 +144,18 @@ const ShellChrome: React.FC = () => {
     // record reads "Sales Pipeline > …" and an on-hand record reads "Projects > …".
     const recordStatusGroup = recordStatusGroupForPath(pathname, {
       projects,
-      opportunities: pipeline?.projects,
+      opportunities,
     });
     // The list that backs THIS detail route has settled (not pending) → an
     // unresolved record is a genuine not-found, so resolve the crumb to a
     // friendly label rather than a perpetual "Loading…". For /projects/:id the
-    // record can live in EITHER cache (Model B), so both must have settled.
+    // record can live in ANY of the three caches (Model B: active projects, open
+    // pipeline, or lost deals), so all must have settled before "Not found".
     const recordResolved =
-      (pathname.startsWith('/projects/') && !projectsPending && !pipelinePending) ||
+      (pathname.startsWith('/projects/') &&
+        !projectsPending &&
+        !pipelinePending &&
+        !lostDealsPending) ||
       (pathname.startsWith('/procurement/') && !procurementsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending);
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
@@ -150,9 +165,11 @@ const ShellChrome: React.FC = () => {
     projects,
     procurements,
     pipeline,
+    lostDeals,
     projectsPending,
     procurementsPending,
     pipelinePending,
+    lostDealsPending,
   ]);
 
   // Palette items: the Records group (cached record index) above the Navigate
