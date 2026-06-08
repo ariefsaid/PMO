@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Combobox, type ComboboxOption } from '../Combobox';
@@ -214,6 +214,37 @@ describe('Combobox: load states', () => {
     } finally {
       errSpy.mockRestore();
     }
+  });
+
+  it('reloads when loadOptions changes while open (async source data arrives after an initial empty load)', async () => {
+    // Regression (AC-PRJ-001): the FK source (useClientCompanies) may resolve to []
+    // on the very first open, then populate. If the combobox cached the empty
+    // result and never re-loaded, no options would EVER render. Opening before the
+    // data source is ready must not permanently strand the picker empty.
+    // The source populates asynchronously (the React Query data resolving), NOT via
+    // a user click — so the popover stays open the whole time.
+    let populate: () => void = () => {};
+    const Harness: React.FC = () => {
+      const [opts, setOpts] = React.useState<ComboboxOption[]>([]);
+      populate = () => setOpts(OPTIONS);
+      // Identity changes whenever `opts` changes, mirroring the inline loader the
+      // form passes (recreated each render off the live query data).
+      const loadOptions = React.useCallback(() => Promise.resolve(opts), [opts]);
+      return <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOptions} />;
+    };
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('combobox'));
+    // First load resolves empty -> the empty message, NOT options.
+    expect(await screen.findByText(/No .*matches/i)).toBeInTheDocument();
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+
+    // The data source populates while the popover is still open (async, no click).
+    await act(async () => {
+      populate();
+    });
+
+    // GOAL: the combobox re-loads and now renders the options (no reopen needed).
+    await screen.findByRole('option', { name: /Cascade Port Authority/ });
   });
 
   it('shows an error state with a retry that re-invokes loadOptions', async () => {
