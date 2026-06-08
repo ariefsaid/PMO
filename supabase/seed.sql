@@ -348,6 +348,27 @@ insert into budget_line_items (budget_version_id, category, description, budgete
   ('50000000-0000-0000-0000-000000000011','Labor','Survey preparation',950000,0);
 update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000011';
 
+-- P012 "Eastgate Depot Upgrade" — a DEDICATED, EXPENDABLE Tender Submitted row used EXCLUSIVELY by
+-- AC-1011 (the win-a-deal e2e journey), mirroring the P011 isolation pattern. AC-1011 permanently
+-- transitions this deal to 'Won, Pending KoM', so it MUST NOT be the row any other spec reads:
+-- previously AC-1011 mutated the SHARED P002, which the full-suite gate run proved breaks the
+-- downstream readers of P002 (AC-1117 dashboard pipeline, AC-IXD-PROJ-002 redirect→pipeline lens,
+-- AC-1200 procurement list). Pointing AC-1011 at its own row makes the suite ordering-independent.
+-- Margin-neutral by construction (Active budget == contract_value, like P011): P012 contributes 0
+-- to the pipeline projected-margin NUMERATOR, only raising the weighted sum + the denominator. The
+-- 0035/0036 pipeline oracles are synced to this 4-deal pipeline (P002+P011+P012 Tender, P010 PQ).
+-- code='P012' satisfies unique(org_id,code).
+insert into projects (id, code, name, status, client_id, project_manager_id,
+                      contract_value, budget, spent) values
+  ('40000000-0000-0000-0000-000000000012','P012','Eastgate Depot Upgrade','Tender Submitted',
+   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   1000000,0,0);
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000012','40000000-0000-0000-0000-000000000012',1,'Tender Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('50000000-0000-0000-0000-000000000012','Labor','Tender preparation',1000000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000012';
+
 -- incident report (neutral; schema-only MVP)
 insert into incident_reports (incident_date, type, severity, location, description, status, reported_by) values
   ('2026-03-15','Near Miss','Low','Regional Site B','Trip hazard reported and cleared','Closed','00000000-0000-0000-0000-0000000000a4');

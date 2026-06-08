@@ -9,16 +9,17 @@ set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","
 
 -- ── stage assertions ───────────────────────────────────────────────────────────
 
--- AC-1110: Tender Submitted stage — two seeded deals (P002 1,200,000 + P011 950,000; P011 added
---   in PR #27): count=2, total_value=2,150,000, win_prob=0.500, weighted=2,150,000×0.5=1,075,000
+-- AC-1110: Tender Submitted stage — three seeded deals (P002 1,200,000 + P011 950,000 [PR #27]
+--   + P012 1,000,000 [AC-1011's dedicated win-target row]): count=3,
+--   total_value=3,150,000, win_prob=0.500, weighted=3,150,000×0.5=1,575,000
 select ok(
-  (select (elem->>'count')::int = 2
-     and  abs((elem->>'total_value')::numeric - 2150000) < 1
+  (select (elem->>'count')::int = 3
+     and  abs((elem->>'total_value')::numeric - 3150000) < 1
      and  abs((elem->>'win_probability')::numeric - 0.5) < 1e-6
-     and  abs((elem->>'weighted_value')::numeric - 1075000) < 1
+     and  abs((elem->>'weighted_value')::numeric - 1575000) < 1
    from json_array_elements((get_sales_pipeline()->'stages')) elem
    where elem->>'status' = 'Tender Submitted'),
-  'AC-1110: Tender Submitted stage count=2, total=2150000, win_prob=0.500, weighted=1075000 (FR-SPD-010)'
+  'AC-1110: Tender Submitted stage count=3, total=3150000, win_prob=0.500, weighted=1575000 (FR-SPD-010)'
 );
 
 -- AC-1110: PQ Submitted stage — count=1, total_value=800000, win_prob=0.250, weighted=200000
