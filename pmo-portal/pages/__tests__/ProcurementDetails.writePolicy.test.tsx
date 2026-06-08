@@ -193,8 +193,11 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /request vendor quotes/i }));
+    // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
+    // same noun the badge shows — not the raw enum value ("Vendor Quoted"). The
+    // quiet-success-toast goal-oracle is unchanged; only the canonical label is asserted.
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith('Request updated', expect.stringContaining('Vendor Quoted'), 'success'),
+      expect(toast).toHaveBeenCalledWith('Request updated', expect.stringContaining('Vendor Quote'), 'success'),
     );
   });
 });

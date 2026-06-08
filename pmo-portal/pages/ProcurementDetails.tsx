@@ -42,6 +42,7 @@ import {
   lifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
+  toastStateLabel,
 } from '../components/procurement';
 
 // ---------------------------------------------------------------------------
@@ -296,14 +297,14 @@ const ProcurementDetails: React.FC = () => {
   };
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
+  // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
+  // The GR form is offered only while goods are being received (Ordered |
+  // Received); the VI form only while the request is at Vendor Invoiced. Neither
+  // persists into the terminal Paid state under "No further actions". An already-
+  // created GR/VI stays legible (read-only) via the document trail + stat tiles.
   const canShowGRForm =
-    (p.status === 'Ordered' ||
-      p.status === 'Received' ||
-      p.status === 'Vendor Invoiced' ||
-      p.status === 'Paid') &&
-    canSource(role);
-  const canShowVIForm =
-    (p.status === 'Vendor Invoiced' || p.status === 'Paid') && INVOICE_PAY_ROLES.has(role);
+    (p.status === 'Ordered' || p.status === 'Received') && canSource(role);
+  const canShowVIForm = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role);
 
   // ── Write policy (OD-UX-1): a transition gets a ConfirmDialog IFF it is
   //    consequential/financial — the set {Approve, Reject, Cancel, Mark-as-Paid}.
@@ -374,7 +375,9 @@ const ProcurementDetails: React.FC = () => {
       await mutations.transition.mutateAsync({ to, notes: notesInput || undefined });
       setNotesInput('');
       setPendingConfirm(null);
-      toast('Request updated', `Moved to ${to}`, 'success');
+      // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
+      // show — not the raw enum value (button verb → badge → toast all agree).
+      toast('Request updated', `Moved to ${toastStateLabel(to)}`, 'success');
     } catch (err) {
       setPendingConfirm(null);
       const { headline, detail } = classifyMutationError(err);
@@ -432,9 +435,14 @@ const ProcurementDetails: React.FC = () => {
       sub: p.project?.name ?? undefined,
     },
     {
+      // AC-IXD-PROC-004: once a quote is selected, the tile is bound to the
+      // CHOSEN quotation — its amount + the selected vendor — through to Paid,
+      // instead of reverting to "Pending — 0 received".
       label: 'Selected quote',
       value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
-      sub: `${p.quotations.length} received`,
+      sub: selectedQuote
+        ? (p.vendor?.name ?? selectedQuote.vq_number ?? 'selected')
+        : `${p.quotations.length} received`,
     },
     {
       label: 'PO committed',
