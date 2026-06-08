@@ -30,6 +30,8 @@ test-results
 
 # Vendored third-party Claude Code skills — re-create with scripts/vendor-skills.sh
 .claude/skills/
+# Codex-harness vendored skill mirror (same convention as .claude/skills/ — regenerated, not committed)
+.agents/skills/
 
 # agent worktrees (transient)
 .claude/worktrees/
