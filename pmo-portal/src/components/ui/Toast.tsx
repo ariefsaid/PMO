@@ -55,9 +55,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [items, setItems] = useState<ToastData[]>([]);
   const seq = useRef(0);
 
+  // Cap to ONE visible toast (OD-UX-1 / write-policy: routine forward writes each fire a
+  // quiet toast; without a cap they would pile up into a column). A new toast REPLACES the
+  // current one, so the user always sees the latest feedback and never a stack. Each toast
+  // still auto-dismisses on its own 3–5s timer (AutoDismiss below).
   const toast = useCallback((title: string, sub?: string, kind: ToastKind = 'info') => {
     const id = ++seq.current;
-    setItems((prev) => [...prev, { id, kind, title, sub }]);
+    setItems([{ id, kind, title, sub }]);
   }, []);
 
   return (
