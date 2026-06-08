@@ -7,6 +7,7 @@ import {
   DataTable,
   StatusPill,
   ProgressBar,
+  SelectField,
   Button,
   Icon,
   useToast,
@@ -101,6 +102,23 @@ const Projects: React.FC = () => {
           (p.code ?? '').toLowerCase().includes(q),
       );
   }, [all, filter, filterClient, filterPM, search, currentUser?.id]);
+
+  // Filter-select option lists (the tokened SelectField consumes {value,label});
+  // the leading "All …" sentinel value is the cleared state.
+  const customerFilterOptions = useMemo(
+    () => [
+      { value: 'All', label: 'All customers' },
+      ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [clientCompanies],
+  );
+  const pmFilterOptions = useMemo(
+    () => [
+      { value: 'All', label: 'All managers' },
+      ...projectManagers.map((u) => ({ value: u.id, label: u.full_name })),
+    ],
+    [projectManagers],
+  );
 
   const filtersActive =
     filter !== 'All' || filterClient !== 'All' || filterPM !== 'All' || search.trim() !== '';
@@ -307,32 +325,22 @@ const Projects: React.FC = () => {
           onChange={setFilter}
           ariaLabel="Status filter"
         />
-        <select
-          aria-label="Filter by customer"
+        <SelectField
+          hideLabel
+          label="Filter by customer"
           value={filterClient}
-          onChange={(e) => setFilterClient(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="All">All customers</option>
-          {clientCompanies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter by project manager"
+          onChange={setFilterClient}
+          options={customerFilterOptions}
+          className="w-auto"
+        />
+        <SelectField
+          hideLabel
+          label="Filter by project manager"
           value={filterPM}
-          onChange={(e) => setFilterPM(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="All">All managers</option>
-          {projectManagers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.full_name}
-            </option>
-          ))}
-        </select>
+          onChange={setFilterPM}
+          options={pmFilterOptions}
+          className="w-auto"
+        />
         <SearchMini
           placeholder="Search projects…"
           aria-label="Search projects"

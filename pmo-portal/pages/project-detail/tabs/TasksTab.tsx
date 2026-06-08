@@ -134,19 +134,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => {
     if (canSetStatus(task)) {
       return (
-        <select
-          aria-label={`Status for ${task.name}`}
+        <SelectField
+          hideLabel
+          label={`Status for ${task.name}`}
           value={task.status}
           disabled={updateStatus.isPending}
-          onChange={(e) => onStatusChange(task, e.target.value as TaskStatus)}
-          className="h-7 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground disabled:cursor-not-allowed disabled:bg-secondary"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onStatusChange(task, v as TaskStatus)}
+          options={STATUS_OPTIONS}
+          className="w-auto min-w-[120px]"
+        />
       );
     }
     return <StatusPill variant={STATUS_PILL[task.status]}>{task.status}</StatusPill>;
@@ -368,19 +364,15 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChan
                     </div>
                     <div className="mt-2">
                       {canSetStatus(t) ? (
-                        <select
-                          aria-label={`Status for ${t.name}`}
+                        <SelectField
+                          hideLabel
+                          label={`Status for ${t.name}`}
                           value={t.status}
                           disabled={statusBusy}
-                          onChange={(e) => onStatusChange(t, e.target.value as TaskStatus)}
-                          className="h-7 w-full rounded-md border border-input bg-background px-2 text-[12px] text-foreground disabled:cursor-not-allowed disabled:bg-secondary"
-                        >
-                          {STATUSES.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(v) => onStatusChange(t, v as TaskStatus)}
+                          options={STATUS_OPTIONS}
+                          fullWidth
+                        />
                       ) : (
                         <StatusPill variant={STATUS_PILL[t.status]}>{t.status}</StatusPill>
                       )}

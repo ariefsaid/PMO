@@ -189,6 +189,42 @@ describe('SelectField: native select for short fixed enums', () => {
     const placeholder = screen.getByRole('option', { name: 'Select a type…' });
     expect(placeholder).toBeDisabled();
   });
+
+  it('hideLabel keeps the label as the accessible name but renders no visible label text', () => {
+    render(
+      <SelectField
+        hideLabel
+        label="Status for Survey the site"
+        value="To Do"
+        onChange={() => {}}
+        options={[
+          { value: 'To Do', label: 'To Do' },
+          { value: 'Done', label: 'Done' },
+        ]}
+      />,
+    );
+    // Still reachable by its accessible name (sr-only label), so a11y is preserved.
+    const select = screen.getByLabelText('Status for Survey the site');
+    expect(select.tagName).toBe('SELECT');
+    // The visible label is hidden (sr-only), never a visible field caption in the row.
+    const label = document.querySelector('label');
+    expect(label).not.toBeNull();
+    expect(label).toHaveClass('sr-only');
+  });
+
+  it('renders the tokened 32px control (h-8), never a 28px one', () => {
+    render(
+      <SelectField
+        label="Status"
+        value="To Do"
+        onChange={() => {}}
+        options={[{ value: 'To Do', label: 'To Do' }]}
+      />,
+    );
+    const select = screen.getByLabelText('Status');
+    expect(select).toHaveClass('h-8');
+    expect(select).not.toHaveClass('h-7');
+  });
 });
 
 describe('FieldError: standalone inline error', () => {
