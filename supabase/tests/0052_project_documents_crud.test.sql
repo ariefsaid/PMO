@@ -19,12 +19,14 @@
 --   AC-DOC-108  Admin can hard-delete a document (FE gates delete to Admin; RLS permits the 4 write-roles —
 --               RLS is the authority, the FE is the clarity projection).
 --
--- NOTE (approver ≠ author SoD — documented non-RLS boundary): the document approval SoD (a document's
--- author may not approve their own document) is enforced in the FE gate (DocumentsTab + can('transition',
--- 'documentStatus')) and would be hardened by a transition RPC if/when promoted. `project_documents_write`
--- is intentionally a coarse role gate (no author-approver predicate), so this test asserts the role/org/parent
--- contract only; the SoD is owned by the DocumentsTab unit test (AC-DOC-005). This mirrors the program's
--- "RLS is the authority; the FE may be stricter" stance (rbac-visibility.md §H, crud-components §5.2).
+-- NOTE (status workflow — RPC-only as of migration 0017): project_documents.status is no longer a
+-- direct-UPDATE column. Migration 0017 removed `status` from the authenticated UPDATE column grant and
+-- routes all status changes through the SECURITY DEFINER transition_document_status RPC, which re-asserts
+-- org + role + the legal status map + the approver≠author SoD. So a status transition is exercised here
+-- through that RPC (AC-DOC-103); a direct `update … set status` now fails 42501 for everyone (proven in
+-- 0053). The metadata write contract (this file's other ACs) is unchanged — project_documents_write
+-- still gates org + the 4 write-roles + parent-org on the remaining columns. The full SoD (author cannot
+-- self-approve) is OWNED by 0053_document_transition_sod.test.sql.
 begin;
 select plan(16);
 
@@ -79,11 +81,13 @@ select lives_ok(
        where id = '00520000-0000-0000-0000-000000000030' $$,
   'AC-DOC-105: Engineer UPDATE project_documents runs without error (USING hides the row → RLS no-op)');
 
--- AC-DOC-105: Engineer status transition (the workflow write) is also a silent no-op.
-select lives_ok(
+-- AC-DOC-105: a direct status UPDATE is now RPC-only (migration 0017 dropped status from the column
+-- grant), so even the metadata-blocked Engineer's direct status write fails with a column-privilege 42501.
+select throws_ok(
   $$ update project_documents set status = 'Issued'
        where id = '00520000-0000-0000-0000-000000000030' $$,
-  'AC-DOC-105: Engineer status transition runs without error (USING hides the row → RLS no-op)');
+  '42501', null,
+  'AC-DOC-105: a direct status UPDATE is denied — status is RPC-only (column privilege → 42501)');
 
 reset role;
 
@@ -151,11 +155,12 @@ select lives_ok(
        where id = '00520000-0000-0000-0000-000000000030' $$,
   'AC-DOC-102: a write-role (PM) can UPDATE a document''s metadata in its own org');
 
--- AC-DOC-103: PM can move the status (Draft → Issued) — the workflow write.
+-- AC-DOC-103: PM moves the status (Draft → Issued) via the transition_document_status RPC (the sole
+-- writer of status as of 0017). The PM is the document's author here, but Draft→Issued is NOT an
+-- approve/reject, so the approver≠author SoD does not apply — only Approved/Rejected are SoD-gated.
 select lives_ok(
-  $$ update project_documents set status = 'Issued'
-       where id = '00520000-0000-0000-0000-000000000030' $$,
-  'AC-DOC-103: a write-role (PM) can transition a document''s status (Draft → Issued)');
+  $$ select transition_document_status('00520000-0000-0000-0000-000000000030','Issued') $$,
+  'AC-DOC-103: a write-role (PM) can transition a document''s status via the RPC (Draft → Issued)');
 
 reset role;
 
