@@ -1,10 +1,36 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
+import { AppError } from '@/src/lib/appError';
 import ProjectDetailHeader from '../ProjectDetailHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const project = {
+// Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
+const { roleBox, projectMutations } = vi.hoisted(() => ({
+  roleBox: { value: 'Project Manager' },
+  projectMutations: {
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  },
+}));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectMutations: () => projectMutations,
+  useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
+  useProjectManagers: () => ({ data: [{ id: 'u-alice', full_name: 'Alice Manager' }] }),
+}));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }),
+}));
+
+const onHand = {
   id: 'p1',
   name: 'Innovate Corp HQ Fit-Out',
   code: 'PRJ-001',
@@ -22,34 +48,150 @@ const project = {
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
-describe('ProjectDetailHeader', () => {
+const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
+
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand) => {
+  roleBox.value = role;
+  return render(
+    <MemoryRouter>
+      <ToastProvider>
+        <ProjectDetailHeader project={project} />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
+};
+
+beforeEach(() => {
+  roleBox.value = 'Project Manager';
+  Object.values(projectMutations).forEach((m) => {
+    m.mutateAsync.mockReset();
+    m.mutateAsync.mockResolvedValue(undefined);
+    m.isPending = false;
+  });
+});
+
+describe('ProjectDetailHeader — content', () => {
   it('renders the project name + StatusPill + customer + mono code + Customer PO ref (AC-G)', () => {
-    render(<ProjectDetailHeader project={project} />);
+    renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    // The meta row concatenates customer · mono code · Customer-PO ref + date.
     expect(screen.getByText(/Innovate Corp · PRJ-001 · PO CPO-2026-001/)).toBeInTheDocument();
   });
 
   it('renders a 5-stat strip with contract/actual figures (AC-G)', () => {
-    render(<ProjectDetailHeader project={project} />);
+    renderHeader();
     expect(screen.getByText('Contract')).toBeInTheDocument();
     expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByText('On-hand margin')).toBeInTheDocument();
-    expect(screen.getByText('$5,000,000')).toBeInTheDocument();
-    // margin = 5,000,000 - 2,100,000 = 2,900,000 (positive)
+    expect(screen.getAllByText('$5,000,000').length).toBeGreaterThan(0);
     expect(screen.getByText('$2,900,000')).toBeInTheDocument();
   });
 
   it('shows a negative margin with a true minus glyph and destructive tone (edge)', () => {
-    const over = { ...project, spent: 6000000 } as ProjectWithRefs;
-    render(<ProjectDetailHeader project={over} />);
-    // margin = 5,000,000 - 6,000,000 = -1,000,000, rendered with U+2212
+    renderHeader('Project Manager', { ...onHand, spent: 6000000 } as ProjectWithRefs);
     expect(screen.getByText(/−\$1,000,000/)).toBeInTheDocument();
   });
 
-  it('C3: renders no disabled "Edit Project" stub action (a disabled secondary adds nothing)', () => {
-    render(<ProjectDetailHeader project={project} />);
+  it('C3: renders no disabled "Edit Project" stub action', () => {
+    renderHeader();
     expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
+  });
+});
+
+// ── AC-PRJ-004 edit-header / AC-PRJ-005 archive gating ───────────────────────
+describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
+  it('AC-PRJ-004: a delivery role (PM) sees the header Edit action', () => {
+    renderHeader('Project Manager');
+    expect(screen.getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+  });
+
+  it('AC-PRJ-004: Finance does NOT see Edit (FE stricter than RLS)', () => {
+    renderHeader('Finance');
+    expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-004: Engineer does NOT see Edit', () => {
+    renderHeader('Engineer');
+    expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', () => {
+    renderHeader('Executive');
+    expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
+  });
+
+  it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', () => {
+    renderHeader('Project Manager');
+    expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-004: Edit opens the edit-header modal pre-filled with the project name', async () => {
+    renderHeader('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+  });
+
+  it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
+    renderHeader('Executive');
+    await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
+    // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
+    expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Archive project/i }));
+    await waitFor(() => expect(projectMutations.archive.mutateAsync).toHaveBeenCalledWith('p1'));
+  });
+});
+
+// ── AC-PRJ-006 contract_value SoD (ADR-0019) ─────────────────────────────────
+describe('ProjectDetailHeader — contract_value SoD treatment', () => {
+  it('AC-PRJ-006: PRE-WIN, a PM can edit the contract value (no lock)', async () => {
+    renderHeader('Project Manager', preWin);
+    // The editable value control is reachable for a delivery role pre-win.
+    expect(screen.getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', () => {
+    renderHeader('Project Manager', onHand);
+    expect(screen.getByText(/Read-only/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-006: on a WON/on-hand project, Finance CAN edit the value (money authority)', () => {
+    renderHeader('Finance', onHand);
+    expect(screen.getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-PRJ-006: editing the value on a WON project commits through an audit confirm naming the SoD', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const input = screen.getByRole('textbox', { name: /Contract value/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, '5140000');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    // Audit confirm appears; the RPC is NOT called until confirmed.
+    expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
+    const confirm = await screen.findByRole('dialog');
+    expect(confirm).toHaveTextContent(/segregation of duties/i);
+    await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
+    await waitFor(() =>
+      expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({ id: 'p1', value: 5140000 }),
+    );
+  });
+
+  it('AC-PRJ-006: an RPC SoD rejection (42501) surfaces a classified warning toast', async () => {
+    projectMutations.setContractValue.mutateAsync.mockRejectedValue(new AppError('not authorized', '42501'));
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const input = screen.getByRole('textbox', { name: /Contract value/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, '99');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    const confirm = await screen.findByRole('dialog');
+    await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });

@@ -11,7 +11,12 @@
  * consumed only by new CRUD code. No signature here diverges from its DAL counterpart;
  * the repository is a thin wrapper that normalizes the thrown error type.
  */
-import type { ProjectRow, ProjectWithRefs } from '@/src/lib/db/projects';
+import type {
+  ProjectRow,
+  ProjectWithRefs,
+  CreateProjectInput,
+  ProjectHeaderInput,
+} from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
@@ -41,6 +46,14 @@ export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
+  /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
+  create(input: CreateProjectInput): Promise<ProjectRow>;
+  /** Update the project's header fields (name/code/client/PM/dates). */
+  updateHeader(id: string, input: ProjectHeaderInput): Promise<void>;
+  /** Soft-archive a project (stamps archived_at). */
+  archive(id: string): Promise<void>;
+  /** Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial. */
+  setContractValue(id: string, value: number): Promise<void>;
 }
 
 export interface CompanyRepository {

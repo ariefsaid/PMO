@@ -1157,6 +1157,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_project_contract_value: {
+        Args: {
+          p_id: string
+          p_value: number
+        }
+        Returns: undefined
+      }
       transition_project: {
         Args: {
           p_contract_date?: string

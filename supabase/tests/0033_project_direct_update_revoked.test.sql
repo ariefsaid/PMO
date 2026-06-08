@@ -50,10 +50,15 @@ select lives_ok(
   'MED-PR-1: transition_project (security-definer RPC) still performs the win transition');
 
 -- ── Test (iv): direct UPDATE of a NON-revoked column STILL works (no over-revoke) ──
+-- ADR-0019 NOTE: as of 0014, contract_value is ALSO removed from the direct column grant (the
+-- set_project_contract_value RPC is its sole writer), so `name` is now the non-revoked column
+-- that proves the revoke did not over-reach. (The contract_value lockdown + SoD is proven by
+-- 0052_project_value_sod.test.sql.) `name` is in the 0008/0012/0014 grant list, so a 4-role
+-- insider may still direct-update it.
 select lives_ok(
-  $$ update projects set contract_value = 600000
+  $$ update projects set name = 'PR Revoke Project (renamed)'
        where id = '00330000-0000-0000-0000-000000000010' $$,
-  'MED-PR-1: direct UPDATE of a non-revoked column (contract_value) still works for a 4-role user');
+  'MED-PR-1: direct UPDATE of a non-revoked column (name) still works for a 4-role user');
 
 reset role;
 select * from finish();

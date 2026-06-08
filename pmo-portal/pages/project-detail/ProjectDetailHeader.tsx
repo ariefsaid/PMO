@@ -1,8 +1,24 @@
-import React from 'react';
-import { PageHeader, StatTiles, StatusPill, type StatTile } from '@/src/components/ui';
+import React, { useState } from 'react';
+import {
+  PageHeader,
+  StatTiles,
+  StatusPill,
+  Button,
+  Icon,
+  NumberField,
+  ConfirmDialog,
+  GateNotice,
+  useToast,
+  type StatTile,
+} from '@/src/components/ui';
+import { usePermission } from '@/src/auth/usePermission';
+import { useProjectMutations } from '@/src/hooks/useProjects';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import ProjectFormModal from '../../components/ProjectFormModal';
 
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
@@ -18,20 +34,50 @@ function signedCurrency(value: number): string {
   return formatCurrency(value);
 }
 
+/** Parse a formatted money string ("5,140,000") to a number; empty → 0. */
+function parseMoney(raw: string): number {
+  const n = Number(raw.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
 /**
- * Detail-page header: PageHeader (icon + name + StatusPill + meta row:
- * customer · mono code · Customer-PO ref + date) plus a 5-stat strip
- * (Contract / Committed / Actual / On-hand margin / Spend %). Margin is
- * success when positive, destructive when negative, with a true `−` glyph.
- * The proposed-vs-contract delta is omitted — the project row carries no
- * proposed value and we never fabricate one.
+ * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
+ * strip (Contract / Committed / Actual / On-hand margin / Spend %).
+ *
+ * CRUD affordances (crud-components §9.1, rbac-visibility §B2), all gated on the REAL
+ * JWT role (ADR-0016); RLS/RPC remain the enforcement authority:
+ *  • Header **Edit** (Admin·Exec·PM) → the edit-header ProjectFormModal.
+ *  • Header **Archive** (Admin·Exec) → a destructive confirm → archived_at stamp.
+ *  • **contract_value SoD** (ADR-0019): pre-win a delivery role may set the value freely;
+ *    on a WON/on-hand project only Exec/Finance/Admin may, via the scoped RPC behind an
+ *    audit confirm that NAMES the segregation of duties. A delivery role that cannot edit
+ *    a won value sees a static "Read-only" lock (read-only-distinction), never a dead input.
  */
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) => {
+  const may = usePermission();
+  const { toast } = useToast();
+  const { updateHeader, archive, setContractValue } = useProjectMutations();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  // contract_value inline-edit state.
+  const [valueEditing, setValueEditing] = useState(false);
+  const [valueDraft, setValueDraft] = useState('');
+  // The audit-confirm holds the pending new value until the user confirms the SoD action.
+  const [pendingValue, setPendingValue] = useState<number | null>(null);
+
   const contract = project.contract_value ?? 0;
   const committed = project.budget ?? 0;
   const spent = project.spent ?? 0;
   const margin = contract - spent;
   const spendPct = contract > 0 ? Math.round((spent / contract) * 100) : 0;
+
+  const status = project.status as string;
+  const isOnHand = ON_HAND_STATUSES.includes(status);
+
+  const canEdit = may('edit', 'project');
+  const canArchive = may('archive', 'project');
+  const canEditValue = may('editContractValue', 'project', { record: { status } });
 
   const meta = [
     project.client?.name ?? null,
@@ -55,6 +101,67 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
     { label: 'Spend', value: `${spendPct}%` },
   ];
 
+  const beginValueEdit = () => {
+    setValueDraft(String(contract));
+    setValueEditing(true);
+  };
+
+  const cancelValueEdit = () => {
+    setValueEditing(false);
+    setValueDraft('');
+  };
+
+  // Save the value. On a WON/on-hand project this is a segregation-of-duties action →
+  // stage it for the audit confirm. Pre-win, commit straight away (no SoD confirm).
+  const onValueSave = () => {
+    const next = parseMoney(valueDraft);
+    if (isOnHand) {
+      setPendingValue(next);
+    } else {
+      void commitValue(next);
+    }
+  };
+
+  const commitValue = async (next: number) => {
+    try {
+      await setContractValue.mutateAsync({ id: project.id, value: next });
+      toast('Contract value updated', formatCurrency(next), 'success');
+      setValueEditing(false);
+      setValueDraft('');
+      setPendingValue(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setPendingValue(null);
+    }
+  };
+
+  const onArchiveConfirm = async () => {
+    try {
+      await archive.mutateAsync(project.id);
+      toast('Project archived', project.name, 'success');
+      setArchiveOpen(false);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const actions = (
+    <>
+      {canEdit && (
+        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+          Edit
+        </Button>
+      )}
+      {canArchive && (
+        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
+          Archive
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <>
       <PageHeader
@@ -62,13 +169,128 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         iconColor={projectIconColor()}
         name={project.name}
         status={
-          <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-            {project.status}
-          </StatusPill>
+          <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
         }
         meta={meta || undefined}
+        actions={canEdit || canArchive ? actions : undefined}
       />
       <StatTiles tiles={tiles} columns={5} className="mb-4" />
+
+      {/* contract_value SoD treatment (ADR-0019). Rendered as a small dedicated row so the
+          read-only / editable / audit distinction is explicit (the StatTiles strip stays a
+          read-only summary). */}
+      <div
+        data-testid="contract-value-sod"
+        className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+      >
+        {valueEditing ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-[180px]">
+              <NumberField label="Contract value" prefix="$" value={valueDraft} onChange={setValueDraft} />
+            </div>
+            <Button variant="primary" size="sm" onClick={onValueSave} loading={setContractValue.isPending}>
+              Save
+            </Button>
+            <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <span className="flex items-center gap-2.5">
+            <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+            <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
+              {formatCurrency(contract)}
+            </span>
+            {canEditValue ? (
+              <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
+                Edit
+              </Button>
+            ) : isOnHand ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                <Icon name="lock" className="size-3" />
+                Read-only
+              </span>
+            ) : null}
+          </span>
+        )}
+        {isOnHand && canEditValue && !valueEditing && (
+          <span className="basis-full text-[12px] text-muted-foreground">
+            Changing the value on a won project is a segregation-of-duties action and is recorded.
+          </span>
+        )}
+        {isOnHand && !canEditValue && (
+          <span className="basis-full text-[12px] text-muted-foreground">
+            Once a project is won, the contract value is locked for your role. Only Executive or
+            Finance can change it, and the change is recorded.
+          </span>
+        )}
+      </div>
+
+      {/* Edit-header modal (Admin·Exec·PM). */}
+      {editOpen && (
+        <ProjectFormModal
+          mode="editHeader"
+          initial={{
+            id: project.id,
+            name: project.name,
+            code: project.code,
+            client_id: project.client_id,
+            project_manager_id: project.project_manager_id,
+            clientName: project.client?.name ?? null,
+            pmName: project.pm?.full_name ?? null,
+            start_date: project.start_date,
+            end_date: project.end_date,
+          }}
+          onClose={() => setEditOpen(false)}
+          onSave={async (id, input) => {
+            await updateHeader.mutateAsync({ id, input });
+            toast('Project updated', input.name, 'success');
+            setEditOpen(false);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {/* Archive confirm (destructive tone — leaves the active list). */}
+      <ConfirmDialog
+        open={archiveOpen}
+        tone="destructive"
+        title={`Archive ${project.name}?`}
+        description="It will be hidden from the default project list. Existing references stay intact. You can restore it later."
+        confirmLabel="Archive project"
+        loading={archive.isPending}
+        onConfirm={onArchiveConfirm}
+        onCancel={() => setArchiveOpen(false)}
+      />
+
+      {/* contract_value SoD audit confirm (default tone) — names the SoD reason in the body. */}
+      <ConfirmDialog
+        open={pendingValue !== null}
+        tone="default"
+        title="Change the contract value?"
+        description={
+          pendingValue !== null ? (
+            <>
+              You are changing the contract value of a won project from{' '}
+              <b className="tabular text-foreground">{formatCurrency(contract)}</b> to{' '}
+              <b className="tabular text-foreground">{formatCurrency(pendingValue)}</b>.
+              <GateNotice variant="blocked" className="mt-3">
+                Changing the contract value on a won project is a segregation of duties action and
+                is recorded against your name, the date, and the previous value.
+              </GateNotice>
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel="Change and record"
+        loading={setContractValue.isPending}
+        onConfirm={() => pendingValue !== null && void commitValue(pendingValue)}
+        onCancel={() => setPendingValue(null)}
+      />
     </>
   );
 };

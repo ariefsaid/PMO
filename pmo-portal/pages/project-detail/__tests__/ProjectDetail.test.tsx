@@ -15,7 +15,18 @@ const seed = [
 ] as unknown as ProjectWithRefs[];
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => projectsState,
+  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
+  useProjectMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  }),
+  useClientCompanies: () => ({ data: [], isError: false }),
+  useProjectManagers: () => ({ data: [], isError: false }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

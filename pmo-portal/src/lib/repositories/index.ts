@@ -11,7 +11,13 @@
  * imports `repositories` and never changes.
  */
 import { toAppError } from '@/src/lib/appError';
-import { listProjects } from '@/src/lib/db/projects';
+import {
+  listProjects,
+  createProject,
+  updateProjectHeader,
+  archiveProject,
+  setProjectContractValue,
+} from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
 import { transitionProject } from '@/src/lib/db/projectTransitions';
 import {
@@ -79,6 +85,10 @@ const project: ProjectRepository = {
   list: (params) => wrap(() => listProjects(params)),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
+  create: (input) => wrap(() => createProject(input)),
+  updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
+  archive: (id) => wrap(() => archiveProject(id)),
+  setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 
 const company: CompanyRepository = {
