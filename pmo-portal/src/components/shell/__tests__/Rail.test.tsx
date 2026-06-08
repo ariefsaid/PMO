@@ -24,7 +24,7 @@ const renderRail = () =>
   );
 
 describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
-  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Incidents/Reports', () => {
+  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Incidents', () => {
     effectiveRole = 'Executive';
     renderRail();
     for (const name of [
@@ -36,10 +36,11 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
       'Approvals',
       'Companies',
       'Incidents',
-      'Reports',
     ]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8).
+    expect(screen.queryByText('Reports')).not.toBeInTheDocument();
   });
 
   // AC-IN-006: Incidents is visible to EVERY role (any member may file) — incl. Engineer,
