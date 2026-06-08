@@ -72,13 +72,22 @@ Post-IA-3 AI-slop cleanup + 4 owner directives. Audit `docs/reviews/2026-06-07-u
 - **Verified green:** 733 unit · 180 pgTAP · 21 e2e · typecheck/lint/build · **CI green on the runner** (verify + integration). Open-Questions across the 5 plans resolved with recommended defaults (flagged in the PR).
 - Follow-up chip: **bump GitHub Actions off deprecated Node 20** (checkout/setup-node/supabase-cli) before ~2026-06-16.
 
-## ▶ NEXT FEATURE WAVE — owner-set priority (2026-06-07)
-Build in THIS order (owner-set):
+## ✅ APP-WIDE FE-CRUD + RBAC PROGRAM — COMPLETE (2026-06-08, `main`@ba04298; PRs #32/#34/#35)
+The app went from view+lifecycle-only to **full create/edit/delete for every entity, RBAC-gated + RLS-enforced**, across a 3-layer (FE / repository-API / Supabase) seam. Plan `docs/plans/2026-06-07-crud-rbac-program.md`; design `docs/design/{crud-components,rbac-visibility}.md` + `docs/design-mockups/crud-*.html` (owner taste-gated).
+- **Phase 0 (mockups):** design-architect→ui-implementer→design-reviewer loop; per-role HTML mockups + the role×affordance visibility map; owner-approved.
+- **Phase 1 foundation (PR #32):** ADR-0016 `can()`/`usePermission`/`<CanWrite>` on the **real JWT role** + impersonation banner; ADR-0017 repository/API seam + shared `AppError`; ADR-0018 soft-archive (`archived_at`); form primitives (`EntityFormModal`/`useEntityForm`/`TextField`/`SelectField`/`Combobox`). **Also fixed app-wide: the 28px→32px control-scale bug** (`index.css` root font) + the **timesheet date-drift** (relative-week seed + clock-pinned tests).
+- **Phase 2 slices:** **Companies (PR #34)** = proving slice (caught the scale/date-drift/delete-gating bugs before they ×7'd). Then **Projects, Procurement, Tasks, Incidents, Documents, Admin-Users (PR #35)** built in **parallel worktrees**, integrated, 5-lens reviewed (2 rendered design + security + spec + quality), fixed.
+- **Server-enforced SoD/RPCs (migrations 0013–0017):** company delete=Admin; `set_project_contract_value` (PM pre-win, Exec/Finance on won, sole writer); procurement select-quote RPC + `procurement_items` org_id-inherit trigger + Draft RLS; task engineer-own-status RLS (column-pinned); document-status RPC (approver≠author); incident delete=Admin + reporter stamping. RLS is the authority; `can()` is UX-only; no client sends `org_id`.
+- **Verified:** **1258 unit · 332 pgTAP (59 files) · 39 e2e**; CI green (verify+integration). `/work-orders` route removed (owner decision).
+- **DEFERRED (recorded):** Admin **user disable/Status + invite-create** (needs a profiles status column + server-side auth-admin); **assigned-projects** picker filter (needs an assignment model); document **file upload** (Supabase Storage still disabled — metadata CRUD only); minor responsive/taste nits (mobile KPI peek, role-pill distinctness) as fast-follow.
+
+## ▶ NEXT FEATURE WAVE — owner-set priority (updated 2026-06-08)
+Companies + Tasks + Documents + Administration are now DONE via the CRUD program; Work Orders route removed. Genuinely remaining:
 1. ✅ **Timesheet entry + edit — DONE (merged PR #31, `main`@b9ee6c4).** Engineers add a project row, type per-day hours, edit a row note, delete (confirm), and Save on the editable weekly grid (Draft-only; lazy Draft creation; save-diff insert/update/delete-zeroed; 0–24 validation; live totals; read-only once Submitted). Spec `docs/specs/timesheet-entry.spec.md`, plan `docs/plans/2026-06-07-timesheet-entry.md`, **ADR-0015** (migration `0011`: unique `(timesheet_id,project_id,entry_date)` cell key + WITH CHECK hardened to own+Draft **and** parent-project org). **Security audit caught + fixed a real cross-org integrity hole** (an own-draft entry could reference another org's project_id) before merge → pgTAP `0049`. 789 unit · 190 pgTAP · e2e `AC-TSE-021` · CI green. Multi-lens reviewed + a rendered re-check (AA contrast 6.48:1, mobile delete reachable, header/grid totals consistent). _Noted post-MVP follow-ups:_ restrict picker to **assigned** projects (needs an assignment model); bind `entry.org_id`/`entry_date` to the parent timesheet (defense-in-depth); picker uses `useProjects()`+client filter (acceptable).
 2. **▶ Project-level timesheet view — NEXT** (was deferred) — cross-user, project-scoped timesheet read on the project-detail Timesheets tab (PM/Exec see all members on their project). Needs a project-scoped RLS read + a visibility/auth **decision (owner-level — flagged)**. Build next.
-3. **Companies** — management screen (read-DAL already exists; needs CRUD UI + an RLS write contract). AFTER all timesheet features.
-4. **Work Orders** — placeholder with **NO schema table** — define the model first (owner to scope) or drop. AFTER Companies.
-> Remaining deferred prototype modules (Tasks / Documents / Reports / Administration) stay parked pending the owner scope decision below.
+3. ✅ **Companies / Tasks / Documents / Administration** — DONE via the CRUD program (above).
+4. **Reports** module — still a placeholder; needs owner definition (read-only dashboards/exports over existing data).
+> CRUD-program fast-follows (recorded above): Admin user disable/invite, assigned-projects picker, document file-upload (re-enable Storage), minor responsive/taste nits. Work Orders route removed (owner decision).
 
 ## ✅ UI REALIGNMENT PROGRAM — COMPLETE (2026-06-07, `main`@25d6963)
 The whole app was re-skinned to the owner-approved **RIS IA-3 identity** (`DESIGN.md` reverse-engineered from
