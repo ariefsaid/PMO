@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       budget_line_items: {
@@ -1153,18 +1128,15 @@ export type Database = {
         Args: { p_quotation_id: string }
         Returns: undefined
       }
+      set_project_contract_value: {
+        Args: { p_id: string; p_value: number }
+        Returns: undefined
+      }
       transition_procurement: {
         Args: {
           p_id: string
           p_notes?: string
           p_to: Database["public"]["Enums"]["procurement_status"]
-        }
-        Returns: undefined
-      }
-      set_project_contract_value: {
-        Args: {
-          p_id: string
-          p_value: number
         }
         Returns: undefined
       }
@@ -1359,9 +1331,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       budget_category: [
