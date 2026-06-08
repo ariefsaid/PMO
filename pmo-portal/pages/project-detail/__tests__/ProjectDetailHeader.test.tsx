@@ -215,6 +215,24 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     );
   });
 
+  it('polish#4: the inline editor shows formatted thousands ($5,000,000) on open, not the raw number', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const input = screen.getByRole('textbox', { name: /Contract value/i }) as HTMLInputElement;
+    // On open the draft reads the formatted figure, NOT the raw "5000000".
+    expect(input.value).toBe('5,000,000');
+  });
+
+  it('polish#4: typing reformats with thousands separators while editing', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const input = screen.getByRole('textbox', { name: /Contract value/i }) as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '5140000');
+    // The visible value is grouped; the committed number is still unformatted.
+    expect(input.value).toBe('5,140,000');
+  });
+
   it('AC-PRJ-006: an RPC SoD rejection (42501) surfaces a classified warning toast', async () => {
     projectMutations.setContractValue.mutateAsync.mockRejectedValue(new AppError('not authorized', '42501'));
     renderHeader('Finance', onHand);

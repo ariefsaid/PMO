@@ -92,6 +92,21 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
     expect(screen.getByText('Steel Spec')).toBeInTheDocument();
   });
+
+  // Polish #6 — the toolbar gains a left-aligned "N documents" count (matching the
+  // Admin Users toolbar pattern) so the previously-empty left side reads as anchored.
+  it('polish#6: the toolbar shows a left-aligned document count (4 documents)', () => {
+    renderTab();
+    const count = screen.getByTestId('documents-count');
+    expect(count).toBeInTheDocument();
+    expect(count).toHaveTextContent(/^4 documents$/);
+  });
+
+  it('polish#6: the count uses the singular noun for a single document', () => {
+    listState.data = [seed[0]];
+    renderTab();
+    expect(screen.getByTestId('documents-count')).toHaveTextContent(/^1 document$/);
+  });
 });
 
 describe('DocumentsTab — states', () => {

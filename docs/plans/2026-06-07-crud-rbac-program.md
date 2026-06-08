@@ -146,6 +146,27 @@ Work Orders (define-or-drop) · Reports module · Storage/file-upload for docume
 the second (ERP) repository adapter (interfaces land now) · `pipeline_stage_config` admin editing ·
 fine-grained $-threshold approvals (OD-PROC-6 config bridge).
 
+### Admin Users — `disable/Status` + `invite/create` DEFERRED (UI-polish round, 2026-06-08)
+Both Admin-Users write paths in §9.10 / §J that need **server-side** capability are deferred until that capability
+exists; the FE is kept **honest** in the meantime (no affordance implying the feature is available):
+- **User disable / Status** — needs a `profiles.status` (active/disabled) column **and** a server-side auth-admin
+  call to actually revoke sign-in. **Not built.** There is **no** disable/Status row affordance in `AdminUsers.tsx`
+  (not even a greyed dead control) — the row menu carries only **Edit role** + **Change manager** (both fully wired).
+- **Invite / create user** — creating an auth account needs the Supabase **admin API (service-role key)**, which is
+  server-side only. **Not built.** The header **Add user** affordance is rendered as a **disabled control with a
+  reason** (`aria-label`/tooltip "Inviting users arrives with server-side auth"), matching the Documents "Attach file"
+  deferred pattern — **not** a button that opens a "coming soon" modal dead-end (the prior `InviteFollowUpModal` was
+  removed). Editing existing profiles' **role + manager** is fully wired and unaffected.
+
+When the server side lands, both become real affordances behind the existing `can('create'|'edit','user')` Admin gate.
+
+### Document-approval SoD — now SERVER-ENFORCED (server stage, this program)
+The project-Documents status transition (`Issued → Approved/Rejected`) SoD (**approver ≠ author**) is no longer
+FE-cosmetic-only: it is enforced **server-side** (RLS/RPC is the authority, per §Architecture). The FE still hides the
+Approve/Reject affordance from a document's own author and explains the block via a `GateNotice`, but a slip-through is
+rejected at the DB and surfaces a classified toast (`classifyMutationError`) — consistent with the procurement
+create≠approve / payer≠approver SoD. Hiding the button is clarity, not the security boundary.
+
 ## Critical files
 - New: `pmo-portal/src/auth/policy.ts`, `pmo-portal/src/lib/repositories/*` (interfaces + Supabase impl),
   `pmo-portal/src/components/ui/{TextField,NumberField,SelectField,Combobox,FormRow,FormActions,FieldError,EntityFormModal}.tsx`,

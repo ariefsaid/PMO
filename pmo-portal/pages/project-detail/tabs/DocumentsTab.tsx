@@ -307,6 +307,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
       {state !== 'loading' && all.length > 0 && (
         <Toolbar standalone>
+          {/* Left-aligned count anchors the toolbar (matches the Admin Users pattern,
+              polish #6) so the bar no longer reads as dead space beside the search. */}
+          <span data-testid="documents-count" className="text-[13px] font-semibold tabular">
+            {all.length} {all.length === 1 ? 'document' : 'documents'}
+          </span>
           <SearchMini
             placeholder="Search documents…"
             aria-label="Search documents"

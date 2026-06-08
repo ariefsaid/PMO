@@ -116,14 +116,35 @@ describe('Admin Users — directory (AC-AU-001)', () => {
 });
 
 describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
-  it('AC-AU-002: Admin sees Add user + row Edit role + Change manager', async () => {
+  it('AC-AU-002: Admin sees row Edit role + Change manager (Add user is a deferred affordance)', async () => {
     renderPage('Admin');
-    expect(screen.getByRole('button', { name: /Add user/i })).toBeInTheDocument();
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
+  });
+
+  // Polish #7 — invite/create is DEFERRED (needs server-side auth-admin). The FE is
+  // honest: the affordance is a DISABLED control with a reason, never a button that
+  // opens a "coming soon" dead-end modal, and never a hidden broken create path.
+  it('polish#7: the Add user affordance is DISABLED with a reason (no dead-end modal)', async () => {
+    renderPage('Admin');
+    const addBtn = screen.getByRole('button', { name: /Add user/i });
+    expect(addBtn).toBeDisabled();
+    // Clicking a disabled control does nothing — no modal, no mutation.
+    await userEvent.click(addBtn);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('polish#7: there is NO disable/Status row affordance (deferred — needs a status column)', async () => {
+    renderPage('Admin');
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    expect(screen.queryByRole('menuitem', { name: /disable/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /status/i })).toBeNull();
   });
 
   it('AC-AU-002: Executive gets a read-only directory — no Add user, no row actions, a read-only notice', () => {
@@ -217,12 +238,14 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   });
 });
 
-describe('Admin Users — invite follow-up (AC-AU-005)', () => {
-  it('AC-AU-005: Add user explains that invitations are a follow-up (no broken create path)', async () => {
+describe('Admin Users — invite deferred (AC-AU-005)', () => {
+  it('AC-AU-005: Add user is an honest deferred affordance — disabled with a reason, no create path', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /Add user/i }));
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent(/invit/i);
+    const addBtn = screen.getByRole('button', { name: /Add user/i });
+    // Honest: discoverable but visibly not-yet-available (needs server-side auth-admin),
+    // never a button that opens a "coming soon" modal dead-end.
+    expect(addBtn).toBeDisabled();
+    expect(addBtn).toHaveAccessibleName(/coming soon|deferred|server/i);
     // It does not silently call a create mutation that cannot succeed client-side.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(mutations.assignManager.mutateAsync).not.toHaveBeenCalled();

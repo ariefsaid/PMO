@@ -69,6 +69,9 @@ type PendingConfirm =
       to: ProcurementStatus;
       title: string;
       confirmLabel: string;
+      /** Dismiss-button label; defaults to "Cancel" but the PR-cancel flow uses
+       *  "Keep request" so the dismiss never reads as "cancel the cancellation". */
+      cancelLabel?: string;
       tone: 'default' | 'destructive';
     }
   | {
@@ -105,7 +108,11 @@ function allowedActions(
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
   if (legal('Approved') && canApproveReject(role) && !isRequester) {
-    actions.push({ to: 'Approved', label: 'Approve', variant: 'success' });
+    // Approve is the single per-screen CTA at this stage → the One-Blue `primary`
+    // (polish #1). It previously read solid `success` green, which competed with
+    // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
+    // quiet outline so only one affordance carries weight.
+    actions.push({ to: 'Approved', label: 'Approve', variant: 'primary' });
   }
   if (legal('Rejected') && canApproveReject(role) && !isRequester) {
     actions.push({ to: 'Rejected', label: 'Reject', variant: 'destructive' });
@@ -152,9 +159,11 @@ function allowedActions(
     actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'success' });
   }
 
-  // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B)
+  // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page
+  // action reads "Cancel request" (verb + object) so it never reads as a bare
+  // "Cancel" that could be mistaken for dismissing the screen (polish #2).
   if (legal('Cancelled') && canCancel(role, isRequester, status)) {
-    actions.push({ to: 'Cancelled', label: 'Cancel', variant: 'destructive' });
+    actions.push({ to: 'Cancelled', label: 'Cancel request', variant: 'destructive' });
   }
 
   return actions;
@@ -214,7 +223,33 @@ const ProcurementDetails: React.FC = () => {
     );
   }
 
-  // ── Error (AC-804) ────────────────────────────────────────────────────────
+  // ── No access / not found (polish #3) ────────────────────────────────────
+  // A record the viewer cannot read under RLS comes back as a single-row miss
+  // (PostgREST `PGRST116`), surfaced through the query's error. Rather than the
+  // blank main area / generic transient-error state, render a clear, calm
+  // "no access" notice (an Engineer reaching a PR that isn't theirs is the canonical
+  // case). RLS is the real authority; this is the honest UI projection of it.
+  const errCode = (detailQuery.error as { code?: string } | null | undefined)?.code;
+  const isNoAccess = errCode === 'PGRST116';
+  if (isNoAccess || (!detailQuery.isError && !data && !detailQuery.isPending)) {
+    return (
+      <>
+        <BackBar label="Procurement" onBack={goBack} />
+        {/* BackBar above already carries the "Back to Procurement" escape route,
+            so the empty state does not repeat it (avoids a duplicate control). */}
+        <div data-testid="procurement-no-access">
+          <ListState
+            variant="empty"
+            icon="lock"
+            title="You don't have access to this record"
+            sub="This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests."
+          />
+        </div>
+      </>
+    );
+  }
+
+  // ── Error (AC-804) — a genuine transient failure (offer Retry) ───────────
   if (detailQuery.isError) {
     return (
       <>
@@ -225,23 +260,6 @@ const ProcurementDetails: React.FC = () => {
           sub="Something went wrong fetching the procurement details."
           onRetry={() => detailQuery.refetch()}
         />
-      </>
-    );
-  }
-
-  // ── Empty / not-found (AC-804) ───────────────────────────────────────────
-  if (!data) {
-    return (
-      <>
-        <BackBar label="Procurement" onBack={goBack} />
-        <div data-testid="procurement-empty">
-          <ListState
-            variant="error"
-            icon="inbox"
-            title="Procurement not found"
-            sub="This procurement does not exist or you don't have access to it."
-          />
-        </div>
       </>
     );
   }
@@ -290,14 +308,21 @@ const ProcurementDetails: React.FC = () => {
   const stageTransition = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
     const destructive = action.variant === 'destructive';
-    // Disambiguate the destructive "Cancel" action from the dialog's own
-    // Cancel button: the commit reads "Cancel request" (plan P2 copy).
-    const confirmLabel = action.to === 'Cancelled' ? 'Cancel request' : action.label;
+    const isCancel = action.to === 'Cancelled';
+    // The commit verb (action.label is already "Cancel request" for the cancel
+    // flow). The dismiss is "Keep request" ONLY for the cancel flow so the three
+    // Cancels disambiguate (polish #2): page action "Cancel request" → confirm
+    // "Cancel request" / "Keep request". Other destructive moves keep "Cancel".
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
-      title: destructive ? `${action.label} this request` : `Move request to ${action.to}?`,
-      confirmLabel,
+      title: isCancel
+        ? 'Cancel this request?'
+        : destructive
+          ? `${action.label} this request`
+          : `Move request to ${action.to}?`,
+      confirmLabel: action.label,
+      cancelLabel: isCancel ? 'Keep request' : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
   };
@@ -739,6 +764,9 @@ const ProcurementDetails: React.FC = () => {
             : pendingConfirm?.kind === 'createGR'
               ? 'Save GR'
               : 'Save VI'
+        }
+        cancelLabel={
+          pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
         onCancel={() => setPendingConfirm(null)}

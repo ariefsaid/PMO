@@ -11,6 +11,7 @@ import {
   Combobox,
   FormSection,
   GateNotice,
+  Tooltip,
   useEntityForm,
   useToast,
   Button,
@@ -34,9 +35,12 @@ import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
  * gates affordances via can('edit','user') on the REAL JWT role (ADR-0016). Executive may VIEW a
  * read-only directory (§J); every other role reaching the route sees an Admin-only gate.
  *
- * Scope: creating an auth user requires the Supabase admin API (service-role key) which is not
- * available client-side, so the invite/create flow is flagged as a follow-up (an honest modal, not
- * a broken create path) — editing existing profiles' role + manager is fully wired.
+ * Scope (DEFERRED, plan §J): creating an auth user (invite/create) and disabling/Status both need
+ * server-side capabilities not available client-side — invite/create needs the Supabase admin API
+ * (service-role key); disable/Status needs a `profiles.status` column + an auth-admin call. Rather
+ * than ship affordances that cannot succeed, "Add user" is a DISABLED control with a reason (an
+ * honest deferred affordance, not a dead-end "coming soon" modal), and there is NO disable/Status
+ * row action. Editing existing profiles' role + manager is fully wired.
  */
 
 /** The five user_role enum values, ordered for the role <select>. */
@@ -101,9 +105,8 @@ const AdminUsers: React.FC = () => {
   const { updateRole, assignManager } = useUserMutations();
 
   const [search, setSearch] = useState('');
-  // Active modal: 'add' | { mode:'role', user } | { mode:'manager', user } | null.
+  // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
   const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserRow } | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
   // Pending high-impact role change awaiting the confirm step.
   const [pendingRole, setPendingRole] = useState<{ user: UserRow; role: UserRole } | null>(null);
 
@@ -231,7 +234,7 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div>
-      <PageHead canManage={canManage} onAdd={() => setAddOpen(true)} />
+      <PageHead canManage={canManage} />
 
       {isExecReadOnly && (
         <GateNotice variant="blocked" className="mb-3.5">
@@ -313,9 +316,6 @@ const AdminUsers: React.FC = () => {
         />
       )}
 
-      {/* Add user — invite flow flagged as a follow-up (no broken create path) */}
-      {addOpen && <InviteFollowUpModal onClose={() => setAddOpen(false)} />}
-
       {/* High-impact role-change confirm (default tone, names the impact) */}
       <ConfirmDialog
         open={!!pendingRole}
@@ -335,20 +335,28 @@ const AdminUsers: React.FC = () => {
 
 // ── Page header ──────────────────────────────────────────────────────────────
 
-const PageHead: React.FC<{ canManage: boolean; onAdd?: () => void }> = ({ canManage, onAdd }) => (
+const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">Users</h1>
       <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Manage who can sign in, their role, and reporting line. Administration is Admin-only; role
-        changes are high-impact and recorded.
+        Manage existing users&rsquo; role and reporting line. Administration is Admin-only; role
+        changes are high-impact and recorded. Inviting new users arrives with server-side auth.
       </p>
     </div>
-    {canManage && onAdd && (
-      <Button variant="primary" onClick={onAdd}>
-        <Icon name="plus" />
-        Add user
-      </Button>
+    {canManage && (
+      // Inviting/creating a user needs the Supabase admin API (server-side) — DEFERRED.
+      // An honest disabled affordance with a reason, never a button that opens a dead-end
+      // "coming soon" modal (matches the Documents "Attach file" deferred pattern). A disabled
+      // button doesn't fire hover/focus, so the tooltip wraps a span that does.
+      <Tooltip content="Inviting users arrives with server-side auth">
+        <span className="inline-flex">
+          <Button variant="primary" disabled aria-label="Add user (coming soon)">
+            <Icon name="plus" />
+            Add user
+          </Button>
+        </span>
+      </Tooltip>
     )}
   </div>
 );
@@ -490,25 +498,5 @@ const ManagerFormModal: React.FC<{
     </EntityFormModal>
   );
 };
-
-// ── Add user — invite follow-up ──────────────────────────────────────────────
-
-/**
- * Inviting a brand-new auth user needs the Supabase admin API (service-role key), which is
- * server-side only — so rather than ship a create form that can't succeed, this honest modal
- * explains the follow-up. Editing existing users' role + manager is fully wired (above).
- */
-const InviteFollowUpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-  <ConfirmDialog
-    open
-    tone="default"
-    title="Inviting users is coming soon"
-    description="Sending an invitation creates a new sign-in account, which runs on the server. That flow is a follow-up. For now you can manage existing users' roles and reporting lines from the directory."
-    confirmLabel="Got it"
-    cancelLabel="Close"
-    onConfirm={onClose}
-    onCancel={onClose}
-  />
-);
 
 export default AdminUsers;

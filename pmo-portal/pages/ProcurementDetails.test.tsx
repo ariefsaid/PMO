@@ -20,6 +20,7 @@ const detailState = {
   data: undefined as Record<string, unknown> | undefined,
   isPending: false,
   isError: false,
+  error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
 };
 
@@ -203,6 +204,7 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     detailState.data = undefined;
     detailState.isPending = false;
     detailState.isError = false;
+    detailState.error = null;
     detailState.refetch = vi.fn();
     mockEffectiveRole = 'Finance';
   });
@@ -213,11 +215,13 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     expect(screen.getByTestId('procurement-loading')).toBeInTheDocument();
   });
 
-  it('AC-804: renders procurement-empty when query resolves with no data', () => {
+  it('AC-804: renders the no-access state when query resolves with no data', () => {
     detailState.isPending = false;
     detailState.data = undefined;
     renderPage();
-    expect(screen.getByTestId('procurement-empty')).toBeInTheDocument();
+    // A resolved-but-empty record is the same honest "no access / not found"
+    // state as an RLS-filtered miss (polish #3) — no blank main area.
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });
 
   it('AC-804: renders error state with Retry button when query errors', () => {
@@ -609,14 +613,15 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('P2: a destructive action (Cancel) opens an alertdialog; only confirm fires the transition', async () => {
+  it('P2: a destructive action (Cancel request) opens an alertdialog; only confirm fires the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    // requester (u-alice) may cancel a Requested PR (canCancel early)
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    // requester (u-alice) may cancel a Requested PR (canCancel early). The page
+    // terminal action reads "Cancel request" (double-negative cleanup, polish #2).
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    // commit button reads "Cancel request" (disambiguated from the dialog's own Cancel)
+    // commit button reads "Cancel request" (disambiguated from the dialog's own dismiss)
     await confirmInDialog(/cancel request/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
@@ -875,5 +880,84 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     renderPage();
     // u-alice is the requester AND the mocked currentUser → the add-row shows for the Engineer requester.
     expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UI-POLISH — One-Blue + copy disambiguation + no-access deep-link
+// ---------------------------------------------------------------------------
+describe('UI-POLISH: procurement detail surface refinements', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    detailState.refetch = vi.fn();
+    mockTransition.mockClear();
+    mockEffectiveRole = 'Finance';
+  });
+
+  // Polish #1 — Approve is the single primary blue; Reject stays a quiet outline.
+  it('polish#1: Approve renders as the PRIMARY blue (not success-green)', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const approve = screen.getByRole('button', { name: /^approve$/i });
+    expect(approve.className).toContain('bg-primary');
+    expect(approve.className).not.toContain('bg-success');
+  });
+
+  it('polish#1: Reject stays a quiet outline at rest (no solid fill competing with Approve)', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const reject = screen.getByRole('button', { name: /^reject$/i });
+    expect(reject.className).toContain('border-input');
+    expect(reject.className).not.toContain('bg-destructive');
+    expect(reject.className).not.toContain('bg-success');
+  });
+
+  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
+  // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
+  it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    // dismiss is the non-destructive button: "Keep request"
+    expect(within(dialog).getByRole('button', { name: /^keep request$/i })).toBeInTheDocument();
+    // the dialog must NOT carry a bare "Cancel" dismiss (the double-negative tell)
+    expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
+  });
+
+  it('polish#2: "Keep request" dismisses the dialog WITHOUT firing the transition', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^keep request$/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(mockTransition).not.toHaveBeenCalled();
+  });
+
+  // Polish #3 — an Engineer deep-linking a record they cannot read (RLS no-rows,
+  // PGRST116) gets a clear "no access" state, not a blank main area or a raw error.
+  it('polish#3: a no-access (PGRST116) record renders a "no access" gate, not a generic error', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.isError = true;
+    detailState.error = Object.assign(new Error('no rows'), { code: 'PGRST116' });
+    detailState.data = undefined;
+    renderPage();
+    const gate = screen.getByTestId('procurement-no-access');
+    expect(gate).toBeInTheDocument();
+    expect(gate).toHaveTextContent(/don.?t have access to this record/i);
+    // it must NOT fall through to the generic "Couldn't load" transient-error state
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('polish#3: a genuine transient error (no PGRST116 code) still shows the retry error state', () => {
+    detailState.isError = true;
+    detailState.error = new Error('network down');
+    detailState.data = undefined;
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });

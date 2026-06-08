@@ -42,6 +42,21 @@ function parseMoney(raw: string): number {
 }
 
 /**
+ * Group the digits of a partially-typed money value with thousands separators so
+ * the inline editor reads "$5,000,000" rather than the raw "5000000" (polish #4).
+ * Preserves a trailing decimal-in-progress (e.g. "1234." → "1,234.") and an empty
+ * field, so it is safe to run on every keystroke of a controlled input.
+ */
+function formatThousands(raw: string): string {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  if (cleaned === '') return '';
+  const [intPart, ...rest] = cleaned.split('.');
+  const grouped = intPart ? Number(intPart).toLocaleString('en-US') : '';
+  // Keep at most one decimal portion; "" intPart with a lone "." stays as ".".
+  return rest.length ? `${grouped}.${rest.join('')}` : grouped;
+}
+
+/**
  * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
  * strip (Contract / Committed / Actual / On-hand margin / Spend %).
  *
@@ -106,7 +121,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
   ];
 
   const beginValueEdit = () => {
-    setValueDraft(String(contract));
+    // Seed the editor with the formatted figure ("5,000,000"), not the raw number.
+    setValueDraft(formatThousands(String(contract)));
     setValueEditing(true);
   };
 
@@ -219,7 +235,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         {valueEditing ? (
           <div className="flex flex-wrap items-end gap-2">
             <div className="w-[180px]">
-              <NumberField label="Contract value" prefix="$" value={valueDraft} onChange={setValueDraft} />
+              <NumberField
+                label="Contract value"
+                prefix="$"
+                value={valueDraft}
+                onChange={(v) => setValueDraft(formatThousands(v))}
+              />
             </div>
             <Button variant="primary" size="sm" onClick={onValueSave} loading={setContractValue.isPending}>
               Save
