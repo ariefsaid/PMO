@@ -54,7 +54,9 @@ test(
     await expect(page.getByRole('button', { name: /add user/i })).toBeVisible({ timeout: 10_000 });
     const daveRow = userRow(page, engineerEmail);
     await expect(daveRow).toBeVisible({ timeout: 10_000 });
-    await expect(daveRow.getByText('Engineer')).toBeVisible();
+    // "Engineer" also appears in his name (Dave Engineer) + email — target the role
+    // pill specifically via its own table cell (exact match excludes the User cell).
+    await expect(daveRow.getByRole('cell', { name: 'Engineer', exact: true })).toBeVisible();
 
     // ── Step 2: AC-AU-003 — change Dave's role to Finance (high-impact confirm) ──
     await openRowMenu(page, daveRow);
@@ -96,7 +98,9 @@ test(
     await restoreDialog.getByLabel(/role/i).selectOption('Engineer');
     await restoreDialog.getByRole('button', { name: /save role/i }).click();
     await page.getByRole('dialog').getByRole('button', { name: /change role/i }).click();
-    await expect(userRow(page, engineerEmail).getByText('Engineer')).toBeVisible({ timeout: 15_000 });
+    await expect(
+      userRow(page, engineerEmail).getByRole('cell', { name: 'Engineer', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
   },
 );
 

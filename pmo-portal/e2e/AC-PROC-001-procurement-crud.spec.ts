@@ -71,9 +71,14 @@ test(
     await addRow.getByLabel(/new item unit price/i).fill('86');
     await addRow.getByRole('button', { name: /add line item/i }).click();
 
-    // GOAL ORACLE: the item appears in the table with its derived line total ($2,064).
-    await expect(page.getByText('Welding wire 1.2mm')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });
+    // GOAL ORACLE: the item appears in the line-items table with its derived line
+    // total ($2,064). Scope to the line-items section + its table cell so the
+    // assertion is unambiguous (the name/total can echo elsewhere on the page).
+    const lineItems = page.getByTestId('line-items-section');
+    await expect(lineItems.getByRole('cell', { name: 'Welding wire 1.2mm' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(lineItems.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });
   },
 );
 

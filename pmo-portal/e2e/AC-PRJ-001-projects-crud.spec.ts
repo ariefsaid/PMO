@@ -80,7 +80,7 @@ test(
     await expect(page.getByRole('heading', { name: editedName })).toBeVisible({ timeout: 15_000 });
 
     // ── Step 3: AC-PRJ-005 — Executive archives the project ────────────────────
-    await page.getByRole('link', { name: /sign out/i }).click().catch(() => {});
+    await page.getByRole('button', { name: /sign out/i }).click().catch(() => {});
     await login(page, 'exec@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
@@ -137,8 +137,12 @@ test(
     await expect(confirm).toContainText(/segregation of duties/i);
     await confirm.getByRole('button', { name: /record/i }).click();
 
-    // GOAL ORACLE: the new value is reflected in the detail header.
-    await expect(page.getByText(/\$5,250,000/)).toBeVisible({ timeout: 15_000 });
+    // GOAL ORACLE: the new value is reflected in the SoD contract-value block (the
+    // authoritative figure the edit just changed). The amount also appears in the
+    // read-only stat strip + budget cards, so scope to the SoD block to stay unambiguous.
+    await expect(page.getByTestId('contract-value-sod').getByText(/\$5,250,000/)).toBeVisible({
+      timeout: 15_000,
+    });
   },
 );
 
