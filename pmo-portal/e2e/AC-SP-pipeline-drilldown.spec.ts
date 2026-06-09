@@ -21,7 +21,7 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
   await signIn(page, 'exec@acme.test');
 
   // Navigate to the Sales Pipeline via the rail NavLink.
-  await page.getByRole('link', { name: /Sales Pipeline/i }).click();
+  await page.getByRole('link', { name: 'Sales Pipeline', exact: true }).click();
   await page.waitForURL('**/sales');
 
   // Kanban is the default view — the Tender column carries the seeded deal.
@@ -53,7 +53,7 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
 
 test('AC-SP-206: the view toggle switches the body to a Table of deals', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
-  await page.getByRole('link', { name: /Sales Pipeline/i }).click();
+  await page.getByRole('link', { name: 'Sales Pipeline', exact: true }).click();
   await page.waitForURL('**/sales');
 
   await page.getByRole('tab', { name: /Table/i }).click();
@@ -64,7 +64,7 @@ test('AC-SP-206: the view toggle switches the body to a Table of deals', async (
 
 test('AC-SP-208: Mark-won inline SoD panel reveals contract-reference + contract-date fields', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
-  await page.getByRole('link', { name: /Sales Pipeline/i }).click();
+  await page.getByRole('link', { name: 'Sales Pipeline', exact: true }).click();
   await page.waitForURL('**/sales');
 
   await openPipelineCard(page, 'Highfield Bridge Survey');
