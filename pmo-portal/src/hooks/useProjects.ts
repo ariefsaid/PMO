@@ -57,10 +57,13 @@ export interface SetContractValueArgs {
 export function useProjectMutations() {
   const qc = useQueryClient();
   // Invalidate the whole project family: the index lists AND the opportunity-by-id detail
-  // query (keyed ['opportunity', …]) so a header/value edit re-reads everywhere.
+  // query (keyed ['opportunity', …]) so a header/value edit re-reads everywhere. F1 (Wave 3):
+  // also bust the project FK-picker cache (`['fk-options','project']`) so procurement/other forms
+  // don't serve a stale, archived, or missing project name for the ~5-min query staleTime.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['projects'] });
     qc.invalidateQueries({ queryKey: ['opportunity'] });
+    qc.invalidateQueries({ queryKey: ['fk-options', 'project'] });
   };
 
   const create = useMutation({

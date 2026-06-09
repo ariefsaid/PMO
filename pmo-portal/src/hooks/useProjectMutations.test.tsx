@@ -57,6 +57,26 @@ describe('useProjectMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
   });
 
+  it('AC-W3-INTEG-001 (F1): create also invalidates the fk-options project picker (so procurement FK pickers do not serve a stale/missing project for ~5 min)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.create.mutateAsync(input);
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'project'] });
+  });
+
+  it('AC-W3-INTEG-001 (F1): archive also invalidates the fk-options project picker (an archived project must drop out of FK pickers)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.archive.mutateAsync('p1');
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'project'] });
+  });
+
   it('AC-PRJ-004: updateHeader invokes the repository with id + header input', async () => {
     const header = {
       name: 'Renamed',

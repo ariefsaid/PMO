@@ -12,7 +12,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
@@ -65,6 +65,7 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
+  const [totalError, setTotalError] = useState<string | undefined>(undefined);
   const [selectTarget, setSelectTarget] = useState<QuotationRow | null>(null);
 
   const { data: vendorOptions } = useVendorOptions();
@@ -77,14 +78,23 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
     setAdding(false);
     setVendorId(null);
     setTotal('');
+    setTotalError(undefined);
   };
 
   const submitAdd = async () => {
-    if (!vendorId || !total.trim()) return;
+    if (!vendorId) return;
+    // Validate + persist through the SAME parse (Wave 3 input integrity) — never the old
+    // `parseFloat(...)||0` that silently saved 0 for non-empty garbage.
+    const parsed = parseMoneyInput(total);
+    if (parsed === null || parsed <= 0) {
+      setTotalError('Quoted total must be a number greater than 0.');
+      return;
+    }
+    setTotalError(undefined);
     try {
       await onAdd({
         vendorId,
-        totalAmount: parseFloat(total.replace(/,/g, '')) || 0,
+        totalAmount: parsed,
         receivedDate: new Date().toISOString().slice(0, 10),
       });
       resetAdd();
@@ -177,7 +187,11 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
                 required
                 prefix="$"
                 value={total}
-                onChange={setTotal}
+                onChange={(v) => {
+                  setTotal(v);
+                  setTotalError(undefined);
+                }}
+                error={totalError}
                 placeholder="0.00"
               />
             </div>
