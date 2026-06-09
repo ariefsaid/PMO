@@ -67,10 +67,23 @@ interface FormValues {
 
 const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: s }));
 
+/**
+ * Return true when the raw money string is valid: either blank (optional) or a
+ * string that parses to a finite, non-negative number after stripping commas.
+ */
+function isValidMoneyInput(raw: string): boolean {
+  if (!raw.trim()) return true; // optional — blank is fine
+  const stripped = raw.replace(/,/g, '');
+  const n = Number(stripped);
+  return Number.isFinite(n) && n >= 0;
+}
+
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.name.trim()) errors.name = 'Opportunity name is required.';
   if (!v.clientId) errors.clientId = 'Select a client company.';
+  if (!isValidMoneyInput(v.value))
+    errors.value = 'Enter a valid non-negative number (e.g. 1,500,000).';
   return errors;
 };
 
@@ -286,6 +299,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={valueField.value}
                 onChange={valueField.onChange}
                 onBlur={valueField.onBlur}
+                error={valueField.error}
                 placeholder="0"
                 helper="Estimate, pre-win. Editable by Admin, Executive, and PM."
               />
