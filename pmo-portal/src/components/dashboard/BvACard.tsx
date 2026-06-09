@@ -4,10 +4,7 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import type { TopProject } from '@/src/lib/db/dashboard';
-
-/** Utilization at/above this fraction of budget flags a project at-risk
- * (mirrors the dashboard RPC's "budget usage > 90%" projects_at_risk rule). */
-const AT_RISK_THRESHOLD = 0.9;
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 export interface BvACardProps {
   projects: TopProject[];

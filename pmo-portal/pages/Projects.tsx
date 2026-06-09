@@ -13,7 +13,7 @@ import {
   useToast,
   type Column,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import {
@@ -34,15 +34,19 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
  * Sales Pipeline now (listProjects is scoped to on-hand ∪ internal), so the Projects list has
  * no leads to filter — the "Leads" tab is removed. Surviving filters: All / My Projects /
- * Ongoing / Completed.
+ * Ongoing / Completed / at-risk (AC-IXD-DASH-W5-C2A: drill destination from dashboard KPIs).
  */
-type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed';
-const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed'];
+type StatusFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
+const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk'];
+
+/** Values accepted as ?filter= URL params. Any unrecognised param falls back to the role default. */
+const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
 
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
@@ -57,6 +61,7 @@ const Projects: React.FC = () => {
   const may = usePermission();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const isEngineer = effectiveRole === 'Engineer';
   // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
@@ -77,14 +82,22 @@ const Projects: React.FC = () => {
   const canCreate = may('create', 'project');
 
   const [view, setView] = useProjectView();
+
+  // AC-IXD-DASH-W5-C2A: URL search-param read-on-mount convention. A ?filter=<value> param
+  // drills directly into the requested filter segment (e.g. from a dashboard KPI link).
+  // Backward-compatible: no param => role-based default (Engineers default to "My Projects",
+  // all others to "All"). Unrecognised values fall back to the role default silently.
+  const roleDefault: StatusFilter = effectiveRole === 'Engineer' ? 'My Projects' : 'All';
+  const urlFilter = searchParams.get('filter') as StatusFilter | null;
+  const initialFilter: StatusFilter =
+    urlFilter && VALID_URL_FILTERS.has(urlFilter) ? urlFilter : roleDefault;
+
   // B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs who
   // want their own assigned work, not the full org project list. All other roles
   // default to "All" (unscoped manager view). `effectiveRole` is used here so that
   // an impersonated-as-Engineer session also gets the scoped default, matching the
   // intent of "what would an Engineer see?" consistently.
-  const [filter, setFilter] = useState<StatusFilter>(
-    effectiveRole === 'Engineer' ? 'My Projects' : 'All',
-  );
+  const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [filterClient, setFilterClient] = useState('All');
   const [filterPM, setFilterPM] = useState('All');
   const [search, setSearch] = useState('');
@@ -107,6 +120,15 @@ const Projects: React.FC = () => {
             return ONGOING.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
+          // AC-IXD-DASH-W5-C2A: at-risk = active projects where spent/budget >= AT_RISK_THRESHOLD
+          // (OD-W5-C2-A: reuses the same 0.9 constant as PMDashboard + BvACard; active-only so
+          // completed projects with high historical utilization don't trigger false alarms).
+          case 'at-risk':
+            return (
+              ONGOING.includes(p.status as string) &&
+              p.budget > 0 &&
+              p.spent / p.budget >= AT_RISK_THRESHOLD
+            );
           default:
             return true;
         }
@@ -338,7 +360,7 @@ const Projects: React.FC = () => {
           ariaLabel="Projects view"
         />
         <ViewToggle<StatusFilter>
-          options={FILTERS.map((f) => ({ value: f, label: f }))}
+          options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
           value={filter}
           onChange={setFilter}
           ariaLabel="Status filter"
@@ -376,27 +398,45 @@ const Projects: React.FC = () => {
           rowKey={(p) => p.id}
           onActivate={onOpen}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={filtersActive ? 'No projects match these filters' : 'No projects yet'}
+          emptyTitle={
+            filter === 'at-risk'
+              ? 'Nothing at risk'
+              : filtersActive ? 'No projects match these filters' : 'No projects yet'
+          }
           emptySub={
-            filtersActive
-              ? 'Try a different status, customer, PM, or search term.'
-              : 'Projects you create or win will appear here.'
+            filter === 'at-risk'
+              ? 'Every active project is under 90% budget — nothing needs attention right now.'
+              : filtersActive
+                ? 'Try a different status, customer, PM, or search term.'
+                : 'Projects you create or win will appear here.'
           }
           emptyAction={
-            filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined
+            filter === 'at-risk'
+              ? undefined
+              : filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined
           }
         />
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"
           icon="folder"
-          title={filtersActive ? 'No projects match these filters' : 'No projects yet'}
-          sub={
-            filtersActive
-              ? 'Try a different status, customer, PM, or search term.'
-              : 'Projects you create or win will appear here.'
+          title={
+            filter === 'at-risk'
+              ? 'Nothing at risk'
+              : filtersActive ? 'No projects match these filters' : 'No projects yet'
           }
-          action={filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined}
+          sub={
+            filter === 'at-risk'
+              ? 'Every active project is under 90% budget — nothing needs attention right now.'
+              : filtersActive
+                ? 'Try a different status, customer, PM, or search term.'
+                : 'Projects you create or win will appear here.'
+          }
+          action={
+            filter === 'at-risk'
+              ? undefined
+              : filtersActive ? { label: 'Clear filters', onClick: clearFilters } : undefined
+          }
         />
       ) : (
         <div

@@ -71,15 +71,21 @@ export const EngineerDashboard: React.FC = () => {
       <DashPageHead title="My Dashboard" sub="Your hours this week and timesheet status." />
 
       <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
+        {/* AC-IXD-DASH-W5-C2A: Hours this week → /timesheets (the one place an IC acts) */}
         <KPITile testId="kpi-hours-week" tone="blue" icon="clock" label="Hours this week"
           value={`${hoursThisWeek}`} loading={isPending}
           vs={current ? `week of ${current.week_start_date}` : undefined}
+          to="/timesheets"
+          linkLabel="Open your timesheets to log this week's hours"
           help="Total hours on your most recent timesheet." />
+        {/* AC-IXD-DASH-W5-C2A: Timesheet status → /timesheets */}
         <KPITile testId="kpi-timesheet-status" tone="violet" icon="doc" label="Timesheet status"
           value={current
             ? <StatusPill variant={timesheetVariant(current.status)}>{current.status}</StatusPill>
             : <span className="text-muted-foreground">None this period</span>}
           loading={isPending}
+          to="/timesheets"
+          linkLabel="Open your timesheets to see your current status"
           help="The status of your most recent timesheet." />
       </section>
 

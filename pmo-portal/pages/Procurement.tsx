@@ -12,7 +12,7 @@ import {
   useToast,
   type Column,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -28,11 +28,22 @@ import { useProcurementView } from '@/src/hooks/useProcurementView';
 import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus, openPR } from '../components/procurement';
 
 /** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets
- *  + the B-2 "Needs approval" segment for Finance/PM). */
-type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Paid';
+ *  + the B-2 "Needs approval" segment for Finance/PM).
+ *
+ *  AC-IXD-DASH-W5-C2A: "Vendor Invoiced" is a URL-param-only segment (not shown in the visible
+ *  segment tabs) so that /procurement?status=Vendor+Invoiced can deep-link directly to the
+ *  invoiced subset from the Finance dashboard KPI. It is NOT added to ALL_FILTERS to avoid
+ *  cluttering the visible toolbar — it is a navigation destination, not a user-facing filter tab.
+ */
+type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Paid' | 'Vendor Invoiced';
 const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
 /** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
 const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
+
+/** Values accepted as ?status= URL params. Any unrecognised param falls back to "All". */
+const VALID_URL_STATUSES = new Set<StatusFilter>([
+  'All', 'Needs approval', 'Open', 'Ordered', 'Paid', 'Vendor Invoiced',
+]);
 
 const OPEN_STATUSES = new Set<string>([
   'Draft',
@@ -54,6 +65,10 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
       return ORDERED_STATUSES.has(status);
     case 'Paid':
       return status === 'Paid';
+    // AC-IXD-DASH-W5-C2A: direct Vendor Invoiced segment — the N16 drill destination.
+    // Accessed via ?status=Vendor+Invoiced from the Finance dashboard outstanding-invoices KPI.
+    case 'Vendor Invoiced':
+      return status === 'Vendor Invoiced';
     case 'All':
     default:
       return true;
@@ -65,6 +80,7 @@ const ProcurementPage: React.FC = () => {
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const may = usePermission();
 
   // A-3 / OD-W2-1: an Engineer has no Procurement nav; when they reach /procurement the page is
@@ -82,7 +98,13 @@ const ProcurementPage: React.FC = () => {
   const create = useCreateProcurement();
   const [view, setView] = useProcurementView();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('All');
+  // AC-IXD-DASH-W5-C2A: URL search-param read-on-mount convention. A ?status=<value> param
+  // drills directly into the requested filter segment (e.g. from a Finance dashboard KPI link).
+  // Backward-compatible: no param => "All" default. Unrecognised values fall back to "All".
+  const urlStatus = searchParams.get('status') as StatusFilter | null;
+  const [filter, setFilter] = useState<StatusFilter>(
+    urlStatus && VALID_URL_STATUSES.has(urlStatus) ? urlStatus : 'All',
+  );
   const [showNew, setShowNew] = useState(false);
 
   // B-2: the filter list includes "Needs approval" only for roles that can approve.

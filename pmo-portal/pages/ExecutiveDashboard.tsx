@@ -107,32 +107,48 @@ const ExecutiveDashboard: React.FC = () => {
           aria-label="Portfolio KPIs"
           className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
         >
-          {/* Revenue on hand: the tile shows `on_hand_value` — a REVENUE figure (can exceed total
-              contract value), NOT a margin $ (SP-7 honesty). The true realized margin RATIO rides
-              as the `vs` sub. Label names the number. */}
+          {/* Revenue on hand: PLAIN tile — no single "on-hand" list view exists (OD-W5-C2-D).
+              The tile shows `on_hand_value` — a REVENUE figure (can exceed total contract value),
+              NOT a margin $ (SP-7 honesty). The true realized margin RATIO rides as the `vs` sub. */}
           <KPITile testId="kpi-on-hand-margin" tone="green" icon="dollar" label="Revenue on hand"
             value={formatCurrency(data.on_hand_value)} vs={`${onHandPct} realized`}
             help="Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below." />
+          {/* AC-IXD-DASH-W5-C2A: Pipeline (weighted) → /sales (the pipeline IS the weighted-value view) */}
           <KPITile testId="kpi-pipeline-weighted-value" tone="violet" icon="pipe" label="Pipeline (weighted)"
             value={formatCurrency(data.pipeline_weighted_value)} vs={`of ${formatCurrency(data.pipeline_total_value)} gross`}
+            to="/sales"
+            linkLabel="Open the sales pipeline"
             help="Sum of (opportunity value × stage win-probability) across all open stages." />
-          {/* Pipeline forecast margin: ONE metric, ONE number — the probability-weighted pipeline
-              projected margin only. The on-hand realized % lives on the "Revenue on hand" tile's
-              `vs`, so the prior dual-toggle (two metrics under one name) is dropped (SP-7). */}
+          {/* Pipeline forecast margin: PLAIN tile (OD-W5-C2-D — /sales has no margin lens; drilling
+              would misrepresent). ONE metric, ONE number — the probability-weighted pipeline
+              projected margin only (SP-7). */}
           <KPITile
             testId="kpi-pipeline-projected-margin" tone="blue" icon="up" label="Pipeline forecast margin"
             value={weightedPct}
             vs="probability-weighted"
             help="Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability)." />
+          {/* AC-IXD-DASH-W5-C2A: Active projects → /projects?filter=Ongoing.
+              The "N at-risk" vs text stays informational — a11y: whole tile is ONE link; no nested
+              interactive. The dedicated at-risk drill is via the PM at-risk tile. */}
           <KPITile testId="kpi-active-projects" tone="cyan" icon="folder" label="Active projects"
             value={String(data.active_projects)} vs={`${data.projects_at_risk} at-risk`}
+            to="/projects?filter=Ongoing"
+            linkLabel="Open the active projects list"
             help="Projects currently in delivery." />
+          {/* AC-IXD-DASH-W5-C2A: Total contract value → /projects?filter=Ongoing.
+              vs copy corrected from "active + closed-out" to "active" — the RPC total_contract_value
+              is Ongoing-project only; the drill destination matches the data (honesty fix). */}
           <KPITile testId="kpi-total-contract-value" tone="amber" icon="grid" label="Total contract value"
-            value={formatCurrency(data.total_contract_value)} vs="active + closed-out"
+            value={formatCurrency(data.total_contract_value)} vs="active projects"
+            to="/projects?filter=Ongoing"
+            linkLabel="Open active projects to see total contract value"
             help="Total contract value across the active portfolio." />
+          {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
           <KPITile testId="kpi-total-spend" tone="red" icon="cart" label="Total project spend"
             value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0))}
             vs="actual to date"
+            to="/projects?filter=Ongoing"
+            linkLabel="Open active projects to see spend breakdown"
             help="Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)" />
         </section>
 

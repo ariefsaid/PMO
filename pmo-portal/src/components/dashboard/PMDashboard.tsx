@@ -10,8 +10,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
-
-const AT_RISK_THRESHOLD = 0.9;
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 function statusVariant(status: string): StatusVariant {
   if (status === 'Ongoing Project' || status === 'Internal Project') return 'open';
@@ -51,14 +50,23 @@ export const PMDashboard: React.FC = () => {
       <DashPageHead title="My Dashboard" sub="Your projects, budget health, and approvals queue." />
 
       <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
+        {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-projects" tone="cyan" icon="folder" label="My projects"
           value={String(mine.length)} loading={isPending}
+          to="/projects?filter=My+Projects"
+          linkLabel="Open my projects"
           help="Projects where you are the assigned project manager." />
+        {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label="My contract value"
           value={formatCurrency(contractValue)} loading={isPending}
+          to="/projects?filter=My+Projects"
+          linkLabel="Open my projects to see contract value"
           help="Total contract value across your projects." />
+        {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label="At risk"
           value={String(atRisk)} loading={isPending} vs="budget usage > 90%"
+          to="/projects?filter=at-risk"
+          linkLabel="Open my at-risk projects"
           help="Your projects whose actual spend exceeds 90% of budget." />
         {/* N15: real combined approvals shortcut (PRs you can approve + timesheets) → /approvals. */}
         <AwaitingApprovalTile includeTimesheets />
