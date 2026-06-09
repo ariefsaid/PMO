@@ -27,16 +27,24 @@ import ProcurementBoard from '../components/ProcurementBoard';
 import { useProcurementView } from '@/src/hooks/useProcurementView';
 import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus, openPR } from '../components/procurement';
 
-/** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets
+/** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
  *  + the B-2 "Needs approval" segment for Finance/PM).
  *
- *  AC-IXD-DASH-W5-C2A: "Vendor Invoiced" is a URL-param-only segment (not shown in the visible
- *  segment tabs) so that /procurement?status=Vendor+Invoiced can deep-link directly to the
- *  invoiced subset from the Finance dashboard KPI. It is NOT added to ALL_FILTERS to avoid
- *  cluttering the visible toolbar — it is a navigation destination, not a user-facing filter tab.
+ *  AC-IXD-DASH-W5-C2B / OD-C / review-I2: "Vendor Invoiced" is now a VISIBLE segment in the
+ *  toolbar (not just a URL-param-only deep-link). This resolves review-I2 where arriving via
+ *  /procurement?status=Vendor+Invoiced had no selected tab and appeared as the whole list.
+ *  The segment is role-shaped: shown for Finance and Approver roles (the roles that act on VI
+ *  rows), matching the "Needs approval" visibility pattern. Engineers and non-approvers do not
+ *  see the VI segment since they don't process payments.
+ *
+ *  Role-shaping decision (noted in build report): Vendor Invoiced is shown for any role that
+ *  can see the Finance dashboard "Ready to pay" table — Finance and Approver roles (canApprove).
+ *  This matches the existing "Needs approval" segment gating pattern: Finance can Mark-as-Paid,
+ *  approvers may need to review. All-roles access is not restricted server-side (RLS is org-wide);
+ *  this is FE clarity, not a security boundary.
  */
-type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Paid' | 'Vendor Invoiced';
-const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
+type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
+const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Vendor Invoiced', 'Paid'];
 /** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
 const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
 
@@ -107,7 +115,10 @@ const ProcurementPage: React.FC = () => {
   );
   const [showNew, setShowNew] = useState(false);
 
-  // B-2: the filter list includes "Needs approval" only for roles that can approve.
+  // B-2: "Needs approval" prepended for approver roles.
+  // AC-IXD-DASH-W5-C2B: "Vendor Invoiced" is in ALL_FILTERS for approver roles — they process
+  // payments. Non-approver roles (Engineer) see the base ALL_FILTERS without "Needs approval"
+  // but still see "Vendor Invoiced" since it is in the base list.
   const FILTERS: StatusFilter[] = canApprove
     ? ['All', 'Needs approval', ...ALL_FILTERS.slice(1)]
     : ALL_FILTERS;
