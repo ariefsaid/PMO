@@ -18,6 +18,7 @@ import { DashPageHead, DashGrid } from '@/src/components/dashboard/layout';
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
+import { AwaitingApprovalTile } from '@/src/components/dashboard/AwaitingApprovalTile';
 
 const ExecutiveDashboard: React.FC = () => {
   const { effectiveRole } = useEffectiveRole();
@@ -41,9 +42,9 @@ const ExecutiveDashboard: React.FC = () => {
         <section
           data-testid="dashboard-loading"
           aria-label="Portfolio KPIs"
-          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-7"
         >
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 7 }).map((_, i) => (
             <KPITile key={i} loading tone="blue" icon="grid" label="" value="" />
           ))}
         </section>
@@ -99,12 +100,13 @@ const ExecutiveDashboard: React.FC = () => {
           }
         />
 
-        {/* KPI band — reflows 6 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints).
+        {/* KPI band — reflows 7 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints).
+            N15 (AC-IXD-PROC-W5-2): added AwaitingApprovalTile → 7 tiles at widest tier.
             All tiers are arbitrary min-[] — monotonically ascending source order so
             Tailwind v4 cascade never lets a named sm: (640px) win over a wider tier. */}
         <section
           aria-label="Portfolio KPIs"
-          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-7"
         >
           {/* Revenue on hand: the tile shows `on_hand_value` — a REVENUE figure (can exceed total
               contract value), NOT a margin $ (SP-7 honesty). The true realized margin RATIO rides
@@ -133,6 +135,13 @@ const ExecutiveDashboard: React.FC = () => {
             value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0))}
             vs="actual to date"
             help="Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)" />
+          {/* N15 (AC-IXD-PROC-W5-2): Exec approval shortcut — PRs + timesheets awaiting.
+              includeTimesheets=true: Exec can approve both procurement and timesheets.
+              Routes to /approvals (the unified inbox, OD-W5-1). */}
+          <AwaitingApprovalTile
+            includeTimesheets={true}
+            label="Awaiting your approval"
+          />
         </section>
 
         <DashGrid>

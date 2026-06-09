@@ -100,6 +100,14 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast }) };
 });
 
+// N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel is now mounted in ProcurementDetails.
+// Stub useProjectBudget so the panel renders a real (non-loading) state without a
+// QueryClientProvider — the detail-page tests assert existing lifecycle behavior, not
+// the budget panel itself (that is covered by DecisionSupportPanel.test.tsx).
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
+}));
+
 import ProcurementDetails from './ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -123,7 +131,7 @@ const baseProcurement = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000 },
   vendor: null,
   requested_by: { full_name: 'Alice Manager' },
   approved_by: null,
@@ -574,7 +582,8 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000 };
     renderPage();
     // formatCurrency(50000) = "$50,000"
-    expect(screen.getByText('$50,000')).toBeInTheDocument();
+    // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
+    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders procurement title in the header', () => {

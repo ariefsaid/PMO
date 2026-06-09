@@ -202,7 +202,15 @@ insert into procurement_items (procurement_id, name, description, quantity, rate
   -- total_value (9,800 / 12,000); both are Draft → NOT in the on-hand committed-spend aggregate
   -- (0009 sums Ordered..Paid only), so this adds zero pgTAP-oracle drift.
   ('60000000-0000-0000-0000-000000000004','Survey software license','Annual seat licenses',1,9800),
-  ('60000000-0000-0000-0000-000000000006','Confirm-gate line item','Fixture line item',1,12000);
+  ('60000000-0000-0000-0000-000000000006','Confirm-gate line item','Fixture line item',1,12000),
+  -- PROC-2026-002 (id …003, Requested, $22,500): real line items so the DecisionSupportPanel
+  -- evidence zone (N8, AC-IXD-PROC-W5-2) renders non-empty on a Requested PR.
+  -- Amounts sum to 22,500 = total_value. Requested PRs are NOT in the committed-spend set
+  -- (0009 sums Ordered..Paid only) → zero pgTAP-oracle drift on 0034/0039/0035/0036.
+  -- 30×$250 + 60×$175 + 15×$300 = $7,500 + $10,500 + $4,500 = $22,500 = total_value
+  ('60000000-0000-0000-0000-000000000003','Safety helmets','Hard hat PPE',30,250),
+  ('60000000-0000-0000-0000-000000000003','Hi-vis vests','Class 3 reflective vests',60,175),
+  ('60000000-0000-0000-0000-000000000003','Safety boots','Steel-toe boots',15,300);
 insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected) values
   ('60000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000004','APX-Q-101',152000,'2026-02-10',false),
   ('60000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000005','SYN-Q-220',148000,'2026-02-11',false);

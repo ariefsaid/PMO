@@ -218,8 +218,10 @@ describe('getProcurementDetail', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     // items:procurement_items(*) added for the editable line-items table (CRUD slice).
+    // N8 (AC-IXD-PROC-W5-2): project join widened to include budget+spent
+    // for the DecisionSupportPanel committed-spend context (OD-W5-4).
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), items:procurement_items(*), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
+      '*, project:projects(name,code,budget,spent), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), items:procurement_items(*), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'proc-1');
     expect(mockSingle).toHaveBeenCalled();

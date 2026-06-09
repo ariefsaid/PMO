@@ -75,6 +75,10 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast }) };
 });
+// N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel now mounts in ProcurementDetails.
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
+}));
 
 import ProcurementDetails from '../ProcurementDetails';
 

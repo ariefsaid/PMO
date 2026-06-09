@@ -25,6 +25,26 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+// N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile now renders in PM KPI band.
+// Stub useProcurements + useEffectiveRole so the tile renders without a QueryClient.
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({
+    data: [
+      { status: 'Requested', requested_by_id: 'other-1' }, // approvable PR
+    ],
+    isPending: false,
+    isError: false,
+  }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
+}));
+vi.mock('@/src/auth/policy', () => ({
+  can: (action: string, entity: string) => {
+    if (action === 'transition' && entity === 'procurement') return true;
+    return false;
+  },
+}));
 
 const renderPane = () => render(<MemoryRouter><PMDashboard /></MemoryRouter>);
 
@@ -49,9 +69,15 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     // only Project B is 98% utilized → 1 at-risk
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
-  it('shows timesheets awaiting approval = 2 (real)', () => {
+  it('N15 (AC-IXD-PROC-W5-2): shows COMBINED awaiting count (1 PR + 2 timesheets = 3), no standalone timesheets tile', () => {
+    // Old isolated "kpi-timesheets-awaiting" tile is gone — replaced by AwaitingApprovalTile
+    // which shows the honest combined count: PRs the PM can approve (not-self) + timesheets awaiting.
     renderPane();
-    expect(screen.getByTestId('kpi-timesheets-awaiting')).toHaveTextContent('2');
+    // The combined tile shows "3" (1 approvable PR + 2 timesheets)
+    expect(screen.getByRole('link', { name: /Awaiting your approval/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Awaiting your approval/i })).toHaveTextContent('3');
+    // The old placeholder tile is gone
+    expect(screen.queryByTestId('kpi-timesheets-awaiting')).toBeNull();
   });
   it('does NOT render a procurement-approvals coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();

@@ -43,7 +43,11 @@ function throwRpc(error: RpcErrorLike): never {
 
 export type ProcurementItemRow = Tables<'procurement_items'>;
 
-export type ProcurementDetail = ProcurementWithRefs & {
+export type ProcurementDetail = Omit<ProcurementWithRefs, 'project'> & {
+  /** N8 (AC-IXD-PROC-W5-2): widened to include budget+spent for DecisionSupportPanel.
+   *  budget = column default from project row (Σ active-version line items mirror);
+   *  spent  = committed basis OD-W5-4 (Σ PO total_value in Ordered..Paid). */
+  project: { name: string; code: string | null; budget: number; spent: number } | null;
   approved_by: { full_name: string } | null;
   /** Editable line items (CRUD+RBAC Procurement slice) joined into the detail. */
   items: ProcurementItemRow[];
@@ -130,7 +134,12 @@ export function formatDocNumber(
 
 const DETAIL_SELECT = [
   '*',
-  'project:projects(name,code)',
+  // N8 (AC-IXD-PROC-W5-2): budget + spent widened into the project join so the
+  // DecisionSupportPanel can show committed-spend context without a new RPC.
+  // budget = Σ active-version line items (project.budget column);
+  // spent  = committed basis OD-W5-4 (Σ PO total_value in Ordered..Paid, project.spent column).
+  // Both columns are RLS-readable to approver roles — they are surfaced on dashboards already.
+  'project:projects(name,code,budget,spent)',
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
