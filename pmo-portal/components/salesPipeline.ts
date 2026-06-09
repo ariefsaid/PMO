@@ -122,7 +122,7 @@ export function openOpportunity(
  */
 export function dealJourneySteps(status: PipelineProject['status']): LifecycleStep[] {
   const group = projectStatusGroup(status);
-  const labels = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation'];
+  const labels = ['Leads', 'Pre-Qualification', 'Quotation', 'Tender', 'Negotiation'];
 
   if (group === 'onHand') {
     return [

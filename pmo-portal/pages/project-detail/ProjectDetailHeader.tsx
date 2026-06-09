@@ -13,13 +13,28 @@ import {
   type StatTile,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import ProjectFormModal from '../../components/ProjectFormModal';
+
+/**
+ * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
+ * These roles see the finance StatTiles strip + contract-value SoD row in the header (unchanged).
+ * Delivery-forward roles (Engineer and any future non-finance roles) have the strip moved to the
+ * Overview "Financial summary" aside — FE-only reprioritization (OD-W5-C3-A).
+ * Never use to hide data — only to reorder it. RLS stays the enforcement authority.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- pure predicate co-located with its component; HMR-only lint concern
+export function hasFinanceView(role: Role | null): boolean {
+  if (!role) return false;
+  return (['Admin', 'Executive', 'Finance', 'Project Manager'] as Role[]).includes(role);
+}
 
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
@@ -71,6 +86,7 @@ function formatThousands(raw: string): string {
  */
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) => {
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const { toast } = useToast();
   const { updateHeader, archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
@@ -98,6 +114,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
   // figures live in the PipelineLens (Value / Win probability / Weighted) instead.
   const group = projectStatusGroup(project.status as never);
   const isDelivery = group === 'onHand' || group === 'internal';
+
+  // D15 (OD-W5-C3-A): delivery-forward roles (Engineer) have the finance strip and SoD row
+  // relocated to the Overview "Financial summary" aside. Finance-forward roles (Admin·Exec·Finance·PM)
+  // keep the header unchanged. FE-only reprioritization — never hides RLS-permitted data.
+  const isFinanceForward = hasFinanceView(realRole);
 
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
@@ -217,6 +238,62 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
     </>
   );
 
+  /** The contract-value SoD row — shared between header (finance-forward) and the
+   *  Financial summary aside (delivery-forward). Always read-only for Engineers. */
+  const sodRow = isDelivery ? (
+    <div
+      data-testid="contract-value-sod"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+    >
+      {valueEditing && isFinanceForward ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-[180px]">
+            <NumberField
+              label="Contract value"
+              prefix="$"
+              value={valueDraft}
+              onChange={(v) => setValueDraft(formatThousands(v))}
+            />
+          </div>
+          <Button variant="primary" size="sm" onClick={onValueSave} loading={setContractValue.isPending}>
+            Save
+          </Button>
+          <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <span className="flex items-center gap-2.5">
+          <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+          <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
+            {formatCurrency(contract)}
+          </span>
+          {canEditValue && isFinanceForward ? (
+            <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
+              Edit
+            </Button>
+          ) : isOnHand ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              <Icon name="lock" className="size-3" />
+              Read-only
+            </span>
+          ) : null}
+        </span>
+      )}
+      {isOnHand && canEditValue && isFinanceForward && !valueEditing && (
+        <span className="basis-full text-[12px] text-muted-foreground">
+          Changing the value on a won project is a segregation-of-duties action and is recorded.
+        </span>
+      )}
+      {isOnHand && (!canEditValue || !isFinanceForward) && (
+        <span className="basis-full text-[12px] text-muted-foreground">
+          Once a project is won, the contract value is locked for your role. Only Executive or
+          Finance can change it, and the change is recorded.
+        </span>
+      )}
+    </div>
+  ) : null;
+
   return (
     <>
       <PageHeader
@@ -229,66 +306,29 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         meta={meta || undefined}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
       />
-      {/* Delivery-lens only (Model B): the spend/contract summary is meaningless on a pre-win deal
-          (it has no contract / committed / actual yet) — the PipelineLens shows the deal figures. */}
-      {isDelivery && <StatTiles tiles={tiles} columns={5} className="mb-4" />}
 
-      {/* contract_value SoD treatment (ADR-0019). Rendered as a small dedicated row so the
-          read-only / editable / audit distinction is explicit (the StatTiles strip stays a
-          read-only summary). Delivery-lens only: a pre-win deal has no contract to gate (the
-          win-path SoD capture lives in the PipelineLens). */}
-      {isDelivery && (
-      <div
-        data-testid="contract-value-sod"
-        className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
-      >
-        {valueEditing ? (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="w-[180px]">
-              <NumberField
-                label="Contract value"
-                prefix="$"
-                value={valueDraft}
-                onChange={(v) => setValueDraft(formatThousands(v))}
-              />
-            </div>
-            <Button variant="primary" size="sm" onClick={onValueSave} loading={setContractValue.isPending}>
-              Save
-            </Button>
-            <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <span className="flex items-center gap-2.5">
-            <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
-            <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-              {formatCurrency(contract)}
-            </span>
-            {canEditValue ? (
-              <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
-                Edit
-              </Button>
-            ) : isOnHand ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                <Icon name="lock" className="size-3" />
-                Read-only
-              </span>
-            ) : null}
-          </span>
-        )}
-        {isOnHand && canEditValue && !valueEditing && (
-          <span className="basis-full text-[12px] text-muted-foreground">
-            Changing the value on a won project is a segregation-of-duties action and is recorded.
-          </span>
-        )}
-        {isOnHand && !canEditValue && (
-          <span className="basis-full text-[12px] text-muted-foreground">
-            Once a project is won, the contract value is locked for your role. Only Executive or
-            Finance can change it, and the change is recorded.
-          </span>
-        )}
-      </div>
+      {/* Finance-forward roles (Admin·Exec·Finance·PM): keep the delivery finance strip
+          + SoD row in the header, exactly as shipped (OD-W5-C3-A). */}
+      {isDelivery && isFinanceForward && (
+        <>
+          <StatTiles tiles={tiles} columns={5} className="mb-4" />
+          <div className="mb-4">{sodRow}</div>
+        </>
+      )}
+
+      {/* Delivery-forward roles (Engineer): the finance strip and SoD row move into the
+          Overview "Financial summary" aside (reachable + labelled, never deleted — FE
+          reprioritization only; RLS-permitted data stays visible). */}
+      {isDelivery && !isFinanceForward && (
+        <aside
+          data-testid="financial-summary"
+          aria-label="Financial summary"
+          className="mb-4 rounded-md border border-border bg-card p-4"
+        >
+          <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
+          <StatTiles tiles={tiles} columns={5} className="mb-3" />
+          {sodRow}
+        </aside>
       )}
 
       {/* Edit-header modal (Admin·Exec·PM). */}
