@@ -29,6 +29,9 @@ import {
   pillVariantForStatus,
   formatPercent,
   openOpportunity,
+  daysSince,
+  isNeedsAttention,
+  ATTENTION_THRESHOLD_DAYS,
 } from '../components/salesPipeline';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -37,9 +40,15 @@ import ProjectFormModal from '../components/ProjectFormModal';
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
 const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
-/** Table status filter (Model B, AC-IXD-PROJ-007): Open deals (default) or terminal Lost deals. */
-type DealScope = 'Open' | 'Lost';
-const DEAL_SCOPES: DealScope[] = ['Open', 'Lost'];
+/**
+ * Table status filter (Model B, AC-IXD-PROJ-007): Open deals (default) or terminal Lost deals.
+ * N14 (AC-IXD-PIPE-W5-C5): "Needs attention" segment shows deals from BOTH scopes (open ∪ lost)
+ * whose days-since-last_update >= ATTENTION_THRESHOLD_DAYS. get_sales_pipeline() now projects
+ * last_update + the owner for open rows (migration 0020), so open deals carry real aging — the
+ * filter and the Owner / Last touch columns work on open deals, not just lost ones.
+ */
+type DealScope = 'Open' | 'Lost' | 'Needs attention';
+const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
   const may = usePermission();
@@ -73,9 +82,19 @@ const SalesPipeline: React.FC = () => {
   // always empty — the RPC never returns lost rows).
   const kanbanProjects = useMemo(() => [...openProjects, ...lost], [openProjects, lost]);
 
-  // The table is scoped by the Open / Lost SegFilter, then by the view-local search.
+  // The table is scoped by the Open / Lost / Needs attention SegFilter, then by search.
+  // "Needs attention" (N14): spans open ∪ lost rows whose days-since-last_update >=
+  // ATTENTION_THRESHOLD_DAYS. Open rows now carry last_update from the RPC (migration 0020),
+  // so a stale open deal is flagged just like a stale lost one.
   const filtered = useMemo(() => {
-    const base = scope === 'Lost' ? lost : openProjects;
+    let base: PipelineProject[];
+    if (scope === 'Lost') {
+      base = lost;
+    } else if (scope === 'Needs attention') {
+      base = [...openProjects, ...lost].filter(isNeedsAttention);
+    } else {
+      base = openProjects;
+    }
     const q = search.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
@@ -167,6 +186,61 @@ const SalesPipeline: React.FC = () => {
             aria-label={`Win probability ${pct}%`}
             className="ml-auto"
           />
+        );
+      },
+    },
+    {
+      /**
+       * N14 Owner column (AC-IXD-PIPE-W5-C5).
+       * DATA AVAILABILITY: pm_name (the project manager / owner) is supplied for BOTH open
+       * pipeline rows (get_sales_pipeline → profiles.full_name, migration 0020) and lost deals
+       * (useLostDeals, full ProjectWithRefs row). A project with no PM renders "—" (honest).
+       */
+      key: 'owner',
+      header: 'Owner',
+      cell: (r) => {
+        if (!r.pm_name) {
+          return <span className="text-muted-foreground" aria-label="Owner not available">—</span>;
+        }
+        return (
+          <span className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+            >
+              {r.pm_name.trim().charAt(0).toUpperCase()}
+            </span>
+            <span className="whitespace-normal leading-tight">{r.pm_name}</span>
+          </span>
+        );
+      },
+    },
+    {
+      /**
+       * N14 Last touch column (AC-IXD-PIPE-W5-C5).
+       * DATA AVAILABILITY: last_update is supplied for BOTH open pipeline rows
+       * (get_sales_pipeline, migration 0020) and lost deals (full row). A row genuinely
+       * missing it renders "—" (defensive, honest).
+       * Aging signal (ATTENTION_THRESHOLD_DAYS = 30d): text + warning color when stale —
+       * text-not-color-only per DESIGN.md accessibility rule.
+       */
+      key: 'last_touch',
+      header: 'Last touch',
+      align: 'num',
+      cell: (r) => {
+        const days = daysSince(r.last_update);
+        if (days === null) {
+          return <span className="text-muted-foreground" aria-label="Last touch not available">—</span>;
+        }
+        const stale = days >= ATTENTION_THRESHOLD_DAYS;
+        const label = days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
+        return (
+          <span
+            className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
+            title={stale ? `Untouched for ${days} days — needs attention` : undefined}
+          >
+            {label}
+          </span>
         );
       },
     },
@@ -346,11 +420,19 @@ const SalesPipeline: React.FC = () => {
           onActivate={onOpen}
           rowLabel={(r) => `Open ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={scope === 'Lost' ? 'No lost deals' : 'No deals match your search'}
+          emptyTitle={
+            scope === 'Lost'
+              ? 'No lost deals'
+              : scope === 'Needs attention'
+                ? 'No deals need attention'
+                : 'No deals match your search'
+          }
           emptySub={
             scope === 'Lost'
               ? 'Deals marked lost will appear here.'
-              : 'Try a different name or customer.'
+              : scope === 'Needs attention'
+                ? `No deal has been untouched for ${ATTENTION_THRESHOLD_DAYS}+ days — pipeline is active.`
+                : 'Try a different name or customer.'
           }
         />
       )}

@@ -369,6 +369,13 @@ const Projects: React.FC = () => {
     <div>
       <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
 
+      {/*
+        N19 (AC-IXD-PIPE-W5-C5): The customer and PM filter dropdowns are manager-browse
+        tools — an Engineer manages no projects and cares only about their assigned work.
+        For the Engineer scope they are hidden so the toolbar leads with the relevant
+        SegFilter (already defaulted to "My Projects" per B-11). Non-Engineer roles keep
+        the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
+      */}
       <Toolbar standalone>
         <ViewToggle<'table' | 'cards'>
           options={[
@@ -385,22 +392,26 @@ const Projects: React.FC = () => {
           onChange={setFilter}
           ariaLabel="Status filter"
         />
-        <SelectField
-          hideLabel
-          label="Filter by customer"
-          value={filterClient}
-          onChange={setFilterClient}
-          options={customerFilterOptions}
-          className="w-auto"
-        />
-        <SelectField
-          hideLabel
-          label="Filter by project manager"
-          value={filterPM}
-          onChange={setFilterPM}
-          options={pmFilterOptions}
-          className="w-auto"
-        />
+        {!isEngineer && (
+          <SelectField
+            hideLabel
+            label="Filter by customer"
+            value={filterClient}
+            onChange={setFilterClient}
+            options={customerFilterOptions}
+            className="w-auto"
+          />
+        )}
+        {!isEngineer && (
+          <SelectField
+            hideLabel
+            label="Filter by project manager"
+            value={filterPM}
+            onChange={setFilterPM}
+            options={pmFilterOptions}
+            className="w-auto"
+          />
+        )}
         <SearchMini
           placeholder="Search projects…"
           aria-label="Search projects"

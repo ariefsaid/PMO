@@ -82,6 +82,38 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
   },
 ] as const;
 
+/**
+ * Aging threshold in days. A pipeline deal untouched for >= 30 days is flagged as
+ * "needs attention". Applied to any row that carries `last_update`.
+ *
+ * DATA AVAILABILITY: `last_update` is now supplied for BOTH open pipeline rows
+ * (get_sales_pipeline() projects it — migration 0020, AC-IXD-PIPE-W5-C5) AND lost
+ * deals (useLostDeals, full projects row). So the attention filter spans open ∪ lost.
+ * A row that genuinely lacks `last_update` (defensive only) returns false — no false
+ * positive from missing data, per the honest-dashboard rule.
+ */
+export const ATTENTION_THRESHOLD_DAYS = 30;
+
+/**
+ * Returns the number of days since the given ISO timestamp, or null if the
+ * timestamp is absent. Used for both display ("X days ago") and the attention gate.
+ */
+export function daysSince(isoTs: string | undefined | null): number | null {
+  if (!isoTs) return null;
+  const ms = Date.now() - new Date(isoTs).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Returns true if the row qualifies as "needs attention": `last_update` is present
+ * AND the days-since exceeds the threshold. Rows without `last_update` return false
+ * (honest — no data, no false flag, per the honest-dashboard rule).
+ */
+export function isNeedsAttention(p: Pick<PipelineProject, 'last_update'>): boolean {
+  const d = daysSince(p.last_update);
+  return d !== null && d >= ATTENTION_THRESHOLD_DAYS;
+}
+
 /** Weighted forecast value (computed client-side per Director decision 1). */
 export function weightedValue(p: Pick<PipelineProject, 'contract_value' | 'win_probability'>): number {
   return p.contract_value * p.win_probability;
