@@ -86,6 +86,8 @@ const allow = (set: Role[]): Predicate => (role) => has(set, role);
 
 const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   project: {
+    // Every role may view the active Projects index/detail (rbac-visibility §B).
+    view: allow(ALL),
     create: allow(DELIVERY),
     edit: allow(DELIVERY),
     archive: allow(ARCHIVE_ROLES),
@@ -104,6 +106,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(ADMIN),
   },
   procurement: {
+    // Index visibility (rbac-visibility §A/§E): Admin·Exec·PM·Finance browse the org-wide
+    // PR index; Engineer has NO Procurement nav (○*) and reaches only their OWN requests
+    // (RLS-scoped). This `view` gate drives the ⌘K module-row guard (A-8) so an Engineer's
+    // palette never surfaces org-wide procurement rows. The Engineer's own-scoped /procurement
+    // page (A-3) is reachable regardless — it gates the org-wide affordances, not the route.
+    view: allow([...MASTER_DATA]),
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority

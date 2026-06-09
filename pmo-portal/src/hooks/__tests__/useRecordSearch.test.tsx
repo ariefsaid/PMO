@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import React from 'react';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+
+// The ⌘K index gates procurement + pipeline rows on the viewer's real role (A-8,
+// AC-W2-RBAC-015). These behaviour tests exercise the indexing itself, so they render
+// under an authorized role (Admin sees every module's rows) — the gate's own two-sided
+// proof lives in useRecordSearch.rbac.test.tsx.
+const wrapAdmin = ({ children }: { children: React.ReactNode }) => (
+  <ImpersonationProvider realRole="Admin">{children}</ImpersonationProvider>
+);
 
 // Mock the three cached list hooks the index reads. Each test sets the return
 // value before rendering (vi.hoisted so the factory can close over the holder).
@@ -46,7 +56,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     const proj = result.current.records.find((r) => r.id.includes('p1'));
     expect(proj).toBeDefined();
     expect(proj!.group).toBe('Records');
@@ -71,7 +81,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
 
     const opp = result.current.records.find((r) => r.title === 'Acme Tender');
     expect(opp?.sub).toBe('Sales Pipeline');
@@ -88,14 +98,14 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
   // AC-CMDK-004: isPending passthrough while any list is still fetching.
   it('AC-CMDK-004: reports isPending when any cached list is still fetching', () => {
     state.projects = { data: undefined, isPending: true, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.isPending).toBe(true);
   });
 
   // AC-CMDK-005: isError passthrough when a list query failed.
   it('AC-CMDK-005: reports isError when a cached list query failed', () => {
     state.procurements = { data: undefined, isPending: false, isError: true };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.isError).toBe(true);
   });
 
@@ -103,7 +113,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     state.projects = { data: [], isPending: false, isError: false };
     state.procurements = { data: [], isPending: false, isError: false };
     state.pipeline = { data: { stages: [], projects: [] }, isPending: false, isError: false };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.records).toHaveLength(0);
   });
 });

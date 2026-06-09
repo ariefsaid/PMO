@@ -38,3 +38,14 @@ export const useEffectiveRole = (): EffectiveRole => {
   if (!ctx) throw new Error('useEffectiveRole must be used within an ImpersonationProvider');
   return ctx;
 };
+
+/**
+ * Non-throwing real-role reader for code that may render outside the provider (e.g. a hook
+ * exercised in isolation by unit tests, or a defensive call site). Returns `null` when no
+ * ImpersonationProvider is mounted, so callers deny-by-default rather than crash.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider; HMR-only lint concern
+export const useOptionalRealRole = (): Role | null => {
+  const ctx = useContext(Ctx);
+  return ctx?.realRole ?? null;
+};
