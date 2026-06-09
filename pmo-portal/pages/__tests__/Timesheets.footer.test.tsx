@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import Timesheets from '../Timesheets';
 
 /**
@@ -67,13 +68,17 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
 
+// An IC (Engineer) entering hours is the natural journey; render under the Engineer real role
+// so the A-6 entry-gate (Admin·Exec·PM·Engineer) keeps the editable grid + Save/Submit footer.
 const renderPage = () =>
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <Timesheets />
-      </ToastProvider>
-    </MemoryRouter>,
+    <ImpersonationProvider realRole="Engineer">
+      <MemoryRouter>
+        <ToastProvider>
+          <Timesheets />
+        </ToastProvider>
+      </MemoryRouter>
+    </ImpersonationProvider>,
   );
 
 /** A Draft sheet owned by u-alice for the current week. */

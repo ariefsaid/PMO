@@ -1,7 +1,23 @@
-# PMO Portal — backlog & decisions (living doc; last updated 2026-06-08)
+# PMO Portal — backlog & decisions (living doc; last updated 2026-06-09)
 
 Status snapshot after the autonomous build run. 9 issues shipped & merged to `main` (PRs #1–#9).
 This file is the durable record of what's next; it is NOT loaded as session context (kept out of CLAUDE.md).
+
+## ▶ UX-NATURALNESS PROGRAM (interaction-design / IA / RBAC-gating — 2026-06-08/09)
+Triggered by the owner: the prior audits checked *correctness* (tokens/RBAC/a11y), none checked *naturalness* (does the flow match human/convention expectations?). Two new **standing review lenses** were added to `docs/design-workflow.md` §2.3 (the 3-lens battery) + §3a (e2e encodes the natural journey, not the app's current shape): **IxD/task-flow** (Nielsen + cognitive-load + persona, via `impeccable critique`) and **IA/structure-navigation** (one-canonical-view-per-entity; Nielsen #4). Audits live in `review/*.md` (**`review/` is gitignored — local working scratch**; the durable backlog is HERE).
+
+- **✅ Wave 1 — MERGED (`main`@688d125, PR #36).** Model B canonical project/opportunity lifecycle (**ADR-0020**: one `projects` record, one `/projects/:id` stage-adaptive lens, `/sales/:id` redirects, Projects/Pipeline disjoint partitions, lost-in-pipeline) + app-wide **write policy** (OD-UX-1: routine=single-click+toast, confirm only consequential/destructive — supersedes "confirm every write") + **timesheet Save+Submit** co-located (the owner's flagged flow) + **honest exec dashboard** (no contradictory margin, Board-pack disabled-coming-soon, Reports demoted) + **procurement state legibility**. FE-only, state machine untouched. 1329 unit · 332 pgTAP · 47 e2e. 3-lens rendered re-review + fixes. Deferred taste nits: Mark-as-Paid solid-green (vs One-Blue), 1440px stepper-node clip.
+- **▶ Wave 2 — IN FLIGHT (branch `feat/ux-naturalness-wave2`).** RBAC view-gating + IxD naturalness. Plan `docs/plans/2026-06-09-ux-naturalness-wave2.md`; decisions **OD-W2-1..5** (decisions.md). **Part A (RBAC view-gating)** building: PipelineLens permission gate (the Wave-1-surfaced A7 risk — RLS-safe, FE-only), ApprovalsQueue `isApprover=true` hard-code fix, Engineer own-scoped procurement (OD-W2-1), Finance timesheet FE-gate, Documents author-check, shared access-denied/⌘K guard. Then **Part B (IxD)**: My-Tasks IC landing, +New-opportunity CTA, Finance approval queue, role-shaped nav, hover-only verbs surfaced, honest-disabled no-ops (OD-W2-5: /reports stub, remove bell, demote Sales Export), nav F4–F8. **Engineer-approval = FE-OFF for now** (OD-W2-2; `transition_timesheet` RPC unchanged — manager_id-authority dormant/reversible; configurable roles deferred to a future **admin settings / RBAC config engine**, the OD-PROC-6 bridge). Then security pass + 3-lens re-review + owner sign-off + PR.
+
+### OUTSTANDING UX backlog (from `review/OUTSTANDING.md` triage — ~36 items; the durable copy)
+After Wave 2, the remaining themes in priority order:
+1. **Finance-timesheet SERVER write-hole** (`AC-W2-RBAC-011-RLS`) — RLS lets Finance persist an own-Draft timesheet entry; Wave-2 Part A gates the FE, the real fix is a server tightening (pgTAP, security-auditor). **Security follow-up.**
+2. **Lifecycle rework dead-ends** — Rejected→Draft/Closed legal server-side but no UI (timesheets, documents); hidden Admin break-glass moves.
+3. **Workflow dead-ends / silent failures** — 5-min stale FK pickers (mutations don't invalidate `fk-options`), silent numeric coercion to `0` (project value/line-items/quotes), optimistic delete with no rollback, dropped budget error codes, `path="*"`→dashboard.
+4. **IxD Wave 3** — ~19 minors (hover-only 28px row actions, PM-dashboard missing loading/error state, off-palette cyan KPI tone, em-dash placeholders, incident date/type defaults, etc.).
+5. **Mobile responsiveness** — UNANIMOUS across all 5 visual-journey audits, untouched by Wave 1: every data table clips at 375px, shell chrome truncates, ⌘K button ~2px. A dedicated responsive pass.
+6. **Accessibility + design-system compliance** — outstanding WCAG items + token/contrast drift.
+7. **Admin settings / RBAC config engine** (OD-PROC-6 bridge) — owner wants configurable roles + access (re-enables Engineer-approval etc.). Bigger feature.
 
 ## Shipped (merged to main)
 1. **#1** De-cruft + build foundation — removed AI Studio artifacts, real Tailwind-via-Vite, fixed a conditional-hooks crash, repo green, CI lint gate.
