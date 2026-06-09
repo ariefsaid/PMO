@@ -5,6 +5,22 @@ import { MemoryRouter } from 'react-router-dom';
 import { KPITile } from '../KPITile';
 
 describe('KPITile', () => {
+  it('AC-IXD-DASH-W5-C2A: only a drillable (link) tile carries the hover-lift affordance; a plain tile is static (design-review I1)', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <KPITile icon="dollar" tone="blue" label="At risk" value="3" testId="kpi-x" to="/projects?filter=at-risk" linkLabel="Open at-risk" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('kpi-x').className).toContain('hover:shadow-');
+    rerender(
+      <MemoryRouter>
+        <KPITile icon="dollar" tone="blue" label="On-hand margin" value="12%" testId="kpi-x" />
+      </MemoryRouter>,
+    );
+    // plain tile: no hover-lift (no false affordance)
+    expect(screen.getByTestId('kpi-x').className).not.toContain('hover:shadow-');
+  });
+
   it('renders label + tabular value', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" />);
     expect(screen.getByText('Pipeline value')).toBeInTheDocument();

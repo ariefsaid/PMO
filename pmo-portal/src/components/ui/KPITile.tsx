@@ -82,7 +82,11 @@ export function KPITile<L extends string = string>({
 }: KPITileProps<L>) {
   const isLink = to != null;
   const rootClass = cn(
-    'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+    'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4',
+    // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
+    // so a plain tile reads as a static surface and never promises a click it can't honor
+    // (design-review I1: shared hover lift was a false affordance on plain tiles).
+    isLink && 'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
     className
   );
 
