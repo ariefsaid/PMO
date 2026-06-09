@@ -756,6 +756,147 @@ const ProcurementDetails: React.FC = () => {
               Add at least one line item before submitting.
             </p>
           )}
+
+          {/* D17 (AC-IXD-PROC-W5-C3-D17): GR/VI create affordances — demoted to quiet
+              ghost links co-located inside the DecisionCard, below the primary CTA.
+              The collapsed trigger is a ghost/link (NOT solid blue) so the stage's ONE
+              primary CTA is the only blue on screen (One-Blue Rule). The separate
+              competing Card containers are removed. The create logic, gating
+              (canShowGRForm / canShowVIForm), and role/state predicates are UNCHANGED.
+              When the inline form is open, its submit is the only affordance and MAY be
+              primary/success — it is the focused task at that point. */}
+          {canShowGRForm && (
+            <div className="border-t border-border/50 pt-3">
+              {!showCreateGR ? (
+                // Ghost trigger: quiet link treatment, no solid fill — sits below primary CTA.
+                // `text-primary` link colour + hover underline reads as "and, if needed…"
+                // without competing for attention with the stage primary.
+                <button
+                  type="button"
+                  data-testid="btn-create-gr"
+                  onClick={() => setShowCreateGR(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  <Icon name="plus" className="size-3.5" />
+                  Record goods receipt
+                </button>
+              ) : (
+                <form
+                  data-testid="form-create-gr"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    setMutationError(null);
+                    // Stage the GR for confirmation (commit fires on Confirm).
+                    setPendingConfirm({
+                      kind: 'createGR',
+                      status: fd.get('gr-status') as 'Partial' | 'Complete',
+                      receiptDate: fd.get('gr-date') as string,
+                    });
+                  }}
+                  className="flex flex-wrap items-end gap-3"
+                >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Status
+                    <select
+                      name="gr-status"
+                      defaultValue="Complete"
+                      data-testid="gr-status-select"
+                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <option value="Partial">Partial</option>
+                      <option value="Complete">Complete</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Receipt date
+                    <input
+                      type="date"
+                      name="gr-date"
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      data-testid="gr-date-input"
+                      className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
+                  {/* Open-form submit: primary action while the form is focused (One-Blue
+                      is satisfied — the stage primary is not visible when the form is open
+                      since this replaces the action area's focus). */}
+                  <Button type="submit" variant="primary" size="sm" loading={mutations.createReceipt.isPending} data-testid="btn-save-gr">
+                    Save GR
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateGR(false)}>
+                    Cancel
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {canShowVIForm && (
+            <div className="border-t border-border/50 pt-3">
+              {!showCreateVI ? (
+                // Ghost trigger: quiet link treatment — demoted from the competing
+                // solid-blue primary it was previously. Mirrors the GR pattern exactly.
+                <button
+                  type="button"
+                  data-testid="btn-create-vi"
+                  onClick={() => setShowCreateVI(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  <Icon name="plus" className="size-3.5" />
+                  Record vendor invoice
+                </button>
+              ) : (
+                <form
+                  data-testid="form-create-vi"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    setMutationError(null);
+                    // Stage the VI for confirmation (commit fires on Confirm).
+                    // N1: status cast excludes Paid — the select no longer offers it.
+                    setPendingConfirm({
+                      kind: 'createVI',
+                      status: fd.get('vi-status') as 'Received' | 'Scheduled',
+                      invoiceDate: fd.get('vi-date') as string,
+                    });
+                  }}
+                  className="flex flex-wrap items-end gap-3"
+                >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Status
+                    <select
+                      name="vi-status"
+                      defaultValue="Received"
+                      data-testid="vi-status-select"
+                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <option value="Received">Received</option>
+                      <option value="Scheduled">Scheduled</option>
+                      {/* N1 (AC-W3-N1): Paid removed — Mark as Paid is the sole PR→Paid authority. */}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Invoice date
+                    <input
+                      type="date"
+                      name="vi-date"
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      data-testid="vi-date-input"
+                      className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
+                  <Button type="submit" variant="primary" size="sm" loading={mutations.createInvoice.isPending} data-testid="btn-save-vi">
+                    Save VI
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateVI(false)}>
+                    Cancel
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
           {mutationError && (
             <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
               <Icon name="alert" className="mt-px size-4 shrink-0" />
@@ -764,131 +905,6 @@ const ProcurementDetails: React.FC = () => {
           )}
         </CardPad>
       </Card>
-
-      {/* GR / VI capture panels — these stay near the decision zone because they ARE
-          the action at their respective stages (OD-W3-3 co-location). The reorder
-          moves the approval decision (Requested stage) above the evidence; GR/VI
-          panels do not disrupt the approver's read-then-decide flow. */}
-
-      {/* GR creation panel (AC-816) */}
-      {canShowGRForm && (
-        <Card className="mb-4">
-          <CardPad>
-            {!showCreateGR ? (
-              <Button variant="primary" size="sm" data-testid="btn-create-gr" onClick={() => setShowCreateGR(true)}>
-                <Icon name="plus" />
-                Create Goods Receipt
-              </Button>
-            ) : (
-              <form
-                data-testid="form-create-gr"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  setMutationError(null);
-                  // Stage the GR for confirmation (commit fires on Confirm).
-                  setPendingConfirm({
-                    kind: 'createGR',
-                    status: fd.get('gr-status') as 'Partial' | 'Complete',
-                    receiptDate: fd.get('gr-date') as string,
-                  });
-                }}
-                className="flex flex-wrap items-end gap-3"
-              >
-                <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                  Status
-                  <select
-                    name="gr-status"
-                    defaultValue="Complete"
-                    data-testid="gr-status-select"
-                    className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    <option value="Partial">Partial</option>
-                    <option value="Complete">Complete</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                  Receipt date
-                  <input
-                    type="date"
-                    name="gr-date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    data-testid="gr-date-input"
-                    className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  />
-                </label>
-                <Button type="submit" variant="success" size="sm" loading={mutations.createReceipt.isPending} data-testid="btn-save-gr">
-                  Save GR
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowCreateGR(false)}>
-                  Cancel
-                </Button>
-              </form>
-            )}
-          </CardPad>
-        </Card>
-      )}
-
-      {/* VI creation panel (AC-816) */}
-      {canShowVIForm && (
-        <Card className="mb-4">
-          <CardPad>
-            {!showCreateVI ? (
-              <Button variant="primary" size="sm" data-testid="btn-create-vi" onClick={() => setShowCreateVI(true)}>
-                <Icon name="plus" />
-                Create Vendor Invoice
-              </Button>
-            ) : (
-              <form
-                data-testid="form-create-vi"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  setMutationError(null);
-                  // Stage the VI for confirmation (commit fires on Confirm).
-                  // N1: status cast excludes Paid — the select no longer offers it.
-                  setPendingConfirm({
-                    kind: 'createVI',
-                    status: fd.get('vi-status') as 'Received' | 'Scheduled',
-                    invoiceDate: fd.get('vi-date') as string,
-                  });
-                }}
-                className="flex flex-wrap items-end gap-3"
-              >
-                <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                  Status
-                  <select
-                    name="vi-status"
-                    defaultValue="Received"
-                    data-testid="vi-status-select"
-                    className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    <option value="Received">Received</option>
-                    <option value="Scheduled">Scheduled</option>
-                    {/* N1 (AC-W3-N1): Paid removed — Mark as Paid is the sole PR→Paid authority. */}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                  Invoice date
-                  <input
-                    type="date"
-                    name="vi-date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    data-testid="vi-date-input"
-                    className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  />
-                </label>
-                <Button type="submit" variant="success" size="sm" loading={mutations.createInvoice.isPending} data-testid="btn-save-vi">
-                  Save VI
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowCreateVI(false)}>
-                  Cancel
-                </Button>
-              </form>
-            )}
-          </CardPad>
-        </Card>
-      )}
 
       {/* Documents metadata register (over the previously-dead procurement_documents) */}
       <ProcurementDocumentsSection
