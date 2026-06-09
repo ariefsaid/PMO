@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { KPITile } from '../KPITile';
 
 describe('KPITile', () => {
@@ -36,6 +37,51 @@ describe('KPITile', () => {
   it('loading renders a skeleton tile', () => {
     render(<KPITile icon="dollar" tone="blue" label="x" value="" loading />);
     expect(screen.getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+
+  // ── Link variant (Wave-5 N15: tile-as-shortcut, no fork) ──────────────────
+  describe('link variant (to=)', () => {
+    it('renders the whole tile as a single <a> link to the route', () => {
+      render(
+        <MemoryRouter>
+          <KPITile
+            icon="check"
+            tone="amber"
+            label="Awaiting your approval"
+            value="3"
+            to="/approvals"
+            linkLabel="Awaiting your approval: 3 items"
+          />
+        </MemoryRouter>,
+      );
+      const link = screen.getByRole('link', { name: 'Awaiting your approval: 3 items' });
+      expect(link).toHaveAttribute('href', '/approvals');
+      // the value lives inside the single link
+      expect(link).toHaveTextContent('3');
+    });
+
+    it('does NOT nest a focusable interactive inside the link (help is not a tab stop)', () => {
+      render(
+        <MemoryRouter>
+          <KPITile
+            icon="check"
+            tone="amber"
+            label="Awaiting your approval"
+            value="3"
+            to="/approvals"
+            help="Items waiting on your decision"
+          />
+        </MemoryRouter>,
+      );
+      // the link is the ONLY interactive in the tile
+      expect(screen.getAllByRole('link')).toHaveLength(1);
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('non-link tile is a div (no router needed)', () => {
+      render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1" />);
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
   });
 
   it('dual-lens toggle switches value + aria-selected', async () => {
