@@ -31,8 +31,11 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(winRateTile).toBeVisible();
   await expect(winRateTile).toContainText('%');
 
-  // ── Navigate to Sales Pipeline ───────────────────────────────────────────────
-  await page.getByRole('link', { name: /Sales Pipeline/i }).click();
+  // ── Drill into the Sales Pipeline VIA the weighted-pipeline KPI tile ──────────
+  // Wave-5 Cluster-2 PR-A: the Pipeline KPI is now itself the doorway (drill-through),
+  // so the natural journey is to click the tile. (Also disambiguates from the nav-rail
+  // "Sales Pipeline" link.) Goal-oracle below — weighted stages render — is unchanged.
+  await page.getByTestId('kpi-pipeline-weighted-value').click();
   await page.waitForURL('**/sales');
 
   // pipeline-weighted-total KPI renders

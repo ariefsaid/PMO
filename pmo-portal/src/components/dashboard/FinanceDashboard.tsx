@@ -78,19 +78,29 @@ export const FinanceDashboard: React.FC = () => {
       <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
 
       <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
+        {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
           value={formatCurrency(data?.total_contract_value ?? 0)} loading={isPending}
+          to="/projects?filter=Ongoing"
+          linkLabel="Open active projects to see contracted revenue"
           help="Total contract value across active and closed-out projects." />
+        {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label="Total project spend"
           value={formatCurrency(totalSpend)} loading={isPending}
+          to="/projects?filter=Ongoing"
+          linkLabel="Open active projects to see spend breakdown"
           help="Sum of actual spend across the portfolio's top projects." />
+        {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
         <KPITile testId="kpi-margin" tone="blue" icon="up" label="On-hand margin"
           value={`${((data?.on_hand_margin ?? 0) * 100).toFixed(1)}%`} loading={isPending}
           vs={`${formatCurrency(data?.on_hand_value ?? 0)} on hand`}
           help="Realized actual margin on active + closed-out contracts." />
+        {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
         <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label="Outstanding invoices"
           value={formatCurrency(outstanding)} loading={procPending}
           vs="vendor-invoiced, awaiting payment"
+          to="/procurement?status=Vendor+Invoiced"
+          linkLabel="Open vendor-invoiced requests awaiting payment"
           help="Sum of procurement value in the Vendor Invoiced state." />
         {/* N15: PRs-only approvals shortcut (Finance has no timesheet approval) → /approvals. */}
         <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
