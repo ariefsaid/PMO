@@ -22,6 +22,18 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [{ id: 't1' }, { id: 't2' }], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// The combined approvals tile (N15) also reads procurements + the real role.
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({
+    data: [
+      { id: 'pr1', status: 'Requested', requested_by_id: 'someone-else' },
+    ],
+    isPending: false,
+  }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ realRole: 'Project Manager' }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -49,9 +61,11 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     // only Project B is 98% utilized → 1 at-risk
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
-  it('shows timesheets awaiting approval = 2 (real)', () => {
+  it('N15: combined approvals tile = approvable PRs (1) + timesheets (2) = 3, links to /approvals', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-timesheets-awaiting')).toHaveTextContent('2');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent('3');
+    expect(tile).toHaveAttribute('href', '/approvals');
   });
   it('does NOT render a procurement-approvals coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
@@ -43,6 +44,15 @@ export interface KPITileProps<L extends string = string> {
   loading?: boolean;
   /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
   dual?: KPIDualLens<L>;
+  /**
+   * When set, the ENTIRE tile becomes a single router `<Link>` to this route — a
+   * shortcut tile (Wave-5 N15). The tile keeps every visual token; only the root
+   * element + the help affordance change (a11y: ONE interactive, no nested button
+   * inside a link). Reuses this component rather than forking the tile markup.
+   */
+  to?: string;
+  /** Accessible name for the link variant (e.g. "Awaiting your approval: 3 items"). */
+  linkLabel?: string;
   /** Test id on the tile root (for AC-tagged smoke assertions). */
   testId?: string;
   className?: string;
@@ -65,28 +75,43 @@ export function KPITile<L extends string = string>({
   vs,
   loading = false,
   dual,
+  to,
+  linkLabel,
   testId,
   className,
 }: KPITileProps<L>) {
-  return (
-    <div
-      data-testid={testId}
-      className={cn(
-        'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
-        className
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
-            TONE_CLASS[tone]
-          )}
-        >
-          <Icon name={icon} />
-        </span>
-        <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
-        {help && (
+  const isLink = to != null;
+  const rootClass = cn(
+    'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+    className
+  );
+
+  const head = (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
+          TONE_CLASS[tone]
+        )}
+      >
+        <Icon name={icon} />
+      </span>
+      <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      {help &&
+        (isLink ? (
+          // In the link variant the help glyph is decorative-only (tabIndex=-1,
+          // aria-hidden) so the tile stays a SINGLE focusable control — never a
+          // <button> nested inside an <a>. The tooltip still shows on hover.
+          <Tooltip content={help}>
+            <span
+              tabIndex={-1}
+              aria-hidden="true"
+              className="ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 [&_svg]:size-3.5"
+            >
+              <Icon name="help" />
+            </span>
+          </Tooltip>
+        ) : (
           <Tooltip content={help}>
             <span
               tabIndex={0}
@@ -97,8 +122,48 @@ export function KPITile<L extends string = string>({
               <Icon name="help" />
             </span>
           </Tooltip>
+        ))}
+    </div>
+  );
+
+  // Link variant: the entire tile is one <Link>. Routing tiles never host a
+  // dual-lens toggle (a tile is either a shortcut or an interactive lens, never both).
+  if (isLink) {
+    return (
+      <Link
+        to={to}
+        data-testid={testId}
+        aria-label={linkLabel ?? label}
+        className={cn(
+          rootClass,
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
         )}
-      </div>
+      >
+        {head}
+        {loading ? (
+          <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+        ) : (
+          <div
+            className={cn(
+              'text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+              negative && 'text-destructive'
+            )}
+          >
+            {value}
+          </div>
+        )}
+        {vs && (
+          <div className="flex items-center gap-[7px] text-[12px]">
+            <span className="text-muted-foreground">{vs}</span>
+          </div>
+        )}
+      </Link>
+    );
+  }
+
+  return (
+    <div data-testid={testId} className={rootClass}>
+      {head}
 
       {loading ? (
         <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />

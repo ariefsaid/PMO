@@ -74,6 +74,15 @@ values
    'authenticated','authenticated','ts-colocated-eng@acme.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  -- AC-IXD-TS-W5-3 ISOLATION: b4 fixture — auth row required by profiles_id_fkey but
+  -- NO identity row is added (see auth.identities below), so b4 can NEVER sign in.
+  -- b4 is a pure seed actor: their Submitted timesheet surfaces in pm@'s queue without
+  -- any login flow.
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000b4',
+   'authenticated','authenticated','wave5-bulkeng@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', '')
 on conflict (id) do nothing;
 
@@ -121,7 +130,12 @@ insert into profiles (id, company_id, full_name, email, role, title, location, s
   -- AC-IXD-TS-001 ISOLATION actor: a dedicated engineer with NO seeded timesheet (its current week is
   -- empty), used ONLY by AC-IXD-TS-001 so its save→submit journey never collides with AC-TSE-021 /
   -- AC-911 on the shared engineer@'s weeks. Distinct name for unambiguous queue/grid scoping.
-  ('00000000-0000-0000-0000-0000000000b3','c0000000-0000-0000-0000-000000000001','Ivan TSColocated','ts-colocated-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',88);
+  ('00000000-0000-0000-0000-0000000000b3','c0000000-0000-0000-0000-000000000001','Ivan TSColocated','ts-colocated-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',88),
+  -- AC-IXD-TS-W5-3 ISOLATION actor: a dedicated Engineer whose ALREADY-SUBMITTED prior-week timesheet
+  -- appears in pm@acme.test's approvals queue WITHOUT any e2e UI-submit step. No auth.users row —
+  -- this actor NEVER logs in. The sheet is pre-seeded as Submitted so AC-IXD-TS-W5-3 can bulk-approve
+  -- it straight from the queue, making the test ordering-independent across the full suite.
+  ('00000000-0000-0000-0000-0000000000b4','c0000000-0000-0000-0000-000000000001','Wave5 BulkEng','wave5-bulkeng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',90);
 
 -- projects (neutral names; PM = Alice; client = Innovate Corp)
 insert into projects (id, code, name, status, client_id, project_manager_id, contract_value, budget, spent, start_date, end_date) values
@@ -299,6 +313,10 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a1'
 -- AC-911 ISOLATION chain: Grace (b1, dedicated engineer) reports to Heidi (b2, dedicated PM).
 update profiles set manager_id = '00000000-0000-0000-0000-0000000000b2'
   where id = '00000000-0000-0000-0000-0000000000b1';  -- Grace → Heidi
+-- AC-IXD-TS-W5-3 ISOLATION chain: Wave5 BulkEng (b4) reports to Alice (a2, PM) so their
+-- Submitted sheet surfaces in pm@acme.test's approval queue via the PM-role RLS clause.
+update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
+  where id = '00000000-0000-0000-0000-0000000000b4';  -- Wave5 BulkEng → Alice (pm@)
 
 -- timesheets (Monday week_start). Engineer = 16h (own rows); PM = 10h (own rows). Finance: none (empty-state AC-604).
 -- DATE-DRIFT FIX: the week_start is RELATIVE to today — date_trunc('week', current_date) is the
@@ -319,7 +337,12 @@ insert into timesheets (id, user_id, week_start_date, status) values
   -- AC-911 ISOLATION: Grace's (b1) DEDICATED current-week Draft sheet — the ONLY sheet the AC-911
   -- submit→approve e2e mutates, so no other spec's reset/ordering affects it (the flake's root cause:
   -- AC-911 previously shared Dave's sheet …001 with AC-TSE-021 / AC-904 fixtures).
-  ('70000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000b1',date_trunc('week', current_date)::date,'Draft');
+  ('70000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000b1',date_trunc('week', current_date)::date,'Draft'),
+  -- AC-IXD-TS-W5-3 ISOLATION: Wave5 BulkEng (b4) — ALREADY SUBMITTED prior-week sheet.
+  -- week_start = PRIOR Monday (current_date - 7 days, trunc'd to week), satisfying week_is_monday.
+  -- Status is Submitted on seed so the e2e can bulk-approve it without a UI-submit step.
+  -- No other spec touches this sheet, so it is ordering-independent across the full suite.
+  ('70000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000b4',(date_trunc('week', current_date) - interval '7 days')::date,'Submitted');
 -- entry_date = Monday + N days, so all entries fall WITHIN the relative current week.
 insert into timesheet_entries (timesheet_id, project_id, entry_date, hours, notes) values
   ('70000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,8,'Site coordination'),
@@ -328,7 +351,11 @@ insert into timesheet_entries (timesheet_id, project_id, entry_date, hours, note
   ('70000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,4,'Status report'),
   -- Grace's dedicated current-week entries (8h + 8h) so her sheet is a non-empty, submittable Draft.
   ('70000000-0000-0000-0000-0000000000b1','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date,8,'Site survey'),
-  ('70000000-0000-0000-0000-0000000000b1','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,8,'Report drafting');
+  ('70000000-0000-0000-0000-0000000000b1','40000000-0000-0000-0000-000000000001',date_trunc('week', current_date)::date + 1,8,'Report drafting'),
+  -- Wave5 BulkEng (b4) prior-week entries (6h + 8h = 14h). entry_date = prior Monday + N.
+  -- These make the sheet non-trivial so the approval grid renders real data.
+  ('70000000-0000-0000-0000-0000000000b4','40000000-0000-0000-0000-000000000001',(date_trunc('week', current_date) - interval '7 days')::date,6,'Safety audit'),
+  ('70000000-0000-0000-0000-0000000000b4','40000000-0000-0000-0000-000000000001',(date_trunc('week', current_date) - interval '7 days')::date + 1,8,'Site walkthrough');
 
 -- tasks + one dependency
 insert into tasks (id, project_id, name, start_date, end_date, assignee_id, status) values

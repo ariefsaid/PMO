@@ -18,6 +18,7 @@ import { DashPageHead, DashGrid } from '@/src/components/dashboard/layout';
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
+import { AwaitingApprovalTile } from '@/src/components/dashboard/AwaitingApprovalTile';
 
 const ExecutiveDashboard: React.FC = () => {
   const { effectiveRole } = useEffectiveRole();
@@ -133,6 +134,14 @@ const ExecutiveDashboard: React.FC = () => {
             value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0))}
             vs="actual to date"
             help="Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)" />
+        </section>
+
+        {/* N15: combined approvals shortcut (PRs Exec can approve + timesheets) → /approvals. */}
+        <section
+          aria-label="Approvals"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-3"
+        >
+          <AwaitingApprovalTile includeTimesheets />
         </section>
 
         <DashGrid>

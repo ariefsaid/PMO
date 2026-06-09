@@ -39,6 +39,14 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   }),
 }));
 
+// N6: /approvals is now the unified inbox — it also reads the procurement queue.
+// These timesheet-flow tests keep procurement empty so the timesheet section is
+// the surface under test (its behavior is unchanged, just embedded in the inbox).
+const procState = { data: [] as unknown[], isPending: false, isError: false };
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({ ...procState, refetch: vi.fn() }),
+}));
+
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-mgr', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -89,6 +97,9 @@ beforeEach(() => {
   queryState.refetch = vi.fn();
   approveMutation.mutate = vi.fn();
   rejectMutation.mutate = vi.fn();
+  procState.data = [];
+  procState.isPending = false;
+  procState.isError = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -104,23 +115,27 @@ describe('Approvals page states', () => {
     expect(screen.getByTestId('approvals-loading')).toBeInTheDocument();
   });
 
-  it('AC-904: approvals-empty when no submitted sheets (NFR-TS-UI-001)', () => {
+  it('AC-904 / N6: nothing in EITHER queue → the inbox shows the page-level "all caught up" empty', () => {
     queryState.isPending = false;
     queryState.data = [];
+    procState.data = [];
     renderPage();
-    expect(screen.getByTestId('approvals-empty')).toBeInTheDocument();
+    expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
   });
 
-  it('AC-904: error + Retry re-runs the query (NFR-TS-UI-001)', () => {
+  it('AC-904: timesheet error + Retry re-runs the query (NFR-TS-UI-001)', () => {
+    // A non-empty proc count keeps the page out of the caught-up collapse so the
+    // timesheet section (and its error+Retry) renders independently.
+    procState.data = [{ id: 'pr1', status: 'Requested', requested_by_id: 'someone' }];
     queryState.isPending = false;
     queryState.isError = true;
     queryState.data = undefined;
     const refetchMock = vi.fn();
     queryState.refetch = refetchMock;
     renderPage();
-    const retryBtn = screen.getByRole('button', { name: /retry/i });
-    expect(retryBtn).toBeInTheDocument();
-    fireEvent.click(retryBtn);
+    const retryBtn = screen.getAllByRole('button', { name: /retry/i });
+    expect(retryBtn.length).toBeGreaterThan(0);
+    fireEvent.click(retryBtn[retryBtn.length - 1]);
     expect(refetchMock).toHaveBeenCalledOnce();
   });
 });

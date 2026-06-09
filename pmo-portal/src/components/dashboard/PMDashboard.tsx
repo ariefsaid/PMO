@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
 import { KPITile } from '@/src/components/ui/KPITile';
+import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { StatusPill, type StatusVariant } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
@@ -22,15 +22,14 @@ function statusVariant(status: string): StatusVariant {
 }
 
 /**
- * Project-Manager pane — real off `useProjects` (filtered to my projects) +
- * `useTimesheetsAwaitingApproval`. The procurement-approvals half has no per-PM
- * query, so it is an honest coming-soon placeholder, never summed with the real
- * timesheet count (plan §4.1, Open Q5).
+ * Project-Manager pane — real off `useProjects` (filtered to my projects). The
+ * approvals KPI is now the real combined `AwaitingApprovalTile` (PRs a PM can
+ * approve + timesheets awaiting), routing to the unified `/approvals` inbox — the
+ * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { data: projects, isPending, isError, refetch } = useProjects();
-  const { data: awaiting } = useTimesheetsAwaitingApproval();
 
   const mine = useMemo(
     () => (projects ?? []).filter((p) => p.project_manager_id === currentUser?.id),
@@ -41,7 +40,6 @@ export const PMDashboard: React.FC = () => {
     () => mine.filter((p) => p.budget > 0 && p.spent / p.budget >= AT_RISK_THRESHOLD).length,
     [mine],
   );
-  const awaitingCount = awaiting?.length ?? 0;
 
   const bvaProjects: TopProject[] = mine.map((p) => ({
     id: p.id, name: p.name, client_name: p.client?.name ?? null,
@@ -62,9 +60,8 @@ export const PMDashboard: React.FC = () => {
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label="At risk"
           value={String(atRisk)} loading={isPending} vs="budget usage > 90%"
           help="Your projects whose actual spend exceeds 90% of budget." />
-        <KPITile testId="kpi-timesheets-awaiting" tone="violet" icon="clock" label="Timesheets awaiting"
-          value={String(awaitingCount)} vs="submitted, pending your review"
-          help="Submitted timesheets awaiting your approval." />
+        {/* N15: real combined approvals shortcut (PRs you can approve + timesheets) → /approvals. */}
+        <AwaitingApprovalTile includeTimesheets />
       </section>
 
       <DashGrid>

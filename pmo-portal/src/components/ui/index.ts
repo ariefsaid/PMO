@@ -5,6 +5,7 @@ export { ICON_PATHS, type IconName } from './iconPaths';
 export { chartTheme, type ChartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
+export { Checkbox, type CheckboxProps } from './Checkbox';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, type CardProps } from './Card';
 export { KPITile, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
