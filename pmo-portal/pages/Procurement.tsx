@@ -14,6 +14,7 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
@@ -61,14 +62,17 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 
 const ProcurementPage: React.FC = () => {
   const { realRole } = useEffectiveRole();
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id;
   const navigate = useNavigate();
   const may = usePermission();
 
-  // A-3 / OD-W2-1: an Engineer has no Procurement nav and reaches only their OWN requests
-  // (RLS-scoped server-side). When an Engineer opens /procurement the page reads as "your
-  // requests" (own-scoped framing + copy), NOT the org-wide index — but the route is not
-  // blocked and Raise request stays available (any member may raise). Managers see the org
-  // index. This is FE clarity; RLS is the authority for what rows are actually returned.
+  // A-3 / OD-W2-1: an Engineer has no Procurement nav; when they reach /procurement the page is
+  // OWN-SCOPED. procurements_select RLS is org-wide (org_id = auth_org_id()), NOT requester-
+  // scoped, so the server returns every PR in the org; the FE narrows the cached list to rows
+  // the Engineer raised (requested_by_id === their uid) and reframes the copy to "your requests".
+  // This is FE clarity, not a security boundary (same tenant) — Raise request stays available
+  // (any member may raise; requester is server-stamped). Managers see the full org index.
   const ownScoped = realRole === 'Engineer';
   // B-2 (D5): Finance/PM/Exec/Admin can approve procurement requests (Requested → Approved).
   // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
@@ -89,7 +93,12 @@ const ProcurementPage: React.FC = () => {
   // Raise request is open to ANY member incl. Engineer (requester server-stamped).
   const canCreate = may('create', 'procurement');
 
-  const all = useMemo(() => data ?? [], [data]);
+  // Own-scope narrowing: an Engineer sees only the PRs they raised (see comment above). Applied
+  // to the base list so the table, board, and empty-state count all reflect the own-scoped view.
+  const all = useMemo(() => {
+    const rows = data ?? [];
+    return ownScoped && userId ? rows.filter((p) => p.requested_by_id === userId) : rows;
+  }, [data, ownScoped, userId]);
 
   // View-local filters (OD-7 search by title+code; status SegFilter). Newest first.
   const filtered = useMemo(() => {

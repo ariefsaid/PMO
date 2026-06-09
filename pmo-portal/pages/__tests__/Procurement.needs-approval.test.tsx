@@ -34,6 +34,9 @@ const { procState } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
 }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Finance' }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({ useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementView', () => ({ useProcurementView: () => ['table', vi.fn()] }));
