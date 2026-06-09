@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -70,6 +70,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   // The pipeline projection carries win_probability; the project row carries the value.
   const cached = pipeline?.projects.find((p) => p.id === project.id);
 
+  // N10 (OD-W5-C3-B): focus management after a transition — refs for the heading
+  // of the Next-actions card (Advance/Lost) and the page header h1 (Won, where the
+  // page becomes the delivery layout). A keyboard/SR user is told what changed.
+  const nextActionsHeadRef = useRef<HTMLDivElement>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // Write policy (OD-UX-1): a routine reversible forward Advance is SINGLE-CLICK + a toast
@@ -115,6 +120,18 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       setContractDate('');
       setConfirmAction(null);
       toast('Deal updated', `Moved to ${to}`, 'success');
+      // N10 (OD-W5-C3-B): post-transition focus management. On Won the page re-renders
+      // into the delivery layout; move focus to the page h1. On Advance/Lost move focus
+      // to the Next-actions card heading so a keyboard/SR user is told what changed.
+      if (to === 'Won, Pending KoM') {
+        // Brief defer so the re-render (delivery header mounting) can complete first.
+        setTimeout(() => {
+          const h1 = document.querySelector<HTMLElement>('h1');
+          h1?.focus();
+        }, 80);
+      } else {
+        nextActionsHeadRef.current?.focus();
+      }
     } catch (err) {
       // Surface the RPC error verbatim — it carries the P0001 SoD message.
       // Close the confirm so the verbatim error reads in the inline alert.
@@ -167,7 +184,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
 
         {/* Next actions */}
         <Card>
-          <CardHead>Next actions</CardHead>
+          {/* N10 (OD-W5-C3-B): wrap CardHead in a focusable div; the focus moves here
+              programmatically after an Advance/Lost transition so a keyboard/SR user is
+              told what changed. tabIndex={-1} keeps it out of the natural tab order. */}
+          <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
+            <CardHead>Next actions</CardHead>
+          </div>
           <CardPad className="flex flex-col gap-3">
             {!canTransition ? (
               // Denied (Finance·Engineer, §C): a clean read-only note in place of the action
@@ -179,9 +201,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             ) : (
               <>
             {isTerminal ? (
-              <GateNotice variant="ready">
-                This deal has reached a terminal stage. No further pipeline actions.
-              </GateNotice>
+              projectStatusGroup(liveStatus as never) === 'lost' ? (
+                <GateNotice variant="ready">
+                  This deal is marked lost. It has left the active pipeline.
+                </GateNotice>
+              ) : (
+                <GateNotice variant="ready">
+                  This deal has reached a terminal stage. No further pipeline actions.
+                </GateNotice>
+              )
             ) : (
               <GateNotice variant="ready">Ready to advance.</GateNotice>
             )}
@@ -290,6 +318,20 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             )}
               </>
             )}
+
+            {/* N10 (OD-W5-C3-B): persistent quiet "Back to Sales Pipeline" wayfinding link —
+                always present in the Next-actions card so after any Advance the user has an
+                obvious exit without it competing with the primary Advance CTA. On terminal
+                transitions (Lost) it is the primary remaining affordance. One-Blue-compliant:
+                a text link (not a solid button). Keyboard-reachable via standard focus order.
+                Uses a plain <a> (not react-router Link) so the component mounts outside a
+                Router context without breaking (the Sales route is a top-level navigation). */}
+            <a
+              href="/sales"
+              className="mt-1 self-start text-[12.5px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            >
+              ← Back to Sales Pipeline
+            </a>
           </CardPad>
         </Card>
       </div>
