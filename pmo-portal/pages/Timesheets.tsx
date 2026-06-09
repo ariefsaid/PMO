@@ -76,6 +76,10 @@ const TimesheetsPage: React.FC = () => {
   // RLS tightening (Finance cannot insert timesheet_entries) is a SEPARATE pgTAP-owned security
   // follow-up, not built here.
   const canEnterTimesheet = may('create', 'timesheet');
+  // AC-W3-N2: gate the Approvals queue affordance on the same capability as the rail's Approvals
+  // item and ApprovalsQueue itself — `may('transition','approval')` (DELIVERY = Admin·Exec·PM).
+  // Engineer cannot approve timesheets (OD-W2-2), so showing them the toggle is a RBAC leak.
+  const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
   const [view, setView] = useTimesheetsView();
   // T1: the Submit button stages this confirm; nothing submits on a single click.
@@ -433,15 +437,19 @@ const TimesheetsPage: React.FC = () => {
       </div>
 
       <Toolbar standalone>
-        <ViewToggle<'grid' | 'approvals'>
-          options={[
-            { value: 'grid', label: 'Weekly grid', icon: 'cal' },
-            { value: 'approvals', label: 'Approvals queue', icon: 'check', count: pendingCount },
-          ]}
-          value={view}
-          onChange={setView}
-          ariaLabel="Timesheet view"
-        />
+        {/* AC-W3-N2: show the ViewToggle (and its Approvals queue tab) only to approvers.
+            Engineers see no toggle at all — a single-view surface needs no tab-switcher. */}
+        {isApprover && (
+          <ViewToggle<'grid' | 'approvals'>
+            options={[
+              { value: 'grid', label: 'Weekly grid', icon: 'cal' },
+              { value: 'approvals', label: 'Approvals queue', icon: 'check', count: pendingCount },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel="Timesheet view"
+          />
+        )}
         <span className="ml-auto inline-flex items-center gap-0.5">
           <Button
             variant="outline"
@@ -463,7 +471,10 @@ const TimesheetsPage: React.FC = () => {
   );
 
   // ── Approvals queue view ────────────────────────────────────────────────────
-  if (view === 'approvals') {
+  // AC-W3-N2: also guard the branch on isApprover so a stale persisted view='approvals'
+  // from a previous session where the user had approval rights never accidentally surfaces
+  // the queue to a non-approver (e.g. an Engineer).
+  if (view === 'approvals' && isApprover) {
     return (
       <div>
         {head}
