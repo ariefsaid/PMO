@@ -129,7 +129,10 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
   });
 
   it('AC-IXD-PROC-005: the GR create form IS offered while Ordered (its stage is active)', () => {
-    detailState.data = { ...base, status: 'Ordered', receipts: [], invoices: [] };
+    // Migration 0018 / OD-PROC-8: GR creation is requester-OR-PM (Finance dropped). The signed-in
+    // user here is Finance, so make them the REQUESTER (requester may capture the GR regardless of
+    // role) — the goal is unchanged: an authorized creator IS offered the GR form while Ordered.
+    detailState.data = { ...base, status: 'Ordered', requested_by_id: 'u-alice', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
     // VI is NOT yet appropriate at Ordered
@@ -137,7 +140,7 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
   });
 
   it('AC-IXD-PROC-005: the GR create form IS offered while Received', () => {
-    detailState.data = { ...base, status: 'Received', receipts: [], invoices: [] };
+    detailState.data = { ...base, status: 'Received', requested_by_id: 'u-alice', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
   });
