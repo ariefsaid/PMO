@@ -28,6 +28,13 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// N15 approvals tile reads the real role + timesheet queue.
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ realRole: 'Finance' }),
+}));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => ({ data: [] }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
@@ -39,8 +46,19 @@ describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', (
     const { container } = renderPane();
     const band = container.querySelector('[aria-label="Finance KPIs"]') as HTMLElement;
     expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).toContain('min-[1180px]:grid-cols-4');
+    // 5 tiles now (4 finance KPIs + the N15 approvals shortcut) → 5-col at the widest tier.
+    expect(band.className).toContain('min-[1180px]:grid-cols-5');
     expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
+describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
+  it('renders an approvals tile linking to /approvals (Finance has no timesheet approval)', () => {
+    renderPane();
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveAttribute('href', '/approvals');
+    // procurements fixture has NO Requested rows → 0 awaiting (Finance can approve but none pending)
+    expect(tile).toHaveTextContent('0');
   });
 });
 

@@ -57,7 +57,16 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   },
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive' }) }));
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
+}));
+// N15 approvals tile reads procurements + the timesheet queue.
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => ({ data: [], isPending: false }),
+}));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => ({ data: [] }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useDashboard } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { KPITile } from '@/src/components/ui/KPITile';
+import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
@@ -76,7 +77,7 @@ export const FinanceDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
 
-      <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
+      <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
           value={formatCurrency(data?.total_contract_value ?? 0)} loading={isPending}
           help="Total contract value across active and closed-out projects." />
@@ -91,6 +92,8 @@ export const FinanceDashboard: React.FC = () => {
           value={formatCurrency(outstanding)} loading={procPending}
           vs="vendor-invoiced, awaiting payment"
           help="Sum of procurement value in the Vendor Invoiced state." />
+        {/* N15: PRs-only approvals shortcut (Finance has no timesheet approval) → /approvals. */}
+        <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
       </section>
 
       <DashGrid>
