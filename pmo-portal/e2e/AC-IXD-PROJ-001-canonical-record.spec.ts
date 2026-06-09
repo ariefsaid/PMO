@@ -5,9 +5,10 @@ import { login, pickComboboxOption, openPipelineCard } from './helpers';
  * Model B — ONE canonical project/opportunity record (ADR-0020).
  *
  * AC-IXD-PROJ-001  (owner-verbatim): a PM creates a project then opens it from EITHER the
- *                  Projects list OR the Sales Pipeline → both resolve to ONE detail page at the
- *                  SAME URL (`/projects/:id`), showing the stage-appropriate lens (pipeline lens
- *                  while pre-win, delivery lens once won). Invariant: one entity → one URL.
+ *                  Projects list OR the Sales Pipeline → both resolve to ONE unified detail page at
+ *                  the SAME URL (`/projects/:id`) — the delivery tabs (Overview/Budget/…) render at
+ *                  every stage (ADR-0021), with a deal-progression banner added while pre-win and
+ *                  the contract-value SoD editor added once on-hand. Invariant: one entity → one URL.
  * AC-IXD-PROJ-001a (corollary): a newly created Leads deal appears in the Pipeline and is ABSENT
  *                  from the active Projects list (disjoint stage partitions).
  * AC-IXD-PROJ-002  the legacy `/sales/:id` route redirects (replace) to `/projects/:id`.
@@ -75,12 +76,16 @@ test(
     await openPipelineCard(page, dealName);
     await expect(page).not.toHaveURL(/\/sales\//);
     await expect(page.getByRole('heading', { name: dealName })).toBeVisible({ timeout: 15_000 });
-    // pipeline lens markers: the deal-stage journey + the Advance affordance
+    // deal-progression banner markers: the deal-stage journey + the Advance affordance
     await expect(page.getByLabel('Deal stage journey')).toBeVisible();
     await expect(page.getByRole('button', { name: /Advance to/i })).toBeVisible();
-    // delivery lens is NOT shown pre-win (no section tabs)
-    await expect(page.getByRole('tablist', { name: /project sections/i })).toHaveCount(0);
-    const pipelineUrl = page.url();
+    // ADR-0021 (owner override of ADR-0020 §1): the delivery tabs ARE shown pre-win — a PM must be
+    // able to plan budget/tasks/procurement while pursuing the deal. The banner sits ABOVE them.
+    await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
+    // the owner's core journey: a Budget tab is reachable on a pipeline deal (was hidden pre-0021).
+    await page.getByRole('tab', { name: 'Budget' }).click();
+    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+\/budget$/);
+    const pipelineUrl = page.url().replace(/\/budget$/, '');
 
     // ── AC-IXD-PROJ-001 (projects half): an ON-HAND project opened from the Projects
     //    list lands on the SAME canonical /projects/:id route, with the DELIVERY lens. ──
