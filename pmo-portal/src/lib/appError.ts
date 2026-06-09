@@ -34,12 +34,21 @@ function readCode(err: unknown): string | undefined {
 
 /**
  * Normalizes any thrown value into an `AppError`, preserving a string `.code` when
- * present and the verbatim message when the value is an `Error`. An already-`AppError`
- * value is returned as-is (idempotent). Used by every repository wrapper so callers
- * always catch a single, code-bearing error type.
+ * present and the verbatim message when the value is an `Error` or a PostgREST-shaped
+ * `{ message, code }` plain object (the shape returned by Supabase client errors).
+ * An already-`AppError` value is returned as-is (idempotent). Used by every repository
+ * wrapper so callers always catch a single, code-bearing error type.
  */
 export function toAppError(err: unknown): AppError {
   if (err instanceof AppError) return err;
   if (err instanceof Error) return new AppError(err.message, readCode(err));
+  // PostgREST / Supabase client errors are plain objects { message: string, code?: string }
+  // (not Error instances). Preserve message + code from that shape.
+  if (err !== null && typeof err === 'object') {
+    const obj = err as { message?: unknown; code?: unknown };
+    const message = typeof obj.message === 'string' ? obj.message : 'An unexpected error occurred';
+    const code = typeof obj.code === 'string' ? obj.code : undefined;
+    return new AppError(message, code);
+  }
   return new AppError('An unexpected error occurred');
 }

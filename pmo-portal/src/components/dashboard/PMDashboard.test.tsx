@@ -111,11 +111,48 @@ describe('PMDashboard states', () => {
   it('shows an error + retry when the projects query fails', () => {
     projState.isError = true; projState.data = undefined;
     renderPane();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    // At least one Retry button (both cards show error).
+    expect(screen.getAllByRole('button', { name: /Retry/i }).length).toBeGreaterThan(0);
   });
   it('shows an empty state when no projects are assigned to me', () => {
     projState.data = [other];
     renderPane();
     expect(screen.getByText(/No projects assigned to you yet/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-W3-G2 — Project Status card loading/error states
+// ---------------------------------------------------------------------------
+
+describe('AC-W3-G2: PMDashboard "Project Status" card handles loading and error', () => {
+  it('AC-W3-G2: isPending → Project Status card shows loading state, not empty state', () => {
+    projState.isPending = true; projState.data = undefined;
+    renderPane();
+    // There must be at least 2 loading skeletons — one per card (BvA + Project Status).
+    const loaders = screen.getAllByTestId('liststate-loading');
+    expect(loaders.length).toBeGreaterThanOrEqual(2);
+    // The empty "Nothing to show yet" must NOT appear.
+    expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
+  });
+
+  it('AC-W3-G2: isError → Project Status card shows error + retry, not empty state', () => {
+    projState.isError = true; projState.data = undefined;
+    renderPane();
+    // There must be at least 2 Retry buttons — one per card (BvA + Project Status).
+    const retryButtons = screen.getAllByRole('button', { name: /Retry/i });
+    expect(retryButtons.length).toBeGreaterThanOrEqual(2);
+    // The empty "Nothing to show yet" must NOT appear.
+    expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
+  });
+
+  it('AC-W3-G2: populated → Project Status card still shows the project list', () => {
+    projState.data = [...mine, other]; projState.isPending = false; projState.isError = false;
+    renderPane();
+    // All my projects appear (multiple elements OK — BvA chart + Project Status list).
+    expect(screen.getAllByText('My Project A').length).toBeGreaterThan(0);
+    // No loading or error states.
+    expect(screen.queryByTestId('liststate-loading')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Retry/i })).toBeNull();
   });
 });

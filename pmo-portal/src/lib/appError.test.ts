@@ -50,4 +50,25 @@ describe('toAppError (normalizes any thrown value, preserving code)', () => {
     expect(e.message).toBe('An unexpected error occurred');
     expect(e.code).toBeUndefined();
   });
+
+  // F6: PostgREST / supabase-js client errors are plain objects { message, code } (NOT Error
+  // instances). toAppError must preserve both so classifyMutationError can map the code.
+  it('preserves message + code from a PostgREST plain-object error (the supabase-js shape)', () => {
+    const e = toAppError({ message: 'permission denied for table budget_versions', code: '42501' });
+    expect(e).toBeInstanceOf(AppError);
+    expect(e.message).toBe('permission denied for table budget_versions');
+    expect(e.code).toBe('42501');
+  });
+  it('degrades a plain object without a string message to the generic message (no [object Object] leak)', () => {
+    const e = toAppError({ foo: 1 });
+    expect(e.message).toBe('An unexpected error occurred');
+    expect(e.code).toBeUndefined();
+  });
+  it('drops a non-string code on a plain object', () => {
+    expect(toAppError({ message: 'x', code: 500 }).code).toBeUndefined();
+  });
+  it('handles array / null without throwing', () => {
+    expect(toAppError([]).message).toBe('An unexpected error occurred');
+    expect(toAppError(null).message).toBe('An unexpected error occurred');
+  });
 });

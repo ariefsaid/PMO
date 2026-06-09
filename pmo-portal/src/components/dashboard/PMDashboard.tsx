@@ -87,7 +87,11 @@ export const PMDashboard: React.FC = () => {
         <Card>
           <CardHead>Project Status</CardHead>
           <div className="px-4 pb-3.5">
-            {mine.length === 0 ? (
+            {isPending ? (
+              <ListState variant="loading" />
+            ) : isError ? (
+              <ListState variant="error" title="Couldn't load your projects" onRetry={() => refetch()} />
+            ) : mine.length === 0 ? (
               <ListState variant="empty" icon="folder" title="Nothing to show yet" />
             ) : (
               <ul className="divide-y divide-border/70">

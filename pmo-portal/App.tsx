@@ -41,6 +41,7 @@ const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
+const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -80,7 +81,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/my-tasks" element={<MyTasksPage />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
-      <Route path="*" element={<ExecutiveDashboard />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   </Suspense>
 );

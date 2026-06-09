@@ -631,6 +631,64 @@ describe('timesheet-entry: delete row confirm (Task 18)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// AC-W3-F5 — Delete row is resilient: row restored on server failure
+// ---------------------------------------------------------------------------
+
+describe('AC-W3-F5: timesheet row delete restores row on server failure', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    deleteRowMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-W3-F5: failed delete keeps the row in the grid and shows a warning toast', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+
+    // Mock deleteRow to invoke onError
+    deleteRowMutate.mockImplementation(
+      (_vars: unknown, opts?: { onError?: (e: Error) => void }) =>
+        opts?.onError?.(new Error('delete failed on server')),
+    );
+
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete row/i }));
+
+    // Row must STILL be in the grid (rollback on failure).
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
+
+    // A warning toast must have appeared.
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+
+  it('AC-W3-F5: successful delete removes the row from the grid', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+
+    // Mock deleteRow to invoke onSuccess
+    deleteRowMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete row/i }));
+
+    // Row must be gone from the grid.
+    expect(screen.queryByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeNull();
+
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
 describe('timesheet-entry: re-seed identity (Task 16 regression)', () => {
   beforeEach(() => {
     sessionStorage.clear();

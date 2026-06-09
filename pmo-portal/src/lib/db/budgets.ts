@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { toAppError } from '@/src/lib/appError';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -35,7 +36,7 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   const { data, error } = await supabase.rpc('get_project_budget', {
     p_project_id: projectId,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
   return Number(data);
 }
 
@@ -54,7 +55,7 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
     .select(VERSIONS_SELECT)
     .eq('project_id', projectId)
     .order('version', { ascending: true });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
   const rows = (data ?? []) as unknown as RawVersionWithItems[];
   return rows.map((v) => ({
     ...v,
@@ -87,7 +88,7 @@ export async function createLineItem(
     })
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
   return data as unknown as BudgetLineItemRow;
 }
 
@@ -104,7 +105,7 @@ export async function updateLineItem(
     .from('budget_line_items')
     .update(patch)
     .eq('id', id);
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -116,7 +117,7 @@ export async function deleteLineItem(id: string): Promise<void> {
     .from('budget_line_items')
     .delete()
     .eq('id', id);
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +155,7 @@ export async function createBudgetVersion(
     })
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
   return data as unknown as BudgetVersionRow;
 }
 
@@ -167,7 +168,7 @@ export async function cloneVersion(versionId: string): Promise<string> {
   const { data, error } = await supabase.rpc('clone_budget_version', {
     version_id: versionId,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
   return data as string;
 }
 
@@ -179,7 +180,7 @@ export async function activateVersion(versionId: string): Promise<void> {
   const { error } = await supabase.rpc('activate_budget_version', {
     version_id: versionId,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -191,7 +192,7 @@ export async function archiveVersion(versionId: string): Promise<void> {
     .from('budget_versions')
     .update({ status: 'Archived' })
     .eq('id', versionId);
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -203,5 +204,5 @@ export async function deleteDraftVersion(versionId: string): Promise<void> {
     .from('budget_versions')
     .delete()
     .eq('id', versionId);
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
