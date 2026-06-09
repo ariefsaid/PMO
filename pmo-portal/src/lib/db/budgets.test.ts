@@ -36,6 +36,7 @@ import {
   archiveVersion,
   deleteDraftVersion,
 } from './budgets';
+import { AppError } from '@/src/lib/appError';
 
 // ---------------------------------------------------------------------------
 // Builder helpers
@@ -456,5 +457,74 @@ describe('deleteDraftVersion', () => {
   it('throws on error', async () => {
     makeFromBuilder({ data: null, error: { message: 'delete version fail' } });
     await expect(deleteDraftVersion('v-draft')).rejects.toThrow('delete version fail');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-W3-F6 — Budget DAL must preserve Postgres error codes (AppError)
+// ---------------------------------------------------------------------------
+
+describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error code', () => {
+  it('deriveProjectBudget rejects with AppError carrying the original code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'permission denied', code: '42501' } });
+    const err = await deriveProjectBudget('p1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+  });
+
+  it('listBudgetVersions rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
+    const err = await listBudgetVersions('p1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('P0001');
+  });
+
+  it('createLineItem rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'duplicate', code: '23505' } });
+    const err = await createLineItem('v1', { category: 'Labor', description: null, budgeted_amount: 100 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('23505');
+  });
+
+  it('updateLineItem rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'version not Draft', code: 'P0001' } });
+    const err = await updateLineItem('li1', { budgeted_amount: 500 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('P0001');
+  });
+
+  it('deleteLineItem rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'version not Draft', code: 'P0001' } });
+    const err = await deleteLineItem('li1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('P0001');
+  });
+
+  it('activateVersion rejects with AppError carrying the original code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'already active', code: 'P0001' } });
+    const err = await activateVersion('v1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('P0001');
+  });
+
+  it('cloneVersion rejects with AppError carrying the original code', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'not found', code: '23503' } });
+    const err = await cloneVersion('v1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('23503');
+  });
+
+  it('archiveVersion rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'rls denied', code: '42501' } });
+    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+  });
+
+  it('deleteDraftVersion rejects with AppError carrying the original code', async () => {
+    makeFromBuilder({ data: null, error: { message: 'non-draft', code: 'P0001' } });
+    const err = await deleteDraftVersion('v-draft').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('P0001');
   });
 });
