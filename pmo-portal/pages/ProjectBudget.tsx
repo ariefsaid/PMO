@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import {
   Button,
   StatusPill,
@@ -63,21 +63,70 @@ interface LineItemEditorProps {
   onCreateLineItem: (item: NewLineItem) => Promise<unknown>;
   /** Stages a destructive confirm at the page level — does not delete on click. */
   onDeleteLineItem: (id: string) => void;
+  /** Routine inline update (OD-UX-1: single-click + toast, no confirm). */
+  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
+  onSaveSuccess: () => void;
 }
+
+/** Per-row inline edit state: `null` = reading, `string` = that row's id is open. */
+type EditingId = string | null;
 
 const LineItemEditor: React.FC<LineItemEditorProps> = ({
   lineItems,
   onCreateLineItem,
   onDeleteLineItem,
+  onUpdateLineItem,
+  onSaveSuccess,
 }) => {
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
 
+  // Inline edit state
+  const [editingId, setEditingId] = useState<EditingId>(null);
+  const [editCategory, setEditCategory] = useState<Enums<'budget_category'>>('Labor');
+  const [editDesc, setEditDesc] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editAmountError, setEditAmountError] = useState<string | null>(null);
+
+  const openEdit = (li: BudgetLineItemRow) => {
+    setEditingId(li.id);
+    setEditCategory(li.category as Enums<'budget_category'>);
+    setEditDesc(li.description ?? '');
+    setEditAmount(String(Number(li.budgeted_amount)));
+    setEditAmountError(null);
+  };
+
+  const closeEdit = () => {
+    setEditingId(null);
+    setEditAmountError(null);
+  };
+
+  const handleSaveEdit = async (li: BudgetLineItemRow) => {
+    // Validate using parseMoneyInput (F3/F4 pattern: validate == persist)
+    const parsed = parseMoneyInput(editAmount);
+    if (parsed === null) {
+      setEditAmountError('Enter a valid amount');
+      return;
+    }
+    if (parsed <= 0) {
+      setEditAmountError('Amount must be greater than 0');
+      return;
+    }
+    setEditAmountError(null);
+    await onUpdateLineItem(li.id, {
+      category: editCategory,
+      description: editDesc || null,
+      budgeted_amount: parsed,
+    });
+    setEditingId(null);
+    onSaveSuccess();
+  };
+
   const handleAdd = async () => {
-    const amount = parseFloat(newAmount);
-    if (!newCategory || isNaN(amount)) return;
+    const amount = parseMoneyInput(newAmount);
+    if (!newCategory || amount === null || amount <= 0) return;
     await onCreateLineItem({ category: newCategory, description: newDesc || null, budgeted_amount: amount });
     setAdding(false);
     setNewDesc('');
@@ -100,29 +149,136 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
           </tr>
         </thead>
         <tbody>
-          {lineItems.map((li) => (
-            <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-              <td className="px-3 py-2">{li.category}</td>
-              <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
-              <td className="px-3 py-2 text-right font-medium tabular">
-                {formatCurrency(Number(li.budgeted_amount))}
-              </td>
-              <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                {formatCurrency(Number(li.actual_amount))}
-              </td>
-              <td className="px-3 py-2 text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDeleteLineItem(li.id)}
-                  className="text-destructive hover:bg-destructive/10"
-                  aria-label={`Delete line item ${li.category}`}
-                >
-                  Delete
-                </Button>
-              </td>
-            </tr>
-          ))}
+          {lineItems.map((li) =>
+            editingId === li.id ? (
+              // --- Inline edit row ---
+              <tr key={li.id} className="border-b border-border/70 bg-accent/30 last:border-b-0">
+                <td className="px-3 py-2">
+                  {/* Label is visually hidden but wired for a11y */}
+                  <label htmlFor={`edit-category-${li.id}`} className="sr-only">
+                    Category
+                  </label>
+                  <select
+                    id={`edit-category-${li.id}`}
+                    aria-label="Category"
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as Enums<'budget_category'>)}
+                    className={fieldCls}
+                      autoFocus
+                  >
+                    {BUDGET_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="text"
+                    aria-label="Description"
+                    placeholder="Description"
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    className={`${fieldCls} w-full`}
+                  />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex flex-col items-end gap-0.5">
+                    <label htmlFor={`edit-amount-${li.id}`} className="sr-only">
+                      Amount
+                    </label>
+                    <input
+                      id={`edit-amount-${li.id}`}
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Amount"
+                      aria-describedby={editAmountError ? `edit-amount-error-${li.id}` : undefined}
+                      aria-invalid={editAmountError ? 'true' : undefined}
+                      value={editAmount}
+                      onChange={(e) => {
+                        setEditAmount(e.target.value);
+                        setEditAmountError(null);
+                      }}
+                      className={`${fieldCls} w-28 text-right tabular${editAmountError ? ' border-destructive' : ''}`}
+                    />
+                    {editAmountError && (
+                      <span
+                        id={`edit-amount-error-${li.id}`}
+                        role="alert"
+                        className="text-[11px] text-destructive"
+                      >
+                        {editAmountError}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-right tabular text-muted-foreground">
+                  {formatCurrency(Number(li.actual_amount))}
+                </td>
+                <td className="space-x-1 px-3 py-2 text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleSaveEdit(li)}
+                    className="text-primary"
+                    aria-label="Save"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeEdit}
+                    aria-label="Cancel"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDeleteLineItem(li.id)}
+                    className="text-destructive hover:bg-destructive/10"
+                    aria-label={`Delete line item ${li.category}`}
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            ) : (
+              // --- Read row with Edit affordance ---
+              <tr key={li.id} className="border-b border-border/70 last:border-b-0">
+                <td className="px-3 py-2">{li.category}</td>
+                <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
+                <td className="px-3 py-2 text-right font-medium tabular">
+                  {formatCurrency(Number(li.budgeted_amount))}
+                </td>
+                <td className="px-3 py-2 text-right tabular text-muted-foreground">
+                  {formatCurrency(Number(li.actual_amount))}
+                </td>
+                <td className="space-x-1 px-3 py-2 text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(li)}
+                    className="text-primary hover:bg-primary/10"
+                    aria-label={`Edit line item ${li.category}`}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDeleteLineItem(li.id)}
+                    className="text-destructive hover:bg-destructive/10"
+                    aria-label={`Delete line item ${li.category}`}
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            )
+          )}
           {adding && (
             <tr className="border-b border-border/70">
               <td className="px-3 py-2">
@@ -159,7 +315,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               </td>
               <td />
               <td className="space-x-1 px-3 py-2 text-right">
-                <Button variant="ghost" size="sm" onClick={handleAdd} className="text-primary">
+                <Button variant="ghost" size="sm" onClick={() => void handleAdd()} className="text-primary">
                   Save
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
@@ -192,6 +348,9 @@ interface VersionCardProps {
   onDeleteDraft: (id: string) => void;
   onCreateLineItem: (versionId: string, item: NewLineItem) => Promise<unknown>;
   onDeleteLineItem: (id: string) => void;
+  /** Routine inline update — no confirm required (OD-UX-1). */
+  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
+  onUpdateLineItemSuccess: () => void;
 }
 
 const VersionCard: React.FC<VersionCardProps> = ({
@@ -203,6 +362,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
   onDeleteDraft,
   onCreateLineItem,
   onDeleteLineItem,
+  onUpdateLineItem,
+  onUpdateLineItemSuccess,
 }) => {
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
@@ -274,6 +435,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
           lineItems={version.line_items}
           onCreateLineItem={(item) => onCreateLineItem(version.id, item)}
           onDeleteLineItem={onDeleteLineItem}
+          onUpdateLineItem={onUpdateLineItem}
+          onSaveSuccess={onUpdateLineItemSuccess}
         />
       ) : (
         version.line_items.length > 0 && (
@@ -433,11 +596,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           setPendingConfirm(null);
           toast('Version activated', c.label, 'success');
           break;
-        case 'clone':
-          await mutations.cloneVersion.mutateAsync(c.id);
+        case 'clone': {
+          const newDraftId = await mutations.cloneVersion.mutateAsync(c.id);
           setPendingConfirm(null);
+          // Auto-open the new draft (N9: clone auto-opens new draft)
+          setSelectedId(newDraftId);
           toast('Version cloned', `New draft from ${c.label}`, 'success');
           break;
+        }
         case 'archive':
           await mutations.archive.mutateAsync(c.id);
           setPendingConfirm(null);
@@ -636,6 +802,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
               mutations.createLineItem.mutateAsync({ versionId, item })
             }
             onDeleteLineItem={requestDeleteLineItem}
+            // Inline edit is routine (OD-UX-1): single-click Save + toast, no confirm.
+            onUpdateLineItem={(id, patch) =>
+              mutations.updateLineItem.mutateAsync({ id, patch })
+            }
+            onUpdateLineItemSuccess={() =>
+              toast('Line item updated', undefined, 'success')
+            }
           />
         )}
       </div>
