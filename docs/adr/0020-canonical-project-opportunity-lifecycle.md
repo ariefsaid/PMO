@@ -1,6 +1,10 @@
 # ADR-0020 — Canonical project/opportunity lifecycle (Model B: one record, one route, stage-adaptive lens)
 
-Status: Accepted (owner-approved Model B)
+Status: Accepted (owner-approved Model B). **§1 (stage-adaptive lens that hid the delivery tabs
+pre-win) is SUPERSEDED by [ADR-0021](0021-unified-project-detail-page.md)** — the detail page is now
+UNIFIED (delivery tabs at every stage + a deal-progression banner pre-win), per owner directive after
+seeing §1 rendered ("its not usable currently"). §2-5 (canonical route, `/sales` redirect, disjoint
+list partitions, breadcrumb, single ⌘K index) stand unchanged.
 Date: 2026-06-08
 Audit basis: `review/ia-navigation.md` §2 (F1/F2/F3 blockers) + §3 (Model B recommendation, owner-approved).
 Plan: `docs/plans/2026-06-08-ux-naturalness-wave1.md` (Area 1).
