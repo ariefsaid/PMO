@@ -34,7 +34,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { AT_RISK_THRESHOLD, isAtRisk, budgetUtilPct } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -108,7 +108,7 @@ const Projects: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return all
+    const rows = all
       .filter((p) => {
         switch (filter) {
           case 'My Projects':
@@ -141,6 +141,10 @@ const Projects: React.FC = () => {
           p.name.toLowerCase().includes(q) ||
           (p.code ?? '').toLowerCase().includes(q),
       );
+    // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
+    // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
+    // Applied to all views so the ordering is consistent regardless of the active segment.
+    return rows.sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1));
   }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
@@ -194,38 +198,54 @@ const Projects: React.FC = () => {
     {
       key: 'project',
       header: 'Project',
-      cell: (p) => (
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            aria-hidden
-            className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
-            style={{ background: projectIconColor() }}
-          >
-            {(p.name.trim().charAt(0) || '•').toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen(p);
-              }}
-              className="block max-w-[40ch] truncate text-left font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              title={p.name}
+      cell: (p) => {
+        const atRisk = isAtRisk(p);
+        const budgetPct = atRisk ? budgetUtilPct(p) : null;
+        return (
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              aria-hidden
+              className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
+              style={{ background: projectIconColor() }}
             >
-              {p.name}
-            </button>
-            <div className="truncate font-mono text-[11px] text-muted-foreground">
-              {p.code ?? p.id.slice(0, 8)}
-            </div>
-            {p.customer_contract_ref && (
-              <div className="truncate font-mono text-[11px] text-muted-foreground/80">
-                {p.customer_contract_ref}
+              {(p.name.trim().charAt(0) || '•').toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpen(p);
+                  }}
+                  className="block max-w-[40ch] truncate text-left font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  title={p.name}
+                >
+                  {p.name}
+                </button>
+                {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
+                {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
               </div>
-            )}
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                {p.code ?? p.id.slice(0, 8)}
+              </div>
+              {p.customer_contract_ref && (
+                <div className="truncate font-mono text-[11px] text-muted-foreground/80">
+                  {p.customer_contract_ref}
+                </div>
+              )}
+              {/* AC-IXD-DASH-W5-C2C I3: budget-basis utilization — the WHY for the at-risk flag.
+                  The Progress column shows contract-basis (spent/contract) which can read much
+                  lower; this inline figure shows spent/budget so the at-risk gate is legible. */}
+              {budgetPct !== null && (
+                <div className="mt-0.5 text-[11px] font-semibold tabular text-warning-foreground">
+                  {budgetPct}% of budget
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'customer',

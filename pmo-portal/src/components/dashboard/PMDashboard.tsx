@@ -10,7 +10,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
-import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { AT_RISK_THRESHOLD, isAtRisk } from '@/src/lib/dashboardConstants';
 
 function statusVariant(status: string): StatusVariant {
   if (status === 'Ongoing Project' || status === 'Internal Project') return 'open';
@@ -35,8 +35,14 @@ export const PMDashboard: React.FC = () => {
     [projects, currentUser?.id],
   );
   const contractValue = useMemo(() => mine.reduce((s, p) => s + (p.contract_value || 0), 0), [mine]);
-  const atRisk = useMemo(
+  const atRiskCount = useMemo(
     () => mine.filter((p) => p.budget > 0 && p.spent / p.budget >= AT_RISK_THRESHOLD).length,
+    [mine],
+  );
+
+  // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
+  const mineSorted = useMemo(
+    () => [...mine].sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1)),
     [mine],
   );
 
@@ -64,7 +70,7 @@ export const PMDashboard: React.FC = () => {
           help="Total contract value across your projects." />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label="At risk"
-          value={String(atRisk)} loading={isPending} vs="budget usage > 90%"
+          value={String(atRiskCount)} loading={isPending} vs="budget usage > 90%"
           to="/projects?filter=at-risk"
           linkLabel="Open my at-risk projects"
           help="Your projects whose actual spend exceeds 90% of budget." />
@@ -100,7 +106,7 @@ export const PMDashboard: React.FC = () => {
               <ListState variant="empty" icon="folder" title="Nothing to show yet" />
             ) : (
               <ul className="divide-y divide-border/70">
-                {mine.map((p) => {
+                {mineSorted.map((p) => {
                   // Only show a margin figure for in-delivery projects that have real spend.
                   // Zero-spend (Tender/Loss rows) would produce (contract - 0)/contract = 100%
                   // which is misleading — show the muted "Not set" instead (I2 fix; G3
@@ -116,9 +122,12 @@ export const PMDashboard: React.FC = () => {
                       : margin < 10
                         ? 'text-destructive'
                         : 'text-foreground';
+                  const projectAtRisk = isAtRisk(p);
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.name}</span>
+                      {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
+                      {projectAtRisk && <StatusPill variant="warn">At risk</StatusPill>}
                       <StatusPill variant={statusVariant(p.status)}>{p.status}</StatusPill>
                       <span
                         className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
