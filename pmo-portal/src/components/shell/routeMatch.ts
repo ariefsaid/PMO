@@ -38,6 +38,11 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
   },
   { module: 'timesheets', icon: 'clock', label: 'Timesheets', path: '/timesheets' },
+  // B-7 (AC-W2-IA-002): Companies + Incidents are full CRUD pages — promote to MODULES so the
+  // breadcrumb resolves via the module path and ⌘K Navigate includes them. They have no detail
+  // route yet (list+modal pattern), so no `detail` field.
+  { module: 'companies', icon: 'doc', label: 'Companies', path: '/companies' },
+  { module: 'incidents', icon: 'alert', label: 'Incidents', path: '/incidents' },
 ];
 
 /**
@@ -49,10 +54,16 @@ export const MODULES: ModuleDef[] = [
  */
 export const PLACEHOLDER_TITLES: Record<string, string> = {
   // /tasks + /work-orders routes removed — see App.tsx (Tasks live in the project tab).
-  '/companies': 'Companies',
-  '/incidents': 'Incidents',
+  // /companies + /incidents promoted to MODULES (B-7, AC-W2-IA-002) — no longer placeholders.
+  // B-6 (AC-W2-IA-001): /approvals is a real Workforce page (not in MODULES — no ⌘K target /
+  // no detail route), so register it here so its breadcrumb reads "Approvals" not "Dashboard".
+  '/approvals': 'Approvals',
+  // B-10 (AC-W2-IA-005): /reports stays a route (deep-links resolve) but is not a rail item.
   '/reports': 'Reports',
   '/administration': 'Administration',
+  // My Tasks page (B-1) has its own nav item but no detail route — register so the breadcrumb
+  // resolves "My Tasks" on direct deep-link (not "Dashboard").
+  '/my-tasks': 'My Tasks',
 };
 
 /**

@@ -55,6 +55,8 @@ export interface PolicyContext {
   record?: {
     status?: string | null;
     assignee_id?: string | null;
+    /** Author id — for the document-edit author rule (A-7). */
+    author_id?: string | null;
     [k: string]: unknown;
   };
 }
@@ -86,6 +88,8 @@ const allow = (set: Role[]): Predicate => (role) => has(set, role);
 
 const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   project: {
+    // Every role may view the active Projects index/detail (rbac-visibility §B).
+    view: allow(ALL),
     create: allow(DELIVERY),
     edit: allow(DELIVERY),
     archive: allow(ARCHIVE_ROLES),
@@ -98,12 +102,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   company: {
+    // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no
+    // nav, no page). Drives the page-level Companies gate (A-5).
+    view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     archive: allow(ARCHIVE_ROLES),
     delete: allow(ADMIN),
   },
   procurement: {
+    // Index visibility (rbac-visibility §A/§E): Admin·Exec·PM·Finance browse the org-wide
+    // PR index; Engineer has NO Procurement nav (○*) and reaches only their OWN requests
+    // (RLS-scoped). This `view` gate drives the ⌘K module-row guard (A-8) so an Engineer's
+    // palette never surfaces org-wide procurement rows. The Engineer's own-scoped /procurement
+    // page (A-3) is reachable regardless — it gates the org-wide affordances, not the route.
+    view: allow([...MASTER_DATA]),
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority
@@ -149,7 +162,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   document: {
     create: allow(MASTER_DATA),
-    edit: allow(MASTER_DATA), // authorship checked at the call-site
+    // Edit a document = ◆ AUTHOR (rbac-visibility §H): a master-data write-role who AUTHORED it,
+    // OR Admin (break-glass — edit is not an SoD axis, reading-rule 4). A non-author manager
+    // does NOT get Edit. Record-scoped (mirrors taskStatus): pass `{ currentUserId, record:
+    // { author_id } }` at the call-site. Deny-by-default authorship: with no record context only
+    // Admin passes (a non-Admin must prove authorship). RLS/RPC stays the authority.
+    edit: (role, ctx) => {
+      if (!has(MASTER_DATA, role)) return false;
+      if (role === 'Admin') return true;
+      return !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId;
+    },
     delete: allow(ADMIN),
   },
   documentStatus: {

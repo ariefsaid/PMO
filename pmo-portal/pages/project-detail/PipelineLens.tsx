@@ -15,6 +15,7 @@ import {
 } from '@/src/components/ui';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
+import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
 import {
   transitionProject,
@@ -55,6 +56,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
+  const may = usePermission();
+
+  // A-1 (rbac-visibility §B2): pipeline lifecycle control (Advance / Mark won / Mark lost) is
+  // a delivery-led, PM-owned write — Admin·Exec·PM (`edit` on project). Finance·Engineer are
+  // read-only on the pipeline lens (§C). The gate reads the REAL JWT role (ADR-0016); RLS/RPC
+  // stays the authority — a denied role sees a clean read-only note, not dead buttons.
+  const canTransition = may('edit', 'project');
 
   const { data: pipeline } = useSalesPipeline();
 
@@ -161,6 +169,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
         <Card>
           <CardHead>Next actions</CardHead>
           <CardPad className="flex flex-col gap-3">
+            {!canTransition ? (
+              // Denied (Finance·Engineer, §C): a clean read-only note in place of the action
+              // cluster — never a wall of disabled buttons (rbac-visibility reading-rule 5).
+              <GateNotice variant="ready">
+                Pipeline managed by the deal owner. You can review this deal&rsquo;s stage and
+                journey here; lifecycle changes are made by the project manager.
+              </GateNotice>
+            ) : (
+              <>
             {isTerminal ? (
               <GateNotice variant="ready">
                 This deal has reached a terminal stage. No further pipeline actions.
@@ -271,6 +288,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 <span>{error}</span>
               </div>
             )}
+              </>
+            )}
           </CardPad>
         </Card>
       </div>
@@ -280,7 +299,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
 
       {/* Mark lost: destructive modal (the only solid destructive fill). */}
       <ConfirmDialog
-        open={confirmAction === 'lost'}
+        open={canTransition && confirmAction === 'lost'}
         tone="destructive"
         title="Mark deal as lost"
         description={`This moves ${project.name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}

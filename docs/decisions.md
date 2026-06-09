@@ -271,3 +271,15 @@ The UI-polish-round directive "confirm before every DB write" is **superseded**:
 One `projects` record; one `/projects/:id` detail page with a stage-adaptive lens (pipeline lens pre-win, delivery tabs once won); `/sales/:id` redirects. Pipeline and Projects = disjoint stage partitions. **Lost deals stay in the Pipeline** (kanban terminal "Lost" column + "Lost" filter), excluded only from the active Projects (delivery) list. Model A (separate `opportunities` table + convert-at-Won) deferred as the cleaner end-state.
 ### OD-UX-3 — Board pack = disabled "coming soon"
 The no-op Board-pack CTA becomes a visibly-disabled "coming soon" affordance (no fake success); a real export lands with the Reports module.
+
+## OD-W2 — UX-naturalness Wave 2 (RBAC view-gating + IxD) (LOCKED 2026-06-09, owner-decided)
+Plan: `docs/plans/2026-06-09-ux-naturalness-wave2.md`. Enforces ADR-0016 (`can()` FE gating; RLS stays the authority).
+### OD-W2-1 — Engineer procurement = own-scoped
+Engineer sees `/procurement` scoped to their OWN requests and may "Raise request"; no approve/edit/manage on others' PRs (rbac-visibility §A/§E + the existing RLS scoping).
+### OD-W2-2 — Engineer approval = OFF at the FE for now; configurable role-access DEFERRED to a future admin-settings / config engine (the OD-PROC-6 bridge)
+`policy.ts` keeps denying Engineers any approve/return affordance (incl. manager-Engineers); ApprovalsQueue gating excludes Engineer. **The `transition_timesheet` RPC stays UNCHANGED** — it authorizes timesheet approve by `manager_id` (role-agnostic) + SoD (≠ own) + a null-manager Admin/Exec fallback, so a manager-Engineer's server capability is **dormant/unreachable via the UI**, NOT a hole (`manager_id` is admin-set only, SoD-gated, scoped to the actual report). This is the sanctioned ADR-0016 "FE stricter than RLS" pattern; **no RLS/RPC migration**. Re-enabling later = a one-line FE-policy/config change when the admin config engine ships. Owner intent: that engine will let an admin add/define roles + access; until then Engineer-approval is hard-off at the FE.
+### OD-W2-3 — Finance pre-win `contract_value` = as-is (ratified)
+Pre-win editing stays Admin/Exec/PM; Finance only at the won-SoD boundary. Flag-only, no build task.
+### OD-W2-4 — Executive Tasks = via the project Tasks tab; no top-level `/tasks` console (ratified).
+### OD-W2-5 — Dead/no-op affordances = honest-disabled / removed (OD-UX-3 precedent)
+`/reports` = honest "coming soon" stub; the notification **bell is REMOVED** (no destination); the Sales **"Export" → disabled "arrives with Reports"**.

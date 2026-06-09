@@ -10,11 +10,14 @@ import {
   TimesheetGrid,
   Toolbar,
   ViewToggle,
+  AccessDenied,
   useToast,
   type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
+import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
@@ -64,6 +67,15 @@ const TimesheetsPage: React.FC = () => {
   const { submit } = useTimesheetMutations();
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const may = usePermission();
+  // A-6 / OD-W2 (rbac-visibility §I): Finance has NO Workforce surface (Timesheets ○,
+  // Approvals ○) and `timesheet.create` excludes Finance. When Finance reaches /timesheets by
+  // URL they get a clean access-denied surface — no entry/save affordance. This is the FE
+  // clarity gate ONLY this wave (ADR-0016: the FE may be stricter than RLS); the server-side
+  // RLS tightening (Finance cannot insert timesheet_entries) is a SEPARATE pgTAP-owned security
+  // follow-up, not built here.
+  const canEnterTimesheet = may('create', 'timesheet');
   const signedInUserId = currentUser?.id;
   const [view, setView] = useTimesheetsView();
   // T1: the Submit button stages this confirm; nothing submits on a single click.
@@ -379,6 +391,18 @@ const TimesheetsPage: React.FC = () => {
       onConfirm={commitSubmit}
     />
   );
+
+  // A-6 page view-gate (after all hooks — Rules of Hooks): a denied role (Finance) gets the
+  // shared access-denied surface, not a savable grid or the approvals queue.
+  if (!canEnterTimesheet) {
+    return (
+      <AccessDenied
+        title="You don't have access to Timesheets"
+        sub="Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement."
+        onBack={() => navigate('/')}
+      />
+    );
+  }
 
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (

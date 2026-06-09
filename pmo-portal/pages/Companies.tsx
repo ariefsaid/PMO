@@ -13,6 +13,7 @@ import {
   FormSection,
   FormGrid,
   GateNotice,
+  AccessDenied,
   useEntityForm,
   useToast,
   Button,
@@ -21,6 +22,7 @@ import {
   type RowMenuItem,
   type StatusVariant,
 } from '@/src/components/ui';
+import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -62,9 +64,16 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
 
 const Companies: React.FC = () => {
   const may = usePermission();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useCompanies();
   const { create, update, archive, remove } = useCompanyMutations();
+
+  // A-5 (rbac-visibility §D): Companies directory view = Admin·Exec·PM·Finance; Engineer = ○
+  // (no nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching
+  // /companies by URL gets a clean access-denied surface, not the master-data directory. RLS
+  // is the authority for the rows; this is FE clarity.
+  const canView = may('view', 'company');
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<TypeFilter>('All');
@@ -101,6 +110,18 @@ const Companies: React.FC = () => {
       : all.length === 0
         ? 'empty'
         : undefined;
+
+  // A-5 page view-gate (after all hooks — Rules of Hooks): a denied role (Engineer) gets the
+  // shared access-denied surface, not the directory.
+  if (!canView) {
+    return (
+      <AccessDenied
+        title="You don't have access to Companies"
+        sub="The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks."
+        onBack={() => navigate('/')}
+      />
+    );
+  }
 
   const columns: Column<CompanyRow>[] = [
     {

@@ -109,6 +109,9 @@ const pipelineRow = {
   customer_contract_ref: null, client: { name: 'Acme' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
+// A manager (PM real role) viewing a deal sees the pipeline lens's lifecycle controls
+// (A-1 gate = Admin·Exec·PM). The role reaches usePermission via the mocked useEffectiveRole
+// (above) → 'Project Manager', so the journey (lifecycle controls shown) is preserved.
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>

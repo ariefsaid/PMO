@@ -23,6 +23,7 @@ import {
   useProjectMutations,
 } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
+import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
@@ -52,11 +53,22 @@ function utilizationPct(p: ProjectWithRefs): number {
 }
 
 const Projects: React.FC = () => {
-  useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
+  const { effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const isEngineer = effectiveRole === 'Engineer';
+  // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
+  // NOT projects they manage (an Engineer manages none → the old PM-scoped filter was always
+  // empty, so the Engineer default landed on a blank list). Derive the assigned-project set
+  // from the Engineer's own tasks (the same cross-project, RLS-org-scoped read My Tasks uses;
+  // cached under the shared 'my-tasks' key). Only consumed for the Engineer branch.
+  const { data: myTasks } = useMyTasks();
+  const myProjectIds = useMemo(
+    () => new Set((myTasks ?? []).map((t) => t.project_id)),
+    [myTasks],
+  );
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
   const { data: projectManagers = [] } = useProjectManagers();
@@ -65,7 +77,14 @@ const Projects: React.FC = () => {
   const canCreate = may('create', 'project');
 
   const [view, setView] = useProjectView();
-  const [filter, setFilter] = useState<StatusFilter>('All');
+  // B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs who
+  // want their own assigned work, not the full org project list. All other roles
+  // default to "All" (unscoped manager view). `effectiveRole` is used here so that
+  // an impersonated-as-Engineer session also gets the scoped default, matching the
+  // intent of "what would an Engineer see?" consistently.
+  const [filter, setFilter] = useState<StatusFilter>(
+    effectiveRole === 'Engineer' ? 'My Projects' : 'All',
+  );
   const [filterClient, setFilterClient] = useState('All');
   const [filterPM, setFilterPM] = useState('All');
   const [search, setSearch] = useState('');
@@ -80,7 +99,10 @@ const Projects: React.FC = () => {
       .filter((p) => {
         switch (filter) {
           case 'My Projects':
-            return p.project_manager_id === currentUser?.id;
+            // Managers: projects I manage. ICs (Engineer): projects I'm assigned to (via tasks).
+            return isEngineer
+              ? myProjectIds.has(p.id)
+              : p.project_manager_id === currentUser?.id;
           case 'Ongoing':
             return ONGOING.includes(p.status as string);
           case 'Completed':
@@ -97,7 +119,7 @@ const Projects: React.FC = () => {
           p.name.toLowerCase().includes(q) ||
           (p.code ?? '').toLowerCase().includes(q),
       );
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id]);
+  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.

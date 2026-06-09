@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -68,9 +69,11 @@ const dealRow = {
 
 const renderLens = () =>
   render(
-    <ToastProvider>
-      <PipelineLens project={dealRow} />
-    </ToastProvider>,
+    <ImpersonationProvider realRole="Project Manager">
+      <ToastProvider>
+        <PipelineLens project={dealRow} />
+      </ToastProvider>
+    </ImpersonationProvider>,
   );
 
 beforeEach(() => {

@@ -33,7 +33,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   breadcrumb,
   onOpenPalette,
   onToggleRail,
-  notificationCount = 0,
+  // B-5 (AC-W2-IXD-008): notification bell is removed (no destination). The prop is kept
+  // in the interface so callers don't need churn — prefixed with _ to silence the lint rule
+  // until the bell is re-implemented with a real notification backend.
+  notificationCount: _notificationCount = 0,
 }) => {
   const { currentUser, signOut } = useAuth();
   const { effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
@@ -86,23 +89,11 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         </span>
       </button>
 
-      <button
-        type="button"
-        aria-label={
-          notificationCount > 0
-            ? `Notifications, ${notificationCount} unread`
-            : 'Notifications'
-        }
-        className="touch-target relative grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
-      >
-        <Icon name="bell" />
-        {notificationCount > 0 && (
-          <span
-            aria-hidden
-            className="absolute right-1.5 top-1.5 size-[7px] rounded-full border-[1.5px] border-background bg-destructive"
-          />
-        )}
-      </button>
+      {/* B-5 (AC-W2-IXD-008 / OD-W2-5): the notification bell is REMOVED.
+          It had no handler (no known destination — dead, not "coming soon"). A
+          dead no-op control is more harmful than absence (it misleads the user
+          into thinking notifications exist). The prop is kept in the interface
+          for a future wired implementation but nothing renders. */}
 
       {/* Admin-only client-side impersonation (ADR-0008): view-only, does NOT
           change RLS/server identity. Behavior preserved from Header.tsx. */}

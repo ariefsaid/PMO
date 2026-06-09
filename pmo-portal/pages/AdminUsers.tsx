@@ -338,9 +338,12 @@ const AdminUsers: React.FC = () => {
 const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">Users</h1>
+      {/* B-8 (AC-W2-IA-003): <h1> is "Administration" — matches route /administration,
+          rail item, and breadcrumb. "Users" is the section described below (the page will
+          later hold more than just users, e.g. org settings). */}
+      <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
       <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Manage existing users&rsquo; role and reporting line. Administration is Admin-only; role
+        Manage users&rsquo; role and reporting line. Administration is Admin-only; role
         changes are high-impact and recorded. Inviting new users arrives with server-side auth.
       </p>
     </div>

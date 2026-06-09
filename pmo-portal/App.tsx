@@ -40,6 +40,7 @@ const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
+const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -57,8 +58,13 @@ const AppRoutes: React.FC = () => (
     <Routes>
       <Route path="/" element={<ExecutiveDashboard />} />
       <Route path="/projects" element={<Projects />} />
+      {/* B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are now deep-linkable
+          symmetrically. The old /projects/:id/budget special-case is subsumed by this
+          (budget is just another :tab value). Both routes render ProjectDetail; the
+          component reads :tab from params and defaults to 'overview' for unknown values.
+          A backward-compat alias keeps old /budget links working. */}
+      <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
       <Route path="/projects/:projectId" element={<ProjectDetail />} />
-      <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
       <Route path="/sales" element={<SalesPipeline />} />
       {/* Model B: the canonical detail route is /projects/:id; /sales/:id redirects there. */}
       <Route path="/sales/:opportunityId" element={<SalesDetailRedirect />} />
@@ -70,6 +76,8 @@ const AppRoutes: React.FC = () => (
       <Route path="/incidents" element={<IncidentsPage />} />
       {/* /work-orders removed (owner decision — the route, not just the nav). */}
       {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
+      {/* B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list. */}
+      <Route path="/my-tasks" element={<MyTasksPage />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
       <Route path="*" element={<ExecutiveDashboard />} />

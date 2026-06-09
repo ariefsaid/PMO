@@ -258,7 +258,11 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="grid size-7 place-items-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100"
+        // B-4 (AC-W2-IXD-006): always-visible trigger — removed `opacity-0 group-hover:opacity-100`
+        // which made the ⋯ undiscoverable on touch + keyboard. The trigger is now visible by
+        // default so every row's actions are reachable without a hover event. Touch targets ≥44px
+        // come from the `.touch-target` utility (coarse-pointer min hit area).
+        className="touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground"
       >
         <span aria-hidden className="text-base leading-none">
           ⋯

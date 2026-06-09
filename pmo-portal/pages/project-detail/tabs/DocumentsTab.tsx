@@ -112,9 +112,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
-  const canEdit = may('edit', 'document');
+  // General document write-role (Admin·Exec·PM·Finance) — gates the non-author status moves
+  // (Issue Draft→Issued, Close Approved→Closed). A-7: the metadata "Edit" action is additionally
+  // AUTHOR-scoped (only the author, or Admin break-glass) — computed per row via canEditDoc().
+  const canWriteDocs = may('create', 'document');
   const canDelete = may('delete', 'document');
   const canApprove = may('transition', 'documentStatus');
+
+  // A-7 (rbac-visibility §H): Edit a document = ◆ author. The policy predicate is record-scoped,
+  // so pass the row's author_id + the current user. Admin is break-glass (edit is not an SoD
+  // axis). RLS/RPC stays the authority; this is FE clarity.
+  const canEditDoc = (d: ProjectDocumentRow) =>
+    may('edit', 'document', { currentUserId, record: { author_id: d.author_id } });
 
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
 
@@ -197,7 +206,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   const statusActions = (d: ProjectDocumentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     // Draft → Issued (a non-approval move: any document write-role).
-    if (d.status === 'Draft' && canEdit) {
+    if (d.status === 'Draft' && canWriteDocs) {
       items.push({ label: 'Issue', onClick: () => setPending({ doc: d, to: 'Issued', verb: 'Issue document' }) });
     }
     // Issued → Approved / Rejected (the SoD step: approver must NOT be the author).
@@ -210,8 +219,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         items.push({ label: 'Reject', onClick: () => setPending({ doc: d, to: 'Rejected', verb: 'Reject document' }), danger: true });
       }
     }
-    // Approved → Closed (terminal close-out).
-    if (d.status === 'Approved' && canEdit) {
+    // Approved → Closed (terminal close-out: any document write-role).
+    if (d.status === 'Approved' && canWriteDocs) {
       items.push({ label: 'Close', onClick: () => setPending({ doc: d, to: 'Closed', verb: 'Close document' }) });
     }
     return items;
@@ -219,8 +228,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
   const rowMenu = (d: ProjectDocumentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected).
-    if (canEdit && d.status !== 'Closed') {
+    // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected) AND
+    // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
+    if (canEditDoc(d) && d.status !== 'Closed') {
       items.push({ label: 'Edit', onClick: () => setFormTarget({ doc: d }) });
     }
     items.push(...statusActions(d));
@@ -228,7 +238,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     return items;
   };
 
-  const anyRowWrite = canEdit || canDelete || canApprove;
+  const anyRowWrite = canWriteDocs || canDelete || canApprove;
 
   const onTransitionConfirm = async () => {
     if (!pending) return;

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import React from 'react';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+
+// The ⌘K index gates pipeline rows on the viewer's real role (A-8). This dedupe test
+// exercises the canonical-route behaviour, so it renders under an authorized role.
+const wrapAdmin = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(ImpersonationProvider, { realRole: 'Admin' as const, children });
 
 /**
  * AC-IXD-PROJ-006 (Model B, ADR-0020): ⌘K indexes a pipeline record ONCE, and its row drills
@@ -43,7 +50,7 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
 
     const rows = result.current.records.filter((r) => r.title === 'Harbour Tender');
     // de-dupe invariant: one entity → exactly one ⌘K row
@@ -60,7 +67,7 @@ describe('useRecordSearch — pipeline record indexed once → canonical route (
       isPending: false,
       isError: false,
     };
-    const { result } = renderHook(() => useRecordSearch(navigate));
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     const row = result.current.records.find((r) => r.title === 'Harbour Tender');
     expect(row?.sub).toBe('Sales Pipeline');
     expect(row?.icon).toBe('pipe');

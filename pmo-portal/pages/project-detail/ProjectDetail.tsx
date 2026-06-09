@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, ListState, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -34,9 +34,16 @@ const TABS: TabItem<PTab>[] = [
  * Budget / Procurement / Tasks / Documents; `/budget` deep-link pre-selects Budget). A cold
  * deep-link shows ListState loading; a truly-absent record shows an error with a Back action.
  */
+/** Resolve the active tab from the URL :tab param (B-9, AC-W2-IA-004). All five
+ *  tabs are now deep-linkable symmetrically; unknown values default to 'overview'. */
+const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'documents'];
+function tabFromParam(param: string | undefined): PTab {
+  if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
+  return 'overview';
+}
+
 const ProjectDetail: React.FC = () => {
-  const { projectId = '' } = useParams<{ projectId: string }>();
-  const location = useLocation();
+  const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const { data, isPending } = useProjects();
 
@@ -67,8 +74,10 @@ const ProjectDetail: React.FC = () => {
     } as ProjectWithRefs;
   }, [cached, opp]);
 
-  const isBudgetDeepLink = location.pathname.endsWith('/budget');
-  const [tab, setTab] = useState<PTab>(isBudgetDeepLink ? 'budget' : 'overview');
+  // B-9 (AC-W2-IA-004): tab derived from URL param; defaults to 'overview' for unknown values.
+  // Tab changes update the URL so the deep-link stays symmetric across all five tabs.
+  const tab = tabFromParam(tabParam);
+  const setTab = (next: PTab) => navigate(`/projects/${projectId}/${next}`, { replace: true });
 
   // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record name from the cached list in App.tsx, so no

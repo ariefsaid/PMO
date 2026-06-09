@@ -7,6 +7,8 @@ import type { PaletteItem } from '@/src/components/shell/CommandPalette';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { can } from '@/src/auth/policy';
 
 /** Per-group result cap so the palette never becomes a wall of rows (AC-CMDK-006). */
 export const RECORD_GROUP_CAP = 8;
@@ -39,6 +41,17 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
   const projects = useProjects();
   const procurements = useProcurements();
   const pipeline = useSalesPipeline();
+  // ⌘K module view-gate (A-8, AC-W2-RBAC-015): a module's records are indexed ONLY when the
+  // viewer's REAL role may view that module's index, so a denied role (e.g. Engineer — no
+  // Procurement / Sales nav per rbac-visibility §A/§C/§E) never surfaces another module's rows
+  // via the palette. Read the real role non-throwing so the hook stays usable outside the
+  // ImpersonationProvider (deny-by-default). RLS stays the authority; this closes the
+  // client-cache cross-scope leak for clarity.
+  const realRole = useOptionalRealRole();
+  // Sales Pipeline view = Admin·Exec·PM·Finance (§C); the `project.transition` set is exactly
+  // that role set (the shipped WRITE_ROLES). Procurement index view = Admin·Exec·PM·Finance (§E).
+  const mayViewPipeline = can('transition', 'project', { realRole });
+  const mayViewProcurement = can('view', 'procurement', { realRole });
 
   const records = useMemo<PaletteItem[]>(() => {
     const out: PaletteItem[] = [];
@@ -55,35 +68,39 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
       });
     }
 
-    for (const o of pipeline.data?.projects ?? []) {
-      out.push({
-        id: `sales:${o.id}`,
-        group: 'Records',
-        title: o.name,
-        sub: 'Sales Pipeline',
-        // The pipeline projection carries no code field; the title disambiguates.
-        icon: 'pipe' as IconName,
-        // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
-        // After the listProjects scope change the active projects cache no longer holds pre-win
-        // rows, so this pipeline loop is the SOLE source of pre-win ⌘K rows — no double-index.
-        run: () => navigate(`/projects/${o.id}`),
-      });
+    if (mayViewPipeline) {
+      for (const o of pipeline.data?.projects ?? []) {
+        out.push({
+          id: `sales:${o.id}`,
+          group: 'Records',
+          title: o.name,
+          sub: 'Sales Pipeline',
+          // The pipeline projection carries no code field; the title disambiguates.
+          icon: 'pipe' as IconName,
+          // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
+          // After the listProjects scope change the active projects cache no longer holds pre-win
+          // rows, so this pipeline loop is the SOLE source of pre-win ⌘K rows — no double-index.
+          run: () => navigate(`/projects/${o.id}`),
+        });
+      }
     }
 
-    for (const pr of procurements.data ?? []) {
-      out.push({
-        id: `procurement:${pr.id}`,
-        group: 'Records',
-        title: pr.title,
-        sub: 'Procurement',
-        code: pr.code ?? pr.pr_number ?? undefined,
-        icon: 'cart' as IconName,
-        run: () => navigate(`/procurement/${pr.id}`),
-      });
+    if (mayViewProcurement) {
+      for (const pr of procurements.data ?? []) {
+        out.push({
+          id: `procurement:${pr.id}`,
+          group: 'Records',
+          title: pr.title,
+          sub: 'Procurement',
+          code: pr.code ?? pr.pr_number ?? undefined,
+          icon: 'cart' as IconName,
+          run: () => navigate(`/procurement/${pr.id}`),
+        });
+      }
     }
 
     return out;
-  }, [projects.data, pipeline.data, procurements.data, navigate]);
+  }, [projects.data, pipeline.data, procurements.data, navigate, mayViewPipeline, mayViewProcurement]);
 
   return {
     records,

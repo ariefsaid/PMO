@@ -14,6 +14,7 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
@@ -26,9 +27,12 @@ import ProcurementBoard from '../components/ProcurementBoard';
 import { useProcurementView } from '@/src/hooks/useProcurementView';
 import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus, openPR } from '../components/procurement';
 
-/** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets). */
-type StatusFilter = 'All' | 'Open' | 'Ordered' | 'Paid';
-const FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
+/** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets
+ *  + the B-2 "Needs approval" segment for Finance/PM). */
+type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Paid';
+const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
+/** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
+const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
 
 const OPEN_STATUSES = new Set<string>([
   'Draft',
@@ -41,6 +45,9 @@ const ORDERED_STATUSES = new Set<string>(['Ordered', 'Received', 'Vendor Invoice
 
 function matchesFilter(status: string, filter: StatusFilter): boolean {
   switch (filter) {
+    case 'Needs approval':
+      // B-2 (D5): surface Requested PRs awaiting approval action.
+      return status === 'Requested';
     case 'Open':
       return OPEN_STATUSES.has(status);
     case 'Ordered':
@@ -54,9 +61,22 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 }
 
 const ProcurementPage: React.FC = () => {
-  useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
+  const { realRole } = useEffectiveRole();
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id;
   const navigate = useNavigate();
   const may = usePermission();
+
+  // A-3 / OD-W2-1: an Engineer has no Procurement nav; when they reach /procurement the page is
+  // OWN-SCOPED. procurements_select RLS is org-wide (org_id = auth_org_id()), NOT requester-
+  // scoped, so the server returns every PR in the org; the FE narrows the cached list to rows
+  // the Engineer raised (requested_by_id === their uid) and reframes the copy to "your requests".
+  // This is FE clarity, not a security boundary (same tenant) — Raise request stays available
+  // (any member may raise; requester is server-stamped). Managers see the full org index.
+  const ownScoped = realRole === 'Engineer';
+  // B-2 (D5): Finance/PM/Exec/Admin can approve procurement requests (Requested → Approved).
+  // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
+  const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
   const create = useCreateProcurement();
@@ -65,10 +85,20 @@ const ProcurementPage: React.FC = () => {
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [showNew, setShowNew] = useState(false);
 
+  // B-2: the filter list includes "Needs approval" only for roles that can approve.
+  const FILTERS: StatusFilter[] = canApprove
+    ? ['All', 'Needs approval', ...ALL_FILTERS.slice(1)]
+    : ALL_FILTERS;
+
   // Raise request is open to ANY member incl. Engineer (requester server-stamped).
   const canCreate = may('create', 'procurement');
 
-  const all = useMemo(() => data ?? [], [data]);
+  // Own-scope narrowing: an Engineer sees only the PRs they raised (see comment above). Applied
+  // to the base list so the table, board, and empty-state count all reflect the own-scoped view.
+  const all = useMemo(() => {
+    const rows = data ?? [];
+    return ownScoped && userId ? rows.filter((p) => p.requested_by_id === userId) : rows;
+  }, [data, ownScoped, userId]);
 
   // View-local filters (OD-7 search by title+code; status SegFilter). Newest first.
   const filtered = useMemo(() => {
@@ -162,10 +192,13 @@ const ProcurementPage: React.FC = () => {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Procurement</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+            {ownScoped ? 'Your purchase requests' : 'Procurement'}
+          </h1>
           <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties
-            gates. Open a request to drill into its full lifecycle page.
+            {ownScoped
+              ? 'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.'
+              : 'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.'}
           </p>
         </div>
         {canCreate && (
@@ -224,7 +257,7 @@ const ProcurementPage: React.FC = () => {
         <ListState
           variant="empty"
           icon="cart"
-          title="No purchase requests yet"
+          title={ownScoped ? "You haven't raised any requests yet" : 'No purchase requests yet'}
           sub="Requests you raise will appear here through their full lifecycle."
           action={
             canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined

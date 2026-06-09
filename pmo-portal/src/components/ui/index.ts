@@ -40,6 +40,7 @@ export {
 } from './LifecycleStepper';
 export { Funnel, type FunnelStage, type FunnelProps } from './Funnel';
 export { GateNotice, type GateNoticeProps } from './GateNotice';
+export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';
 export { StatTiles, type StatTile, type StatTilesProps } from './StatTiles';
