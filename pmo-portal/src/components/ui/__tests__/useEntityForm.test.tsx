@@ -138,6 +138,57 @@ describe('useEntityForm: submit gating', () => {
     expect(result.current.isSubmitting).toBe(false);
   });
 
+  // F8 (AC-IXD-FORM-F8): a `requiredFields` list drives `isComplete` — the
+  // submit-disabled gate. isComplete is FALSE while any required field is blank
+  // and becomes TRUE once all required fields are non-blank. Crucially it is
+  // INDEPENDENT of format errors: a non-blank-but-invalid value keeps isComplete
+  // true (so the submit can fire, surface the error, and move focus).
+  describe('F8: required-field completeness gate (isComplete)', () => {
+    it('AC-IXD-FORM-F8: isComplete is false while a required field is blank, true once filled', () => {
+      const { result } = renderHook(() =>
+        useEntityForm({ initialValues: init, validate, requiredFields: ['name'] }),
+      );
+      expect(result.current.isComplete).toBe(false);
+      act(() => result.current.setValue('name', 'Harborside'));
+      expect(result.current.isComplete).toBe(true);
+    });
+
+    it('AC-IXD-FORM-F8: whitespace-only does not satisfy a required string field', () => {
+      const { result } = renderHook(() =>
+        useEntityForm({ initialValues: init, validate, requiredFields: ['name'] }),
+      );
+      act(() => result.current.setValue('name', '   '));
+      expect(result.current.isComplete).toBe(false);
+    });
+
+    it('AC-IXD-FORM-F8: a format error on a non-required field keeps isComplete true (focus path stays reachable)', () => {
+      const { result } = renderHook(() =>
+        useEntityForm({ initialValues: init, validate, requiredFields: ['name'] }),
+      );
+      act(() => result.current.setValue('name', 'Harborside'));
+      act(() => result.current.setValue('value', 'abc')); // invalid number → live error
+      expect(result.current.canSubmit).toBe(false); // there IS a live error
+      expect(result.current.isComplete).toBe(true); // but all required fields are present
+    });
+
+    it('AC-IXD-FORM-F8: a null FK required field counts as incomplete; a value completes it', () => {
+      const { result } = renderHook(() =>
+        useEntityForm<{ name: string; clientId: string | null }>({
+          initialValues: { name: 'X', clientId: null },
+          requiredFields: ['name', 'clientId'],
+        }),
+      );
+      expect(result.current.isComplete).toBe(false);
+      act(() => result.current.setValue('clientId', 'c-1'));
+      expect(result.current.isComplete).toBe(true);
+    });
+
+    it('AC-IXD-FORM-F8: with no requiredFields, isComplete is always true (opt-in gate)', () => {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+      expect(result.current.isComplete).toBe(true);
+    });
+  });
+
   it('exposes fieldProps wiring id/value/onChange/onBlur/aria-invalid for a field', () => {
     const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
     act(() => result.current.handleBlur('name'));

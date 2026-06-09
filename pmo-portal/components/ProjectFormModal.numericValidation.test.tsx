@@ -75,8 +75,9 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
     await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
-    // Inline FieldError must appear.
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    // Inline FieldError must appear (F8: the value error is also listed in the
+    // top error-summary, so there are 2 role="alert" regions — assert >=1).
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -85,7 +86,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '12x');
     await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -94,7 +95,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '-5');
     await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 

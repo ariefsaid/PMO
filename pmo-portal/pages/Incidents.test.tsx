@@ -206,14 +206,16 @@ describe('Incidents — RBAC affordance gating (AC-IN-007)', () => {
 });
 
 describe('Incidents — File incident form (AC-IN-003)', () => {
-  it('AC-IN-003: File incident opens the modal; required-field validation blocks submit', async () => {
+  it('AC-IN-003: File incident opens the modal; blank required fields keep submit disabled (F8 readiness)', async () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
     const dialog = screen.getByRole('dialog');
-    // The modal's own submit button shares the "File incident" verb-object label;
-    // scope to the dialog to disambiguate from the page-header CTA.
-    await userEvent.click(within(dialog).getByRole('button', { name: /^File incident$/i }));
-    expect((await screen.findAllByText(/required/i)).length).toBeGreaterThan(0);
+    // F8 (AC-IXD-FORM-F8): the blank required date + type disable submit, so the user
+    // cannot silently submit a blank form and no create mutation fires. The modal's own
+    // submit shares the "File incident" verb-object label; scope to the dialog.
+    const submit = within(dialog).getByRole('button', { name: /^File incident$/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 

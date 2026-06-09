@@ -428,6 +428,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     },
     validate,
     idPrefix: 'task-form',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required task name is present.
+    requiredFields: ['name'],
   });
 
   // Dependency editing (single-FK add per the plan; the existing edges + a picker).
@@ -500,6 +502,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty || depsDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
       <FormSection legend="Details">

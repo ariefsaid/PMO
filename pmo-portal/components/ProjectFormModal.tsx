@@ -128,6 +128,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     },
     validate,
     idPrefix: 'project-form',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name + client
+    // are present. The optional estimated value is NOT required — a bad value is a
+    // format error caught on submit (focus moves to it), not a completeness gate.
+    requiredFields: ['name', 'clientId'],
   });
 
   // The combobox tracks its own selected-label so the chip renders without a
@@ -167,9 +171,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // inline on the Combobox (its trigger id is component-generated). Both fields still
   // show their own inline role="alert" message — the summary is the focus-management
   // affordance for the first focusable field with a known id.
+  // F8 (AC-IXD-FORM-F8): the value (estimated contract) field can carry a FORMAT
+  // error (non-blank but unparseable) — it is anchored here so a still-invalid
+  // submit moves focus to it (the completeness gate cannot block a non-blank field).
   const errorSummary = [
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
+    form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -216,6 +224,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend="Opportunity">

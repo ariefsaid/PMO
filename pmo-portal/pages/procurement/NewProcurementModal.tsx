@@ -55,6 +55,8 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
     initialValues: { title: '', projectId: null, vendorId: null },
     validate,
     idPrefix: 'new-pr',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title is present.
+    requiredFields: ['title'],
   });
 
   const title = form.fieldProps('title');
@@ -103,6 +105,7 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
       <FormSection legend="Request details">

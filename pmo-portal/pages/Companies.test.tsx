@@ -163,13 +163,15 @@ describe('Companies index — RBAC affordance gating (AC-CO-007)', () => {
 });
 
 describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
-  it('AC-CO-003: New company opens the modal; required-name validation blocks submit', async () => {
+  it('AC-CO-003: New company opens the modal; a blank required name keeps submit disabled (F8 readiness)', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New company/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // submit empty → validation error, mutation NOT called
-    await userEvent.click(screen.getByRole('button', { name: /^Create company$/i }));
-    expect((await screen.findAllByText(/name is required/i)).length).toBeGreaterThan(0);
+    // F8 (AC-IXD-FORM-F8): the blank required name disables submit — the user cannot
+    // silently submit a blank form, and no create mutation fires.
+    const submit = screen.getByRole('button', { name: /^Create company$/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 

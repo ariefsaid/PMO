@@ -180,12 +180,15 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
 });
 
 describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)', () => {
-  it('AC-DOC-003: Add document opens the modal; required title+category validation blocks submit', async () => {
+  it('AC-DOC-003: Add document opens the modal; a blank required title keeps submit disabled (F8 readiness)', async () => {
     renderTab('Admin');
     await userEvent.click(screen.getByRole('button', { name: /Add document/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Add document$/i }));
-    expect((await screen.findAllByText(/required/i)).length).toBeGreaterThan(0);
+    // F8 (AC-IXD-FORM-F8): the blank required title disables submit (category defaults
+    // to a value), so the user cannot silently submit a blank document and no create fires.
+    const submit = within(dialog).getByRole('button', { name: /^Add document$/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 
