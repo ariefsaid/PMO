@@ -143,7 +143,17 @@ const ProjectDetail: React.FC = () => {
       <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" />
 
       <div role="tabpanel">
-        {tab === 'overview' && <OverviewTab project={project} setTab={setTab} />}
+        {tab === 'overview' && (
+          <OverviewTab
+            project={project}
+            setTab={setTab}
+            // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
+            // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)
+            // rather than in the header above the tabs. Finance-forward roles (Admin·Exec·Finance·PM)
+            // keep the finance block in the header; isDelivery gates to delivery-lens only.
+            showFinanceSummary={isDeliveryForward && !isPipeline}
+          />
+        )}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
         {tab === 'tasks' && <TasksTab projectId={project.id} />}

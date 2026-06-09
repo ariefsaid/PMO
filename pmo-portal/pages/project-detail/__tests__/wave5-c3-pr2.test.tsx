@@ -5,6 +5,11 @@
  *   D9-pipeline PQ → Pre-Qualification label
  *
  * Owning layer: Vitest/RTL render-by-role (the delivery-forward/finance-forward split is pure FE).
+ *
+ * D15 render-position tests (AC-IXD-PROJ-W5-C3-D15-POS-*) assert RENDERED DOM ORDER in the
+ * full ProjectDetail page — not just existence in the isolated header. This is the exact blind
+ * spot the original tests had: they asserted the aside *existed* in a header render, but missed
+ * that the header renders ABOVE the tablist in the full page (the defect).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
@@ -208,28 +213,19 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
-  // ── Delivery-forward (Engineer) — tiles leave the header ──────────────────
-  it('AC-IXD-PROJ-W5-C3-05: Engineer (delivery-forward) does NOT see finance StatTiles directly in the page header', () => {
+  // ── Delivery-forward (Engineer) — tiles leave the header entirely ──────────
+  // D15 fix: the header renders NO finance block at all for Engineer. The aside
+  // was removed from ProjectDetailHeader; it now lives in OverviewTab (below the
+  // tab bar). The rendered-position assertions are in wave5-c3-pr2-position.test.tsx.
+  it('AC-IXD-PROJ-W5-C3-05: Engineer (delivery-forward) header does NOT contain the financial-summary aside or any finance StatTile labels', () => {
     const { container } = renderHeader('Engineer');
-    // The financial summary aside contains the tiles (that's the correct relocation)
-    const aside = container.querySelector('[data-testid="financial-summary"]') as HTMLElement | null;
-    expect(aside).not.toBeNull(); // aside is present
-    // But the StatTiles strip is INSIDE the aside, NOT floating outside it at the page-header level.
-    // Verify: no StatTile label appears outside the aside (i.e. only one instance in the doc — inside the aside).
-    const allOnHandMargin = screen.getAllByText('On-hand margin');
-    // All instances must be descendants of the aside
-    for (const el of allOnHandMargin) {
-      expect(aside!.contains(el)).toBe(true);
-    }
-    // Likewise for 'Committed'
-    const allCommitted = screen.getAllByText('Committed');
-    for (const el of allCommitted) {
-      expect(aside!.contains(el)).toBe(true);
-    }
-    // The contract-value SoD row exists but is inside the aside, not bare in the header
-    const sodRow = container.querySelector('[data-testid="contract-value-sod"]') as HTMLElement | null;
-    expect(sodRow).not.toBeNull();
-    expect(aside!.contains(sodRow!)).toBe(true);
+    // The header must NOT contain the financial-summary aside (it moved to OverviewTab).
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+    // Finance StatTile labels must not appear in the isolated header render.
+    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Committed')).not.toBeInTheDocument();
+    // The contract-value SoD row is also absent from the header.
+    expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
   });
 
   it('AC-IXD-PROJ-W5-C3-06: Engineer still sees the project name and status (delivery meta stays)', () => {
@@ -238,37 +234,36 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
   });
 
-  // ── Financial summary card in Overview for Engineer ───────────────────────
-  it('AC-IXD-PROJ-W5-C3-07: Engineer Overview has a labelled "Financial summary" aside with the finance data', () => {
+  // ── Financial summary lives in OverviewTab (not the isolated header) ────────
+  // D15 fix: the aside moved OUT of ProjectDetailHeader and INTO OverviewTab.
+  // The isolated header render (renderHeader) no longer contains it. The full-page
+  // assertions (with a11y + content + DOM position) live in wave5-c3-pr2-position.test.tsx.
+  it('AC-IXD-PROJ-W5-C3-07: Engineer header does NOT contain the "Financial summary" aside (it is in OverviewTab, not the header)', () => {
     const { container } = renderHeader('Engineer');
-    // The financial summary aside is present for Engineer (data stays reachable)
-    const aside = container.querySelector('[data-testid="financial-summary"]') as HTMLElement | null;
-    expect(aside).not.toBeNull();
-    // The aside has a visible heading
-    expect(within(aside!).getByText(/financial summary/i)).toBeInTheDocument();
-    // The finance tile labels appear inside the aside (not in the header)
-    expect(within(aside!).getByText('Contract')).toBeInTheDocument();
-    expect(within(aside!).getByText('On-hand margin')).toBeInTheDocument();
-    // The contract-value SoD row is inside the aside, read-only
-    expect(within(aside!).getByTestId('contract-value-sod')).toBeInTheDocument();
+    // The header isolation render must not contain the financial-summary aside.
+    // It has moved into OverviewTab (see wave5-c3-pr2-position.test.tsx for full-page assertions).
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+    // Finance tile labels are absent from the header.
+    expect(screen.queryByText('Contract')).not.toBeInTheDocument();
+    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-08: Financial summary aside has the correct ARIA landmark role + label', () => {
+  it('AC-IXD-PROJ-W5-C3-08: the "Financial summary" aside (in OverviewTab) has aria-label and is an aside element — verified in position tests', () => {
+    // The a11y properties of the aside (aria-label, element tag) are asserted in
+    // wave5-c3-pr2-position.test.tsx (AC-IXD-PROJ-W5-C3-D15-POS-10) against the full-page
+    // render where the aside actually appears. In the isolated header render the aside is absent.
     const { container } = renderHeader('Engineer');
-    const aside = container.querySelector('[data-testid="financial-summary"]') as HTMLElement | null;
-    expect(aside).not.toBeNull();
-    // The aside element (or its outermost el) must expose aria-label="Financial summary"
-    // so screen readers announce the region.
-    expect(aside!.getAttribute('aria-label')).toMatch(/financial summary/i);
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
   });
 
-  it('AC-IXD-PROJ-W5-C3-09: Engineer sees the Read-only lock pill on the contract-value SoD row (no edit for Engineer)', () => {
+  it('AC-IXD-PROJ-W5-C3-09: Engineer header has no contract-value SoD row; the Read-only lock is in the OverviewTab aside', () => {
     const { container } = renderHeader('Engineer');
-    const aside = container.querySelector('[data-testid="financial-summary"]') as HTMLElement | null;
-    expect(aside).not.toBeNull();
-    // The SoD row shows Read-only (never an Edit contract value button for Engineer)
-    expect(within(aside!).getByText(/Read-only/i)).toBeInTheDocument();
-    expect(within(aside!).queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+    // The SoD row is absent from the header isolation render (it's in OverviewTab now).
+    expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
+    // The Read-only lock pill is also not in the header.
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
+    // The Edit contract value button has never been offered to Engineer.
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
   // ── Pre-win (pipeline) is unaffected (D15 only applies to delivery lens) ──

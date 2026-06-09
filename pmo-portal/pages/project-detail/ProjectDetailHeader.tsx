@@ -316,20 +316,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         </>
       )}
 
-      {/* Delivery-forward roles (Engineer): the finance strip and SoD row move into the
-          Overview "Financial summary" aside (reachable + labelled, never deleted — FE
-          reprioritization only; RLS-permitted data stays visible). */}
-      {isDelivery && !isFinanceForward && (
-        <aside
-          data-testid="financial-summary"
-          aria-label="Financial summary"
-          className="mb-4 rounded-md border border-border bg-card p-4"
-        >
-          <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
-          <StatTiles tiles={tiles} columns={5} className="mb-3" />
-          {sodRow}
-        </aside>
-      )}
+      {/* Delivery-forward roles (Engineer): the finance strip and SoD row are relocated
+          INTO the Overview "Financial summary" section (rendered in OverviewTab, below the
+          tab bar). Nothing is mounted here so the Engineer header ends at the delivery-meta
+          row — no finance above the tab bar (D15, OD-W5-C3-A). */}
 
       {/* Edit-header modal (Admin·Exec·PM). */}
       {editOpen && (
