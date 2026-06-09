@@ -67,6 +67,17 @@ roles for MVP (would violate "minimal for one client"). Cheap forward-compat sea
 This bridge is crossed alongside the `org_id` → true multi-tenant push (second client with a different
 process is the trigger), with its own ADR then.
 
+### OD-PROC-8 — Admin = break-glass EXCEPT SoD (LOCKED 2026-06-09)
+Admin may override role gates (break-glass) but may NOT self-approve or self-pay. Migration 0018
+moves SoD-a (requester≠approver) and SoD-b (approver≠payer) OUTSIDE the `if not v_is_admin` block
+in `transition_procurement` so both checks run for every actor including Admin. The role×transition
+matrix skip (break-glass for role) remains inside the Admin block. This matches the timesheet rule
+(OD-TS-4-D: SoD ordered before the role/manager check and cannot be defeated by break-glass). A
+genuine Admin override requires reassigning the requester first so the approver is a different person.
+GR-creation authority is simultaneously tightened to requester-OR-PM (matching Ordered→Received; Finance
+and Executive removed). The Finance timesheet-entry RLS hole is closed (role gate added to
+`timesheet_entries_write`, excluding Finance from server-side entry authoring). Proved by pgTAP 0055.
+
 ### OD-PROC-7 — Build-time resolutions (Director-ratified 2026-06-04, mode A)
 Defaults resolved while speccing/planning issue #2 (within locked OD-PROC, not new business rules):
 - **A** — add `approved_by_id` to `procurements` (stamped on →Approved) so SoD-b (approver ≠ payer) is
