@@ -27,6 +27,7 @@ import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
+import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { QuotationsSection } from './procurement/QuotationsSection';
 import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
@@ -598,10 +599,15 @@ const ProcurementDetails: React.FC = () => {
       {/* Stat strip */}
       <StatTiles tiles={stats} className="mb-4" />
 
-      {/* PR-2 SLOT — DecisionSupportPanel (budget-remaining + variance) goes here.
-          Do NOT build this panel in PR-1. When PR-2 is ready, insert:
-            <DecisionSupportPanel projectId={p.project_id} totalValue={p.total_value} />
-          inside this comment block. The panel renders ONLY when p.project_id is set. */}
+      {/* N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel — budget-remaining + variance.
+          Renders ONLY when project_id is set; is a pure read-only evidence block.
+          Committed spend is sourced inside the panel (useProjectCommittedSpend, the
+          honest Σ-PO-in-Ordered..Paid basis) — no widened join needed. */}
+      <DecisionSupportPanel
+        projectId={p.project_id}
+        totalValue={Number(p.total_value)}
+        projectName={p.project?.name ?? null}
+      />
 
       {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
       <LineItemsSection

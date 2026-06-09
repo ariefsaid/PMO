@@ -130,6 +130,9 @@ export function formatDocNumber(
 
 const DETAIL_SELECT = [
   '*',
+  // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
+  // honest Σ-PO-in-Ordered..Paid basis, OD-W5-4) — NOT the static projects.budget/spent
+  // columns (0 in seed, contradict the dashboards). So this join stays name/code only.
   'project:projects(name,code)',
   'vendor:companies(name)',
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',

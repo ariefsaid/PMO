@@ -218,6 +218,8 @@ describe('getProcurementDetail', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     // items:procurement_items(*) added for the editable line-items table (CRUD slice).
+    // N8 (AC-IXD-PROC-W5-2): the DecisionSupportPanel sources committed spend via
+    // useProjectCommittedSpend (the honest Σ-PO basis), so the project join stays name/code.
     expect(mockSelect).toHaveBeenCalledWith(
       '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), items:procurement_items(*), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
     );
