@@ -34,6 +34,16 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLostDeals: () => lostState,
 }));
 vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['kanban', vi.fn()] }));
+// B-3: SalesPipeline now includes the "+ New opportunity" CTA (useProjectMutations). Stub to
+// avoid the QueryClientProvider requirement. Also mock useAuth for usePermission.
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
+  useClientCompanies: () => ({ data: [] }),
+  useProjectManagers: () => ({ data: [] }),
+}));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
 
 import SalesPipeline from '../../pages/SalesPipeline';
 

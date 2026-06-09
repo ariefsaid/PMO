@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { ToastProvider } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 
 // Oracle stages from spec §3.8 — Won/Lost are NOT in the funnel band.
@@ -43,6 +44,13 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
+// B-3: SalesPipeline now renders a "+ New opportunity" CTA backed by useProjectMutations.
+// Stub to avoid the QueryClientProvider requirement (this file tests board rendering, not mutations).
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
+  useClientCompanies: () => ({ data: [] }),
+  useProjectManagers: () => ({ data: [] }),
+}));
 // Tabs are gone — row drill is a plain react-router navigate (AC-NAV-006).
 vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -51,11 +59,14 @@ vi.mock('react-router-dom', async (orig) => {
 
 // The pipeline-board journeys are a manager viewing/forecasting the pipeline; render under a
 // PM real role so the A-4 Sales view-gate (Admin·Exec·PM·Finance) shows the board.
+// ToastProvider is required because the B-3 CTA uses useToast() on deal creation.
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter>
-        <SalesPipeline />
+        <ToastProvider>
+          <SalesPipeline />
+        </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>,
   );

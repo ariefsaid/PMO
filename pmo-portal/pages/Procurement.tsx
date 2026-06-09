@@ -26,9 +26,12 @@ import ProcurementBoard from '../components/ProcurementBoard';
 import { useProcurementView } from '@/src/hooks/useProcurementView';
 import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus, openPR } from '../components/procurement';
 
-/** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets). */
-type StatusFilter = 'All' | 'Open' | 'Ordered' | 'Paid';
-const FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
+/** Status filter segments (the IA-3 stage SegFilter; "All" + the three reporting buckets
+ *  + the B-2 "Needs approval" segment for Finance/PM). */
+type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Paid';
+const ALL_FILTERS: StatusFilter[] = ['All', 'Open', 'Ordered', 'Paid'];
+/** Roles that can approve procurement requests (Requested → Approved/Rejected per OD-PROC-1). */
+const APPROVAL_ROLES = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
 
 const OPEN_STATUSES = new Set<string>([
   'Draft',
@@ -41,6 +44,9 @@ const ORDERED_STATUSES = new Set<string>(['Ordered', 'Received', 'Vendor Invoice
 
 function matchesFilter(status: string, filter: StatusFilter): boolean {
   switch (filter) {
+    case 'Needs approval':
+      // B-2 (D5): surface Requested PRs awaiting approval action.
+      return status === 'Requested';
     case 'Open':
       return OPEN_STATUSES.has(status);
     case 'Ordered':
@@ -64,6 +70,9 @@ const ProcurementPage: React.FC = () => {
   // blocked and Raise request stays available (any member may raise). Managers see the org
   // index. This is FE clarity; RLS is the authority for what rows are actually returned.
   const ownScoped = realRole === 'Engineer';
+  // B-2 (D5): Finance/PM/Exec/Admin can approve procurement requests (Requested → Approved).
+  // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
+  const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
   const create = useCreateProcurement();
@@ -71,6 +80,11 @@ const ProcurementPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('All');
   const [showNew, setShowNew] = useState(false);
+
+  // B-2: the filter list includes "Needs approval" only for roles that can approve.
+  const FILTERS: StatusFilter[] = canApprove
+    ? ['All', 'Needs approval', ...ALL_FILTERS.slice(1)]
+    : ALL_FILTERS;
 
   // Raise request is open to ANY member incl. Engineer (requester server-stamped).
   const canCreate = may('create', 'procurement');

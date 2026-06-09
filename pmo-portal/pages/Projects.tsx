@@ -52,7 +52,7 @@ function utilizationPct(p: ProjectWithRefs): number {
 }
 
 const Projects: React.FC = () => {
-  useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
+  const { effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -65,7 +65,14 @@ const Projects: React.FC = () => {
   const canCreate = may('create', 'project');
 
   const [view, setView] = useProjectView();
-  const [filter, setFilter] = useState<StatusFilter>('All');
+  // B-11 (AC-W2-IXD-009): Engineers default to "My Projects" — they are ICs who
+  // want their own assigned work, not the full org project list. All other roles
+  // default to "All" (unscoped manager view). `effectiveRole` is used here so that
+  // an impersonated-as-Engineer session also gets the scoped default, matching the
+  // intent of "what would an Engineer see?" consistently.
+  const [filter, setFilter] = useState<StatusFilter>(
+    effectiveRole === 'Engineer' ? 'My Projects' : 'All',
+  );
   const [filterClient, setFilterClient] = useState('All');
   const [filterPM, setFilterPM] = useState('All');
   const [search, setSearch] = useState('');

@@ -10,7 +10,9 @@ import {
   StatusPill,
   ProgressBar,
   Icon,
+  Tooltip,
   AccessDenied,
+  useToast,
   type FunnelStage,
   type Column,
 } from '@/src/components/ui';
@@ -28,6 +30,9 @@ import {
   formatPercent,
   openOpportunity,
 } from '../components/salesPipeline';
+import { useProjectMutations } from '@/src/hooks/useProjects';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import ProjectFormModal from '../components/ProjectFormModal';
 
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
 const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
@@ -44,8 +49,14 @@ const SalesPipeline: React.FC = () => {
   // `project.transition` is exactly the Sales-view role set (Admin·Exec·PM·Finance). RLS is the
   // authority for the rows; this is FE clarity.
   const canViewSales = may('transition', 'project');
+  // B-3 (AC-W2-IXD-005): the "+ New opportunity" CTA — same gate as Projects.tsx (DELIVERY:
+  // Admin·Exec·PM). Finance views the pipeline but cannot start deals (rbac-visibility §C).
+  const canCreate = may('create', 'project');
 
   const { data, isPending, isError, refetch } = useSalesPipeline();
+  const { create } = useProjectMutations();
+  const { toast } = useToast();
+  const [createOpen, setCreateOpen] = useState(false);
   // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
   const { data: lostDeals } = useLostDeals();
@@ -204,11 +215,47 @@ const SalesPipeline: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Icon name="export" />
-            Export
-          </Button>
+          {/* B-5 (AC-W2-IXD-008 / OD-W2-5): Export is demoted to an honest-disabled
+              "coming soon" affordance. It has a known future destination (Reports will
+              own it) so it follows the OD-UX-3 precedent: visibly-disabled + focusable
+              tooltip explanation rather than removed (which is reserved for truly-dead
+              controls like the notification bell). A disabled <button> doesn't fire
+              hover/focus events, so the tooltip wraps a focusable <span> per the G5
+              a11y coupler — keyboard users still reach the explanation. */}
+          <Tooltip content="Export arrives with the Reports module">
+            <span className="inline-flex">
+              <Button variant="outline" disabled aria-label="Export — arrives with Reports">
+                <Icon name="export" />
+                Export
+              </Button>
+            </span>
+          </Tooltip>
+          {/* B-3 (AC-W2-IXD-005): the natural place to start a deal is the pipeline you
+              manage deals on — not the Projects list. Reuses the same create modal +
+              mutation as Projects.tsx (no new create path). Gated on can('create','project')
+              = DELIVERY (Admin·Exec·PM); Finance views but cannot start deals per §C. */}
+          {canCreate && (
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Icon name="plus" />
+              New opportunity
+            </Button>
+          )}
         </div>
+        {/* B-3: create modal (same flow as Projects.tsx — no new create path) */}
+        {createOpen && (
+          <ProjectFormModal
+            onClose={() => setCreateOpen(false)}
+            onSubmit={async (input) => {
+              await create.mutateAsync(input);
+              toast('Opportunity created', input.name, 'success');
+              setCreateOpen(false);
+            }}
+            onError={(err) => {
+              const { headline, detail } = classifyMutationError(err);
+              toast(headline, detail, 'warning');
+            }}
+          />
+        )}
       </div>
 
       {/* Weighted funnel summary band */}

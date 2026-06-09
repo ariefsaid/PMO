@@ -36,12 +36,22 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve
+  // timesheets. Engineer approval stays OFF (OD-W2-2 decision). An Engineer landing on /approvals
+  // sees only "sheets from your reports" — misleading for ICs who have no reports. Removing the
+  // nav item is the honest choice; the route still resolves (a direct URL still works but the
+  // empty-queue copy explains "you don't have reports to approve").
+  { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // B-1 (AC-W2-IXD-001 / OD-W2-4): My Tasks — IC (Engineer) own-assigned cross-project list.
+  // An Engineer lands on something actionable rather than the all-projects financial table.
+  // Admin is included for parity (Admin may also have tasks assigned to them).
+  // Executives and managers use the project Tasks tab for their task oversight (OD-W2-4).
+  { to: '/my-tasks', text: 'My Tasks', icon: 'check', group: 'Workforce', roles: [UserRole.Engineer, UserRole.Admin] },
   // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8): an unbuilt
   // module must not be a top-slot nav item leading to an empty stub. The /reports <Route> is kept
   // (App.tsx) so a stray deep link still resolves to the honest "arrives later" placeholder.

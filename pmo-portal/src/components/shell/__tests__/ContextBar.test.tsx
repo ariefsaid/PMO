@@ -49,9 +49,11 @@ describe('ContextBar', () => {
     expect(onOpenPalette).toHaveBeenCalled();
   });
 
-  it('notifications button has an aria-label describing the count', () => {
+  it('B-5 (AC-W2-IXD-008): the notification bell is removed — no dead no-op affordance', () => {
+    // OD-W2-5: the bell had no handler (no known destination — dead, not "coming soon").
+    // Removed rather than disabled-with-tooltip because there is no known future destination.
     renderBar();
-    expect(screen.getByRole('button', { name: /notification/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
   });
 
   it('Admin sees the view-as role control wired to viewAs (view-only)', async () => {

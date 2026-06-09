@@ -86,13 +86,16 @@ vi.mock('react-router-dom', async (orig) => {
 });
 
 // The Budget tab mounts ProjectBudget, which uses useToast — needs a provider.
+// B-9 (AC-W2-IA-004): all tabs are now deep-linkable via /projects/:projectId/:tab.
+// Both the `:tab` route and the bare `:projectId` route are registered so navigation
+// after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <Routes>
+          <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
-          <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
         </Routes>
       </ToastProvider>
     </MemoryRouter>,
@@ -122,17 +125,19 @@ describe('ProjectDetail shell (decomposition)', () => {
   });
 
   it('switches to the real Tasks tab and shows its empty register (AC-TASK-001)', async () => {
-    renderAt('/projects/p1');
-    await userEvent.click(screen.getByRole('tab', { name: 'Tasks' }));
+    // B-9 (AC-W2-IA-004): tab is now URL-driven — navigate directly to the :tab deep-link.
+    // (The mocked `useNavigate` is a vi.fn() no-op, so clicking the tab does not change the
+    // MemoryRouter URL; direct URL navigation is the correct way to test URL-driven tab content.)
+    renderAt('/projects/p1/tasks');
     // Tasks is now a real CRUD surface (no longer a "coming soon" placeholder).
     expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
     // PM (a structure write-role) sees the gated New task affordance.
     expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
   });
 
-  it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', async () => {
-    renderAt('/projects/p1');
-    await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+  it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', () => {
+    // B-9 (AC-W2-IA-004): tab is URL-driven — navigate directly to the :tab deep-link.
+    renderAt('/projects/p1/documents');
     // The deferred "coming soon" placeholder is gone — this is now a real register.
     expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
     expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
