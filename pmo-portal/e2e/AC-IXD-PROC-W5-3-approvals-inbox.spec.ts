@@ -13,15 +13,16 @@ import { login } from './helpers';
 // Seed assumptions (clean `npx supabase db reset`):
 //   PROC-2026-002 (id …003): Requested, $22,500, requested_by = Dave Engineer
 //     (engineer@acme.test / a4). pm@acme.test (Alice / a2) is an approver (PM role).
-//   timesheets …001 (Dave, a4): Draft — the only sheet with pm@ as approver (Dave→Alice).
+//   timesheets …001 (Dave, a4): Draft — current-week sheet for the shared engineer@.
 //   timesheets …002 (Alice, a2): Draft — Alice's OWN sheet; SoD excludes from her queue.
 //   Grace/b1 (ts-approve-eng@) + Heidi/b2 (ts-approve-mgr@): dedicated AC-911 actors;
 //     not disturbed by these tests.
+//   Wave5 BulkEng / b4 (no auth.users — never logs in): DEDICATED AC-IXD-TS-W5-3 actor.
+//     Their prior-week timesheet (…b4) is seeded as Submitted so pm@ can bulk-approve
+//     it without any Dave→Submit step — the shared-state collision that broke CI.
 //
-// AC-IXD-TS-W5-3 seed note: only ONE approvable timesheet (Dave's …001) is available
-// in pm@acme.test's queue per the clean seed — it starts as Draft, so the test first
-// submits it as Dave, then bulk-approves as Alice.  This mirrors how a real PM's day
-// unfolds (engineer submits, PM approves).  The test documents this 1-sheet case.
+// AC-IXD-TS-W5-3 isolation: the test uses ONLY the b4 fixture (never touches Dave's
+// sheet), making it ordering-independent across the full parallel/serial suite.
 // ---------------------------------------------------------------------------
 
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
@@ -69,35 +70,21 @@ test(
 );
 
 // ── AC-IXD-TS-W5-3 ──────────────────────────────────────────────────────────
-// Given: Dave (engineer@) submits his Draft timesheet (pre-condition for pm@'s queue).
-// When:  pm@ (Alice) opens /approvals, enters Select mode, selects all approvable rows,
-//        clicks "Approve N", and confirms the dialog.
-// Then:  a success toast confirms N approved AND Dave's week is no longer in the queue
-//        (reload-safe: re-fetched from the server, not just optimistic UI).
+// Given: a PM opens /approvals where Wave5 BulkEng's (b4) Submitted prior-week sheet
+//        is already in the queue (pre-seeded; no UI-submit step).
+// When:  pm@ (Alice) enters Select mode, selects all approvable rows, clicks "Approve N",
+//        and confirms the dialog.
+// Then:  a success toast confirms N approved AND Wave5 BulkEng's week is gone from the
+//        queue after a fresh server re-fetch (reload-safe: not just optimistic UI).
+//
+// Isolation: b4 (Wave5 BulkEng) is a DEDICATED fixture — no auth.users row, never
+// logs in. Its prior-week Submitted sheet is untouched by any other spec in the suite,
+// so this test is ordering-independent with --workers=N or full sequential runs.
 test(
   'AC-IXD-TS-W5-3: PM bulk-approves awaiting timesheets; approved weeks leave the queue (reload-safe)',
   async ({ page }) => {
-    // ── Step 1: Dave submits his Draft sheet (creates the Submitted pre-condition) ──
-    await login(page, 'engineer@acme.test');
-    await page.goto('/timesheets');
-
-    await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
-
-    const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
-    await expect(submitBtn).toBeVisible({ timeout: 20_000 });
-    await expect(submitBtn).toBeEnabled();
-    await submitBtn.click();
-
-    // Confirm the submit dialog.
-    const submitDialog = page.getByRole('dialog');
-    await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-    await submitDialog.getByRole('button', { name: /submit timesheet/i }).click();
-    await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
-
-    // Sheet is now Submitted.
-    await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
-
-    // ── Step 2: Alice (pm@) opens /approvals and bulk-approves ──────────────
+    // Step 1: Alice (pm@) opens /approvals — Wave5 BulkEng's Submitted sheet should already
+    // be in the queue (seeded as Submitted; no Dave→Submit pre-step needed).
     await login(page, 'pm@acme.test');
     await page.goto('/approvals');
 
@@ -105,8 +92,8 @@ test(
     const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
-    // Dave's row is in the queue.
-    await expect(tsSection.getByText('Dave Engineer')).toBeVisible({ timeout: 15_000 });
+    // Wave5 BulkEng's row is in the queue.
+    await expect(tsSection.getByText('Wave5 BulkEng')).toBeVisible({ timeout: 15_000 });
 
     // Enter Select mode.
     await tsSection.getByRole('button', { name: /^select$/i }).click();
@@ -149,8 +136,6 @@ test(
     await expect(bulkDialog).not.toBeVisible({ timeout: 20_000 });
 
     // Goal oracle 1: success toast appears confirming N approved.
-    // Toast headline is "Timesheets approved" (plural) or "Timesheet approved" (single-item
-    // bulk paths use the same commitBulk path which always says "Timesheets approved").
     await expect(page.getByText(/timesheets? approved/i)).toBeVisible({ timeout: 15_000 });
 
     // Goal oracle 2 (reload-safe): navigate away and back to force a fresh server query —
@@ -161,22 +146,11 @@ test(
     // Wait for the section to re-render from fresh data.
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
-    // Dave's week should no longer be in the awaiting queue.
-    // If queue is now empty the "approvals-empty" or "approvals-caught-up" sentinel appears.
-    const daveRow = tsSection.getByText('Dave Engineer');
-    const caughtUp = page.getByTestId('approvals-caught-up');
-    const empty = page.getByTestId('approvals-empty');
-
-    // Either Dave left the queue entirely (empty/caught-up sentinel), or Dave's row is gone
-    // while other rows remain.  We assert Dave's row is NOT visible.
-    await expect(daveRow).not.toBeVisible({ timeout: 15_000 });
-    // Cross-check: the inbox settled (not loading) — confirms above is not a false negative
-    // from a pending state masking the row.
+    // Wave5 BulkEng's week should no longer be in the awaiting queue.
+    await expect(tsSection.getByText('Wave5 BulkEng')).not.toBeVisible({ timeout: 15_000 });
+    // Cross-check: the inbox settled (not loading) — confirms the above is not a false
+    // negative from a pending state masking the row.
     await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 5_000 });
-
-    // Suppress unused-variable lint (the sentinels are checked implicitly above).
-    void caughtUp;
-    void empty;
   },
 );
 
