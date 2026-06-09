@@ -10,10 +10,12 @@ import {
   StatusPill,
   ProgressBar,
   Icon,
+  AccessDenied,
   type FunnelStage,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
+import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
@@ -35,6 +37,14 @@ type DealScope = 'Open' | 'Lost';
 const DEAL_SCOPES: DealScope[] = ['Open', 'Lost'];
 
 const SalesPipeline: React.FC = () => {
+  const may = usePermission();
+  // A-4 (rbac-visibility §C): Sales Pipeline view = Admin·Exec·PM·Finance; Engineer = ○ (no
+  // nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching /sales
+  // by URL gets a clean access-denied surface with a way back, never the org pipeline board.
+  // `project.transition` is exactly the Sales-view role set (Admin·Exec·PM·Finance). RLS is the
+  // authority for the rows; this is FE clarity.
+  const canViewSales = may('transition', 'project');
+
   const { data, isPending, isError, refetch } = useSalesPipeline();
   // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
@@ -171,6 +181,18 @@ const SalesPipeline: React.FC = () => {
       : openProjects.length === 0 && lost.length === 0
         ? 'empty'
         : undefined;
+
+  // A-4 page view-gate (after all hooks — Rules of Hooks): a denied role (Engineer) gets the
+  // shared access-denied surface, not the pipeline board.
+  if (!canViewSales) {
+    return (
+      <AccessDenied
+        title="You don't have access to the Sales Pipeline"
+        sub="The Sales Pipeline is available to managers and finance. Your work lives on your dashboard, projects, and tasks."
+        onBack={() => navigate('/')}
+      />
+    );
+  }
 
   return (
     <div>

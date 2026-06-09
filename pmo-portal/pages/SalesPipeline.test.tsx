@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import SalesPipeline from './SalesPipeline';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
 
 // Oracle stages from spec §3.8 — Won/Lost are NOT in the funnel band.
@@ -48,7 +49,16 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderPage = () => render(<MemoryRouter><SalesPipeline /></MemoryRouter>);
+// The pipeline-board journeys are a manager viewing/forecasting the pipeline; render under a
+// PM real role so the A-4 Sales view-gate (Admin·Exec·PM·Finance) shows the board.
+const renderPage = () =>
+  render(
+    <ImpersonationProvider realRole="Project Manager">
+      <MemoryRouter>
+        <SalesPipeline />
+      </MemoryRouter>
+    </ImpersonationProvider>,
+  );
 
 beforeEach(() => {
   sessionStorage.clear();
