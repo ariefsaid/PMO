@@ -285,21 +285,36 @@ const TimesheetsPage: React.FC = () => {
   const rowToDelete = editRows.find((r) => r.project_id === confirmDeleteRowId) ?? null;
   const confirmDeleteRow = () => {
     if (!confirmDeleteRowId) return;
+    const rowIdToDelete = confirmDeleteRowId;
     const persistedEntryIds = currentWeekEntries
-      .filter((e) => e.project_id === confirmDeleteRowId)
+      .filter((e) => e.project_id === rowIdToDelete)
       .map((e) => e.id);
-    // Remove from edit state immediately; delete persisted entries if any exist.
-    setEditRows((rows) => rows.filter((r) => r.project_id !== confirmDeleteRowId));
-    if (persistedEntryIds.length > 0) {
-      deleteRow.mutate(
-        { entryIds: persistedEntryIds },
-        {
-          onSuccess: () => toast('Row deleted', 'Removed this project from the week', 'success'),
-          onError: (err) => toast('Delete failed', err.message, 'warning'),
-        }
-      );
-    }
     setConfirmDeleteRowId(null);
+
+    if (persistedEntryIds.length === 0) {
+      // Unsaved row — remove from edit state only (no server write needed).
+      setEditRows((rows) => rows.filter((r) => r.project_id !== rowIdToDelete));
+      return;
+    }
+
+    // Capture the row before removal so we can restore it on failure.
+    const removedRow = editRows.find((r) => r.project_id === rowIdToDelete);
+
+    // Remove optimistically from edit state; restore on server error (resilience F5).
+    setEditRows((rows) => rows.filter((r) => r.project_id !== rowIdToDelete));
+    deleteRow.mutate(
+      { entryIds: persistedEntryIds },
+      {
+        onSuccess: () => toast('Row deleted', 'Removed this project from the week', 'success'),
+        onError: (err) => {
+          // Restore the removed row so the user's data is not silently lost.
+          if (removedRow) {
+            setEditRows((rows) => [...rows, removedRow]);
+          }
+          toast('Delete failed', err.message, 'warning');
+        },
+      }
+    );
   };
 
   // Save (explicit commit — FR-TSE-011/012/016). Builds the diff, calls saveWeek.
