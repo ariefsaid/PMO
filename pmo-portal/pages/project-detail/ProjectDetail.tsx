@@ -29,10 +29,11 @@ const TABS: TabItem<PTab>[] = [
  * stage (Model B, ADR-0020). It resolves the record from the `useProjects()` cache (the active
  * on-hand ∪ internal partition); a PRE-WIN / LOST record is not in that cache (it lives in the
  * Sales Pipeline), so it falls back to a by-id fetch (`useOpportunity`) — the canonical route
- * therefore opens regardless of stage. The header renders in both lenses; a pipeline | lost
- * record gets the PipelineLens, an on-hand | internal record gets the delivery Tabs (Overview /
- * Budget / Procurement / Tasks / Documents; `/budget` deep-link pre-selects Budget). A cold
- * deep-link shows ListState loading; a truly-absent record shows an error with a Back action.
+ * therefore opens regardless of stage. ADR-0021 (supersedes ADR-0020 §1): the page is UNIFIED —
+ * the shared header + the five delivery Tabs (Overview/Budget/Procurement/Tasks/Documents) render
+ * at every stage; a pipeline | lost record additionally gets the PipelineLens deal-progression
+ * banner above the tabs. A cold deep-link shows ListState loading; a truly-absent record shows an
+ * error with a Back action.
  */
 /** Resolve the active tab from the URL :tab param (B-9, AC-W2-IA-004). All five
  *  tabs are now deep-linkable symmetrically; unknown values default to 'overview'. */
@@ -106,10 +107,12 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
-  // Model B (ADR-0020): one canonical detail page, stage-adaptive lens. A pre-win (pipeline) or
-  // terminal (lost) deal renders the PipelineLens (deal stepper + Advance/Mark won/Mark lost) and
-  // NOT the delivery tabs — a deal has accrued no budget/PRs/tasks yet, so hiding is the honest
-  // presentation (no empty-tab tease). An on-hand / internal project renders the delivery tabs.
+  // ADR-0021 (supersedes ADR-0020 §1): ONE unified detail page at every stage. The full delivery
+  // layout (header + the five tabs) always renders, so a PM can plan budget/tasks/procurement while
+  // a deal is still in the pipeline (the backend gates those writes on org/role, not project
+  // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
+  // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
+  // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
   const group = projectStatusGroup(project.status as never);
   const isPipeline = group === 'pipeline' || group === 'lost';
 
@@ -118,24 +121,26 @@ const ProjectDetail: React.FC = () => {
       {/* I7: no in-page BackBar / Breadcrumb on the success render — the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
-          in both lenses so a record's wayfinding is identical regardless of stage. */}
+          at every stage so a record's wayfinding is identical regardless of stage. */}
       <ProjectDetailHeader project={project} />
 
-      {isPipeline ? (
-        <PipelineLens project={project} />
-      ) : (
-        <>
-          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" />
-
-          <div role="tabpanel">
-            {tab === 'overview' && <OverviewTab project={project} setTab={setTab} />}
-            {tab === 'budget' && <BudgetTab projectId={project.id} />}
-            {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-            {tab === 'tasks' && <TasksTab projectId={project.id} />}
-            {tab === 'documents' && <DocumentsTab projectId={project.id} />}
-          </div>
-        </>
+      {/* Deal-progression banner — pre-win/lost only, ABOVE the tabs (ADR-0021 owner placement). */}
+      {isPipeline && (
+        <div className="mb-4">
+          <PipelineLens project={project} />
+        </div>
       )}
+
+      {/* Delivery tabs — rendered at EVERY stage (Overview/Budget/Procurement/Tasks/Documents). */}
+      <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" />
+
+      <div role="tabpanel">
+        {tab === 'overview' && <OverviewTab project={project} setTab={setTab} />}
+        {tab === 'budget' && <BudgetTab projectId={project.id} />}
+        {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
+        {tab === 'tasks' && <TasksTab projectId={project.id} />}
+        {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+      </div>
     </div>
   );
 };

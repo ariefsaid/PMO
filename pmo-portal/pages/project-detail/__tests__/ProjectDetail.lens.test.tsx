@@ -7,13 +7,15 @@ import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
- * AC-IXD-PROJ-004 (Model B, ADR-0020): `/projects/:id` is the ONE canonical detail route; the
- * lens is chosen by the record's status group.
+ * AC-IXD-PROJ-004 (Model B canonical route, ADR-0020) + AC-IXD-PROJ-008 (UNIFIED page, ADR-0021,
+ * supersedes ADR-0020 §1): `/projects/:id` is the ONE canonical detail route and renders the FULL
+ * project detail layout (header + the five delivery tabs) at EVERY stage.
  *
- *  - pipeline (pre-win) → the PipelineLens (deal stepper + Advance/Mark won/Mark lost) IS
- *    rendered; the delivery tabs (Budget/Procurement/Tasks/Documents) and the contract-value
- *    SoD editor are NOT (a deal has no contract yet — no empty-tab tease).
- *  - onHand → the delivery tabs + SoD editor ARE rendered; the PipelineLens is not.
+ *  - pipeline (pre-win) → the delivery tabs (Overview/Budget/Procurement/Tasks/Documents) ARE
+ *    rendered AND the PipelineLens deal banner (stepper + Advance/Mark won/Mark lost) renders
+ *    ABOVE them, so a PM can plan budget/tasks/procurement while pursuing the deal. The delivery
+ *    stat tiles + contract-value SoD editor stay delivery-only (the deal figures live in the banner).
+ *  - onHand → the delivery tabs + SoD editor ARE rendered; the deal banner is NOT.
  */
 
 const projectsState = {
@@ -147,7 +149,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-004: a PIPELINE (pre-win) record renders the pipeline lens; delivery tabs + SoD editor are NOT mounted', () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the deal banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -158,13 +160,16 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
 
     // shared header
     expect(screen.getByRole('heading', { name: 'Acme Tender Bid' })).toBeInTheDocument();
-    // pipeline lens: deal journey stepper + the Advance affordance
+    // deal banner: deal journey stepper + the Advance/Mark won/Mark lost affordances
     expect(screen.getByLabelText('Deal stage journey')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // delivery lens is NOT mounted pre-win (no empty-tab tease, no SoD editor on a deal)
-    expect(screen.queryByRole('tablist', { name: /project sections/i })).toBeNull();
+    // ADR-0021: the delivery tabs ARE now mounted pre-win (the budget/tasks/procurement planning
+    // surface a PM needs while pursuing the deal) — this is the override of ADR-0020 §1.
+    expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
+    // the contract-value SoD editor stays delivery-only (the deal's value lives in the banner).
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });
 });
