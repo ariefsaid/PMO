@@ -7,6 +7,8 @@
  * 3. OD-C / review-I2 — "Vendor Invoiced" is a VISIBLE Procurement segment (selectable toolbar filter)
  * 4. J4 — tabular numerics, right-aligned money columns (console reframe)
  * 5. a11y — aria-sort on sortable columns; text+sign not color-only; honest empty states
+ * 6. Design-review fix I1 — age column header is "Last updated" (not "Invoiced")
+ * 7. Design-review fix I2 — budget-review excludes budget===0 rows; real bleeders rank first
  *
  * Red → Green → Refactor (TDD). Written BEFORE production code.
  */
@@ -42,10 +44,12 @@ const dash = {
   top_projects: [
     // Alpha: 10% OVER budget (spent=1100 vs budget=1000) → variance = +100,000 → should be first
     { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, budget: 1_000_000, spent: 1_100_000, status: 'Ongoing Project' },
-    // Beta: $400k LEFT under budget (spent=600 vs budget=1000) → variance = -400,000 → last
+    // Beta: $400k LEFT under budget (spent=600 vs budget=1000) → variance = -400,000 → last (after filter)
     { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, budget: 1_000_000, spent: 600_000, status: 'Ongoing Project' },
     // Gamma: $50k over (spent=250 vs budget=200) → variance = +50,000 → middle
     { id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', contract_value: 2_000_000, budget: 200_000, spent: 250_000, status: 'Ongoing Project' },
+    // ZeroBudget: budget=0, Tender Submitted → should be EXCLUDED from budget-review (I2 fix)
+    { id: 'p4', name: 'ZeroBudget Tender', client_name: 'Tender Co', contract_value: 1_000_000, budget: 0, spent: 0, status: 'Tender Submitted' },
   ],
 };
 
@@ -305,6 +309,92 @@ describe('AC-IXD-DASH-W5-C2B — J4: console reframe (tabular, right-align)', ()
     const { container } = renderPane();
     const rightAlignedThs = container.querySelectorAll('th.text-right');
     expect(rightAlignedThs.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Design-review I1 — honest age column label ────────────────────────────
+
+describe('AC-IXD-DASH-W5-C2B — I1: age column header is "Last updated" (not "Invoiced")', () => {
+  it('AC-IXD-DASH-W5-C2B-I1-1: Ready-to-pay table has "Last updated" column header (not "Invoiced")', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ReadyToPayTable
+          procurements={[
+            // @ts-expect-error minimal shape for test
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
+              code: 'VI-T', updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+          ]}
+          isPending={false}
+          isError={false}
+          onRetry={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    // The "age" column header must say "Last updated" — not "Invoiced"
+    const ths = Array.from(container.querySelectorAll('th'));
+    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
+    expect(lastUpdatedTh).toBeTruthy();
+    // Confirm "Invoiced" is no longer a standalone column header
+    const invoicedTh = ths.find((th) => /^invoiced$/i.test(th.textContent?.trim() ?? ''));
+    expect(invoicedTh).toBeUndefined();
+  });
+
+  it('AC-IXD-DASH-W5-C2B-I1-2: "Last updated" column header carries a title tooltip (help attribute)', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ReadyToPayTable
+          procurements={[
+            // @ts-expect-error minimal shape for test
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
+              code: 'VI-T', updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+          ]}
+          isPending={false}
+          isError={false}
+          onRetry={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    // The th or its inner element should carry a title attribute for the tooltip
+    const ths = Array.from(container.querySelectorAll('th'));
+    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
+    expect(lastUpdatedTh).toBeTruthy();
+    const elWithTitle = lastUpdatedTh?.querySelector('[title]') ?? (lastUpdatedTh?.hasAttribute('title') ? lastUpdatedTh : null);
+    expect(elWithTitle).toBeTruthy();
+  });
+});
+
+// ── Design-review I2 — budget>0 filter ───────────────────────────────────
+
+describe('AC-IXD-DASH-W5-C2B — I2: budget-review excludes zero-budget rows', () => {
+  it('AC-IXD-DASH-W5-C2B-I2-1: zero-budget project does NOT appear in the budget-review table', () => {
+    const { container } = renderPane();
+    // "ZeroBudget Tender" has budget=0 → must be excluded
+    const allTables = container.querySelectorAll('table');
+    expect(allTables.length).toBeGreaterThanOrEqual(2);
+    const budgetTable = allTables[1];
+    expect(budgetTable.textContent).not.toContain('ZeroBudget Tender');
+  });
+
+  it('AC-IXD-DASH-W5-C2B-I2-2: real over-budget project (Alpha) ranks first after excluding zero-budget rows', () => {
+    const { container } = renderPane();
+    const allTables = container.querySelectorAll('table');
+    const budgetTable = allTables[1];
+    const budgetRows = budgetTable.querySelectorAll('tbody tr');
+    const firstRowText = budgetRows[0]?.textContent ?? '';
+    expect(firstRowText).toContain('Alpha');
+  });
+
+  it('AC-IXD-DASH-W5-C2B-I2-3: only projects with budget>0 appear in variance ranking', () => {
+    const { container } = renderPane();
+    const allTables = container.querySelectorAll('table');
+    const budgetTable = allTables[1];
+    const rowTexts = Array.from(budgetTable.querySelectorAll('tbody tr')).map((r) => r.textContent ?? '');
+    // All three real-budget rows appear
+    expect(rowTexts.some((t) => t.includes('Alpha'))).toBe(true);
+    expect(rowTexts.some((t) => t.includes('Gamma'))).toBe(true);
+    expect(rowTexts.some((t) => t.includes('Beta'))).toBe(true);
+    // Zero-budget row absent
+    expect(rowTexts.some((t) => t.includes('ZeroBudget'))).toBe(false);
   });
 });
 

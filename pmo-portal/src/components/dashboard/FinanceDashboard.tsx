@@ -23,10 +23,11 @@ const INVOICED_STATUS: Tables<'procurements'>['status'] = 'Vendor Invoiced';
  * Compute days since a given ISO date string (based on the row's updated_at which is the
  * best available proxy for when the status last changed — no dedicated `invoiced_at` column exists).
  * Returns a compact label: "N days" or "Today".
+ * Guards against clock-skew (negative delta clamped to 0).
  */
 function daysAgoLabel(isoDate: string): string {
   const ms = Date.now() - new Date(isoDate).getTime();
-  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
   if (days === 0) return 'Today';
   if (days === 1) return '1 day';
   return `${days} days`;
@@ -95,11 +96,17 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'age',
-      header: 'Invoiced',
+      // I1 fix: "Invoiced" was misleading — the value is updated_at (a proxy, not an authoritative
+      // vendor_invoiced_at timestamp). "Last updated" is honest; the title tooltip explains the proxy.
+      header: (
+        <span title="Days since this request was last updated — used as a proxy for invoice age (no dedicated invoiced_at column)">
+          Last updated
+        </span>
+      ),
       align: 'num',
       cell: (r) => (
         /* Age in days since updated_at (best proxy for VI date) — text signal, not color-only */
-        <span className="tabular text-muted-foreground">{daysAgoLabel(r.updated_at)}</span>
+        <span className="text-muted-foreground">{daysAgoLabel(r.updated_at)}</span>
       ),
     },
   ];
@@ -144,16 +151,17 @@ function variance(p: TopProject): number {
 function VarianceCell({ project }: { project: TopProject }) {
   const v = variance(project);
   if (v > 0) {
-    // Over budget: destructive text WITH the word "over" so color is reinforcement only
+    // Over budget: destructive text WITH the word "over" so color is reinforcement only.
+    // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span class.
     return (
-      <span className="tabular text-destructive">
+      <span className="text-destructive">
         {`+${formatCurrency(v)} over`}
       </span>
     );
   }
   // Under / on-budget: muted text WITH the word "left"
   return (
-    <span className="tabular text-muted-foreground">
+    <span className="text-muted-foreground">
       {`${formatCurrency(Math.abs(v))} left`}
     </span>
   );
@@ -204,11 +212,14 @@ export const FinanceDashboard: React.FC = () => {
 
   // N17: variance-desc ranking (PR-B). Default sort = variance descending (most-over first).
   // Variance = spent − budget; most-over (highest positive) floats to the top.
+  // I2 fix: filter to budget > 0 first — a project with no approved budget is not a budget-review
+  // subject and would surface as noise (variance 0, $0 budget) above real bleeders.
   // User can re-sort by clicking any column header.
   const topByVariance = useMemo(() => {
-    const rows = [...(data?.top_projects ?? [])];
+    const rows = (data?.top_projects ?? []).filter((p) => p.budget > 0);
+    const sorted = [...rows];
     const mul = budgetSort.dir === 'desc' ? -1 : 1;
-    rows.sort((a, b) => {
+    sorted.sort((a, b) => {
       if (budgetSort.key === 'variance') return (variance(a) - variance(b)) * mul;
       if (budgetSort.key === 'budget') return (a.budget - b.budget) * mul;
       if (budgetSort.key === 'spent') return (a.spent - b.spent) * mul;
@@ -217,7 +228,7 @@ export const FinanceDashboard: React.FC = () => {
       const uB = b.budget > 0 ? b.spent / b.budget : 0;
       return (uA - uB) * mul;
     });
-    return rows;
+    return sorted;
   }, [data?.top_projects, budgetSort]);
 
   // N17 Budget review columns (sortable, with Variance column)
@@ -232,14 +243,15 @@ export const FinanceDashboard: React.FC = () => {
       header: 'Budget',
       align: 'num',
       sortKey: 'budget',
-      cell: (p) => <span className="tabular">{formatCurrency(p.budget)}</span>,
+      // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span
+      cell: (p) => <span>{formatCurrency(p.budget)}</span>,
     },
     {
       key: 'spent',
       header: 'Spent',
       align: 'num',
       sortKey: 'spent',
-      cell: (p) => <span className="tabular">{formatCurrency(p.spent)}</span>,
+      cell: (p) => <span>{formatCurrency(p.spent)}</span>,
     },
     {
       key: 'variance',
@@ -307,8 +319,13 @@ export const FinanceDashboard: React.FC = () => {
         <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
       </section>
 
-      {/* Finance "ledger" block: Ready to pay + Budget review (J4 console section rhythm) */}
-      <DashGrid>
+      {/* Finance "ledger" block: Ready to pay + Budget review stacked full-width (C1 fix).
+          Previously a 2-up DashGrid which clipped the 5-col budget table (~626px intrinsic)
+          inside a ~492px half-card at 1280, and left a large void when Ready-to-pay was 1-row
+          next to a 5-row table. Full-width stack: both tables span the content width, all 5
+          budget columns (incl. Utilization + "over"/"left" Variance word) are fully visible
+          at 1280 and 1440 with no horizontal clip, and the lopsided-void rhythm (J4) is gone. */}
+      <section aria-label="Finance ledger" className="flex flex-col gap-4">
         {/* N16 — Ready to pay table */}
         <Card seam>
           <CardHead className="rounded-t-lg">Ready to pay</CardHead>
@@ -344,7 +361,7 @@ export const FinanceDashboard: React.FC = () => {
             className="rounded-t-none border-t-0"
           />
         </Card>
-      </DashGrid>
+      </section>
 
       <DashGrid>
         <Card>
