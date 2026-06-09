@@ -57,7 +57,14 @@ vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
 vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
-vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div> }));
+vi.mock('../ProjectDetailHeader', () => ({
+  default: () => <div>Header</div>,
+  // Re-export the predicate so ProjectDetail.tsx's import of hasFinanceView resolves.
+  hasFinanceView: (role: string | null): boolean => {
+    if (!role) return false;
+    return ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(role);
+  },
+}));
 
 import ProjectDetail from '../ProjectDetail';
 
