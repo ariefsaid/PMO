@@ -223,6 +223,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     if (d.status === 'Approved' && canWriteDocs) {
       items.push({ label: 'Close', onClick: () => setPending({ doc: d, to: 'Closed', verb: 'Close document' }) });
     }
+    // Rejected → Draft (rework path) / Rejected → Closed (abandon path). AC-W3-B2.
+    // These are non-approval moves (same gate as Draft→Issued / Approved→Closed: canWriteDocs).
+    // The SoD approver≠author rule applies only to the Issued→Approved/Rejected step; not here.
+    if (d.status === 'Rejected' && canWriteDocs) {
+      items.push({ label: 'Reopen for revision', onClick: () => setPending({ doc: d, to: 'Draft', verb: 'Reopen for revision' }) });
+      items.push({ label: 'Close', onClick: () => setPending({ doc: d, to: 'Closed', verb: 'Close document' }) });
+    }
     return items;
   };
 
