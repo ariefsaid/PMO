@@ -6,6 +6,7 @@ import {
   Button,
   Icon,
   ConfirmDialog,
+  FieldError,
 } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
@@ -33,6 +34,24 @@ const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 function num(v: string): number {
   const n = parseFloat(v.replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Validate a raw numeric field string for a line-item column.
+ * Returns an error message string, or undefined when valid.
+ * Must be non-empty and parse to a finite number > 0.
+ */
+function validateLineNum(raw: string, label: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return `${label} is required.`;
+  const n = Number(trimmed.replace(/,/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return `${label} must be a number greater than 0.`;
+  return undefined;
+}
+
+interface LineItemErrors {
+  quantity?: string;
+  rate?: string;
 }
 
 export interface LineItemsSectionProps {
@@ -76,15 +95,24 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   busy,
 }) => {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
+  const [addErrors, setAddErrors] = useState<LineItemErrors>({});
   // The row currently being edited (id) + its working values.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ItemDraft>(EMPTY_DRAFT);
+  const [editErrors, setEditErrors] = useState<LineItemErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<ProcurementItemRow | null>(null);
 
   const total = items.reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
+    const qtyErr = validateLineNum(draft.quantity, 'Quantity');
+    const rateErr = validateLineNum(draft.rate, 'Unit price');
+    if (qtyErr || rateErr) {
+      setAddErrors({ quantity: qtyErr, rate: rateErr });
+      return;
+    }
+    setAddErrors({});
     try {
       await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate: num(draft.rate) });
       setDraft(EMPTY_DRAFT);
@@ -96,10 +124,18 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const startEdit = (it: ProcurementItemRow) => {
     setEditingId(it.id);
     setEditDraft({ name: it.name, quantity: String(it.quantity), rate: String(it.rate) });
+    setEditErrors({});
   };
 
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
+    const qtyErr = validateLineNum(editDraft.quantity, 'Quantity');
+    const rateErr = validateLineNum(editDraft.rate, 'Unit price');
+    if (qtyErr || rateErr) {
+      setEditErrors({ quantity: qtyErr, rate: rateErr });
+      return;
+    }
+    setEditErrors({});
     try {
       await onUpdate(id, {
         name: editDraft.name.trim(),
@@ -180,20 +216,32 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <CellInput
-                        numeric
-                        aria-label={`Edit quantity for ${it.name}`}
-                        value={editDraft.quantity}
-                        onChange={(e) => setEditDraft((d) => ({ ...d, quantity: e.target.value }))}
-                      />
+                      <div className="flex flex-col gap-0.5">
+                        <CellInput
+                          numeric
+                          aria-label={`Edit quantity for ${it.name}`}
+                          value={editDraft.quantity}
+                          onChange={(e) => {
+                            setEditDraft((d) => ({ ...d, quantity: e.target.value }));
+                            setEditErrors((prev) => ({ ...prev, quantity: undefined }));
+                          }}
+                        />
+                        <FieldError>{editErrors.quantity}</FieldError>
+                      </div>
                     </td>
                     <td className="px-3 py-2">
-                      <CellInput
-                        numeric
-                        aria-label={`Edit unit price for ${it.name}`}
-                        value={editDraft.rate}
-                        onChange={(e) => setEditDraft((d) => ({ ...d, rate: e.target.value }))}
-                      />
+                      <div className="flex flex-col gap-0.5">
+                        <CellInput
+                          numeric
+                          aria-label={`Edit unit price for ${it.name}`}
+                          value={editDraft.rate}
+                          onChange={(e) => {
+                            setEditDraft((d) => ({ ...d, rate: e.target.value }));
+                            setEditErrors((prev) => ({ ...prev, rate: undefined }));
+                          }}
+                        />
+                        <FieldError>{editErrors.rate}</FieldError>
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right tabular font-medium">
                       {formatCurrency(num(editDraft.quantity) * num(editDraft.rate))}
@@ -263,22 +311,34 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <CellInput
-                    numeric
-                    aria-label="New item quantity"
-                    placeholder="0"
-                    value={draft.quantity}
-                    onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
-                  />
+                  <div className="flex flex-col gap-0.5">
+                    <CellInput
+                      numeric
+                      aria-label="New item quantity"
+                      placeholder="0"
+                      value={draft.quantity}
+                      onChange={(e) => {
+                        setDraft((d) => ({ ...d, quantity: e.target.value }));
+                        setAddErrors((prev) => ({ ...prev, quantity: undefined }));
+                      }}
+                    />
+                    <FieldError>{addErrors.quantity}</FieldError>
+                  </div>
                 </td>
                 <td className="px-3 py-2">
-                  <CellInput
-                    numeric
-                    aria-label="New item unit price"
-                    placeholder="0.00"
-                    value={draft.rate}
-                    onChange={(e) => setDraft((d) => ({ ...d, rate: e.target.value }))}
-                  />
+                  <div className="flex flex-col gap-0.5">
+                    <CellInput
+                      numeric
+                      aria-label="New item unit price"
+                      placeholder="0.00"
+                      value={draft.rate}
+                      onChange={(e) => {
+                        setDraft((d) => ({ ...d, rate: e.target.value }));
+                        setAddErrors((prev) => ({ ...prev, rate: undefined }));
+                      }}
+                    />
+                    <FieldError>{addErrors.rate}</FieldError>
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
                   {draft.quantity && draft.rate
