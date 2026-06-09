@@ -27,7 +27,7 @@ Triggered by the owner: the prior audits checked *correctness* (tokens/RBAC/a11y
 
 **Bigger feature (separate track):** **Admin settings / RBAC config engine** (OD-PROC-6 bridge) — configurable roles + access; re-enables Engineer-as-manager approvals (OD-W2-2). Also: hosting/deploy (ADR-0006), document file-upload (Storage), Reports module.
 
-**⚑ Owner decision fork (the one genuine judgment call):** are near-term users **desktop-only** (→ Wave 3 correctness first, mobile as Wave 4) or is **mobile imminent** (→ pull Theme C ahead)? The triage assumed desktop; recommended order reflects that.
+**⚑ Owner decision — RESOLVED (2026-06-09): Wave 3 = CORRECTNESS-FIRST** (silent-data/integrity bugs + lifecycle rework dead-ends + procurement authz gaps), **mobile = Wave 4** (near-term users are desktop). Build order within Wave 3: lead with the **wrong-data** bugs (F3/F4 numeric→0, F1/F2 stale FK pickers, F8 blank-submit) since those silently persist bad values, then lifecycle dead-ends (B1/B2/B3+A8), then procurement authz (A9 RPC over-grant + A10 + AC-W2-RBAC-011-RLS), with G2 + D10 folded in.
 
 ## Shipped (merged to main)
 1. **#1** De-cruft + build foundation — removed AI Studio artifacts, real Tailwind-via-Vite, fixed a conditional-hooks crash, repo green, CI lint gate.
