@@ -76,7 +76,16 @@ const TimesheetsPage: React.FC = () => {
   // RLS tightening (Finance cannot insert timesheet_entries) is a SEPARATE pgTAP-owned security
   // follow-up, not built here.
   const canEnterTimesheet = may('create', 'timesheet');
+  // AC-W3-N2: gate the Approvals queue affordance on the same capability as the rail's Approvals
+  // item and ApprovalsQueue itself — `may('transition','approval')` (DELIVERY = Admin·Exec·PM).
+  // Engineer cannot approve timesheets (OD-W2-2), so showing them the toggle is a RBAC leak.
+  const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
+  // O1 (review fix): synchronous re-entrancy guard for the async Submit. React Query's
+  // `isPending` only flips on the next render, so a fast double-click on the confirm fires
+  // `commitSubmit` twice before the `loading` prop updates — on a fresh week that means TWO
+  // lazy-Draft creates → two sheets. This ref blocks the second invocation in the same tick.
+  const submittingRef = useRef(false);
   const [view, setView] = useTimesheetsView();
   // T1: the Submit button stages this confirm; nothing submits on a single click.
   const [confirmSubmit, setConfirmSubmit] = useState(false);
@@ -368,24 +377,83 @@ const TimesheetsPage: React.FC = () => {
     ? timesheetActions(currentTimesheet.status as TimesheetStatus, Boolean(isOwner), false)
     : { submit: false, approve: false, reject: false };
 
-  // T14/AC-IXD-TS-001: Submit renders co-located in the footer FROM FIRST PAINT (even on a brand-new
-  // no-draft week), but is DISABLED until a Draft sheet exists with at least one PERSISTED entry —
-  // "Save your hours first". `actions.submit` requires a Draft owned by this user; the entry guard
-  // requires the hours to be persisted (not merely typed locally), so you can't submit an empty week.
-  const canSubmit = actions.submit && currentWeekEntries.length > 0;
+  // OD-W3-1 (AC-W3-O1): Submit is enabled when EITHER:
+  //   (a) a Draft with at least one PERSISTED entry exists (legacy: clean/already-saved), OR
+  //   (b) the edit buffer has valid hours (dirty week — Submit auto-saves first then submits).
+  // This eliminates the 3-step Save→Submit→Confirm for a fresh/dirty week.
+  // The buffer having hours is detected via editValid && editRows.some(r => r.hours.some(h => h !== ''))
+  // (equivalent: editTotals.weekly > 0 since invalid cells count as 0 and empty cells count as 0).
+  const editBufferHasHours = editValid && editTotals.weekly > 0;
+  // canSubmit covers BOTH the already-saved path and the auto-save-first path — but is gated on
+  // `editValid` (review minor): if the visible buffer is dirty-but-INVALID (e.g. a 25h cell), do
+  // NOT offer Submit against the stale persisted data and silently discard the edits; force the
+  // user to fix/clear the invalid cell first (the grid shows the validation, Save stays disabled).
+  const canSubmit =
+    editValid && ((actions.submit && currentWeekEntries.length > 0) || editBufferHasHours);
 
-  // T1: commit the week for approval, toast on resolve (§6.7). The RPC contract
-  // (submit_timesheet { id }) is preserved; the confirm only gates the click.
-  const commitSubmit = () => {
-    if (!currentTimesheet) return;
+  // OD-W3-1 (AC-W3-O1): commit the week for approval.
+  //
+  // If the edit buffer has unsaved valid changes (dirty), run saveWeek.mutateAsync first to
+  // persist them (and create the Draft if none exists). saveWeek returns the resolved sheet id
+  // so we can submit immediately — no poll/setTimeout required.
+  //
+  // If the buffer is clean (no diff vs. server), skip the save and submit the already-persisted
+  // sheet directly (no-op-save suppression preserved).
+  //
+  // The confirm dialog still gates the action (consequential write), the RPC contract
+  // (submit_timesheet { id }) is preserved, and the seedKey re-seed-race guard is unchanged.
+  const commitSubmit = async () => {
+    // Re-entrancy guard (review fix): block a synchronous double-click on the confirm before the
+    // first save/submit's `isPending` becomes observable. Cleared in EVERY terminal path below
+    // (save-error, no-sheet, submit success, submit error) — NOT in a finally, because the trailing
+    // `submit.mutate` is fire-and-forget, so the ref must stay held until that mutation settles.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    let sheetId = currentTimesheet?.id ?? null;
+
+    // Compute the diff to detect dirty state (mirrors commitSave logic).
+    const diff = diffEntries(
+      editRows,
+      weekDateStrings,
+      serverEntriesForDiff,
+      currentTimesheet?.id ?? '',
+    );
+    const changeCount = diff.upserts.length + diff.deletes.length;
+
+    if (changeCount > 0 && editValid) {
+      // Dirty + valid: auto-save first, get the resolved sheet id.
+      try {
+        sheetId = await saveWeek.mutateAsync({
+          currentTimesheetId: currentTimesheet?.id ?? null,
+          weekStartDate: weekStartString,
+          diff,
+        });
+      } catch (err: unknown) {
+        // Auto-save failed — don't attempt the submit; surface the error.
+        submittingRef.current = false;
+        setConfirmSubmit(false);
+        toast('Save failed', err instanceof Error ? err.message : undefined, 'warning');
+        return;
+      }
+    }
+
+    if (!sheetId) {
+      // Shouldn't happen if canSubmit is guarded correctly, but defend gracefully.
+      submittingRef.current = false;
+      setConfirmSubmit(false);
+      return;
+    }
+
     submit.mutate(
-      { id: currentTimesheet.id },
+      { id: sheetId },
       {
         onSuccess: () => {
+          submittingRef.current = false;
           setConfirmSubmit(false);
           toast('Timesheet submitted', 'Sent to your line manager for approval', 'success');
         },
         onError: (err: unknown) => {
+          submittingRef.current = false;
           setConfirmSubmit(false);
           toast('Submit failed', err instanceof Error ? err.message : undefined, 'warning');
         },
@@ -394,16 +462,18 @@ const TimesheetsPage: React.FC = () => {
   };
 
   // T1 confirm dialog — shared across the grid-view renders below.
-  const submitConfirm = confirmSubmit && currentTimesheet && (
+  // OD-W3-1: no longer requires `currentTimesheet` to be non-null — on a fresh (no-prior-Save)
+  // week the confirm still shows and commitSubmit auto-saves first, then submits.
+  const submitConfirm = confirmSubmit && (
     <ConfirmDialog
       open
       tone="default"
       title="Submit this week for approval?"
       description="This sends the whole week to your line manager. You can't edit it again until it's returned."
       confirmLabel="Submit timesheet"
-      loading={submit.isPending}
+      loading={submit.isPending || saveWeek.isPending}
       onCancel={() => setConfirmSubmit(false)}
-      onConfirm={commitSubmit}
+      onConfirm={() => void commitSubmit()}
     />
   );
 
@@ -433,15 +503,19 @@ const TimesheetsPage: React.FC = () => {
       </div>
 
       <Toolbar standalone>
-        <ViewToggle<'grid' | 'approvals'>
-          options={[
-            { value: 'grid', label: 'Weekly grid', icon: 'cal' },
-            { value: 'approvals', label: 'Approvals queue', icon: 'check', count: pendingCount },
-          ]}
-          value={view}
-          onChange={setView}
-          ariaLabel="Timesheet view"
-        />
+        {/* AC-W3-N2: show the ViewToggle (and its Approvals queue tab) only to approvers.
+            Engineers see no toggle at all — a single-view surface needs no tab-switcher. */}
+        {isApprover && (
+          <ViewToggle<'grid' | 'approvals'>
+            options={[
+              { value: 'grid', label: 'Weekly grid', icon: 'cal' },
+              { value: 'approvals', label: 'Approvals queue', icon: 'check', count: pendingCount },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel="Timesheet view"
+          />
+        )}
         <span className="ml-auto inline-flex items-center gap-0.5">
           <Button
             variant="outline"
@@ -463,7 +537,10 @@ const TimesheetsPage: React.FC = () => {
   );
 
   // ── Approvals queue view ────────────────────────────────────────────────────
-  if (view === 'approvals') {
+  // AC-W3-N2: also guard the branch on isApprover so a stale persisted view='approvals'
+  // from a previous session where the user had approval rights never accidentally surfaces
+  // the queue to a non-approver (e.g. an Engineer).
+  if (view === 'approvals' && isApprover) {
     return (
       <div>
         {head}
@@ -595,9 +672,10 @@ const TimesheetsPage: React.FC = () => {
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
           >
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
+            {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
             {!canSubmit && (
               <span className="mr-auto text-[13px] text-muted-foreground">
-                Save your hours first
+                Enter hours to submit
               </span>
             )}
             {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast. */}

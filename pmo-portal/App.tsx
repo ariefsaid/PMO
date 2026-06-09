@@ -14,7 +14,7 @@ import {
   Rail,
   ContextBar,
   CommandPalette,
-  MODULES,
+  modulesForRole,
   breadcrumbForPath,
   recordLabelForPath,
   recordStatusGroupForPath,
@@ -25,6 +25,8 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
@@ -181,13 +183,19 @@ const ShellChrome: React.FC = () => {
     lostDealsPending,
   ]);
 
+  // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.
+  // A denied role (e.g. Engineer) never sees Sales/Procurement/Companies/Administration.
+  // Read the real role non-throwing; deny-by-default when outside the provider (no Navigate items).
+  const realRole = useOptionalRealRole();
+
   // Palette items: the Records group (cached record index) above the Navigate
   // group (module index routes). The palette filters/caps/ranks both uniformly;
   // Records only show while the user is searching, Navigate always shows.
+  // AC-W3-N3: only modules visible to the real role are included (modulesForRole).
   const paletteItems = useMemo<PaletteItem[]>(
     () => [
       ...recordSearch.records,
-      ...MODULES.map((m) => ({
+      ...(realRole ? modulesForRole(realRole as UserRole) : []).map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
         title: m.label,
@@ -195,7 +203,7 @@ const ShellChrome: React.FC = () => {
         run: () => navigate(m.path),
       })),
     ],
-    [navigate, recordSearch.records]
+    [navigate, recordSearch.records, realRole]
   );
 
   return (

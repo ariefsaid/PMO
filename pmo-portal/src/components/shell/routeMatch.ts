@@ -2,8 +2,9 @@ import { matchPath } from 'react-router-dom';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
 import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { UserRole } from '../../../types';
 
-interface ModuleDef {
+export interface ModuleDef {
   module: string;
   icon: IconName;
   label: string;
@@ -11,10 +12,18 @@ interface ModuleDef {
   path: string;
   /** Detail route pattern (record drill) + the param name carrying the id. */
   detail?: { pattern: string; param: string };
+  /**
+   * Roles that may navigate to this module (mirrors Rail.tsx ALL_ITEMS.roles).
+   * Undefined = visible to all authenticated users (e.g. Dashboard).
+   * AC-W3-N3: used by `modulesForRole` to filter the ⌘K Navigate group so it
+   * matches the rail — a denied role never sees a Navigate item for a hidden module.
+   */
+  roles?: UserRole[];
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
+  // Dashboard: every authenticated role (no roles restriction = all).
   { module: 'dashboard', icon: 'grid', label: 'Dashboard', path: '/' },
   {
     module: 'sales',
@@ -22,6 +31,8 @@ export const MODULES: ModuleDef[] = [
     label: 'Sales Pipeline',
     path: '/sales',
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
+    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Sales nav — rbac-visibility §C).
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'procurement',
@@ -29,6 +40,8 @@ export const MODULES: ModuleDef[] = [
     label: 'Procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
+    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'projects',
@@ -36,14 +49,65 @@ export const MODULES: ModuleDef[] = [
     label: 'Projects',
     path: '/projects',
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
+    // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
   },
-  { module: 'timesheets', icon: 'clock', label: 'Timesheets', path: '/timesheets' },
-  // B-7 (AC-W2-IA-002): Companies + Incidents are full CRUD pages — promote to MODULES so the
-  // breadcrumb resolves via the module path and ⌘K Navigate includes them. They have no detail
-  // route yet (list+modal pattern), so no `detail` field.
-  { module: 'companies', icon: 'doc', label: 'Companies', path: '/companies' },
-  { module: 'incidents', icon: 'alert', label: 'Incidents', path: '/incidents' },
+  {
+    module: 'timesheets',
+    icon: 'clock',
+    label: 'Timesheets',
+    path: '/timesheets',
+    // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+  },
+  // B-7 (AC-W2-IA-002): Companies + Incidents are full CRUD pages — promoted to MODULES so the
+  // breadcrumb resolves via the module path and ⌘K Navigate includes them.
+  {
+    module: 'companies',
+    icon: 'doc',
+    label: 'Companies',
+    path: '/companies',
+    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Companies nav — rbac-visibility §D).
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'incidents',
+    icon: 'alert',
+    label: 'Incidents',
+    path: '/incidents',
+    // Incidents: visible to every role (any member may file — rbac-visibility §A/§G).
+  },
+  // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
+  // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
+  // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).
+  {
+    module: 'my-tasks',
+    icon: 'check',
+    label: 'My Tasks',
+    path: '/my-tasks',
+    roles: [UserRole.Engineer, UserRole.Admin],
+  },
+  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
+  {
+    module: 'administration',
+    icon: 'admin',
+    label: 'Administration',
+    path: '/administration',
+    roles: [UserRole.Executive, UserRole.Admin],
+  },
 ];
+
+/**
+ * Returns the subset of MODULES visible to the given role (AC-W3-N3 + AC-W3-N4).
+ *
+ * Modules with no `roles` array are visible to all authenticated users (e.g. Dashboard,
+ * Projects, Incidents). Modules with a `roles` array are visible only to roles in that list.
+ *
+ * Used by the ⌘K palette's Navigate group so its items match the rail — a denied role
+ * never sees a Navigate item for a module the rail hides from them.
+ */
+export function modulesForRole(role: UserRole): ModuleDef[] {
+  return MODULES.filter((m) => !m.roles || m.roles.includes(role));
+}
 
 /**
  * C5 — placeholder route titles. These routes are intentionally NOT registered

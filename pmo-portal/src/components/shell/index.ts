@@ -6,6 +6,7 @@ export { Breadcrumb, type BreadcrumbPart, type BreadcrumbProps } from './Breadcr
 export { BackBar, type BackBarProps } from './BackBar';
 export {
   MODULES,
+  modulesForRole,
   breadcrumbForPath,
   recordLabelForPath,
   recordStatusForPath,
@@ -13,4 +14,5 @@ export {
   PLACEHOLDER_TITLES,
   type RecordLists,
   type RecordStatusLists,
+  type ModuleDef,
 } from './routeMatch';

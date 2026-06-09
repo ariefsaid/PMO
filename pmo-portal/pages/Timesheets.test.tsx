@@ -56,11 +56,14 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-// ── timesheet-entry write path mocks (Tasks 14–20) ──────────────────────────
+// ── timesheet-entry write path mocks (Tasks 14–20 + O1) ─────────────────────
 const saveWeekMutate = vi.fn();
+// AC-W3-O1: mutateAsync is the chained path (auto-save-then-submit). Default returns a
+// resolved Promise<string> (the sheet id) so the auto-save→submit chain can proceed.
+const saveWeekMutateAsync = vi.fn().mockResolvedValue('ts-auto');
 const deleteRowMutate = vi.fn();
 const entryMutations = {
-  saveWeek: { mutate: saveWeekMutate, isPending: false },
+  saveWeek: { mutate: saveWeekMutate, mutateAsync: saveWeekMutateAsync, isPending: false },
   deleteRow: { mutate: deleteRowMutate, isPending: false },
 };
 vi.mock('@/src/hooks/useTimesheetEntries', () => ({
@@ -88,6 +91,7 @@ const renderPage = () =>
 
 beforeEach(() => {
   sessionStorage.clear(); // reset the persisted view so each test starts on the grid
+  saveWeekMutateAsync.mockResolvedValue('ts-auto'); // reset to default resolved value
 });
 
 describe('Timesheets (real data)', () => {
@@ -778,5 +782,213 @@ describe('timesheet-entry: a11y (Task 20, NFR-TSE-A11Y-001)', () => {
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveAccessibleName();
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-W3-O1 — Submit auto-saves valid dirty rows first (OD-W3-1)
+// ---------------------------------------------------------------------------
+/**
+ * AC-W3-O1: Submit should be enabled when the edit buffer has valid hours (even before
+ * a Save), and on confirm should auto-save dirty rows before submitting.
+ *
+ * OD-W3-1 decision: keep both Save + Submit co-located, but Submit auto-saves any valid
+ * dirty rows first and then submits — one action (plus the confirm). This eliminates the
+ * 3-step Save→Submit→Confirm for a fresh week.
+ *
+ * Invariants preserved: confirm dialog still fires first (consequential), no-op save
+ * suppression, the seedKey re-seed-race guard, and the RPC contracts (saveWeek diff,
+ * submit_timesheet {id}).
+ */
+describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    saveWeekMutateAsync.mockClear();
+    saveWeekMutateAsync.mockResolvedValue('ts-auto');
+    submitMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('AC-W3-O1: Submit is ENABLED when the edit buffer has valid hours even with no persisted entries yet', async () => {
+    // No sheet at all — fresh week. User types 8h Monday but hasn't saved.
+    tsState.data = [];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+
+    // Add a project and type hours.
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '8');
+
+    const footer = screen.getByTestId('timesheets-footer');
+    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    // OD-W3-1: Submit must be ENABLED (buffer has valid hours).
+    expect(submitBtn).toBeEnabled();
+  });
+
+  it('AC-W3-O1: Submit is DISABLED when the edit buffer has no hours (empty week)', () => {
+    // Empty week, no hours typed — nothing to submit.
+    tsState.data = [];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+
+    const footer = screen.getByTestId('timesheets-footer');
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+  });
+
+  it('AC-W3-O1: Submit is DISABLED when the edit buffer has only invalid hours (e.g. 25)', async () => {
+    tsState.data = [];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '25');
+
+    const footer = screen.getByTestId('timesheets-footer');
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+  });
+
+  it('AC-W3-O1: on a fresh (no-prior-Save) week, Submit+confirm calls saveWeek THEN submit (in order)', async () => {
+    // No sheet — brand-new week. User types valid hours and hits Submit.
+    tsState.data = [];
+    tsState.isPending = false; tsState.isError = false;
+
+    // saveWeekMutateAsync resolves with the new sheet id 'ts-new'.
+    saveWeekMutateAsync.mockResolvedValue('ts-new');
+    // submit.mutate invokes onSuccess so the confirm closes + toast fires.
+    submitMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
+    renderPage();
+
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    const mon = screen.getByLabelText('Acme Internal Platform, Mon hours');
+    await userEvent.type(mon, '8');
+
+    const footer = screen.getByTestId('timesheets-footer');
+    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+
+    // The confirm dialog opens (consequential action, still needs confirmation).
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    // Nothing has been saved or submitted yet (confirm not yet clicked).
+    expect(saveWeekMutate).not.toHaveBeenCalled();
+    expect(saveWeekMutateAsync).not.toHaveBeenCalled();
+    expect(submitMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Submit timesheet$/i }));
+
+    // saveWeekMutateAsync was called (auto-save).
+    await waitFor(() => expect(saveWeekMutateAsync).toHaveBeenCalledTimes(1));
+    // saveWeek was called with null currentTimesheetId (brand-new week).
+    const saveArg = saveWeekMutateAsync.mock.calls[0][0] as { currentTimesheetId: string | null };
+    expect(saveArg.currentTimesheetId).toBeNull();
+
+    // submit.mutate was called AFTER saveWeek resolved, with the new sheet id.
+    await waitFor(() => expect(submitMutate).toHaveBeenCalledTimes(1));
+    expect(submitMutate).toHaveBeenCalledWith(
+      { id: 'ts-new' },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+
+    // saveWeekMutate (fire-and-forget) was NOT called — only mutateAsync.
+    expect(saveWeekMutate).not.toHaveBeenCalled();
+  });
+
+  it('AC-W3-O1: an already-saved clean week submits WITHOUT a redundant saveWeek call', async () => {
+    // A Draft sheet exists with persisted hours and no local edits.
+    const weekStr = currentWeekStartStr();
+    tsState.data = [{
+      id: 'ts-clean', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [
+        { id: 'ec1', timesheet_id: 'ts-clean', project_id: 'pP', entry_date: weekStr, hours: 8,
+          notes: null, project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+      ],
+    }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+
+    submitMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
+    renderPage();
+
+    const footer = screen.getByTestId('timesheets-footer');
+    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Submit timesheet$/i }));
+
+    // No save was needed (no dirty rows).
+    await waitFor(() => expect(submitMutate).toHaveBeenCalledTimes(1));
+    expect(saveWeekMutate).not.toHaveBeenCalled();
+    expect(saveWeekMutateAsync).not.toHaveBeenCalled();
+    expect(submitMutate).toHaveBeenCalledWith(
+      { id: 'ts-clean' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it('AC-W3-O1 (review fix): a double-click on the confirm runs auto-save + submit only ONCE (re-entrancy guard)', async () => {
+    // Fresh week, valid hours. The auto-save promise stays PENDING through both clicks (mock
+    // isPending never flips) — exactly the window where the `loading` prop can't guard. The
+    // synchronous submittingRef must block the second invocation (else two lazy-Draft creates).
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    let resolveSave: (id: string) => void = () => {};
+    saveWeekMutateAsync.mockImplementation(() => new Promise<string>((res) => { resolveSave = res; }));
+    submitMutate.mockImplementation(
+      (_v: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
+    );
+
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    await userEvent.type(screen.getByLabelText('Acme Internal Platform, Mon hours'), '8');
+
+    const footer = screen.getByTestId('timesheets-footer');
+    await userEvent.click(within(footer).getByRole('button', { name: /submit timesheet/i }));
+    const dialog = screen.getByRole('dialog');
+    const confirmBtn = within(dialog).getByRole('button', { name: /^Submit timesheet$/i });
+
+    // Two rapid clicks while the auto-save is still in flight.
+    await userEvent.click(confirmBtn);
+    await userEvent.click(confirmBtn);
+
+    // Guard held: auto-save fired exactly once despite two clicks.
+    expect(saveWeekMutateAsync).toHaveBeenCalledTimes(1);
+
+    // Resolve → the single submit proceeds once.
+    resolveSave('ts-new');
+    await waitFor(() => expect(submitMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it('AC-W3-O1 (review fix): a persisted-valid week with an INVALID new edit DISABLES Submit (no silent submit of stale data)', async () => {
+    const weekStr = currentWeekStartStr();
+    tsState.data = [{
+      id: 'ts-persisted', user_id: 'u-alice', week_start_date: weekStr, status: 'Draft',
+      submitted_at: null, approved_by: null, approved_at: null, org_id: 'org-1',
+      entries: [
+        { id: 'ep1', timesheet_id: 'ts-persisted', project_id: 'pP', entry_date: weekStr, hours: 8,
+          notes: null, project: { name: 'Innovate Corp HQ Fit-Out', code: 'P001' } },
+      ],
+    }] as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+
+    renderPage();
+    const footer = screen.getByTestId('timesheets-footer');
+    // Persisted valid entry → Submit starts enabled.
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+
+    // Type an invalid value (25) into the persisted Monday cell.
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours');
+    await userEvent.clear(mon);
+    await userEvent.type(mon, '25');
+
+    // Submit must now be DISABLED — fix the invalid cell first; never silently submit stale data.
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
   });
 });

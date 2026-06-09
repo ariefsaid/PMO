@@ -30,7 +30,7 @@ export interface SaveWeekInput {
  * failure the query is NOT invalidated (edits are kept for retry).
  */
 export function useTimesheetEntryMutations(): {
-  saveWeek: UseMutationResult<void, TimesheetWriteError, SaveWeekInput>;
+  saveWeek: UseMutationResult<string, TimesheetWriteError, SaveWeekInput>;
   deleteRow: UseMutationResult<void, TimesheetWriteError, { entryIds: string[] }>;
 } {
   const queryClient = useQueryClient();
@@ -42,7 +42,7 @@ export function useTimesheetEntryMutations(): {
     queryClient.invalidateQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
   };
 
-  const saveWeek = useMutation<void, TimesheetWriteError, SaveWeekInput>({
+  const saveWeek = useMutation<string, TimesheetWriteError, SaveWeekInput>({
     mutationFn: async ({ currentTimesheetId, weekStartDate, diff }) => {
       // 1. Create the Draft sheet if this week has none; reuse its id as the upsert target.
       let sheetId = currentTimesheetId;
@@ -58,6 +58,11 @@ export function useTimesheetEntryMutations(): {
       for (const id of diff.deletes) {
         await deleteTimesheetEntry(id);
       }
+      // Return the resolved sheet id so chained callers (e.g. auto-save-then-submit, AC-W3-O1)
+      // can immediately submit against the correct id without waiting for the query invalidation
+      // refetch to settle. This is the same id that would eventually appear in `currentTimesheet`
+      // after the refetch — surfacing it here closes the chain without a poll/timeout.
+      return sheetId as string;
     },
     onSuccess: invalidateOwn,
   });
