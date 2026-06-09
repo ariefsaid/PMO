@@ -188,16 +188,16 @@ describe('TasksTab — create (AC-TASK-003)', () => {
     expect(arg).toMatchObject({ project_id: 'p1', name: 'Inspect equipment', status: 'To Do' });
   });
 
-  it('AC-TASK-003: blocks submit when the title is empty (inline validation)', async () => {
+  it('AC-TASK-003: a blank required name keeps submit disabled (F8 readiness — no create fires)', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /new task/i }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /create task/i }));
+    // F8 (AC-IXD-FORM-F8): the blank required task name disables submit, so the user
+    // cannot silently submit a blank task and no create mutation fires.
+    const submit = within(dialog).getByRole('button', { name: /create task/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
-    // The inline FieldError (role="alert") announces the requirement.
-    expect(
-      within(dialog).getAllByText(/task name is required/i).length,
-    ).toBeGreaterThan(0);
   });
 });
 

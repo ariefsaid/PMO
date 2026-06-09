@@ -24,6 +24,14 @@ export interface UseEntityFormOptions<T> {
   validate?: ValidateFn<T>;
   /** Optional id prefix so field ids are stable + unique across forms. */
   idPrefix?: string;
+  /**
+   * F8 (AC-IXD-FORM-F8): the fields that must be present for the form to submit.
+   * Drives `isComplete` (the submit-disabled gate). A required string field is
+   * satisfied when non-blank (trimmed); any other type when non-null/undefined.
+   * Independent of `validate` — a non-blank-but-invalid value keeps `isComplete`
+   * true so a submit can still fire, surface the format error, and move focus.
+   */
+  requiredFields?: (keyof T)[];
 }
 
 export interface FieldProps<V> {
@@ -42,6 +50,12 @@ export interface UseEntityForm<T> {
   isSubmitting: boolean;
   /** No outstanding validation errors against the current values. */
   canSubmit: boolean;
+  /**
+   * F8: every `requiredFields` entry is present (non-blank). Drives the
+   * submit-disabled gate. True when no `requiredFields` were given (opt-in).
+   * Independent of `canSubmit` — format errors do not flip this false.
+   */
+  isComplete: boolean;
   setValue: <K extends keyof T>(field: K, value: T[K]) => void;
   setValues: (next: Partial<T>) => void;
   handleBlur: (field: keyof T) => void;
@@ -56,6 +70,7 @@ export function useEntityForm<T extends object>({
   initialValues,
   validate,
   idPrefix,
+  requiredFields,
 }: UseEntityFormOptions<T>): UseEntityForm<T> {
   const [values, setValuesState] = useState<T>(initialValues);
   // `surfacedErrors` is the *committed* error map (set on blur/submit). What the
@@ -151,6 +166,20 @@ export function useEntityForm<T extends object>({
 
   const canSubmit = useMemo(() => Object.keys(liveErrors).length === 0, [liveErrors]);
 
+  // F8: every required field is present. A string must be non-blank (trimmed);
+  // any other value must be non-null/undefined. `requiredFields` may be an inline
+  // array (new identity per render), so key the memo on its joined contents.
+  const requiredKey = (requiredFields ?? []).join(' ');
+  const isComplete = useMemo(() => {
+    if (!requiredFields || requiredFields.length === 0) return true;
+    return requiredFields.every((k) => {
+      const v = values[k];
+      if (typeof v === 'string') return v.trim().length > 0;
+      return v !== null && v !== undefined;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, requiredKey]);
+
   const fieldProps = useCallback(
     <K extends keyof T>(field: K): FieldProps<T[K]> => ({
       id: `${prefixRef.current}-${String(field)}`,
@@ -169,6 +198,7 @@ export function useEntityForm<T extends object>({
     isDirty,
     isSubmitting,
     canSubmit,
+    isComplete,
     setValue,
     setValues,
     handleBlur,

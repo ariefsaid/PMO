@@ -304,13 +304,15 @@ describe('Projects index — New deal create + gating', () => {
     expect(screen.queryByRole('button', { name: /new deal/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-003: "New deal" opens the create modal; required name + client validation blocks submit', async () => {
+  it('AC-PRJ-003: "New deal" opens the create modal; blank required name + client keep submit disabled (F8 readiness)', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // Submit empty → validation errors, mutation NOT called
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
-    expect((await screen.findAllByText(/name is required/i)).length).toBeGreaterThan(0);
+    // F8 (AC-IXD-FORM-F8): the blank required name + client disable submit, so the user
+    // cannot silently submit a blank deal and no create mutation fires.
+    const submit = screen.getByRole('button', { name: /^Create deal$/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(projectMutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 

@@ -463,6 +463,9 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     },
     validate,
     idPrefix: 'document-form',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title + category
+    // are present (category defaults to a value, so the title is the live gate).
+    requiredFields: ['title', 'category'],
   });
 
   const titleField = form.fieldProps('title');
@@ -509,6 +512,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend="Document">

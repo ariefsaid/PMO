@@ -65,21 +65,25 @@ describe('AC-PROC-001 NewProcurementModal (raise a purchase request)', () => {
     expect(onCreate.mock.calls[0][0]).toMatchObject({ title: 'Cables', projectId: 'proj-1' });
   });
 
-  it('AC-PROC-001: an empty title blocks submit and shows an inline required error', async () => {
+  it('AC-PROC-001: an empty title keeps submit disabled (F8 readiness — no create fires)', async () => {
     const { onCreate, onCreated } = renderModal();
-    await userEvent.click(screen.getByRole('button', { name: /create request/i }));
+    // F8 (AC-IXD-FORM-F8): a blank required title disables submit, so the user cannot
+    // silently submit a blank request; no create fires.
+    const submit = screen.getByRole('button', { name: /create request/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(onCreate).not.toHaveBeenCalled();
     expect(onCreated).not.toHaveBeenCalled();
-    // The inline FieldError (role="alert") announces the requirement.
-    expect(screen.getAllByText(/request title is required/i).length).toBeGreaterThan(0);
   });
 
-  it('AC-PROC-001: a whitespace-only title is treated as empty and blocks submit', async () => {
+  it('AC-PROC-001: a whitespace-only title is treated as empty and keeps submit disabled', async () => {
     const { onCreate } = renderModal();
     await userEvent.type(screen.getByLabelText(/title/i), '    ');
-    await userEvent.click(screen.getByRole('button', { name: /create request/i }));
+    // Whitespace does not satisfy the required title → submit stays disabled.
+    const submit = screen.getByRole('button', { name: /create request/i });
+    expect(submit).toBeDisabled();
+    await userEvent.click(submit);
     expect(onCreate).not.toHaveBeenCalled();
-    expect(screen.getAllByText(/request title is required/i).length).toBeGreaterThan(0);
   });
 
   it('AC-PROC-001: a create failure is routed to onError and does NOT call onCreated', async () => {

@@ -413,6 +413,8 @@ const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
     },
     validate,
     idPrefix: 'incident-form',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required date + type are present.
+    requiredFields: ['incident_date', 'type'],
   });
 
   const dateField = form.fieldProps('incident_date');
@@ -459,6 +461,7 @@ const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend="What happened">

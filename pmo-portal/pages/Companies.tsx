@@ -368,6 +368,8 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     initialValues: { name: company?.name ?? '', type: company?.type ?? 'Client' },
     validate,
     idPrefix: 'company-form',
+    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
+    requiredFields: ['name'],
   });
 
   const nameField = form.fieldProps('name');
@@ -400,6 +402,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
       <FormSection legend="Identity">
