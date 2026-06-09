@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import Timesheets from './Timesheets';
 
 // ── Clock-pin (date-drift fix) ───────────────────────────────────────────────
@@ -71,13 +72,18 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
 }));
 
+// These journeys are a PM entering / viewing their own week + the approvals queue; render
+// under a PM real role so the A-6 timesheet-entry gate (Admin·Exec·PM·Engineer) keeps the grid
+// editable and the A-2 approver gate keeps the queue actionable.
 const renderPage = () =>
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <Timesheets />
-      </ToastProvider>
-    </MemoryRouter>,
+    <ImpersonationProvider realRole="Project Manager">
+      <MemoryRouter>
+        <ToastProvider>
+          <Timesheets />
+        </ToastProvider>
+      </MemoryRouter>
+    </ImpersonationProvider>,
   );
 
 beforeEach(() => {
@@ -668,11 +674,13 @@ describe('timesheet-entry: re-seed identity (Task 16 regression)', () => {
     //    unsaved local row.
     tsState.data = sheetWith([]) as unknown as TimesheetWithEntries[];
     rerender(
-      <MemoryRouter>
-        <ToastProvider>
-          <Timesheets />
-        </ToastProvider>
-      </MemoryRouter>,
+      <ImpersonationProvider realRole="Project Manager">
+        <MemoryRouter>
+          <ToastProvider>
+            <Timesheets />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>,
     );
 
     // ── The unsaved local row + its typed hours MUST survive the refetch (not re-seeded away).

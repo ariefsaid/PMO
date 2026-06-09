@@ -11,6 +11,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { TimesheetStatus } from '../../types';
+import { usePermission } from '@/src/auth/usePermission';
 import { useTimesheetsAwaitingApproval, useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -50,6 +51,13 @@ export const ApprovalsQueue: React.FC = () => {
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
+  const may = usePermission();
+  // A-2 (rbac-visibility §I + OD-W2-2): Approve/Return is offered ONLY to the actual approver
+  // roles (Admin·Exec·PM via approval.transition). Finance·Engineer = ○ — the policy keeps
+  // DENYING Engineer (OD-W2-2: Engineer-approval stays OFF at the FE). A non-approver who can
+  // still READ the queue sees read-only rows (owner + hours + status, no action buttons). The
+  // queue already excludes the caller's own sheets (SoD); the RPC is the authority (ADR-0016).
+  const isApprover = may('transition', 'approval');
   const [pending, setPending] = useState<PendingApproval | null>(null);
 
   // T2/T3: commit the staged action and toast on resolve (§6.7). The RPC contract
@@ -130,7 +138,8 @@ export const ApprovalsQueue: React.FC = () => {
           {sheets.map((sheet) => {
             const total = sumHours(sheet);
             // isOwner=false: the queue already excludes the caller's own sheets (SoD).
-            const actions = timesheetActions(sheet.status as TimesheetStatus, false, true);
+            // isApprover from the real-role gate (A-2): a non-approver gets read-only rows.
+            const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
             return (
               <ApprovalRow
                 key={sheet.id}
