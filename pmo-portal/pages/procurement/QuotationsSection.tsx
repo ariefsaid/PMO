@@ -12,7 +12,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
@@ -82,10 +82,11 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   };
 
   const submitAdd = async () => {
-    if (!vendorId || !total.trim()) return;
-    const stripped = total.replace(/,/g, '');
-    const parsed = Number(stripped);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (!vendorId) return;
+    // Validate + persist through the SAME parse (Wave 3 input integrity) — never the old
+    // `parseFloat(...)||0` that silently saved 0 for non-empty garbage.
+    const parsed = parseMoneyInput(total);
+    if (parsed === null || parsed <= 0) {
       setTotalError('Quoted total must be a number greater than 0.');
       return;
     }

@@ -8,7 +8,7 @@ import {
   ConfirmDialog,
   FieldError,
 } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
@@ -30,22 +30,21 @@ export interface ItemDraft {
 
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 
-/** Parse a possibly-formatted numeric string → number (0 on empty/invalid). */
+/** Parse a possibly-formatted numeric string → number (0 on empty/invalid). Delegates to the
+ *  shared `parseMoneyInput` so the persisted value matches what `validateLineNum` accepted. */
 function num(v: string): number {
-  const n = parseFloat(v.replace(/,/g, ''));
-  return Number.isFinite(n) ? n : 0;
+  return parseMoneyInput(v) ?? 0;
 }
 
 /**
  * Validate a raw numeric field string for a line-item column.
  * Returns an error message string, or undefined when valid.
- * Must be non-empty and parse to a finite number > 0.
+ * Must be non-empty and parse (via the SAME `parseMoneyInput` used to persist) to a number > 0.
  */
 function validateLineNum(raw: string, label: string): string | undefined {
-  const trimmed = raw.trim();
-  if (!trimmed) return `${label} is required.`;
-  const n = Number(trimmed.replace(/,/g, ''));
-  if (!Number.isFinite(n) || n <= 0) return `${label} must be a number greater than 0.`;
+  if (!raw.trim()) return `${label} is required.`;
+  const n = parseMoneyInput(raw);
+  if (n === null || n <= 0) return `${label} must be a number greater than 0.`;
   return undefined;
 }
 

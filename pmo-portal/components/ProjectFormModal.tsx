@@ -11,6 +11,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
+import { parseMoneyInput } from '@/src/lib/format';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -68,30 +69,26 @@ interface FormValues {
 const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: s }));
 
 /**
- * Return true when the raw money string is valid: either blank (optional) or a
- * string that parses to a finite, non-negative number after stripping commas.
+ * "Estimated value" is OPTIONAL (a pre-win estimate may be unset). Blank → valid (unset).
+ * Non-blank must parse (via the SAME `parseMoneyInput` used to persist — Wave 3 input integrity)
+ * to a finite, non-negative number; otherwise an inline error blocks the submit.
  */
-function isValidMoneyInput(raw: string): boolean {
-  if (!raw.trim()) return true; // optional — blank is fine
-  const stripped = raw.replace(/,/g, '');
-  const n = Number(stripped);
-  return Number.isFinite(n) && n >= 0;
+function moneyError(raw: string): string | undefined {
+  if (!raw.trim()) return undefined; // optional — blank is fine
+  const n = parseMoneyInput(raw);
+  return n === null || n < 0
+    ? 'Enter a valid non-negative number (e.g. 1,500,000).'
+    : undefined;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.name.trim()) errors.name = 'Opportunity name is required.';
   if (!v.clientId) errors.clientId = 'Select a client company.';
-  if (!isValidMoneyInput(v.value))
-    errors.value = 'Enter a valid non-negative number (e.g. 1,500,000).';
+  const valueErr = moneyError(v.value);
+  if (valueErr) errors.value = valueErr;
   return errors;
 };
-
-/** Parse a formatted money string ("4,820,000") to a number; empty → 0. */
-function parseMoney(raw: string): number {
-  const n = Number(raw.replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
 
 export interface ProjectFormModalProps {
   /** Omit (or 'create') for a new deal; 'editHeader' to edit an existing project. */
@@ -195,7 +192,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             status: values.status,
             client_id: values.clientId,
             project_manager_id: values.pmId,
-            contract_value: parseMoney(values.value),
+            contract_value: parseMoneyInput(values.value) ?? 0,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };

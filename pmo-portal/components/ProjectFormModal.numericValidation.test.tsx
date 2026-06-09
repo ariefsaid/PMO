@@ -76,7 +76,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
     await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
     // Inline FieldError must appear.
-    expect(await screen.findByRole('alert', { name: undefined })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -105,6 +105,18 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1500 });
+  });
+
+  it('AC-W3-NUM-001: validate==persist — a value that passes validation is the value saved ("1e5" → 100000, not the old strip-regex 15)', async () => {
+    // Regression for the validator↔persist-parser divergence: the old `parseMoney` stripped the
+    // "e" ("1e5"→"15") while the validator used Number ("1e5"→100000). Both now route through the
+    // shared parseMoneyInput, so the validated number IS the persisted number.
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '1e5');
+    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 100000 });
   });
 
   it('AC-W3-NUM-001: comma-formatted value ("4,820,000") submits with the correct parsed number', async () => {
