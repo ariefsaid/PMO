@@ -216,3 +216,5 @@ This section is HISTORICAL. The owner scope decision was made and most of these 
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project` (plugin); `scripts/vendor-skills.sh` (vendored skills); `cd pmo-portal && npm install`; `npx playwright install chromium`.
 - Backend: `supabase start && supabase db reset` (seeds generic professional-services data + credentialed users; password `Passw0rd!dev`). Put the printed URL/anon key in `pmo-portal/.env.local`.
 - App: `cd pmo-portal && npm run dev`. Gates: `npm run typecheck` · `npm run lint:ci` · `npm test` · `npm run build` · `npx playwright test` (stack up) · `supabase test db` (pgTAP).
+
+**▶ Wave-5 Cluster 6 — D13 DONE (dead Attach-file button removed); D11/D12 detail drawers DEFERRED (OD-W5-C6, owner skipped to Wave 4). Plan ready: `docs/plans/2026-06-10-wave5-detail-drawers.md`.**

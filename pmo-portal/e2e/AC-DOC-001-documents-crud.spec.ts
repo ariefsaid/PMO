@@ -132,7 +132,7 @@ test(
 // ── AC-DOC-007 — Engineer gating + the deferred file-upload affordance ──
 
 test(
-  'AC-DOC-007 gating: engineer sees a read-only register (no "Add document") and the "Attach file" control is disabled (Storage deferred)',
+  'AC-DOC-007 gating: engineer sees a read-only register (no "Add document"); file-upload deferral is signposted by copy, not a dead button (D13)',
   async ({ page }) => {
     await login(page, 'engineer@acme.test');
     await openDocumentsTab(page);
@@ -140,9 +140,9 @@ test(
     // GOAL ORACLE: no write affordance for the Engineer.
     await expect(page.getByRole('button', { name: /add document/i })).not.toBeVisible({ timeout: 10_000 });
 
-    // The file-upload affordance is present but DISABLED (never a broken upload control).
-    const attach = page.getByRole('button', { name: /attach file/i });
-    await expect(attach).toBeVisible();
-    await expect(attach).toBeDisabled();
+    // D13 (honest-affordance): the dead disabled "Attach file (coming soon)" button was removed;
+    // the Storage deferral is signposted by the register copy, never a fake disabled control.
+    await expect(page.getByRole('button', { name: /attach file/i })).toHaveCount(0);
+    await expect(page.getByText(/file attachments arrive with Storage/i)).toBeVisible();
   },
 );
