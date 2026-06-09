@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  ListState,
-  StatusPill,
-  type StatusVariant,
-} from '@/src/components/ui';
+import { ListState } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
@@ -24,14 +20,6 @@ import type { TaskStatus } from '@/src/lib/db/tasks';
 // DB enum values (database.types.ts: "To Do" | "In Progress" | "Done" | "Blocked").
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-
-/** Status → StatusPill variant (mirrors TasksTab). */
-const TASK_PILL: Record<TaskStatus, StatusVariant> = {
-  'To Do': 'neutral',
-  'In Progress': 'open',
-  'Done': 'won',
-  'Blocked': 'lost',
-};
 
 const MyTasks: React.FC = () => {
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
@@ -106,27 +94,23 @@ const MyTasks: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    {/* Inline status control — Engineer may set own task status per the
+                    {/* Inline status control — the select IS the status display (its selected
+                        value), so no separate pill. Engineer may set own task status per the
                         `taskStatus` policy predicate (assignee_id = self). */}
-                    <div className="flex shrink-0 items-center gap-2">
-                      <StatusPill variant={TASK_PILL[task.status]}>
-                        {task.status}
-                      </StatusPill>
-                      <select
-                        aria-label={`Change status of ${task.name}`}
-                        value={task.status}
-                        onChange={(e) =>
-                          updateStatus.mutate({ id: task.id, status: e.target.value as TaskStatus })
-                        }
-                        className="h-7 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        {TASK_STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      aria-label={`Change status of ${task.name}`}
+                      value={task.status}
+                      onChange={(e) =>
+                        updateStatus.mutate({ id: task.id, status: e.target.value as TaskStatus })
+                      }
+                      className="h-7 shrink-0 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {TASK_STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 ))}
               </div>

@@ -47,9 +47,9 @@ test(
     await expect(statusSelect).toBeVisible({ timeout: 10_000 });
     await statusSelect.selectOption('Done');
 
-    // After the mutation, the status select still shows "Done" (optimistic / refetched).
-    // The in-progress pill should no longer appear next to Fit-out.
-    // Re-query to confirm the change persisted through the invalidate refetch.
+    // After the mutation, the status select still shows "Done" (optimistic / refetched) —
+    // the select's value IS the status display. Re-query to confirm the change persisted
+    // through the invalidate refetch.
     await expect(statusSelect).toHaveValue('Done', { timeout: 15_000 });
   },
 );
