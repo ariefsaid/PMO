@@ -601,12 +601,12 @@ const ProcurementDetails: React.FC = () => {
 
       {/* N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel — budget-remaining + variance.
           Renders ONLY when project_id is set; is a pure read-only evidence block.
-          project.budget and project.spent come from the widened DETAIL_SELECT join. */}
+          Committed spend is sourced inside the panel (useProjectCommittedSpend, the
+          honest Σ-PO-in-Ordered..Paid basis) — no widened join needed. */}
       <DecisionSupportPanel
         projectId={p.project_id}
         totalValue={Number(p.total_value)}
         projectName={p.project?.name ?? null}
-        projectSpent={p.project?.spent ?? 0}
       />
 
       {/* Editable line items (requester + PM/Finance/Admin while Draft) */}

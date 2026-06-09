@@ -8,7 +8,7 @@ const { mockSelect, mockFrom } = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
 
-import { listProcurements } from './procurements';
+import { listProcurements, getProjectCommittedSpend } from './procurements';
 
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
@@ -54,5 +54,51 @@ describe('listProcurements', () => {
   it('throws on PostgREST error (AC-509)', async () => {
     makeBuilder({ data: null, error: { message: 'boom' } });
     await expect(listProcurements()).rejects.toThrow('boom');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-IXD-PROC-W5-2 — getProjectCommittedSpend (committed basis, OD-W5-4)
+// ---------------------------------------------------------------------------
+function makeChainedBuilder(resolved: { data: unknown; error: unknown }) {
+  const mockEq = vi.fn();
+  const mockIn = vi.fn();
+  const builder = { select: mockSelect, eq: mockEq, in: mockIn };
+  mockFrom.mockReturnValue(builder);
+  mockSelect.mockReturnValue(builder);
+  mockEq.mockReturnValue(builder);
+  mockIn.mockResolvedValue(resolved);
+  return { mockEq, mockIn };
+}
+
+describe('getProjectCommittedSpend', () => {
+  it('sums total_value over Ordered..Paid PRs for the project (OD-W5-4 committed basis)', async () => {
+    const { mockEq, mockIn } = makeChainedBuilder({
+      data: [{ total_value: 120000 }, { total_value: 30000 }, { total_value: 50000 }],
+      error: null,
+    });
+    const total = await getProjectCommittedSpend('proj-1');
+    expect(mockFrom).toHaveBeenCalledWith('procurements');
+    expect(mockSelect).toHaveBeenCalledWith('total_value');
+    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
+    // The exact dashboard basis (0009): Ordered / Received / Vendor Invoiced / Paid.
+    expect(mockIn).toHaveBeenCalledWith('status', ['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
+    expect(total).toBe(200000);
+  });
+
+  it('returns 0 when there are no committed POs', async () => {
+    makeChainedBuilder({ data: [], error: null });
+    await expect(getProjectCommittedSpend('proj-1')).resolves.toBe(0);
+  });
+
+  it('sends no org_id (RLS scopes it)', async () => {
+    makeChainedBuilder({ data: [], error: null });
+    await getProjectCommittedSpend('proj-1');
+    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+  });
+
+  it('throws on PostgREST error', async () => {
+    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    await expect(getProjectCommittedSpend('proj-1')).rejects.toThrow('kaboom');
   });
 });

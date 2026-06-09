@@ -57,16 +57,9 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
-}));
-// N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile is now rendered in the exec KPI band.
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: [], isPending: false, isError: false }),
-}));
-vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false }),
 }));
 
 const renderPage = () =>

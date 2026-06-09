@@ -57,17 +57,9 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   },
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
-}));
-// N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile is now rendered in the exec KPI band.
-// Provide minimal mocks so the tile renders without a QueryClientProvider.
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: [], isPending: false, isError: false }),
-}));
-vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false }),
 }));
 
 const renderPage = () =>
@@ -175,15 +167,14 @@ describe('ExecutiveDashboard token purity / no mockData', () => {
     expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
   });
 
-  it('reflows the KPI band 1→2→3→7 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
+  it('reflows the KPI band 1→2→3→6 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
     const { container } = renderPage();
     const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
-    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug.
-    // N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile added → widest tier is now grid-cols-7.
+    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
     expect(band.className).toContain('grid-cols-1');
     expect(band.className).toContain('min-[560px]:grid-cols-2');
     expect(band.className).toContain('min-[920px]:grid-cols-3');
-    expect(band.className).toContain('min-[1180px]:grid-cols-7');
+    expect(band.className).toContain('min-[1180px]:grid-cols-6');
     // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
     expect(band.className).not.toContain('sm:grid-cols');
   });

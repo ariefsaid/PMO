@@ -31,13 +31,6 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
-// N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile now renders in Finance KPI band.
-vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Finance', realRole: 'Finance' }),
-}));
-vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false }),
-}));
 
 const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
 
@@ -46,8 +39,7 @@ describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', (
     const { container } = renderPane();
     const band = container.querySelector('[aria-label="Finance KPIs"]') as HTMLElement;
     expect(band.className).toContain('min-[560px]:grid-cols-2');
-    // N15 (AC-IXD-PROC-W5-2): AwaitingApprovalTile added → Finance KPI band is now 5 columns.
-    expect(band.className).toContain('min-[1180px]:grid-cols-5');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
     expect(band.className).not.toContain('sm:grid-cols');
   });
 });
