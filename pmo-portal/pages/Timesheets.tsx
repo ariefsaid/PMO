@@ -81,6 +81,11 @@ const TimesheetsPage: React.FC = () => {
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the toggle is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
+  // O1 (review fix): synchronous re-entrancy guard for the async Submit. React Query's
+  // `isPending` only flips on the next render, so a fast double-click on the confirm fires
+  // `commitSubmit` twice before the `loading` prop updates — on a fresh week that means TWO
+  // lazy-Draft creates → two sheets. This ref blocks the second invocation in the same tick.
+  const submittingRef = useRef(false);
   const [view, setView] = useTimesheetsView();
   // T1: the Submit button stages this confirm; nothing submits on a single click.
   const [confirmSubmit, setConfirmSubmit] = useState(false);
@@ -379,8 +384,12 @@ const TimesheetsPage: React.FC = () => {
   // The buffer having hours is detected via editValid && editRows.some(r => r.hours.some(h => h !== ''))
   // (equivalent: editTotals.weekly > 0 since invalid cells count as 0 and empty cells count as 0).
   const editBufferHasHours = editValid && editTotals.weekly > 0;
-  // canSubmit now covers BOTH the already-saved path and the auto-save-first path.
-  const canSubmit = (actions.submit && currentWeekEntries.length > 0) || editBufferHasHours;
+  // canSubmit covers BOTH the already-saved path and the auto-save-first path — but is gated on
+  // `editValid` (review minor): if the visible buffer is dirty-but-INVALID (e.g. a 25h cell), do
+  // NOT offer Submit against the stale persisted data and silently discard the edits; force the
+  // user to fix/clear the invalid cell first (the grid shows the validation, Save stays disabled).
+  const canSubmit =
+    editValid && ((actions.submit && currentWeekEntries.length > 0) || editBufferHasHours);
 
   // OD-W3-1 (AC-W3-O1): commit the week for approval.
   //
@@ -394,6 +403,12 @@ const TimesheetsPage: React.FC = () => {
   // The confirm dialog still gates the action (consequential write), the RPC contract
   // (submit_timesheet { id }) is preserved, and the seedKey re-seed-race guard is unchanged.
   const commitSubmit = async () => {
+    // Re-entrancy guard (review fix): block a synchronous double-click on the confirm before the
+    // first save/submit's `isPending` becomes observable. Cleared in EVERY terminal path below
+    // (save-error, no-sheet, submit success, submit error) — NOT in a finally, because the trailing
+    // `submit.mutate` is fire-and-forget, so the ref must stay held until that mutation settles.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     let sheetId = currentTimesheet?.id ?? null;
 
     // Compute the diff to detect dirty state (mirrors commitSave logic).
@@ -415,6 +430,7 @@ const TimesheetsPage: React.FC = () => {
         });
       } catch (err: unknown) {
         // Auto-save failed — don't attempt the submit; surface the error.
+        submittingRef.current = false;
         setConfirmSubmit(false);
         toast('Save failed', err instanceof Error ? err.message : undefined, 'warning');
         return;
@@ -423,6 +439,7 @@ const TimesheetsPage: React.FC = () => {
 
     if (!sheetId) {
       // Shouldn't happen if canSubmit is guarded correctly, but defend gracefully.
+      submittingRef.current = false;
       setConfirmSubmit(false);
       return;
     }
@@ -431,10 +448,12 @@ const TimesheetsPage: React.FC = () => {
       { id: sheetId },
       {
         onSuccess: () => {
+          submittingRef.current = false;
           setConfirmSubmit(false);
           toast('Timesheet submitted', 'Sent to your line manager for approval', 'success');
         },
         onError: (err: unknown) => {
+          submittingRef.current = false;
           setConfirmSubmit(false);
           toast('Submit failed', err instanceof Error ? err.message : undefined, 'warning');
         },
