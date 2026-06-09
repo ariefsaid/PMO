@@ -100,6 +100,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   company: {
+    // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no
+    // nav, no page). Drives the page-level Companies gate (A-5).
+    view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     archive: allow(ARCHIVE_ROLES),
