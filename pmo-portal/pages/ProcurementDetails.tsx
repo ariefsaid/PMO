@@ -314,8 +314,11 @@ const ProcurementDetails: React.FC = () => {
   // Received); the VI form only while the request is at Vendor Invoiced. Neither
   // persists into the terminal Paid state under "No further actions". An already-
   // created GR/VI stays legible (read-only) via the document trail + stat tiles.
+  // AC-AUTHZ: mirror the Ordered→Received transition authority from the RPC — requester OR PM,
+  // plus Admin break-glass. Finance and Executive are NOT in the GR-creation role set (0018).
   const canShowGRForm =
-    (p.status === 'Ordered' || p.status === 'Received') && canSource(role);
+    (p.status === 'Ordered' || p.status === 'Received') &&
+    (isRequester || RECEIPT_ROLES.has(role));
   // O3 (review): the after-form is now the RECOVERY surface — it shows only when the PR is at
   // Vendor Invoiced but NO invoice record exists yet (e.g. the inline capture's transition
   // succeeded but the invoice-create failed). On the happy path the inline capture already created

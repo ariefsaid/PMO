@@ -756,26 +756,44 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
   beforeEach(() => {
     detailState.isPending = false;
     detailState.isError = false;
-    mockEffectiveRole = 'Finance';
+    // AC-AUTHZ (0018): GR creation authority = requester OR PM (not Finance).
+    // Tests that exercise the GR form use PM role or make the user the requester.
+    mockEffectiveRole = 'Project Manager';
     mockCreateReceipt.mockClear();
     mockCreateReceipt.mockResolvedValue({ id: 'r-new' });
   });
 
-  it('shows Create Goods Receipt button for Finance on Received status', () => {
+  it('shows Create Goods Receipt button for PM on Received status', () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
   });
 
-  it('shows Create Goods Receipt button for Finance on Ordered status', () => {
+  it('shows Create Goods Receipt button for PM on Ordered status', () => {
     detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
   });
 
-  it('does NOT show Create GR button for Engineer', () => {
+  it('does NOT show Create GR button for Engineer who is NOT the requester', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.queryByTestId('btn-create-gr')).not.toBeInTheDocument();
+  });
+
+  // AC-AUTHZ: GR form mirrors the Ordered→Received authority — requester OR PM, not Finance.
+  it('AC-AUTHZ: Engineer who IS the requester sees the GR form (mirrors RPC requester-OR-PM authority)', () => {
+    mockEffectiveRole = 'Engineer';
+    // u-alice is the mocked currentUser — making them the requester.
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-alice', receipts: [], invoices: [] };
+    renderPage();
+    expect(screen.getByTestId('btn-create-gr')).toBeInTheDocument();
+  });
+
+  it('AC-AUTHZ: Finance does NOT see the GR form (Finance excluded from Ordered→Received authority)', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.queryByTestId('btn-create-gr')).not.toBeInTheDocument();
   });
