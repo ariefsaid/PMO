@@ -283,3 +283,13 @@ Pre-win editing stays Admin/Exec/PM; Finance only at the won-SoD boundary. Flag-
 ### OD-W2-4 — Executive Tasks = via the project Tasks tab; no top-level `/tasks` console (ratified).
 ### OD-W2-5 — Dead/no-op affordances = honest-disabled / removed (OD-UX-3 precedent)
 `/reports` = honest "coming soon" stub; the notification **bell is REMOVED** (no destination); the Sales **"Export" → disabled "arrives with Reports"**.
+
+## OD-W3 — UX-naturalness Wave 3 task-flow decisions (LOCKED 2026-06-09, owner-decided; from the new IxD task-flow audits)
+### OD-W3-1 — Timesheet **Submit auto-saves first** = BUILD (Wave 3)
+Keep both Save + Submit buttons (per the owner's original Wave-1 ask), but **Submit no longer requires a prior Save click**: it saves any valid dirty rows, then submits, then the final confirm. Submit-readiness must read the edit buffer, not only persisted entries. The owner's originally-flagged timesheet flow; pairs with F5.
+### OD-W3-2 — Procurement create = KEEP the two-step (no change)
+"Raise request" stays modal (title/project/vendor) → Draft → detail page for line items. A Draft PR is a legitimate, editable, cancellable state; the cohesive-composer rework is not worth it.
+### OD-W3-3 — Vendor-Invoice capture = CO-LOCATE with the transition = BUILD (Wave 3)
+Entering the invoice details becomes part of the **Mark-Vendor-Invoiced** action (one step), mirroring the Mark-won inline contract-ref/date capture — evidence-with-state, no "invoiced before the invoice". Touches `ProcurementDetails.tsx`; pairs with N1.
+### OD-W3-4 — Inline pipeline stage-change = KEEP / DEFER (no change)
+No drag-and-drop / row-dropdown stage change on the board; the detail page (PipelineLens) stays the single place to advance a deal. DnD kanban is a sizeable build — revisit only if pipeline grooming becomes a real pain.
