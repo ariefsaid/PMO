@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -68,7 +68,27 @@ export const EngineerDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <DashPageHead title="My Dashboard" sub="Your hours this week and timesheet status." />
+      {/*
+       * AC-IXD-DASH-W5-C2C D4: "Log this week's hours" primary CTA in the page head.
+       * Exactly one primary action (OD-UX one-primary rule). Rendered unconditionally —
+       * it must be visible regardless of data loading/error state.
+       * Using Link (rendered as <a>) with primary button styling so it is both a
+       * real navigation element (role=link, accessible name) and carries the primary
+       * visual treatment (bg-primary, primary-foreground per DESIGN.md).
+       */}
+      <DashPageHead
+        title="My Dashboard"
+        sub="Your hours this week and timesheet status."
+        actions={
+          <Link
+            to="/timesheets"
+            data-testid="cta-log-hours"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[13.5px] font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            Log this week&apos;s hours
+          </Link>
+        }
+      />
 
       <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         {/* AC-IXD-DASH-W5-C2A: Hours this week → /timesheets (the one place an IC acts) */}
