@@ -7,7 +7,11 @@ export interface GateNoticeProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
-/** Separation-of-duties / readiness gate banner. AA darkened text variants. */
+/** Separation-of-duties / readiness gate banner. AA darkened text variants.
+ *  a11y: a `blocked` gate is the reason an action is withheld, so it is
+ *  announced (`role="alert"`); a `ready` gate is static advisory text read in
+ *  normal reading order (no live-region role — that's reserved for toasts).
+ *  A caller-supplied `role` overrides the default (spread last). */
 export const GateNotice: React.FC<GateNoticeProps> = ({
   variant,
   children,
@@ -15,6 +19,7 @@ export const GateNotice: React.FC<GateNoticeProps> = ({
   ...rest
 }) => (
   <div
+    role={variant === 'blocked' ? 'alert' : undefined}
     className={cn(
       'flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px] [&_svg]:mt-px [&_svg]:size-[17px] [&_svg]:shrink-0',
       variant === 'blocked'

@@ -130,11 +130,16 @@ function allowedActions(
   }
 
   // Approved → Vendor Quoted / Ordered (skip): PM/Finance/Admin (FR-PROC-008)
+  // D7 (AC-IXD-PROC-W5-1b): at Approved, "Request Vendor Quotes" is the canonical
+  // primary (OD-W5-2 — quoting first is the conventional lower-risk path). "Generate
+  // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
+  // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
   if (legal('Vendor Quoted') && canSource(role)) {
     actions.push({ to: 'Vendor Quoted', label: 'Request Vendor Quotes', variant: 'primary' });
   }
   if (legal('Ordered') && canSource(role) && status === 'Approved') {
-    actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'primary' });
+    // outline (not primary) — see D7 note above
+    actions.push({ to: 'Ordered', label: 'Generate Purchase Order', variant: 'outline' });
   }
 
   // Vendor Quoted → Quote Selected: PM/Finance/Admin
@@ -173,6 +178,23 @@ function allowedActions(
   }
 
   return actions;
+}
+
+/**
+ * D8 (AC-IXD-PROC-W5-1d): Sort actions so the visual/tab order is always:
+ *   primary → outline → destructive (Cancel/Reject last, never above the primary)
+ * This is a deliberate, fixed order — not relying on push-order + flex-wrap.
+ * Weight: primary=0, outline/success=1, destructive=2.
+ */
+function sortActions(
+  actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[],
+): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
+  const weight = (v: ActionVariant): number => {
+    if (v === 'primary') return 0;
+    if (v === 'destructive') return 2;
+    return 1; // outline, success
+  };
+  return [...actions].sort((a, b) => weight(a.variant) - weight(b.variant));
 }
 
 /** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
@@ -278,7 +300,8 @@ const ProcurementDetails: React.FC = () => {
   const isRequester = p.requested_by_id === currentUser?.id;
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
-  const actions = allowedActions(p.status, role, isRequester, isApprover);
+  // D8: sort so primary → outline/success → destructive (Cancel/Reject always last)
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -567,27 +590,98 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* SoD / readiness gate */}
-      {gateMsg ? (
-        <div className="mb-4">
-          <GateNotice variant="blocked">
-            <b>Separation-of-duties gate.</b> {gateMsg}
-          </GateNotice>
-        </div>
-      ) : actions.length > 0 ? (
-        <div className="mb-4">
-          <GateNotice variant="ready">
-            <b>Ready to advance.</b> You may move this request to its next lifecycle stage below.
-          </GateNotice>
-        </div>
-      ) : null}
+      {/* ░░ EVIDENCE ZONE — read first (N7: AC-IXD-PROC-W5-1a) ░░
+          StatTiles → [PR-2 DecisionSupportPanel slot] → LineItems → Quotations+DocTrail
+          All evidence blocks appear ABOVE the DecisionCard in both DOM order and
+          visual order so the approver reviews facts before acting. */}
 
       {/* Stat strip */}
       <StatTiles tiles={stats} className="mb-4" />
 
-      {/* Action bar (AC-805) */}
-      <Card className="mb-4">
+      {/* PR-2 SLOT — DecisionSupportPanel (budget-remaining + variance) goes here.
+          Do NOT build this panel in PR-1. When PR-2 is ready, insert:
+            <DecisionSupportPanel projectId={p.project_id} totalValue={p.total_value} />
+          inside this comment block. The panel renders ONLY when p.project_id is set. */}
+
+      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
+      <LineItemsSection
+        items={p.items}
+        editable={canEditItems}
+        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
+        onError={onMutationError}
+        onAdd={async (input) => {
+          await crud.createItem.mutateAsync(input);
+          toast('Line item added', input.name, 'success');
+        }}
+        onUpdate={async (id, patch) => {
+          await crud.updateItem.mutateAsync({ id, patch });
+          toast('Line item updated', patch.name, 'success');
+        }}
+        onDelete={async (id) => {
+          await crud.deleteItem.mutateAsync(id);
+          toast('Line item removed', undefined, 'success');
+        }}
+      />
+
+      {/* Quotations (add + select-quote) + document trail */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <QuotationsSection
+          quotations={p.quotations}
+          selectedId={selectedQuote?.id ?? null}
+          canAdd={canAddQuote}
+          canSelect={canSelectQuote}
+          addBusy={mutations.createQuotation.isPending}
+          selectBusy={crud.selectQuote.isPending}
+          onError={onMutationError}
+          onAdd={async (input) => {
+            await mutations.createQuotation.mutateAsync(input);
+            toast('Quotation added', undefined, 'success');
+          }}
+          onSelect={async (quotationId) => {
+            await crud.selectQuote.mutateAsync(quotationId);
+            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+          }}
+        />
+
+        <Card>
+          <CardHead>Document trail</CardHead>
+          <CardPad className="flex flex-col gap-2">
+            <DocRow label="PR#" value={p.pr_number} />
+            {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
+            <DocRow label="PO#" value={p.po_number} />
+            {p.receipts.map((r) => (
+              <DocRow key={r.id} label="GR#" value={r.gr_number} sub={r.status} />
+            ))}
+            {p.invoices.map((inv) => (
+              <DocRow key={inv.id} label="VI#" value={inv.vi_number} sub={inv.status} />
+            ))}
+          </CardPad>
+        </Card>
+      </div>
+
+      {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
+          DecisionCard anchored BELOW all evidence. Contains:
+            • SoD GateNotice (D6) — when blocked, up-front so the viewer
+              learns WHY before looking for missing buttons
+            • "Ready to advance" GateNotice — when actions exist
+            • Notes textarea (approve/reject only)
+            • Action row: ONE primary → outline secondaries → destructive LAST (D7/D8)
+            • Inline mutation error (role=alert) */}
+      <Card className="mb-4" data-testid="decision-card">
         <CardPad className="flex flex-col gap-3">
+          {/* D6: SoD / readiness gate inside the DecisionCard — co-located with the
+              (absent or present) action buttons so the viewer never hunts for the
+              reason they can't act. One authoritative notice; no duplicate banners. */}
+          {gateMsg ? (
+            <GateNotice variant="blocked">
+              <b>Separation-of-duties gate.</b> {gateMsg}
+            </GateNotice>
+          ) : actions.length > 0 ? (
+            <GateNotice variant="ready">
+              <b>Ready to advance.</b> You may move this request to its next lifecycle stage below.
+            </GateNotice>
+          ) : null}
+
           {showNotes && (
             <div className="flex max-w-md flex-col gap-1">
               <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
@@ -604,6 +698,7 @@ const ProcurementDetails: React.FC = () => {
               />
             </div>
           )}
+
           {/* O3 (AC-W3-O3): inline VI capture replaces the "Mark Vendor Invoiced" button
               when the user clicks it, co-locating invoice capture with the transition action. */}
           {showVICapture ? (
@@ -613,6 +708,10 @@ const ProcurementDetails: React.FC = () => {
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
           ) : actions.length > 0 ? (
+            // D8: actions are pre-sorted (primary → outline/success → destructive) by
+            // sortActions() above, so Cancel/Reject always render last in DOM order.
+            // The flex-wrap direction preserves this: the destructive action wraps
+            // below the primary on narrow layouts, never above it.
             <div className="flex flex-wrap gap-2">
               {actions.map((action) => {
                 // D10 (AC-W3-D10): block Draft → Requested when there are no line items.
@@ -644,6 +743,7 @@ const ProcurementDetails: React.FC = () => {
               No further lifecycle actions are available to you at this stage.
             </p>
           )}
+
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
             <p className="text-[13px] text-muted-foreground" data-testid="line-items-gate">
@@ -658,6 +758,11 @@ const ProcurementDetails: React.FC = () => {
           )}
         </CardPad>
       </Card>
+
+      {/* GR / VI capture panels — these stay near the decision zone because they ARE
+          the action at their respective stages (OD-W3-3 co-location). The reorder
+          moves the approval decision (Requested stage) above the evidence; GR/VI
+          panels do not disrupt the approver's read-then-decide flow. */}
 
       {/* GR creation panel (AC-816) */}
       {canShowGRForm && (
@@ -778,62 +883,6 @@ const ProcurementDetails: React.FC = () => {
           </CardPad>
         </Card>
       )}
-
-      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
-      <LineItemsSection
-        items={p.items}
-        editable={canEditItems}
-        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
-        onError={onMutationError}
-        onAdd={async (input) => {
-          await crud.createItem.mutateAsync(input);
-          toast('Line item added', input.name, 'success');
-        }}
-        onUpdate={async (id, patch) => {
-          await crud.updateItem.mutateAsync({ id, patch });
-          toast('Line item updated', patch.name, 'success');
-        }}
-        onDelete={async (id) => {
-          await crud.deleteItem.mutateAsync(id);
-          toast('Line item removed', undefined, 'success');
-        }}
-      />
-
-      {/* Quotations (add + select-quote) + document trail */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <QuotationsSection
-          quotations={p.quotations}
-          selectedId={selectedQuote?.id ?? null}
-          canAdd={canAddQuote}
-          canSelect={canSelectQuote}
-          addBusy={mutations.createQuotation.isPending}
-          selectBusy={crud.selectQuote.isPending}
-          onError={onMutationError}
-          onAdd={async (input) => {
-            await mutations.createQuotation.mutateAsync(input);
-            toast('Quotation added', undefined, 'success');
-          }}
-          onSelect={async (quotationId) => {
-            await crud.selectQuote.mutateAsync(quotationId);
-            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
-          }}
-        />
-
-        <Card>
-          <CardHead>Document trail</CardHead>
-          <CardPad className="flex flex-col gap-2">
-            <DocRow label="PR#" value={p.pr_number} />
-            {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
-            <DocRow label="PO#" value={p.po_number} />
-            {p.receipts.map((r) => (
-              <DocRow key={r.id} label="GR#" value={r.gr_number} sub={r.status} />
-            ))}
-            {p.invoices.map((inv) => (
-              <DocRow key={inv.id} label="VI#" value={inv.vi_number} sub={inv.status} />
-            ))}
-          </CardPad>
-        </Card>
-      </div>
 
       {/* Documents metadata register (over the previously-dead procurement_documents) */}
       <ProcurementDocumentsSection
