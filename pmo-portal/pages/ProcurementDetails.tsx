@@ -292,8 +292,9 @@ const ProcurementDetails: React.FC = () => {
   const isDraft = p.status === 'Draft';
   const isRejected = p.status === 'Rejected';
   // Header edit: requester may edit while Draft/Rejected (entity edit + record-scope).
+  // A8: Admin break-glass header edit while Draft/Rejected (RLS 0010 permits; edit is not an SoD axis).
   const canEditHeader =
-    (isDraft || isRejected) && isRequester && may('edit', 'procurement');
+    (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const canEditItems = isDraft && (isRequester || may('edit', 'procItem'));
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
