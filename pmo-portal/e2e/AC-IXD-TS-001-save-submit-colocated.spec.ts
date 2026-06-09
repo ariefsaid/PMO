@@ -5,8 +5,8 @@ import { login } from './helpers';
 //
 //   Given the timesheet entry screen,
 //   Then the engineer sees Save AND Submit together from first paint
-//     (Submit visible, disabled with "Save your hours first" until a draft with
-//      hours exists);
+//     (Submit visible, disabled with "Enter hours to submit" until the week has
+//      valid hours — OD-W3-1: Submit auto-saves, so it no longer requires a prior Save);
 //   When she enters hours and clicks Save, the hours persist with a quiet
 //     confirmation and NO forced summary view (she stays on the editable grid);
 //   When she clicks Submit, the week becomes read-only Submitted.
@@ -65,7 +65,8 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
 
   // ── Step 2: Save AND Submit are BOTH present from first paint, co-located ────
   // The footer is one action zone (Save secondary + Submit primary). On a brand-new
-  // (no-draft) week Submit is rendered but DISABLED with "Save your hours first".
+  // (no-hours) week Submit is rendered but DISABLED with "Enter hours to submit"
+  // (OD-W3-1: Submit auto-saves valid hours, so the disabled state is about hours, not a prior Save).
   const footer = page.getByTestId('timesheets-footer');
   await expect(footer).toBeVisible({ timeout: 10_000 });
   const saveBtn = footer.getByRole('button', { name: /^save$/i });
@@ -73,7 +74,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   await expect(saveBtn).toBeVisible();
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeDisabled();
-  await expect(footer.getByText(/save your hours first/i)).toBeVisible();
+  await expect(footer.getByText(/enter hours to submit/i)).toBeVisible();
 
   // ── Step 3: Enter hours on a project ────────────────────────────────────────
   await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
@@ -93,8 +94,10 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
     .getByRole('textbox', { name: new RegExp(`${PROJECT_NAME}, Mon hours`, 'i') })).toBeVisible();
   await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
 
-  // The Approvals-queue tab is still the alternate view (no forced navigation away).
-  await expect(page.getByRole('tab', { name: /weekly grid/i })).toHaveAttribute('aria-selected', 'true');
+  // AC-W3-N2: an Engineer (non-approver) has NO Approvals-queue toggle — they only ever see the
+  // editable grid, so there is no alternate view to be navigated to (the "stayed editable" goal is
+  // already proven by the persisted cell + total above). Confirm the Approvals toggle is absent.
+  await expect(page.getByRole('tab', { name: /approvals queue/i })).toHaveCount(0);
 
   // ── Step 5: Submit is now ENABLED (a Draft with persisted hours exists) ──────
   await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
