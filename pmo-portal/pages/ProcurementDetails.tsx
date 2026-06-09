@@ -42,6 +42,8 @@ import {
   lifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
+  selectedQuotation,
+  toastStateLabel,
 } from '../components/procurement';
 
 // ---------------------------------------------------------------------------
@@ -68,6 +70,9 @@ type PendingConfirm =
       kind: 'transition';
       to: ProcurementStatus;
       title: string;
+      /** Per-target dialog body. The kept financial confirms (Approve / Mark as Paid)
+       *  RESTATE the amount + project + requester here (OD-UX-1, confirm against the money). */
+      description: React.ReactNode;
       confirmLabel: string;
       /** Dismiss-button label; defaults to "Cancel" but the PR-cancel flow uses
        *  "Keep request" so the dismiss never reads as "cancel the cancellation". */
@@ -270,7 +275,14 @@ const ProcurementDetails: React.FC = () => {
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
   const actions = allowedActions(p.status, role, isRequester, isApprover);
-  const selectedQuote = p.quotations.find((q) => q.is_selected);
+  // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
+  // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
+  // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
+  // with a header-match fallback so the tile never silently reverts to "Pending" on flag drift.
+  const selectedQuote = selectedQuotation(p.status, p.quotations, {
+    total_value: p.total_value,
+    vendor_id: p.vendor_id,
+  });
 
   // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
   const isDraft = p.status === 'Draft';
@@ -293,26 +305,61 @@ const ProcurementDetails: React.FC = () => {
   };
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
+  // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
+  // The GR form is offered only while goods are being received (Ordered |
+  // Received); the VI form only while the request is at Vendor Invoiced. Neither
+  // persists into the terminal Paid state under "No further actions". An already-
+  // created GR/VI stays legible (read-only) via the document trail + stat tiles.
   const canShowGRForm =
-    (p.status === 'Ordered' ||
-      p.status === 'Received' ||
-      p.status === 'Vendor Invoiced' ||
-      p.status === 'Paid') &&
-    canSource(role);
-  const canShowVIForm =
-    (p.status === 'Vendor Invoiced' || p.status === 'Paid') && INVOICE_PAY_ROLES.has(role);
+    (p.status === 'Ordered' || p.status === 'Received') && canSource(role);
+  const canShowVIForm = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role);
 
-  // ── Stage a transition for confirmation (owner rule: no single-click write).
-  //    Destructive targets (Reject / Cancel) open the destructive modal; all
-  //    forward steps open the lightweight default confirm. PRESERVED RPC contract.
-  const stageTransition = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
+  // ── Write policy (OD-UX-1): a transition gets a ConfirmDialog IFF it is
+  //    consequential/financial — the set {Approve, Reject, Cancel, Mark-as-Paid}.
+  //    Every other routine, reversible forward step (Submit Request, Request Vendor
+  //    Quotes, Generate Purchase Order, Confirm Receipt, Mark Vendor Invoiced) is
+  //    SINGLE-CLICK + a quiet success toast (no modal). The kept financial confirms
+  //    RESTATE the amount + project + requester (confirm against the money — the
+  //    contract-value SoD confirm is the template). PRESERVED RPC contract.
+  const CONSEQUENTIAL_TARGETS = new Set<ProcurementStatus>([
+    'Approved',
+    'Rejected',
+    'Cancelled',
+    'Paid',
+  ]);
+
+  // The shared money/context line the kept financial confirms restate.
+  const moneyContext = (
+    <>
+      <b>{formatCurrency(Number(p.total_value))}</b>
+      {p.project?.name ? <> on <i>{p.project.name}</i></> : null}
+      {p.requested_by?.full_name ? <>, requested by <i>{p.requested_by.full_name}</i></> : null}
+    </>
+  );
+
+  const onActionClick = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
+    if (!CONSEQUENTIAL_TARGETS.has(action.to)) {
+      // Routine reversible forward step → commit directly, no dialog.
+      void commitTransition(action.to);
+      return;
+    }
     const destructive = action.variant === 'destructive';
     const isCancel = action.to === 'Cancelled';
     // The commit verb (action.label is already "Cancel request" for the cancel
     // flow). The dismiss is "Keep request" ONLY for the cancel flow so the three
     // Cancels disambiguate (polish #2): page action "Cancel request" → confirm
     // "Cancel request" / "Keep request". Other destructive moves keep "Cancel".
+    // Approve / Mark-as-Paid restate the money (task 10); Reject / Cancel are the
+    // terminal destructive moves (the only other consequential targets).
+    const description: React.ReactNode =
+      action.to === 'Approved' ? (
+        <>Approve {moneyContext}?</>
+      ) : action.to === 'Paid' ? (
+        <>Mark {moneyContext} as paid? This releases payment and cannot be undone.</>
+      ) : (
+        'This is a terminal action for this request and cannot be undone.'
+      );
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
@@ -320,28 +367,45 @@ const ProcurementDetails: React.FC = () => {
         ? 'Cancel this request?'
         : destructive
           ? `${action.label} this request`
-          : `Move request to ${action.to}?`,
+          : `${action.label}?`,
+      description,
       confirmLabel: action.label,
       cancelLabel: isCancel ? 'Keep request' : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
   };
 
-  // ── Commit the staged mutation (AC-805, AC-806). Toast is classified by the
-  //    preserved RPC error code (sub-task b) so an illegal-stage / SoD failure
-  //    reads as such instead of a silent no-op.
+  // ── Run a transition (shared by the routine single-click path and the confirm
+  //    path). Toast is classified by the preserved RPC error code (sub-task b) so
+  //    an illegal-stage / SoD failure reads as such instead of a silent no-op.
+  const commitTransition = async (to: ProcurementStatus) => {
+    try {
+      await mutations.transition.mutateAsync({ to, notes: notesInput || undefined });
+      setNotesInput('');
+      setPendingConfirm(null);
+      // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
+      // show — not the raw enum value (button verb → badge → toast all agree).
+      toast('Request updated', `Moved to ${toastStateLabel(to)}`, 'success');
+    } catch (err) {
+      setPendingConfirm(null);
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setMutationError(detail);
+    }
+  };
+
+  // ── Commit the staged confirm (kept for the consequential set + GR/VI). Toast is
+  //    classified by the preserved RPC error code (sub-task b) so an illegal-stage /
+  //    SoD failure reads as such instead of a silent no-op.
   const commitConfirm = async () => {
     if (!pendingConfirm) return;
     setMutationError(null);
+    if (pendingConfirm.kind === 'transition') {
+      await commitTransition(pendingConfirm.to);
+      return;
+    }
     try {
-      if (pendingConfirm.kind === 'transition') {
-        await mutations.transition.mutateAsync({
-          to: pendingConfirm.to,
-          notes: notesInput || undefined,
-        });
-        setNotesInput('');
-        toast('Request updated', `Moved to ${pendingConfirm.to}`, 'success');
-      } else if (pendingConfirm.kind === 'createGR') {
+      if (pendingConfirm.kind === 'createGR') {
         await mutations.createReceipt.mutateAsync({
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
@@ -379,9 +443,14 @@ const ProcurementDetails: React.FC = () => {
       sub: p.project?.name ?? undefined,
     },
     {
+      // AC-IXD-PROC-004: once a quote is selected, the tile is bound to the
+      // CHOSEN quotation — its amount + the selected vendor — through to Paid,
+      // instead of reverting to "Pending — 0 received".
       label: 'Selected quote',
       value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
-      sub: `${p.quotations.length} received`,
+      sub: selectedQuote
+        ? (p.vendor?.name ?? selectedQuote.vq_number ?? 'selected')
+        : `${p.quotations.length} received`,
     },
     {
       label: 'PO committed',
@@ -501,11 +570,11 @@ const ProcurementDetails: React.FC = () => {
                   // dialog (the system's single solid status fill) — at rest a
                   // destructive action (Reject / Cancel) is a quiet OUTLINE so it
                   // does not compete with the blue primary (the I4 two-solid-fills
-                  // tell). stageTransition still reads action.variant for the
-                  // dialog tone, so the confirm dialog stays red.
+                  // tell). onActionClick still reads action.variant for the
+                  // dialog tone, so a kept destructive confirm stays red.
                   variant={action.variant === 'destructive' ? 'outline' : action.variant}
                   loading={mutations.transition.isPending}
-                  onClick={() => stageTransition(action)}
+                  onClick={() => onActionClick(action)}
                 >
                   {action.label}
                 </Button>
@@ -668,6 +737,7 @@ const ProcurementDetails: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-2">
         <QuotationsSection
           quotations={p.quotations}
+          selectedId={selectedQuote?.id ?? null}
           canAdd={canAddQuote}
           canSelect={canSelectQuote}
           addBusy={mutations.createQuotation.isPending}
@@ -751,9 +821,7 @@ const ProcurementDetails: React.FC = () => {
         }
         description={
           pendingConfirm?.kind === 'transition'
-            ? pendingConfirm.tone === 'destructive'
-              ? 'This is a terminal action for this request and cannot be undone.'
-              : `This moves ${p.title} to its next lifecycle stage.`
+            ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? `This records a ${pendingConfirm.status.toLowerCase()} goods receipt against ${p.title}.`
               : `This records a vendor invoice against ${p.title}.`

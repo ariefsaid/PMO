@@ -76,6 +76,22 @@ export function computeTotals(rows: EditRow[]): GridTotals {
 }
 
 /**
+ * Maps a save's change count → the toast args `[title, sub, kind]` (spreads straight into
+ * `toast(...)`). A no-op Save (0 changes) reports an honest info "Nothing to save — no changes"
+ * rather than a fake "0 changes saved" success (AC-IXD-TS-003, OD-UX-1: routine writes get a
+ * QUIET, truthful confirmation). A real save reports "N change(s) saved" with correct pluralization.
+ */
+export function saveToastForChangeCount(
+  changeCount: number,
+): [title: string, sub: string, kind: 'info' | 'success'] {
+  if (changeCount === 0) {
+    return ['Nothing to save', 'No changes since the last save', 'info'];
+  }
+  const noun = changeCount === 1 ? 'change' : 'changes';
+  return ['Timesheet saved', `${changeCount} ${noun} saved`, 'success'];
+}
+
+/**
  * Diffs edited rows vs the last-fetched server entries → upserts (insert/update) + delete ids
  * (FR-TSE-012, §3.2). Per (project_id, entry_date) cell:
  *   - hours > 0 and (no server entry OR hours changed OR the row note differs from the

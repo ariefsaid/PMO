@@ -48,6 +48,12 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
+// projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
+// avoid needing a QueryClient.
+vi.mock('@/src/lib/db/opportunity', () => ({
+  useOpportunity: () => ({ data: undefined, isPending: false }),
+}));
 // Tasks tab mounts the real TasksTab — stub its data hooks (empty register) to avoid network.
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

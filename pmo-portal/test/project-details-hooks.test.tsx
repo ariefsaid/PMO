@@ -52,6 +52,12 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
+// projects cache. The seed here is on-hand (cached), so it is disabled — stub it so the test
+// needs no QueryClient (this test asserts hooks-order, not data fetching).
+vi.mock('@/src/lib/db/opportunity', () => ({
+  useOpportunity: () => ({ data: undefined, isPending: false }),
+}));
 // ProjectDetail + ProcurementTab no longer use the workspace tab API — they
 // navigate via the real react-router (this test needs the real useNavigate for
 // its NavDriver), so no shell mock is required.

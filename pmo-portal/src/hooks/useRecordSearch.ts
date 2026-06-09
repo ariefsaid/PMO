@@ -63,7 +63,10 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
         sub: 'Sales Pipeline',
         // The pipeline projection carries no code field; the title disambiguates.
         icon: 'pipe' as IconName,
-        run: () => navigate(`/sales/${o.id}`),
+        // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
+        // After the listProjects scope change the active projects cache no longer holds pre-win
+        // rows, so this pipeline loop is the SOLE source of pre-win ⌘K rows — no double-index.
+        run: () => navigate(`/projects/${o.id}`),
       });
     }
 

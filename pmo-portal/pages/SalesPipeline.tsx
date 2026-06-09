@@ -14,7 +14,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
-import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
@@ -30,24 +30,38 @@ import {
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
 const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
+/** Table status filter (Model B, AC-IXD-PROJ-007): Open deals (default) or terminal Lost deals. */
+type DealScope = 'Open' | 'Lost';
+const DEAL_SCOPES: DealScope[] = ['Open', 'Lost'];
+
 const SalesPipeline: React.FC = () => {
   const { data, isPending, isError, refetch } = useSalesPipeline();
+  // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
+  // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
+  const { data: lostDeals } = useLostDeals();
   const navigate = useNavigate();
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
+  const [scope, setScope] = useState<DealScope>('Open');
 
-  const projects = useMemo(() => data?.projects ?? [], [data]);
+  const openProjects = useMemo(() => data?.projects ?? [], [data]);
+  const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
   const stages = useMemo(() => data?.stages ?? [], [data]);
 
-  // Client-side name/customer filter (FR — view-local search).
+  // The kanban shows every column, so it draws from open ∪ lost (the Lost column is otherwise
+  // always empty — the RPC never returns lost rows).
+  const kanbanProjects = useMemo(() => [...openProjects, ...lost], [openProjects, lost]);
+
+  // The table is scoped by the Open / Lost SegFilter, then by the view-local search.
   const filtered = useMemo(() => {
+    const base = scope === 'Lost' ? lost : openProjects;
     const q = search.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter(
+    if (!q) return base;
+    return base.filter(
       (p) =>
         p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
     );
-  }, [projects, search]);
+  }, [openProjects, lost, scope, search]);
 
   // Funnel band — always the five open stages in fixed order, even when the RPC
   // omits empty stages (edge (b): render zero-value stages, never blank). Each
@@ -137,12 +151,24 @@ const SalesPipeline: React.FC = () => {
     },
   ];
 
+  // Search-filtered kanban set (open ∪ lost), so the kanban's view-local search spans every
+  // column including the terminal Lost column.
+  const kanbanFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return kanbanProjects;
+    return kanbanProjects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
+    );
+  }, [kanbanProjects, search]);
+
   // ── States ────────────────────────────────────────────────────────────────
+  // Empty only when there are no open AND no lost deals (a lost-only org still has a Pipeline).
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
-      : projects.length === 0
+      : openProjects.length === 0 && lost.length === 0
         ? 'empty'
         : undefined;
 
@@ -196,6 +222,15 @@ const SalesPipeline: React.FC = () => {
             onChange={setView}
             ariaLabel="Pipeline view"
           />
+          {/* Open / Lost scope — table-only (the kanban already shows the Lost column). */}
+          {view === 'table' && (
+            <ViewToggle<DealScope>
+              options={DEAL_SCOPES.map((s) => ({ value: s, label: s }))}
+              value={scope}
+              onChange={setScope}
+              ariaLabel="Deal scope"
+            />
+          )}
           <SearchMini
             placeholder="Search deals…"
             aria-label="Search deals"
@@ -231,7 +266,7 @@ const SalesPipeline: React.FC = () => {
       )}
 
       {state === undefined && view === 'kanban' && (
-        <SalesKanbanBoard projects={filtered} onOpen={onOpen} />
+        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} />
       )}
 
       {state === undefined && view === 'table' && (
@@ -242,8 +277,12 @@ const SalesPipeline: React.FC = () => {
           onActivate={onOpen}
           rowLabel={(r) => `Open ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No deals match your search"
-          emptySub="Try a different name or customer."
+          emptyTitle={scope === 'Lost' ? 'No lost deals' : 'No deals match your search'}
+          emptySub={
+            scope === 'Lost'
+              ? 'Deals marked lost will appear here.'
+              : 'Try a different name or customer.'
+          }
         />
       )}
     </div>

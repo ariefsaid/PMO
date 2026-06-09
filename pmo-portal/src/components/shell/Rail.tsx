@@ -42,7 +42,9 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/reports', text: 'Reports', icon: 'cols', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8): an unbuilt
+  // module must not be a top-slot nav item leading to an empty stub. The /reports <Route> is kept
+  // (App.tsx) so a stray deep link still resolves to the honest "arrives later" placeholder.
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'Sales', 'Delivery', 'Workforce'];

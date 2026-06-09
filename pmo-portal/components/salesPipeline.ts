@@ -9,19 +9,18 @@ import {
 } from '@/src/lib/db/projectTransitions';
 
 /**
- * IA-3 Kanban column model (OD-SP-1 / FR-SPD-014). Six columns in fixed order:
- * the five open pipeline stages plus ONE terminal Won/Lost column (Director
- * decision 7).
+ * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
+ * pipeline stages plus TWO terminal columns — "Won" (on-hand) and "Lost" (lost).
  *
- * C2 de-rainbow (2026-06-07): the per-stage dots are now a calm
- * neutral-progression — upstream open stages are `muted-foreground`, the
- * closest-to-close open stage (Negotiation, the "active" stage) carries the one
- * blue `primary` accent (One Blue Rule), and the terminal Won/Lost is `success`.
- * The off-palette cyan (Quotation) and orange (Negotiation) — which mapped to NO
- * DESIGN.md token — are deleted, as is the categorical violet on Pre-Qual
- * (categorical violet is not a stage-progression device). Every dot is now an
- * `hsl(var(--…))` token; this collapses Open Q4 ("promote stage-* to tokens") —
- * the rainbow was the thing being removed, so distinct per-stage hues are moot.
+ * Model B (ADR-0020, AC-IXD-PROJ-007): the previously-combined "Won / Lost" terminal column is
+ * split so a Loss Tender deal is reachable as its OWN terminal "Lost" column (sales win/loss
+ * history) — lost deals stay in the Pipeline (not the active Projects list), and the dedicated
+ * column makes them visible without clipping.
+ *
+ * C2 de-rainbow: the per-stage dots are a calm neutral-progression — upstream open stages are
+ * `muted-foreground`, the closest-to-close open stage (Negotiation, the "active" stage) carries
+ * the one blue `primary` accent (One Blue Rule), the terminal Won is `success`, and the terminal
+ * Lost is `destructive`. Every dot is an `hsl(var(--…))` token.
  */
 export interface SalesColumn {
   /** Display title (may differ from the enum, e.g. "Pre-Qual"). */
@@ -68,10 +67,17 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
     testId: 'stage-Negotiation',
   },
   {
-    title: 'Won / Lost',
-    statuses: [...ON_HAND_STATUSES, ...LOST_STATUSES],
+    title: 'Won',
+    statuses: [...ON_HAND_STATUSES],
     dotColor: 'hsl(var(--success))',
-    testId: 'stage-Won-Lost',
+    testId: 'stage-Won',
+    terminal: true,
+  },
+  {
+    title: 'Lost',
+    statuses: [...LOST_STATUSES],
+    dotColor: 'hsl(var(--destructive))',
+    testId: 'stage-Lost',
     terminal: true,
   },
 ] as const;
@@ -95,15 +101,16 @@ export function formatPercent(probability: number): string {
 }
 
 /**
- * Navigates to the opportunity's detail route (AC-NAV-006). With the workspace
- * tab layer removed, the row drill is a plain react-router navigate — the URL is
- * the single source of truth and the top-bar breadcrumb derives from it.
+ * Navigates to the deal's canonical detail route. Model B (ADR-0020): a project/opportunity has
+ * ONE detail URL, `/projects/:id`, at every stage — so a pipeline drill goes to the same place
+ * the Projects list does, and the stage-adaptive lens picks the pipeline view pre-win. The URL
+ * is the single source of truth and the top-bar breadcrumb derives from it.
  */
 export function openOpportunity(
   navigate: (path: string) => void,
   project: Pick<PipelineProject, 'id'>,
 ): void {
-  navigate(`/sales/${project.id}`);
+  navigate(`/projects/${project.id}`);
 }
 
 /**

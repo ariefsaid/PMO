@@ -51,11 +51,12 @@ const PrCard: React.FC<{
 );
 
 /**
- * The IA-3 procurement by-stage board: six fixed columns grouped by the PR
- * lifecycle stage (PR → VQ → PO → GR → VI → Paid), reusing the Foundation
- * Kanban shell. Terminal off-track requests (Rejected / Cancelled) never reach a
- * stage node so they are excluded from the board (visible in the Table view).
- * Cards are keyboard-activatable and drill into the PR lifecycle detail page.
+ * The IA-3 procurement by-stage board: seven fixed columns grouped by the PR
+ * lifecycle stage (PR → Approved → VQ → PO → GR → VI → Paid), reusing the
+ * Foundation Kanban shell. Terminal off-track requests (Rejected / Cancelled)
+ * never reach a stage node so they are excluded from the board (visible in the
+ * Table view). Cards are keyboard-activatable and drill into the PR lifecycle
+ * detail page. (Wave-1 Area-5: Approved is its own node — PROC-002.)
  */
 const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpen, selectedId }) => {
   // Bucket once: each in-flight request lands in exactly one stage column.

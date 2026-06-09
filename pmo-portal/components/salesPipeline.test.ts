@@ -20,22 +20,29 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
 });
 
 describe('salesPipeline presentation helpers (AC-SP-204)', () => {
-  it('AC-SP-204: SALES_COLUMNS are the six fixed columns in OD-SP-1 order with one terminal Won/Lost column', () => {
+  // Model B (ADR-0020, AC-IXD-PROJ-007): the terminal "Won / Lost" column is split into separate
+  // "Won" and "Lost" terminal columns so a Loss Tender deal is reachable as its own column.
+  it('AC-IXD-PROJ-007: SALES_COLUMNS are the five open stages + separate terminal Won and Lost columns', () => {
     expect(SALES_COLUMNS.map((c) => c.title)).toEqual([
       'Leads',
       'Pre-Qual',
       'Quotation',
       'Tender',
       'Negotiation',
-      'Won / Lost',
+      'Won',
+      'Lost',
     ]);
-    // the terminal column matches BOTH won + lost statuses (Director decision 7)
-    const terminal = SALES_COLUMNS[5];
-    expect(terminal.terminal).toBe(true);
-    expect(terminal.statuses).toContain('Won, Pending KoM');
-    expect(terminal.statuses).toContain('Loss Tender');
-    // only the terminal column is flagged terminal (funnel excludes exactly one)
-    expect(SALES_COLUMNS.filter((c) => c.terminal)).toHaveLength(1);
+    const won = SALES_COLUMNS.find((c) => c.title === 'Won')!;
+    const lost = SALES_COLUMNS.find((c) => c.title === 'Lost')!;
+    // Won collects the on-hand statuses; Lost collects ONLY the lost statuses (reachable alone).
+    expect(won.terminal).toBe(true);
+    expect(won.statuses).toContain('Won, Pending KoM');
+    expect(won.statuses).not.toContain('Loss Tender');
+    expect(lost.terminal).toBe(true);
+    expect(lost.statuses).toEqual(['Loss Tender']);
+    expect(lost.testId).toBe('stage-Lost');
+    // both terminal columns are excluded from the funnel/weighted totals
+    expect(SALES_COLUMNS.filter((c) => c.terminal)).toHaveLength(2);
     // open columns map to exactly one pipeline status each
     expect(SALES_COLUMNS[3].statuses).toEqual(['Tender Submitted']);
   });
@@ -59,7 +66,8 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(SALES_COLUMNS[2].dotColor).toBe('hsl(var(--muted-foreground))'); // Quotation
     expect(SALES_COLUMNS[3].dotColor).toBe('hsl(var(--muted-foreground))'); // Tender
     expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--primary))'); // Negotiation (active)
-    expect(SALES_COLUMNS[5].dotColor).toBe('hsl(var(--success))'); // Won/Lost terminal
+    expect(SALES_COLUMNS.find((c) => c.title === 'Won')!.dotColor).toBe('hsl(var(--success))');
+    expect(SALES_COLUMNS.find((c) => c.title === 'Lost')!.dotColor).toBe('hsl(var(--destructive))');
     // exactly one OPEN column carries the blue accent
     const openPrimary = SALES_COLUMNS.filter(
       (c) => !c.terminal && c.dotColor === 'hsl(var(--primary))',
@@ -79,10 +87,11 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(pillVariantForStatus('Loss Tender')).toBe('lost');
   });
 
-  it('AC-NAV-006: openOpportunity navigates to the opportunity detail route (no tab)', () => {
+  // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
+  it('AC-IXD-PROJ-001: openOpportunity navigates to the canonical /projects/:id detail route', () => {
     const navigate = vi.fn();
     openOpportunity(navigate, project({ id: 'abc', name: 'Acme Deal' }));
-    expect(navigate).toHaveBeenCalledWith('/sales/abc');
+    expect(navigate).toHaveBeenCalledWith('/projects/abc');
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {

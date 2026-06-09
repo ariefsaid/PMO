@@ -38,6 +38,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof QuotationsSect
     <ToastProvider>
       <QuotationsSection
         quotations={props.quotations ?? quotes}
+        selectedId={props.selectedId}
         canAdd={props.canAdd ?? true}
         canSelect={props.canSelect ?? true}
         onAdd={onAdd}
@@ -58,6 +59,18 @@ describe('AC-PROC-004 QuotationsSection (entry + select-quote)', () => {
     // The selected quote (VQ-1) has no Select-quote button; the unselected one does.
     expect(screen.getByRole('button', { name: /select quote vq-2/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /select quote vq-1/i })).toBeNull();
+  });
+
+  it('PROC-004: the page-resolved selectedId drives the "Selected" pill even if no row flag is set (flag-drift resilient)', () => {
+    // Both quotes have is_selected:false, but the page resolved q2 as the chosen quote
+    // (header-match fallback). The "Selected" pill must follow selectedId, not the row flag.
+    const unflagged: Q[] = quotes.map((q) => ({ ...q, is_selected: false }));
+    renderSection({ quotations: unflagged, selectedId: 'q2', canSelect: false });
+    const selectedRow = screen.getByText('VQ-2').closest('div')!;
+    expect(within(selectedRow).getByText('Selected')).toBeInTheDocument();
+    // The non-selected row carries no pill.
+    const otherRow = screen.getByText('VQ-1').closest('div')!;
+    expect(within(otherRow).queryByText('Selected')).toBeNull();
   });
 
   it('AC-PROC-004: clicking Select quote confirms then delegates the RPC with the quote id', async () => {

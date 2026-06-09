@@ -17,7 +17,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
@@ -92,6 +92,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
 
   const status = project.status as string;
   const isOnHand = ON_HAND_STATUSES.includes(status);
+  // Model B (ADR-0020): a pre-win (pipeline) / terminal (lost) deal has no contract yet, so the
+  // delivery summary (StatTiles: Contract/Committed/Actual/margin/Spend) and the contract-value
+  // SoD editor are mounted only for the DELIVERY lens (on-hand ∪ internal). Pre-win, the deal's
+  // figures live in the PipelineLens (Value / Win probability / Weighted) instead.
+  const group = projectStatusGroup(project.status as never);
+  const isDelivery = group === 'onHand' || group === 'internal';
 
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
@@ -223,11 +229,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
         meta={meta || undefined}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
       />
-      <StatTiles tiles={tiles} columns={5} className="mb-4" />
+      {/* Delivery-lens only (Model B): the spend/contract summary is meaningless on a pre-win deal
+          (it has no contract / committed / actual yet) — the PipelineLens shows the deal figures. */}
+      {isDelivery && <StatTiles tiles={tiles} columns={5} className="mb-4" />}
 
       {/* contract_value SoD treatment (ADR-0019). Rendered as a small dedicated row so the
           read-only / editable / audit distinction is explicit (the StatTiles strip stays a
-          read-only summary). */}
+          read-only summary). Delivery-lens only: a pre-win deal has no contract to gate (the
+          win-path SoD capture lives in the PipelineLens). */}
+      {isDelivery && (
       <div
         data-testid="contract-value-sod"
         className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
@@ -279,6 +289,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
           </span>
         )}
       </div>
+      )}
 
       {/* Edit-header modal (Admin·Exec·PM). */}
       {editOpen && (

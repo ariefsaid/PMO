@@ -62,6 +62,18 @@ values
    'authenticated','authenticated','ts-approve-mgr@acme.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
+  -- AC-IXD-TS-001 ISOLATION (mirrors the P011 / Grace-b1 pattern): a DEDICATED engineer used ONLY by
+  -- the AC-IXD-TS-001 save-then-submit e2e. AC-IXD-TS-001 and AC-TSE-021 BOTH sign in as the shared
+  -- engineer@ and BOTH "step forward to the first empty week", so under the single-DB parallel suite
+  -- they raced on the SAME (engineer@, first-empty-week) timesheet — one's save/submit clobbered the
+  -- other. A dedicated engineer (b3) gives AC-IXD-TS-001 its own per-week timesheet space that no
+  -- other spec touches, so it is ordering-independent. b3 has NO seeded timesheet → its current week
+  -- is empty from first paint.
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000b3',
+   'authenticated','authenticated','ts-colocated-eng@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', '')
 on conflict (id) do nothing;
 
@@ -89,6 +101,9 @@ values
    'email', now(), now(), now()),
   ('ts-approve-mgr@acme.test','00000000-0000-0000-0000-0000000000b2',
    jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b2','email','ts-approve-mgr@acme.test'),
+   'email', now(), now(), now()),
+  ('ts-colocated-eng@acme.test','00000000-0000-0000-0000-0000000000b3',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000b3','email','ts-colocated-eng@acme.test'),
    'email', now(), now(), now())
 on conflict (provider_id, provider) do nothing;
 
@@ -102,7 +117,11 @@ insert into profiles (id, company_id, full_name, email, role, title, location, s
   -- AC-911 ISOLATION actors (dedicated; manager_id set below). Distinct names so the e2e can scope
   -- to "Grace TSApprove" in the approval queue without colliding with the shared Dave/Alice fixtures.
   ('00000000-0000-0000-0000-0000000000b1','c0000000-0000-0000-0000-000000000001','Grace TSApprove','ts-approve-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',90),
-  ('00000000-0000-0000-0000-0000000000b2','c0000000-0000-0000-0000-000000000001','Heidi TSManager','ts-approve-mgr@acme.test','Project Manager','Senior PM','HQ','{"PMP"}',80);
+  ('00000000-0000-0000-0000-0000000000b2','c0000000-0000-0000-0000-000000000001','Heidi TSManager','ts-approve-mgr@acme.test','Project Manager','Senior PM','HQ','{"PMP"}',80),
+  -- AC-IXD-TS-001 ISOLATION actor: a dedicated engineer with NO seeded timesheet (its current week is
+  -- empty), used ONLY by AC-IXD-TS-001 so its save→submit journey never collides with AC-TSE-021 /
+  -- AC-911 on the shared engineer@'s weeks. Distinct name for unambiguous queue/grid scoping.
+  ('00000000-0000-0000-0000-0000000000b3','c0000000-0000-0000-0000-000000000001','Ivan TSColocated','ts-colocated-eng@acme.test','Engineer','Project Engineer','Regional Site B','{"PE"}',88);
 
 -- projects (neutral names; PM = Alice; client = Innovate Corp)
 insert into projects (id, code, name, status, client_id, project_manager_id, contract_value, budget, spent, start_date, end_date) values
@@ -150,12 +169,30 @@ update budget_versions set status = 'Active' where id in (
 insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at) values
   ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Workstations & AV','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Vendor Quoted',150000,null,'2026-02-05T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000002','PROC-2026-001','Network Infrastructure','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Ordered',85000,'c0000000-0000-0000-0000-000000000004','2026-01-10T00:00:00Z'),
+  -- PROC-2026-002 (…003): Requested, $22,500. The dedicated row AC-IXD-WP-002 (Approve-confirm)
+  -- transitions Requested→Approved. Read by NO other spec, so the transition is ordering-safe; keep
+  -- it that way (do not point another spec at …003 in a 'Requested' state).
   ('60000000-0000-0000-0000-000000000003','PROC-2026-002','Safety Equipment & PPE','40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4','Requested',22500,null,'2026-01-20T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000004','PROC-2026-003','Survey Software Licenses','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Draft',9800,null,'2026-01-25T00:00:00Z'),
   ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Office Fit-Out Furniture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Paid',320000,'c0000000-0000-0000-0000-000000000005','2025-12-01T00:00:00Z'),
   -- Dedicated Draft fixture for AC-CONFIRM-001 (confirm-gate cancel test). Kept distinct from
   -- PROC-003 (…004, which AC-816 walks Draft→Paid) so the two specs never collide in a parallel run.
-  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','Confirm-Gate Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Draft',12000,null,'2026-02-20T00:00:00Z');
+  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','Confirm-Gate Fixture','40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2','Draft',12000,null,'2026-02-20T00:00:00Z'),
+  -- Dedicated Approved fixture for AC-IXD-WP-001 (routine-write-no-confirm, OD-UX-1). A sourcing
+  -- role (Finance) clicks "Request Vendor Quotes" (Approved→Vendor Quoted) on a SINGLE click + toast.
+  -- requested_by=a2 (pm) so a non-requester Finance user owns the routine forward step (no SoD bearing).
+  -- Distinct id so it never collides with the AC-816 / AC-CONFIRM-001 fixtures in a parallel run.
+  -- PROJECT = P010 (…003, pipeline/PQ-Submitted), deliberately NOT an on-hand worked-example project:
+  -- the dashboard's on-hand committed-spend aggregate (0009 on_hand → Ordered..Paid) only sums
+  -- procurements on on-hand projects, so an Approved row here cannot drift AC-1100/AC-1105 (0034/0039).
+  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Routine-Write Fixture','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Approved',45000,null,'2026-02-22T00:00:00Z'),
+  -- Dedicated Vendor-Invoiced fixture for AC-IXD-WP-002 (financial confirm restates the amount).
+  -- finance@ (a3) clicks "Mark as Paid" → a confirm naming $30,000 on the project + requester.
+  -- requested_by=a2 (pm), approver=a1 (exec) — distinct from a3 so SoD-b (payer≠approver) passes.
+  -- PROJECT = P010 (…003, pipeline) for the SAME reason: 'Vendor Invoiced' IS in the on-hand
+  -- committed set, so on an on-hand project this $30,000 would shift on_hand_margin (the regression
+  -- the gate caught). Hosting it on a pipeline project keeps the 0034/0039 on-hand oracles true.
+  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z');
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
   ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
   ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000);
@@ -193,6 +230,31 @@ insert into procurement_receipts (procurement_id, gr_number, receipt_date, statu
 update procurements set
   pr_number = 'PR-2601200001'
 where id = '60000000-0000-0000-0000-000000000003';
+
+-- Row 007 (Approved): PR# + an approver (a1/exec, distinct from the a2 requester and the
+-- a3/finance sourcing user) so AC-IXD-WP-001's "Request Vendor Quotes" routine forward step
+-- is SoD-clean for a Finance sourcing user on a single click.
+update procurements set
+  pr_number      = 'PR-2602220001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a1'
+where id = '60000000-0000-0000-0000-000000000007';
+
+-- Row 008 (Vendor Invoiced): full PR/VQ/PO/GR/VI trail so a Finance user (a3, ≠ approver a1)
+-- can "Mark as Paid". AC-IXD-WP-002 asserts the kept financial confirm restates the amount.
+update procurements set
+  pr_number      = 'PR-2602240001',
+  po_number      = 'PO-2602240001',
+  approved_by_id = '00000000-0000-0000-0000-0000000000a1'
+where id = '60000000-0000-0000-0000-000000000008';
+
+insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
+  ('60000000-0000-0000-0000-000000000008','c0000000-0000-0000-0000-000000000004','APX-PAY-08',30000,'2026-02-23',true,'VQ-2602240001');
+
+insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
+  ('60000000-0000-0000-0000-000000000008','GR-2602240001','2026-02-24','Complete');
+
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
+  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received');
 
 -- Row 005 (Paid, completed): full PR/VQ/PO trail + a Paid invoice (VI#).
 -- requested_by=a2 (pm), approved_by=a3 (finance) — distinct, satisfies SoD representation.
@@ -307,6 +369,27 @@ insert into budget_versions (id, project_id, version, name, status) values
 insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
   ('50000000-0000-0000-0000-000000000011','Labor','Survey preparation',950000,0);
 update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000011';
+
+-- P012 "Eastgate Depot Upgrade" — a DEDICATED, EXPENDABLE Tender Submitted row used EXCLUSIVELY by
+-- AC-1011 (the win-a-deal e2e journey), mirroring the P011 isolation pattern. AC-1011 permanently
+-- transitions this deal to 'Won, Pending KoM', so it MUST NOT be the row any other spec reads:
+-- previously AC-1011 mutated the SHARED P002, which the full-suite gate run proved breaks the
+-- downstream readers of P002 (AC-1117 dashboard pipeline, AC-IXD-PROJ-002 redirect→pipeline lens,
+-- AC-1200 procurement list). Pointing AC-1011 at its own row makes the suite ordering-independent.
+-- Margin-neutral by construction (Active budget == contract_value, like P011): P012 contributes 0
+-- to the pipeline projected-margin NUMERATOR, only raising the weighted sum + the denominator. The
+-- 0035/0036 pipeline oracles are synced to this 4-deal pipeline (P002+P011+P012 Tender, P010 PQ).
+-- code='P012' satisfies unique(org_id,code).
+insert into projects (id, code, name, status, client_id, project_manager_id,
+                      contract_value, budget, spent) values
+  ('40000000-0000-0000-0000-000000000012','P012','Eastgate Depot Upgrade','Tender Submitted',
+   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   1000000,0,0);
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000012','40000000-0000-0000-0000-000000000012',1,'Tender Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('50000000-0000-0000-0000-000000000012','Labor','Tender preparation',1000000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000012';
 
 -- incident report (neutral; schema-only MVP)
 insert into incident_reports (incident_date, type, severity, location, description, status, reported_by) values

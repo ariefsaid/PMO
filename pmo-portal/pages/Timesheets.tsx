@@ -2,7 +2,6 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
-  CardHead,
   ConfirmDialog,
   ErrBanner,
   Icon,
@@ -11,14 +10,11 @@ import {
   TimesheetGrid,
   Toolbar,
   ViewToggle,
-  HoursBar,
-  EntryList,
   useToast,
   type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { entriesByProject, type FlatEntry } from '@/src/lib/timesheet-derive';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
@@ -35,6 +31,7 @@ import {
   diffEntries,
   gridIsValid,
   parseHourCell,
+  saveToastForChangeCount,
 } from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
@@ -302,15 +299,17 @@ const TimesheetsPage: React.FC = () => {
       currentTimesheet?.id ?? ''
     );
     const changeCount = diff.upserts.length + diff.deletes.length;
+    // Suppress the no-op: 0 changes never toasts a fake "0 changes saved" success — it reports an
+    // honest info "Nothing to save", and we skip the write entirely (AC-IXD-TS-003, OD-UX-1).
+    if (changeCount === 0) {
+      toast(...saveToastForChangeCount(0));
+      return;
+    }
     saveWeek.mutate(
       { currentTimesheetId: currentTimesheet?.id ?? null, weekStartDate: weekStartString, diff },
       {
-        onSuccess: () =>
-          toast(
-            'Timesheet saved',
-            `${changeCount} ${changeCount === 1 ? 'change' : 'changes'} saved`,
-            'success'
-          ),
+        // Quiet success toast; the user stays on the editable grid (no view/navigation change).
+        onSuccess: () => toast(...saveToastForChangeCount(changeCount)),
         onError: (err: { message: string }) => toast('Save failed', err.message, 'warning'),
       }
     );
@@ -319,21 +318,6 @@ const TimesheetsPage: React.FC = () => {
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
     [currentWeekEntries]
-  );
-
-  // T11/T12: By-project summary from gridRows (already memoized above)
-  const byProject = useMemo(
-    () => entriesByProject(currentWeekEntries),
-    [currentWeekEntries]
-  );
-
-  // T13: Recent entries this week, sorted newest-first (re-wrap as FlatEntry shape)
-  const recentWeekEntries = useMemo<FlatEntry[]>(
-    () =>
-      [...currentWeekEntries]
-        .sort((a, b) => b.entry_date.localeCompare(a.entry_date))
-        .map((e) => ({ ...e, sheetId: currentTimesheet?.id ?? '' })),
-    [currentWeekEntries, currentTimesheet]
   );
 
   const stepWeek = (delta: number) => {
@@ -356,6 +340,12 @@ const TimesheetsPage: React.FC = () => {
   const actions = currentTimesheet
     ? timesheetActions(currentTimesheet.status as TimesheetStatus, Boolean(isOwner), false)
     : { submit: false, approve: false, reject: false };
+
+  // T14/AC-IXD-TS-001: Submit renders co-located in the footer FROM FIRST PAINT (even on a brand-new
+  // no-draft week), but is DISABLED until a Draft sheet exists with at least one PERSISTED entry —
+  // "Save your hours first". `actions.submit` requires a Draft owned by this user; the entry guard
+  // requires the hours to be persisted (not merely typed locally), so you can't submit an empty week.
+  const canSubmit = actions.submit && currentWeekEntries.length > 0;
 
   // T1: commit the week for approval, toast on resolve (§6.7). The RPC contract
   // (submit_timesheet { id }) is preserved; the confirm only gates the click.
@@ -401,16 +391,6 @@ const TimesheetsPage: React.FC = () => {
             your line manager to approve.
           </p>
         </div>
-        {view === 'grid' && actions.submit && (
-          <Button
-            variant="primary"
-            onClick={() => setConfirmSubmit(true)}
-            loading={submit.isPending}
-          >
-            <Icon name="check" />
-            Submit timesheet
-          </Button>
-        )}
       </div>
 
       <Toolbar standalone>
@@ -571,9 +551,19 @@ const TimesheetsPage: React.FC = () => {
         )}
 
         {editable && (
-          <div className="flex justify-end gap-2 border-t border-border px-3.5 py-2.5">
+          <div
+            data-testid="timesheets-footer"
+            className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
+          >
+            {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
+            {!canSubmit && (
+              <span className="mr-auto text-[13px] text-muted-foreground">
+                Save your hours first
+              </span>
+            )}
+            {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast. */}
             <Button
-              variant="primary"
+              variant="outline"
               onClick={commitSave}
               disabled={!editValid || saveWeek.isPending}
               loading={saveWeek.isPending}
@@ -581,38 +571,24 @@ const TimesheetsPage: React.FC = () => {
               <Icon name="check" />
               Save
             </Button>
+            {/* Submit = primary, co-located. Shown from first paint; disabled until a Draft with
+                persisted hours exists (T14). Opens a confirm before the state-lock. */}
+            <Button
+              variant="primary"
+              onClick={() => setConfirmSubmit(true)}
+              disabled={!canSubmit || submit.isPending}
+              loading={submit.isPending}
+            >
+              <Icon name="check" />
+              Submit timesheet
+            </Button>
           </div>
         )}
       </Card>
 
-      {/* T11-T13: Two-up surround panels — only when the week has hours */}
-      {gridRows.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 min-[920px]:grid-cols-2">
-          {/* T11/T12 — By project this week */}
-          <Card>
-            <CardHead>By project this week</CardHead>
-            <div className="px-4 pb-3.5">
-              <div role="group" aria-label="By project this week" className="flex flex-col">
-                {byProject.map((row) => (
-                  <HoursBar
-                    key={row.projectId}
-                    label={row.name}
-                    code={row.code}
-                    hours={row.hours}
-                    maxHours={weeklyTotal}
-                  />
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          {/* T13 — Recent entries this week */}
-          <Card>
-            <CardHead>Recent entries this week</CardHead>
-            <EntryList entries={recentWeekEntries} />
-          </Card>
-        </div>
-      )}
+      {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
+          TOTAL column + daily-total row + header weekly total are the single source of truth; the
+          rollups live on the Engineer dashboard only (plan task 16). */}
 
       {submitConfirm}
 

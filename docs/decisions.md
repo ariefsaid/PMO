@@ -262,3 +262,12 @@ treat the pipeline + dashboard-margin work as a fresh issue built on the budget 
 - **D** — `decided_at = contract_date::timestamptz` (midnight) on win; `= now()` on `Loss Tender`.
 - Transition = `transition_project` security-definer RPC (ADR-0012 pattern; no new ADR). UI mounts on the
   live-backed `pages/Projects.tsx` (the mock `ProjectDetails` prototype stays out — separate decomposition issue).
+
+## OD-UX — UX-naturalness program (LOCKED 2026-06-08, owner-decided)
+From the IxD + IA audits (`review/ixd-master.md`, `review/ia-navigation.md`) → Wave-1 plan (`docs/plans/2026-06-08-ux-naturalness-wave1.md`) + ADR-0020.
+### OD-UX-1 — Write-confirm policy SUPERSEDES "confirm before every write"
+The UI-polish-round directive "confirm before every DB write" is **superseded**: confirm only **consequential/destructive** actions (Approve, Reject, Cancel, Mark-Paid, Mark-Lost, every delete/archive); **routine reversible** forward steps (procurement Advance, pipeline stage-advance) become **single-click + a toast**. (IxD SP-1; better serves the original intent — clear feedback — without a modal on every click.)
+### OD-UX-2 — Lifecycle = ONE canonical record (Model B, ADR-0020)
+One `projects` record; one `/projects/:id` detail page with a stage-adaptive lens (pipeline lens pre-win, delivery tabs once won); `/sales/:id` redirects. Pipeline and Projects = disjoint stage partitions. **Lost deals stay in the Pipeline** (kanban terminal "Lost" column + "Lost" filter), excluded only from the active Projects (delivery) list. Model A (separate `opportunities` table + convert-at-Won) deferred as the cleaner end-state.
+### OD-UX-3 — Board pack = disabled "coming soon"
+The no-op Board-pack CTA becomes a visibly-disabled "coming soon" affordance (no fake success); a real export lands with the Reports module.

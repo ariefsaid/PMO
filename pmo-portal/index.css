@@ -162,8 +162,11 @@
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .skel-line { height: 12px; margin: 7px 0; }
 
-/* ---------- Kanban scroll surfaces ---------- */
-.kanban-scroll { overflow-x: auto; padding-bottom: 6px; }
+/* ---------- Kanban scroll surfaces ----------
+   The trailing 2px right padding keeps the LAST column (the terminal "Lost" column under
+   Model B / AC-IXD-PROJ-007) clear of the scroll boundary so its card edge + focus ring are
+   never clipped against the container edge. */
+.kanban-scroll { overflow-x: auto; padding-bottom: 6px; padding-right: 2px; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;

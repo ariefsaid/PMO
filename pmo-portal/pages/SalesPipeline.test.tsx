@@ -28,8 +28,14 @@ const pipelineState: {
 
 const navigate = vi.fn();
 
+const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
+  useLostDeals: () => lostState,
   useDashboard: () => ({ data: undefined, isPending: false, isError: false }),
   useWinRate: () => ({ data: undefined, isPending: false, isError: false }),
 }));
@@ -50,6 +56,9 @@ beforeEach(() => {
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
   pipelineState.isError = false;
+  lostState.data = [];
+  lostState.isPending = false;
+  lostState.isError = false;
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
@@ -142,17 +151,44 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   });
 });
 
-describe('SalesPipeline drill-down (AC-SP-207 / AC-NAV-006)', () => {
-  it('AC-NAV-006: clicking a card navigates to the opportunity detail route (no tab)', () => {
+describe('SalesPipeline drill-down (Model B canonical route)', () => {
+  // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
+  it('AC-IXD-PROJ-001: clicking a card navigates to the canonical /projects/:id detail route', () => {
     renderPage();
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
-    expect(navigate).toHaveBeenCalledWith('/sales/p2');
+    expect(navigate).toHaveBeenCalledWith('/projects/p2');
   });
 
-  it('AC-NAV-006: a table row click navigates to the opportunity detail route', async () => {
+  it('AC-IXD-PROJ-001: a table row click navigates to the canonical /projects/:id detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
-    expect(navigate).toHaveBeenCalledWith('/sales/p2');
+    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+  });
+});
+
+describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () => {
+  it('AC-IXD-PROJ-007: a lost deal appears in the terminal "Lost" kanban column', () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, win_probability: 0 },
+    ];
+    renderPage();
+    const lostColumn = screen.getByTestId('stage-Lost');
+    expect(within(lostColumn).getByText('Coastal Depot Bid')).toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-007: the "Lost" table filter scopes the table to lost deals', async () => {
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, win_probability: 0 },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    // default Open scope: the open deal shows, the lost deal does not
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    // switch to the Lost scope: the lost deal shows, the open deal does not
+    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   });
 });

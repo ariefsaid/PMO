@@ -1,6 +1,19 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
+
+/**
+ * The active Projects (delivery) list partition (Model B, ADR-0020): on-hand ∪ internal.
+ * A pre-win pipeline/lost record is NOT here — it lives in the Sales Pipeline — so the two
+ * lists are disjoint stage partitions of the one `projects` table. `listProjects()` defaults
+ * to this scope; a caller wanting a specific status (e.g. a future "Lost" filter) passes
+ * `params.status` to override.
+ */
+export const ACTIVE_PROJECT_STATUSES: readonly ProjectStatus[] = [
+  ...ON_HAND_STATUSES,
+  ...INTERNAL_STATUSES,
+] as ProjectStatus[];
 
 export type ProjectRow = Tables<'projects'>;
 export type ProjectStatus = ProjectRow['status'];
@@ -60,19 +73,30 @@ export interface ProjectHeaderInput {
 
 /**
  * List projects for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
- * scopes rows (FR-DAL-004). Optional params support later server-side filtering (OD-3); the
- * Projects page filters the cached list client-side for this issue.
+ * scopes rows (FR-DAL-004).
+ *
+ * Model B (ADR-0020): by default the list is the ACTIVE Projects partition (on-hand ∪
+ * internal) — a single `.in('status', [...])` filter — so a pre-win pipeline/lost deal is
+ * NOT in the active Projects list (it lives in the Sales Pipeline). A caller wanting a
+ * specific status (e.g. a future "Lost" filter) passes `params.status` to override the
+ * default partition with a precise `.eq('status', …)`.
  */
 export async function listProjects(
   params?: { status?: ProjectRow['status']; pmId?: string },
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
-  // make it difficult to accumulate `.eq()` chains conditionally without
+  // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
   // widening the type here. The pattern is intentional and contained — do not
   // propagate `any` beyond this function.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = supabase.from('projects').select(SELECT);
-  if (params?.status) q = q.eq('status', params.status);
+  if (params?.status) {
+    // Explicit override → a precise single-status filter (e.g. the Lost partition).
+    q = q.eq('status', params.status);
+  } else {
+    // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
+    q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
+  }
   if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
   const { data, error } = await q;
   if (error) throw new Error(error.message);

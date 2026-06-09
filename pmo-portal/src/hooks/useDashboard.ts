@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import {
   getExecutiveDashboard, type ExecutiveDashboard,
   getWinRate, type WinRate,
-  getSalesPipeline, type SalesPipeline,
+  getSalesPipeline, type SalesPipeline, type PipelineProject,
 } from '@/src/lib/db/dashboard';
+import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
@@ -54,6 +55,33 @@ export function useSalesPipeline() {
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
     queryFn: () => getSalesPipeline(),
+    enabled: Boolean(orgId),
+  });
+}
+
+/**
+ * Lost (Loss Tender) deals for the caller's org, projected to the `PipelineProject` shape so the
+ * Sales Pipeline can show them in its terminal "Lost" column + behind the "Lost" table filter
+ * (AC-IXD-PROJ-007, Model B). FE-only: `get_sales_pipeline()` returns ONLY the five open stages,
+ * so lost deals are read via the existing `projects` RLS path (listProjects with the status
+ * override) — no RPC contract change. A lost deal carries no live win probability (0).
+ */
+export function useLostDeals() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<PipelineProject[]>({
+    queryKey: ['lost-deals', orgId],
+    queryFn: async () => {
+      const rows = await repositories.project.list({ status: 'Loss Tender' });
+      return rows.map((r): PipelineProject => ({
+        id: r.id,
+        name: r.name,
+        client_name: r.client?.name ?? null,
+        status: r.status,
+        contract_value: r.contract_value,
+        win_probability: 0,
+      }));
+    },
     enabled: Boolean(orgId),
   });
 }

@@ -8,6 +8,9 @@ export {
   MODULES,
   breadcrumbForPath,
   recordLabelForPath,
+  recordStatusForPath,
+  recordStatusGroupForPath,
   PLACEHOLDER_TITLES,
   type RecordLists,
+  type RecordStatusLists,
 } from './routeMatch';

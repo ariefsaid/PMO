@@ -9,13 +9,27 @@ const projects: PipelineProject[] = [
   { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, win_probability: 0.4 },
   { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, win_probability: 0.5 },
   { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, win_probability: 1 },
+  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, win_probability: 0 },
 ];
 
-describe('SalesKanbanBoard (AC-SP-204)', () => {
-  it('AC-SP-204: renders all six columns in fixed order', () => {
+describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
+  // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.
+  it('AC-IXD-PROJ-007: renders the five open stages + separate terminal Won and Lost columns in fixed order', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
-    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation', 'Won / Lost'];
-    for (const t of titles) expect(screen.getByText(t)).toBeInTheDocument();
+    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation', 'Won', 'Lost'];
+    for (const t of titles) {
+      const col = screen.getByTestId(
+        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'Pre-Qual' ? 'PQ Submitted' : t === 'Quotation' ? 'Quotation Submitted' : t === 'Tender' ? 'Tender Submitted' : t}`,
+      );
+      expect(within(col).getByText(t, { exact: true })).toBeInTheDocument();
+    }
+  });
+
+  it('AC-IXD-PROJ-007: a lost deal lands in the terminal "Lost" column, not the "Won" column', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const lostCol = screen.getByTestId('stage-Lost');
+    expect(within(lostCol).getByText('Lost Deal Delta')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Won')).queryByText('Lost Deal Delta')).toBeNull();
   });
 
   it('AC-SP-204: a Quotation deal renders name, customer, value, weighted chip and win%', () => {
@@ -48,9 +62,10 @@ describe('SalesKanbanBoard (AC-SP-204)', () => {
     expect(screen.getByText('No deals in Leads')).toBeInTheDocument();
   });
 
-  it('AC-SP-204: a won deal shows a won status pill and lands in the terminal column', () => {
+  it('AC-SP-204: a won deal shows a won status pill and lands in the terminal Won column', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
-    const card = screen.getByText('Won Deal Charlie').closest('[role="button"]')!;
+    const wonCol = screen.getByTestId('stage-Won');
+    const card = within(wonCol).getByText('Won Deal Charlie').closest('[role="button"]')!;
     expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
   });
 

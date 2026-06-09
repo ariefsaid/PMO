@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -17,12 +17,13 @@ import {
   MODULES,
   breadcrumbForPath,
   recordLabelForPath,
+  recordStatusGroupForPath,
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -31,7 +32,6 @@ const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard')
 const Projects = React.lazy(() => import('./pages/Projects'));
 const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDetail'));
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
-const OpportunityDetail = React.lazy(() => import('./pages/OpportunityDetail'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
@@ -41,6 +41,17 @@ const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 
+/**
+ * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
+ * (replace) to the ONE canonical detail route `/projects/:opportunityId`. `:opportunityId` IS
+ * the `projects.id`, so no id translation. Kept as a transitional route so old links + any cached
+ * ⌘K rows still resolve; once external links are confirmed migrated it can be dropped.
+ */
+const SalesDetailRedirect: React.FC = () => {
+  const { opportunityId = '' } = useParams<{ opportunityId: string }>();
+  return <Navigate to={`/projects/${opportunityId}`} replace />;
+};
+
 const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingFallback />}>
     <Routes>
@@ -49,7 +60,8 @@ const AppRoutes: React.FC = () => (
       <Route path="/projects/:projectId" element={<ProjectDetail />} />
       <Route path="/projects/:projectId/budget" element={<ProjectDetail />} />
       <Route path="/sales" element={<SalesPipeline />} />
-      <Route path="/sales/:opportunityId" element={<OpportunityDetail />} />
+      {/* Model B: the canonical detail route is /projects/:id; /sales/:id redirects there. */}
+      <Route path="/sales/:opportunityId" element={<SalesDetailRedirect />} />
       <Route path="/procurement" element={<ProcurementPage />} />
       <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       <Route path="/timesheets" element={<TimesheetsPage />} />
@@ -81,6 +93,13 @@ const ShellChrome: React.FC = () => {
   const { data: projects, isPending: projectsPending } = useProjects();
   const { data: procurements, isPending: procurementsPending } = useProcurements();
   const { data: pipeline, isPending: pipelinePending } = useSalesPipeline();
+  // Blocker 1 (AC-IXD-PROJ-005, ADR-0020 §4): a Loss-Tender deal opened at /projects/:id lives in
+  // NEITHER the active-projects cache (excluded by the Wave-1 listProjects scoping) nor the open-
+  // pipeline cache (get_sales_pipeline returns only the five open stages). Read the lost-deals list
+  // (the same cache the Sales Pipeline shows in its "Lost" column) and UNION it into the
+  // `opportunities` array threaded into the breadcrumb resolvers, so a lost record resolves to its
+  // name + the Sales-Pipeline ancestry instead of "Projects > Not found".
+  const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -110,28 +129,47 @@ const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
+    // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
+    // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
+    // unioned in here or its crumb resolves to "Projects > Not found".
+    const opportunities = [...(pipeline?.projects ?? []), ...(lostDeals ?? [])];
     const recordLabel = recordLabelForPath(pathname, {
       projects,
-      opportunities: pipeline?.projects,
+      opportunities,
       procurements,
+    });
+    // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
+    // STAGE — resolve its status group from the cached lists (the pipeline list carries pre-win
+    // / lost rows that the active projects list no longer holds) and thread it in so a pipeline
+    // record reads "Sales Pipeline > …" and an on-hand record reads "Projects > …".
+    const recordStatusGroup = recordStatusGroupForPath(pathname, {
+      projects,
+      opportunities,
     });
     // The list that backs THIS detail route has settled (not pending) → an
     // unresolved record is a genuine not-found, so resolve the crumb to a
-    // friendly label rather than a perpetual "Loading…".
+    // friendly label rather than a perpetual "Loading…". For /projects/:id the
+    // record can live in ANY of the three caches (Model B: active projects, open
+    // pipeline, or lost deals), so all must have settled before "Not found".
     const recordResolved =
-      (pathname.startsWith('/projects/') && !projectsPending) ||
+      (pathname.startsWith('/projects/') &&
+        !projectsPending &&
+        !pipelinePending &&
+        !lostDealsPending) ||
       (pathname.startsWith('/procurement/') && !procurementsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending);
-    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved);
+    return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
     pathname,
     navigate,
     projects,
     procurements,
     pipeline,
+    lostDeals,
     projectsPending,
     procurementsPending,
     pipelinePending,
+    lostDealsPending,
   ]);
 
   // Palette items: the Records group (cached record index) above the Navigate
