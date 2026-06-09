@@ -54,9 +54,16 @@ function matchesFilter(status: string, filter: StatusFilter): boolean {
 }
 
 const ProcurementPage: React.FC = () => {
-  useEffectiveRole(); // keeps the ImpersonationProvider wired in the shell
+  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const may = usePermission();
+
+  // A-3 / OD-W2-1: an Engineer has no Procurement nav and reaches only their OWN requests
+  // (RLS-scoped server-side). When an Engineer opens /procurement the page reads as "your
+  // requests" (own-scoped framing + copy), NOT the org-wide index — but the route is not
+  // blocked and Raise request stays available (any member may raise). Managers see the org
+  // index. This is FE clarity; RLS is the authority for what rows are actually returned.
+  const ownScoped = realRole === 'Engineer';
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
   const create = useCreateProcurement();
@@ -162,10 +169,13 @@ const ProcurementPage: React.FC = () => {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Procurement</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+            {ownScoped ? 'Your purchase requests' : 'Procurement'}
+          </h1>
           <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties
-            gates. Open a request to drill into its full lifecycle page.
+            {ownScoped
+              ? 'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.'
+              : 'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.'}
           </p>
         </div>
         {canCreate && (
@@ -224,7 +234,7 @@ const ProcurementPage: React.FC = () => {
         <ListState
           variant="empty"
           icon="cart"
-          title="No purchase requests yet"
+          title={ownScoped ? "You haven't raised any requests yet" : 'No purchase requests yet'}
           sub="Requests you raise will appear here through their full lifecycle."
           action={
             canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined
