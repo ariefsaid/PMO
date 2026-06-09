@@ -57,7 +57,7 @@ test('AC-1202 token utilities paint: active nav has a blue tint + blue text, ⌘
 
   // --- Active nav item: bg-primary/10 + text-primary must actually render. ---
   const activeNav = page
-    .locator('aside[aria-label="Primary navigation"] nav a[aria-current="page"]')
+    .locator('nav[aria-label="Primary navigation"] a[aria-current="page"]')
     .first();
   await expect(activeNav).toBeVisible();
 

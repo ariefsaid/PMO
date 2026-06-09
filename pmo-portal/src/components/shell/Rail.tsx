@@ -92,10 +92,9 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   );
 
   return (
-    <aside
+    <div
       className="flex min-h-0 flex-col border-r border-border bg-card"
       style={{ gridArea: 'rail' }}
-      aria-label="Primary navigation"
     >
       <div
         className="flex flex-shrink-0 items-center gap-2.5 border-b border-border px-4"
@@ -110,7 +109,7 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
         <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal</span>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto p-2.5">
+      <nav aria-label="Primary navigation" className="min-h-0 flex-1 overflow-y-auto p-2.5">
         {GROUP_ORDER.map((group) => {
           const groupItems = items.filter((i) => i.group === group);
           if (groupItems.length === 0) return null;
@@ -144,6 +143,6 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
           </NavLink>
         </div>
       )}
-    </aside>
+    </div>
   );
 };

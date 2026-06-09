@@ -36,8 +36,10 @@ test(
 
     // Goal 2: The My Tasks page shows the Engineer's own assigned tasks (not all org tasks).
     // The seed has "Demolition" and "Fit-out" assigned to engineer@acme.test.
-    await expect(page.getByText(/Fit-out/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/Demolition/i)).toBeVisible({ timeout: 10_000 });
+    // NB: the parent project is "Innovate Corp HQ Fit-Out", so a loose /Fit-out/i also matches
+    // the project group heading — use exact text to target the TASK row, not the heading.
+    await expect(page.getByText('Fit-out', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Demolition', { exact: true })).toBeVisible({ timeout: 10_000 });
 
     // Goal 3: A status update round-trips — the Engineer can mark their work done.
     // Find the status select for "Fit-out" and change it to "Done".

@@ -35,13 +35,13 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
 
   // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
   await hamburger.click();
-  // The drawer rail is the Primary-navigation <aside> NOT under .rail-persistent.
+  // The drawer rail is the Primary-navigation <nav> NOT under .rail-persistent.
   const drawerNavCount = await page.evaluate(() => {
-    const asides = Array.from(
-      document.querySelectorAll('aside[aria-label="Primary navigation"]')
+    const navs = Array.from(
+      document.querySelectorAll('nav[aria-label="Primary navigation"]')
     );
-    const drawer = asides.find((a) => !a.closest('.rail-persistent'));
-    return drawer ? drawer.querySelectorAll('nav a').length : 0;
+    const drawer = navs.find((n) => !n.closest('.rail-persistent'));
+    return drawer ? drawer.querySelectorAll('a').length : 0;
   });
   expect(drawerNavCount).toBeGreaterThan(0);
 });
