@@ -23,6 +23,7 @@ import {
   useProjectMutations,
 } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
+import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
@@ -57,6 +58,17 @@ const Projects: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const isEngineer = effectiveRole === 'Engineer';
+  // B-11 fix: an IC's "My Projects" means projects they are ASSIGNED to (have a task on),
+  // NOT projects they manage (an Engineer manages none → the old PM-scoped filter was always
+  // empty, so the Engineer default landed on a blank list). Derive the assigned-project set
+  // from the Engineer's own tasks (the same cross-project, RLS-org-scoped read My Tasks uses;
+  // cached under the shared 'my-tasks' key). Only consumed for the Engineer branch.
+  const { data: myTasks } = useMyTasks();
+  const myProjectIds = useMemo(
+    () => new Set((myTasks ?? []).map((t) => t.project_id)),
+    [myTasks],
+  );
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
   const { data: projectManagers = [] } = useProjectManagers();
@@ -87,7 +99,10 @@ const Projects: React.FC = () => {
       .filter((p) => {
         switch (filter) {
           case 'My Projects':
-            return p.project_manager_id === currentUser?.id;
+            // Managers: projects I manage. ICs (Engineer): projects I'm assigned to (via tasks).
+            return isEngineer
+              ? myProjectIds.has(p.id)
+              : p.project_manager_id === currentUser?.id;
           case 'Ongoing':
             return ONGOING.includes(p.status as string);
           case 'Completed':
@@ -104,7 +119,7 @@ const Projects: React.FC = () => {
           p.name.toLowerCase().includes(q) ||
           (p.code ?? '').toLowerCase().includes(q),
       );
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id]);
+  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.

@@ -16,13 +16,15 @@ import { ToastProvider } from '@/src/components/ui';
  */
 
 // vi.hoisted must be first to avoid TDZ errors when referenced in vi.mock factories.
-const { projectsState } = vi.hoisted(() => ({
+const { projectsState, myTasksState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: true,
     isError: false,
     refetch: vi.fn(),
   },
+  // B-11 fix: the Engineer's "My Projects" derives from their assigned tasks.
+  myTasksState: { data: [] as Array<Record<string, unknown>> },
 }));
 
 // Stub the ProjectStatusControl — B-11 is about filter defaults, not status transitions.
@@ -43,6 +45,10 @@ vi.mock('@/src/hooks/useProjects', () => ({
 
 vi.mock('@/src/hooks/useProjectView', () => ({
   useProjectView: () => ['table', vi.fn()] as ['table', () => void],
+}));
+
+vi.mock('@/src/hooks/useMyTasks', () => ({
+  useMyTasks: () => myTasksState,
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -91,7 +97,22 @@ beforeEach(() => {
       client: { id: 'c1', name: 'Northwind' },
       pm: { id: 'pm-1', full_name: 'Alice PM' },
     },
+    {
+      id: 'p2',
+      name: 'Acme Internal',
+      code: 'P-002',
+      status: 'Ongoing',
+      project_manager_id: 'pm-1',
+      client_id: 'c1',
+      contract_value: 50000,
+      spent: 10000,
+      customer_contract_ref: null,
+      client: { id: 'c1', name: 'Northwind' },
+      pm: { id: 'pm-1', full_name: 'Alice PM' },
+    },
   ];
+  // The Engineer (u-eng) is assigned a task on p1 only — so "My Projects" must show p1, hide p2.
+  myTasksState.data = [{ id: 't1', project_id: 'p1', assignee_id: 'u-eng' }];
 });
 
 describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () => {
@@ -112,5 +133,14 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     renderAsPM();
     const allTab = screen.getByRole('tab', { name: /^all$/i });
     expect(allTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('AC-W2-IXD-009: Engineer "My Projects" shows projects they are ASSIGNED to (via tasks), not an empty PM-owned set', () => {
+    renderAsEngineer();
+    // p1 — Engineer has a task on it → shown under the default "My Projects" filter.
+    expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
+    // p2 — no assigned task → hidden. (Pre-fix, "My Projects" was project_manager_id===self,
+    // which is ALWAYS empty for an IC, so the default landed on an empty list.)
+    expect(screen.queryByText('Acme Internal')).not.toBeInTheDocument();
   });
 });
