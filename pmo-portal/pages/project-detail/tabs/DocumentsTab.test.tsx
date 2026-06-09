@@ -131,11 +131,13 @@ describe('DocumentsTab — states', () => {
   });
 });
 
-describe('DocumentsTab — file upload deferred placeholder (AC-DOC-008)', () => {
-  it('AC-DOC-008: shows a disabled "Attach file" affordance (Storage deferred), never a broken control', () => {
+describe('DocumentsTab — file upload deferral is signposted by copy, not a dead button (AC-DOC-008 / D13)', () => {
+  it('AC-DOC-008 (D13, OD-W2-5 honest-affordance): NO dead "Attach file (coming soon)" button — the deferral is signposted by the register copy instead', () => {
     renderTab('Admin');
-    const attach = screen.getByRole('button', { name: /Attach file/i });
-    expect(attach).toBeDisabled();
+    // The disabled "Attach file" placeholder was removed (honest-affordance rule: no fake
+    // disabled control). The deferral is communicated by the register subtitle copy.
+    expect(screen.queryByRole('button', { name: /Attach file/i })).toBeNull();
+    expect(screen.getByText(/file attachments arrive with Storage/i)).toBeInTheDocument();
   });
 });
 

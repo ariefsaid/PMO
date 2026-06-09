@@ -12,7 +12,6 @@ import {
   FormSection,
   FormGrid,
   GateNotice,
-  Tooltip,
   useEntityForm,
   useToast,
   Button,
@@ -286,17 +285,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* File upload is deferred (Storage off). A disabled control with a reason, never a
-              broken upload (crud-components §9.9 / rbac-visibility §H). A disabled button does
-              not fire hover/focus, so the explanatory tooltip wraps a span that does. */}
-          <Tooltip content="File upload arrives with Storage">
-            <span className="inline-flex">
-              <Button variant="outline" size="sm" disabled aria-label="Attach file (coming soon)">
-                <Icon name="export" />
-                Attach file
-              </Button>
-            </span>
-          </Tooltip>
+          {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
+              button was removed — file upload is signposted by the register subtitle copy
+              ("file attachments arrive with Storage"), not a fake disabled control. */}
           {canCreate && (
             <Button variant="primary" size="sm" onClick={() => setFormTarget({ doc: null })}>
               <Icon name="plus" />
