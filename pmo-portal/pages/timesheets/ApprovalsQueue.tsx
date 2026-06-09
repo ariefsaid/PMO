@@ -165,11 +165,18 @@ export const ApprovalsQueue: React.FC = () => {
       return next;
     });
 
+  // Only currently-approvable ids count: prune stale selections left over from a
+  // refetch (a sheet may have left the queue or stopped being approvable). Keeps the
+  // bulk count + confirm label honest vs what commitBulk actually fires (review #2/#3).
+  const effectiveSelected = useMemo(
+    () => new Set([...selected].filter((id) => approvableIds.has(id))),
+    [selected, approvableIds],
+  );
   const allSelected =
-    approvableIds.size > 0 && selected.size === approvableIds.size;
-  const someSelected = selected.size > 0 && !allSelected;
+    approvableIds.size > 0 && effectiveSelected.size === approvableIds.size;
+  const someSelected = effectiveSelected.size > 0 && !allSelected;
   const toggleSelectAll = () => {
-    if (selected.size > 0) setSelected(new Set());
+    if (effectiveSelected.size > 0) setSelected(new Set());
     else setSelected(new Set(approvableIds));
   };
 
@@ -200,7 +207,7 @@ export const ApprovalsQueue: React.FC = () => {
   // N12: commit the batch. Fire the existing per-sheet approve RPC for each selected id;
   // resilient — one SoD/stale failure must NOT abort the rest. Aggregate into ONE toast.
   const commitBulk = () => {
-    const ids = sheets.filter((s) => selected.has(s.id)).map((s) => s.id);
+    const ids = sheets.filter((s) => effectiveSelected.has(s.id)).map((s) => s.id);
     if (ids.length === 0) {
       setConfirmBulk(false);
       return;
@@ -300,18 +307,18 @@ export const ApprovalsQueue: React.FC = () => {
             label="Select all approvable weeks"
           />
           <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
-            {selected.size} selected
+            {effectiveSelected.size} selected
           </span>
           <span className="flex-1" />
           <Button
             variant="primary"
             size="sm"
-            disabled={selected.size === 0 || bulkRunning}
+            disabled={effectiveSelected.size === 0 || bulkRunning}
             loading={bulkRunning}
             onClick={() => setConfirmBulk(true)}
           >
             <Icon name="check" />
-            Approve {selected.size}
+            Approve {effectiveSelected.size}
           </Button>
           <Button variant="outline" size="sm" onClick={exitSelection} disabled={bulkRunning}>
             Clear
@@ -464,14 +471,14 @@ export const ApprovalsQueue: React.FC = () => {
         <ConfirmDialog
           open
           tone="default"
-          title={`Approve ${selected.size} timesheet${selected.size === 1 ? '' : 's'}?`}
+          title={`Approve ${effectiveSelected.size} timesheet${effectiveSelected.size === 1 ? '' : 's'}?`}
           description={
             <span className="block">
               This approves the selected weeks. You can&rsquo;t approve your own timesheet —
               separation of duties is enforced.
               <span className="mt-2 block space-y-0.5">
                 {sheets
-                  .filter((s) => selected.has(s.id))
+                  .filter((s) => effectiveSelected.has(s.id))
                   .map((s) => (
                     <span key={s.id} className="block text-[13px]">
                       {s.owner?.full_name ?? 'Unknown'} · {weekLabel(s.week_start_date)} ·{' '}

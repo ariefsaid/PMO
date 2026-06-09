@@ -43,7 +43,10 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const selfId = currentUser?.id;
 
   const { data: procurements, isPending: procPending } = useProcurements();
-  const { data: timesheets } = useTimesheetsAwaitingApproval();
+  const { data: timesheets, isPending: tsPending } = useTimesheetsAwaitingApproval();
+  // Loading until BOTH contributing queries settle, else the tile briefly shows a
+  // procurement-only count as if final (review #4).
+  const loading = procPending || (includeTimesheets && tsPending);
 
   // PR count: Requested + this role may approve procurement + not raised by me (SoD).
   const canApproveProc = can('transition', 'procurement', { realRole });
@@ -71,7 +74,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
       value={String(total)}
       vs={vs}
       help={help}
-      loading={procPending}
+      loading={loading}
       to="/approvals"
       linkLabel={`${label}: ${total} ${total === 1 ? 'item' : 'items'} awaiting`}
     />
