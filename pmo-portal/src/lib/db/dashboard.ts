@@ -68,6 +68,20 @@ export interface PipelineProject {
   status: ProjectStatus;
   contract_value: number;
   win_probability: number;
+  /**
+   * ISO timestamp of the last update to this project row (projects.last_update).
+   * AVAILABILITY: populated by useLostDeals (full ProjectWithRefs row); NOT populated
+   * by get_sales_pipeline() which does not project this field. Open pipeline deal rows
+   * will have this field absent — rendering "—" for Last touch is correct and honest.
+   * Deferred: extend the get_sales_pipeline RPC to include this field for full coverage.
+   */
+  last_update?: string;
+  /**
+   * The project manager's full name (profiles.full_name resolved via the pm join).
+   * AVAILABILITY: same as last_update — populated for lost deals via useLostDeals;
+   * absent for open pipeline rows from the RPC. Open rows render "—" for Owner.
+   */
+  pm_name?: string | null;
 }
 
 export interface SalesPipeline {

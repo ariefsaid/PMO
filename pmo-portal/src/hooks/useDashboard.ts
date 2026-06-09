@@ -80,6 +80,10 @@ export function useLostDeals() {
         status: r.status,
         contract_value: r.contract_value,
         win_probability: 0,
+        // Pass through the full-row fields that the RPC omits (available here because
+        // repositories.project.list returns ProjectWithRefs with the full projects row).
+        last_update: r.last_update,
+        pm_name: r.pm?.full_name ?? null,
       }));
     },
     enabled: Boolean(orgId),
