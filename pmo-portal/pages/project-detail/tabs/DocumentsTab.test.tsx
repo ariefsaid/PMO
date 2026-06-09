@@ -150,14 +150,26 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument();
   });
 
-  it('AC-DOC-007: PM (master-data) sees Add document + Edit but NOT Delete (Admin-only)', async () => {
-    renderTab('Project Manager', 'pm-2');
+  it('AC-DOC-007: a PM who AUTHORED the doc sees Add document + Edit but NOT Delete (Admin-only)', async () => {
+    // A-7 author rule (rbac-visibility §H): Edit is author-scoped. "Site Plan" is authored by
+    // pm-1, so the PM editing it must BE pm-1 — a different PM (pm-2) would NOT see Edit.
+    renderTab('Project Manager', 'pm-1');
     expect(screen.getByRole('button', { name: /Add document/i })).toBeInTheDocument();
     await userEvent.click(
       within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-DOC-007 / A-7: a NON-author PM does NOT see Edit on someone else’s document', async () => {
+    // pm-2 opens "Site Plan" (authored by pm-1) → no Edit (author rule). The row may still hold
+    // status actions, but the metadata Edit is hidden for a non-author.
+    renderTab('Project Manager', 'pm-2');
+    await userEvent.click(
+      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    expect(screen.queryByRole('menuitem', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
 
   it('AC-DOC-007: Engineer is read-only — no Add document and no row action menu', () => {

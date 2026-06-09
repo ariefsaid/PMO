@@ -55,6 +55,8 @@ export interface PolicyContext {
   record?: {
     status?: string | null;
     assignee_id?: string | null;
+    /** Author id — for the document-edit author rule (A-7). */
+    author_id?: string | null;
     [k: string]: unknown;
   };
 }
@@ -160,7 +162,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   document: {
     create: allow(MASTER_DATA),
-    edit: allow(MASTER_DATA), // authorship checked at the call-site
+    // Edit a document = ◆ AUTHOR (rbac-visibility §H): a master-data write-role who AUTHORED it,
+    // OR Admin (break-glass — edit is not an SoD axis, reading-rule 4). A non-author manager
+    // does NOT get Edit. Record-scoped (mirrors taskStatus): pass `{ currentUserId, record:
+    // { author_id } }` at the call-site. Deny-by-default authorship: with no record context only
+    // Admin passes (a non-Admin must prove authorship). RLS/RPC stays the authority.
+    edit: (role, ctx) => {
+      if (!has(MASTER_DATA, role)) return false;
+      if (role === 'Admin') return true;
+      return !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId;
+    },
     delete: allow(ADMIN),
   },
   documentStatus: {
