@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -13,19 +14,174 @@ import { procurementStatusTone } from './procurementStatusTone';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
 /** The procurement status meaning "billed, awaiting payment" (plan Open Q6). */
 const INVOICED_STATUS: Tables<'procurements'>['status'] = 'Vendor Invoiced';
+
+/**
+ * Compute days since a given ISO date string (based on the row's updated_at which is the
+ * best available proxy for when the status last changed — no dedicated `invoiced_at` column exists).
+ * Returns a compact label: "N days" or "Today".
+ */
+function daysAgoLabel(isoDate: string): string {
+  const ms = Date.now() - new Date(isoDate).getTime();
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day';
+  return `${days} days`;
+}
+
+// ── ReadyToPayTable — exported for unit testing ──────────────────────────
+
+export interface ReadyToPayTableProps {
+  procurements: ProcurementWithRefs[];
+  isPending: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}
+
+/**
+ * N16 — "Ready to pay" table.
+ * Shows only Vendor Invoiced PRs. Each row activates → /procurement/:id (Mark-as-Paid lives there).
+ * Honest empty state: "Nothing awaiting payment".
+ * J4 console reframe: tabular numerics, right-aligned money/age columns.
+ */
+export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
+  procurements,
+  isPending,
+  isError,
+  onRetry,
+}) => {
+  const navigate = useNavigate();
+
+  const viRows = useMemo(
+    () => procurements.filter((p) => p.status === INVOICED_STATUS),
+    [procurements],
+  );
+
+  const columns: Column<ProcurementWithRefs>[] = [
+    {
+      key: 'request',
+      header: 'Request',
+      cell: (r) => (
+        <div className="min-w-0">
+          <div className="truncate font-semibold" title={r.title}>
+            {r.title}
+          </div>
+          {/* Mono identifier per DESIGN.md Mono-For-Identifiers Rule */}
+          <div className="font-mono text-[11px] text-muted-foreground">
+            {r.code ?? r.id.slice(0, 8)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'project',
+      header: 'Project',
+      cell: (r) => (
+        <span className="text-muted-foreground">{r.project?.name ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      align: 'num',
+      sortKey: 'value',
+      cell: (r) => (
+        /* tabular class applied automatically by DataTable on align:num cells */
+        <span>{formatCurrency(r.total_value)}</span>
+      ),
+    },
+    {
+      key: 'age',
+      header: 'Invoiced',
+      align: 'num',
+      cell: (r) => (
+        /* Age in days since updated_at (best proxy for VI date) — text signal, not color-only */
+        <span className="tabular text-muted-foreground">{daysAgoLabel(r.updated_at)}</span>
+      ),
+    },
+  ];
+
+  const tableState: 'loading' | 'empty' | 'error' | undefined = isPending
+    ? 'loading'
+    : isError
+      ? 'error'
+      : viRows.length === 0
+        ? 'empty'
+        : undefined;
+
+  return (
+    <DataTable<ProcurementWithRefs>
+      rows={viRows}
+      columns={columns}
+      rowKey={(r) => r.id}
+      onActivate={(r) => navigate(`/procurement/${r.id}`)}
+      rowLabel={(r) => `Open ${r.title}`}
+      state={tableState}
+      emptyTitle="Nothing awaiting payment"
+      emptySub="All vendor invoices have been paid or none are awaiting action."
+      errorTitle="Couldn't load invoices"
+      onRetry={onRetry}
+      className="rounded-t-none border-t-0"
+    />
+  );
+};
+
+// ── Variance helpers ─────────────────────────────────────────────────────
+
+/** variance = spent − budget (positive = over, negative = under) */
+function variance(p: TopProject): number {
+  return p.spent - p.budget;
+}
+
+/**
+ * Render the variance cell: "+$X over" (text-destructive) for over-budget,
+ * "$Y left" (text-muted-foreground) for under-budget.
+ * Text + sign — NOT color-only (DESIGN.md a11y posture, plan §6).
+ */
+function VarianceCell({ project }: { project: TopProject }) {
+  const v = variance(project);
+  if (v > 0) {
+    // Over budget: destructive text WITH the word "over" so color is reinforcement only
+    return (
+      <span className="tabular text-destructive">
+        {`+${formatCurrency(v)} over`}
+      </span>
+    );
+  }
+  // Under / on-budget: muted text WITH the word "left"
+  return (
+    <span className="tabular text-muted-foreground">
+      {`${formatCurrency(Math.abs(v))} left`}
+    </span>
+  );
+}
+
+// ── FinanceDashboard ──────────────────────────────────────────────────────
 
 /**
  * Finance pane — real off the exec RPC (revenue / spend / margin / top-projects)
  * + `useProcurements` (outstanding invoices = Σ value of Vendor-Invoiced rows,
  * never a `* 0.4` fabrication). The legacy per-category cost donut is repurposed
  * to the real, status-toned Procurement-by-status chart (plan §4.2 / Open Q4).
+ *
+ * PR-B additions (AC-IXD-DASH-W5-C2B):
+ * - N16 "Ready to pay" DataTable (Vendor Invoiced PRs → /procurement/:id)
+ * - N17 Budget review by variance (variance-desc, Variance column with over/left text)
+ * - J4 console reframe: tabular nums everywhere, right-aligned money columns
  */
 export const FinanceDashboard: React.FC = () => {
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+
+  // N17: sort top_projects variance-desc (most-over first). OD-E: honest half-truth — these are only
+  // the top-5-by-contract-value from the RPC; the label reflects this scope.
+  const [budgetSort, setBudgetSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({
+    key: 'variance',
+    dir: 'desc',
+  });
 
   const totalSpend = useMemo(
     () => (data?.top_projects ?? []).reduce((s, p) => s + (p.spent || 0), 0),
@@ -46,10 +202,67 @@ export const FinanceDashboard: React.FC = () => {
     }));
   }, [procurements]);
 
-  const topBySpend = useMemo(
-    () => [...(data?.top_projects ?? [])].sort((a, b) => b.spent - a.spent),
-    [data?.top_projects],
-  );
+  // N17: variance-desc ranking (PR-B). Default sort = variance descending (most-over first).
+  // Variance = spent − budget; most-over (highest positive) floats to the top.
+  // User can re-sort by clicking any column header.
+  const topByVariance = useMemo(() => {
+    const rows = [...(data?.top_projects ?? [])];
+    const mul = budgetSort.dir === 'desc' ? -1 : 1;
+    rows.sort((a, b) => {
+      if (budgetSort.key === 'variance') return (variance(a) - variance(b)) * mul;
+      if (budgetSort.key === 'budget') return (a.budget - b.budget) * mul;
+      if (budgetSort.key === 'spent') return (a.spent - b.spent) * mul;
+      // utilization
+      const uA = a.budget > 0 ? a.spent / a.budget : 0;
+      const uB = b.budget > 0 ? b.spent / b.budget : 0;
+      return (uA - uB) * mul;
+    });
+    return rows;
+  }, [data?.top_projects, budgetSort]);
+
+  // N17 Budget review columns (sortable, with Variance column)
+  const budgetColumns: Column<TopProject>[] = [
+    {
+      key: 'name',
+      header: 'Project',
+      cell: (p) => <span className="font-medium">{p.name}</span>,
+    },
+    {
+      key: 'budget',
+      header: 'Budget',
+      align: 'num',
+      sortKey: 'budget',
+      cell: (p) => <span className="tabular">{formatCurrency(p.budget)}</span>,
+    },
+    {
+      key: 'spent',
+      header: 'Spent',
+      align: 'num',
+      sortKey: 'spent',
+      cell: (p) => <span className="tabular">{formatCurrency(p.spent)}</span>,
+    },
+    {
+      key: 'variance',
+      header: 'Variance',
+      align: 'num',
+      sortKey: 'variance',
+      cell: (p) => <VarianceCell project={p} />,
+    },
+    {
+      key: 'util',
+      header: 'Utilization',
+      align: 'num',
+      sortKey: 'util',
+      cell: (p) => (
+        <ProgressBar
+          value={p.budget > 0 ? Math.round((p.spent / p.budget) * 100) : 0}
+          showValue
+          compact
+          aria-label={`${p.name} budget utilization`}
+        />
+      ),
+    },
+  ];
 
   if (isError || (!data && !isPending)) {
     return (
@@ -60,23 +273,11 @@ export const FinanceDashboard: React.FC = () => {
     );
   }
 
-  const columns: Column<TopProject>[] = [
-    { key: 'name', header: 'Project', cell: (p) => <span className="font-medium">{p.name}</span> },
-    { key: 'budget', header: 'Budget', align: 'num', cell: (p) => formatCurrency(p.budget) },
-    { key: 'spent', header: 'Spent', align: 'num', cell: (p) => formatCurrency(p.spent) },
-    {
-      key: 'util', header: 'Utilization', align: 'num',
-      cell: (p) => (
-        <ProgressBar value={p.budget > 0 ? Math.round((p.spent / p.budget) * 100) : 0} showValue compact
-          aria-label={`${p.name} budget utilization`} />
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-4">
       <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
 
+      {/* KPI band — 5 tiles: reflows 5→3→2→1 at 1180/920/560 (unchanged from PR-A) */}
       <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
@@ -106,6 +307,45 @@ export const FinanceDashboard: React.FC = () => {
         <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
       </section>
 
+      {/* Finance "ledger" block: Ready to pay + Budget review (J4 console section rhythm) */}
+      <DashGrid>
+        {/* N16 — Ready to pay table */}
+        <Card seam>
+          <CardHead className="rounded-t-lg">Ready to pay</CardHead>
+          <ReadyToPayTable
+            procurements={procurements ?? []}
+            isPending={procPending}
+            isError={procError}
+            onRetry={() => refetchProc()}
+          />
+        </Card>
+
+        {/* N17 — Budget review by variance (OD-E honest label: top 5 contracts by variance) */}
+        <Card seam>
+          {/* Honest label per OD-E: "top 5 contracts by variance" — not portfolio-wide.
+              The RPC returns LIMIT 5 ORDER BY contract_value DESC; ranking those 5 by variance
+              is a known half-truth; the label reflects this scope. */}
+          <CardHead className="rounded-t-lg">
+            Budget review — top 5 contracts by variance
+          </CardHead>
+          <DataTable<TopProject>
+            rows={topByVariance}
+            columns={budgetColumns}
+            rowKey={(p) => p.id}
+            sort={budgetSort}
+            onSort={(key) =>
+              setBudgetSort((prev) => ({
+                key,
+                dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc',
+              }))
+            }
+            state={isPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
+            emptyTitle="No project spend yet"
+            className="rounded-t-none border-t-0"
+          />
+        </Card>
+      </DashGrid>
+
       <DashGrid>
         <Card>
           <CardHead>Procurement by Status</CardHead>
@@ -121,18 +361,6 @@ export const FinanceDashboard: React.FC = () => {
                 label="Procurement by status" noun="requests" />
             )}
           </div>
-        </Card>
-
-        <Card seam>
-          <CardHead className="rounded-t-lg">Top Projects by Spend</CardHead>
-          <DataTable
-            rows={topBySpend}
-            columns={columns}
-            rowKey={(p) => p.id}
-            state={isPending ? 'loading' : topBySpend.length === 0 ? 'empty' : undefined}
-            emptyTitle="No project spend yet"
-            className="rounded-t-none border-t-0"
-          />
         </Card>
       </DashGrid>
     </div>
