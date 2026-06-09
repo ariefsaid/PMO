@@ -316,7 +316,12 @@ const ProcurementDetails: React.FC = () => {
   // created GR/VI stays legible (read-only) via the document trail + stat tiles.
   const canShowGRForm =
     (p.status === 'Ordered' || p.status === 'Received') && canSource(role);
-  const canShowVIForm = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role);
+  // O3 (review): the after-form is now the RECOVERY surface — it shows only when the PR is at
+  // Vendor Invoiced but NO invoice record exists yet (e.g. the inline capture's transition
+  // succeeded but the invoice-create failed). On the happy path the inline capture already created
+  // the VI, so `p.invoices.length > 0` hides this form — no redundant second-create.
+  const canShowVIForm =
+    p.status === 'Vendor Invoiced' && (p.invoices?.length ?? 0) === 0 && INVOICE_PAY_ROLES.has(role);
 
   // ── Write policy (OD-UX-1): a transition gets a ConfirmDialog IFF it is
   //    consequential/financial — the set {Approve, Reject, Cancel, Mark-as-Paid}.
@@ -442,20 +447,23 @@ const ProcurementDetails: React.FC = () => {
     }
   };
 
-  // O3 (AC-W3-O3): submit the inline VI capture — transition to Vendor Invoiced
-  // then create the invoice record. Sequenced from the FE (no RPC change); the
-  // transition must succeed before creating the invoice so the PR is in the right
-  // state for the VI RPC. If transition fails the VI is never created.
+  // O3 (AC-W3-O3): submit the inline VI capture — transition to Vendor Invoiced THEN create the
+  // invoice record, sequenced from the FE (no RPC change). Calls the mutations DIRECTLY (not
+  // commitTransition, whose catch swallows) so a failed transition exits the try BEFORE the invoice
+  // is created. Exactly ONE toast: a combined success, or the classified failure (no contradictory
+  // success-then-warning pair). The inline panel is closed on BOTH paths — on a partial failure
+  // (transition OK, invoice fails) the PR is at Vendor Invoiced with no invoice, so the
+  // `canShowVIForm` recovery after-form (gated on `p.invoices.length === 0`) is where it's finished.
   const submitVICapture = async (viStatus: 'Received' | 'Scheduled', invoiceDate: string) => {
     setMutationError(null);
     try {
-      await commitTransition('Vendor Invoiced');
-      // Transition succeeded; now create the invoice record.
+      await mutations.transition.mutateAsync({ to: 'Vendor Invoiced', notes: notesInput || undefined });
       await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate });
+      setNotesInput('');
       setShowVICapture(false);
-      toast('Vendor invoice recorded', undefined, 'success');
+      toast('Vendor invoice recorded', `Moved to ${toastStateLabel('Vendor Invoiced')}`, 'success');
     } catch (err) {
-      // commitTransition already toasts + sets mutationError; createInvoice error:
+      setShowVICapture(false);
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);

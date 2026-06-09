@@ -260,6 +260,24 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     expect(screen.queryByText(/add at least one line item before submitting/i)).toBeNull();
   });
 
+  it('AC-W3-D10: the gate keys on line-item PRESENCE, not a non-zero total — a single zero-rate line enables Submit', () => {
+    // Pins the semantics: a legitimate zero-rate line (amount 0, total_value 0) should NOT be
+    // blocked — the gate is `items.length === 0`, not `total_value > 0`.
+    detailState.data = {
+      ...baseProcurement,
+      total_value: 0,
+      items: [
+        { id: 'it0', org_id: 'org-1', procurement_id: 'proc-w3', name: 'No-charge sample',
+          description: null, quantity: 1, rate: 0, amount: 0 },
+      ],
+    };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+    expect(screen.getByRole('button', { name: /submit request/i })).not.toBeDisabled();
+    expect(screen.queryByText(/add at least one line item before submitting/i)).toBeNull();
+  });
+
   it('AC-W3-D10: the empty-items gate does NOT block non-Draft statuses (e.g. Requested)', () => {
     // A Requested PR with no items (shouldn't happen in practice but must not regress)
     detailState.data = {
@@ -366,5 +384,48 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     await userEvent.click(markBtn);
     expect(screen.queryByRole('button', { name: /mark vendor invoiced/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+  });
+
+  it('AC-W3-O3 (review): a partial failure (transition OK, invoice-create fails) closes the inline panel + warns — no stuck panel', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockTransition.mockClear().mockResolvedValue(undefined);
+    mockCreateInvoice.mockClear().mockRejectedValueOnce(
+      Object.assign(new Error('invoice insert failed'), { code: '23503' }),
+    );
+    toast.mockClear();
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+
+    // Transition fired, then createInvoice was attempted and failed.
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    expect(mockTransition).toHaveBeenCalledTimes(1);
+    // The inline panel is CLOSED (not stuck open) and a warning toast surfaced.
+    await waitFor(() => expect(screen.queryByTestId('vi-inline-capture')).not.toBeInTheDocument());
+    expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
+  });
+
+  it('AC-W3-O3 (review): the after-form is the RECOVERY surface — shown at Vendor Invoiced with NO invoice, hidden once one exists (no redundant second-create)', () => {
+    // No invoice yet (e.g. after a partial failure): the "Create Vendor Invoice" recovery form shows.
+    detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
+    detailState.isPending = false;
+    detailState.isError = false;
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('btn-create-vi')).toBeInTheDocument();
+    unmount();
+
+    // An invoice already exists (happy path): the after-form is HIDDEN — no duplicate-create path.
+    detailState.data = {
+      ...vendorInvoicedProcurement,
+      invoices: [
+        { id: 'i-1', procurement_id: 'proc-w3', vi_number: 'VI-001', status: 'Scheduled',
+          invoice_date: '2026-06-09', org_id: 'org-1', created_at: '2026-06-09T00:00:00Z' },
+      ],
+    };
+    renderPage();
+    expect(screen.queryByTestId('btn-create-vi')).toBeNull();
   });
 });
