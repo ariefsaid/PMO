@@ -488,7 +488,7 @@ export const ApprovalsQueue: React.FC = () => {
               </span>
             </span>
           }
-          confirmLabel={`Approve ${selected.size}`}
+          confirmLabel={`Approve ${effectiveSelected.size}`}
           loading={bulkRunning}
           onCancel={() => setConfirmBulk(false)}
           onConfirm={commitBulk}
