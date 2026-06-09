@@ -5,6 +5,7 @@ import {
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
+  reopenTimesheet,
   type TimesheetAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
 
@@ -77,5 +78,10 @@ export function useTimesheetMutations() {
     onSuccess: invalidateBoth,
   });
 
-  return { submit, approve, reject };
+  const reopen = useMutation<void, Error, { id: string }>({
+    mutationFn: ({ id }) => reopenTimesheet(id),
+    onSuccess: invalidateBoth,
+  });
+
+  return { submit, approve, reject, reopen };
 }

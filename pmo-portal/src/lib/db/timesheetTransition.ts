@@ -103,6 +103,20 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Reopens a Rejected timesheet back to Draft (AC-W3-B1, LEGAL_TIMESHEET_TRANSITIONS Rejected→Draft).
+ * Single-click routine reversible step — no confirm dialog (OD-UX-1).
+ * org_id is NEVER sent (AC-902, FR-TS-009/010).
+ */
+export async function reopenTimesheet(id: string): Promise<void> {
+  const { error } = await supabase.rpc('transition_timesheet', {
+    p_timesheet_id: id,
+    p_to: 'Draft',
+    p_notes: null,
+  });
+  if (error) throw new Error(error.message);
+}
+
 // ---------------------------------------------------------------------------
 // DAL read — timesheets awaiting approval (AC-903, FR-TS-011)
 // ---------------------------------------------------------------------------

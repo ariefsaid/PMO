@@ -64,7 +64,7 @@ const PILL: Record<string, StatusVariant> = {
 
 const TimesheetsPage: React.FC = () => {
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
-  const { submit } = useTimesheetMutations();
+  const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -578,6 +578,20 @@ const TimesheetsPage: React.FC = () => {
   const status = (currentTimesheet?.status as TimesheetStatus | undefined) ?? null;
   const returned = status === TimesheetStatus.Rejected;
 
+  // AC-W3-B1: "Revise this week" — single-click routine reversible step (OD-UX-1: no confirm).
+  // Available only to the OWNER of a Rejected sheet; the RPC is the real authority.
+  const canRevise = returned && isOwner && !!currentTimesheet?.id;
+  const commitReopen = () => {
+    if (!currentTimesheet?.id) return;
+    reopen.mutate(
+      { id: currentTimesheet.id },
+      {
+        onSuccess: () => toast('Reopened for editing', 'Week moved back to Draft — make your changes and resubmit.', 'success'),
+        onError: (err: { message: string }) => toast('Reopen failed', err.message, 'warning'),
+      },
+    );
+  };
+
   return (
     <div>
       {head}
@@ -587,6 +601,7 @@ const TimesheetsPage: React.FC = () => {
         <ErrBanner
           title="This week was returned for changes"
           sub="Your line manager sent it back. Review the flagged days, correct them, and resubmit."
+          action={canRevise ? { label: 'Revise this week', onClick: commitReopen } : undefined}
         />
       )}
 
