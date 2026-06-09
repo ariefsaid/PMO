@@ -131,8 +131,10 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     expect(screen.getAllByRole('button', { name: /submit timesheet/i })).toHaveLength(1);
   });
 
-  it('AC-IXD-TS-002: Submit shows from FIRST PAINT but disabled with "Save your hours first" on a brand-new (no-draft) week', () => {
-    // No sheet at all yet → no Draft, no persisted hours. Submit must STILL render, disabled.
+  it('AC-IXD-TS-002 + AC-W3-O1: Submit shows from FIRST PAINT but disabled with "Enter hours to submit" on a brand-new empty week', () => {
+    // No sheet at all yet, no hours typed → Submit must still render, disabled.
+    // OD-W3-1: hint text changed from "Save your hours first" to "Enter hours to submit" because
+    // Submit now auto-saves, making the old "save first" instruction incorrect.
     tsState.data = [];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
@@ -142,7 +144,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     expect(submitBtn).toBeInTheDocument();
     expect(submitBtn).toBeDisabled();
     // The first click does not submit (disabled affordance, not hidden).
-    expect(within(footer).getByText(/save your hours first/i)).toBeInTheDocument();
+    expect(within(footer).getByText(/enter hours to submit/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-TS-002: Submit is disabled on a Draft week that has NO persisted hours yet', () => {
