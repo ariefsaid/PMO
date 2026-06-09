@@ -470,7 +470,13 @@ describe('AC-805: transition mutations called on action click', () => {
 
   it('AC-805 / AC-IXD-WP-003: clicking Submit (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
     mockEffectiveRole = 'Engineer';
-    detailState.data = { ...baseProcurement, status: 'Draft' };
+    // AC-W3-D10: Submit is only enabled when ≥1 line item exists; give the fixture an item.
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Draft',
+      total_value: 500,
+      items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
+    };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
     // OD-UX-1: routine reversible forward steps are single-click + a toast, no modal.

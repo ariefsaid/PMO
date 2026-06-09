@@ -86,7 +86,8 @@ type PendingConfirm =
     }
   | {
       kind: 'createVI';
-      status: 'Received' | 'Scheduled' | 'Paid';
+      /** N1: Paid removed — Mark as Paid is the sole PR→Paid authority (AC-W3-N1). */
+      status: 'Received' | 'Scheduled';
       invoiceDate: string;
     };
 
@@ -206,6 +207,9 @@ const ProcurementDetails: React.FC = () => {
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
+  // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
+  // clicks the action so invoice details are captured BEFORE the transition fires.
+  const [showVICapture, setShowVICapture] = useState(false);
   // Confirm-before-write (owner rule): a transition action / GR / VI is staged
   // here and only commits when the ConfirmDialog's Confirm is pressed.
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
@@ -339,6 +343,13 @@ const ProcurementDetails: React.FC = () => {
 
   const onActionClick = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
+    // O3 (AC-W3-O3): "Mark Vendor Invoiced" opens an inline capture so the invoice
+    // reference + date + status are recorded BEFORE the transition fires (co-locate
+    // capture with the action, mirroring the PipelineLens Mark-won pattern).
+    if (action.to === 'Vendor Invoiced') {
+      setShowVICapture(true);
+      return;
+    }
     if (!CONSEQUENTIAL_TARGETS.has(action.to)) {
       // Routine reversible forward step → commit directly, no dialog.
       void commitTransition(action.to);
@@ -425,6 +436,26 @@ const ProcurementDetails: React.FC = () => {
       // Close the confirm; surface the classified toast + keep the verbatim
       // inline error (forms keep redundant errors — that is correct).
       setPendingConfirm(null);
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setMutationError(detail);
+    }
+  };
+
+  // O3 (AC-W3-O3): submit the inline VI capture — transition to Vendor Invoiced
+  // then create the invoice record. Sequenced from the FE (no RPC change); the
+  // transition must succeed before creating the invoice so the PR is in the right
+  // state for the VI RPC. If transition fails the VI is never created.
+  const submitVICapture = async (viStatus: 'Received' | 'Scheduled', invoiceDate: string) => {
+    setMutationError(null);
+    try {
+      await commitTransition('Vendor Invoiced');
+      // Transition succeeded; now create the invoice record.
+      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate });
+      setShowVICapture(false);
+      toast('Vendor invoice recorded', undefined, 'success');
+    } catch (err) {
+      // commitTransition already toasts + sets mutationError; createInvoice error:
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
@@ -561,28 +592,50 @@ const ProcurementDetails: React.FC = () => {
               />
             </div>
           )}
-          {actions.length > 0 ? (
+          {/* O3 (AC-W3-O3): inline VI capture replaces the "Mark Vendor Invoiced" button
+              when the user clicks it, co-locating invoice capture with the transition action. */}
+          {showVICapture ? (
+            <VIInlineCapture
+              busy={mutations.transition.isPending || mutations.createInvoice.isPending}
+              onSubmit={(viStatus, invoiceDate) => void submitVICapture(viStatus, invoiceDate)}
+              onCancel={() => { setShowVICapture(false); setMutationError(null); }}
+            />
+          ) : actions.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {actions.map((action) => (
-                <Button
-                  key={action.to}
-                  // The solid `destructive` fill belongs ONLY inside the confirm
-                  // dialog (the system's single solid status fill) — at rest a
-                  // destructive action (Reject / Cancel) is a quiet OUTLINE so it
-                  // does not compete with the blue primary (the I4 two-solid-fills
-                  // tell). onActionClick still reads action.variant for the
-                  // dialog tone, so a kept destructive confirm stays red.
-                  variant={action.variant === 'destructive' ? 'outline' : action.variant}
-                  loading={mutations.transition.isPending}
-                  onClick={() => onActionClick(action)}
-                >
-                  {action.label}
-                </Button>
-              ))}
+              {actions.map((action) => {
+                // D10 (AC-W3-D10): block Draft → Requested when there are no line items.
+                // Only the Submit Request action (Draft→Requested) is gated; all other
+                // actions on later stages are unaffected.
+                const isSubmitBlocked =
+                  action.to === 'Requested' && isDraft && p.items.length === 0;
+                return (
+                  <Button
+                    key={action.to}
+                    // The solid `destructive` fill belongs ONLY inside the confirm
+                    // dialog (the system's single solid status fill) — at rest a
+                    // destructive action (Reject / Cancel) is a quiet OUTLINE so it
+                    // does not compete with the blue primary (the I4 two-solid-fills
+                    // tell). onActionClick still reads action.variant for the
+                    // dialog tone, so a kept destructive confirm stays red.
+                    variant={action.variant === 'destructive' ? 'outline' : action.variant}
+                    loading={mutations.transition.isPending}
+                    disabled={isSubmitBlocked}
+                    onClick={() => onActionClick(action)}
+                  >
+                    {action.label}
+                  </Button>
+                );
+              })}
             </div>
           ) : (
             <p className="text-[13px] text-muted-foreground">
               No further lifecycle actions are available to you at this stage.
+            </p>
+          )}
+          {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
+          {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
+            <p className="text-[13px] text-muted-foreground" data-testid="line-items-gate">
+              Add at least one line item before submitting.
             </p>
           )}
           {mutationError && (
@@ -670,9 +723,10 @@ const ProcurementDetails: React.FC = () => {
                   const fd = new FormData(e.currentTarget);
                   setMutationError(null);
                   // Stage the VI for confirmation (commit fires on Confirm).
+                  // N1: status cast excludes Paid — the select no longer offers it.
                   setPendingConfirm({
                     kind: 'createVI',
-                    status: fd.get('vi-status') as 'Received' | 'Scheduled' | 'Paid',
+                    status: fd.get('vi-status') as 'Received' | 'Scheduled',
                     invoiceDate: fd.get('vi-date') as string,
                   });
                 }}
@@ -688,7 +742,7 @@ const ProcurementDetails: React.FC = () => {
                   >
                     <option value="Received">Received</option>
                     <option value="Scheduled">Scheduled</option>
-                    <option value="Paid">Paid</option>
+                    {/* N1 (AC-W3-N1): Paid removed — Mark as Paid is the sole PR→Paid authority. */}
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
@@ -840,6 +894,74 @@ const ProcurementDetails: React.FC = () => {
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// O3 (AC-W3-O3): inline VI capture — appears in the action bar when the user
+// clicks "Mark Vendor Invoiced", co-locating invoice capture with the transition.
+// N1 (AC-W3-N1): Paid is excluded from status options here too.
+// ---------------------------------------------------------------------------
+interface VIInlineCaptureProps {
+  busy: boolean;
+  onSubmit: (status: 'Received' | 'Scheduled', invoiceDate: string) => void;
+  onCancel: () => void;
+}
+
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
+  const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
+  const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+
+  return (
+    <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
+      <p className="text-[12px] font-semibold text-muted-foreground">
+        Enter invoice details to mark as Vendor Invoiced:
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Invoice status
+          <select
+            value={viStatus}
+            onChange={(e) => setViStatus(e.target.value as 'Received' | 'Scheduled')}
+            data-testid="vi-status-select"
+            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <option value="Received">Received</option>
+            <option value="Scheduled">Scheduled</option>
+            {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Invoice date
+          <input
+            type="date"
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+            data-testid="vi-date-input"
+            className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+        <Button
+          variant="success"
+          size="sm"
+          loading={busy}
+          disabled={!invoiceDate}
+          data-testid="btn-submit-vi-capture"
+          onClick={() => onSubmit(viStatus, invoiceDate)}
+        >
+          Confirm &amp; Mark Invoiced
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="btn-cancel-vi-capture"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 };
