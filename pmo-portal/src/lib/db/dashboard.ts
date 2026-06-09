@@ -70,16 +70,16 @@ export interface PipelineProject {
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).
-   * AVAILABILITY: populated by useLostDeals (full ProjectWithRefs row); NOT populated
-   * by get_sales_pipeline() which does not project this field. Open pipeline deal rows
-   * will have this field absent — rendering "—" for Last touch is correct and honest.
-   * Deferred: extend the get_sales_pipeline RPC to include this field for full coverage.
+   * AVAILABILITY: populated for BOTH open pipeline rows (get_sales_pipeline() projects
+   * it per row — migration 0020, AC-IXD-PIPE-W5-C5) AND lost deals (useLostDeals, full
+   * ProjectWithRefs row). Drives the "Last touch" column + aging / "Needs attention" filter.
+   * Optional only for defensive typing; the RPC always supplies it for a real project.
    */
   last_update?: string;
   /**
    * The project manager's full name (profiles.full_name resolved via the pm join).
-   * AVAILABILITY: same as last_update — populated for lost deals via useLostDeals;
-   * absent for open pipeline rows from the RPC. Open rows render "—" for Owner.
+   * AVAILABILITY: same as last_update — supplied for open pipeline rows by get_sales_pipeline()
+   * (migration 0020) and for lost deals by useLostDeals. NULL when the project has no PM.
    */
   pm_name?: string | null;
 }
@@ -117,7 +117,8 @@ export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
 /**
  * Sales pipeline stages + project list for the caller's org (FR-SPD-010).
  * security invoker, no org_id argument — RLS scopes (NFR-SPD-SEC-001).
- * On RPC error throws.
+ * Each open-pipeline project row carries `last_update` + `pm_name` (owner) for the
+ * attention signals (migration 0020, AC-IXD-PIPE-W5-C5). On RPC error throws.
  */
 export async function getSalesPipeline(): Promise<SalesPipeline> {
   const { data, error } = await supabase.rpc('get_sales_pipeline');

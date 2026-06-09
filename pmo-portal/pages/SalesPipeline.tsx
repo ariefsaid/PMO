@@ -42,9 +42,10 @@ const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
 /**
  * Table status filter (Model B, AC-IXD-PROJ-007): Open deals (default) or terminal Lost deals.
- * N14 (AC-IXD-PIPE-W5-C5): "Needs attention" segment added — shows deals from all scopes where
- * last_update is available AND days-since >= ATTENTION_THRESHOLD_DAYS. Open-deal rows that lack
- * last_update (current RPC limitation) are excluded (honest: no false positive from missing data).
+ * N14 (AC-IXD-PIPE-W5-C5): "Needs attention" segment shows deals from BOTH scopes (open ∪ lost)
+ * whose days-since-last_update >= ATTENTION_THRESHOLD_DAYS. get_sales_pipeline() now projects
+ * last_update + the owner for open rows (migration 0020), so open deals carry real aging — the
+ * filter and the Owner / Last touch columns work on open deals, not just lost ones.
  */
 type DealScope = 'Open' | 'Lost' | 'Needs attention';
 const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
@@ -82,9 +83,9 @@ const SalesPipeline: React.FC = () => {
   const kanbanProjects = useMemo(() => [...openProjects, ...lost], [openProjects, lost]);
 
   // The table is scoped by the Open / Lost / Needs attention SegFilter, then by search.
-  // "Needs attention" (N14): spans open ∪ lost rows where last_update is present and
-  // days-since >= ATTENTION_THRESHOLD_DAYS. Open rows from the RPC have no last_update
-  // and are excluded (honest — no false positive from missing data).
+  // "Needs attention" (N14): spans open ∪ lost rows whose days-since-last_update >=
+  // ATTENTION_THRESHOLD_DAYS. Open rows now carry last_update from the RPC (migration 0020),
+  // so a stale open deal is flagged just like a stale lost one.
   const filtered = useMemo(() => {
     let base: PipelineProject[];
     if (scope === 'Lost') {
@@ -191,9 +192,9 @@ const SalesPipeline: React.FC = () => {
     {
       /**
        * N14 Owner column (AC-IXD-PIPE-W5-C5).
-       * DATA AVAILABILITY: pm_name is populated for lost deals (useLostDeals passes through
-       * pm.full_name from the full ProjectWithRefs row). Open pipeline rows from the
-       * get_sales_pipeline RPC have no pm_name → show "—" (honest, no fabrication).
+       * DATA AVAILABILITY: pm_name (the project manager / owner) is supplied for BOTH open
+       * pipeline rows (get_sales_pipeline → profiles.full_name, migration 0020) and lost deals
+       * (useLostDeals, full ProjectWithRefs row). A project with no PM renders "—" (honest).
        */
       key: 'owner',
       header: 'Owner',
@@ -217,8 +218,9 @@ const SalesPipeline: React.FC = () => {
     {
       /**
        * N14 Last touch column (AC-IXD-PIPE-W5-C5).
-       * DATA AVAILABILITY: last_update is populated for lost deals (full row). Open
-       * pipeline rows from the RPC have no last_update → show "—" (honest).
+       * DATA AVAILABILITY: last_update is supplied for BOTH open pipeline rows
+       * (get_sales_pipeline, migration 0020) and lost deals (full row). A row genuinely
+       * missing it renders "—" (defensive, honest).
        * Aging signal (ATTENTION_THRESHOLD_DAYS = 30d): text + warning color when stale —
        * text-not-color-only per DESIGN.md accessibility rule.
        */

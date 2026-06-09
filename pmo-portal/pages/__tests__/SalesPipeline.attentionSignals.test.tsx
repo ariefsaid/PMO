@@ -2,28 +2,30 @@
  * AC-IXD-PIPE-W5-C5 — Pipeline attention signals + "Needs attention" filter (N14)
  *
  * DATA-CHECK NOTES (binding, per honest-dashboard rule):
- *  - The `get_sales_pipeline()` RPC returns only { id, name, client_name, status,
- *    contract_value, win_probability }. It does NOT return `last_update` or PM name.
- *  - Open pipeline deal rows therefore have NO aging/owner data; those columns show "—"
- *    (honest, no fabrication). A backend RPC extension is tracked as a follow-up.
+ *  - `get_sales_pipeline()` now (migration 0020) projects, per OPEN pipeline row:
+ *    { id, name, client_name, status, contract_value, win_probability, last_update, pm_name }.
+ *    So OPEN deals carry real aging + owner — the Owner / Last touch columns and the
+ *    "Needs attention" filter work on OPEN deals, not just lost ones.
  *  - Lost deals (via useLostDeals → repositories.project.list) come through as
- *    ProjectWithRefs which includes `last_update` and `pm.full_name`. The useLostDeals
- *    hook is extended to pass these optional fields through PipelineProject.
+ *    ProjectWithRefs which includes `last_update` and `pm.full_name`.
+ *  - A row that GENUINELY lacks last_update / pm_name (e.g. a project with no PM, or an
+ *    edge RPC payload) still renders "—" (honest, no fabrication) and is excluded from the
+ *    attention filter (no false positive from missing data).
  *
  * AGING THRESHOLD: 30 days. A deal untouched for ≥ 30 days is "needs attention".
- *   - "Needs attention" filter = table rows where last_update IS present AND
+ *   - "Needs attention" filter = table rows (open ∪ lost) where last_update IS present AND
  *     days since last_update >= 30.
- *   - Open deal rows that lack last_update are excluded from the filter (honest;
- *     no false positives from missing data).
+ *   - Rows that lack last_update are excluded from the filter (honest).
  *
  * TESTS:
  * 1. Table view renders "Owner" and "Last touch" column headers.
- * 2. An open pipeline row (no last_update from RPC) shows "—" for Owner and Last touch.
+ * 2. An OPEN pipeline row from the RPC shows its real Owner (pm_name) and Last touch.
+ * 2b. A row genuinely missing last_update/pm_name still shows "—" (honest, no fabrication).
  * 3. A lost deal row with a recent last_update shows the PM name and "X days ago".
  * 4. The "Needs attention" filter tab is present in the table toolbar.
  * 5. "Needs attention" filter shows only deals with last_update >= 30 days ago.
  * 6. "Needs attention" filter excludes deals with last_update < 30 days ago.
- * 7. "Needs attention" filter excludes open deal rows that have no last_update.
+ * 7. "Needs attention" filter INCLUDES a stale OPEN deal (now that open rows carry last_update).
  * 8. "Needs attention" filter shows an honest empty state when there are no stale deals.
  * 9. Owner column: text label (not color-only), has accessible column header.
  * 10. Last touch aging signal uses text label (not color-only); stale row shows warning label.
@@ -43,14 +45,39 @@ import { ToastProvider } from '@/src/components/ui';
 const daysAgo = (n: number) =>
   new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
 
-const openProjectNoLastUpdate = {
+// An OPEN deal as the RPC NOW returns it (migration 0020): real last_update + owner. Recent → not stale.
+const openProjectRecent = {
   id: 'p-open-1',
   name: 'Northwind ERP Rollout',
   client_name: 'Northwind',
   status: 'Tender Submitted',
   contract_value: 1_200_000,
   win_probability: 0.5,
-  // NO last_update, NO pm_name — as returned by the current RPC
+  last_update: daysAgo(3), // 3 days ago — NOT stale
+  pm_name: 'Alice Manager',
+};
+
+// An OPEN deal that has gone stale — open rows now carry last_update, so the attention filter flags it.
+const openProjectStale = {
+  id: 'p-open-stale',
+  name: 'Eastgate Depot Upgrade',
+  client_name: 'Eastgate',
+  status: 'Negotiation',
+  contract_value: 2_000_000,
+  win_probability: 0.7,
+  last_update: daysAgo(40), // 40 days ago — STALE (>= 30 days)
+  pm_name: 'Carol Owner',
+};
+
+// A row that GENUINELY lacks last_update / pm_name (defensive edge): renders "—" and is filter-excluded.
+const openProjectNoData = {
+  id: 'p-open-nodata',
+  name: 'Bare Opportunity',
+  client_name: 'Bare Co',
+  status: 'Leads',
+  contract_value: 100_000,
+  win_probability: 0.1,
+  // NO last_update, NO pm_name
 };
 
 const lostProjectRecent = {
@@ -88,7 +115,7 @@ const pipelineState: {
   isError: boolean;
   refetch: ReturnType<typeof vi.fn>;
 } = {
-  data: { stages: [], projects: [openProjectNoLastUpdate] },
+  data: { stages: [], projects: [openProjectRecent] },
   isPending: false,
   isError: false,
   refetch: vi.fn(),
@@ -138,7 +165,7 @@ const renderPage = () =>
 
 beforeEach(() => {
   sessionStorage.clear();
-  pipelineState.data = { stages: [], projects: [openProjectNoLastUpdate] };
+  pipelineState.data = { stages: [], projects: [openProjectRecent] };
   pipelineState.isPending = false;
   pipelineState.isError = false;
   lostState.data = [];
@@ -154,15 +181,25 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(screen.getByRole('columnheader', { name: /last touch/i })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-2: open pipeline row (RPC — no last_update) shows "—" for Owner and Last touch (honest, no fabrication)', async () => {
+  it('AC-IXD-PIPE-W5-C5-2: open pipeline row (RPC migration 0020) shows its real Owner and Last touch', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
-    const cells = within(row).getAllByRole('cell');
-    // Each cell in the row — find owner and last-touch dashes
-    const cellTexts = cells.map((c) => c.textContent ?? '');
-    // Both owner and last-touch should show "—" for rows without data
-    const dashCells = cellTexts.filter((t) => t.trim() === '—');
+    // Owner is the PM name supplied by the RPC; Last touch is the aged last_update — NOT "—".
+    expect(within(row).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
+  });
+
+  it('AC-IXD-PIPE-W5-C5-2b: a row genuinely missing last_update/pm_name still shows "—" (honest, no fabrication)', async () => {
+    pipelineState.data = { stages: [], projects: [openProjectNoData] };
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    const row = screen.getByText('Bare Opportunity').closest('tr')!;
+    const dashCells = within(row)
+      .getAllByRole('cell')
+      .map((c) => c.textContent ?? '')
+      .filter((t) => t.trim() === '—');
+    // Both Owner and Last touch render "—" when the row has no data.
     expect(dashCells.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -200,12 +237,23 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-7: "Needs attention" filter excludes open deal rows that have no last_update (honest — no false positive)', async () => {
-    // openProjectNoLastUpdate is an open deal with no last_update from RPC
+  it('AC-IXD-PIPE-W5-C5-7: "Needs attention" filter INCLUDES a stale OPEN deal (open rows now carry last_update)', async () => {
+    // openProjectRecent (3d, not stale) + openProjectStale (40d, stale) are both OPEN deals.
+    pipelineState.data = { stages: [], projects: [openProjectRecent, openProjectStale] };
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    // The stale OPEN deal IS flagged; the recent OPEN deal is NOT.
+    expect(screen.getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
+  });
+
+  it('AC-IXD-PIPE-W5-C5-7b: "Needs attention" filter excludes a row genuinely missing last_update (honest — no false positive)', async () => {
+    pipelineState.data = { stages: [], projects: [openProjectNoData] };
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    expect(screen.queryByText('Bare Opportunity')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-8: "Needs attention" filter shows an honest empty state when no stale deals exist', async () => {

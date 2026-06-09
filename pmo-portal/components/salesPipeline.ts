@@ -84,12 +84,13 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
 
 /**
  * Aging threshold in days. A pipeline deal untouched for >= 30 days is flagged as
- * "needs attention". Applied only when `last_update` is available on the row.
+ * "needs attention". Applied to any row that carries `last_update`.
  *
- * DATA AVAILABILITY NOTE: `last_update` is populated by useLostDeals (ProjectWithRefs
- * from the full projects table row). Open pipeline deal rows come from get_sales_pipeline()
- * which does not project this field — those rows are excluded from the attention filter
- * (honest: no signal = no false positive). A backend RPC extension is the follow-up.
+ * DATA AVAILABILITY: `last_update` is now supplied for BOTH open pipeline rows
+ * (get_sales_pipeline() projects it — migration 0020, AC-IXD-PIPE-W5-C5) AND lost
+ * deals (useLostDeals, full projects row). So the attention filter spans open ∪ lost.
+ * A row that genuinely lacks `last_update` (defensive only) returns false — no false
+ * positive from missing data, per the honest-dashboard rule.
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
 
