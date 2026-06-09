@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
@@ -64,11 +65,15 @@ const dealRow = {
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
+// The write-policy journey is a PM advancing a deal; render under a PM real role so the
+// A-1 lifecycle gate (Admin·Exec·PM) shows the action cluster being exercised here.
 const renderLens = (project: ProjectWithRefs = dealRow) =>
   render(
-    <ToastProvider>
-      <PipelineLens project={project} />
-    </ToastProvider>,
+    <ImpersonationProvider realRole="Project Manager">
+      <ToastProvider>
+        <PipelineLens project={project} />
+      </ToastProvider>
+    </ImpersonationProvider>,
   );
 
 beforeEach(() => {
