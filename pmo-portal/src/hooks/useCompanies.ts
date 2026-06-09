@@ -31,7 +31,14 @@ export interface UpdateCompanyArgs {
  */
 export function useCompanyMutations() {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['companies'] });
+  // Also bust the FK-picker caches (F2, Wave 3): a company is both a vendor and a client option,
+  // so create/edit/archive/delete must refresh `['fk-options','vendor']` + `['fk-options','client']`
+  // or combobox forms serve a stale/archived/missing company for the ~5-min query staleTime.
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['companies'] });
+    qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
+    qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
+  };
 
   const create = useMutation({
     mutationFn: (input: CompanyInput) => repositories.company.create(input),

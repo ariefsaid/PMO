@@ -67,6 +67,28 @@ describe('useCompanyMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['companies'] });
   });
 
+  it('AC-W3-INTEG-002 (F2): create also invalidates the vendor + client FK pickers (so combobox forms do not serve a stale company list for ~5 min)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.create.mutateAsync({ name: 'New Co', type: 'Client' });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'vendor'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'client'] });
+  });
+
+  it('AC-W3-INTEG-002 (F2): archive also invalidates the vendor + client FK pickers (an archived company must drop out)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.archive.mutateAsync('c1');
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'vendor'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'client'] });
+  });
+
   it('AC-CO-004: update invokes the repository with id + input', async () => {
     const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(freshClient()) });
     await act(async () => {
