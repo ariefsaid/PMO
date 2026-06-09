@@ -65,6 +65,7 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
+  const [totalError, setTotalError] = useState<string | undefined>(undefined);
   const [selectTarget, setSelectTarget] = useState<QuotationRow | null>(null);
 
   const { data: vendorOptions } = useVendorOptions();
@@ -77,14 +78,22 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
     setAdding(false);
     setVendorId(null);
     setTotal('');
+    setTotalError(undefined);
   };
 
   const submitAdd = async () => {
     if (!vendorId || !total.trim()) return;
+    const stripped = total.replace(/,/g, '');
+    const parsed = Number(stripped);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setTotalError('Quoted total must be a number greater than 0.');
+      return;
+    }
+    setTotalError(undefined);
     try {
       await onAdd({
         vendorId,
-        totalAmount: parseFloat(total.replace(/,/g, '')) || 0,
+        totalAmount: parsed,
         receivedDate: new Date().toISOString().slice(0, 10),
       });
       resetAdd();
@@ -177,7 +186,11 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
                 required
                 prefix="$"
                 value={total}
-                onChange={setTotal}
+                onChange={(v) => {
+                  setTotal(v);
+                  setTotalError(undefined);
+                }}
+                error={totalError}
                 placeholder="0.00"
               />
             </div>
