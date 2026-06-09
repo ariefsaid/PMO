@@ -85,28 +85,25 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   // GR# should appear in the document trail (rendered in both trail panel and receipts section)
   await expect(page.getByText(/^GR-\d{10}$/).first()).toBeVisible({ timeout: 15_000 });
 
-  // ── Step 6: finance marks Vendor Invoiced (Received → Vendor Invoiced) ───
+  // ── Step 6+7: finance marks Vendor Invoiced — O3/OD-W3-3: clicking "Mark Vendor Invoiced"
+  //    opens an INLINE capture that records the invoice (status + date) AS PART OF the transition
+  //    (evidence-with-state), rather than transitioning first and capturing the VI in a later form. ──
   await login(page, 'finance@acme.test');
   await page.goto(PROC_URL);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 10_000 });
 
-  // Mark Vendor Invoiced is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
   await page.getByRole('button', { name: 'Mark Vendor Invoiced' }).click();
+  // The inline capture replaces the action button (not a bare transition).
+  await expect(page.getByTestId('vi-inline-capture')).toBeVisible({ timeout: 5_000 });
+  // The invoice's receipt status — N1: "Paid" is NOT offered here ("Mark as Paid" is the sole
+  // PR→Paid authority); record the invoice as Scheduled-for-payment + its date.
+  await page.getByTestId('vi-status-select').selectOption('Scheduled');
+  await page.getByTestId('vi-date-input').fill('2026-06-09');
+  await page.getByTestId('btn-submit-vi-capture').click();
+
+  // The transition + VI-create fire together → status Vendor Invoiced + VI# in the document trail.
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 15_000 });
-
-  // ── Step 7: finance creates VI (status Paid) ─────────────────────────────
-  await page.getByTestId('btn-create-vi').click();
-  await expect(page.getByTestId('form-create-vi')).toBeVisible({ timeout: 5_000 });
-
-  // Select Paid status
-  await page.getByTestId('vi-status-select').selectOption('Paid');
-  // Click Save VI in the form — this stages the VI for confirmation (no single-click write)
-  await page.getByTestId('btn-save-vi').click();
-  // Confirm inside the dialog that appears (confirmLabel = "Save VI" per confirmCopy.createVI)
-  await confirmVia(page, 'Save VI');
-
-  // VI# should appear in the document trail (rendered in both trail panel and invoices section)
   await expect(page.getByText(/^VI-\d{10}$/).first()).toBeVisible({ timeout: 15_000 });
 
   // ── Step 8: finance marks Paid (Vendor Invoiced → Paid) ──────────────────

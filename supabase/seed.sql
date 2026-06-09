@@ -195,7 +195,14 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
   ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture','40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2','Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z');
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
   ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
-  ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000);
+  ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000),
+  -- A realistic Draft PR carries line items before it is submitted (Wave-3 D10: an empty PR can no
+  -- longer be submitted). …004 (AC-816 Draft→Paid) and …006 (AC-CONFIRM-001 submit→reject) are
+  -- Draft fixtures both specs SUBMIT, so they need ≥1 line item. Amounts match each PR's stored
+  -- total_value (9,800 / 12,000); both are Draft → NOT in the on-hand committed-spend aggregate
+  -- (0009 sums Ordered..Paid only), so this adds zero pgTAP-oracle drift.
+  ('60000000-0000-0000-0000-000000000004','Survey software license','Annual seat licenses',1,9800),
+  ('60000000-0000-0000-0000-000000000006','Confirm-gate line item','Fixture line item',1,12000);
 insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected) values
   ('60000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000004','APX-Q-101',152000,'2026-02-10',false),
   ('60000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000005','SYN-Q-220',148000,'2026-02-11',false);

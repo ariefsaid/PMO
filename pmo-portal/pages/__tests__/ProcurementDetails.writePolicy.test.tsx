@@ -131,7 +131,14 @@ beforeEach(() => {
 describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no confirm)', () => {
   it('AC-IXD-WP-003: Submit Request (Draft→Requested) commits on a single click — no dialog', async () => {
     mockEffectiveRole = 'Engineer';
-    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    // AC-W3-D10: Submit Request is only enabled when ≥1 line item is present.
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Draft',
+      requested_by_id: 'u-alice',
+      total_value: 500,
+      items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
+    };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
 
@@ -178,12 +185,23 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Mark Vendor Invoiced (Received→Vendor Invoiced) commits on a single click — no dialog', async () => {
+  it('AC-IXD-WP-003: Mark Vendor Invoiced (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
+    // O3 (AC-W3-O3): clicking "Mark Vendor Invoiced" now opens an inline capture panel
+    // to co-locate invoice details with the transition (deliberate UX change). There is
+    // still no ConfirmDialog modal — the inline panel IS the capture step.
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
 
+    // No modal dialog — the inline capture panel takes over (no confirm dialog surface).
     expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    // The inline capture is now visible — submit it to commit the transition.
+    expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+
+    // Goal oracle unchanged: transition to Vendor Invoiced fires (no modal was required).
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Vendor Invoiced' })),
     );
