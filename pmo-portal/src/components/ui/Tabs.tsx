@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { cn } from './cn';
+import { tabId, tabPanelId } from './tabIds';
 
 export interface TabItem<V extends string = string> {
   value: V;
@@ -11,6 +12,8 @@ export interface TabsProps<V extends string = string> {
   value: V;
   onChange: (value: V) => void;
   ariaLabel: string;
+  /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
+  idBase: string;
   className?: string;
 }
 
@@ -37,6 +40,7 @@ export function Tabs<V extends string = string>({
   value,
   onChange,
   ariaLabel,
+  idBase,
   className,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -98,7 +102,9 @@ export function Tabs<V extends string = string>({
             key={t.value}
             type="button"
             role="tab"
+            id={tabId(idBase, t.value)}
             aria-selected={active}
+            aria-controls={active ? tabPanelId(idBase, t.value) : undefined}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.value)}
             className={cn(

@@ -48,6 +48,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="overview"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     const tablist = screen.getByRole('tablist');
@@ -63,6 +64,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="overview"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     const tabs = screen.getAllByRole('tab');
@@ -78,6 +80,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="overview"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     expect(screen.getByRole('tablist')).toBeInTheDocument();
@@ -91,6 +94,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="procurement"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     const active = screen.getByRole('tab', { name: 'Procurement', selected: true });
@@ -105,6 +109,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="overview"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     const tabs = screen.getAllByRole('tab');
@@ -123,6 +128,7 @@ describe('Tabs — mobile scroll-snap strip (AC-IXD-MOBILE-W4-PR3-C2)', () => {
         value="overview"
         onChange={() => {}}
         ariaLabel="Project sections"
+        idBase="t"
       />,
     );
     const tablist = screen.getByRole('tablist');

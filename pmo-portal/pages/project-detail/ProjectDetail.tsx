@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tabs, ListState, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOpportunity } from '@/src/lib/db/opportunity';
@@ -140,9 +140,13 @@ const ProjectDetail: React.FC = () => {
       )}
 
       {/* Delivery tabs — rendered at EVERY stage (Overview/Budget/Procurement/Tasks/Documents). */}
-      <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" />
+      <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
 
-      <div role="tabpanel">
+      <div
+        role="tabpanel"
+        id={tabPanelId('project-detail', tab)}
+        aria-labelledby={tabId('project-detail', tab)}
+      >
         {tab === 'overview' && (
           <OverviewTab
             project={project}
