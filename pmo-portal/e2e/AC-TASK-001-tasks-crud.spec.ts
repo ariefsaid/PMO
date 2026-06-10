@@ -35,10 +35,16 @@ async function gotoTasks(page: Page) {
   await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
-/** Locate the DataTable row whose first cell exactly matches `name`. */
+/**
+ * Locate the DataTable row via the activation button rendered in the first cell.
+ * B-2 wired `rowLabel={(t) => \`Edit ${t.name}\`}`, so the cell's accessible name
+ * is now "Edit <name>" — the old exact cell-name match no longer works.
+ * Per the BDD authoring rule this is a deliberate-UX-change → update the locator
+ * to the new doorway while keeping the goal-oracle intact.
+ */
 function taskRow(page: Page, name: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('cell', { name, exact: true }),
+    has: page.getByRole('button', { name: `Edit ${name}`, exact: true }),
   });
 }
 

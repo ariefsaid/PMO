@@ -223,7 +223,11 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/Date/i), '2026-06-08');
+    // AC-W6-IXD-INCDATE: the create form now pre-fills today's date; the user changes
+    // it to a specific date here (clear the default first, then set the test date).
+    const dateField = within(dialog).getByLabelText(/Date/i);
+    await userEvent.clear(dateField);
+    await userEvent.type(dateField, '2026-06-08');
     await userEvent.type(within(dialog).getByLabelText(/Type/i), 'Near Miss');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Severity/i), 'Medium');
     await userEvent.type(within(dialog).getByLabelText(/Location/i), 'Site C');
@@ -245,12 +249,41 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/Date/i), '2026-06-08');
+    // AC-W6-IXD-INCDATE: clear the pre-filled default before typing a specific date.
+    const dateField = within(dialog).getByLabelText(/Date/i);
+    await userEvent.clear(dateField);
+    await userEvent.type(dateField, '2026-06-08');
     await userEvent.type(within(dialog).getByLabelText(/Type/i), 'Spill');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Severity/i), 'High');
     await userEvent.click(within(dialog).getByRole('button', { name: /^File incident$/i }));
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/don't have permission/i);
+  });
+});
+
+describe('Incidents — create-form date default (AC-W6-IXD-INCDATE)', () => {
+  // Build today's local YYYY-MM-DD the same way the component must (avoid the
+  // UTC-midnight off-by-one).
+  const todayLocal = () => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
+  it('AC-W6-IXD-INCDATE: the File-incident (create) form pre-fills the Date field with today (local YYYY-MM-DD)', async () => {
+    renderPage('Engineer');
+    await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue(todayLocal());
+  });
+
+  it('AC-W6-IXD-INCDATE: the Edit form keeps the incident stored date (not today)', async () => {
+    renderPage('Admin');
+    const row = screen.getByText('Near Miss').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /^Edit$/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue('2026-03-15');
   });
 });
 

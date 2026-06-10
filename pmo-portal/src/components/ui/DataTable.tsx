@@ -220,7 +220,27 @@ export function DataTable<Row>({
                 return (
                   <tr
                     key={key}
-                    onClick={onActivate ? () => onActivate(row) : undefined}
+                    onClick={
+                      onActivate
+                        ? (e) => {
+                            // Guard: ignore clicks that originate from interactive
+                            // elements rendered INSIDE the row (inline selects,
+                            // inputs, buttons, links, labels, etc.). This prevents
+                            // an in-row <select> change from opening the edit modal.
+                            // The first-cell activation <button> and the RowMenu
+                            // wrapper already call e.stopPropagation() so they never
+                            // reach here; this guard is defence-in-depth for any
+                            // other interactive control added to a cell in the future.
+                            if (
+                              (e.target as HTMLElement).closest(
+                                'button, a, select, input, textarea, label, [role="menuitem"], [contenteditable]'
+                              )
+                            )
+                              return;
+                            onActivate(row);
+                          }
+                        : undefined
+                    }
                     className={cn(
                       'group border-b border-border/70 last:border-b-0 transition-colors',
                       onActivate && 'cursor-pointer hover:bg-accent/60',

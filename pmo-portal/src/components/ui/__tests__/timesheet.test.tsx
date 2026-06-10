@@ -117,6 +117,9 @@ describe('TimesheetGrid (editable mode)', () => {
         onNoteChange={onNoteChange}
       />,
     );
+    // AC-W6-IXD-NOTE: an empty note now collapses to a quiet "+ Note" button; the user
+    // expands it before typing. Goal-oracle (note editable → onNoteChange fires) unchanged.
+    await userEvent.click(screen.getByRole('button', { name: /Add note to Acme Platform/i }));
     const note = screen.getByLabelText('Acme Platform note');
     await userEvent.type(note, 'x');
     expect(onNoteChange).toHaveBeenLastCalledWith('p1', 'x');
@@ -223,7 +226,11 @@ describe('TimesheetGrid (editable mode)', () => {
       <TimesheetGrid days={days} rows={editRows} editable notes={{ p1: '' }} onDeleteRow={vi.fn()} />,
     );
     expect(screen.getByLabelText('Acme Platform, Mon hours').className).toContain('touch-target');
-    expect(screen.getByLabelText('Acme Platform note').className).toContain('touch-target');
+    // AC-W6-IXD-NOTE: the note affordance for an empty note is the collapsed "+ Note"
+    // button; it (like the expanded input) carries the touch-target ≥44px hit-area hook.
+    expect(
+      screen.getByRole('button', { name: 'Add note to Acme Platform' }).className,
+    ).toContain('touch-target');
     expect(
       screen.getByRole('button', { name: 'Delete Acme Platform row' }).className,
     ).toContain('touch-target');

@@ -387,6 +387,18 @@ const Incidents: React.FC = () => {
 
 // ── File / edit incident form modal ─────────────────────────────────────────
 
+/**
+ * Today as a LOCAL-date `YYYY-MM-DD` string (the <input type="date"> value format,
+ * matching the `date` — not timestamptz — column). Built from local
+ * getFullYear/getMonth/getDate to avoid the UTC-midnight off-by-one that
+ * `toISOString().slice(0,10)` would introduce in negative-UTC-offset zones.
+ */
+function todayLocalISO(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 interface IncidentFormModalProps {
   incident: IncidentRow | null;
   onClose: () => void;
@@ -405,7 +417,11 @@ const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const isEdit = !!incident;
   const form = useEntityForm<FormValues>({
     initialValues: {
-      incident_date: incident?.incident_date ?? '',
+      // AC-W6-IXD-INCDATE (B-5): the dominant case is filing a same-day incident, so the
+      // create form defaults the date to TODAY. Built from local getFullYear/Month/Date
+      // (NOT toISOString, which is UTC and off-by-one near midnight) to match the `date`
+      // (not timestamptz) column. Edit keeps the stored value.
+      incident_date: incident?.incident_date ?? todayLocalISO(),
       type: incident?.type ?? '',
       severity: incident?.severity ?? 'Low',
       location: incident?.location ?? '',
