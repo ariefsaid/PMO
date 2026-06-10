@@ -568,7 +568,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
           <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            Status
+            Update status
           </h3>
           {sodBlocked ? (
             // SoD preserved: author can't approve/reject their own Issued doc.

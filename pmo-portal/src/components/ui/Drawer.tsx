@@ -89,7 +89,12 @@ export const Drawer: React.FC<DrawerProps> = ({
   }, [open, nestedOpen, requestClose]);
 
   // Focus: capture the trigger, move focus into the panel on open, restore on
-  // close (the exact escape-route contract EntityFormModal ships).
+  // close. Works for BOTH close patterns:
+  //   • re-render to open=false (EntityFormModal-style): the else-if branch fires.
+  //   • UNMOUNT (conditional-render consumers: {company && <CompanyDrawer/>}): the
+  //     effect cleanup fires and restores focus; the else-if never runs.
+  // Both paths call triggerRef.current.focus() exactly once; the cleanup nulls the
+  // ref afterward to prevent double-focus if the component somehow re-opens.
   useEffect(() => {
     if (open) {
       triggerRef.current = document.activeElement as HTMLElement | null;
@@ -98,7 +103,20 @@ export const Drawer: React.FC<DrawerProps> = ({
         'input, select, textarea, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
       );
       (first ?? root)?.focus();
+      // Cleanup: runs on unmount (conditional-render consumers) OR when open
+      // changes to false (re-render consumers). Either way, focus is restored
+      // to the captured trigger before the drawer disappears.
+      return () => {
+        if (triggerRef.current) {
+          triggerRef.current.focus();
+          triggerRef.current = null;
+        }
+      };
     } else if (triggerRef.current) {
+      // Re-render path (open=false): the cleanup above already fired and nulled
+      // the ref, so this branch handles the edge case where the effect runs
+      // without the cleanup having fired (e.g. if open was never true in this
+      // mount cycle and someone set a triggerRef manually). Guard is harmless.
       triggerRef.current.focus();
       triggerRef.current = null;
     }

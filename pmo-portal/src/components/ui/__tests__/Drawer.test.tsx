@@ -165,6 +165,33 @@ describe('Drawer: focus management (AC-W5-C6-DRAWER)', () => {
     expect(trigger).toHaveFocus();
     trigger.remove();
   });
+
+  it('C1: restores focus to the trigger when the Drawer is UNMOUNTED (conditional-render consumers)', () => {
+    // This is the gap: both CompanyDrawer and DocumentDrawer mount/unmount the Drawer
+    // conditionally ({company && <CompanyDrawer/>}) rather than re-rendering with open=false.
+    // The [open] effect's else-if branch never fires on unmount, so focus falls to <body>.
+    // Fix: the effect cleanup captures the trigger and restores focus on unmount.
+    const trigger = document.createElement('button');
+    trigger.textContent = 'open row';
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    // Mount the Drawer (open=true always, simulating the consumer pattern).
+    const { unmount } = render(
+      <Drawer {...baseProps}>
+        <button>field</button>
+      </Drawer>,
+    );
+    // Focus has moved into the drawer (the first focusable).
+    expect(trigger).not.toHaveFocus();
+
+    // Unmount entirely (simulates the conditional-render consumer closing).
+    unmount();
+
+    // Focus MUST be restored to the trigger, not left on <body>.
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
 });
 
 describe('Drawer: focus trap (AC-W5-C6-DRAWER)', () => {
