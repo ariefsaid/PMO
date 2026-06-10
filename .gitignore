@@ -40,3 +40,16 @@ test-results
 .playwright-mcp/
 /review/
 /pmo-*.png
+
+# Secrets — NEVER commit (public repo). Repo-wide guard (app env lives in pmo-portal/.gitignore).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.keystore
+**/serviceAccount*.json
+secrets.*

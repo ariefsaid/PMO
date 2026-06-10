@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
-.env.local
+
+# Environment / secrets — NEVER commit (public repo). Covers .env, .env.local,
+# .env.production, .env.development, etc.; a checked-in template is the only exception.
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
