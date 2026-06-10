@@ -70,18 +70,18 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     renderPage();
     // Renata is both a user row and (as u1) the manager of three others, so her name
     // appears multiple times by design — assert on the email (unique to the user row).
-    expect(screen.getAllByText('renata@meridian.example')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('desmond@meridian.example')[0]).toBeInTheDocument();
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
+    expect(screen.getByText('desmond@meridian.example')).toBeInTheDocument();
     // role pills rendered
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Project Manager')[0]).toBeInTheDocument();
+    expect(screen.getByText('Project Manager')).toBeInTheDocument();
   });
 
   it('AC-AU-001: resolves manager_id to the manager full name', () => {
     renderPage();
     // Desmond's manager (u1) resolves to Renata's name
-    const row = screen.getAllByText('Desmond Achebe')[0].closest('tr')!;
-    expect(within(row).getAllByText('Renata Halloway')[0]).toBeInTheDocument();
+    const row = screen.getByText('Desmond Achebe').closest('tr')!;
+    expect(within(row).getByText('Renata Halloway')).toBeInTheDocument();
   });
 
   it('AC-AU-001: search filters by name or email', async () => {
@@ -90,7 +90,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     // Renata's USER row is gone (her email no longer renders); only Tobias remains.
     expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
     expect(screen.queryByText('desmond@meridian.example')).not.toBeInTheDocument();
-    expect(screen.getAllByText('tobias@meridian.example')[0]).toBeInTheDocument();
+    expect(screen.getByText('tobias@meridian.example')).toBeInTheDocument();
     // exactly one data row after filtering
     expect(screen.getAllByRole('row').filter((r) => within(r).queryByText(/@meridian/))).toHaveLength(1);
   });
@@ -98,7 +98,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
   it('AC-AU-001: loading skeleton while pending', () => {
     listState.isPending = true;
     renderPage();
-    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('AC-AU-001: error state with retry', async () => {
@@ -111,7 +111,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
   it('AC-AU-001: empty state when no users', () => {
     listState.data = [];
     renderPage('Admin');
-    expect(screen.getAllByText(/No users/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/No users/i)).toBeInTheDocument();
   });
 });
 
@@ -119,7 +119,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   it('AC-AU-002: Admin sees row Edit role + Change manager (Add user is a deferred affordance)', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Desmond Achebe')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   it('polish#7: there is NO disable/Status row affordance (deferred — needs a status column)', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Desmond Achebe')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.queryByRole('menuitem', { name: /disable/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /status/i })).toBeNull();
@@ -152,9 +152,9 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.queryByRole('button', { name: /Add user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
     // Exec can still SEE the directory
-    expect(screen.getAllByText('renata@meridian.example')[0]).toBeInTheDocument();
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
     // a read-only explanation, not a wall of disabled controls
-    expect(screen.getAllByText(/only an Admin can/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/only an Admin can/i)).toBeInTheDocument();
   });
 
   it('AC-AU-002: a non-admin, non-exec role (Engineer) reaching the route sees an Admin-only gate, not the directory', () => {
@@ -162,7 +162,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     // the directory rows are NOT rendered (no user emails)
     expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
     // an Admin-only gate is shown
-    expect(screen.getAllByText(/Admin-only area/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Admin-only area/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Add user/i })).not.toBeInTheDocument();
   });
 });
@@ -171,7 +171,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
   it('AC-AU-003: Edit role opens a focused modal; a high-impact role change routes through a confirm before the mutation', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Desmond Achebe')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
     const dialog = screen.getByRole('dialog');
@@ -181,7 +181,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
     // High-impact: a confirm appears FIRST; the mutation has NOT fired yet.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
-    expect(screen.getAllByText(/Change Desmond Achebe's role to Executive\?/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Change Desmond Achebe's role to Executive\?/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     await waitFor(() =>
       expect(mutations.updateRole.mutateAsync).toHaveBeenCalledWith({ id: 'u2', role: 'Executive' }),
@@ -192,7 +192,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     mutations.updateRole.mutateAsync.mockRejectedValue(new AppError('row violates RLS', '42501'));
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Desmond Achebe')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
     const dialog = screen.getByRole('dialog');
@@ -208,7 +208,7 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   it('AC-AU-004: Change manager opens a modal whose manager picker excludes the user themselves', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Desmond Achebe')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Change manager/i }));
     const dialog = screen.getByRole('dialog');
@@ -218,19 +218,19 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
     const listbox = await screen.findByRole('listbox');
     // the user being edited (Desmond) must not be selectable as their own manager
     expect(within(listbox).queryByText('Desmond Achebe')).not.toBeInTheDocument();
-    expect(within(listbox).getAllByText('Renata Halloway')[0]).toBeInTheDocument();
+    expect(within(listbox).getByText('Renata Halloway')).toBeInTheDocument();
   });
 
   it('AC-AU-004: selecting a manager and saving submits the assignment', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(screen.getAllByText('Tobias Lindqvist')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Tobias Lindqvist').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Change manager/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('combobox', { name: /Manager/i }));
     const listbox = await screen.findByRole('listbox');
-    await userEvent.click(within(listbox).getAllByText('Desmond Achebe')[0]);
+    await userEvent.click(within(listbox).getByText('Desmond Achebe'));
     await userEvent.click(within(dialog).getByRole('button', { name: /Save manager/i }));
     await waitFor(() =>
       expect(mutations.assignManager.mutateAsync).toHaveBeenCalledWith({ id: 'u4', managerId: 'u2' }),

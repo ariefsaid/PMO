@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
+import { useIsDesktop } from './useIsDesktop';
 
 export type ColAlign = 'num' | 'center';
 
@@ -93,12 +94,16 @@ function stripHiddenClasses(colClassName?: string): string {
  * async states delegate to ListState via the `state` prop. Rows are keyboard-
  * activatable; sortable headers expose aria-sort.
  *
- * Mobile reflow (OD-W4-4, AC-IXD-MOBILE-W4-C1):
- * - Below `md` (768px): renders a stacked card list (`md:hidden`) — each row
- *   maps to a card with the first column as the activation title and the remaining
- *   columns as a <dl> label:value list. All data is shown (no column dropped).
- * - At `md`+: renders the original `<table>` (`hidden md:block`) — desktop is
- *   byte-unchanged. The card branch is purely additive.
+ * Mobile reflow (OD-W4-4, AC-IXD-MOBILE-W4-C1) — SINGLE render:
+ * - `useIsDesktop()` reads `(min-width: 768px)` synchronously at first paint and
+ *   re-renders on viewport change. EXACTLY ONE branch is in the DOM at a time:
+ *   - At `md`+ (≥768px): the desktop `<table>` branch (markup byte-unchanged).
+ *   - Below `md` (<768px): a stacked card list — each row maps to a card with the
+ *     first column as the activation title and the remaining columns as a <dl>
+ *     label:value list. All data is shown (no column dropped).
+ * - Because only one branch renders, each cell's content (text + interactive
+ *   controls) appears exactly ONCE in the DOM/AT tree — no duplication, no
+ *   aria-hidden, no `hidden`/`md:hidden` CSS toggle, and no dup-match test tax.
  */
 export function DataTable<Row>({
   rows,
@@ -119,6 +124,7 @@ export function DataTable<Row>({
   rowMenu,
   className,
 }: DataTableProps<Row>) {
+  const isDesktop = useIsDesktop();
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
   // Shared ListState node — rendered once and reused in both branches via a
@@ -147,8 +153,9 @@ export function DataTable<Row>({
 
   return (
     <div className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
-      {/* ── Desktop table branch (hidden md:block — byte-unchanged) ─────── */}
-      <div data-testid="dt-table-branch" className="hidden md:block overflow-x-auto">
+      {isDesktop ? (
+      /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
+      <div data-testid="dt-table-branch" className="overflow-x-auto">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
@@ -263,9 +270,8 @@ export function DataTable<Row>({
           </tbody>
         </table>
       </div>
-
-      {/* ── Mobile card branch (md:hidden — additive, zero consumer churn) ─ */}
-      {/*
+      ) : (
+      /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
        * OD-W4-4 / AC-IXD-MOBILE-W4-C1: stacked record-card list.
        * Card anatomy (DESIGN.md tokens):
        *   - Container: bg-card, border, rounded-md (8px), p-4 (16px), gap-2 (8px) between cards
@@ -276,21 +282,15 @@ export function DataTable<Row>({
        * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
        * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
        *
-       * AT scoping — NO aria-hidden on either branch:
-       *   At <768px: the table branch has `hidden md:block` → display:none → excluded from AT.
-       *     The card branch is the only visible structure and must be fully AT-readable.
-       *   At ≥768px: the card branch has `md:hidden` → display:none → excluded from AT.
-       *     The table branch is the only visible structure (with aria-sort, column headers, etc.).
-       *   display:none from Tailwind `hidden`/`md:hidden` is the sole mechanism that scopes AT
-       *   per viewport. Adding aria-hidden to the card branch would double-hide it at mobile
-       *   (display:none AND aria-hidden) → a mobile screen-reader user would get ZERO row data.
-       *   Consumer tests that target a specific branch use within(getByTestId('dt-table-branch'))
-       *   or within(getByTestId('dt-card-branch')) to stay branch-precise.
-       */}
+       * AT scoping: at <768px this card branch is the ONLY structure rendered, so it
+       * is fully AT-readable. No aria-hidden is needed (or wanted — it would hide the
+       * sole row data from a mobile screen-reader user); the table branch simply isn't
+       * in the DOM at this viewport.
+       */
       <ul
         data-testid="dt-card-branch"
         role="list"
-        className="md:hidden divide-y divide-border/70"
+        className="divide-y divide-border/70"
       >
         {state ? (
           <li className="p-0">{listStateNode}</li>
@@ -368,6 +368,7 @@ export function DataTable<Row>({
           })
         )}
       </ul>
+      )}
     </div>
   );
 }

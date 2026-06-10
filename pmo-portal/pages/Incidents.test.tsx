@@ -102,8 +102,8 @@ beforeEach(() => {
 describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
   it('AC-IN-001: renders seeded incidents with type, severity + status badges', () => {
     renderPage();
-    expect(screen.getAllByText('Near Miss')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Equipment Damage')[0]).toBeInTheDocument();
+    expect(screen.getByText('Near Miss')).toBeInTheDocument();
+    expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
     // severity badge
     expect(screen.getAllByText('Low').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Critical').length).toBeGreaterThan(0);
@@ -116,21 +116,21 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
     expect(screen.queryByText('Near Miss')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Equipment Damage')[0]).toBeInTheDocument();
+    expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
   });
 
   it('AC-IN-001: search filters rows by type/location', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search incidents/i), 'spill');
     expect(screen.queryByText('Near Miss')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Spill')[0]).toBeInTheDocument();
+    expect(screen.getByText('Spill')).toBeInTheDocument();
   });
 
   it('AC-IN-001: each severity renders a DISTINCT tinted pill (Low/High/Critical differentiated)', () => {
     renderPage();
     const pillCls = (label: string, rowType: string) => {
-      const row = screen.getAllByText(rowType)[0].closest('tr')!;
-      return within(row).getAllByText(label)[0].closest('span')!.className;
+      const row = screen.getByText(rowType).closest('tr')!;
+      return within(row).getByText(label).closest('span')!.className;
     };
     const low = pillCls('Low', 'Near Miss');
     const high = pillCls('High', 'Equipment Damage');
@@ -147,7 +147,7 @@ describe('Incidents index — states', () => {
   it('AC-IN-001: loading skeleton while pending', () => {
     listState.isPending = true;
     renderPage();
-    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('AC-IN-001: error state with retry', async () => {
@@ -161,7 +161,7 @@ describe('Incidents index — states', () => {
   it('AC-IN-001: empty state teaches with a gated File incident action', () => {
     listState.data = [];
     renderPage('Engineer');
-    expect(screen.getAllByText(/No incidents/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/No incidents/i)).toBeInTheDocument();
     // even Engineer (any member) can file → the empty-state action is present
     expect(screen.getAllByRole('button', { name: /File incident/i }).length).toBeGreaterThan(0);
   });
@@ -173,13 +173,13 @@ describe('Incidents — RBAC affordance gating (AC-IN-007)', () => {
     // ANY member can file (reporter server-stamped)
     expect(screen.getByRole('button', { name: /File incident/i })).toBeInTheDocument();
     // Engineer is not a manager → no row write menu on an Open incident
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     expect(within(openRow).queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
   });
 
   it('AC-IN-007: PM (manager) can advance an Open incident to Investigating', async () => {
     renderPage('Project Manager');
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     await userEvent.click(within(openRow).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Start investigating/i })).toBeInTheDocument();
     // PM is not Admin → no Delete
@@ -189,13 +189,13 @@ describe('Incidents — RBAC affordance gating (AC-IN-007)', () => {
   it('AC-IN-007: Finance (non-manager) sees no investigate/close row actions', () => {
     renderPage('Finance');
     expect(screen.getByRole('button', { name: /File incident/i })).toBeInTheDocument();
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     expect(within(openRow).queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
   });
 
   it('AC-IN-007: a Closed incident exposes no further status transition', async () => {
     renderPage('Admin');
-    const closedRow = screen.getAllByText('Spill')[0].closest('tr')!;
+    const closedRow = screen.getByText('Spill').closest('tr')!;
     await userEvent.click(within(closedRow).getByRole('button', { name: /Row actions/i }));
     // Closed is terminal: no Start investigating / Close incident transitions
     expect(screen.queryByRole('menuitem', { name: /Start investigating/i })).not.toBeInTheDocument();
@@ -257,7 +257,7 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
 describe('Incidents — status workflow (AC-IN-004)', () => {
   it('AC-IN-004: Start investigating routes through a confirm and calls transition(Investigating)', async () => {
     renderPage('Admin');
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     await userEvent.click(within(openRow).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Start investigating/i }));
     // confirm dialog appears; mutation not yet called
@@ -270,7 +270,7 @@ describe('Incidents — status workflow (AC-IN-004)', () => {
 
   it('AC-IN-004: Close incident on an Investigating row routes through a confirm and calls transition(Closed)', async () => {
     renderPage('Admin');
-    const invRow = screen.getAllByText('Equipment Damage')[0].closest('tr')!;
+    const invRow = screen.getByText('Equipment Damage').closest('tr')!;
     await userEvent.click(within(invRow).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Close incident/i }));
     await userEvent.click(screen.getByRole('button', { name: /Close incident/i }));
@@ -282,7 +282,7 @@ describe('Incidents — status workflow (AC-IN-004)', () => {
   it('AC-IN-004: a transition rejected by RLS (42501) surfaces a classified warning toast', async () => {
     mutations.transition.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
     renderPage('Admin');
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     await userEvent.click(within(openRow).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Start investigating/i }));
     await userEvent.click(screen.getByRole('button', { name: /Start investigating/i }));
@@ -294,7 +294,7 @@ describe('Incidents — status workflow (AC-IN-004)', () => {
 describe('Incidents — delete (AC-IN-005)', () => {
   it('AC-IN-005: Delete routes through a destructive confirm and calls remove', async () => {
     renderPage('Admin');
-    const openRow = screen.getAllByText('Near Miss')[0].closest('tr')!;
+    const openRow = screen.getByText('Near Miss').closest('tr')!;
     await userEvent.click(within(openRow).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete incident/i }));

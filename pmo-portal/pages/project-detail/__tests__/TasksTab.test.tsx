@@ -103,12 +103,12 @@ beforeEach(() => {
 describe('TasksTab — list (AC-TASK-001)', () => {
   it('AC-TASK-001: renders seeded task rows with name + status + assignee', () => {
     renderTab();
-    expect(screen.getAllByText('Survey the site')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Mobilise crew')[0]).toBeInTheDocument();
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
     expect(screen.getAllByText('Dana Engineer').length).toBeGreaterThan(0);
     // A manager (PM) sees an editable status control per row, reflecting each task's status.
-    const t1Status = screen.getAllByLabelText(/status for survey the site/i)[0] as HTMLSelectElement;
-    const t2Status = screen.getAllByLabelText(/status for mobilise crew/i)[0] as HTMLSelectElement;
+    const t1Status = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
+    const t2Status = screen.getByLabelText(/status for mobilise crew/i) as HTMLSelectElement;
     expect(t1Status.value).toBe('To Do');
     expect(t2Status.value).toBe('In Progress');
   });
@@ -117,7 +117,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     listState.isPending = true;
     listState.data = [];
     renderTab();
-    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
     expect(screen.queryByText('Survey the site')).not.toBeInTheDocument();
   });
 
@@ -125,7 +125,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     listState.isError = true;
     listState.data = [];
     renderTab();
-    expect(screen.getAllByText(/couldn't load tasks/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load tasks/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(listState.refetch).toHaveBeenCalled();
   });
@@ -133,7 +133,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
   it('AC-TASK-001: empty state teaches + offers a gated New task action', () => {
     listState.data = [];
     renderTab('Project Manager');
-    expect(screen.getAllByText(/no tasks yet/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
     // PM can create → the empty-state action is present
     expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
   });
@@ -141,7 +141,7 @@ describe('TasksTab — list (AC-TASK-001)', () => {
   it('AC-TASK-001: empty state for a read-only role shows no create action', () => {
     listState.data = [];
     renderTab('Finance');
-    expect(screen.getAllByText(/no tasks yet/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /new task/i })).not.toBeInTheDocument();
   });
 });
@@ -160,7 +160,7 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
   it('AC-TASK-005 gate: Engineer assigned to t1 can change ITS status (own task)', () => {
     // Engineer eng-1 owns t1; the status control on t1 must be enabled.
     renderTab('Engineer', 'eng-1');
-    const statusCtl = screen.getAllByLabelText(/status for survey the site/i)[0];
+    const statusCtl = screen.getByLabelText(/status for survey the site/i);
     expect(statusCtl).toBeEnabled();
   });
 
@@ -204,7 +204,7 @@ describe('TasksTab — create (AC-TASK-003)', () => {
 describe('TasksTab — status update (AC-TASK-005)', () => {
   it('AC-TASK-005: an assignee Engineer changing status calls updateStatus (status-only path)', async () => {
     renderTab('Engineer', 'eng-1');
-    const statusCtl = screen.getAllByLabelText(/status for survey the site/i)[0];
+    const statusCtl = screen.getByLabelText(/status for survey the site/i);
     await userEvent.selectOptions(statusCtl, 'Done');
     await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'Done' }));
     // The status-only path must never call the structure update.
@@ -215,7 +215,7 @@ describe('TasksTab — status update (AC-TASK-005)', () => {
 describe('TasksTab — delete (AC-TASK-006)', () => {
   it('AC-TASK-006: PM deletes a task through a destructive confirm', async () => {
     renderTab('Project Manager');
-    const row = screen.getAllByText('Survey the site')[0].closest('tr')!;
+    const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
     const confirm = await screen.findByRole('alertdialog');
@@ -226,7 +226,7 @@ describe('TasksTab — delete (AC-TASK-006)', () => {
 
 describe('TasksTab — edit structure (AC-TASK-004)', () => {
   const openEditFor = async (taskName: string) => {
-    const row = screen.getAllByText(taskName)[0].closest('tr')!;
+    const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
     return screen.findByRole('dialog');
@@ -250,7 +250,7 @@ describe('TasksTab — edit structure (AC-TASK-004)', () => {
 
 describe('TasksTab — dependency add/remove (AC-TASK-004)', () => {
   const openEditFor = async (taskName: string) => {
-    const row = screen.getAllByText(taskName)[0].closest('tr')!;
+    const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /edit/i }));
     return screen.findByRole('dialog');

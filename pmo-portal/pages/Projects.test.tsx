@@ -90,7 +90,7 @@ describe('Projects index — IA-3 (real data)', () => {
 
   it('renders seeded projects with joined client + PM names (AC-401)', () => {
     renderPage();
-    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')[0]).toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getAllByText('Innovate Corp').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Alice Manager').length).toBeGreaterThan(0);
   });
@@ -114,7 +114,7 @@ describe('Projects index — IA-3 (real data)', () => {
 
   it('AC-NAV-006: navigates to the project detail route when a row is activated (no tab)', async () => {
     renderPage();
-    await userEvent.click(screen.getAllByText('Innovate Corp HQ Fit-Out')[0]);
+    await userEvent.click(screen.getByText('Innovate Corp HQ Fit-Out'));
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
@@ -135,21 +135,21 @@ describe('Projects index — IA-3 (real data)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Ongoing$/ }));
     // Ongoing = Won/Ongoing/On-Hold delivery work; the pre-win deals are excluded.
-    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')[0]).toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
 
   it('filters by search (AC-404)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'Northwind');
-    expect(screen.getAllByText('Northwind ERP Rollout')[0]).toBeInTheDocument();
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
   });
 
   it('"My Projects" uses the real profile id (AC-402)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /My Projects/ }));
-    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')[0]).toBeInTheDocument(); // u-alice manages all
+    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument(); // u-alice manages all
   });
 });
 
@@ -176,7 +176,7 @@ describe('Projects index states', () => {
   it('C3: shows the teaching empty state with NO dead New Project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
     renderPage();
-    expect(screen.getAllByText(/No projects yet/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
     // C3: no disabled "New Project" button anywhere (header CTA removed + the
     // page-empty state teaches via its sub copy, not a dead button).
     expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
@@ -191,11 +191,9 @@ describe('Projects index states', () => {
   it('shows a filter-no-match empty state with a clear-filters action (AC-D)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'zzzz-no-match');
-    expect(screen.getAllByText(/No projects match/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
     // the LIVE "Clear filters" action is kept (it actually does something).
-    // DataTable dual-renders the empty state in both the table and card branches (OD-W4-4);
-    // both buttons are now in AT (mobile a11y fix removed aria-hidden from card branch).
-    expect(screen.getAllByRole('button', { name: /Clear filters/i })[0]).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
 });
 
@@ -260,7 +258,7 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     renderPage();
     const controls = screen.getAllByTestId('project-status-control');
     expect(controls.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('CPO-2026-999')[0]).toBeInTheDocument();
+    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 
@@ -270,7 +268,7 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('CPO-2026-999')[0]).toBeInTheDocument();
+    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 });

@@ -62,12 +62,9 @@ const renderAs = (realRole: Role) =>
     </ImpersonationProvider>,
   );
 
-/** Open the single row's action menu and return its menu element.
- * Scoped to the table branch: the dual-render (OD-W4-4) puts a "Row actions" trigger in
- * both the table and card branches; the table branch trigger is the canonical desktop path. */
+/** Open the single row's action menu and return its menu element. */
 const openRowMenu = async () => {
-  const tableBranch = document.querySelector('[data-testid="dt-table-branch"]') as HTMLElement;
-  const trigger = within(tableBranch).getByRole('button', { name: /row actions/i });
+  const trigger = screen.getByRole('button', { name: /row actions/i });
   await userEvent.click(trigger);
   return screen.getByRole('menu');
 };

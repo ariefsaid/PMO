@@ -1,43 +1,29 @@
 /**
- * AC-IXD-MOBILE-W4-C1 — DataTable mobile card-reflow
+ * AC-IXD-MOBILE-W4-C1 — DataTable mobile card-reflow (SINGLE render)
  *
- * The shared DataTable renders a stacked record-card list on narrow viewports
- * (`md:hidden` card branch) alongside the existing `<table>` (`hidden md:block`
- * table branch) so every list-surface inherits the reflow without consumer changes.
+ * The shared DataTable single-renders EITHER the desktop `<table>` OR a stacked
+ * record-card list, chosen by `useIsDesktop()` reading `(min-width: 768px)`.
+ * Exactly ONE branch is in the DOM at a time — no duplication, no aria-hidden.
  *
  * Architecture (OD-W4-4):
- * - The `<table>` branch carries `hidden md:block` — excluded from AT at ≥768px by
- *   display:none from the `hidden` Tailwind class.
- * - The card `<ul>` branch carries `md:hidden` — excluded from AT at ≥768px by
- *   display:none. At <768px it IS the visible structure and MUST be AT-readable.
- * - AT presence at each breakpoint is governed entirely by `display:none` (from
- *   Tailwind `hidden`/`md:hidden`). Neither branch uses `aria-hidden`; at any given
- *   viewport exactly one branch is `display:none` and therefore absent from AT.
- * - jsdom cannot evaluate Tailwind responsive classes — both branches are always
- *   visible in the DOM in the test environment; RTL accessible-role queries find
- *   both. Consumer tests that target a specific branch use `within(getTableBranch())`
- *   or `within(getCardBranch())` scoping to stay precise.
+ * - At ≥768px: only the `<table>` branch renders (the card branch is absent).
+ * - At <768px: only the card `<ul role="list">` branch renders (the table branch
+ *   is absent). It is the sole structure, so it MUST be fully AT-readable — and it
+ *   carries NO aria-hidden (which would hide the only row data from mobile AT).
  *
- * Test strategy: we verify:
- *   - correct responsive classes on each branch
- *   - card branch has NO aria-hidden (AT-readable when displayed at mobile)
- *   - card row data IS accessible via role/accessible-name queries (regression guard
- *     against the double-hide bug: display:none + aria-hidden = invisible to mobile AT)
- *   - card branch has one <li> per row, <dl>/<dt>/<dd> field anatomy
- *   - activation <button> carries the correct aria-label (AT-reachable by name)
- *   - rowMenu ⋯ trigger has the touch-target class
- *   - state variants (loading/empty/error) delegate to ListState in the card branch
- *   - selected card carries the primary/[0.07] wash class
- *   - no data column is dropped
- *
- * Desktop regression: the table branch carries `hidden md:block` — its content
- * is untouched and the existing consumer test suite (DataTable.test.tsx, all page
- * tests) remains stable (scoped to `dt-table-branch`).
+ * Test strategy: jsdom has no real layout, so these tests drive the branch choice
+ * by stubbing `window.matchMedia`:
+ *   - the suite-wide default (test/setup.ts) is DESKTOP (`matches:true`) → table branch.
+ *   - `mockViewport(false)` below stubs MOBILE → card branch, for the card tests.
+ * We verify, at mobile, that the card branch renders (and the table branch does
+ * NOT), the AT-reachability (cards in the a11y tree, NO aria-hidden), card anatomy
+ * (<li>/<dl>/<dt>/<dd>), activation buttons, rowMenu, and the async states; and at
+ * desktop that the table renders and the card branch is absent.
  *
  * Touch-target sweep (C6): Button size="sm" and size="icon" carry `.touch-target`.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 import { Button } from '../Button';
@@ -60,41 +46,74 @@ const columns: Column<Row>[] = [
   { key: 'status', header: 'Status', cell: (r) => r.status },
 ];
 
-// Helper: get the card branch DOM node.
+/**
+ * Stubs `window.matchMedia` so `useIsDesktop()` resolves to the given viewport.
+ * `isDesktop=false` → the `(min-width:768px)` query reports `matches:false` →
+ * DataTable renders the card branch. Restored by `afterEach` (unstubAllGlobals).
+ */
+function mockViewport(isDesktop: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: isDesktop,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+// Helper: get the card branch DOM node (present only at mobile).
 function getCardBranch() {
-  return document.querySelector('[data-testid="dt-card-branch"]') as HTMLElement;
+  return document.querySelector('[data-testid="dt-card-branch"]') as HTMLElement | null;
 }
 
-// Helper: get the table branch DOM node.
+// Helper: get the table branch DOM node (present only at desktop).
 function getTableBranch() {
-  return document.querySelector('[data-testid="dt-table-branch"]') as HTMLElement;
+  return document.querySelector('[data-testid="dt-table-branch"]') as HTMLElement | null;
 }
-
-// ── Dual-render structure ─────────────────────────────────────────────────────
 
 describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
-  it('renders the table branch with hidden md:block (desktop unchanged)', () => {
+  // ── Branch selection: single render ─────────────────────────────────────────
+
+  it('at mobile (<768px) renders the card branch and NOT the table branch', () => {
+    mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const tableWrapper = getTableBranch();
-    expect(tableWrapper).toBeInTheDocument();
-    expect(tableWrapper.className).toContain('hidden');
-    expect(tableWrapper.className).toContain('md:block');
+    expect(getCardBranch()).toBeInTheDocument();
+    expect(getTableBranch()).not.toBeInTheDocument();
+    // No <table> in the DOM at mobile.
+    expect(document.querySelector('table')).toBeNull();
   });
 
-  it('AC-IXD-MOBILE-W4-A11Y: renders the card-list branch with md:hidden and NO aria-hidden (mobile AT must read cards)', () => {
+  it('at desktop (≥768px) renders the table branch and NOT the card branch', () => {
+    mockViewport(true);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch();
+    expect(getTableBranch()).toBeInTheDocument();
+    expect(getCardBranch()).not.toBeInTheDocument();
+  });
+
+  // ── AT reachability (no aria-hidden, single copy) ───────────────────────────
+
+  it('AC-IXD-MOBILE-W4-A11Y: the card branch is in the a11y tree with NO aria-hidden (mobile AT must read cards)', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    const cardBranch = getCardBranch()!;
     expect(cardBranch).toBeInTheDocument();
-    expect(cardBranch.className).toContain('md:hidden');
-    // CRITICAL: aria-hidden must NOT be present. At <768px the table branch is display:none
-    // (from `hidden md:block`) and the card branch is the only visible structure. If the card
-    // branch also had aria-hidden="true", mobile screen-reader users would have ZERO row data.
-    // display:none from Tailwind `hidden`/`md:hidden` already scopes AT per viewport — we do
-    // not need aria-hidden on either branch.
+    // CRITICAL: at mobile the card branch is the ONLY structure rendered. If it
+    // carried aria-hidden="true", a mobile screen-reader user would get ZERO row
+    // data. Single-render means no aria-hidden is needed on either branch.
     expect(cardBranch).not.toHaveAttribute('aria-hidden');
+    expect(cardBranch).toHaveAttribute('role', 'list');
   });
 
-  it('AC-IXD-MOBILE-W4-A11Y: card branch row data is AT-reachable via role/accessible-name (regression: no double-hide)', () => {
+  it('AC-IXD-MOBILE-W4-A11Y: card row data is AT-reachable via role/accessible-name (single, unambiguous match)', () => {
+    mockViewport(false);
     render(
       <DataTable
         rows={rows}
@@ -104,54 +123,45 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         rowLabel={(r) => `Open ${r.name}`}
       />,
     );
-    const cardBranch = getCardBranch();
-    // The card branch <ul> must itself have role="list" and be AT-reachable.
-    // (If aria-hidden were present, screen.getByRole scoped within the card branch's
-    // parent would not find any listitem nodes inside it.)
-    expect(cardBranch).toHaveAttribute('role', 'list');
-    // Each card <li> is an accessible listitem — within() searches descendants.
-    const items = within(cardBranch).getAllByRole('listitem');
-    expect(items).toHaveLength(rows.length);
-    // The activation button is AT-reachable by its accessible name — the company name
-    // is exposed to the screen reader via the card, not just the (hidden at mobile) table.
-    // within(cardBranch) scopes to the card branch to prove these buttons are in the card AX tree.
-    expect(within(cardBranch).getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
-    expect(within(cardBranch).getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
+    // One listitem per row — discoverable in the global a11y tree (no scoping needed,
+    // the table branch is absent so there is no second copy).
+    expect(screen.getAllByRole('listitem')).toHaveLength(rows.length);
+    // The activation buttons are AT-reachable by name — a SINGLE match each now that
+    // the table branch is not in the DOM.
+    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
   });
 
   // ── Card anatomy ─────────────────────────────────────────────────────────
 
   it('each row produces an <li> in the card branch (one per row)', () => {
+    mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch();
-    const liItems = cardBranch.querySelectorAll('li');
-    expect(liItems).toHaveLength(rows.length);
+    expect(getCardBranch()!.querySelectorAll('li')).toHaveLength(rows.length);
   });
 
   it('the first column value appears in each card', () => {
+    mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch();
-    expect(cardBranch.textContent).toContain('Alpha Corp');
-    expect(cardBranch.textContent).toContain('Beta Ltd');
+    expect(screen.getByText('Alpha Corp')).toBeInTheDocument();
+    expect(screen.getByText('Beta Ltd')).toBeInTheDocument();
   });
 
   it('remaining columns render as <dt>/<dd> pairs in the card <dl>', () => {
+    mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch();
-    // <dt> labels for remaining columns (Value, Status — not the first column Company)
-    const dts = cardBranch.querySelectorAll('dt');
-    const dtTexts = Array.from(dts).map((dt) => dt.textContent);
+    const cardBranch = getCardBranch()!;
+    const dtTexts = Array.from(cardBranch.querySelectorAll('dt')).map((dt) => dt.textContent);
     expect(dtTexts).toContain('Value');
     expect(dtTexts).toContain('Status');
-    // <dd> values
     expect(cardBranch.textContent).toContain('125000');
     expect(cardBranch.textContent).toContain('Active');
   });
 
   it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
+    mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    const cardBranch = getCardBranch();
-    // Find the <dd> for the Value column by locating the sibling of the "Value" <dt>
+    const cardBranch = getCardBranch()!;
     const valueDt = Array.from(cardBranch.querySelectorAll('dt')).find(
       (dt) => dt.textContent === 'Value',
     );
@@ -165,27 +175,24 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────
 
   it('when rowLabel+onActivate supplied, the card title is a <button> with the aria-label', () => {
-    const onActivate = vi.fn();
+    mockViewport(false);
     render(
       <DataTable
         rows={rows}
         columns={columns}
         rowKey={(r) => r.id}
-        onActivate={onActivate}
+        onActivate={vi.fn()}
         rowLabel={(r) => `Open ${r.name}`}
       />,
     );
-    const cardBranch = getCardBranch();
-    // DOM query scoped to the card branch — the table branch also has an "Open Alpha Corp" button.
-    const btn = cardBranch.querySelector('button[aria-label="Open Alpha Corp"]') as HTMLButtonElement;
-    expect(btn).not.toBeNull();
-    // focus-visible ring classes
+    const btn = screen.getByRole('button', { name: 'Open Alpha Corp' });
     expect(btn.className).toContain('focus-visible:outline-offset-2');
     expect(btn.className).toContain('focus-visible:outline-ring');
-    expect(btn.tabIndex).not.toBe(-1);
+    expect((btn as HTMLButtonElement).tabIndex).not.toBe(-1);
   });
 
   it('clicking the card activation button fires onActivate with the row', async () => {
+    mockViewport(false);
     const onActivate = vi.fn();
     render(
       <DataTable
@@ -196,9 +203,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         rowLabel={(r) => `Open ${r.name}`}
       />,
     );
-    const cardBranch = getCardBranch();
-    const btn = cardBranch.querySelector('button[aria-label="Open Alpha Corp"]') as HTMLButtonElement;
-    await userEvent.click(btn);
+    await userEvent.click(screen.getByRole('button', { name: 'Open Alpha Corp' }));
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(rows[0]);
   });
@@ -206,6 +211,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
   // ── rowMenu in card ──────────────────────────────────────────────────────
 
   it('the rowMenu ⋯ trigger appears in each card (one per row)', () => {
+    mockViewport(false);
     render(
       <DataTable
         rows={rows}
@@ -214,13 +220,11 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
       />,
     );
-    const cardBranch = getCardBranch();
-    // Each RowMenu trigger has aria-label="Row actions"
-    const triggers = cardBranch.querySelectorAll('button[aria-label="Row actions"]');
-    expect(triggers).toHaveLength(rows.length);
+    expect(screen.getAllByRole('button', { name: /row actions/i })).toHaveLength(rows.length);
   });
 
   it('the rowMenu ⋯ trigger in the card carries the touch-target class', () => {
+    mockViewport(false);
     render(
       <DataTable
         rows={rows}
@@ -229,12 +233,13 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
       />,
     );
-    const cardBranch = getCardBranch();
-    const trigger = cardBranch.querySelector('button[aria-label="Row actions"]') as HTMLButtonElement;
-    expect(trigger.className).toContain('touch-target');
+    expect(screen.getAllByRole('button', { name: /row actions/i })[0].className).toContain(
+      'touch-target',
+    );
   });
 
   it('the rowMenu opens from the card branch trigger and menu items fire their callbacks', async () => {
+    mockViewport(false);
     const onEdit = vi.fn();
     render(
       <DataTable
@@ -244,13 +249,8 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         rowMenu={() => [{ label: 'Edit item', onClick: onEdit }]}
       />,
     );
-    const cardBranch = getCardBranch();
-    const trigger = cardBranch.querySelector('button[aria-label="Row actions"]') as HTMLButtonElement;
-    await userEvent.click(trigger);
-    // The menu popover renders inside the card branch — use DOM query to scope to this branch.
-    const menuItem = cardBranch.querySelector('button[role="menuitem"]') as HTMLButtonElement;
-    expect(menuItem).not.toBeNull();
-    expect(menuItem.textContent).toBe('Edit item');
+    await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+    const menuItem = screen.getByRole('menuitem', { name: 'Edit item' });
     await userEvent.click(menuItem);
     expect(onEdit).toHaveBeenCalled();
   });
@@ -258,14 +258,13 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
   // ── Async states (ListState delegation) ──────────────────────────────────
 
   it('state="loading" renders the loading ListState inside the card branch', () => {
-    render(
-      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />,
-    );
-    const cardBranch = getCardBranch();
-    expect(cardBranch.querySelector('[data-testid="liststate-loading"]')).not.toBeNull();
+    mockViewport(false);
+    render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
   it('state="empty" renders the empty ListState inside the card branch', () => {
+    mockViewport(false);
     render(
       <DataTable
         rows={[]}
@@ -275,11 +274,11 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         emptyTitle="Nothing here"
       />,
     );
-    const cardBranch = getCardBranch();
-    expect(cardBranch.textContent).toContain('Nothing here');
+    expect(screen.getByText('Nothing here')).toBeInTheDocument();
   });
 
   it('state="error" renders the error ListState inside the card branch', async () => {
+    mockViewport(false);
     const onRetry = vi.fn();
     render(
       <DataTable
@@ -291,56 +290,40 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
         onRetry={onRetry}
       />,
     );
-    const cardBranch = getCardBranch();
-    expect(cardBranch.textContent).toContain('Load failed');
-    // Retry button — use querySelectorAll (aria-hidden container; find by text inside)
-    const retryBtns = Array.from(cardBranch.querySelectorAll('button')).filter(
-      (b) => /retry/i.test(b.textContent ?? ''),
-    );
-    expect(retryBtns.length).toBeGreaterThanOrEqual(1);
-    await userEvent.click(retryBtns[0]);
+    expect(screen.getByRole('alert')).toHaveTextContent('Load failed');
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
   });
 
   // ── Selected state ───────────────────────────────────────────────────────
 
   it('the selected card carries the primary/[0.07] wash class', () => {
+    mockViewport(false);
     render(
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        selectedKey="R-1"
-      />,
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="R-1" />,
     );
-    const cardBranch = getCardBranch();
-    const firstLi = cardBranch.querySelector('li') as HTMLElement;
+    const firstLi = getCardBranch()!.querySelector('li') as HTMLElement;
     expect(firstLi.className).toContain('bg-primary/[0.07]');
   });
 
   // ── No data dropped ──────────────────────────────────────────────────────
 
   it('every non-title column has a <dt> label in the card (no data dropped)', () => {
-    render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />,
-    );
-    const cardBranch = getCardBranch();
-    const dts = cardBranch.querySelectorAll('dt');
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     // columns: Company (title), Value, Status → 2 dt per card × 2 rows = 4
-    expect(dts).toHaveLength(4);
+    expect(getCardBranch()!.querySelectorAll('dt')).toHaveLength(4);
   });
 
   // ── Touch-target sweep (C6) ──────────────────────────────────────────────
 
   it('Button size="sm" carries the touch-target class for coarse-pointer hit-area expansion (C6)', () => {
     render(<Button size="sm">Save</Button>);
-    const btn = screen.getByRole('button', { name: 'Save' });
-    expect(btn.className).toContain('touch-target');
+    expect(screen.getByRole('button', { name: 'Save' }).className).toContain('touch-target');
   });
 
   it('Button iconOnly (size="icon") carries the touch-target class (C6)', () => {
     render(<Button iconOnly aria-label="Close" />);
-    const btn = screen.getByRole('button', { name: 'Close' });
-    expect(btn.className).toContain('touch-target');
+    expect(screen.getByRole('button', { name: 'Close' }).className).toContain('touch-target');
   });
 });

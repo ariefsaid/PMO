@@ -62,7 +62,7 @@ describe('Companies — Engineer page view-gate (A-5)', () => {
   it('AC-W2-RBAC-010: a PM sees the company directory (authorized)', () => {
     renderAs('Project Manager');
     expect(screen.getByRole('heading', { name: 'Companies' })).toBeInTheDocument();
-    expect(screen.getAllByText('Cascade Port Authority')[0]).toBeInTheDocument();
+    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
   });
 
   it('AC-W2-RBAC-010: an Engineer sees an access-denied surface, not the directory', () => {

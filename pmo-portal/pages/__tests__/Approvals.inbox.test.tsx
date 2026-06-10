@@ -67,18 +67,18 @@ beforeEach(() => {
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
   it('PM sees BOTH the procurement and timesheet sections', () => {
     renderAs('Project Manager');
-    expect(screen.getAllByText(/Needs my approval/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Purchase requests awaiting you/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Timesheets awaiting you/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
+    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
+    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
   });
 
   it('procurement section counts only Requested + not-self (SoD): 1 of 3', () => {
     renderAs('Project Manager');
     // PR-001 (other, Requested) shows; PR-002 (mine) and PR-003 (Approved) excluded.
-    expect(screen.getAllByText('Steel beams')[0]).toBeInTheDocument();
+    expect(screen.getByText('Steel beams')).toBeInTheDocument();
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Purchase requests awaiting you \(1\)/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Purchase requests awaiting you \(1\)/i)).toBeInTheDocument();
   });
 
   it('a PR row ROUTES to /procurement/:id (no inline approve)', async () => {
@@ -86,15 +86,13 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     // there is no Approve control in the procurement section
     const procSection = screen.getByRole('region', { name: /Purchase requests awaiting you/i });
     expect(procSection).not.toHaveTextContent(/^Approve$/);
-    // DataTable dual-renders activation buttons in both the table and card branches (OD-W4-4);
-    // both are now in AT after the mobile a11y fix removed aria-hidden. Click the first.
-    await userEvent.click(screen.getAllByRole('button', { name: /Open Steel beams/i })[0]);
+    await userEvent.click(screen.getByRole('button', { name: /Open Steel beams/i }));
     expect(navigateMock).toHaveBeenCalledWith('/procurement/pr1');
   });
 
   it('Finance sees ONLY the procurement section (no timesheet approval)', () => {
     renderAs('Finance');
-    expect(screen.getAllByText(/Purchase requests awaiting you/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
     expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
   });
 
@@ -109,7 +107,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.data = [];
     tsState.data = [];
     renderAs('Project Manager');
-    expect(screen.getAllByText(/all caught up/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
   });
 
   it('procurement query error shows a per-section retry without blanking timesheets', () => {
@@ -117,9 +115,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.data = [];
     renderAs('Project Manager');
     // timesheet section still renders
-    expect(screen.getAllByText(/Timesheets awaiting you/i)[0]).toBeInTheDocument();
-    // DataTable renders the error state in both branches (OD-W4-4); both Retry buttons are
-    // now in AT after the mobile a11y fix removed aria-hidden from the card branch.
-    expect(screen.getAllByRole('button', { name: /Retry/i })[0]).toBeInTheDocument();
+    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 });

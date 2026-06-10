@@ -60,21 +60,21 @@ beforeEach(() => {
 describe('Procurement page — URL param read-on-mount (AC-IXD-DASH-W5-C2A)', () => {
   it('AC-IXD-DASH-W5-C2A-PROC-1: backward-compatible — no param shows All (all 3 rows visible)', () => {
     renderWithUrl('/procurement');
-    expect(screen.getAllByText('Invoice Request')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Paid Request')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Draft Request')[0]).toBeInTheDocument();
+    expect(screen.getByText('Invoice Request')).toBeInTheDocument();
+    expect(screen.getByText('Paid Request')).toBeInTheDocument();
+    expect(screen.getByText('Draft Request')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROC-2: ?status=Vendor+Invoiced shows only Vendor Invoiced rows', () => {
     renderWithUrl('/procurement?status=Vendor+Invoiced');
-    expect(screen.getAllByText('Invoice Request')[0]).toBeInTheDocument();
+    expect(screen.getByText('Invoice Request')).toBeInTheDocument();
     expect(screen.queryByText('Paid Request')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROC-3: ?status=Paid maps to Paid segment (Paid row visible, others not)', () => {
     renderWithUrl('/procurement?status=Paid');
-    expect(screen.getAllByText('Paid Request')[0]).toBeInTheDocument();
+    expect(screen.getByText('Paid Request')).toBeInTheDocument();
     expect(screen.queryByText('Invoice Request')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
