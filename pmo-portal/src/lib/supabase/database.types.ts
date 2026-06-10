@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       budget_line_items: {
@@ -526,6 +551,7 @@ export type Database = {
           total_value: number
           updated_at: string
           vendor_id: string | null
+          vendor_invoiced_at: string | null
         }
         Insert: {
           approval_notes?: string | null
@@ -544,6 +570,7 @@ export type Database = {
           total_value?: number
           updated_at?: string
           vendor_id?: string | null
+          vendor_invoiced_at?: string | null
         }
         Update: {
           approval_notes?: string | null
@@ -562,6 +589,7 @@ export type Database = {
           total_value?: number
           updated_at?: string
           vendor_id?: string | null
+          vendor_invoiced_at?: string | null
         }
         Relationships: [
           {
@@ -1117,6 +1145,7 @@ export type Database = {
         }
       }
       get_executive_dashboard: { Args: never; Returns: Json }
+      get_finance_budget_review: { Args: never; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_sales_pipeline: { Args: never; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
@@ -1338,6 +1367,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       budget_category: [

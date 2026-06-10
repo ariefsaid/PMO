@@ -125,3 +125,28 @@ export async function getSalesPipeline(): Promise<SalesPipeline> {
   if (error) throw new Error(error.message);
   return data as unknown as SalesPipeline;
 }
+
+/**
+ * One project row from get_finance_budget_review() (FR-FIN-DEBT-010). spent is the OD-BUDGET-2
+ * COMMITTED basis (Σ PO total_value in Ordered..Paid), computed in SQL; variance = spent - budget.
+ * Field names mirror TopProject so the FinanceDashboard budget columns reuse it directly.
+ */
+export interface BudgetReviewRow {
+  id: string;
+  name: string;
+  client_name: string | null;
+  budget: number;
+  spent: number;
+  variance: number;
+}
+
+/**
+ * Portfolio-wide budget review for the caller's org (OD-E): ALL budget>0 projects ranked by
+ * variance desc, committed-basis spent. Calls the get_finance_budget_review RPC (security invoker,
+ * OD-ARCH-1 aggregation) — org_id is NEVER sent; base-table RLS scopes every read. On RPC error throws.
+ */
+export async function getFinanceBudgetReview(): Promise<BudgetReviewRow[]> {
+  const { data, error } = await supabase.rpc('get_finance_budget_review');
+  if (error) throw new Error(error.message);
+  return (data as unknown as BudgetReviewRow[]) ?? [];
+}

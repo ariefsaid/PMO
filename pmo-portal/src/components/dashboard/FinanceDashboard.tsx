@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDashboard } from '@/src/hooks/useDashboard';
+import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
@@ -12,7 +12,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
 import { DashPageHead, DashGrid } from './layout';
-import type { TopProject } from '@/src/lib/db/dashboard';
+import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
@@ -20,8 +20,9 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 const INVOICED_STATUS: Tables<'procurements'>['status'] = 'Vendor Invoiced';
 
 /**
- * Compute days since a given ISO date string (based on the row's updated_at which is the
- * best available proxy for when the status last changed — no dedicated `invoiced_at` column exists).
+ * Compute days since a given ISO date string (the row's `vendor_invoiced_at` — the real time the
+ * PR entered 'Vendor Invoiced', stamped by transition_procurement (migration 0022) — falling back
+ * to `updated_at` only for legacy rows stamped before the migration).
  * Returns a compact label: "N days" or "Today".
  * Guards against clock-skew (negative delta clamped to 0).
  */
@@ -96,17 +97,17 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'age',
-      // I1 fix: "Invoiced" was misleading — the value is updated_at (a proxy, not an authoritative
-      // vendor_invoiced_at timestamp). "Last updated" is honest; the title tooltip explains the proxy.
+      // FR-FIN-DEBT / OBS-FIN-DEBT-004: real vendor_invoiced_at (stamped on →'Vendor Invoiced',
+      // migration 0022), falling back to updated_at only for legacy rows stamped before the migration.
       header: (
-        <span title="Days since this request was last updated — used as a proxy for invoice age (no dedicated invoiced_at column)">
-          Last updated
+        <span title="Days since this vendor invoice was recorded (vendor_invoiced_at; falls back to last update for pre-2026-06 rows)">
+          Invoiced
         </span>
       ),
       align: 'num',
       cell: (r) => (
-        /* Age in days since updated_at (best proxy for VI date) — text signal, not color-only */
-        <span className="text-muted-foreground">{daysAgoLabel(r.updated_at)}</span>
+        /* Age in days since vendor_invoiced_at (real invoice date) — text signal, not color-only */
+        <span className="text-muted-foreground">{daysAgoLabel(r.vendor_invoiced_at ?? r.updated_at)}</span>
       ),
     },
   ];
@@ -138,18 +139,14 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
 
 // ── Variance helpers ─────────────────────────────────────────────────────
 
-/** variance = spent − budget (positive = over, negative = under) */
-function variance(p: TopProject): number {
-  return p.spent - p.budget;
-}
-
 /**
  * Render the variance cell: "+$X over" (text-destructive) for over-budget,
  * "$Y left" (text-muted-foreground) for under-budget.
+ * Reads the server-computed `variance` (committed basis, OD-BUDGET-2) — single source of truth.
  * Text + sign — NOT color-only (DESIGN.md a11y posture, plan §6).
  */
-function VarianceCell({ project }: { project: TopProject }) {
-  const v = variance(project);
+function VarianceCell({ project }: { project: BudgetReviewRow }) {
+  const v = project.variance;
   if (v > 0) {
     // Over budget: destructive text WITH the word "over" so color is reinforcement only.
     // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span class.
@@ -183,9 +180,12 @@ function VarianceCell({ project }: { project: TopProject }) {
 export const FinanceDashboard: React.FC = () => {
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+  // N17: portfolio-wide budget review — ALL budget>0 projects ranked by committed-basis variance,
+  // computed server-side by get_finance_budget_review (OD-E). Replaces the FE re-sort of top_projects.
+  const { data: budgetReview, isPending: budgetPending } = useFinanceBudgetReview();
 
-  // N17: sort top_projects variance-desc (most-over first). OD-E: honest half-truth — these are only
-  // the top-5-by-contract-value from the RPC; the label reflects this scope.
+  // N17 client-side sort state. The RPC returns rows already ranked variance-desc (the default);
+  // this only re-sorts when the user clicks another column header.
   const [budgetSort, setBudgetSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({
     key: 'variance',
     dir: 'desc',
@@ -210,17 +210,15 @@ export const FinanceDashboard: React.FC = () => {
     }));
   }, [procurements]);
 
-  // N17: variance-desc ranking (PR-B). Default sort = variance descending (most-over first).
-  // Variance = spent − budget; most-over (highest positive) floats to the top.
-  // I2 fix: filter to budget > 0 first — a project with no approved budget is not a budget-review
-  // subject and would surface as noise (variance 0, $0 budget) above real bleeders.
-  // User can re-sort by clicking any column header.
+  // N17: portfolio-wide variance ranking (OD-E). budget>0 + variance-desc ordering are applied
+  // SERVER-SIDE by get_finance_budget_review (committed basis). Here we only honor the user's
+  // column-header re-sort, then slice to the top 5 for the card. The RPC default = variance desc,
+  // so the initial render shows the worst bleeders without any client sort.
   const topByVariance = useMemo(() => {
-    const rows = (data?.top_projects ?? []).filter((p) => p.budget > 0);
-    const sorted = [...rows];
+    const sorted = [...(budgetReview ?? [])];
     const mul = budgetSort.dir === 'desc' ? -1 : 1;
     sorted.sort((a, b) => {
-      if (budgetSort.key === 'variance') return (variance(a) - variance(b)) * mul;
+      if (budgetSort.key === 'variance') return (a.variance - b.variance) * mul;
       if (budgetSort.key === 'budget') return (a.budget - b.budget) * mul;
       if (budgetSort.key === 'spent') return (a.spent - b.spent) * mul;
       // utilization
@@ -228,11 +226,11 @@ export const FinanceDashboard: React.FC = () => {
       const uB = b.budget > 0 ? b.spent / b.budget : 0;
       return (uA - uB) * mul;
     });
-    return sorted;
-  }, [data?.top_projects, budgetSort]);
+    return sorted.slice(0, 5);
+  }, [budgetReview, budgetSort]);
 
   // N17 Budget review columns (sortable, with Variance column)
-  const budgetColumns: Column<TopProject>[] = [
+  const budgetColumns: Column<BudgetReviewRow>[] = [
     {
       key: 'name',
       header: 'Project',
@@ -337,15 +335,15 @@ export const FinanceDashboard: React.FC = () => {
           />
         </Card>
 
-        {/* N17 — Budget review by variance (OD-E honest label: top 5 contracts by variance) */}
+        {/* N17 — Budget review by variance (OD-E: true portfolio-wide ranking) */}
         <Card seam>
-          {/* Honest label per OD-E: "top 5 contracts by variance" — not portfolio-wide.
-              The RPC returns LIMIT 5 ORDER BY contract_value DESC; ranking those 5 by variance
-              is a known half-truth; the label reflects this scope. */}
+          {/* OD-E honest label: this is now a TRUE portfolio-wide ranking. get_finance_budget_review
+              ranks ALL budget>0 projects in the org by committed-basis variance (server-side); the
+              card shows the worst 5. No longer a contract-value pre-slice re-sorted on the client. */}
           <CardHead className="rounded-t-lg">
-            Budget review — top 5 contracts by variance
+            Budget review — top 5 by variance (portfolio-wide)
           </CardHead>
-          <DataTable<TopProject>
+          <DataTable<BudgetReviewRow>
             rows={topByVariance}
             columns={budgetColumns}
             rowKey={(p) => p.id}
@@ -356,7 +354,7 @@ export const FinanceDashboard: React.FC = () => {
                 dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc',
               }))
             }
-            state={isPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
+            state={budgetPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
             emptyTitle="No project spend yet"
             className="rounded-t-none border-t-0"
           />

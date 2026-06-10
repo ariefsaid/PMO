@@ -69,8 +69,18 @@ const procurements = [
   makePR({ id: 'draft-1', status: 'Draft', total_value: 5_000, title: 'Draft Request', code: 'DR-001', requested_by_id: 'u2', requested_by: { full_name: 'Dave' } }),
 ];
 
+// N17 now reads get_finance_budget_review (committed basis, budget>0 + variance-desc applied
+// server-side). The RPC returns ONLY budget>0 rows, already ranked — so the mock excludes the
+// zero-budget tender (the server filter) and pre-computes variance, mirroring the real payload.
+const budgetReview = [
+  { id: 'p1', name: 'Alpha', client_name: 'Acme', budget: 1_000_000, spent: 1_100_000, variance: 100_000 },
+  { id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', budget: 200_000, spent: 250_000, variance: 50_000 },
+  { id: 'p2', name: 'Beta', client_name: 'Beta Co', budget: 1_000_000, spent: 600_000, variance: -400_000 },
+];
+
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
+  useFinanceBudgetReview: () => ({ data: budgetReview, isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
 }));
@@ -184,14 +194,13 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
 // ── N17: Budget review — variance-desc ────────────────────────────────────
 
 describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
-  it('AC-IXD-DASH-W5-C2B-N17-1: card head says "Budget review" with honest scoped label', () => {
+  it('AC-IXD-DASH-W5-C2B-N17-1: card head says "Budget review" with honest portfolio-wide label', () => {
     renderPane();
-    // Honest label per OD-E: "top 5 contracts by variance" — not portfolio-wide.
-    // Multiple elements may contain /variance/i (column header + card head); use getAllByText.
+    // OD-E: now a TRUE portfolio-wide ranking (get_finance_budget_review ranks ALL budget>0
+    // projects by committed-basis variance server-side); the card shows the worst 5.
     expect(screen.getAllByText(/budget review/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/variance/i).length).toBeGreaterThan(0);
-    // The card head specifically must contain "budget review" + "variance" in one heading
-    const cardHead = screen.getByText(/budget review — top 5 contracts by variance/i);
+    const cardHead = screen.getByText(/budget review — top 5 by variance \(portfolio-wide\)/i);
     expect(cardHead).toBeInTheDocument();
   });
 
@@ -312,17 +321,20 @@ describe('AC-IXD-DASH-W5-C2B — J4: console reframe (tabular, right-align)', ()
   });
 });
 
-// ── Design-review I1 — honest age column label ────────────────────────────
+// ── Finance-debt (migration 0022) — honest invoice-age column label ───────
+// SUPERSEDES the I1 "Last updated" proxy: a real vendor_invoiced_at column now exists, so the N16
+// age column is honestly labelled "Invoiced" and reads vendor_invoiced_at (falling back to
+// updated_at only for legacy rows). This is a deliberate UX correction, per the finance-debt plan.
 
-describe('AC-IXD-DASH-W5-C2B — I1: age column header is "Last updated" (not "Invoiced")', () => {
-  it('AC-IXD-DASH-W5-C2B-I1-1: Ready-to-pay table has "Last updated" column header (not "Invoiced")', () => {
+describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoiced_at, supersedes I1 proxy)', () => {
+  it('AC-FIN-DEBT-005: Ready-to-pay table has an "Invoiced" column header (not the "Last updated" proxy)', () => {
     const { container } = render(
       <MemoryRouter>
         <ReadyToPayTable
           procurements={[
             // @ts-expect-error minimal shape for test
             { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
-              code: 'VI-T', updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
           ]}
           isPending={false}
           isError={false}
@@ -330,23 +342,22 @@ describe('AC-IXD-DASH-W5-C2B — I1: age column header is "Last updated" (not "I
         />
       </MemoryRouter>,
     );
-    // The "age" column header must say "Last updated" — not "Invoiced"
+    // The "age" column header now says "Invoiced" — not the old "Last updated" proxy.
     const ths = Array.from(container.querySelectorAll('th'));
-    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
-    expect(lastUpdatedTh).toBeTruthy();
-    // Confirm "Invoiced" is no longer a standalone column header
     const invoicedTh = ths.find((th) => /^invoiced$/i.test(th.textContent?.trim() ?? ''));
-    expect(invoicedTh).toBeUndefined();
+    expect(invoicedTh).toBeTruthy();
+    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
+    expect(lastUpdatedTh).toBeUndefined();
   });
 
-  it('AC-IXD-DASH-W5-C2B-I1-2: "Last updated" column header carries a title tooltip (help attribute)', () => {
+  it('AC-FIN-DEBT-005: the "Invoiced" column header carries a title tooltip (vendor_invoiced_at provenance)', () => {
     const { container } = render(
       <MemoryRouter>
         <ReadyToPayTable
           procurements={[
             // @ts-expect-error minimal shape for test
             { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
-              code: 'VI-T', updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+              code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
           ]}
           isPending={false}
           isError={false}
@@ -354,12 +365,34 @@ describe('AC-IXD-DASH-W5-C2B — I1: age column header is "Last updated" (not "I
         />
       </MemoryRouter>,
     );
-    // The th or its inner element should carry a title attribute for the tooltip
     const ths = Array.from(container.querySelectorAll('th'));
-    const lastUpdatedTh = ths.find((th) => /last updated/i.test(th.textContent ?? ''));
-    expect(lastUpdatedTh).toBeTruthy();
-    const elWithTitle = lastUpdatedTh?.querySelector('[title]') ?? (lastUpdatedTh?.hasAttribute('title') ? lastUpdatedTh : null);
+    const invoicedTh = ths.find((th) => /^invoiced$/i.test(th.textContent?.trim() ?? ''));
+    expect(invoicedTh).toBeTruthy();
+    const elWithTitle = invoicedTh?.querySelector('[title]') ?? (invoicedTh?.hasAttribute('title') ? invoicedTh : null);
     expect(elWithTitle).toBeTruthy();
+  });
+
+  it('AC-FIN-DEBT-006: age cell reads vendor_invoiced_at, falling back to updated_at when null', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ReadyToPayTable
+          procurements={[
+            // @ts-expect-error minimal shape for test — vi-1 has a real stamp, vi-2 is null (legacy)
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Stamped Invoice',
+              code: 'VI-T1', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
+            // @ts-expect-error minimal shape for test
+            { id: 'vi-2', status: 'Vendor Invoiced', total_value: 50_000, title: 'Legacy Invoice',
+              code: 'VI-T2', vendor_invoiced_at: null, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Bob' } },
+          ]}
+          isPending={false}
+          isError={false}
+          onRetry={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    // vi-1: vendor_invoiced_at ≈ 10 days; vi-2: null → falls back to updated_at ≈ 3 days.
+    expect(container.textContent).toContain('10 days');
+    expect(container.textContent).toContain('3 days');
   });
 });
 
