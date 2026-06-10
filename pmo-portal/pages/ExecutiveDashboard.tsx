@@ -130,7 +130,7 @@ const ExecutiveDashboard: React.FC = () => {
           {/* AC-IXD-DASH-W5-C2A: Active projects → /projects?filter=Ongoing.
               The "N at-risk" vs text stays informational — a11y: whole tile is ONE link; no nested
               interactive. The dedicated at-risk drill is via the PM at-risk tile. */}
-          <KPITile testId="kpi-active-projects" tone="cyan" icon="folder" label="Active projects"
+          <KPITile testId="kpi-active-projects" tone="violet" icon="folder" label="Active projects"
             value={String(data.active_projects)} vs={`${data.projects_at_risk} at-risk`}
             to="/projects?filter=Ongoing"
             linkLabel="Open the active projects list"

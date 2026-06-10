@@ -57,7 +57,7 @@ export const PMDashboard: React.FC = () => {
 
       <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
-        <KPITile testId="kpi-my-projects" tone="cyan" icon="folder" label="My projects"
+        <KPITile testId="kpi-my-projects" tone="violet" icon="folder" label="My projects"
           value={String(mine.length)} loading={isPending}
           to="/projects?filter=My+Projects"
           linkLabel="Open my projects"

@@ -24,6 +24,7 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 
 export interface AwaitingApprovalTileProps {
   /** Include the timesheet count (PM/Exec=true; Finance=false). */
@@ -49,11 +50,10 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const loading = procPending || (includeTimesheets && tsPending);
 
   // PR count: Requested + this role may approve procurement + not raised by me (SoD).
+  // pendingProcurementApprovals is the single source of truth for this predicate (H7).
   const canApproveProc = can('transition', 'procurement', { realRole });
   const procCount = canApproveProc
-    ? (procurements ?? []).filter(
-        (p) => p.status === 'Requested' && p.requested_by_id !== selfId,
-      ).length
+    ? pendingProcurementApprovals(procurements, selfId).length
     : 0;
 
   const tsCount = includeTimesheets ? (timesheets?.length ?? 0) : 0;

@@ -5,16 +5,15 @@ import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
 import { ViewToggle, type ViewOption } from './ViewToggle';
 
-export type KPITone = 'blue' | 'violet' | 'amber' | 'red' | 'green' | 'cyan';
+export type KPITone = 'blue' | 'violet' | 'amber' | 'red' | 'green';
 
-/** Tinted icon-tile tones. cyan is the one sanctioned literal (Open Q2). */
+/** Tinted icon-tile tones — all on-palette DESIGN.md hues (Wave-6 H1: off-palette cyan removed). */
 const TONE_CLASS: Record<KPITone, string> = {
   blue: 'bg-primary/[0.12] text-primary',
   violet: 'bg-violet/[0.12] text-violet',
   amber: 'bg-warning/[0.18] text-warning-foreground',
   red: 'bg-destructive/[0.12] text-destructive',
   green: 'bg-success/[0.13] text-success',
-  cyan: 'bg-[hsl(199_89%_48%/0.13)] text-[hsl(199_89%_42%)]',
 };
 
 export interface KPIDelta {
@@ -157,7 +156,7 @@ export function KPITile<L extends string = string>({
           </div>
         )}
         {vs && (
-          <div className="flex items-center gap-[7px] text-[12px]">
+          <div className="flex items-center gap-2 text-[12px]">
             <span className="text-muted-foreground">{vs}</span>
           </div>
         )}
@@ -192,7 +191,7 @@ export function KPITile<L extends string = string>({
         />
       ) : (
         (delta || vs) && (
-          <div className="flex items-center gap-[7px] text-[12px]">
+          <div className="flex items-center gap-2 text-[12px]">
             {delta && (
               <span
                 data-testid="kpi-delta"

@@ -260,8 +260,18 @@ All interactive controls are **32px tall** ("h-8") with `md` (8px) radius unless
 - **Disabled (gap — see Open Questions):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 
 ### Badges / Status Pills
-- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (e.g. won → bg `success/12%`, text `hsl(142 64% 30%)`). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text.
+- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text.
 - **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
+
+#### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
+The darkened-AA text values for the four non-neutral pill variants are defined as named CSS custom properties. The `StatusPill` component applies them as `hsl(var(--token))` inline styles — the token IS the applied value.
+
+| Token | HSL value | Pill variant | Contrast (on white) |
+|---|---|---|---|
+| `--status-open-text` | `221 75% 38%` | `open` (blue) | ≥4.5:1 AA |
+| `--status-won-text` | `142 64% 30%` | `won` (green) | ≥4.5:1 AA |
+| `--status-lost-text` | `0 72% 45%` | `lost` (red) | ≥4.5:1 AA |
+| `--status-violet-text` | `262 60% 42%` | `violet` | 7.4:1 AA |
 
 ### Cards / Containers
 - **Corner Style:** 8px radius (`{rounded.md}`). When a card sits directly above a toolbar+table assembly, top corners are rounded and the seam is squared (`var(--radius) var(--radius) 0 0`).

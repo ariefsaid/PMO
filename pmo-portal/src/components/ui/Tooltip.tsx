@@ -35,7 +35,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, clas
           role="tooltip"
           id={id}
           className={cn(
-            'tooltip-surface pointer-events-none absolute left-1/2 top-full z-[900] mt-2 max-w-[280px] -translate-x-1/2 rounded-[7px] px-[11px] py-2 text-[12.5px] leading-snug',
+            'tooltip-surface pointer-events-none absolute left-1/2 top-full z-[900] mt-2 max-w-[280px] -translate-x-1/2 rounded-[7px] px-3 py-2 text-[12.5px] leading-snug',
             className
           )}
         >
