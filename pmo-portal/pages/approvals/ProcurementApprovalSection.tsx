@@ -25,6 +25,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 
 /** Whole days since an ISO timestamp (for the "age" cell). */
 function daysAgo(iso: string): string {
@@ -43,10 +44,10 @@ export const ProcurementApprovalSection: React.FC = () => {
 
   // SoD-a: Requested + not raised by me. The role-level can('transition','procurement')
   // gate is applied by the parent (the section only renders for approver roles).
+  // pendingProcurementApprovals is the single source of truth for this predicate (H7).
   const rows = useMemo(
     () =>
-      (data ?? [])
-        .filter((p) => p.status === 'Requested' && p.requested_by_id !== selfId)
+      pendingProcurementApprovals(data, selfId)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     [data, selfId],
   );

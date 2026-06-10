@@ -7,6 +7,7 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
+import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 
 /**
  * `/approvals` — the unified, role-aware "Needs my approval" inbox (Wave-5 N6, OD-W5-1).
@@ -47,7 +48,7 @@ const ApprovalsPage: React.FC = () => {
   }
 
   const pendingProc = canApproveProcurement
-    ? (procurements ?? []).filter((p) => p.status === 'Requested' && p.requested_by_id !== selfId).length
+    ? pendingProcurementApprovals(procurements, selfId).length
     : 0;
   const pendingTs = canApproveTimesheets ? (timesheets?.length ?? 0) : 0;
 

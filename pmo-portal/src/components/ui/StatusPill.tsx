@@ -29,21 +29,22 @@ interface PillStyle {
 }
 
 const STYLES: Record<StatusVariant, PillStyle> = {
-  open: { cls: 'bg-primary/10', text: 'hsl(221 75% 38%)', dot: 'hsl(var(--primary))' },
+  // text values reference the documented --status-*-text tokens in index.css (Wave-6 H3).
+  open: { cls: 'bg-primary/10', text: 'hsl(var(--status-open-text))', dot: 'hsl(var(--primary))' },
   // I1: quiet neutral in-flight pill — differentiates non-active stages from the
   // single blue `open` by tint, while the distinct stage LABEL carries identity
   // (so it is never color-only, and never invents a per-stage hue = the rainbow).
   progress: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
-  won: { cls: 'bg-success/12', text: 'hsl(142 64% 30%)', dot: 'hsl(var(--success))' },
-  lost: { cls: 'bg-destructive/10', text: 'hsl(0 72% 45%)', dot: 'hsl(var(--destructive))' },
+  won: { cls: 'bg-success/12', text: 'hsl(var(--status-won-text))', dot: 'hsl(var(--success))' },
+  lost: { cls: 'bg-destructive/10', text: 'hsl(var(--status-lost-text))', dot: 'hsl(var(--destructive))' },
   warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
   overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
   neutral: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   draft: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
   // Categorical violet — NON-interactive categorization only (DESIGN.md: KPI/avatar/
   // timeline/type pills, never an action color). Tinted violet/12 + the darkened-AA
-  // text hsl(262 60% 42%) from crud-companies.html (7.4:1 on white).
-  violet: { cls: 'bg-violet/12', text: 'hsl(262 60% 42%)', dot: 'hsl(var(--violet))' },
+  // text token --status-violet-text = hsl(262 60% 42%) (7.4:1 on white).
+  violet: { cls: 'bg-violet/12', text: 'hsl(var(--status-violet-text))', dot: 'hsl(var(--violet))' },
 };
 
 export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -62,7 +63,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex h-[22px] items-center gap-1.5 rounded-full pl-2 pr-[9px] text-[12px] font-semibold whitespace-nowrap',
+        'inline-flex h-[22px] items-center gap-1.5 rounded-full pl-2 pr-2 text-[12px] font-semibold whitespace-nowrap',
         s.cls,
         className
       )}
@@ -89,7 +90,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 export const Badge: React.FC<BadgeProps> = ({ active = false, className, children, ...rest }) => (
   <span
     className={cn(
-      'inline-grid min-w-[20px] place-items-center rounded-full px-[7px] text-[11px] font-semibold tabular',
+      'inline-grid min-w-[20px] place-items-center rounded-full px-2 text-[11px] font-semibold tabular',
       active ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground',
       className
     )}

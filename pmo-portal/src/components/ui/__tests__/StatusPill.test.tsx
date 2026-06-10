@@ -13,16 +13,17 @@ describe('StatusPill', () => {
 
   /**
    * I3 (CRITICAL): the `open` variant text must be darkened to ≥4.5:1 against
-   * its primary/10 background. hsl(221 70% 45%) = rgb(34,85,195) was the old
-   * failing value (3.15:1). The fix targets hsl(221 75% 38%) = rgb(24,70,170)
-   * which clears 4.5:1.
+   * its primary/10 background. The token --status-open-text = 221 75% 38% clears
+   * 4.5:1 (was hsl(221 70% 45%) = 3.15:1). Wave-6 H3: the component now references
+   * the token via hsl(var(--status-open-text)) — jsdom cannot resolve var() → rgb(),
+   * so we assert the raw style attribute wires the correct token.
    */
-  it('I3: open variant text is darkened to AA-compliant hsl(221 75% 38%) (not the failing hsl(221 70% 45%))', () => {
+  it('I3: open variant text is wired to --status-open-text token (221 75% 38%, AA-compliant ≥4.5:1)', () => {
     render(<StatusPill variant="open">Submitted</StatusPill>);
     const pill = screen.getByText('Submitted').closest('span')!;
-    // Old failing value: hsl(221 70% 45%) → rgb(34, 85, 195) — 3.15:1 contrast
-    // New required value: hsl(221 75% 38%) → rgb(24, 70, 170) — ≥4.5:1 contrast
-    expect(pill.style.color).toBe('rgb(24, 70, 170)');
+    // Token = --status-open-text: 221 75% 38% (hsl(221 75% 38%) clears AA ≥4.5:1).
+    // jsdom stores hsl(var(--x)) verbatim in style.color — assert the attribute string.
+    expect(pill.getAttribute('style') ?? '').toContain('--status-open-text');
   });
 
   it('#4: label text is 12px per DESIGN.md label token (explicit text-[12px], not the rem-scale text-xs)', () => {
@@ -34,21 +35,22 @@ describe('StatusPill', () => {
     expect(pill.className).not.toContain('text-xs');
   });
 
-  it('uses the DARKENED AA text variant, not the base hue, for won', () => {
+  it('uses the DARKENED AA text token for won (--status-won-text = 142 64% 30%)', () => {
     render(<StatusPill variant="won">Won</StatusPill>);
     const pill = screen.getByText('Won').closest('span')!;
     expect(pill.className).toContain('bg-success/12');
-    // jsdom resolves hsl() → rgb(). The darkened text hsl(142 64% 30%) == rgb(28,125,63),
-    // NOT the base success hue hsl(142 71% 45%) == rgb(33,196,93).
-    expect(pill.style.color).toBe('rgb(28, 126, 63)');
+    // Wave-6 H3: token --status-won-text = 142 64% 30% (hsl(142 64% 30%) clears AA ≥4.5:1,
+    // distinct from base success hsl(142 71% 45%)). jsdom stores hsl(var(--x)) verbatim.
+    expect(pill.getAttribute('style') ?? '').toContain('--status-won-text');
   });
 
-  it('maps lost to the destructive tint + darkened red text', () => {
+  it('maps lost to the destructive tint + darkened red token (--status-lost-text = 0 72% 45%)', () => {
     render(<StatusPill variant="lost">Lost</StatusPill>);
     const pill = screen.getByText('Lost').closest('span')!;
     expect(pill.className).toContain('bg-destructive/10');
-    // hsl(0 72% 45%) == rgb(197,32,32) — the darkened red, not base destructive.
-    expect(pill.style.color).toBe('rgb(197, 32, 32)');
+    // Wave-6 H3: token --status-lost-text = 0 72% 45% (darkened red, distinct from base destructive).
+    // jsdom stores hsl(var(--x)) verbatim — assert the raw style attribute references the token.
+    expect(pill.getAttribute('style') ?? '').toContain('--status-lost-text');
   });
 
   it('maps warn/overdue to the warning tint + warning-foreground token text', () => {
@@ -81,11 +83,12 @@ describe('StatusPill', () => {
     expect(dot.style.background).toBe('hsl(var(--muted-foreground))');
   });
 
-  it('I1: open stays the blue tint + darkened-AA text (progress did not change open)', () => {
+  it('I1: open stays the blue tint + darkened-AA token text (progress did not change open)', () => {
     render(<StatusPill variant="open">Submitted</StatusPill>);
     const pill = screen.getByText('Submitted').closest('span')!;
     expect(pill.className).toContain('bg-primary/10');
-    expect(pill.style.color).toBe('rgb(24, 70, 170)'); // hsl(221 75% 38%)
+    // Wave-6 H3: wired to --status-open-text token (jsdom stores hsl(var(--x)) verbatim).
+    expect(pill.getAttribute('style') ?? '').toContain('--status-open-text');
   });
 
   /**
@@ -96,14 +99,33 @@ describe('StatusPill', () => {
    * won/Internal (green) so the three company types are differentiated by hue AND
    * label, never color-only (the dot + label carry it).
    */
-  it('maps violet to the categorical violet tint + darkened AA text (Vendor type pill)', () => {
+  it('maps violet to the categorical violet tint + darkened AA token text (Vendor type pill)', () => {
     render(<StatusPill variant="violet">Vendor</StatusPill>);
     const pill = screen.getByText('Vendor').closest('span')!;
     expect(pill.className).toContain('bg-violet/12');
-    // hsl(262 60% 42%) == rgb(90,43,171) — the darkened violet, not the base hue.
-    expect(pill.style.color).toBe('rgb(90, 43, 171)');
+    // Wave-6 H3: token --status-violet-text = 262 60% 42% (hsl(262 60% 42%) = 7.4:1 on white).
+    // jsdom stores hsl(var(--x)) verbatim — assert the raw style attribute references the token.
+    expect(pill.getAttribute('style') ?? '').toContain('--status-violet-text');
     const dot = pill.querySelector('[data-pill-dot]') as HTMLElement;
     expect(dot.style.background).toBe('hsl(var(--violet))');
+  });
+
+  it('AC-W6-H3: open/won/lost/violet pill text references the documented --status-*-text tokens (Wave-6 H3 real token swap)', () => {
+    // Each variant applies hsl(var(--status-*-text)) as the inline color — the token IS the
+    // single source of truth (not a comment alias). jsdom stores hsl(var(--x)) verbatim,
+    // so we assert the raw style attribute contains the token name.
+    const pairs: Array<[Parameters<typeof StatusPill>[0]['variant'], string]> = [
+      ['open', '--status-open-text'],
+      ['won', '--status-won-text'],
+      ['lost', '--status-lost-text'],
+      ['violet', '--status-violet-text'],
+    ];
+    for (const [variant, token] of pairs) {
+      const { unmount } = render(<StatusPill variant={variant}>{variant}</StatusPill>);
+      const pill = screen.getByText(variant).closest('span')!;
+      expect(pill.getAttribute('style') ?? '', `${variant} should reference ${token}`).toContain(token);
+      unmount();
+    }
   });
 });
 

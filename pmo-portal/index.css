@@ -21,6 +21,12 @@
   --destructive: 0 84.2% 60.2%;      --destructive-foreground: 0 0% 98%;
   --warning: 43 96% 56%;             --warning-foreground: 22 78% 26%;
   --success: 142 71% 45%;            --success-foreground: 0 0% 98%;
+  /* --- Status pill text (darkened-AA literals, DESIGN.md "Accessibility posture") --- */
+  /* Named tokens for the StatusPill darkened-text values — single source of truth (Wave-6 H3). */
+  --status-open-text: 221 75% 38%;
+  --status-won-text: 142 64% 30%;
+  --status-lost-text: 0 72% 45%;
+  --status-violet-text: 262 60% 42%;
   /* --- Lines / fields / focus --- */
   --border: 240 5.9% 90%;            --input: 240 5.9% 90%;
   --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;

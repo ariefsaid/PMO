@@ -100,6 +100,11 @@ describe('KPITile', () => {
     });
   });
 
+  it('AC-W6-H1: KPITone no longer accepts cyan (off-palette literal removed)', () => {
+    // @ts-expect-error cyan is no longer a member of KPITone
+    render(<KPITile icon="folder" tone="cyan" label="x" value="1" />);
+  });
+
   it('dual-lens toggle switches value + aria-selected', async () => {
     const onLens = vi.fn();
     render(
