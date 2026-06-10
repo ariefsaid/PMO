@@ -341,3 +341,14 @@ Stepper nodes show full words (Purchase Request / Vendor Quote / Purchase Order 
 
 ## OD-W5-C6 — Cluster 6: D13 only; D11/D12 detail drawers DEFERRED (owner 2026-06-10)
 Cluster 6 plan (`docs/plans/2026-06-10-wave5-detail-drawers.md`) needed a NET-NEW quick-view Drawer primitive for D11/D12 (company/document detail + inline status). Owner chose: **skip the drawers, ship only D13, go straight to Wave 4 (mobile — the bigger flagged item).** D11/D12 (company + document quick-view drawer + inline status; the design-plan + the Drawer-primitive sketch are ready to pick up) are **deferred** to a later polish pass. **D13 DONE:** removed the dead disabled "Attach file (coming soon)" button on the Documents register (honest-affordance rule OD-W2-5) — the Storage deferral is signposted by the register subtitle copy, not a fake control. (The exec-dashboard Board-pack "coming soon" is a DIFFERENT, legitimate honest-disabled signpost with a future Reports route — unchanged.)
+
+## Wave 4 — Mobile responsiveness (OD-W4-*, Director-adopted 2026-06-10; plan `docs/plans/2026-06-10-wave4-mobile.md`)
+The app was MORE mobile-ready than "desktop-only" implied (rail→drawer ≤920px, `.touch-target` ≥44px utility, StatTiles scroll-snap, LifecycleStepper/Funnel/kanban overflow-x, TimesheetGrid sticky-col all already shipped). The ONE structural gap = the shared `DataTable` has no stacked-card reflow. Adopt the design-architect recommendations (standard mobile patterns, low-risk):
+### OD-W4-1 — Shell mobile nav = KEEP the DRAWER (not bottom-nav)
+The grouped role-nav exceeds the 5-item bottom-nav ceiling; the rail→drawer at ≤920px already works. Harden it (focus-trap/Esc/close, safe-area) rather than replace.
+### OD-W4-2 — Kanban mobile = scroll-snap + a sticky stage-progress indicator (not a stage-picker)
+The Table view (now card-reflowed) is the dense single-column alternative.
+### OD-W4-3 — Timesheet mobile = KEEP the 7-day matrix (horizontal-scroll + sticky project/Total columns), not a per-day list
+Preserves the editable grid mental model; the sticky cols + scroll-fade make it usable at 375px.
+### OD-W4-4 — Adopt `md` (768px) as the table→card reflow breakpoint, a DESIGN.md standard; keep TWO breakpoints (920px rail-collapse / 768px table-reflow)
+The shared `DataTable` dual-renders: `<table hidden md:block>` + a `md:hidden` stacked-card list reusing the existing `Column.header/cell/rowLabel/rowMenu/state` API — zero consumer churn, desktop byte-unchanged (can't regress), every list inherits it. The only DESIGN.md addition is documenting the 768px reflow breakpoint (no new color/type/spacing token). Build + 375px rendered design-review per PR (not mockup-first — the owner steered straight to mobile; the rendered review catches reads-wrong). PR order: PR-1 DataTable→card + touch-target sweep (highest reach, lowest risk) → PR-2 shell hardening → PR-3 detail surfaces (tabs strip, header, kanban scroll-snap, timesheet/stepper hardening).
