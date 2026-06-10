@@ -430,7 +430,7 @@ export interface FormActionsProps {
   onSubmit?: () => void;
   disabled?: boolean;
   loading?: boolean;
-  /** When the submit is disabled, the id of a visible element explaining why (G6). */
+  /** When the submit is disabled, the id of an element (visible or sr-only) explaining why (G6). */
   submitDescribedBy?: string;
   className?: string;
 }

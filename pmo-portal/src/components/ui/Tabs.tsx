@@ -104,7 +104,7 @@ export function Tabs<V extends string = string>({
             role="tab"
             id={tabId(idBase, t.value)}
             aria-selected={active}
-            aria-controls={tabPanelId(idBase, t.value)}
+            aria-controls={active ? tabPanelId(idBase, t.value) : undefined}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.value)}
             className={cn(
