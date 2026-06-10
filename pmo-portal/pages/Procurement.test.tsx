@@ -85,8 +85,8 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('renders seeded requests with joined project name (AC-501)', () => {
     renderPage();
-    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
-    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(screen.getAllByText('Workstations & AV')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Innovate Corp HQ Fit-Out')[0]).toBeInTheDocument();
   });
 
   it('defaults to the Table view with the lifecycle column header', () => {
@@ -98,26 +98,26 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
-    expect(screen.getByText(/No requests match/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No requests match/i)[0]).toBeInTheDocument();
   });
 
   it('status filter narrows the list (Paid only)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Paid$/ }));
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
-    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+    expect(screen.getAllByText('Crane hire — 6 weeks')[0]).toBeInTheDocument();
   });
 
   it('switching to the by-stage Board groups requests into stage columns', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
     // Vendor Quoted request lands in the VQ column
-    expect(within(screen.getByTestId('prstage-vq')).getByText('Workstations & AV')).toBeInTheDocument();
+    expect(within(screen.getByTestId('prstage-vq')).getAllByText('Workstations & AV')[0]).toBeInTheDocument();
   });
 
   it('AC-NAV-006: activating a row navigates to the procurement detail route (no tab)', async () => {
     renderPage();
-    await userEvent.click(screen.getByText('Workstations & AV'));
+    await userEvent.click(screen.getAllByText('Workstations & AV')[0]);
     expect(navigate).toHaveBeenCalledWith('/procurement/pc1');
   });
 });
@@ -132,7 +132,7 @@ describe('Procurement index — states', () => {
   it('loading skeleton while pending (AC-505)', () => {
     procState.isPending = true;
     renderPage();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
   });
 
   it('error state with retry (AC-507)', () => {
@@ -144,7 +144,7 @@ describe('Procurement index — states', () => {
   it('empty state when zero rows teaches + offers a real Raise request action (AC-PROC-006)', () => {
     procState.data = [];
     renderPage();
-    expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No purchase requests yet/i)[0]).toBeInTheDocument();
     // The dead disabled CTA was removed in the cleanup round; the CRUD slice
     // restores a REAL, working create affordance (header CTA + empty-state action).
     expect(screen.getAllByRole('button', { name: /raise request/i }).length).toBeGreaterThanOrEqual(1);

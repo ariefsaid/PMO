@@ -100,21 +100,21 @@ beforeEach(() => {
 describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
   it('AC-W3-B2: a write-role (Admin) sees "Reopen for revision" in the row menu of a Rejected document', async () => {
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Rejected Report').closest('tr')!;
+    const row = screen.getAllByText('Rejected Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
   });
 
   it('AC-W3-B2: a write-role (Admin) sees "Close" in the row menu of a Rejected document', async () => {
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Rejected Report').closest('tr')!;
+    const row = screen.getAllByText('Rejected Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /^Close$/i })).toBeInTheDocument();
   });
 
   it('AC-W3-B2: "Reopen for revision" drives a ConfirmDialog and transitions the doc to Draft on confirm', async () => {
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Rejected Report').closest('tr')!;
+    const row = screen.getAllByText('Rejected Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Reopen for revision/i }));
 
@@ -132,7 +132,7 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
 
   it('AC-W3-B2: "Close" (abandon) drives a ConfirmDialog and transitions the doc to Closed on confirm', async () => {
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Rejected Report').closest('tr')!;
+    const row = screen.getAllByText('Rejected Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /^Close$/i }));
 
@@ -159,7 +159,7 @@ describe('AC-W3-B2: Rejected document status actions (Reopen + Close)', () => {
     // pm-2 is NOT the author (pm-1 authored it) → canEditDoc is false, but canWriteDocs is true
     // → statusActions should still expose Reopen + Close (not author-gated)
     renderTab('Project Manager', 'pm-2');
-    const row = screen.getByText('Rejected Report').closest('tr')!;
+    const row = screen.getAllByText('Rejected Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Reopen for revision/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /^Close$/i })).toBeInTheDocument();

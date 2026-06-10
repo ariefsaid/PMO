@@ -84,7 +84,7 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
   it('AC-W2-RBAC-006: an Engineer reads as "your requests" (own-scoped) and can Raise request', () => {
     renderAs('Engineer');
     // Own-scoped copy: the page describes the Engineer's OWN requests, not the org index.
-    expect(screen.getByText(/your.*requests/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/your.*requests/i)[0]).toBeInTheDocument();
     // Raise request stays available (any member may raise).
     expect(screen.getByRole('button', { name: /Raise request/i })).toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
   it("AC-W2-RBAC-006: an Engineer's list contains ONLY their own requests, not the whole org", () => {
     renderAs('Engineer');
     // u-self's request is shown…
-    expect(screen.getByText('Crane hire')).toBeInTheDocument();
+    expect(screen.getAllByText('Crane hire')[0]).toBeInTheDocument();
     // …but u-other's request is NOT (the org-wide RLS read is narrowed to the caller).
     expect(screen.queryByText('Scaffolding rental')).not.toBeInTheDocument();
   });
@@ -100,12 +100,12 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
   it('AC-W2-RBAC-006: a PM sees the org-wide procurement index (NOT the "your requests" scoping)', () => {
     renderAs('Project Manager');
     // The org-index copy describes separation-of-duties gates across all PRs.
-    expect(screen.getByText(/separation-of-duties/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/separation-of-duties/i)[0]).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Raise request/i })).toBeInTheDocument();
     // No "your requests" own-scoping framing for a manager.
     expect(screen.queryByText(/^Your purchase requests$/i)).not.toBeInTheDocument();
     // A manager sees EVERY requester's rows (org index), including u-other's.
-    expect(screen.getByText('Crane hire')).toBeInTheDocument();
-    expect(screen.getByText('Scaffolding rental')).toBeInTheDocument();
+    expect(screen.getAllByText('Crane hire')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Scaffolding rental')[0]).toBeInTheDocument();
   });
 });

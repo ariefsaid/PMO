@@ -127,20 +127,20 @@ const renderProcurement = (url = '/procurement') =>
 describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
   it('AC-IXD-DASH-W5-C2B-N16-1: renders the "Ready to pay" section heading', () => {
     renderPane();
-    expect(screen.getByText(/ready to pay/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/ready to pay/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-2: shows only Vendor Invoiced PRs (not Paid or Draft)', () => {
     renderPane();
-    expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
-    expect(screen.getByText('Electrical Works Invoice')).toBeInTheDocument();
+    expect(screen.getAllByText('Scaffolding Invoice')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Electrical Works Invoice')[0]).toBeInTheDocument();
     expect(screen.queryByText('Paid Invoice')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-3: shows PR code in mono style', () => {
     renderPane();
-    expect(screen.getByText('VI-001')).toBeInTheDocument();
+    expect(screen.getAllByText('VI-001')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-4: shows Value column with tabular currency amounts', () => {
@@ -191,20 +191,20 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
     expect(screen.getAllByText(/budget review/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/variance/i).length).toBeGreaterThan(0);
     // The card head specifically must contain "budget review" + "variance" in one heading
-    const cardHead = screen.getByText(/budget review — top 5 contracts by variance/i);
+    const cardHead = screen.getAllByText(/budget review — top 5 contracts by variance/i)[0];
     expect(cardHead).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N17-2: variance column shows "+$X over" for over-budget projects', () => {
     renderPane();
     // Alpha: budget=1_000_000, spent=1_100_000 → +$100,000 over
-    expect(screen.getByText('+$100,000 over')).toBeInTheDocument();
+    expect(screen.getAllByText('+$100,000 over')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N17-3: variance column shows "$Y left" for under-budget projects', () => {
     renderPane();
     // Beta: budget=1_000_000, spent=600_000 → $400,000 left
-    expect(screen.getByText('$400,000 left')).toBeInTheDocument();
+    expect(screen.getAllByText('$400,000 left')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N17-4: rows are ordered variance-desc (most-over first)', () => {
@@ -274,7 +274,7 @@ describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible segment', () =
     const viButton = screen.getByRole('tab', { name: /vendor invoiced/i });
     await userEvent.click(viButton);
     // After clicking VI segment: VI row visible, others not
-    expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
+    expect(screen.getAllByText('Scaffolding Invoice')[0]).toBeInTheDocument();
     expect(screen.queryByText('Paid Invoice')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
@@ -289,7 +289,7 @@ describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible segment', () =
 
   it('AC-IXD-DASH-W5-C2B-VI-4: navigating to ?status=Vendor+Invoiced shows only VI rows (orientation fix)', () => {
     renderProcurement('/procurement?status=Vendor+Invoiced');
-    expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
+    expect(screen.getAllByText('Scaffolding Invoice')[0]).toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
     expect(screen.queryByText('Paid Invoice')).not.toBeInTheDocument();
   });
@@ -407,7 +407,7 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
         <ReadyToPayTable procurements={[]} isPending={false} isError={false} onRetry={() => {}} />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/nothing awaiting payment/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/nothing awaiting payment/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-EMPTY-2: shows loading state when isPending=true', () => {
@@ -416,7 +416,7 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
         <ReadyToPayTable procurements={[]} isPending={true} isError={false} onRetry={() => {}} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-EMPTY-3: shows error state with retry when isError=true', () => {

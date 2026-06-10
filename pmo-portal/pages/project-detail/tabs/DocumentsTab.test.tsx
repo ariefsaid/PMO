@@ -78,9 +78,9 @@ beforeEach(() => {
 describe('DocumentsTab — register rows (AC-DOC-001)', () => {
   it('AC-DOC-001: renders the seeded document rows with code + title + status', () => {
     renderTab();
-    expect(screen.getByText('Site Plan')).toBeInTheDocument();
-    expect(screen.getByText('Steel Spec')).toBeInTheDocument();
-    expect(screen.getByText('DOC-001')).toBeInTheDocument();
+    expect(screen.getAllByText('Site Plan')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Steel Spec')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('DOC-001')[0]).toBeInTheDocument();
     // status pills present
     expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Issued').length).toBeGreaterThan(0);
@@ -90,7 +90,7 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     renderTab();
     await userEvent.type(screen.getByLabelText(/Search documents/i), 'steel');
     expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
-    expect(screen.getByText('Steel Spec')).toBeInTheDocument();
+    expect(screen.getAllByText('Steel Spec')[0]).toBeInTheDocument();
   });
 
   // Polish #6 — the toolbar gains a left-aligned "N documents" count (matching the
@@ -113,7 +113,7 @@ describe('DocumentsTab — states', () => {
   it('AC-DOC-001: loading skeleton while pending', () => {
     listState.isPending = true;
     renderTab();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
   });
 
   it('AC-DOC-001: error state with retry', async () => {
@@ -127,7 +127,7 @@ describe('DocumentsTab — states', () => {
   it('AC-DOC-001: empty state teaches with a gated Add document action', () => {
     listState.data = [];
     renderTab('Admin');
-    expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No documents yet/i)[0]).toBeInTheDocument();
   });
 });
 
@@ -137,7 +137,7 @@ describe('DocumentsTab — file upload deferral is signposted by copy, not a dea
     // The disabled "Attach file" placeholder was removed (honest-affordance rule: no fake
     // disabled control). The deferral is communicated by the register subtitle copy.
     expect(screen.queryByRole('button', { name: /Attach file/i })).toBeNull();
-    expect(screen.getByText(/file attachments arrive with Storage/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/file attachments arrive with Storage/i)[0]).toBeInTheDocument();
   });
 });
 
@@ -146,7 +146,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     renderTab('Admin');
     expect(screen.getByRole('button', { name: /Add document/i })).toBeInTheDocument();
     await userEvent.click(
-      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getAllByText('Site Plan')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument();
@@ -158,7 +158,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     renderTab('Project Manager', 'pm-1');
     expect(screen.getByRole('button', { name: /Add document/i })).toBeInTheDocument();
     await userEvent.click(
-      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getAllByText('Site Plan')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     // status actions, but the metadata Edit is hidden for a non-author.
     renderTab('Project Manager', 'pm-2');
     await userEvent.click(
-      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getAllByText('Site Plan')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.queryByRole('menuitem', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
   it('AC-DOC-004: Edit pre-fills the row and submits an update', async () => {
     renderTab('Admin');
     await userEvent.click(
-      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getAllByText('Site Plan')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     const titleInput = screen.getByLabelText(/Title/i) as HTMLInputElement;
@@ -244,7 +244,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
 describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
   it('AC-DOC-005: a Draft document shows an Issue action that transitions to Issued via a confirm', async () => {
     renderTab('Admin');
-    const row = screen.getByText('Site Plan').closest('tr')!;
+    const row = screen.getAllByText('Site Plan')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Issue/i }));
     // confirm dialog, mutation not yet called
@@ -258,7 +258,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
   it('AC-DOC-005: an Issued document offers Approve + Reject when the viewer is NOT the author (SoD ok)', async () => {
     // d2 authored by pm-1; current admin user (admin-1) is NOT the author → may approve/reject.
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Steel Spec').closest('tr')!;
+    const row = screen.getAllByText('Steel Spec')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Approve/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Reject/i })).toBeInTheDocument();
@@ -272,7 +272,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
   it('AC-DOC-005: the AUTHOR of an Issued document cannot Approve/Reject it (approver ≠ author SoD) — a GateNotice explains', async () => {
     // current user is pm-1, who authored d2 (Issued). Approve/Reject must be HIDDEN.
     renderTab('Project Manager', 'pm-1');
-    const row = screen.getByText('Steel Spec').closest('tr')!;
+    const row = screen.getAllByText('Steel Spec')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     expect(screen.queryByRole('menuitem', { name: /Approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Reject/i })).not.toBeInTheDocument();
@@ -285,7 +285,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
 
   it('AC-DOC-005: an Approved document offers Close (terminal) via a confirm', async () => {
     renderTab('Admin', 'admin-1');
-    const row = screen.getByText('Survey Report').closest('tr')!;
+    const row = screen.getAllByText('Survey Report')[0].closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Close/i }));
     await userEvent.click(screen.getByRole('button', { name: /Close document/i }));
@@ -299,7 +299,7 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
   it('AC-DOC-006: Delete routes through a destructive confirm and calls the mutation (Admin)', async () => {
     renderTab('Admin');
     await userEvent.click(
-      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getAllByText('Site Plan')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete document/i }));

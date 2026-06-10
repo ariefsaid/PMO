@@ -69,8 +69,8 @@ beforeEach(() => {
 describe('Companies index — rows + filters (AC-CO-001)', () => {
   it('AC-CO-001: renders seeded company rows with name + type', () => {
     renderPage();
-    expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
-    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+    expect(screen.getAllByText('Cascade Port Authority')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Steelforge Fabrication')[0]).toBeInTheDocument();
     // type pill rendered
     expect(screen.getAllByText('Client').length).toBeGreaterThan(0);
   });
@@ -79,22 +79,22 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Vendor$/ }));
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
-    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+    expect(screen.getAllByText('Steelforge Fabrication')[0]).toBeInTheDocument();
   });
 
   it('AC-CO-001: search filters rows by name', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search companies/i), 'steel');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
-    expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+    expect(screen.getAllByText('Steelforge Fabrication')[0]).toBeInTheDocument();
   });
 
   it('AC-CO-001: each company_type renders a DISTINCT tinted pill (Client/Vendor/Internal differentiated)', () => {
     renderPage();
     // The Type column pill is the closest pill ancestor of the type label inside its row.
     const pillBg = (label: string, rowName: string) => {
-      const row = screen.getByText(rowName).closest('tr')!;
-      return within(row).getByText(label).closest('span')!.className;
+      const row = screen.getAllByText(rowName)[0].closest('tr')!;
+      return within(row).getAllByText(label)[0].closest('span')!.className;
     };
     const client = pillBg('Client', 'Cascade Port Authority'); // blue (open)
     const vendor = pillBg('Vendor', 'Steelforge Fabrication'); // violet
@@ -113,7 +113,7 @@ describe('Companies index — states', () => {
   it('AC-CO-001: loading skeleton while pending', () => {
     listState.isPending = true;
     renderPage();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading')[0]).toBeInTheDocument();
   });
 
   it('AC-CO-001: error state with retry', async () => {
@@ -127,7 +127,7 @@ describe('Companies index — states', () => {
   it('AC-CO-001: empty state teaches with a gated New company action', () => {
     listState.data = [];
     renderPage('Admin');
-    expect(screen.getByText(/No companies yet/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No companies yet/i)[0]).toBeInTheDocument();
   });
 });
 
@@ -135,7 +135,7 @@ describe('Companies index — RBAC affordance gating (AC-CO-007)', () => {
   it('AC-CO-007: Admin sees New company + Edit + Archive + Delete', async () => {
     renderPage('Admin');
     expect(screen.getByRole('button', { name: /New company/i })).toBeInTheDocument();
-    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Cascade Port Authority')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Archive/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('Companies index — RBAC affordance gating (AC-CO-007)', () => {
   it('AC-CO-007: PM sees New company + Edit but NOT Archive or Delete', async () => {
     renderPage('Project Manager');
     expect(screen.getByRole('button', { name: /New company/i })).toBeInTheDocument();
-    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Cascade Port Authority')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Archive/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
@@ -198,7 +198,7 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
 
   it('AC-CO-004: Edit pre-fills the row and submits an update', async () => {
     renderPage('Admin');
-    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Cascade Port Authority')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     const nameInput = screen.getByLabelText(/Company name/i) as HTMLInputElement;
     expect(nameInput.value).toBe('Cascade Port Authority');
@@ -217,7 +217,7 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
 describe('Companies archive (AC-CO-005)', () => {
   it('AC-CO-005: Archive routes through a confirm and calls the mutation', async () => {
     renderPage('Admin');
-    await userEvent.click(within(screen.getByText('Steelforge Fabrication').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Steelforge Fabrication')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Archive/i }));
     // confirm dialog appears; mutation not yet called
     expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe('Companies archive (AC-CO-005)', () => {
 describe('Companies delete (AC-CO-006)', () => {
   it('AC-CO-006: Delete routes through a destructive confirm and calls the mutation', async () => {
     renderPage('Admin');
-    await userEvent.click(within(screen.getByText('Steelforge Fabrication').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Steelforge Fabrication')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('c2'));
@@ -238,7 +238,7 @@ describe('Companies delete (AC-CO-006)', () => {
   it('AC-CO-006: an in-use (23503) delete surfaces a warning toast advising Archive instead', async () => {
     mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
     renderPage('Admin');
-    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Cascade Port Authority')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
     // the in-use message is surfaced via a warning toast (centralized "Still in use" headline,
@@ -251,7 +251,7 @@ describe('Companies delete (AC-CO-006)', () => {
   it('AC-CO-006: an in-use (23503) delete renders an inline GateNotice naming the company + an Archive-instead recovery path', async () => {
     mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
     renderPage('Admin');
-    await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getAllByText('Cascade Port Authority')[0].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
     // The inline GateNotice (block-delete-if-referenced) names the company and offers recovery.
@@ -263,7 +263,7 @@ describe('Companies delete (AC-CO-006)', () => {
     expect(
       screen.getByRole('button', { name: /Archive company/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Archive Cascade Port Authority\?/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Archive Cascade Port Authority\?/i)[0]).toBeInTheDocument();
     // Confirming the archive runs the archive mutation for that company.
     await userEvent.click(screen.getByRole('button', { name: /Archive company/i }));
     await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('c1'));

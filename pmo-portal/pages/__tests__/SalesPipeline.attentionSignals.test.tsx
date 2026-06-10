@@ -184,17 +184,17 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
   it('AC-IXD-PIPE-W5-C5-2: open pipeline row (RPC migration 0020) shows its real Owner and Last touch', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
+    const row = screen.getAllByText('Northwind ERP Rollout')[0].closest('tr')!;
     // Owner is the PM name supplied by the RPC; Last touch is the aged last_update — NOT "—".
-    expect(within(row).getByText('Alice Manager')).toBeInTheDocument();
-    expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
+    expect(within(row).getAllByText('Alice Manager')[0]).toBeInTheDocument();
+    expect(within(row).getAllByText(/days ago/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-2b: a row genuinely missing last_update/pm_name still shows "—" (honest, no fabrication)', async () => {
     pipelineState.data = { stages: [], projects: [openProjectNoData] };
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    const row = screen.getByText('Bare Opportunity').closest('tr')!;
+    const row = screen.getAllByText('Bare Opportunity')[0].closest('tr')!;
     const dashCells = within(row)
       .getAllByRole('cell')
       .map((c) => c.textContent ?? '')
@@ -207,9 +207,9 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     lostState.data = [lostProjectRecent];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
-    const row = screen.getByText('Coastal Depot Bid').closest('tr')!;
-    expect(within(row).getByText('Alice PM')).toBeInTheDocument();
-    expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
+    const row = screen.getAllByText('Coastal Depot Bid')[0].closest('tr')!;
+    expect(within(row).getAllByText('Alice PM')[0]).toBeInTheDocument();
+    expect(within(row).getAllByText(/days ago/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-4: "Needs attention" filter tab is present in the table toolbar', async () => {
@@ -225,7 +225,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
-    expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
+    expect(screen.getAllByText('Stale Northern Tender')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-6: "Needs attention" filter excludes deals with last_update < 30 days ago', async () => {
@@ -234,7 +234,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
     expect(screen.queryByText('Coastal Depot Bid')).not.toBeInTheDocument();
-    expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
+    expect(screen.getAllByText('Stale Northern Tender')[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-7: "Needs attention" filter INCLUDES a stale OPEN deal (open rows now carry last_update)', async () => {
@@ -244,7 +244,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
     // The stale OPEN deal IS flagged; the recent OPEN deal is NOT.
-    expect(screen.getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
+    expect(screen.getAllByText('Eastgate Depot Upgrade')[0]).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
   });
 
@@ -261,7 +261,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
-    expect(screen.getByText(/no deals need attention/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/no deals need attention/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-9: Owner column header is accessible (columnheader role with name)', async () => {
@@ -278,8 +278,8 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
-    const row = screen.getByText('Stale Northern Tender').closest('tr')!;
+    const row = screen.getAllByText('Stale Northern Tender')[0].closest('tr')!;
     // Should show a text-based aging signal (e.g. "35 days ago" and/or an "Overdue" label)
-    expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
+    expect(within(row).getAllByText(/days ago/i)[0]).toBeInTheDocument();
   });
 });

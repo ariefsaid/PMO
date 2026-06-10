@@ -82,7 +82,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('renders the top-projects-by-spend table', () => {
     renderPane();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(screen.getAllByText('Alpha')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Beta')[0]).toBeInTheDocument();
   });
 });

@@ -32,8 +32,13 @@ const variantClasses: Record<ButtonVariant, string> = {
 
 const sizeClasses: Record<ButtonSize, string> = {
   default: 'h-8 px-3',
-  sm: 'h-7 px-[9px] text-[13px]',
-  icon: 'h-8 w-8 p-0',
+  // C6 touch-target sweep (OD-W4-4 / WCAG 2.5.5): sm (28px) and icon (32px) both fall
+  // below the 44px touch-target floor on coarse pointers. The `.touch-target` utility
+  // extends the hit area via a transparent ::before overlay on coarse pointers ONLY —
+  // desktop visual size is unchanged. Applied automatically so every sm/icon consumer
+  // inherits it without per-callsite annotation.
+  sm: 'touch-target h-7 px-[9px] text-[13px]',
+  icon: 'touch-target h-8 w-8 p-0',
 };
 
 const Spinner: React.FC = () => (

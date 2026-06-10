@@ -67,18 +67,18 @@ beforeEach(() => {
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
   it('PM sees BOTH the procurement and timesheet sections', () => {
     renderAs('Project Manager');
-    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
-    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
-    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Needs my approval/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Purchase requests awaiting you/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Timesheets awaiting you/i)[0]).toBeInTheDocument();
   });
 
   it('procurement section counts only Requested + not-self (SoD): 1 of 3', () => {
     renderAs('Project Manager');
     // PR-001 (other, Requested) shows; PR-002 (mine) and PR-003 (Approved) excluded.
-    expect(screen.getByText('Steel beams')).toBeInTheDocument();
+    expect(screen.getAllByText('Steel beams')[0]).toBeInTheDocument();
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getByText(/Purchase requests awaiting you \(1\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Purchase requests awaiting you \(1\)/i)[0]).toBeInTheDocument();
   });
 
   it('a PR row ROUTES to /procurement/:id (no inline approve)', async () => {
@@ -92,7 +92,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
 
   it('Finance sees ONLY the procurement section (no timesheet approval)', () => {
     renderAs('Finance');
-    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Purchase requests awaiting you/i)[0]).toBeInTheDocument();
     expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
   });
 
@@ -107,7 +107,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.data = [];
     tsState.data = [];
     renderAs('Project Manager');
-    expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/all caught up/i)[0]).toBeInTheDocument();
   });
 
   it('procurement query error shows a per-section retry without blanking timesheets', () => {
@@ -115,7 +115,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.data = [];
     renderAs('Project Manager');
     // timesheet section still renders
-    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Timesheets awaiting you/i)[0]).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 });

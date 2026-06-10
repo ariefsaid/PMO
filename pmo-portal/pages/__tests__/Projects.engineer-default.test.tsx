@@ -138,7 +138,7 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
   it('AC-W2-IXD-009: Engineer "My Projects" shows projects they are ASSIGNED to (via tasks), not an empty PM-owned set', () => {
     renderAsEngineer();
     // p1 — Engineer has a task on it → shown under the default "My Projects" filter.
-    expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
+    expect(screen.getAllByText('Northwind ERP')[0]).toBeInTheDocument();
     // p2 — no assigned task → hidden. (Pre-fix, "My Projects" was project_manager_id===self,
     // which is ALWAYS empty for an IC, so the default landed on an empty list.)
     expect(screen.queryByText('Acme Internal')).not.toBeInTheDocument();

@@ -68,9 +68,37 @@ function alignClass(align?: ColAlign) {
 }
 
 /**
+ * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
+ * when projecting a column into the card branch. Cards have vertical room that the
+ * table doesn't, so every column should render in the card regardless of the
+ * desktop hiding strategy. Alignment and other utilities are preserved.
+ *
+ * Pattern stripped: any class that starts with "hidden" or contains ":hidden" or
+ * matches "hidden [breakpoint]:table-cell" compound patterns.
+ */
+function stripHiddenClasses(colClassName?: string): string {
+  if (!colClassName) return '';
+  return colClassName
+    .split(' ')
+    .filter((cls) => {
+      // Strip bare "hidden" and any responsive-hide pattern like "hidden xl:table-cell"
+      // or "sm:hidden" etc. Alignment classes (text-right, tabular) pass through.
+      return !cls.startsWith('hidden') && !cls.endsWith(':hidden');
+    })
+    .join(' ');
+}
+
+/**
  * Generic, typed data table (the signature surface). Presentational: the three
  * async states delegate to ListState via the `state` prop. Rows are keyboard-
  * activatable; sortable headers expose aria-sort.
+ *
+ * Mobile reflow (OD-W4-4, AC-IXD-MOBILE-W4-C1):
+ * - Below `md` (768px): renders a stacked card list (`md:hidden`) — each row
+ *   maps to a card with the first column as the activation title and the remaining
+ *   columns as a <dl> label:value list. All data is shown (no column dropped).
+ * - At `md`+: renders the original `<table>` (`hidden md:block`) — desktop is
+ *   byte-unchanged. The card branch is purely additive.
  */
 export function DataTable<Row>({
   rows,
@@ -93,9 +121,34 @@ export function DataTable<Row>({
 }: DataTableProps<Row>) {
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
+  // Shared ListState node — rendered once and reused in both branches via a
+  // local variable so the async-state code is one source of truth.
+  const listStateNode = state ? (
+    <>
+      {state === 'loading' && <ListState variant="loading" />}
+      {state === 'empty' && (
+        <ListState
+          variant="empty"
+          title={emptyTitle}
+          sub={emptySub}
+          action={emptyAction}
+        />
+      )}
+      {state === 'error' && (
+        <ListState
+          variant="error"
+          title={errorTitle}
+          sub={errorSub}
+          onRetry={onRetry}
+        />
+      )}
+    </>
+  ) : null;
+
   return (
     <div className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
-      <div className="overflow-x-auto">
+      {/* ── Desktop table branch (hidden md:block — byte-unchanged) ─────── */}
+      <div data-testid="dt-table-branch" className="hidden md:block overflow-x-auto">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
@@ -143,23 +196,7 @@ export function DataTable<Row>({
             {state ? (
               <tr>
                 <td colSpan={colSpan} className="p-0">
-                  {state === 'loading' && <ListState variant="loading" />}
-                  {state === 'empty' && (
-                    <ListState
-                      variant="empty"
-                      title={emptyTitle}
-                      sub={emptySub}
-                      action={emptyAction}
-                    />
-                  )}
-                  {state === 'error' && (
-                    <ListState
-                      variant="error"
-                      title={errorTitle}
-                      sub={errorSub}
-                      onRetry={onRetry}
-                    />
-                  )}
+                  {listStateNode}
                 </td>
               </tr>
             ) : (
@@ -226,6 +263,107 @@ export function DataTable<Row>({
           </tbody>
         </table>
       </div>
+
+      {/* ── Mobile card branch (md:hidden — additive, zero consumer churn) ─ */}
+      {/*
+       * OD-W4-4 / AC-IXD-MOBILE-W4-C1: stacked record-card list.
+       * Card anatomy (DESIGN.md tokens):
+       *   - Container: bg-card, border, rounded-md (8px), p-4 (16px), gap-2 (8px) between cards
+       *   - Title row: first column = activation <button> (rowLabel accessible name)
+       *   - Field rows: <dl> grid — <dt> = column header (overline/label voice), <dd> = cell value
+       *   - Numeric columns: tabular + text-right on <dd>
+       *   - rowMenu ⋯: top-right corner of the card, .touch-target
+       * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
+       * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
+       *
+       * aria-hidden="true": the <table> branch is the authoritative semantic structure (aria-sort,
+       * role="row", column headers, etc.) and is ALWAYS in the DOM. The card list is a CSS-layout
+       * alternative for sighted touch users. Hiding it from AT avoids duplicate content for screen
+       * readers and keeps existing consumer tests stable (RTL getByText/getByRole only find the
+       * table branch). Keyboard users on touch devices reach rows via the table (scrollable).
+       */}
+      <ul
+        data-testid="dt-card-branch"
+        role="list"
+        aria-hidden="true"
+        className="md:hidden divide-y divide-border/70"
+      >
+        {state ? (
+          <li className="p-0">{listStateNode}</li>
+        ) : (
+          rows.map((row) => {
+            const key = rowKey(row);
+            const selected = key === selectedKey;
+            const [titleCol, ...restCols] = columns;
+            const hasMenu = !!rowMenu;
+            const menuItems = hasMenu ? rowMenu!(row) : [];
+
+            return (
+              <li
+                key={key}
+                className={cn(
+                  'relative flex flex-col gap-2 p-4 text-[13.5px] transition-colors',
+                  onActivate && 'cursor-pointer',
+                  selected && 'bg-primary/[0.07]'
+                )}
+              >
+                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                <div className="flex items-start justify-between gap-3">
+                  {/* Card title — activation button if rowLabel+onActivate supplied */}
+                  <div className="min-w-0 flex-1 font-semibold">
+                    {onActivate && rowLabel ? (
+                      <button
+                        type="button"
+                        aria-label={rowLabel(row)}
+                        onClick={() => onActivate(row)}
+                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                      >
+                        {titleCol.cell(row)}
+                      </button>
+                    ) : (
+                      titleCol.cell(row)
+                    )}
+                  </div>
+                  {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
+                  {hasMenu && menuItems.length > 0 && (
+                    <div className="shrink-0">
+                      <RowMenu items={menuItems} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Remaining columns as a definition list */}
+                {restCols.length > 0 && (
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                    {restCols.map((col) => (
+                      <React.Fragment key={col.key}>
+                        <dt
+                          className={cn(
+                            'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                            stripHiddenClasses(col.colClassName)
+                          )}
+                        >
+                          {col.header}
+                        </dt>
+                        <dd
+                          className={cn(
+                            'text-[13.5px] text-foreground',
+                            col.align === 'num' && 'tabular text-right',
+                            col.align === 'center' && 'text-center',
+                            stripHiddenClasses(col.colClassName)
+                          )}
+                        >
+                          {col.cell(row)}
+                        </dd>
+                      </React.Fragment>
+                    ))}
+                  </dl>
+                )}
+              </li>
+            );
+          })
+        )}
+      </ul>
     </div>
   );
 }
@@ -338,7 +476,7 @@ export const SearchMini: React.FC<
         'w-full border-none bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground',
         className
       )}
-      {...rest}
+      {...rest }
     />
   </div>
 );

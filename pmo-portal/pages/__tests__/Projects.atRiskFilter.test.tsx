@@ -144,8 +144,8 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
   it('AC-IXD-DASH-W5-C2A-PROJ-2: at-risk filter shows only active projects where spent/budget >= 0.9', () => {
     renderWithUrl('/projects?filter=at-risk');
     // At risk: p2 (95%) and p3 (90%) — both active
-    expect(screen.getByText('At Risk Project')).toBeInTheDocument();
-    expect(screen.getByText('Exactly At Threshold')).toBeInTheDocument();
+    expect(screen.getAllByText('At Risk Project')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Exactly At Threshold')[0]).toBeInTheDocument();
     // Not at risk: p1 (50%) — excluded
     expect(screen.queryByText('Safe Project')).not.toBeInTheDocument();
     // Completed even though high utilization: p4 excluded (not active)
@@ -156,8 +156,8 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     // All projects safe
     projectsState.data = [fixtures[0]]; // only safe project
     renderWithUrl('/projects?filter=at-risk');
-    expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
-    expect(screen.getByText(/every active project is under 90%/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Nothing at risk/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/every active project is under 90%/i)[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-4: backward-compatible — no param keeps default (All for PM)', () => {

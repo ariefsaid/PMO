@@ -17,17 +17,29 @@ const columns: Column<Row>[] = [
   { key: 'value', header: 'Value', align: 'num', cell: (r) => r.value },
 ];
 
+// Helper: get the desktop table branch wrapper (hidden md:block).
+// The dual-render (OD-W4-4) places the <table> inside this container and
+// the card list in a sibling; scoping to this branch keeps the existing
+// desktop-table assertions stable.
+function getTableBranch() {
+  return document.querySelector('[data-testid="dt-table-branch"]') as HTMLElement;
+}
+
 describe('DataTable', () => {
   it('renders one row per record and the column headers', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+    const branch = getTableBranch();
+    // Each value appears in both branches (dual-render) — use getAllByText to find any.
+    expect(screen.getAllByText('Alpha').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Beta').length).toBeGreaterThanOrEqual(1);
+    // Column headers are only in the table branch (no thead in cards).
+    expect(within(branch).getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
   });
 
   it('numeric columns right-align', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
-    expect(screen.getByRole('columnheader', { name: 'Value' }).className).toContain('text-right');
+    const branch = getTableBranch();
+    expect(within(branch).getByRole('columnheader', { name: 'Value' }).className).toContain('text-right');
   });
 
   it('sortable header toggles aria-sort and calls the sort handler', async () => {
@@ -41,7 +53,8 @@ describe('DataTable', () => {
         onSort={onSort}
       />
     );
-    const nameTh = screen.getByRole('columnheader', { name: /Name/ });
+    const branch = getTableBranch();
+    const nameTh = within(branch).getByRole('columnheader', { name: /Name/ });
     expect(nameTh).toHaveAttribute('aria-sort', 'ascending');
     await userEvent.click(within(nameTh).getByRole('button'));
     expect(onSort).toHaveBeenCalledWith('name');
@@ -57,11 +70,14 @@ describe('DataTable', () => {
         rowLabel={(r) => `Open ${r.name}`}
       />
     );
-    const alphaRow = screen.getByText('Alpha').closest('tr')!;
+    const branch = getTableBranch();
+    // Scope to the table branch so we're testing <tr> semantics, not the card list.
+    const alphaTexts = within(branch).getAllByText('Alpha');
+    const alphaRow = alphaTexts[0].closest('tr')!;
     // The invalid role="link" override is gone — the <tr> keeps role="row".
     expect(alphaRow).not.toHaveAttribute('role', 'link');
-    // header row + 2 body rows are all discoverable as rows.
-    expect(screen.getAllByRole('row').length).toBe(rows.length + 1);
+    // header row + 2 body rows are all discoverable as rows inside the table branch.
+    expect(within(branch).getAllByRole('row').length).toBe(rows.length + 1);
   });
 
   it('a11y: each activatable row exposes a focusable button carrying the row accessible name', async () => {
@@ -75,7 +91,10 @@ describe('DataTable', () => {
         rowLabel={(r) => `Open ${r.name}`}
       />
     );
-    const openAlpha = screen.getByRole('button', { name: 'Open Alpha' });
+    // Scope to the table branch — the card branch also has an "Open Alpha" button,
+    // but this test is specifically about the <td>-level button in the desktop table.
+    const branch = getTableBranch();
+    const openAlpha = within(branch).getByRole('button', { name: 'Open Alpha' });
     // ring token + positive (outset) offset — never the inset/black variant.
     expect(openAlpha.className).toContain('focus-visible:outline-offset-2');
     expect(openAlpha.className).not.toContain('focus-visible:-outline-offset-2');
@@ -97,13 +116,15 @@ describe('DataTable', () => {
         rowLabel={(r) => `Open ${r.name}`}
       />
     );
-    // click the row body (a non-button cell) → one activation
-    await userEvent.click(screen.getByText('980'));
+    const branch = getTableBranch();
+    // click the row body (a non-button cell) → one activation.
+    // '980' only appears in the value column of the table branch.
+    await userEvent.click(within(branch).getByText('980'));
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(rows[1]);
     onActivate.mockClear();
-    // click the in-cell button → exactly one activation (stopPropagation prevents the row's too)
-    await userEvent.click(screen.getByRole('button', { name: 'Open Alpha' }));
+    // click the in-cell button → exactly one activation (stopPropagation prevents the row's too).
+    await userEvent.click(within(branch).getByRole('button', { name: 'Open Alpha' }));
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(rows[0]);
   });
@@ -118,13 +139,14 @@ describe('DataTable', () => {
         emptyTitle="No projects"
       />
     );
-    expect(screen.getByText('No projects')).toBeInTheDocument();
+    expect(screen.getAllByText('No projects').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 
   it('state="loading" renders the loading ListState', () => {
     render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // Both branches render ListState in the async-state path — at least one is present.
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(1);
   });
 
   it('state="error" renders an alert with a Retry that calls onRetry', async () => {
@@ -139,8 +161,11 @@ describe('DataTable', () => {
         onRetry={onRetry}
       />
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('Load failed');
-    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    // Both branches render the error alert — use getAllByRole and check the first.
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts[0]).toHaveTextContent('Load failed');
+    // Both Retry buttons call the same onRetry — click the first.
+    await userEvent.click(screen.getAllByRole('button', { name: /retry/i })[0]);
     expect(onRetry).toHaveBeenCalled();
   });
 
@@ -148,7 +173,9 @@ describe('DataTable', () => {
     render(
       <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="PRJ-1" />
     );
-    expect(screen.getByText('Alpha').closest('tr')!.className).toContain('bg-primary/[0.07]');
+    const branch = getTableBranch();
+    const alphaText = within(branch).getAllByText('Alpha')[0];
+    expect(alphaText.closest('tr')!.className).toContain('bg-primary/[0.07]');
   });
 
   it('Toolbar/SearchMini/TableFoot render their content', async () => {
