@@ -182,6 +182,7 @@ const SalesPipeline: React.FC = () => {
         return (
           <ProgressBar
             value={pct}
+            tone="primary"
             showValue
             aria-label={`Win probability ${pct}%`}
             className="ml-auto"
