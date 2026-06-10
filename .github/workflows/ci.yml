@@ -3,7 +3,30 @@ name: CI
 on:
   push:
     branches: [main]
+    # Skip CI on docs/markdown-only changes (no code/test/migration touched) — saves
+    # the full Supabase+Playwright integration run on doc commits to main.
+    paths-ignore:
+      - 'docs/**'
+      - 'review/**'
+      - '**/*.md'
+      - '.gitignore'
+      - 'AGENTS.md'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'review/**'
+      - '**/*.md'
+      - '.gitignore'
+      - 'AGENTS.md'
+      - 'LICENSE'
+  workflow_dispatch: {}
+
+# Cancel an in-progress run when a newer commit is pushed to the same branch/PR —
+# avoids paying for superseded runs during iterative pushes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -32,6 +55,12 @@ jobs:
         run: npm run lint:ci
 
   integration:
+    # The expensive job (Supabase stack + pgTAP + full Playwright e2e, ~6 min). Run it on
+    # PULL REQUESTS only — that's the authoritative pre-merge gate. A squash-merge to main
+    # carries the exact PR-tested content, so re-running the full e2e on the main push is
+    # redundant; the fast `verify` job still runs on main as a smoke. (Make this a REQUIRED
+    # status check in branch protection so a red e2e can't be merged.)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
