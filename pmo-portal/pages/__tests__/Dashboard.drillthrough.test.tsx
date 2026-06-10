@@ -39,6 +39,7 @@ const procurements = [
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
+  useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
 }));

@@ -3,6 +3,7 @@ import {
   getExecutiveDashboard, type ExecutiveDashboard,
   getWinRate, type WinRate,
   getSalesPipeline, type SalesPipeline, type PipelineProject,
+  getFinanceBudgetReview, type BudgetReviewRow,
 } from '@/src/lib/db/dashboard';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -55,6 +56,23 @@ export function useSalesPipeline() {
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
     queryFn: () => getSalesPipeline(),
+    enabled: Boolean(orgId),
+  });
+}
+
+/**
+ * Portfolio-wide budget review (OD-E): ALL budget>0 projects ranked by variance desc on the
+ * OD-BUDGET-2 committed-spent basis. Bypasses the `repositories` object for parity with
+ * useDashboard/useSalesPipeline (the dashboard aggregation reads call the DAL directly — the
+ * repository seam is for entity CRUD). queryKey includes org_id for cache isolation.
+ * Consumed by the N17 Budget review card.
+ */
+export function useFinanceBudgetReview() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<BudgetReviewRow[]>({
+    queryKey: ['finance-budget-review', orgId],
+    queryFn: () => getFinanceBudgetReview(),
     enabled: Boolean(orgId),
   });
 }

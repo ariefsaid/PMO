@@ -16,14 +16,30 @@ const dash = {
   ],
 };
 
+const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString();
+
 const procurements = [
-  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000 },
-  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000 },
-  { id: 'pr3', status: 'Paid', total_value: 999_999 },
+  // pr1: real vendor_invoiced_at ~10 days old; updated_at today (proxy would read 0 — proves the column wins).
+  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, vendor_invoiced_at: iso(10), updated_at: iso(0) },
+  // pr2: null vendor_invoiced_at (legacy/edge) → falls back to updated_at ~3 days old.
+  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, vendor_invoiced_at: null, updated_at: iso(3) },
+  { id: 'pr3', status: 'Paid', total_value: 999_999, vendor_invoiced_at: null, updated_at: iso(0) },
+];
+
+// N17 budget review now comes from the get_finance_budget_review RPC (committed basis, ranked).
+// Provide 6 ranked-by-variance rows so the FE top-5 slice is observable (Rank6 must NOT render).
+const budgetReview = [
+  { id: 'b1', name: 'Rank1', client_name: 'C1', budget: 1_000_000, spent: 1_500_000, variance: 500_000 },
+  { id: 'b2', name: 'Rank2', client_name: 'C2', budget: 1_000_000, spent: 1_400_000, variance: 400_000 },
+  { id: 'b3', name: 'Rank3', client_name: 'C3', budget: 1_000_000, spent: 1_300_000, variance: 300_000 },
+  { id: 'b4', name: 'Rank4', client_name: 'C4', budget: 1_000_000, spent: 1_200_000, variance: 200_000 },
+  { id: 'b5', name: 'Rank5', client_name: 'C5', budget: 1_000_000, spent: 1_100_000, variance: 100_000 },
+  { id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 },
 ];
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
+  useFinanceBudgetReview: () => ({ data: budgetReview, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
@@ -80,9 +96,39 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     // 250k + 150k = 400k; the Paid one is excluded
     expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent(formatCurrency(400_000));
   });
-  it('renders the top-projects-by-spend table', () => {
+});
+
+describe('FinanceDashboard N16 — invoice age from vendor_invoiced_at', () => {
+  // AC-FIN-DEBT-005: age column reads vendor_invoiced_at when present, header is invoice age.
+  it('AC-FIN-DEBT-005: Ready-to-pay age column shows age from vendor_invoiced_at, header is invoice age', () => {
     renderPane();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
+    // pr1.vendor_invoiced_at ≈ 10 days ago ⇒ "10 days" (NOT updated_at=today which would read "Today").
+    expect(screen.getByText('10 days')).toBeInTheDocument();
+    // Header no longer reads the misleading "Last updated" proxy; it reads as invoice age.
+    expect(screen.queryByText('Last updated')).not.toBeInTheDocument();
+    // The N16 age-column header is exactly "Invoiced" (the honest invoice-age label).
+    expect(screen.getByText('Invoiced', { exact: true })).toBeInTheDocument();
+  });
+  // AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at without error.
+  it('AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at', () => {
+    renderPane();
+    // pr2.vendor_invoiced_at null, updated_at ≈ 3 days ago ⇒ "3 days".
+    expect(screen.getByText('3 days')).toBeInTheDocument();
+  });
+});
+
+describe('FinanceDashboard N17 — budget review from get_finance_budget_review RPC', () => {
+  // AC-FIN-DEBT-013: card renders RPC rows (NOT an FE re-sort of top_projects), top-5 slice, honest label.
+  it('AC-FIN-DEBT-013: Budget review shows top-5 RPC rows, honest portfolio-wide label', () => {
+    renderPane();
+    // RPC supplies 6 rows; the card shows 5 (FE slice). The 6th-ranked project must NOT render.
+    expect(screen.queryByText('Rank6')).not.toBeInTheDocument();
+    expect(screen.getByText('Rank1')).toBeInTheDocument();
+    expect(screen.getByText('Rank5')).toBeInTheDocument();
+    // It must read the RPC, not top_projects (whose names were Alpha/Beta).
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+    // Honest portfolio-wide label.
+    expect(screen.getByText(/budget review/i)).toBeInTheDocument();
+    expect(screen.getByText(/portfolio-wide/i)).toBeInTheDocument();
   });
 });

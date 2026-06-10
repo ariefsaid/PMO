@@ -276,6 +276,12 @@ update procurements set
   approved_by_id = '00000000-0000-0000-0000-0000000000a1'
 where id = '60000000-0000-0000-0000-000000000008';
 
+-- Finance-debt demo (migration 0022): give the seeded Vendor-Invoiced row a realistic invoice age
+-- (~12 days) so the N16 Ready-to-pay "Invoiced" age column shows a meaningful figure in the rendered
+-- design-review. pgTAP-neutral (no test asserts on this row's vendor_invoiced_at; 0059 uses its own org).
+update procurements set vendor_invoiced_at = now() - interval '12 days'
+ where id = '60000000-0000-0000-0000-000000000008';
+
 insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
   ('60000000-0000-0000-0000-000000000008','c0000000-0000-0000-0000-000000000004','APX-PAY-08',30000,'2026-02-23',true,'VQ-2602240001');
 
