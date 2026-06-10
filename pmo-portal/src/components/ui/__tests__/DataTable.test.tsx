@@ -220,4 +220,72 @@ describe('DataTable', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
     expect(within(screen.getByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
   });
+
+  // ── Cause-1 guard: inline interactive controls must NOT fire onActivate ──────
+  it('clicking an in-row <select> does NOT fire onActivate (interactive-element guard)', async () => {
+    const onActivate = vi.fn();
+    const cols: Column<Row>[] = [
+      {
+        key: 'name',
+        header: 'Name',
+        cell: (r) => r.name,
+      },
+      {
+        key: 'value',
+        header: 'Status',
+        cell: (r) => (
+          <select aria-label={`Status for ${r.name}`} defaultValue="open">
+            <option value="open">Open</option>
+            <option value="done">Done</option>
+          </select>
+        ),
+      },
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={cols}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => `Edit ${r.name}`}
+      />
+    );
+    // clicking the <select> must NOT trigger onActivate
+    await userEvent.click(screen.getByRole('combobox', { name: 'Status for Alpha' }));
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it('clicking the activation button DOES fire onActivate even when in-row controls exist', async () => {
+    const onActivate = vi.fn();
+    const cols: Column<Row>[] = [
+      {
+        key: 'name',
+        header: 'Name',
+        cell: (r) => r.name,
+      },
+      {
+        key: 'value',
+        header: 'Status',
+        cell: (r) => (
+          <select aria-label={`Status for ${r.name}`} defaultValue="open">
+            <option value="open">Open</option>
+            <option value="done">Done</option>
+          </select>
+        ),
+      },
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={cols}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => `Edit ${r.name}`}
+      />
+    );
+    // clicking the activation button SHOULD fire onActivate
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Alpha' }));
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate).toHaveBeenCalledWith(rows[0]);
+  });
 });
