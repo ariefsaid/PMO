@@ -7,6 +7,7 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
+  Drawer,
   EntityFormModal,
   TextField,
   SelectField,
@@ -86,6 +87,10 @@ const Companies: React.FC = () => {
   // because it is still referenced. Drives the inline GateNotice + Archive-instead
   // recovery path (crud-components §5.3).
   const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
+  // D11: the company shown in the read-first quick-view Drawer (the in-hand row;
+  // no extra fetch). Row activation opens it; footer entry points reuse the
+  // existing form/archive/delete setters.
+  const [drawerCompany, setDrawerCompany] = useState<CompanyRow | null>(null);
 
   const canCreate = may('create', 'company');
   const canEdit = may('edit', 'company');
@@ -290,12 +295,57 @@ const Companies: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(c) => c.id}
+          onActivate={(c) => setDrawerCompany(c)}
+          rowLabel={(c) => `View ${c.name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
+          selectedKey={drawerCompany?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No companies match your filters"
           emptySub="Try a different type or clear the search."
         />
       )}
+
+      {/* D11: read-first quick-view drawer (the in-hand row — no extra fetch). */}
+      <CompanyDrawer
+        company={drawerCompany}
+        canEdit={canEdit}
+        canArchive={canArchive}
+        canDelete={canDelete}
+        onClose={() => setDrawerCompany(null)}
+        onTypeChange={async (next) => {
+          if (!drawerCompany) return;
+          const target = drawerCompany;
+          try {
+            await update.mutateAsync({ id: target.id, input: { name: target.name, type: next } });
+            // Optimistic pill update so the drawer reflects the new type immediately
+            // (the list re-fetch follows). OD-UX-1: routine reversible write → toast,
+            // no ConfirmDialog.
+            setDrawerCompany({ ...target, type: next });
+            toast('Company updated', `${target.name} is now ${next}`, 'success');
+          } catch (err) {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }
+        }}
+        typeChanging={update.isPending}
+        onEdit={() => {
+          // Close the drawer first, THEN open the form modal — never two
+          // focus-traps stacked (secondary Director decision).
+          const c = drawerCompany;
+          setDrawerCompany(null);
+          if (c) setFormTarget({ company: c });
+        }}
+        onArchive={() => {
+          const c = drawerCompany;
+          setDrawerCompany(null);
+          if (c) setArchiveTarget(c);
+        }}
+        onDelete={() => {
+          const c = drawerCompany;
+          setDrawerCompany(null);
+          if (c) setDeleteTarget(c);
+        }}
+      />
 
       {/* Create / edit modal */}
       {formTarget && (
@@ -343,6 +393,104 @@ const Companies: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  );
+};
+
+// ── D11: read-first quick-view drawer ────────────────────────────────────────
+
+interface CompanyDrawerProps {
+  /** null = closed. The in-hand CompanyRow (no extra fetch). */
+  company: CompanyRow | null;
+  canEdit: boolean;
+  canArchive: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+  /** Inline type change — routine reversible write (OD-UX-1: toast, no confirm). */
+  onTypeChange: (next: CompanyType) => Promise<void>;
+  typeChanging: boolean;
+  onEdit: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}
+
+/** Definition-list row — label (overline voice) + value. */
+const DField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex flex-col gap-1">
+    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      {label}
+    </dt>
+    <dd className="text-[14px] text-foreground">{children}</dd>
+  </div>
+);
+
+const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
+  company,
+  canEdit,
+  canArchive,
+  canDelete,
+  onClose,
+  onTypeChange,
+  typeChanging,
+  onEdit,
+  onArchive,
+  onDelete,
+}) => {
+  const typeSelectId = React.useId();
+  if (!company) return null;
+
+  const hasFooter = canEdit || canArchive || canDelete;
+
+  return (
+    <Drawer
+      open
+      title={company.name}
+      subtitle={<StatusPill variant={TYPE_PILL[company.type]}>{company.type}</StatusPill>}
+      loading={typeChanging}
+      onClose={onClose}
+      footer={
+        hasFooter ? (
+          <>
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                Edit
+              </Button>
+            )}
+            {canArchive && (
+              <Button variant="ghost" size="sm" onClick={onArchive}>
+                Archive
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
+                Delete
+              </Button>
+            )}
+          </>
+        ) : undefined
+      }
+    >
+      <dl className="flex flex-col gap-4">
+        <DField label="Name">{company.name}</DField>
+        <DField label="Type">
+          {canEdit ? (
+            // OD-UX-1: company type is master-data classification, not an SoD
+            // workflow → a single-click change + toast, NO ConfirmDialog. On
+            // !canEdit the value renders as the read-only pill (below).
+            <SelectField
+              id={typeSelectId}
+              label="Type"
+              hideLabel
+              value={company.type}
+              onChange={(v) => void onTypeChange(v as CompanyType)}
+              options={TYPE_OPTIONS}
+              disabled={typeChanging}
+            />
+          ) : (
+            <StatusPill variant={TYPE_PILL[company.type]}>{company.type}</StatusPill>
+          )}
+        </DField>
+      </dl>
+    </Drawer>
   );
 };
 

@@ -306,3 +306,86 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('d1'));
   });
 });
+
+describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
+  const openDrawer = async (title: string) => {
+    await userEvent.click(screen.getByRole('button', { name: `View ${title}` }));
+    return screen.getByRole('dialog');
+  };
+
+  it('AC-W5-C6-D12: activating a row opens a read-first drawer titled with the document', async () => {
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Site Plan');
+    expect(drawer).toHaveAttribute('aria-modal', 'true');
+    const labelId = drawer.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelId!)?.textContent).toContain('Site Plan');
+    // Read-first body: code (mono), category, status pill.
+    expect(within(drawer).getByText('DOC-001')).toBeInTheDocument();
+    expect(within(drawer).getByText('Drawing')).toBeInTheDocument();
+  });
+
+  it('AC-W5-C6-D12: a Draft document shows an Issue status button in the drawer (workflow promoted out of ⋯)', async () => {
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Site Plan');
+    expect(within(drawer).getByRole('button', { name: /^Issue$/i })).toBeInTheDocument();
+  });
+
+  it('AC-W5-C6-D12: a reviewer (non-author) sees Approve + Reject on an Issued doc; Approve routes through the confirm', async () => {
+    // d2 (Steel Spec) is Issued, authored by pm-1; the current user is admin-1 (≠ author).
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Steel Spec');
+    expect(within(drawer).getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: /^Approve$/i }));
+    // Consequential move keeps its ConfirmDialog (OD-UX-1).
+    await userEvent.click(screen.getByRole('button', { name: /Approve document/i }));
+    await waitFor(() =>
+      expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd2', status: 'Approved' }),
+    );
+  });
+
+  it('AC-W5-C6-D12: SoD — the author of their own Issued doc sees the inline reason, not Approve/Reject', async () => {
+    // d2 (Steel Spec) is Issued, authored by pm-1; render as pm-1 (the author).
+    renderTab('Project Manager', 'pm-1');
+    const drawer = await openDrawer('Steel Spec');
+    expect(within(drawer).queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
+    const gate = within(drawer).getByTestId('drawer-sod-gate');
+    expect(gate).toHaveTextContent(/can't approve your own document/i);
+    expect(gate).toHaveTextContent(/segregation-of-duties/i);
+  });
+
+  it('AC-W5-C6-D12: footer Edit closes the drawer then opens the edit form pre-filled', async () => {
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Site Plan');
+    await userEvent.click(within(drawer).getByRole('button', { name: /^Edit$/i }));
+    const titleInput = (await screen.findByLabelText(/^Title/i)) as HTMLInputElement;
+    expect(titleInput.value).toBe('Site Plan');
+  });
+
+  it('AC-W5-C6-D12: footer Delete (Admin) closes the drawer then opens the destructive confirm', async () => {
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Site Plan');
+    await userEvent.click(within(drawer).getByRole('button', { name: /^Delete$/i }));
+    expect(await screen.findByText(/Delete Site Plan\?/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Delete document/i }));
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('d1'));
+  });
+
+  it('M1: the action-section heading is "Update status", not "Status" (no duplicate label with the def-list STATUS row)', async () => {
+    // The def-list has a "STATUS" field showing the current-state pill.
+    // The action section heading must be "Update status" — renaming eliminates the
+    // duplicate "STATUS" label that the rendered design-review flagged.
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Site Plan');
+    // The action heading must read "Update status" (case-insensitive), not bare "STATUS"/"Status".
+    expect(within(drawer).getByRole('heading', { name: /update status/i })).toBeInTheDocument();
+    // The old bare "Status" heading must not exist as a heading element inside the drawer.
+    // (The def-list <dt> "STATUS" is not a heading, so this only catches the <h3>.)
+    const headings = within(drawer).queryAllByRole('heading');
+    const statusHeadings = headings.filter(
+      (h) => h.textContent?.trim().toLowerCase() === 'status',
+    );
+    expect(statusHeadings).toHaveLength(0);
+  });
+});

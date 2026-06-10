@@ -33,15 +33,17 @@ async function waitReady(page: Page) {
 }
 
 /**
- * Locate the DataTable row whose first cell exactly matches `name`.
- * Uses a RegExp anchored to full-word boundaries to prevent a substring of a
- * longer name from matching (e.g. "E2E-Co-123" must not match "E2E-Co-123-EDITED").
+ * Locate the DataTable row whose first cell contains the activation button for `name`.
+ * D11 wrapped the first cell's content in `<button aria-label="View <name>">` so the
+ * old `getByRole('cell', { name, exact: true })` no longer matches (the cell's accessible
+ * name is now "View <name>", not the bare name). The activation button is the new doorway —
+ * it is unique per row and prevents substring ambiguity (e.g. "E2E-Co-123" vs "E2E-Co-123-EDITED").
  */
 function companyRow(page: Page, name: string) {
-  // The first <td> cell renders the name in a <span>; getByRole('cell') scoped to
-  // exact text is the most robust anchor without coupling to DOM nesting.
+  // The first <td> wraps its content in <button aria-label="View <name>"> (DataTable
+  // onActivate + rowLabel). Filter by that button so the locator is stable and exact.
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('cell', { name, exact: true }),
+    has: page.getByRole('button', { name: `View ${name}`, exact: true }),
   });
 }
 
