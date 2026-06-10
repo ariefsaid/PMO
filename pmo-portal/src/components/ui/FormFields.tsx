@@ -430,6 +430,8 @@ export interface FormActionsProps {
   onSubmit?: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** When the submit is disabled, the id of a visible element explaining why (G6). */
+  submitDescribedBy?: string;
   className?: string;
 }
 
@@ -446,6 +448,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
   onSubmit,
   disabled,
   loading,
+  submitDescribedBy,
   className,
 }) => (
   <div
@@ -464,6 +467,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
       disabled={disabled}
       loading={loading}
       onClick={onSubmit}
+      aria-describedby={disabled ? submitDescribedBy : undefined}
     >
       {submitLabel}
     </Button>

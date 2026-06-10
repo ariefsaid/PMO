@@ -217,6 +217,7 @@ describe('Tabs', () => {
         ariaLabel="Detail"
         value="overview"
         onChange={onChange}
+        idBase="t"
         items={[
           { value: 'overview', label: 'Overview' },
           { value: 'budget', label: 'Budget' },

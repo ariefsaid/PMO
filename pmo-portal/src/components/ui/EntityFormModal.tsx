@@ -69,6 +69,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   const titleId = useId();
   const subId = useId();
   const summaryId = useId();
+  const disabledReasonId = useId();
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -233,12 +234,18 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
             {/* Sticky footer */}
             <div className="border-t border-border px-[18px] py-3.5">
+              {submitDisabled && (
+                <span id={disabledReasonId} className="sr-only">
+                  Complete all required fields (marked with an asterisk) to save.
+                </span>
+              )}
               <FormActions
                 submitLabel={submitLabel}
                 cancelLabel={cancelLabel}
                 onCancel={requestClose}
                 disabled={submitDisabled}
                 loading={loading}
+                submitDescribedBy={disabledReasonId}
               />
             </div>
           </form>
