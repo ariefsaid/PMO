@@ -78,28 +78,30 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number }> = ({ gross, we
  *     and lets the user jump to a column by tapping. The strip is `md:hidden` so
  *     it appears only on narrow viewports (the full column headers are visible
  *     on desktop, making the indicator redundant there).
- *   - The indicator tracks the scroll position via an `onScroll` handler on the
- *     `.kanban-scroll` container (the `Kanban` wrapper's outer div). When the
- *     container scrolls, we detect which column index is nearest the left edge.
- *   - The indicator is exposed via a `ref` attached to the `Kanban` outer div (see
- *     the `kanbanScrollRef`), since the `Kanban` primitive renders `.kanban-scroll`
- *     as its outermost element. We use a wrapper div instead to avoid patching the
- *     shared Kanban primitive.
+ *   - The indicator tracks scroll position via an `onScroll` handler passed DIRECTLY
+ *     to the `<Kanban>` primitive. `<Kanban>` spreads `...rest` onto its outermost
+ *     `.kanban-scroll` div, so the listener attaches to the actual scrolling element.
+ *     CRITICAL: scroll events do NOT bubble — attaching onScroll to any ancestor div
+ *     would silently never fire on a swipe gesture (was the Defect-1 bug pre-fix).
+ *   - `scrollWrapRef` on the outer wrapper is kept for `handleStageClick`'s programmatic
+ *     `scrollEl.scrollTo(...)` — it locates `.kanban-scroll` via querySelector.
  */
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const [activeStageIndex, setActiveStageIndex] = useState(0);
+  // Wrapper ref used by handleStageClick to locate .kanban-scroll for programmatic scrollTo.
+  // The scroll LISTENER is NOT on this wrapper — it's on <Kanban> (= .kanban-scroll) directly,
+  // because scroll events do not bubble.
   const scrollWrapRef = useRef<HTMLDivElement>(null);
   // Refs to each column div — used for programmatic scroll-to-column
   const colRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Detect which column is nearest the left edge of the scroll container.
-  const onScroll = useCallback(() => {
-    const wrap = scrollWrapRef.current;
-    if (!wrap) return;
-    const scrollEl = wrap.querySelector('.kanban-scroll') as HTMLElement | null;
-    if (!scrollEl) return;
-    const scrollLeft = scrollEl.scrollLeft;
+  // NOTE: this handler MUST be attached to the actual .kanban-scroll element —
+  // scroll events do not bubble, so a parent wrapper's onScroll never fires.
+  // We pass this directly to <Kanban> which spreads ...rest onto .kanban-scroll.
+  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
     // Find the column whose left offset is closest to scrollLeft
     let bestIdx = 0;
     let bestDist = Infinity;
@@ -146,42 +148,42 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
         onStageClick={handleStageClick}
       />
 
-      {/* Kanban scroll wrapper — onScroll updates the active stage indicator */}
-      <div onScroll={onScroll}>
-        <Kanban aria-label="Sales pipeline board">
-          {SALES_COLUMNS.map((col, colIdx) => {
-            const colProjects = byColumn(col);
-            const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
-            const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
-            return (
-              <div
-                key={col.title}
-                ref={(el) => { colRefs.current[colIdx] = el; }}
-                data-testid={col.testId}
-                className="flex min-w-0 flex-col"
+      {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
+          the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
+          handler to any ancestor wrapper would never fire on a swipe gesture. */}
+      <Kanban aria-label="Sales pipeline board" onScroll={onScroll}>
+        {SALES_COLUMNS.map((col, colIdx) => {
+          const colProjects = byColumn(col);
+          const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
+          const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
+          return (
+            <div
+              key={col.title}
+              ref={(el) => { colRefs.current[colIdx] = el; }}
+              data-testid={col.testId}
+              className="flex min-w-0 flex-col"
+            >
+              <KanbanColumn
+                title={col.title}
+                dotColor={col.dotColor}
+                count={colProjects.length}
+                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} /> : undefined}
+                emptyMessage={`No deals in ${col.title}`}
               >
-                <KanbanColumn
-                  title={col.title}
-                  dotColor={col.dotColor}
-                  count={colProjects.length}
-                  totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} /> : undefined}
-                  emptyMessage={`No deals in ${col.title}`}
-                >
-                  {colProjects.map((p) => (
-                    <DealCard
-                      key={p.id}
-                      project={p}
-                      dotColor={col.dotColor}
-                      selected={p.id === selectedId}
-                      onActivate={() => onOpen(p)}
-                    />
-                  ))}
-                </KanbanColumn>
-              </div>
-            );
-          })}
-        </Kanban>
-      </div>
+                {colProjects.map((p) => (
+                  <DealCard
+                    key={p.id}
+                    project={p}
+                    dotColor={col.dotColor}
+                    selected={p.id === selectedId}
+                    onActivate={() => onOpen(p)}
+                  />
+                ))}
+              </KanbanColumn>
+            </div>
+          );
+        })}
+      </Kanban>
     </div>
   );
 };

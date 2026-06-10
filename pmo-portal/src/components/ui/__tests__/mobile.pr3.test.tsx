@@ -13,13 +13,22 @@
  *   - KanbanStageIndicator: renders stage dots (aria-hidden) + a visible label for each open column
  *   - LifecycleStepper: the scroll-fade wrapper class is present
  *   - TimesheetGrid: the scroll container carries the scroll-fade class
+ *
+ * Defect regression tests (Wave-4 PR-3 rendered-review):
+ *   - C5-scroll: firing a scroll event on the ACTUAL .kanban-scroll element updates aria-current
+ *     (was broken: listener was on a parent div — scroll events do NOT bubble, so the indicator
+ *     stayed stuck on stage 0 when the user swiped the board).
+ *   - C5-fade: the KanbanStageIndicator nav strip carries scroll-fade-x (or mask-image) for
+ *     right-edge fade parity with Tabs/Stepper/TimesheetGrid.
  */
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { Tabs, type TabItem } from '../Tabs';
 import { LifecycleStepper } from '../LifecycleStepper';
 import { TimesheetGrid } from '../TimesheetGrid';
 import { KanbanStageIndicator } from '../KanbanStageIndicator';
+import SalesKanbanBoard from '@/components/SalesKanbanBoard';
+import type { PipelineProject } from '@/src/lib/db/dashboard';
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────
 
@@ -163,6 +172,87 @@ describe('KanbanStageIndicator (AC-IXD-MOBILE-W4-PR3-C5)', () => {
     dots.forEach((dot) => {
       expect(dot.getAttribute('aria-hidden')).toBe('true');
     });
+  });
+});
+
+// ─── KanbanStageIndicator strip edge-fade (Defect 2) ─────────────────────
+//
+// Regression: the indicator strip had no right-edge fade while every other
+// horizontally-scrollable strip (Tabs, Stepper, TimesheetGrid) carries one.
+// AC-IXD-MOBILE-W4-PR3-C5-fade.
+
+describe('KanbanStageIndicator strip edge-fade (AC-IXD-MOBILE-W4-PR3-C5-fade)', () => {
+  const stages = [
+    { title: 'Leads', dotColor: 'hsl(var(--muted-foreground))' },
+    { title: 'Pre-Qual', dotColor: 'hsl(var(--muted-foreground))' },
+    { title: 'Quotation', dotColor: 'hsl(var(--muted-foreground))' },
+    { title: 'Tender', dotColor: 'hsl(var(--muted-foreground))' },
+    { title: 'Negotiation', dotColor: 'hsl(var(--primary))' },
+  ];
+
+  it('the indicator nav carries scroll-fade-x class or mask-image for right-edge affordance', () => {
+    render(<KanbanStageIndicator stages={stages} activeIndex={0} />);
+    const nav = screen.getByRole('navigation', { name: /pipeline stage/i });
+    const cls = nav.className;
+    // Must carry the scroll-fade-x class (or equivalent mask-image utility) for parity with
+    // Tabs / LifecycleStepper / TimesheetGrid — the right-edge fade signals "scroll for more".
+    const hasEdgeFade = /scroll-fade-x|mask-image|\[mask-image:/.test(cls);
+    expect(hasEdgeFade).toBe(true);
+  });
+});
+
+// ─── SalesKanbanBoard swipe→indicator sync (Defect 1 regression) ─────────
+//
+// Regression: scroll events do NOT bubble in the DOM. The original listener was
+// on a wrapper <div> AROUND the <Kanban> component (whose outermost element IS
+// .kanban-scroll). Scrolling the board never fired the parent's onScroll, so
+// aria-current stayed stuck on stage 0 no matter how far the board was swiped.
+// Fix: attach onScroll directly to <Kanban> (it spreads ...rest onto .kanban-scroll).
+// AC-IXD-MOBILE-W4-PR3-C5-scroll.
+
+const KANBAN_PROJECTS: PipelineProject[] = [
+  { id: 'a1', name: 'Alpha', client_name: 'A', status: 'Leads', contract_value: 100_000, win_probability: 0.1 },
+  { id: 'b1', name: 'Bravo', client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, win_probability: 0.5 },
+];
+
+describe('SalesKanbanBoard swipe→indicator sync (AC-IXD-MOBILE-W4-PR3-C5-scroll)', () => {
+  it('firing a scroll on .kanban-scroll advances aria-current to the matching stage', () => {
+    const { container } = render(
+      <SalesKanbanBoard projects={KANBAN_PROJECTS} onOpen={vi.fn()} />,
+    );
+
+    // The ACTUAL scrolling element is .kanban-scroll (outermost element of <Kanban>).
+    const scrollEl = container.querySelector('.kanban-scroll') as HTMLElement;
+    expect(scrollEl).toBeInTheDocument();
+
+    // Stage index 3 = "Tender" (4th open column). Fake the layout: set scrollLeft on
+    // the scroll container and mock offsetLeft on each column wrapper so the handler
+    // computes index 3 as the nearest column. JSDOM does not do real layout, so we
+    // need to override these read-only properties.
+    //
+    // Column wrappers are the direct children of .kanban (the inner grid element).
+    // We mock each column's offsetLeft to be i * 260 (column width proxy).
+    const kanbanGrid = scrollEl.querySelector('.kanban') as HTMLElement;
+    expect(kanbanGrid).toBeInTheDocument();
+    const colWrappers = Array.from(kanbanGrid.children) as HTMLElement[];
+    colWrappers.forEach((col, i) => {
+      Object.defineProperty(col, 'offsetLeft', { configurable: true, get: () => i * 260 });
+    });
+
+    // Simulate the user swiping to column 3 (Tender, offsetLeft = 3 * 260 = 780).
+    Object.defineProperty(scrollEl, 'scrollLeft', { configurable: true, get: () => 780 });
+
+    // Fire the scroll event directly on .kanban-scroll (not on any parent).
+    fireEvent.scroll(scrollEl);
+
+    // The indicator strip (md:hidden) should now show stage index 3 = "Tender"
+    // as aria-current="true". Before the fix this stayed on stage 0 ("Leads").
+    const tenderBtn = screen.getByRole('button', { name: /tender/i });
+    expect(tenderBtn).toHaveAttribute('aria-current', 'true');
+
+    // Sanity: the first stage must no longer be active.
+    const leadsBtn = screen.getByRole('button', { name: /leads/i });
+    expect(leadsBtn).not.toHaveAttribute('aria-current', 'true');
   });
 });
 

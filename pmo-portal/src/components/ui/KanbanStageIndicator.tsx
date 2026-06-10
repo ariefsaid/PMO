@@ -41,7 +41,9 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
     <nav
       aria-label="Pipeline stage navigation"
       className={cn(
-        'mb-2 flex items-center gap-0 overflow-x-auto rounded-lg border border-border bg-card md:hidden',
+        // scroll-fade-x: right-edge mask-image fade for parity with Tabs/Stepper/TimesheetGrid
+        // (signals "scroll for more" when the strip overflows at narrow widths).
+        'scroll-fade-x mb-2 flex items-center gap-0 overflow-x-auto rounded-lg border border-border bg-card md:hidden',
         className,
       )}
     >
