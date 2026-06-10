@@ -260,6 +260,12 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           columns={columns}
           rowKey={(t) => t.id}
           rowMenu={canRowWrite ? rowMenu : undefined}
+          // AC-W6-IXD-TASKROW (B-2): row click / Enter opens the existing edit modal.
+          // Gated by canEdit — a viewer who cannot edit gets NO activation affordance
+          // (no false affordance; DESIGN.md honest-affordance, matches the rowMenu gate).
+          // The ⋯ menu's stopPropagation prevents a Delete click from also opening edit.
+          onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
+          rowLabel={canEdit ? (t) => `Edit ${t.name}` : undefined}
         />
       )}
 

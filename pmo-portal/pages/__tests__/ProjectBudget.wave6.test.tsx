@@ -149,6 +149,34 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
 });
 
 // ---------------------------------------------------------------------------
+// AC-W6-IXD-BUDHEAD — drop the redundant <h2>Project Budget</h2>; the "Active
+// budget: $X" line is promoted as the section lead. + New version stays.
+// ---------------------------------------------------------------------------
+describe('AC-W6-IXD-BUDHEAD: Budget tab double-header removed', () => {
+  it('AC-W6-IXD-BUDHEAD: does NOT render a "Project Budget" heading, while the Active-budget lead + New version stay', () => {
+    versionsState.data = [draftVersionWithItems];
+    renderPage();
+    // The redundant tab-duplicating heading is gone.
+    expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Project Budget/i }),
+    ).not.toBeInTheDocument();
+    // The useful lead survives: "Active budget:" + the derived figure.
+    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
+    expect(screen.getByTestId('derived-budget')).toBeInTheDocument();
+    // The primary action stays (PM canWrite).
+    expect(screen.getByRole('button', { name: /\+ New version/i })).toBeInTheDocument();
+  });
+
+  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading and keeps the Active-budget lead', () => {
+    versionsState.data = [];
+    renderPage();
+    expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
+    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC-W6-J8 — add-row amount input type="text" + inputMode="decimal"
 // ---------------------------------------------------------------------------
 describe('AC-W6-J8: add-row amount input type=text', () => {

@@ -169,15 +169,15 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                             {r.code}
                           </div>
                         )}
-                        <input
-                          type="text"
-                          aria-label={`${r.project} note`}
-                          placeholder="Add a note"
+                        {/* AC-W6-IXD-NOTE (B-4): demote the per-row note. Collapse-on-demand —
+                            an empty note is a quiet "+ Note" button; existing content renders
+                            expanded so content is never hidden. The expanded input is a single
+                            bottom hairline (quieter than the bordered hour cells). */}
+                        <NoteCell
+                          rowId={r.id}
+                          project={r.project}
                           value={notes?.[r.id] ?? ''}
-                          onChange={(e) => onNoteChange?.(r.id, e.target.value)}
-                          // h-8 = the 32px control standard (was h-7/25px). touch-target grows the
-                          // hit-area to ≥44px on coarse pointers without changing the visual size.
-                          className="touch-target mt-1 h-8 w-full rounded-md border border-border bg-card px-2 text-[13px] text-foreground placeholder:text-muted-foreground"
+                          onNoteChange={onNoteChange}
                         />
                       </div>
                       <Button
@@ -312,5 +312,74 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         className="pointer-events-none absolute right-0 top-0 h-full w-7"
       />
     </div>
+  );
+};
+
+/**
+ * AC-W6-IXD-NOTE (B-4): the demoted per-row note cell.
+ * - Collapsed (default, empty note): a quiet, real labelled `<button>` "+ Note"
+ *   (`Add note to <project>`, `.touch-target`, keyboard-operable). Clicking it
+ *   reveals the input and moves focus to it.
+ * - Expanded (note has content OR the user clicked "+ Note"): the input, demoted
+ *   to a single bottom hairline (`border-0 border-b border-border bg-transparent
+ *   rounded-none`) so it reads quieter than the bordered hour cells. Existing note
+ *   content is always rendered expanded on mount — content is never hidden.
+ */
+const NoteCell: React.FC<{
+  rowId: string;
+  project: string;
+  value: string;
+  onNoteChange?: (rowId: string, note: string) => void;
+}> = ({ rowId, project, value, onNoteChange }) => {
+  const hasContent = value.trim().length > 0;
+  const [expanded, setExpanded] = React.useState(hasContent);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  // Tracks a user-driven expand (the "+ Note" click) so we focus the input only then,
+  // never when content-driven expansion happens on mount/hydration.
+  const focusOnExpand = React.useRef(false);
+
+  // Existing content always shows expanded (the always-editable invariant) even if
+  // the parent later hydrates a note into a row that started empty.
+  React.useEffect(() => {
+    if (hasContent) setExpanded(true);
+  }, [hasContent]);
+
+  // After the input mounts from a user "+ Note" click, move focus to it.
+  React.useLayoutEffect(() => {
+    if (expanded && focusOnExpand.current) {
+      inputRef.current?.focus();
+      focusOnExpand.current = false;
+    }
+  }, [expanded]);
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        aria-label={`Add note to ${project}`}
+        onClick={() => {
+          focusOnExpand.current = true;
+          setExpanded(true);
+        }}
+        className="touch-target mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <Icon name="plus" className="size-3" />
+        Note
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      aria-label={`${project} note`}
+      placeholder="Add a note"
+      value={value}
+      onChange={(e) => onNoteChange?.(rowId, e.target.value)}
+      // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
+      // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
+      className="touch-target mt-1 h-8 w-full rounded-none border-0 border-b border-border bg-transparent px-0 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+    />
   );
 };

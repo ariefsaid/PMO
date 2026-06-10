@@ -9,6 +9,7 @@ import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summ
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { isAtRisk, budgetUtilPct } from '@/src/lib/dashboardConstants';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -61,6 +62,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab, showFinanceS
   const contract = project.contract_value ?? 0;
   const spent = project.spent ?? 0;
   const spendPct = contract > 0 ? Math.round((spent / contract) * 100) : 0;
+  // AC-W6-IXD-ATRISK (B-1): budget-basis util shown alongside the contract bar when
+  // at-risk. budget>0-guarded by the shared helpers (null → no caption, no NaN).
+  const budgetUtil = isAtRisk(project) ? budgetUtilPct(project) : null;
 
   // D15: finance summary tile data (only computed when showFinanceSummary is true).
   const committed = project.budget ?? 0;
@@ -146,6 +150,18 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab, showFinanceS
               showValue
               aria-label={`Spend: ${spendPct}% of contract`}
             />
+            {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
+                When at-risk, show the spent/budget figure + the "At risk" flag below the
+                contract bar (the I3 two-metric split: contract bar above, budget below).
+                The bar itself is NOT recolored — text-not-color per DESIGN.md. */}
+            {budgetUtil !== null && (
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill variant="warn">At risk</StatusPill>
+                <span className="text-[12px] font-semibold tabular text-warning-foreground">
+                  {budgetUtil}% of budget
+                </span>
+              </div>
+            )}
           </CardPad>
         </Card>
       </div>

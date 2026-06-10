@@ -200,7 +200,6 @@ const Projects: React.FC = () => {
       header: 'Project',
       cell: (p) => {
         const atRisk = isAtRisk(p);
-        const budgetPct = atRisk ? budgetUtilPct(p) : null;
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             <span
@@ -232,14 +231,6 @@ const Projects: React.FC = () => {
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground/80">
                   {p.customer_contract_ref}
-                </div>
-              )}
-              {/* AC-IXD-DASH-W5-C2C I3: budget-basis utilization — the WHY for the at-risk flag.
-                  The Progress column shows contract-basis (spent/contract) which can read much
-                  lower; this inline figure shows spent/budget so the at-risk gate is legible. */}
-              {budgetPct !== null && (
-                <div className="mt-0.5 text-[11px] font-semibold tabular text-warning-foreground">
-                  {budgetPct}% of budget
                 </div>
               )}
             </div>
@@ -293,14 +284,29 @@ const Projects: React.FC = () => {
     {
       key: 'progress',
       header: 'Progress',
-      cell: (p) => (
-        <ProgressBar
-          value={Math.round(utilizationPct(p))}
-          showValue
-          compact
-          aria-label={`Spend: ${Math.round(utilizationPct(p))}% of contract`}
-        />
-      ),
+      cell: (p) => {
+        // AC-W6-IXD-ATRISK (B-1): co-locate the budget-util basis WITH the delivery
+        // bar. The bar stays the contract-basis (spent/contract) metric — NOT recolored;
+        // when at-risk a second line shows the budget-basis (spent/budget) figure right
+        // below it so the two metrics read together and the green-bar/red-pill glance
+        // contradiction is killed at the bar (the "At risk" pill stays by the name).
+        const budgetPct = isAtRisk(p) ? budgetUtilPct(p) : null;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <ProgressBar
+              value={Math.round(utilizationPct(p))}
+              showValue
+              compact
+              aria-label={`Spend: ${Math.round(utilizationPct(p))}% of contract`}
+            />
+            {budgetPct !== null && (
+              <div className="text-[11px] font-semibold tabular text-warning-foreground">
+                {budgetPct}% of budget
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'transition',

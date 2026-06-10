@@ -693,10 +693,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   );
 
   const head = (
+    // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
+    // selected "Budget" tab label (which already names the section). Dropped — the
+    // useful "Active budget: $X" line is promoted as the quiet section lead. The tab
+    // is the section heading; no orphaned hierarchy (the page <h1> is the project name).
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-[20px] font-bold tracking-[-0.01em]">Project Budget</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Active budget:{' '}
           <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
             {formatCurrency(derivedTotal)}

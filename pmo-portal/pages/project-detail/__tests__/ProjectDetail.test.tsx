@@ -157,7 +157,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('Project Budget')).toBeInTheDocument();
+    // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
+    // was dropped — the selected "Budget" tab is the section label and the "Active
+    // budget" line is the section lead. Oracle updated per the BDD authoring rule:
+    // the goal (the Budget section is shown on the deep-link) stays honest; we no
+    // longer assert the duplicate heading the change removed.
+    expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
+    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', () => {
