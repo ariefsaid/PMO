@@ -98,13 +98,28 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     : dailyTotals.reduce((a, b) => a + b, 0);
 
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    // Scroll container: overflow-x-auto (contained scroll, not page scroll).
+    // scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
+    // signals "more to scroll" so it's clear the grid extends beyond the viewport.
+    // The fade is CSS-only (mask-image, compositor), no extra DOM node needed here.
+    // A sibling fade overlay element is added for the testid + aria-hidden signal.
+    <div className={cn('relative', className)}>
+      <div
+        data-testid="tsgrid-scroll"
+        className={cn(
+          'overflow-x-auto',
+          // Right-edge fade: same mask-image pattern as StatTiles and Tabs strip.
+          // `[mask-image:…]` is a Tailwind arbitrary value — compositor-only, no repaint.
+          '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
+        )}
+      >
       <table className="w-full border-collapse text-[13.5px]">
         <thead>
           <tr>
             <th
+              data-testid="tsgrid-project-header"
               scope="col"
-              className="sticky left-0 z-[1] h-[38px] min-w-[220px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
+              className="sticky left-0 z-[1] h-[38px] min-w-[220px] max-md:min-w-[160px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
             >
               Project
             </th>
@@ -286,6 +301,16 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           </tr>
         </tfoot>
       </table>
+      </div>
+      {/* Decorative scroll-fade overlay (aria-hidden + pointer-events-none).
+          Provides a testid for the test assertion confirming the fade is present.
+          The visual fade is already on the parent via mask-image; this element
+          exists solely for the aria-hidden assertion and does not double the effect. */}
+      <div
+        data-testid="tsgrid-fade"
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-0 h-full w-7"
+      />
     </div>
   );
 };

@@ -33,6 +33,7 @@ export {
 } from './ConfirmDialog';
 
 export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
+export { KanbanStageIndicator, type KanbanStageItem, type KanbanStageIndicatorProps } from './KanbanStageIndicator';
 export {
   LifecycleStepper,
   type LifecycleStep,

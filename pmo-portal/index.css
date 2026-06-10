@@ -165,8 +165,27 @@
 /* ---------- Kanban scroll surfaces ----------
    The trailing 2px right padding keeps the LAST column (the terminal "Lost" column under
    Model B / AC-IXD-PROJ-007) clear of the scroll boundary so its card edge + focus ring are
-   never clipped against the container edge. */
-.kanban-scroll { overflow-x: auto; padding-bottom: 6px; padding-right: 2px; }
+   never clipped against the container edge.
+
+   PR-3 mobile hardening (OD-W4-2, AC-IXD-MOBILE-W4-PR3-C5): scroll-snap added so columns
+   land cleanly one-at-a-time on a phone (each .kcol snaps to start). Desktop is unchanged —
+   scroll-snap on a wide viewport with multiple columns visible is a no-op (snap container only
+   snaps when the content overflows and the user scrolls). The right-edge fade (mask-image)
+   signals "scroll for more" without adding a DOM element. */
+.kanban-scroll {
+  overflow-x: auto;
+  padding-bottom: 6px;
+  padding-right: 2px;
+  /* scroll-snap: one column snaps per scroll gesture on a phone */
+  scroll-snap-type: x mandatory;
+  /* Right-edge fade affordance — same compositor-only pattern as StatTiles/Tabs/Stepper */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+/* Each column is a scroll-snap target */
+.kanban > * {
+  scroll-snap-align: start;
+}
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;
@@ -244,6 +263,18 @@
     height: 100%;
     /* transparent — the overlay only extends the pointer hit region. */
   }
+}
+
+/* ---------- scroll-fade-x utility (PR-3, Wave-4) ----------
+   Right-edge mask-image fade used by 3+ scroll containers (kanban, stepper, tabs,
+   timesheet). Defined once here as a reusable class. Compositor-only — no repaint.
+   The gradient runs from opaque black (full mask = fully visible) to transparent
+   (fully masked = faded out) over the last 28px of the scroll area.
+   Use on any overflow-x-auto container where you want to signal "scroll for more".
+   The -webkit- prefix is required for Safari. */
+.scroll-fade-x {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 
 /* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
