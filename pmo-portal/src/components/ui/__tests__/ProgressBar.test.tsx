@@ -17,12 +17,16 @@ describe('ProgressBar', () => {
     expect(fill.style.width).toBe('62%');
   });
 
-  it('threshold tone: >=70 success, >=40 warning, else destructive', () => {
-    const { rerender } = render(<ProgressBar value={80} />);
+  it('AC-W6-H8: tone bands — >=90 destructive, >=70 warning, else success (at-risk red is unambiguous)', () => {
+    const { rerender } = render(<ProgressBar value={69} />);
     expect(screen.getByTestId('progress-fill').className).toContain('bg-success');
-    rerender(<ProgressBar value={50} />);
+    rerender(<ProgressBar value={70} />);
     expect(screen.getByTestId('progress-fill').className).toContain('bg-warning');
-    rerender(<ProgressBar value={20} />);
+    rerender(<ProgressBar value={89} />);
+    expect(screen.getByTestId('progress-fill').className).toContain('bg-warning');
+    rerender(<ProgressBar value={90} />);
+    expect(screen.getByTestId('progress-fill').className).toContain('bg-destructive');
+    rerender(<ProgressBar value={100} />);
     expect(screen.getByTestId('progress-fill').className).toContain('bg-destructive');
   });
 

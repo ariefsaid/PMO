@@ -306,7 +306,8 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               </td>
               <td className="px-3 py-2 text-right">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="Amount"
                   value={newAmount}
                   onChange={(e) => setNewAmount(e.target.value)}
@@ -326,6 +327,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
           )}
         </tbody>
       </table>
+      <TableFoot className="mt-0 rounded-b-lg">
+        <span className="text-muted-foreground">Total</span>
+        <span data-testid="budget-edit-total" className="ml-auto font-bold tabular">
+          {formatCurrency(
+            lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
+          )}
+        </span>
+      </TableFoot>
       {!adding && (
         <Button variant="ghost" size="sm" onClick={() => setAdding(true)} className="mt-2 text-primary">
           + Add line item
