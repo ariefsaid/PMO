@@ -269,3 +269,74 @@ describe('Companies delete (AC-CO-006)', () => {
     await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('c1'));
   });
 });
+
+describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
+  const openDrawer = async (name: string) => {
+    // Row activation = the first-cell <button> (rowLabel "View <name>").
+    await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));
+    return screen.getByRole('dialog');
+  };
+
+  it('AC-W5-C6-D11: activating a row opens a read-first drawer titled with the company name', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    expect(drawer).toHaveAttribute('aria-modal', 'true');
+    const labelId = drawer.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelId!)?.textContent).toContain('Cascade Port Authority');
+    // Identity definition-list shows Name + Type (the <dt> overlines).
+    const terms = within(drawer)
+      .getAllByText(/^(Name|Type)$/)
+      .filter((el) => el.tagName === 'DT')
+      .map((el) => el.textContent);
+    expect(terms).toContain('Name');
+    expect(terms).toContain('Type');
+  });
+
+  it('AC-W5-C6-D11: an editor sees an inline Type select bound to the company type', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    const select = within(drawer).getByLabelText(/^Type$/i) as HTMLSelectElement;
+    expect(select.value).toBe('Client');
+  });
+
+  it('AC-W5-C6-D11: changing the inline Type submits an update + toast (OD-UX-1: no confirm dialog)', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    await userEvent.selectOptions(within(drawer).getByLabelText(/^Type$/i), 'Vendor');
+    // Single-click reversible write — NO ConfirmDialog (no "Delete company?"/confirm appears).
+    await waitFor(() =>
+      expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
+        id: 'c1',
+        input: { name: 'Cascade Port Authority', type: 'Vendor' },
+      }),
+    );
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Company updated/i);
+  });
+
+  it('AC-W5-C6-D11: footer Edit closes the drawer then opens the edit form (never two focus-traps)', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    await userEvent.click(within(drawer).getByRole('button', { name: /^Edit$/i }));
+    // The form modal is now the only dialog, pre-filled with the row.
+    const nameInput = (await screen.findByLabelText(/Company name/i)) as HTMLInputElement;
+    expect(nameInput.value).toBe('Cascade Port Authority');
+    expect(screen.getByRole('button', { name: /^Save company$/i })).toBeInTheDocument();
+  });
+
+  it('AC-W5-C6-D11: footer Delete closes the drawer then opens the destructive confirm', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Steelforge Fabrication');
+    await userEvent.click(within(drawer).getByRole('button', { name: /^Delete$/i }));
+    expect(await screen.findByText(/Delete Steelforge Fabrication\?/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('c2'));
+  });
+
+  it('AC-W5-C6-D11: a PM (no delete) sees Edit + Archive in the drawer but no Delete', async () => {
+    renderPage('Project Manager');
+    const drawer = await openDrawer('Cascade Port Authority');
+    expect(within(drawer).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
+  });
+});

@@ -6,6 +6,7 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
+  Drawer,
   EntityFormModal,
   TextField,
   SelectField,
@@ -36,7 +37,8 @@ export interface DocumentsTabProps {
 
 /**
  * Per-project DOCUMENT REGISTER (metadata only — Storage is disabled, so there is no file
- * upload; the "Attach file" affordance is a disabled placeholder until Storage returns).
+ * upload; "file attachments arrive with Storage" is signposted by the register subtitle copy,
+ * NOT by a dead/disabled control — D13 removed the placeholder "Attach file" button, OD-W2-5).
  * Replaces the deferred placeholder with a real CRUD + status-workflow register, applying
  * crud-components §9.9 / rbac-visibility §H + the Companies slice template.
  *
@@ -108,6 +110,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   // The author who tried to act on their own Issued document (SoD block) — drives the
   // inline GateNotice that explains why Approve/Reject is unavailable.
   const [sodBlocked, setSodBlocked] = useState<ProjectDocumentRow | null>(null);
+  // D12: the document shown in the read-first quick-view Drawer (the in-hand row;
+  // no extra fetch). Row activation opens it; the status section + footer reuse
+  // the existing statusActions gating + setPending/setFormTarget/setDeleteTarget.
+  const [drawerDoc, setDrawerDoc] = useState<ProjectDocumentRow | null>(null);
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
@@ -151,19 +157,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
   const columns: Column<ProjectDocumentRow>[] = [
     {
-      key: 'code',
-      header: 'Code',
-      colClassName: 'hidden sm:table-cell',
-      cell: (d) =>
-        d.code ? (
-          <span className="font-mono text-[12.5px] text-muted-foreground" title={d.code}>
-            {d.code}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">{'—'}</span>
-        ),
-    },
-    {
+      // D12: Document (title) leads the row so the DataTable's first-cell
+      // activation <button> (rowLabel) wraps the row's natural identity — the
+      // keyboard/SR doorway into the quick-view drawer. (Was Code-first; Code
+      // can be null and is hidden below `sm`, so it's the wrong activation cell.)
       key: 'title',
       header: 'Document',
       cell: (d) => (
@@ -176,6 +173,19 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           )}
         </div>
       ),
+    },
+    {
+      key: 'code',
+      header: 'Code',
+      colClassName: 'hidden sm:table-cell',
+      cell: (d) =>
+        d.code ? (
+          <span className="font-mono text-[12.5px] text-muted-foreground" title={d.code}>
+            {d.code}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{'—'}</span>
+        ),
     },
     {
       key: 'category',
@@ -362,10 +372,46 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           rows={filtered}
           columns={columns}
           rowKey={(d) => d.id}
+          onActivate={(d) => setDrawerDoc(d)}
+          rowLabel={(d) => `View ${d.title}`}
           rowMenu={anyRowWrite ? rowMenu : undefined}
+          selectedKey={drawerDoc?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No documents match your search"
           emptySub="Try a different title, code, or category."
+        />
+      )}
+
+      {/* D12: read-first quick-view drawer with the status workflow promoted out
+          of the ⋯ menu (the in-hand row — no extra fetch). The status section and
+          footer reuse the EXISTING statusActions gating + setPending/setFormTarget/
+          setDeleteTarget setters; SoD + confirm flow are unchanged. */}
+      {drawerDoc && (
+        <DocumentDrawer
+          doc={drawerDoc}
+          // The transitions, already role- + SoD-gated by statusActions(d).
+          transitions={statusActions(drawerDoc).filter(
+            (a) => a.label !== 'Why is review unavailable?',
+          )}
+          // SoD: author of their own Issued doc → no Approve/Reject; show the reason inline.
+          sodBlocked={drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc)}
+          canEdit={canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed'}
+          canDelete={canDelete}
+          // A status transition opens the ConfirmDialog on top of the drawer; make
+          // the panel inert so the confirm owns focus + AT (no two live traps).
+          nestedOpen={!!pending}
+          onClose={() => setDrawerDoc(null)}
+          onEdit={() => {
+            // Close the drawer first, THEN open the form modal — never two focus-traps.
+            const d = drawerDoc;
+            setDrawerDoc(null);
+            setFormTarget({ doc: d });
+          }}
+          onDelete={() => {
+            const d = drawerDoc;
+            setDrawerDoc(null);
+            setDeleteTarget(d);
+          }}
         />
       )}
 
@@ -423,6 +469,133 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  );
+};
+
+// ── D12: read-first quick-view drawer + inline status workflow ────────────────
+
+interface DocumentDrawerProps {
+  /** The in-hand ProjectDocumentRow (no extra fetch). */
+  doc: ProjectDocumentRow;
+  /** Available transitions from statusActions(d) (the "Why…?" item filtered out). */
+  transitions: RowMenuItem[];
+  /** Author of their own Issued doc → no Approve/Reject; show the reason inline. */
+  sodBlocked: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  /** A nested ConfirmDialog (status transition) is up → inert the panel. */
+  nestedOpen: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+/** Definition-list row — label (overline voice) + value. */
+const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex flex-col gap-1">
+    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      {label}
+    </dt>
+    <dd className="text-[14px] text-foreground">{children}</dd>
+  </div>
+);
+
+const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
+  doc,
+  transitions,
+  sodBlocked,
+  canEdit,
+  canDelete,
+  nestedOpen,
+  onClose,
+  onEdit,
+  onDelete,
+}) => {
+  const hasFooter = canEdit || canDelete;
+  // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
+  // destructive (danger flag from statusActions); the rest are quiet outlines.
+  const isPrimary = (label: string) => label === 'Issue' || label === 'Approve';
+
+  return (
+    <Drawer
+      open
+      title={doc.title}
+      subtitle={<StatusPill variant={STATUS_PILL[doc.status]}>{doc.status}</StatusPill>}
+      nestedOpen={nestedOpen}
+      onClose={onClose}
+      footer={
+        hasFooter ? (
+          <>
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                Edit
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
+                Delete
+              </Button>
+            )}
+          </>
+        ) : undefined
+      }
+    >
+      <dl className="flex flex-col gap-4">
+        {doc.revision && <DocField label="Revision">{`Rev ${doc.revision}`}</DocField>}
+        <DocField label="Code">
+          {doc.code ? (
+            <span className="font-mono text-[13px]">{doc.code}</span>
+          ) : (
+            <span className="text-muted-foreground">{'—'}</span>
+          )}
+        </DocField>
+        <DocField label="Category">{doc.category}</DocField>
+        <DocField label="Document date">
+          {doc.doc_date ? (
+            <span className="tabular">{doc.doc_date}</span>
+          ) : (
+            <span className="text-muted-foreground">{'—'}</span>
+          )}
+        </DocField>
+        <DocField label="Status">
+          <StatusPill variant={STATUS_PILL[doc.status]}>{doc.status}</StatusPill>
+        </DocField>
+      </dl>
+
+      {/* Status workflow — promoted out of the ⋯ menu. Buttons reuse the EXACT
+          statusActions gating; consequential moves still route through the
+          ConfirmDialog (the onClick set on each item). */}
+      {(transitions.length > 0 || sodBlocked) && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            Status
+          </h3>
+          {sodBlocked ? (
+            // SoD preserved: author can't approve/reject their own Issued doc.
+            // Honest-disabled done right — the reason is shown, not a dead button.
+            <GateNotice variant="blocked" data-testid="drawer-sod-gate">
+              <div>
+                You can't approve your own document. Approving is a segregation-of-duties step,
+                so a different reviewer must approve or reject it.
+              </div>
+            </GateNotice>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {transitions.map((t) => (
+                <Button
+                  key={t.label}
+                  size="sm"
+                  variant={t.danger ? 'destructive' : isPrimary(t.label) ? 'primary' : 'outline'}
+                  onClick={t.onClick}
+                >
+                  {t.label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 };
 

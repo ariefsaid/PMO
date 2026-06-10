@@ -237,6 +237,12 @@
 .confirm-scrim-anim { animation: confirmScrimIn 0.15s ease-out; }
 @keyframes confirmScrimIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---------- Drawer (right-side sheet) entrance — slide-in from the right.
+   Auto-disabled by the global prefers-reduced-motion rule (duration → 0),
+   degrading to an instant crossfade (opacity 0→1 with no perceptible slide). */
+.drawer-anim { animation: drawerIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes drawerIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
 /* ---------- Command palette panel entrance ---------- */
 .cmdk-anim { animation: cmdkin 0.14s ease; }
 @keyframes cmdkin { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
