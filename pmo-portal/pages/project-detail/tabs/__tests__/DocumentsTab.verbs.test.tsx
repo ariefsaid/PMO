@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -66,11 +66,19 @@ const renderAsReviewer = () =>
     </ImpersonationProvider>,
   );
 
+// Helper: scope to the table branch — the dual-render (OD-W4-4) puts a "Row actions" trigger
+// in both the table and card branches after the mobile a11y fix removed aria-hidden from the card
+// branch. Scoping to the table branch keeps these assertions focused on the desktop path.
+function getTableBranch() {
+  return document.querySelector('[data-testid="dt-table-branch"]') as HTMLElement;
+}
+
 describe('DocumentsTab — visible workflow verbs (B-4, AC-W2-IXD-007)', () => {
   it('AC-W2-IXD-007: the row-action trigger is visible (not opacity-0 / hover-gated)', () => {
     renderAsReviewer();
     // The ⋯ trigger must be in the DOM and not have opacity-0 class (B-4 DataTable fix).
-    const trigger = screen.getByRole('button', { name: /row actions/i });
+    // Scoped to the table branch (desktop path) — both branches expose a trigger post-a11y-fix.
+    const trigger = within(getTableBranch()).getByRole('button', { name: /row actions/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).not.toContain('opacity-0');
   });
@@ -78,8 +86,8 @@ describe('DocumentsTab — visible workflow verbs (B-4, AC-W2-IXD-007)', () => {
   it('AC-W2-IXD-007: opening the row menu on an Issued document shows Approve and Reject for a non-author reviewer', async () => {
     const user = userEvent.setup();
     renderAsReviewer();
-    // Open the row menu via click.
-    await user.click(screen.getByRole('button', { name: /row actions/i }));
+    // Open the row menu via click. Scoped to the table branch (desktop path).
+    await user.click(within(getTableBranch()).getByRole('button', { name: /row actions/i }));
     // The menu must show Approve and Reject verbs for an Issued doc (non-author reviewer).
     expect(screen.getByRole('menuitem', { name: /^Approve$/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /^Reject$/i })).toBeInTheDocument();

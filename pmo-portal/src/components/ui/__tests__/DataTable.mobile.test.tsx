@@ -6,21 +6,25 @@
  * table branch) so every list-surface inherits the reflow without consumer changes.
  *
  * Architecture (OD-W4-4):
- * - The `<table>` is the authoritative semantic/accessible structure (aria-sort,
- *   role="row", column headers). It is ALWAYS in the DOM.
- * - The card `<ul>` is a CSS-layout visual alternative for sighted touch users,
- *   marked `aria-hidden="true"` to avoid duplicating content for screen readers.
- *   AT always navigates via the table; the card branch is visual-only.
+ * - The `<table>` branch carries `hidden md:block` — excluded from AT at ≥768px by
+ *   display:none from the `hidden` Tailwind class.
+ * - The card `<ul>` branch carries `md:hidden` — excluded from AT at ≥768px by
+ *   display:none. At <768px it IS the visible structure and MUST be AT-readable.
+ * - AT presence at each breakpoint is governed entirely by `display:none` (from
+ *   Tailwind `hidden`/`md:hidden`). Neither branch uses `aria-hidden`; at any given
+ *   viewport exactly one branch is `display:none` and therefore absent from AT.
  * - jsdom cannot evaluate Tailwind responsive classes — both branches are always
- *   visible in the DOM; on a real narrow viewport only the card branch renders.
+ *   visible in the DOM in the test environment; RTL accessible-role queries find
+ *   both. Consumer tests that target a specific branch use `within(getTableBranch())`
+ *   or `within(getCardBranch())` scoping to stay precise.
  *
- * Test strategy: because the card branch is aria-hidden we query it with direct
- * DOM APIs (`querySelector`, `querySelectorAll`, `closest`) rather than RTL's
- * accessible-tree queries (`getByRole`). We verify structural integrity:
+ * Test strategy: we verify:
  *   - correct responsive classes on each branch
- *   - card branch has one <li> per row
- *   - each <li> contains the first-column value and a <dl> with the remaining columns
- *   - activation <button> is present in the card with the correct class/label
+ *   - card branch has NO aria-hidden (AT-readable when displayed at mobile)
+ *   - card row data IS accessible via role/accessible-name queries (regression guard
+ *     against the double-hide bug: display:none + aria-hidden = invisible to mobile AT)
+ *   - card branch has one <li> per row, <dl>/<dt>/<dd> field anatomy
+ *   - activation <button> carries the correct aria-label (AT-reachable by name)
  *   - rowMenu ⋯ trigger has the touch-target class
  *   - state variants (loading/empty/error) delegate to ListState in the card branch
  *   - selected card carries the primary/[0.07] wash class
@@ -28,12 +32,12 @@
  *
  * Desktop regression: the table branch carries `hidden md:block` — its content
  * is untouched and the existing consumer test suite (DataTable.test.tsx, all page
- * tests) runs against the table branch as the accessible structure.
+ * tests) remains stable (scoped to `dt-table-branch`).
  *
  * Touch-target sweep (C6): Button size="sm" and size="icon" carry `.touch-target`.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 import { Button } from '../Button';
@@ -56,7 +60,7 @@ const columns: Column<Row>[] = [
   { key: 'status', header: 'Status', cell: (r) => r.status },
 ];
 
-// Helper: get the card branch DOM node directly (bypasses aria-hidden for DOM queries).
+// Helper: get the card branch DOM node.
 function getCardBranch() {
   return document.querySelector('[data-testid="dt-card-branch"]') as HTMLElement;
 }
@@ -77,14 +81,42 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(tableWrapper.className).toContain('md:block');
   });
 
-  it('renders the card-list branch with md:hidden and aria-hidden (mobile shows cards, AT uses table)', () => {
+  it('AC-IXD-MOBILE-W4-A11Y: renders the card-list branch with md:hidden and NO aria-hidden (mobile AT must read cards)', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch();
     expect(cardBranch).toBeInTheDocument();
     expect(cardBranch.className).toContain('md:hidden');
-    // aria-hidden keeps the card branch out of the accessible tree — the table is the
-    // authoritative semantic structure; cards are a visual layout alternative only.
-    expect(cardBranch).toHaveAttribute('aria-hidden', 'true');
+    // CRITICAL: aria-hidden must NOT be present. At <768px the table branch is display:none
+    // (from `hidden md:block`) and the card branch is the only visible structure. If the card
+    // branch also had aria-hidden="true", mobile screen-reader users would have ZERO row data.
+    // display:none from Tailwind `hidden`/`md:hidden` already scopes AT per viewport — we do
+    // not need aria-hidden on either branch.
+    expect(cardBranch).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('AC-IXD-MOBILE-W4-A11Y: card branch row data is AT-reachable via role/accessible-name (regression: no double-hide)', () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={vi.fn()}
+        rowLabel={(r) => `Open ${r.name}`}
+      />,
+    );
+    const cardBranch = getCardBranch();
+    // The card branch <ul> must itself have role="list" and be AT-reachable.
+    // (If aria-hidden were present, screen.getByRole scoped within the card branch's
+    // parent would not find any listitem nodes inside it.)
+    expect(cardBranch).toHaveAttribute('role', 'list');
+    // Each card <li> is an accessible listitem — within() searches descendants.
+    const items = within(cardBranch).getAllByRole('listitem');
+    expect(items).toHaveLength(rows.length);
+    // The activation button is AT-reachable by its accessible name — the company name
+    // is exposed to the screen reader via the card, not just the (hidden at mobile) table.
+    // within(cardBranch) scopes to the card branch to prove these buttons are in the card AX tree.
+    expect(within(cardBranch).getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
+    expect(within(cardBranch).getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
   });
 
   // ── Card anatomy ─────────────────────────────────────────────────────────
@@ -144,7 +176,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
       />,
     );
     const cardBranch = getCardBranch();
-    // DOM query (card branch is aria-hidden, not accessible-tree)
+    // DOM query scoped to the card branch — the table branch also has an "Open Alpha Corp" button.
     const btn = cardBranch.querySelector('button[aria-label="Open Alpha Corp"]') as HTMLButtonElement;
     expect(btn).not.toBeNull();
     // focus-visible ring classes
@@ -215,7 +247,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     const cardBranch = getCardBranch();
     const trigger = cardBranch.querySelector('button[aria-label="Row actions"]') as HTMLButtonElement;
     await userEvent.click(trigger);
-    // The menu popover renders inside the aria-hidden card branch — use DOM query.
+    // The menu popover renders inside the card branch — use DOM query to scope to this branch.
     const menuItem = cardBranch.querySelector('button[role="menuitem"]') as HTMLButtonElement;
     expect(menuItem).not.toBeNull();
     expect(menuItem.textContent).toBe('Edit item');

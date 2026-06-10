@@ -193,7 +193,9 @@ describe('Projects index states', () => {
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'zzzz-no-match');
     expect(screen.getAllByText(/No projects match/i)[0]).toBeInTheDocument();
     // the LIVE "Clear filters" action is kept (it actually does something).
-    expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
+    // DataTable dual-renders the empty state in both the table and card branches (OD-W4-4);
+    // both buttons are now in AT (mobile a11y fix removed aria-hidden from card branch).
+    expect(screen.getAllByRole('button', { name: /Clear filters/i })[0]).toBeInTheDocument();
   });
 });
 

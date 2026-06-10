@@ -276,16 +276,20 @@ export function DataTable<Row>({
        * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
        * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
        *
-       * aria-hidden="true": the <table> branch is the authoritative semantic structure (aria-sort,
-       * role="row", column headers, etc.) and is ALWAYS in the DOM. The card list is a CSS-layout
-       * alternative for sighted touch users. Hiding it from AT avoids duplicate content for screen
-       * readers and keeps existing consumer tests stable (RTL getByText/getByRole only find the
-       * table branch). Keyboard users on touch devices reach rows via the table (scrollable).
+       * AT scoping — NO aria-hidden on either branch:
+       *   At <768px: the table branch has `hidden md:block` → display:none → excluded from AT.
+       *     The card branch is the only visible structure and must be fully AT-readable.
+       *   At ≥768px: the card branch has `md:hidden` → display:none → excluded from AT.
+       *     The table branch is the only visible structure (with aria-sort, column headers, etc.).
+       *   display:none from Tailwind `hidden`/`md:hidden` is the sole mechanism that scopes AT
+       *   per viewport. Adding aria-hidden to the card branch would double-hide it at mobile
+       *   (display:none AND aria-hidden) → a mobile screen-reader user would get ZERO row data.
+       *   Consumer tests that target a specific branch use within(getByTestId('dt-table-branch'))
+       *   or within(getByTestId('dt-card-branch')) to stay branch-precise.
        */}
       <ul
         data-testid="dt-card-branch"
         role="list"
-        aria-hidden="true"
         className="md:hidden divide-y divide-border/70"
       >
         {state ? (

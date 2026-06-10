@@ -152,9 +152,10 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
 
   it('AC-IXD-DASH-W5-C2B-N16-5: row has an accessible label to navigate to PR detail', () => {
     renderPane();
-    // The row button must reference the PR title so screen reader users know where it goes
-    const btn = screen.getByRole('button', { name: /Open Scaffolding Invoice/i });
-    expect(btn).toBeInTheDocument();
+    // The row button must reference the PR title so screen reader users know where it goes.
+    // DataTable dual-renders activation buttons in both branches (OD-W4-4); both are now in
+    // AT after the mobile a11y fix removed aria-hidden. At least one must be present.
+    expect(screen.getAllByRole('button', { name: /Open Scaffolding Invoice/i })[0]).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-6: shows vendor-invoiced age column header', () => {
@@ -426,6 +427,8 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
         <ReadyToPayTable procurements={[]} isPending={false} isError={true} onRetry={onRetry} />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    // DataTable renders the error state in both branches (OD-W4-4); both Retry buttons are
+    // now in AT after the mobile a11y fix removed aria-hidden from the card branch.
+    expect(screen.getAllByRole('button', { name: /retry/i })[0]).toBeInTheDocument();
   });
 });

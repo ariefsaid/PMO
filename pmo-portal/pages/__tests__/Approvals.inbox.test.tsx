@@ -86,7 +86,9 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     // there is no Approve control in the procurement section
     const procSection = screen.getByRole('region', { name: /Purchase requests awaiting you/i });
     expect(procSection).not.toHaveTextContent(/^Approve$/);
-    await userEvent.click(screen.getByRole('button', { name: /Open Steel beams/i }));
+    // DataTable dual-renders activation buttons in both the table and card branches (OD-W4-4);
+    // both are now in AT after the mobile a11y fix removed aria-hidden. Click the first.
+    await userEvent.click(screen.getAllByRole('button', { name: /Open Steel beams/i })[0]);
     expect(navigateMock).toHaveBeenCalledWith('/procurement/pr1');
   });
 
@@ -116,6 +118,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Project Manager');
     // timesheet section still renders
     expect(screen.getAllByText(/Timesheets awaiting you/i)[0]).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    // DataTable renders the error state in both branches (OD-W4-4); both Retry buttons are
+    // now in AT after the mobile a11y fix removed aria-hidden from the card branch.
+    expect(screen.getAllByRole('button', { name: /Retry/i })[0]).toBeInTheDocument();
   });
 });
