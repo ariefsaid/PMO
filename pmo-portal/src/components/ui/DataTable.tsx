@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
@@ -373,34 +374,147 @@ export function DataTable<Row>({
   );
 }
 
+/**
+ * Per-row overflow (⋯) menu.
+ *
+ * Clip-escape (AC-W6-IXD-MENU): the open `role="menu"` is PORTALED to
+ * `document.body` and positioned `fixed` against the trigger's bounding box —
+ * so it can never be clipped by the table branch's `overflow-x-auto` or the
+ * card wrapper's `overflow-hidden` (the recurring "tests green, render clipped"
+ * defect). It is right-aligned to the trigger, flips UP when the trigger sits
+ * within the menu's height of the viewport bottom, and is clamped horizontally
+ * to the `max-[921px]:px-4` (16px) gutter so it never bleeds off-screen at 375.
+ *
+ * a11y: focus moves to the first menuitem on open and returns to the trigger on
+ * every close (Esc / click-outside / item-activate / toggle-off / Tab);
+ * ArrowDown/Up rove (wrap), Home/End jump, Enter/Space activate; the menu is
+ * `aria-orientation="vertical"`. Items inherit the global :focus-visible ring.
+ *
+ * stopPropagation (load-bearing, guards PR-B): the trigger wrapper AND the
+ * portaled menu both stopPropagation so neither the ⋯ nor a menu item ever
+ * fires the row's onActivate.
+ */
+const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spacing.4)
+const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
+
 const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // -1 until the menu opens; open() lands focus on index 0.
+  const [active, setActive] = useState(-1);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+  // The flat list of menuitem indices (separators are not focusable stops).
+  const itemCount = items.length;
+
+  const close = useCallback((restoreFocus = true) => {
+    setOpen(false);
+    setActive(-1);
+    if (restoreFocus) triggerRef.current?.focus();
+  }, []);
+
+  // Position the portaled menu against the trigger: right-aligned, flip-up near
+  // the viewport bottom, clamped within the gutters. Runs before paint so the
+  // menu never flashes at (0,0).
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const compute = () => {
+      const t = triggerRef.current;
+      const menu = menuRef.current;
+      if (!t || !menu) return;
+      const r = t.getBoundingClientRect();
+      const mw = menu.offsetWidth;
+      const mh = menu.offsetHeight;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Right-align the menu's right edge to the trigger's right edge.
+      let left = r.right - mw;
+      // Clamp horizontally within the gutters.
+      left = Math.min(left, vw - GUTTER - mw);
+      left = Math.max(left, GUTTER);
+
+      // Open downward by default; flip up if it would overflow the bottom.
+      const below = r.bottom + MENU_GAP;
+      const flipUp = below + mh > vh - GUTTER && r.top - MENU_GAP - mh >= GUTTER;
+      const top = flipUp ? r.top - MENU_GAP - mh : below;
+
+      setPos({ top, left });
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
     return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
     };
   }, [open]);
 
+  // On open, move focus to the first menuitem.
+  useEffect(() => {
+    if (!open) return;
+    setActive(0);
+  }, [open]);
+
+  // Keep the DOM focus on the active menuitem as the roving index changes.
+  useEffect(() => {
+    if (!open || active < 0) return;
+    const el = menuRef.current?.querySelector<HTMLButtonElement>(
+      `[data-menuitem-index="${active}"]`,
+    );
+    el?.focus();
+  }, [open, active]);
+
+  // Close on outside pointer-down (not on the trigger — that toggles).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      close(false); // outside click: don't yank focus back to the trigger
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open, close]);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((a) => (a + 1) % itemCount);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((a) => (a - 1 + itemCount) % itemCount);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActive(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActive(itemCount - 1);
+    } else if (e.key === 'Tab') {
+      // Menus are not internal tab-stops: Tab/Shift+Tab close + restore focus.
+      close();
+    }
+    // Enter/Space activate the focused <button> natively (no handler needed).
+  };
+
+  const activate = (item: RowMenuItem) => {
+    item.onClick();
+    close();
+  };
+
   return (
-    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+    <div className="contents" onClick={(e) => e.stopPropagation()}>
       <button
+        ref={triggerRef}
         type="button"
         aria-label="Row actions"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? close() : setOpen(true))}
         // B-4 (AC-W2-IXD-006): always-visible trigger — removed `opacity-0 group-hover:opacity-100`
         // which made the ⋯ undiscoverable on touch + keyboard. The trigger is now visible by
         // default so every row's actions are reachable without a hover event. Touch targets ≥44px
@@ -411,39 +525,52 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
           ⋯
         </span>
       </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 z-50 mt-1 min-w-[160px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
-        >
-          {items.map((item, i) => {
-            // destructive-nav-separation: spatially separate the first danger item
-            // from the non-danger items above it with a hairline divider (matches the
-            // crud-companies.html `.menu-sep` above Delete). No separator when the
-            // danger item is first/only, or for consecutive danger items.
-            const needsSep = item.danger && i > 0 && !items[i - 1].danger;
-            return (
-              <React.Fragment key={item.label}>
-                {needsSep && <div role="separator" className="my-1 h-px bg-border" />}
-                <button
-                  role="menuitem"
-                  type="button"
-                  onClick={() => {
-                    item.onClick();
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                    item.danger && 'text-destructive'
-                  )}
-                >
-                  {item.label}
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-orientation="vertical"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={onMenuKeyDown}
+            style={{
+              position: 'fixed',
+              top: pos?.top ?? -9999,
+              left: pos?.left ?? -9999,
+              zIndex: 820,
+              visibility: pos ? 'visible' : 'hidden',
+            }}
+            className="min-w-[160px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          >
+            {items.map((item, i) => {
+              // destructive-nav-separation: spatially separate the first danger item
+              // from the non-danger items above it with a hairline divider (matches the
+              // crud-companies.html `.menu-sep` above Delete). No separator when the
+              // danger item is first/only, or for consecutive danger items.
+              const needsSep = item.danger && i > 0 && !items[i - 1].danger;
+              return (
+                <React.Fragment key={item.label}>
+                  {needsSep && <div role="separator" className="my-1 h-px bg-border" />}
+                  <button
+                    role="menuitem"
+                    type="button"
+                    tabIndex={i === active ? 0 : -1}
+                    data-menuitem-index={i}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => activate(item)}
+                    className={cn(
+                      'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
+                      item.danger && 'text-destructive'
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
