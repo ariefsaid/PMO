@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from './cn';
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 export type ProgressTone = 'success' | 'warning' | 'destructive' | 'primary';
 
@@ -26,11 +27,16 @@ const TONE_CLASS: Record<ProgressTone, string> = {
   primary: 'bg-primary',
 };
 
-/** ≥70 → success · ≥40 → warning · else destructive (win% / utilization). */
+/**
+ * Utilization tone bands. The at-risk floor (>=90, AT_RISK_THRESHOLD×100) is
+ * DESTRUCTIVE so the bar's red matches the at-risk StatusPill — never amber-on-amber
+ * (Wave-6 H8). Amber is reserved for the 70-89 mid band; below 70 reads as healthy.
+ */
+const AT_RISK_PCT = AT_RISK_THRESHOLD * 100; // 90 — single source of truth with the at-risk pill.
 function thresholdTone(pct: number): ProgressTone {
-  if (pct >= 70) return 'success';
-  if (pct >= 40) return 'warning';
-  return 'destructive';
+  if (pct >= AT_RISK_PCT) return 'destructive';
+  if (pct >= 70) return 'warning';
+  return 'success';
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({

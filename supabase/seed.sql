@@ -433,6 +433,14 @@ insert into budget_line_items (budget_version_id, category, description, budgete
   ('50000000-0000-0000-0000-000000000012','Labor','Tender preparation',1000000,0);
 update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000012';
 
+-- Wave-6 J9 (AC-W6-J9): backdate ONE open-pipeline deal so the N14 sales-pipeline
+-- "Needs attention" filter + Last-touch/aging columns have real stale data to show
+-- (ATTENTION_THRESHOLD_DAYS = 30). P002 "Northwind ERP Rollout" (Tender Submitted) is the
+-- row pgTAP 0057 asserts on; 0057 only checks last_update is non-null + a valid timestamp +
+-- owner = Alice Manager, so backdating keeps all six 0057 assertions green.
+update projects set last_update = now() - interval '45 days'
+where id = '40000000-0000-0000-0000-000000000002';  -- P002 Northwind ERP Rollout (open pipeline)
+
 -- incident report (neutral; schema-only MVP)
 insert into incident_reports (incident_date, type, severity, location, description, status, reported_by) values
   ('2026-03-15','Near Miss','Low','Regional Site B','Trip hazard reported and cleared','Closed','00000000-0000-0000-0000-0000000000a4');

@@ -273,6 +273,31 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(ownerHeader.textContent?.trim()).toBeTruthy();
   });
 
+  it('AC-W6-H8: win-probability bar uses neutral primary tone, never destructive at high win %', async () => {
+    // A deal with 92% win probability — "higher = good". The bar must NOT render red (destructive).
+    pipelineState.data = {
+      stages: [],
+      projects: [
+        {
+          id: 'p-high-win',
+          name: 'High Win Deal',
+          client_name: 'Acme',
+          status: 'Negotiation',
+          contract_value: 1_000_000,
+          win_probability: 0.92, // 92% — above the 90% utilization at-risk threshold
+          last_update: daysAgo(2),
+          pm_name: 'Alice',
+        },
+      ],
+    };
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    const winBar = screen.getByRole('progressbar', { name: /win probability 92%/i });
+    const fill = winBar.querySelector('[data-testid="progress-fill"]')!;
+    expect(fill).toHaveClass('bg-primary');
+    expect(fill).not.toHaveClass('bg-destructive');
+  });
+
   it('AC-IXD-PIPE-W5-C5-10: stale lost deal shows the aging warning label text (text, not color-only)', async () => {
     lostState.data = [lostProjectStale];
     renderPage();
