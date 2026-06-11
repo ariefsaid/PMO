@@ -16,7 +16,7 @@ export const DeliveryPctChip: React.FC<DeliveryPctChipProps> = ({ pct }) => {
   return (
     <span
       aria-label={`Delivery ${rounded}%`}
-      className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary"
+      className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary tabular"
     >
       {rounded}%
     </span>

@@ -300,6 +300,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       {/* Create / edit modal */}
       {formTarget && (
         <TaskFormModal
+          key={formTarget.task?.id ?? 'new'}
           task={formTarget.task}
           projectId={projectId}
           allTasks={all}
@@ -731,7 +732,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             <span className="text-[11.5px] text-muted-foreground">{ms.target_date}</span>
           )}
           {ms && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary">
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary tabular">
               {pct(ms.effective_pct)}
             </span>
           )}
