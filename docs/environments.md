@@ -47,8 +47,12 @@ The cloud DB connection string is a secret. It is **never** stored in a file in 
 What's committed is only the **coordinates** (item / vault / field — not secret): `supabase/op.prod.env`.
 
 **One-time setup (you):** in 1Password vault `AS`, create an item `pmo-supabase-prod` with a field labelled
-`db_url` = the Supabase pooler connection URI (dashboard → Settings → Database → Connection string → URI,
-port `6543`). Adjust `supabase/op.prod.env` if you name the item/field differently.
+`db_url` = a **session-mode** connection URI (dashboard → Settings → Database → Connection string). Use the
+**Direct connection** (port 5432; IPv6 — or the IPv4 add-on) or the **Session pooler** (port 5432,
+`postgres.<ref>` user — IPv4-friendly). **Not** the **Transaction pooler (6543)** — its transaction mode lacks
+session features (prepared statements, advisory locks) and breaks `supabase db push` / DDL. (6543 is for
+serverless *app* runtime; the app here uses the HTTPS REST API + anon key, not a Postgres socket, so it's
+irrelevant.) Adjust `supabase/op.prod.env` if you name the item/field differently.
 
 **Confirm prod is usable (one command):**
 ```bash
@@ -74,7 +78,7 @@ silently talk to the wrong backend. Add `VITE_APP_ENV=local` to `pmo-portal/.env
 ## First-time prod (cloud) deploy
 
 ```bash
-# 1. Store the secret in 1Password (vault AS, item pmo-supabase-prod, field db_url = pooler URI).
+# 1. Store the secret in 1Password (vault AS, item pmo-supabase-prod, field db_url = Direct or Session-pooler URI, port 5432 — NOT 6543).
 scripts/db-push-prod.sh --check                  # confirm 1Password + DB reachable
 # 2. Apply the schema:
 supabase login
