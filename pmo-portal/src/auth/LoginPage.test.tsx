@@ -156,8 +156,8 @@ describe('LoginPage', () => {
     renderLogin();
     // Password hint is visible
     expect(screen.getByText(/password: Passw0rd!dev/i)).toBeInTheDocument();
-    // Admin persona button is present and fills admin@ credentials
-    await userEvent.click(screen.getByRole('button', { name: /admin@acme\.test/i }));
+    // Admin persona button is present (matched by visible label) and fills admin@ credentials
+    await userEvent.click(screen.getByRole('button', { name: /Admin/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('admin@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
     vi.unstubAllEnvs();
@@ -167,9 +167,9 @@ describe('LoginPage', () => {
     vi.stubEnv('DEV', false);
     vi.stubEnv('VITE_DEMO_MODE', '');
     renderLogin();
-    // None of the persona buttons should be present
-    expect(screen.queryByRole('button', { name: /admin@acme\.test/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /exec@acme\.test/i })).toBeNull();
+    // None of the persona buttons should be present (checked by visible label)
+    expect(screen.queryByRole('button', { name: /Executive/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Admin/i })).toBeNull();
     vi.unstubAllEnvs();
   });
 
@@ -177,26 +177,26 @@ describe('LoginPage', () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
 
-    // All 5 persona fill buttons must be present
+    // All 5 persona fill buttons must be present — matched by visible label (WCAG 2.5.3)
     const personas = [
-      { email: 'exec@acme.test',     label: /exec@acme\.test/i },
-      { email: 'pm@acme.test',       label: /pm@acme\.test/i },
-      { email: 'finance@acme.test',  label: /finance@acme\.test/i },
-      { email: 'engineer@acme.test', label: /engineer@acme\.test/i },
-      { email: 'admin@acme.test',    label: /admin@acme\.test/i },
+      { email: 'exec@acme.test',     label: /Executive/i },
+      { email: 'pm@acme.test',       label: /Project Manager/i },
+      { email: 'finance@acme.test',  label: /Finance/i },
+      { email: 'engineer@acme.test', label: /Engineer/i },
+      { email: 'admin@acme.test',    label: /Admin/i },
     ];
 
     for (const p of personas) {
       expect(screen.getByRole('button', { name: p.label })).toBeInTheDocument();
     }
 
-    // Clicking exec@ button fills email + password
-    await userEvent.click(screen.getByRole('button', { name: /exec@acme\.test/i }));
+    // Clicking Executive button fills exec@ credentials
+    await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('exec@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
 
-    // Clicking engineer@ button switches credentials
-    await userEvent.click(screen.getByRole('button', { name: /engineer@acme\.test/i }));
+    // Clicking Engineer button switches credentials
+    await userEvent.click(screen.getByRole('button', { name: /Engineer/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('engineer@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
 
@@ -207,8 +207,8 @@ describe('LoginPage', () => {
     vi.stubEnv('DEV', false);
     vi.stubEnv('VITE_DEMO_MODE', '');
     renderLogin();
-    expect(screen.queryByRole('button', { name: /exec@acme\.test/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /pm@acme\.test/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Executive/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Project Manager/i })).toBeNull();
     vi.unstubAllEnvs();
   });
 });

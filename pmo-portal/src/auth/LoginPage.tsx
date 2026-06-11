@@ -222,14 +222,14 @@ const LoginPage: React.FC = () => {
                     <button
                       key={email}
                       type="button"
-                      aria-label={email}
+                      aria-label={`${label} — ${email}`}
                       onClick={() => {
                         setEmail(email);
                         setPassword(DEMO_PASSWORD);
                         setError(null);
                       }}
                       disabled={busy}
-                      className="text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {label}
                     </button>

@@ -382,11 +382,11 @@ insert into procurement_items
   -- d2…01: 6,000× 540W panels @ $280 = $1,680,000
   ('d2000000-0000-0000-0000-000000000101', 'd2000000-0000-0000-0000-000000000001',
    '540W Monocrystalline Panel', 'SunVolt SVX-540 bifacial panel', 6000, 280),
-  -- d2…02: 24× string inverters @ ~$25,000 + 8× combiner boxes @ ~$7,500
+  -- d2…02: 24× string inverters @ $25,000 + 8× combiner boxes @ $10,000 = $680,000
   ('d2000000-0000-0000-0000-000000000201', 'd2000000-0000-0000-0000-000000000002',
    'String Inverter 50kW', 'VoltEdge VSI-50 string inverter', 24, 25000),
   ('d2000000-0000-0000-0000-000000000202', 'd2000000-0000-0000-0000-000000000002',
-   'DC Combiner Box 16-string', 'VoltEdge CB-16 combiner', 8, 7500),
+   'DC Combiner Box 16-string', 'VoltEdge CB-16 combiner', 8, 10000),
   -- d2…03: roof mounting per kW — 4,200 kW @ $128.57 ≈ $540,000
   ('d2000000-0000-0000-0000-000000000301', 'd2000000-0000-0000-0000-000000000003',
    'L-foot & rail mounting kit', 'Racking per 10 kW block', 420, 1285.71),
@@ -516,9 +516,10 @@ on conflict (id) do nothing;
 
 -- ── Doc-number + approver UPDATEs (static fixture strings; SoD: approver ≠ requester) ──
 
--- d2…01 Paid (d0…01 healthy): requested_by=a2, approved_by=a3 (finance). SoD-b: payer a3=approver (ok as
--- this is the healthy project demo). Finance both approves and pays on the healthy project — this is
--- intentional (less dramatic), SoD focus is on the at-risk project below.
+-- d2…01 Paid (d0…01 healthy): requested_by=a2, approved_by=a3 (finance).
+-- The healthy-project and Close-Out Paid rows intentionally relax payer≠approver for demo
+-- simplicity (less dramatic). Strict SoD (approver≠requester, payer≠approver) is demonstrated
+-- on the at-risk project d2…005.
 update procurements set
   pr_number      = 'PR-2402100001',
   po_number      = 'PO-2402200001',
