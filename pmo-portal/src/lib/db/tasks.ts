@@ -21,6 +21,8 @@ export interface TaskInput {
   assignee_id: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** Optional milestone grouping (FR-DEL-016). null = Ungrouped. */
+  milestone_id?: string | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -30,6 +32,8 @@ export interface TaskPatch {
   assignee_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** Milestone re-assignment (FR-DEL-016). null explicitly ungroups the task. */
+  milestone_id?: string | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -104,6 +108,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       assignee_id: input.assignee_id || null,
       start_date: input.start_date || null,
       end_date: input.end_date || null,
+      milestone_id: input.milestone_id ?? null,
     })
     .select()
     .single();
@@ -123,6 +128,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
   if (patch.assignee_id !== undefined) next.assignee_id = patch.assignee_id || null;
   if (patch.start_date !== undefined) next.start_date = patch.start_date || null;
   if (patch.end_date !== undefined) next.end_date = patch.end_date || null;
+  if (patch.milestone_id !== undefined) next.milestone_id = patch.milestone_id; // null ungroups
   const { error } = await supabase.from('tasks').update(next).eq('id', id);
   if (error) throwWrite(error);
 }

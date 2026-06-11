@@ -99,6 +99,15 @@ vi.mock('@/src/hooks/useDocuments', () => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useMilestones', () => ({
+  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestoneMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
 
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);

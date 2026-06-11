@@ -101,6 +101,14 @@ vi.mock('@/src/lib/db/incidents', () => ({
   transitionIncident: vi.fn(),
   deleteIncident: vi.fn(),
 }));
+vi.mock('@/src/lib/db/milestones', () => ({
+  listMilestones: vi.fn(),
+  getProjectsDelivery: vi.fn(),
+  createMilestone: vi.fn(),
+  updateMilestone: vi.fn(),
+  deleteMilestone: vi.fn(),
+  updateTaskMilestone: vi.fn(),
+}));
 
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
@@ -119,13 +127,14 @@ import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
 import * as tasksDal from '@/src/lib/db/tasks';
 import * as incidentsDal from '@/src/lib/db/incidents';
+import * as milestonesDal from '@/src/lib/db/milestones';
 
 beforeEach(() => vi.clearAllMocks());
 
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'document', 'incident', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'document', 'incident', 'milestone', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
     );
   });
 
@@ -592,6 +601,34 @@ describe('delegation — methods pass args through and return the DAL result', (
     await expect(
       repositories.incident.transition('i1', 'Closed' as never),
     ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-DEL-008: milestone.list delegates to listMilestones', async () => {
+    const rows = [{ id: 'm1', name: 'Phase 1' }];
+    vi.mocked(milestonesDal.listMilestones).mockResolvedValue(rows as never);
+    const result = await repositories.milestone.list('p1');
+    expect(milestonesDal.listMilestones).toHaveBeenCalledWith('p1');
+    expect(result).toBe(rows);
+  });
+
+  it('AC-DEL-017: milestone.deliveryForProjects delegates to getProjectsDelivery', async () => {
+    const delivery = { p1: 75, p2: 50 };
+    vi.mocked(milestonesDal.getProjectsDelivery).mockResolvedValue(delivery);
+    const ids = ['p1', 'p2'];
+    const result = await repositories.milestone.deliveryForProjects(ids);
+    expect(milestonesDal.getProjectsDelivery).toHaveBeenCalledWith(ids);
+    expect(result).toBe(delivery);
+  });
+
+  it('AC-DEL-008: milestone.create normalizes a thrown error to AppError (code preserved)', async () => {
+    const denied = Object.assign(new Error('new row violates RLS'), { code: '42501' });
+    vi.mocked(milestonesDal.createMilestone).mockRejectedValue(denied);
+    const input = { name: 'M1', sort_order: 0, target_date: null, weight: 1 };
+    await expect(repositories.milestone.create(input, 'p1')).rejects.toMatchObject({
+      name: 'AppError',
+      code: '42501',
+    });
+    await expect(repositories.milestone.create(input, 'p1')).rejects.toBeInstanceOf(AppError);
   });
 });
 

@@ -41,6 +41,9 @@ vi.mock('@/src/hooks/useProjectView', () => ({
 }));
 
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: {} }),
+}));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),

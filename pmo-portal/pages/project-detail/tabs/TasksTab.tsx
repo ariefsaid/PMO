@@ -24,8 +24,11 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
+import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { pct } from '@/src/lib/format';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
+import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
 // The four task_status enum values. Each maps to a distinct StatusPill variant
@@ -79,9 +82,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const { data, isPending, isError, refetch } = useTasks(projectId);
   const { create, update, updateStatus, remove, addDependency, removeDependency } =
     useTaskMutations(projectId);
+  const { data: milestones } = useMilestones(projectId);
 
   const [view, setView] = useState<ViewMode>('list');
-  const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null } | null>(null);
+  // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
+  const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
 
   // Structure write (title / assignee / dates / delete) = Admin·Exec·PM.
@@ -91,16 +96,19 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const canRowWrite = canEdit || canDelete;
 
   const all = useMemo(() => data ?? [], [data]);
+  const milestoneList = useMemo(() => milestones ?? [], [milestones]);
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
   const canSetStatus = (t: TaskWithRefs): boolean =>
     may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
 
+  // When milestones exist, show the grouped layout even when there are no tasks yet
+  // so users can see the "Add task" affordance within each group (AC-DEL-011).
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
       ? 'error'
-      : all.length === 0
+      : all.length === 0 && milestoneList.length === 0
         ? 'empty'
         : undefined;
 
@@ -255,18 +263,29 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       )}
 
       {state === undefined && view === 'list' && (
-        <DataTable<TaskWithRefs>
-          rows={all}
-          columns={columns}
-          rowKey={(t) => t.id}
-          rowMenu={canRowWrite ? rowMenu : undefined}
-          // AC-W6-IXD-TASKROW (B-2): row click / Enter opens the existing edit modal.
-          // Gated by canEdit — a viewer who cannot edit gets NO activation affordance
-          // (no false affordance; DESIGN.md honest-affordance, matches the rowMenu gate).
-          // The ⋯ menu's stopPropagation prevents a Delete click from also opening edit.
-          onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
-          rowLabel={canEdit ? (t) => `Edit ${t.name}` : undefined}
-        />
+        milestoneList.length === 0 ? (
+          // No milestones: flat list (original behaviour)
+          <DataTable<TaskWithRefs>
+            rows={all}
+            columns={columns}
+            rowKey={(t) => t.id}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
+            rowLabel={canEdit ? (t) => `Edit ${t.name}` : undefined}
+          />
+        ) : (
+          // Milestones exist: group tasks by milestone
+          <MilestoneGroupedList
+            milestones={milestoneList}
+            tasks={all}
+            columns={columns}
+            canCreate={canCreate}
+            canRowWrite={canRowWrite}
+            rowMenu={rowMenu}
+            onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
+            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
+          />
+        )
       )}
 
       {state === undefined && view === 'board' && (
@@ -281,9 +300,12 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       {/* Create / edit modal */}
       {formTarget && (
         <TaskFormModal
+          key={formTarget.task?.id ?? 'new'}
           task={formTarget.task}
           projectId={projectId}
           allTasks={all}
+          defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
+          milestones={milestoneList}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -405,6 +427,10 @@ interface TaskFormModalProps {
   task: TaskWithRefs | null;
   projectId: string;
   allTasks: TaskWithRefs[];
+  /** Pre-populated milestone id when clicking "Add task" inside a milestone group (AC-DEL-011). */
+  defaultMilestoneId?: string | null;
+  /** Available milestones for the milestone select field. */
+  milestones?: MilestoneWithProgress[];
   onClose: () => void;
   onCreate: (input: TaskInput) => Promise<void>;
   onUpdate: (id: string, patch: TaskPatch, deps: DepDelta) => Promise<void>;
@@ -415,6 +441,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   task,
   projectId,
   allTasks,
+  defaultMilestoneId = null,
+  milestones = [],
   onClose,
   onCreate,
   onUpdate,
@@ -423,6 +451,12 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const isEdit = !!task;
   const { data: profiles, isPending: profilesPending, isError: profilesError } =
     useAssignableProfiles();
+
+  // milestone_id is tracked separately (not part of useEntityForm, since it's a string | null
+  // but not a text field). Default: pre-populated group id for create, or the task's current value.
+  const [milestoneId, setMilestoneId] = useState<string | null>(
+    task?.milestone_id ?? defaultMilestoneId,
+  );
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -456,6 +490,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   }));
   const selectedAssignee = assigneeOptions.find((o) => o.value === assigneeField.value) ?? null;
 
+  // Milestone select options
+  const milestoneOptions: ComboboxOption[] = milestones.map((m) => ({
+    value: m.id,
+    label: m.name,
+  }));
+  const selectedMilestone = milestoneOptions.find((o) => o.value === milestoneId) ?? null;
+
   // Dependency candidates: other tasks on this project, not already a dependency, not self.
   const depCandidates: ComboboxOption[] = allTasks
     .filter((t) => t.id !== task?.id && !deps.includes(t.id))
@@ -488,9 +529,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             add: deps.filter((d) => !initialDeps.includes(d)),
             remove: initialDeps.filter((d) => !deps.includes(d)),
           };
-          await onUpdate(task.id, base, delta);
+          await onUpdate(task.id, { ...base, milestone_id: milestoneId }, delta);
         } else {
-          await onCreate({ project_id: projectId, ...base });
+          await onCreate({ project_id: projectId, ...base, milestone_id: milestoneId });
         }
       } catch (err) {
         onError(err);
@@ -559,6 +600,18 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onChange={endField.onChange}
             onBlur={endField.onBlur}
           />
+          {milestones.length > 0 && (
+            <Combobox
+              label="Milestone"
+              value={milestoneId}
+              selectedOption={selectedMilestone}
+              loadOptions={async () => milestoneOptions}
+              onChange={(v) => setMilestoneId(v || null)}
+              placeholder="Ungrouped"
+              searchPlaceholder="Search milestones…"
+              noun="milestone"
+            />
+          )}
         </FormGrid>
         {profilesError && (
           <p className="mt-1 text-[12px] text-muted-foreground">
@@ -615,6 +668,114 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         </FormSection>
       )}
     </EntityFormModal>
+  );
+};
+
+// ── Milestone-grouped list view ──────────────────────────────────────────────
+
+interface MilestoneGroupedListProps {
+  milestones: MilestoneWithProgress[];
+  tasks: TaskWithRefs[];
+  columns: Column<TaskWithRefs>[];
+  canCreate: boolean;
+  canRowWrite: boolean;
+  rowMenu: (t: TaskWithRefs) => RowMenuItem[];
+  onAddTask: (milestoneId: string | null) => void;
+  onActivate?: (t: TaskWithRefs) => void;
+}
+
+/**
+ * Renders tasks grouped under their milestone headings (AC-DEL-010, FR-DEL-015).
+ * Milestone sections ordered by sort_order; ungrouped tasks trail at the end.
+ * Each milestone heading shows name, target date, and effective % (FR-DEL-015).
+ */
+const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
+  milestones,
+  tasks,
+  columns,
+  canCreate,
+  canRowWrite,
+  rowMenu,
+  onAddTask,
+  onActivate,
+}) => {
+  // Group tasks by milestone_id
+  const tasksByMilestone = useMemo(() => {
+    const map = new Map<string | null, TaskWithRefs[]>();
+    for (const t of tasks) {
+      const key = t.milestone_id ?? null;
+      const arr = map.get(key) ?? [];
+      arr.push(t);
+      map.set(key, arr);
+    }
+    return map;
+  }, [tasks]);
+
+  const sortedMilestones = useMemo(
+    () => [...milestones].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+    [milestones],
+  );
+
+  const ungrouped = tasksByMilestone.get(null) ?? [];
+
+  const renderGroup = (ms: MilestoneWithProgress | null, groupTasks: TaskWithRefs[]) => {
+    const sectionLabel = ms ? ms.name : 'Ungrouped';
+    const isUngrouped = ms === null;
+    return (
+      <section
+        key={ms?.id ?? 'ungrouped'}
+        aria-label={sectionLabel}
+        className="mb-4"
+      >
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
+          {/* I-7: "Ungrouped" is a catch-all bucket — differentiate with muted+italic, no % chip. */}
+          {isUngrouped ? (
+            <span className="text-[12px] italic text-muted-foreground">{sectionLabel}</span>
+          ) : (
+            <span className="text-[13px] font-bold">{sectionLabel}</span>
+          )}
+          {ms?.target_date && (
+            <span className="text-[11.5px] text-muted-foreground">{ms.target_date}</span>
+          )}
+          {ms && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary tabular">
+              {pct(ms.effective_pct)}
+            </span>
+          )}
+          {canCreate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => onAddTask(ms?.id ?? null)}
+            >
+              <Icon name="plus" />
+              Add task
+            </Button>
+          )}
+        </div>
+        {groupTasks.length > 0 ? (
+          <DataTable<TaskWithRefs>
+            rows={groupTasks}
+            columns={columns}
+            rowKey={(t) => t.id}
+            rowMenu={canRowWrite ? rowMenu : undefined}
+            onActivate={onActivate}
+          />
+        ) : (
+          <p className="py-2 text-center text-[12px] text-muted-foreground">No tasks in this group.</p>
+        )}
+      </section>
+    );
+  };
+
+  return (
+    <div>
+      {sortedMilestones.map((ms) =>
+        renderGroup(ms, tasksByMilestone.get(ms.id) ?? []),
+      )}
+      {ungrouped.length > 0 && renderGroup(null, ungrouped)}
+    </div>
   );
 };
 

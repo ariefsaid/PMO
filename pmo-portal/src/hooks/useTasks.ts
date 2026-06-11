@@ -56,7 +56,13 @@ export function useTaskMutations(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] });
+    // Milestone calculated_pct + project delivery_pct re-derive from task Done counts —
+    // invalidate both so the MilestoneStrip and DeliveryPctChip update immediately.
+    void qc.invalidateQueries({ queryKey: ['milestones', orgId, projectId] });
+    void qc.invalidateQueries({ queryKey: ['projects-delivery'] });
+  };
 
   const create = useMutation({
     mutationFn: (input: TaskInput) => repositories.task.create(input),

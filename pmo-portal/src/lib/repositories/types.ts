@@ -62,6 +62,12 @@ import type {
   IncidentInput,
   IncidentStatus,
 } from '@/src/lib/db/incidents';
+import type {
+  MilestoneRow,
+  MilestoneWithProgress,
+  MilestoneInput,
+  MilestonePatch,
+} from '@/src/lib/db/milestones';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -232,6 +238,15 @@ export interface IncidentRepository {
   delete(id: string): Promise<void>;
 }
 
+export interface MilestoneRepository {
+  list: (projectId: string) => Promise<MilestoneWithProgress[]>;
+  deliveryForProjects: (ids: string[]) => Promise<Record<string, number>>;
+  create: (input: MilestoneInput, projectId: string) => Promise<MilestoneRow>;
+  update: (id: string, patch: MilestonePatch) => Promise<void>;
+  delete: (id: string) => Promise<void>;
+  setTaskMilestone: (taskId: string, milestoneId: string | null) => Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -243,4 +258,5 @@ export interface Repositories {
   budget: BudgetRepository;
   task: TaskRepository;
   incident: IncidentRepository;
+  milestone: MilestoneRepository;
 }

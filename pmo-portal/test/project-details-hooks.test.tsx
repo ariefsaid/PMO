@@ -58,6 +58,15 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+vi.mock('@/src/hooks/useMilestones', () => ({
+  useMilestones: () => ({ data: [], isPending: false, isError: false }),
+  useMilestoneMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    updateTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
 // ProjectDetail + ProcurementTab no longer use the workspace tab API — they
 // navigate via the real react-router (this test needs the real useNavigate for
 // its NavDriver), so no shell mock is required.

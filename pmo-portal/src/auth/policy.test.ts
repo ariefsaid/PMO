@@ -178,6 +178,26 @@ describe('can() — record-scoped edit (rbac-visibility.md §E2/§F)', () => {
   });
 });
 
+describe('can() — milestone RBAC (OD-DEL-7)', () => {
+  it('AC-DEL-012: can(\'edit\',\'milestone\') is true for PM and Admin, false for Engineer/Finance/Executive', () => {
+    expect(can('edit', 'milestone', { realRole: 'Project Manager' })).toBe(true);
+    expect(can('edit', 'milestone', { realRole: 'Admin' })).toBe(true);
+    expect(can('edit', 'milestone', { realRole: 'Engineer' })).toBe(false);
+    expect(can('edit', 'milestone', { realRole: 'Finance' })).toBe(false);
+    expect(can('edit', 'milestone', { realRole: 'Executive' })).toBe(false);
+  });
+
+  it('AC-DEL-021: can(\'create\',\'milestone\') and can(\'delete\',\'milestone\') follow the same PM+Admin gate', () => {
+    for (const action of ['create', 'delete'] as const) {
+      expect(can(action, 'milestone', { realRole: 'Project Manager' })).toBe(true);
+      expect(can(action, 'milestone', { realRole: 'Admin' })).toBe(true);
+      expect(can(action, 'milestone', { realRole: 'Engineer' })).toBe(false);
+      expect(can(action, 'milestone', { realRole: 'Finance' })).toBe(false);
+      expect(can(action, 'milestone', { realRole: 'Executive' })).toBe(false);
+    }
+  });
+});
+
 describe('can() — deny-by-default safety', () => {
   it('ADR-0016: a null role is always denied (RLS stays the authority; FE never opens on no role)', () => {
     expect(can('create', 'project', { realRole: null })).toBe(false);

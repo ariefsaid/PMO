@@ -25,6 +25,8 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
+import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { DeliveryPctChip } from '../components/DeliveryPctChip';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -105,6 +107,9 @@ const Projects: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
+
+  // NFR-DEL-PERF-001: one batched call for all project delivery %s (no per-row N+1).
+  const { data: delivery } = useProjectsDelivery(all.map((p) => p.id));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -225,8 +230,15 @@ const Projects: React.FC = () => {
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
               </div>
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
-                {p.code ?? p.id.slice(0, 8)}
+              {/* I-5: delivery-% chip as a separated trailing element after the code line
+                  so it doesn't run-on into the project name. e2e locator stays intact:
+                  seabridgeRow.getByLabel('Delivery 100%'). */}
+              <div className="flex items-center gap-1.5">
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  {p.code ?? p.id.slice(0, 8)}
+                </div>
+                {/* AC-DEL-013: delivery-% chip (absent when project has no milestones). */}
+                <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
               </div>
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground/80">

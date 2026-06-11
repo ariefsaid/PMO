@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, parseMoneyInput } from './format';
+import { formatCurrency, parseMoneyInput, pct } from './format';
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
@@ -32,5 +32,17 @@ describe('parseMoneyInput — the single parse for validation AND persistence (W
   });
   it('parses scientific notation the SAME for validate + persist (the divergence bug: strip-regex made "1e5"→15)', () => {
     expect(parseMoneyInput('1e5')).toBe(100000);
+  });
+});
+
+describe('pct — nullable % formatter (added for delivery-milestones feature)', () => {
+  it('null renders an em-dash', () => {
+    expect(pct(null)).toBe('—');
+  });
+  it('rounds and appends % sign', () => {
+    expect(pct(75)).toBe('75%');
+    expect(pct(67.7)).toBe('68%');
+    expect(pct(0)).toBe('0%');
+    expect(pct(100)).toBe('100%');
   });
 });

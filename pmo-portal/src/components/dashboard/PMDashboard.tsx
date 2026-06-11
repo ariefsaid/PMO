@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -45,6 +47,9 @@ export const PMDashboard: React.FC = () => {
     () => [...mine].sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1)),
     [mine],
   );
+
+  // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
+  const { data: delivery } = useProjectsDelivery(mine.map((p) => p.id));
 
   const bvaProjects: TopProject[] = mine.map((p) => ({
     id: p.id, name: p.name, client_name: p.client?.name ?? null,
@@ -128,6 +133,8 @@ export const PMDashboard: React.FC = () => {
                       <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.name}</span>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
                       {projectAtRisk && <StatusPill variant="warn">At risk</StatusPill>}
+                      {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
+                      <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
                       <StatusPill variant={statusVariant(p.status)}>{p.status}</StatusPill>
                       <span
                         className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}

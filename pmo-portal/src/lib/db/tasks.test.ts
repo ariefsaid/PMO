@@ -139,6 +139,7 @@ describe('AC-TASK-003 createTask', () => {
         assignee_id: 'u1',
         start_date: '2026-06-10',
         end_date: '2026-06-20',
+        milestone_id: null,
       },
     ]);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
@@ -190,6 +191,29 @@ describe('AC-TASK-004 updateTask (structure)', () => {
   it('AC-TASK-004: throws AppError with code on a denied update', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(updateTask('t1', { name: 'Y' })).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('AC-TASK-004: milestone_id present in patch is threaded into the DB update (edit-to-reassign)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { milestone_id: 'm2' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).toHaveProperty('milestone_id', 'm2');
+    expect(patch).not.toHaveProperty('org_id');
+    expect(patch).not.toHaveProperty('project_id');
+  });
+
+  it('AC-TASK-004: milestone_id: null in patch explicitly clears the milestone (ungroup)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { milestone_id: null });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).toHaveProperty('milestone_id', null);
+  });
+
+  it('AC-TASK-004: omitting milestone_id from patch leaves milestone_id untouched (absent key not sent)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { name: 'Only rename' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('milestone_id');
   });
 });
 

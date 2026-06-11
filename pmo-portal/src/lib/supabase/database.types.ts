@@ -769,6 +769,57 @@ export type Database = {
           },
         ]
       }
+      project_milestones: {
+        Row: {
+          created_at: string
+          id: string
+          input_pct: number | null
+          name: string
+          org_id: string
+          project_id: string
+          sort_order: number
+          target_date: string | null
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_pct?: number | null
+          name: string
+          org_id?: string
+          project_id: string
+          sort_order?: number
+          target_date?: string | null
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_pct?: number | null
+          name?: string
+          org_id?: string
+          project_id?: string
+          sort_order?: number
+          target_date?: string | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_milestones_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -900,6 +951,7 @@ export type Database = {
           created_at: string
           end_date: string | null
           id: string
+          milestone_id: string | null
           name: string
           org_id: string
           project_id: string
@@ -911,6 +963,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           id?: string
+          milestone_id?: string | null
           name: string
           org_id?: string
           project_id: string
@@ -922,6 +975,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           id?: string
+          milestone_id?: string | null
           name?: string
           org_id?: string
           project_id?: string
@@ -934,6 +988,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "project_milestones"
             referencedColumns: ["id"]
           },
           {
@@ -1147,6 +1208,28 @@ export type Database = {
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      get_project_milestones: {
+        Args: { p_project_id: string }
+        Returns: {
+          calculated_pct: number
+          effective_pct: number
+          id: string
+          input_pct: number
+          name: string
+          project_id: string
+          sort_order: number
+          target_date: string
+          task_count: number
+          weight: number
+        }[]
+      }
+      get_projects_delivery: {
+        Args: { p_ids: string[] }
+        Returns: {
+          delivery_pct: number
+          project_id: string
+        }[]
+      }
       get_sales_pipeline: { Args: never; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       next_procurement_doc_number: {
