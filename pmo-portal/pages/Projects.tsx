@@ -25,6 +25,8 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
+import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { DeliveryPctChip } from '../components/DeliveryPctChip';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -105,6 +107,9 @@ const Projects: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
+
+  // NFR-DEL-PERF-001: one batched call for all project delivery %s (no per-row N+1).
+  const { data: delivery } = useProjectsDelivery(all.map((p) => p.id));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -224,6 +229,8 @@ const Projects: React.FC = () => {
                 </button>
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
+                {/* AC-DEL-013: delivery-% chip (absent when project has no milestones). */}
+                <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
               </div>
               <div className="truncate font-mono text-[11px] text-muted-foreground">
                 {p.code ?? p.id.slice(0, 8)}

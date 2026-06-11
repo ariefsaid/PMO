@@ -37,6 +37,9 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: {} }),
+}));
 
 const renderPane = () => render(<MemoryRouter><PMDashboard /></MemoryRouter>);
 

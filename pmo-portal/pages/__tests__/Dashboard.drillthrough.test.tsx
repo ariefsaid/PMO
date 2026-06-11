@@ -191,6 +191,9 @@ const mine = [
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: mine, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: {} }),
+}));
 
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 

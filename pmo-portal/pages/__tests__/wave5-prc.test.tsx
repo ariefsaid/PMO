@@ -61,6 +61,9 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
 vi.mock('@/src/hooks/useProjectView', () => ({
   useProjectView: () => ['table', vi.fn()] as ['table', () => void],
 }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: {} }),
+}));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimesheets', () => ({
   useTimesheets: () => tsState,

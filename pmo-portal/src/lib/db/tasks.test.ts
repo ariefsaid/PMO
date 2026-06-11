@@ -139,6 +139,7 @@ describe('AC-TASK-003 createTask', () => {
         assignee_id: 'u1',
         start_date: '2026-06-10',
         end_date: '2026-06-20',
+        milestone_id: null,
       },
     ]);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
