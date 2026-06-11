@@ -27,10 +27,11 @@ values
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-1105: default-org on_hand_value must still be 8,000,000 (excludes org B's 99M project)
+-- AC-1105: default-org on_hand_value must still be 10,000,000 (P001+P003+P013; excludes org B's 99M project)
+-- P013 "Seabridge Terminal Delivery" (Ongoing Project, contract_value=2M) added for AC-DEL-022 e2e isolation.
 select is(
   (get_executive_dashboard() ->> 'on_hand_value')::numeric,
-  8000000::numeric,
+  10000000::numeric,
   'AC-1105: on_hand_value excludes org B (NFR-SPD-TENANCY-001)'
 );
 

@@ -439,6 +439,22 @@ insert into budget_line_items (budget_version_id, category, description, budgete
   ('50000000-0000-0000-0000-000000000012','Labor','Tender preparation',1000000,0);
 update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000012';
 
+-- P013 "Seabridge Terminal Delivery" — a DEDICATED, EXPENDABLE on-hand row used EXCLUSIVELY by AC-DEL-022
+-- (the delivery-milestones e2e journey). It carries ZERO milestones so the journey exercises the
+-- create-from-empty flow, then creates its own milestone + task via the UI. No other spec reads it; no
+-- pgTAP oracle counts milestones (new table) or this project's tasks. Margin-neutral (Active budget ==
+-- contract_value, like P011/P012) so it does not perturb the dashboard/pipeline margin oracles.
+insert into projects (id, code, name, status, client_id, project_manager_id,
+                      contract_value, budget, spent) values
+  ('40000000-0000-0000-0000-000000000013','P013','Seabridge Terminal Delivery','Ongoing Project',
+   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   2000000,2000000,0);
+insert into budget_versions (id, project_id, version, name, status) values
+  ('50000000-0000-0000-0000-000000000013','40000000-0000-0000-0000-000000000013',1,'Delivery Budget','Draft');
+insert into budget_line_items (budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('50000000-0000-0000-0000-000000000013','Labor','Delivery works',2000000,0);
+update budget_versions set status = 'Active' where id = '50000000-0000-0000-0000-000000000013';
+
 -- Wave-6 J9 (AC-W6-J9): backdate ONE open-pipeline deal so the N14 sales-pipeline
 -- "Needs attention" filter + Last-touch/aging columns have real stale data to show
 -- (ATTENTION_THRESHOLD_DAYS = 30). P002 "Northwind ERP Rollout" (Tender Submitted) is the
