@@ -10,9 +10,9 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import { pct } from '@/src/lib/format';
+import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import MilestoneFormModal from './MilestoneFormModal';
-import { pct } from './milestoneUtils';
 
 export interface MilestoneStripProps {
   projectId: string;
@@ -45,6 +45,38 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const [deleteTarget, setDeleteTarget] = useState<MilestoneWithProgress | null>(null);
 
   const all = data ?? [];
+
+  // ── Shared modal handlers (single source — no copy-paste) ─────────────────
+  const handleModalCreate = async (input: MilestoneInput) => {
+    await create.mutateAsync({ input });
+    toast('Milestone created', input.name, 'success');
+    setFormTarget(null);
+  };
+
+  const handleModalUpdate = async (id: string, patch: MilestonePatch) => {
+    await update.mutateAsync({ id, patch });
+    toast('Milestone updated', patch.name ?? 'Milestone', 'success');
+    setFormTarget(null);
+  };
+
+  const handleModalError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    try {
+      await remove.mutateAsync(target.id);
+      toast('Milestone deleted', target.name, 'success');
+      setDeleteTarget(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setDeleteTarget(null);
+    }
+  };
 
   if (isPending) {
     return (
@@ -82,41 +114,15 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
         {formTarget !== null && (
           <MilestoneFormModal
             milestone={formTarget.milestone}
-            projectId={projectId}
             onClose={() => setFormTarget(null)}
-            onCreate={async (input) => {
-              await create.mutateAsync({ input });
-              toast('Milestone created', input.name, 'success');
-              setFormTarget(null);
-            }}
-            onUpdate={async (id, patch) => {
-              await update.mutateAsync({ id, patch });
-              toast('Milestone updated', patch.name ?? 'Milestone', 'success');
-              setFormTarget(null);
-            }}
-            onError={(err) => {
-              const { headline, detail } = classifyMutationError(err);
-              toast(headline, detail, 'warning');
-            }}
+            onCreate={handleModalCreate}
+            onUpdate={handleModalUpdate}
+            onError={handleModalError}
           />
         )}
       </div>
     );
   }
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    const target = deleteTarget;
-    try {
-      await remove.mutateAsync(target.id);
-      toast('Milestone deleted', target.name, 'success');
-      setDeleteTarget(null);
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-      setDeleteTarget(null);
-    }
-  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -155,22 +161,10 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
       {formTarget !== null && (
         <MilestoneFormModal
           milestone={formTarget.milestone}
-          projectId={projectId}
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
-            await create.mutateAsync({ input });
-            toast('Milestone created', input.name, 'success');
-            setFormTarget(null);
-          }}
-          onUpdate={async (id, patch) => {
-            await update.mutateAsync({ id, patch });
-            toast('Milestone updated', patch.name ?? 'Milestone', 'success');
-            setFormTarget(null);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
+          onCreate={handleModalCreate}
+          onUpdate={handleModalUpdate}
+          onError={handleModalError}
         />
       )}
 
@@ -209,15 +203,25 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
 }) => {
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
 
   const startEdit = () => {
     setInputVal(m.input_pct != null ? String(Math.round(m.input_pct)) : '');
+    setInputError(null);
     setEditing(true);
   };
-  const cancelEdit = () => setEditing(false);
+  const cancelEdit = () => {
+    setInputError(null);
+    setEditing(false);
+  };
   const saveEdit = async () => {
     const raw = inputVal.trim();
     const parsed = raw === '' ? null : Number(raw);
+    if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) {
+      setInputError('Progress must be between 0 and 100');
+      return;
+    }
+    setInputError(null);
     await onUpdateInputPct(m.id, parsed);
     setEditing(false);
   };
@@ -234,7 +238,7 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
         )}
         {canEdit && (
           <Button variant="ghost" size="sm" iconOnly aria-label={`Edit ${m.name}`} onClick={onEdit}>
-            <Icon name="doc" />
+            <Icon name="pencil" />
           </Button>
         )}
         {canDelete && (
@@ -274,23 +278,28 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
             PM input
           </span>
           {canEdit && editing ? (
-            <span className="flex items-center gap-1">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                aria-label="Edit PM input %"
-                className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary"
-                value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
-                autoFocus
-              />
-              <Button variant="primary" size="sm" onClick={saveEdit}>
-                Save
-              </Button>
-              <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                Cancel
-              </Button>
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  aria-label="Edit PM input %"
+                  className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={inputVal}
+                  onChange={(e) => { setInputVal(e.target.value); setInputError(null); }}
+                  autoFocus
+                />
+                <Button variant="primary" size="sm" onClick={saveEdit}>
+                  Save
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                  Cancel
+                </Button>
+              </span>
+              {inputError && (
+                <span className="text-[11.5px] text-destructive">{inputError}</span>
+              )}
             </span>
           ) : (
             <span

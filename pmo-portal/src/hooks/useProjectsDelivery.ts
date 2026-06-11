@@ -17,6 +17,6 @@ export function useProjectsDelivery(ids: string[]) {
     queryKey: ['projects-delivery', orgId, key],
     queryFn: () => repositories.milestone.deliveryForProjects(ids),
     enabled: Boolean(orgId) && ids.length > 0,
-    staleTime: 60_000,
+    staleTime: 15_000,
   });
 }

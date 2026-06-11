@@ -26,7 +26,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { pct } from '../milestoneUtils';
+import { pct } from '@/src/lib/format';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -280,7 +280,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             tasks={all}
             columns={columns}
             canCreate={canCreate}
-            canEdit={canEdit}
             canRowWrite={canRowWrite}
             rowMenu={rowMenu}
             onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
@@ -529,7 +528,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             add: deps.filter((d) => !initialDeps.includes(d)),
             remove: initialDeps.filter((d) => !deps.includes(d)),
           };
-          await onUpdate(task.id, base, delta);
+          await onUpdate(task.id, { ...base, milestone_id: milestoneId }, delta);
         } else {
           await onCreate({ project_id: projectId, ...base, milestone_id: milestoneId });
         }
@@ -678,7 +677,6 @@ interface MilestoneGroupedListProps {
   tasks: TaskWithRefs[];
   columns: Column<TaskWithRefs>[];
   canCreate: boolean;
-  canEdit: boolean;
   canRowWrite: boolean;
   rowMenu: (t: TaskWithRefs) => RowMenuItem[];
   onAddTask: (milestoneId: string | null) => void;

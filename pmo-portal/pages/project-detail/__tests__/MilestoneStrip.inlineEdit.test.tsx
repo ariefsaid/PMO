@@ -120,4 +120,37 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: null } });
     });
   });
+
+  it('m4: entering a value > 100 shows an error and does NOT call the mutation', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    fireEvent.change(inputEl, { target: { value: '101' } });
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    fireEvent.click(saveBtn);
+    // The error message should appear and the mutation must NOT be called
+    await waitFor(() => {
+      expect(screen.getByText(/between 0 and 100/i)).toBeInTheDocument();
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('m4: entering a value < 0 shows an error and does NOT call the mutation', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    fireEvent.change(inputEl, { target: { value: '-5' } });
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    fireEvent.click(saveBtn);
+    await waitFor(() => {
+      expect(screen.getByText(/between 0 and 100/i)).toBeInTheDocument();
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
 });

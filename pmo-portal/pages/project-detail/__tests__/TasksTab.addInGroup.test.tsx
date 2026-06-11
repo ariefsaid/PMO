@@ -2,7 +2,7 @@
  * AC-DEL-011 — Adding a task inside a milestone group pre-populates milestone_id.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -88,6 +88,3 @@ describe('TasksTab add task in group (AC-DEL-011)', () => {
     });
   });
 });
-
-// within needs to be imported
-import { within } from '@testing-library/react';

@@ -28,3 +28,8 @@ export function parseMoneyInput(raw: string): number | null {
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
+
+/** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
+export function pct(v: number | null): string {
+  return v == null ? '—' : `${Math.round(v)}%`;
+}

@@ -40,7 +40,6 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
 
 export interface MilestoneFormModalProps {
   milestone: MilestoneWithProgress | null;
-  projectId: string;
   onClose: () => void;
   onCreate: (input: MilestoneInput) => Promise<void>;
   onUpdate: (id: string, patch: MilestonePatch) => Promise<void>;
