@@ -1,0 +1,5 @@
+# Cloudflare Pages SPA fallback: serve index.html for any path the static build
+# doesn't have a file for, so react-router (BrowserRouter) deep links like
+# /projects/:id resolve client-side instead of 404ing. Real assets (/assets/*)
+# are served directly; only non-file paths fall through to this rule.
+/*    /index.html   200

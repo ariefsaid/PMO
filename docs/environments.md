@@ -65,15 +65,25 @@ the script uses it only when `op-get.sh` is unavailable. Never commit it.
 Other secrets: the **service-role key** is SECRET (1Password only; NEVER client-side). The **anon key** is
 public-safe — it ships in the frontend bundle, so it lives in the host's env vars / `.env.local`, not 1Password.
 
-## Frontend env binding (build-time)
+## Frontend on Cloudflare Pages (build-time env binding)
 
 The SPA inlines `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at **build** time → each build is bolted to one
-backend. Set these **per host environment** (Vercel Production env → the cloud project). For local dev, point
-`pmo-portal/.env.local` at the local stack (`http://127.0.0.1:54321` + the local anon key).
+backend. The **anon key is public-safe** (it ships in the bundle; RLS is the authority), so it lives in the host's
+plaintext build env vars — no 1Password needed for the frontend.
 
-Also set **`VITE_APP_ENV`** per environment (`local` / `prod`): the `<EnvBadge>` renders a corner ribbon naming
-the backend on every non-prod build (renders nothing when unset / `prod` / `production`), so a deploy can never
-silently talk to the wrong backend. Add `VITE_APP_ENV=local` to `pmo-portal/.env.local`.
+**Cloudflare Pages project settings** (dashboard → Workers & Pages → create → connect this repo):
+- **Root directory:** `pmo-portal`  ·  **Build command:** `npm run build`  ·  **Build output directory:** `dist`
+- **Node:** pinned via `pmo-portal/.node-version` (22) — no env var needed.
+- **SPA routing:** `pmo-portal/public/_redirects` (`/*  /index.html  200`) is copied into `dist/` by Vite, so
+  deep links (`/projects/:id`) resolve client-side instead of 404ing. (Already in the repo.)
+- **Environment variables** (set on the **Production** environment — and Preview if you want PR previews):
+  - `VITE_SUPABASE_URL` = `https://<project-ref>.supabase.co` (Supabase → Settings → API)
+  - `VITE_SUPABASE_ANON_KEY` = the **anon / public** key (Settings → API) — NOT the service_role key
+  - `VITE_APP_ENV` = `prod` (hides the env badge; use `test`/`local` elsewhere to show it)
+
+**Local dev** points at the local stack: `pmo-portal/.env.local` with `VITE_SUPABASE_URL=http://127.0.0.1:54321`,
+the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge
+the backend so a deploy can never silently talk to the wrong one).
 
 ## First-time prod (cloud) deploy
 
