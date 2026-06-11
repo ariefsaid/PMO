@@ -5,6 +5,7 @@ import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
+import { AnalyticsProvider } from '@/src/lib/analytics';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
@@ -257,12 +258,14 @@ const App: React.FC = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<RequireAuth />}>
-              <Route path="/*" element={<Shell />} />
-            </Route>
-          </Routes>
+          <AnalyticsProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<RequireAuth />}>
+                <Route path="/*" element={<Shell />} />
+              </Route>
+            </Routes>
+          </AnalyticsProvider>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
