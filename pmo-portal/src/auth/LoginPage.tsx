@@ -77,11 +77,18 @@ const InputBlock: React.FC<{
 
 // -----------------------------------------------------------------------
 
-// Demo credential surfaced on the login page in local dev OR a demo build
-// (VITE_DEMO_MODE=true) — never on a real prod build. admin@acme.test exists in
-// the local seed and is provisioned in the cloud demo. See docs/environments.md.
-const DEMO_EMAIL = 'admin@acme.test';
+// Demo credentials surfaced on the login page in local dev OR a demo build
+// (VITE_DEMO_MODE=true) — never on a real prod build. All 5 personas are provisioned
+// in the local seed and the cloud demo. See docs/environments.md.
 const DEMO_PASSWORD = 'Passw0rd!dev';
+
+const DEMO_PERSONAS: { label: string; email: string }[] = [
+  { label: 'Executive',       email: 'exec@acme.test' },
+  { label: 'Project Manager', email: 'pm@acme.test' },
+  { label: 'Finance',         email: 'finance@acme.test' },
+  { label: 'Engineer',        email: 'engineer@acme.test' },
+  { label: 'Admin',           email: 'admin@acme.test' },
+];
 
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
@@ -201,27 +208,33 @@ const LoginPage: React.FC = () => {
             </Button>
 
             {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
-                Surfaces the demo admin credential + a one-click fill so a client can sign in. */}
+                Lists all 5 role personas; click any to one-click fill credentials. */}
             {showDemoLogin && (
-              <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5 text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   Demo login
                 </p>
-                <p className="font-mono text-[11.5px] text-foreground">
-                  {DEMO_EMAIL} / {DEMO_PASSWORD}
+                <p className="text-center font-mono text-[11px] text-muted-foreground">
+                  password: {DEMO_PASSWORD}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail(DEMO_EMAIL);
-                    setPassword(DEMO_PASSWORD);
-                    setError(null);
-                  }}
-                  disabled={busy}
-                  className="text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  Use demo login
-                </button>
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                  {DEMO_PERSONAS.map(({ label, email }) => (
+                    <button
+                      key={email}
+                      type="button"
+                      aria-label={`${label} — ${email}`}
+                      onClick={() => {
+                        setEmail(email);
+                        setPassword(DEMO_PASSWORD);
+                        setError(null);
+                      }}
+                      disabled={busy}
+                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </CardPad>
