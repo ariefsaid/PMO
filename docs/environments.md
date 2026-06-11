@@ -19,7 +19,7 @@ different connection target** for that same schema.
 | Env | Supabase project ref | API URL | Anon key | Frontend | Migrations | Seed |
 |---|---|---|---|---|---|---|
 | `local` | — (Docker) | `http://127.0.0.1:54321` | local key in `pmo-portal/.env.local` | `npm run dev` | `supabase db reset` | `seed.sql` (auto) |
-| `prod` (cloud) | `<fill-in>` | `https://<ref>.supabase.co` | `<fill-in>` | Vercel Production env | `scripts/db-push-prod.sh` | **never** demo seed |
+| `prod` (cloud) | `prwccpsiumjzvnwjlkwq` | `https://prwccpsiumjzvnwjlkwq.supabase.co` | anon key in CF env vars | **Cloudflare Pages** `production` branch → https://pmo-bfb.pages.dev | `scripts/db-push-prod.sh` | **never** demo seed (admin-only via `seed-admin.sql`) |
 | `selfhost` (later) | n/a (VPS) | `https://<domain>` | `<fill-in>` | a `selfhost` host env | `db push --db-url …@vps` | reference data only |
 
 ## Which command hits which target
@@ -47,7 +47,7 @@ The cloud DB connection string is a secret. It is **never** stored in a file in 
 What's committed is only the **coordinates** (item / vault / field — not secret): `supabase/op.prod.env`.
 
 **One-time setup (you):** in 1Password vault `AS`, create an item `pmo-supabase-prod` with a field labelled
-`db_url` = a **session-mode** connection URI (dashboard → Settings → Database → Connection string). Use the
+`URL` (the field is labelled `URL`, matching `supabase/op.prod.env`) = a **session-mode** connection URI (dashboard → Settings → Database → Connection string). Use the
 **Direct connection** (port 5432; IPv6 — or the IPv4 add-on) or the **Session pooler** (port 5432,
 `postgres.<ref>` user — IPv4-friendly). **Not** the **Transaction pooler (6543)** — its transaction mode lacks
 session features (prepared statements, advisory locks) and breaks `supabase db push` / DDL. (6543 is for
@@ -94,7 +94,7 @@ the backend so a deploy can never silently talk to the wrong one).
 ## First-time prod (cloud) deploy
 
 ```bash
-# 1. Store the secret in 1Password (vault AS, item pmo-supabase-prod, field db_url = Direct or Session-pooler URI, port 5432 — NOT 6543).
+# 1. Store the secret in 1Password (vault AS, item pmo-supabase-prod, field URL = Direct or Session-pooler URI, port 5432 — NOT 6543).
 scripts/db-push-prod.sh --check                  # confirm 1Password + DB reachable
 # 2. Apply the schema:
 supabase login

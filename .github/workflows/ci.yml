@@ -94,7 +94,7 @@ jobs:
       - name: Reset DB (migrations + seed)
         run: supabase db reset --yes
 
-      # pgTAP gate: 45 files / 180 tests — RLS, tenancy, SoD proofs.
+      # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
 

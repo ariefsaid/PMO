@@ -39,5 +39,7 @@ owner to a host or incurring infra cost prematurely.
 ## Consequences
 - **Positive:** Foundations built host-agnostically (env-var config, SPA rewrites) so the final host
   choice is low-cost; CI gates encode the charter's quality bar before any deploy.
-- **Negative / open:** Final host, custom domain, and monitoring stack are **deferred** to the owner; this
-  ADR is **Proposed** until then. Re-open and mark Accepted when the owner ratifies at deploy time.
+- **Resolved 2026-06-11 (now ACCEPTED — see the Ratified decision above):** host = Cloudflare Pages,
+  backend = one Supabase Cloud project, secrets via 1Password. **Still open:** custom domain + monitoring
+  (Sentry/uptime) deferred; a *separate* per-env Supabase project only if/when a real data-bearing prod is
+  needed (today's cloud is a demo/staging-grade prod with admin-only data).
