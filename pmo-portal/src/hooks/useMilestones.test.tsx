@@ -68,10 +68,10 @@ describe('useMilestones', () => {
         input: { name: 'Phase 2', sort_order: 1, target_date: null, weight: 1 },
       });
     });
-    // Should invalidate milestones, tasks, projects, and projects-delivery.
+    // Should invalidate milestones, tasks, and projects-delivery (no ['projects'] — redundant).
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['milestones', 'org-1', 'p1'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tasks', 'org-1', 'p1'] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['projects'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects-delivery'] });
   });
 

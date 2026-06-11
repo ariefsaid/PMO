@@ -33,7 +33,8 @@ interface SetTaskMilestoneArgs {
 /**
  * Milestone create / update / delete + task-milestone assignment mutations.
  * Each mutation invalidates: milestones, tasks (milestone change re-groups tasks),
- * projects (list cache), and projects-delivery (chip refresh).
+ * and projects-delivery (chip refresh). The ['projects'] key is intentionally
+ * omitted — ['projects-delivery'] already keeps delivery chips current.
  */
 export function useMilestoneMutations(projectId: string) {
   const qc = useQueryClient();
@@ -43,7 +44,6 @@ export function useMilestoneMutations(projectId: string) {
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['milestones', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] });
-    void qc.invalidateQueries({ queryKey: ['projects'] });
     void qc.invalidateQueries({ queryKey: ['projects-delivery'] });
   };
 
