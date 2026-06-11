@@ -87,13 +87,13 @@ const InputBlock: React.FC<{
 // in the local seed and the cloud demo. See docs/environments.md.
 const DEMO_PASSWORD = 'Passw0rd!dev';
 
-const DEMO_PERSONAS: { label: string; email: string }[] = [
+const DEMO_PERSONAS = [
   { label: 'Executive',       email: 'exec@acme.test' },
   { label: 'Project Manager', email: 'pm@acme.test' },
   { label: 'Finance',         email: 'finance@acme.test' },
   { label: 'Engineer',        email: 'engineer@acme.test' },
   { label: 'Admin',           email: 'admin@acme.test' },
-];
+] as const;
 
 const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' => {
   return message.toLowerCase().includes('invalid') ? 'invalid_credentials' : 'auth_error';

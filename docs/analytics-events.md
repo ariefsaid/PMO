@@ -34,32 +34,89 @@ Never send:
 
 `buildEventProperties()` rejects forbidden keys in development/test and drops them in production.
 
+## Common Context (Super Properties)
+
+Every event automatically includes these properties via `posthog.register()`:
+
+| Property | Meaning |
+|---|---|
+| `environment` | `local`, `demo`, `prod`, or equivalent from app env/config |
+| `demo_audience` | `prospect`, `internal`, or omitted outside demo mode |
+| `demo_account` | Safe slug such as `default`, `local`, `comp1`; never real company name |
+| `role` | Auth/profile role when available |
+
+These are registered once at init and re-registered after identity reset. They do not need to be
+passed explicitly per-event.
+
 ## First-Slice Events
 
 | Event | Purpose | Required safe properties |
 |---|---|---|
-| `app_route_viewed` | Sanitized route tracking | `route`, `module`, `demo_audience`, `demo_account` |
-| `demo_persona_selected` | Demo-login persona interest | `persona_role` |
-| `auth_login_succeeded` | Login completion | `method` |
-| `auth_login_failed` | Login failure | `method`, `reason_code` |
-| `auth_logout_succeeded` | Logout completion | `method` or no extra properties |
-| `project_detail_opened` | Project detail interest | `source`, `module` |
-| `project_tab_viewed` | Project tab interest | `tab`, `module` |
-| `procurement_detail_opened` | Procurement detail interest | `source`, `module` |
-| `filter_applied` | List filtering behavior | `filter_id`, `module` |
-| `search_used` | Search action without query text | `surface`, `result_count`, `module` |
-| `coming_soon_clicked` | Demand for deferred surfaces | `surface`, `module` |
-| `form_validation_failed` | Validation friction | `form_id`, `field_count`, `reason_code`, `module` |
-| `save_failed` | Write friction | `entity_type`, `operation`, `reason_code`, `module` |
-| `permission_denied_seen` | Authorization friction | `surface`, `role`, `module` |
-| `empty_state_seen` | Empty data state exposure | `state_id`, `role`, `module` |
+| `demo_persona_selected` | Demo persona interest | `persona_role`, `demo_audience`, `demo_account` |
+| `app_route_viewed` | Navigation interest | `route`, `module`, `role` |
+| `auth_login_succeeded` | Activation / session start | `method`, `role` |
+| `auth_login_failed` | Demo / auth friction | `method`, `reason_code` |
+| `auth_logout_succeeded` | Session end | `role` |
+| `project_detail_opened` | Project interest | `route`, `role`, `source` |
+| `project_tab_viewed` | Feature interest | `tab_id`, `role` |
+| `procurement_detail_opened` | Procurement interest | `route`, `role`, `source` |
+| `filter_applied` | Workflow behavior | `filter_id`, `option_count`, `module` |
+| `search_used` | Discovery behavior | `search_surface`, `result_count`, `module` |
+| `coming_soon_clicked` | Demand signal | `feature_id`, `module` |
+| `form_validation_failed` | UX friction | `form_id`, `field_count`, `reason_code`, `module` |
+| `save_failed` | Reliability / UX friction | `entity_type`, `operation`, `reason_code`, `module` |
+| `permission_denied_seen` | Authz / product friction | `surface`, `role`, `module` |
+| `empty_state_seen` | Adoption / data gaps | `state_id`, `role`, `module` |
+
+Allowed values: enums, route patterns, role names, module ids, safe slugs, bounded counts/durations,
+status/reason codes, booleans.
+
+Forbidden values: raw user-entered strings, raw UUID paths, raw query strings, raw DB rows, names,
+emails, phone numbers, addresses, company/project/procurement names, monetary values, notes, comments,
+file names, file contents, request/response bodies, and auth tokens.
+
+## Session Replay Privacy
+
+Replay and click autocapture are enabled **only** for deployed prospect demo sessions (all three:
+`VITE_DEMO_MODE=true`, `DEV=false`, `demo_audience=prospect`). All other modes disable replay and
+autocapture entirely.
+
+### Input masking (global)
+
+All `<input>`, `<textarea>`, and `<select>` elements are globally masked via `maskAllInputs: true`.
+User-entered text in form fields is never visible in replays.
+
+### Network capture (disabled)
+
+- `recordHeaders: false` — request and response headers are never captured.
+- `recordBody: false` — request and response bodies are never captured.
+- `maskCapturedNetworkRequestFn` strips query strings from URLs and deletes any residual header/body
+  fields.
+
+### Marking non-input sensitive surfaces
+
+Non-input elements that display sensitive content (profile cards, notification text, data tables with
+PII, file previews, etc.) must be explicitly annotated by engineering when adding those surfaces:
+
+| Selector | Effect | Use when |
+|---|---|---|
+| `.ph-no-capture` or `data-ph-no-capture="true"` | **Blocks** — the entire element and children are excluded from recording | The surface contains data that must never appear in any recording (auth tokens, secrets, full PII) |
+| `.ph-mask` or `data-ph-mask="true"` | **Masks** — text content is replaced with asterisks; layout is preserved | The surface contains PII that should be obscured but the layout/interaction is useful for UX analysis |
+
+These are configured via `maskTextSelector` and `blockSelector` in the PostHog init options in
+`client.ts`.
+
+**Rule of thumb:** inputs are already masked globally. Only non-input surfaces that render user data
+need explicit annotation. When in doubt, use `ph-no-capture` (block) over `ph-mask` (mask) to be
+conservative.
 
 ## Adding Events
 
 1. Add or extend the event in `pmo-portal/src/lib/analytics/events.ts`.
 2. Add a unit test in `pmo-portal/src/lib/analytics/events.test.ts`.
 3. Use helper builders for repeated event shapes instead of ad hoc component strings.
-4. Capture from the nearest UI or data boundary through `analyticsClient.capture(...)`.
+4. Capture from the nearest UI or data boundary through the typed facade in
+   `src/lib/analytics/index.ts`.
 5. Run:
 
 ```bash

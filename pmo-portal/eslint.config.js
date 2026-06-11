@@ -6,6 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results'] },
+  // ── posthog-js import boundary: only client.ts may import the SDK ──────
   {
     files: ['**/*.{ts,tsx}'],
     ignores: ['src/lib/analytics/client.ts'],
@@ -14,6 +15,19 @@ export default tseslint.config(
         patterns: [{
           group: ['posthog-js'],
           message: 'Import posthog-js only in src/lib/analytics/client.ts. Use the analytics facade from src/lib/analytics instead.',
+        }],
+      }],
+    },
+  },
+  // ── analytics/client import boundary: only analytics internals may import client.ts ──
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/analytics/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/analytics/client'],
+          message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
         }],
       }],
     },

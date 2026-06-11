@@ -14,7 +14,7 @@ export {
   trackEmptyStateSeen,
   FORBIDDEN_PROPERTY_KEYS,
 } from './events';
-export type { AnalyticsEventName, SafeProperties, SafeValue, TrackedEvent } from './events';
+export type { AnalyticsEventName, SafeProperties, SafeValue, TrackedEvent, AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
 export { getAnalyticsConfig, parseDemoContext, persistDemoContext } from './config';
 export type { AnalyticsConfig, DemoAudience, DemoContext } from './config';
 export { routeAnalyticsForPath } from './route';
@@ -25,18 +25,19 @@ export type { RouteAnalytics } from './route';
 // the call to analyticsClient.capture with the correct event name + props.
 
 import { analyticsClient } from './client';
+import type { AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
 
 /** Track when a demo persona button is selected on the login page. */
-export function trackDemoPersonaSelected(role: string): void {
+export function trackDemoPersonaSelected(role: DemoPersonaLabel): void {
   analyticsClient.capture('demo_persona_selected', { persona_role: role });
 }
 
 /** Track a successful authentication. */
-export function trackAuthLoginSucceeded(method: string): void {
+export function trackAuthLoginSucceeded(method: AuthMethod): void {
   analyticsClient.capture('auth_login_succeeded', { method });
 }
 
 /** Track a failed authentication. */
-export function trackAuthLoginFailed(method: string, reason_code: string): void {
+export function trackAuthLoginFailed(method: AuthMethod, reason_code: AuthFailureReason): void {
   analyticsClient.capture('auth_login_failed', { method, reason_code });
 }

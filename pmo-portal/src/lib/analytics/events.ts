@@ -26,6 +26,19 @@ export type AnalyticsEventName =
   | 'empty_state_seen';
 
 // ---------------------------------------------------------------------------
+// Constrained argument types for facade helpers
+// ---------------------------------------------------------------------------
+
+/** Known authentication methods. */
+export type AuthMethod = 'password' | 'magic_link';
+
+/** Known authentication failure reason codes. */
+export type AuthFailureReason = 'invalid_credentials' | 'auth_error';
+
+/** Known demo persona labels (matches DEMO_PERSONAS in LoginPage). */
+export type DemoPersonaLabel = 'Executive' | 'Project Manager' | 'Finance' | 'Engineer' | 'Admin';
+
+// ---------------------------------------------------------------------------
 // Safe property types
 // ---------------------------------------------------------------------------
 export type SafeValue = string | number | boolean | null | undefined;
