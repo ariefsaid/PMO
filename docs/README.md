@@ -14,6 +14,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 ## Durable reference (the contracts the code follows)
 | Path | Holds |
 |---|---|
+| **`roadmap-spines.md`** | The 9-spine contractor business model + generalization roadmap (spine status, gap analysis, sequencing, decision log). Durable strategic reference; `backlog.md` is the live status tracker. |
 | **`specs/`** | SDD specs per feature — `FR-`/`AC-` requirements; Playwright/pgTAP/unit tests trace to these AC-ids. |
 | **`product-expectations.md`** | The product charter + per-layer Definition of Done (binding on all agents). |
 | **`director-playbook.md`** | The Director's per-issue orchestration loop, gates, grading rubric. |
