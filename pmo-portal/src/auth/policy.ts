@@ -44,7 +44,8 @@ export type Entity =
   | 'budgetLine'
   | 'user'
   | 'timesheet'
-  | 'approval';
+  | 'approval'
+  | 'milestone';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -68,6 +69,7 @@ const DELIVERY: Role[] = ['Admin', 'Executive', 'Project Manager']; // delivery 
 const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']; // incl. Finance
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
+const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -196,6 +198,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   approval: {
     transition: allow(DELIVERY), // approve others' timesheets; !self enforced at the call-site + RPC
+  },
+  milestone: {
+    // All org members may view milestones (FR-DEL-018); writes are PM+Admin only (FR-DEL-019, OD-DEL-7).
+    view: allow(ALL),
+    create: allow(MILESTONE_WRITE),
+    edit: allow(MILESTONE_WRITE),
+    delete: allow(MILESTONE_WRITE),
   },
 };
 

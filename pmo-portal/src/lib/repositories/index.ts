@@ -101,6 +101,14 @@ import {
   transitionIncident,
   deleteIncident,
 } from '@/src/lib/db/incidents';
+import {
+  listMilestones,
+  getProjectsDelivery,
+  createMilestone,
+  updateMilestone,
+  deleteMilestone,
+  updateTaskMilestone,
+} from '@/src/lib/db/milestones';
 import type {
   Repositories,
   ProjectRepository,
@@ -112,6 +120,7 @@ import type {
   BudgetRepository,
   TaskRepository,
   IncidentRepository,
+  MilestoneRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -228,6 +237,15 @@ const incident: IncidentRepository = {
   delete: (id) => wrap(() => deleteIncident(id)),
 };
 
+const milestone: MilestoneRepository = {
+  list: (projectId) => wrap(() => listMilestones(projectId)),
+  deliveryForProjects: (ids) => wrap(() => getProjectsDelivery(ids)),
+  create: (input, projectId) => wrap(() => createMilestone(input, projectId)),
+  update: (id, patch) => wrap(() => updateMilestone(id, patch)),
+  delete: (id) => wrap(() => deleteMilestone(id)),
+  setTaskMilestone: (taskId, milestoneId) => wrap(() => updateTaskMilestone(taskId, milestoneId)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -239,6 +257,7 @@ export const repositories: Repositories = {
   budget,
   task,
   incident,
+  milestone,
 };
 
 export type {
@@ -252,4 +271,5 @@ export type {
   BudgetRepository,
   TaskRepository,
   IncidentRepository,
+  MilestoneRepository,
 } from './types';
