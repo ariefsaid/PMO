@@ -22,6 +22,10 @@ const redactUrl = (request: Record<string, unknown>) => {
   if (typeof request.name === 'string') {
     request.name = request.name.split('?')[0];
   }
+  delete request.requestHeaders;
+  delete request.responseHeaders;
+  delete request.requestBody;
+  delete request.responseBody;
   return request as Parameters<NonNullable<NonNullable<import('@posthog/types').SessionRecordingOptions['maskCapturedNetworkRequestFn']>>>[0];
 };
 
@@ -50,6 +54,8 @@ export const analyticsClient = {
         maskAllInputs: true,
         maskTextSelector: '.ph-mask,[data-ph-mask="true"]',
         blockSelector: '.ph-no-capture,[data-ph-no-capture="true"]',
+        recordHeaders: false,
+        recordBody: false,
         maskCapturedNetworkRequestFn: redactUrl,
       },
     });

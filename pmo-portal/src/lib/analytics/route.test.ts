@@ -66,4 +66,87 @@ describe('routeAnalyticsForPath', () => {
       module: 'settings',
     });
   });
+
+  describe('route sanitization — PII / unknown route protection', () => {
+    it('AC-PH-ROUTE-001: email-like tab_id under /projects/:id is replaced with "unknown_tab"', () => {
+      expect(routeAnalyticsForPath('/projects/abc-123/alice@example.com')).toEqual({
+        route: '/projects/:projectId/:tab',
+        module: 'projects',
+        tab_id: 'unknown_tab',
+      });
+    });
+
+    it('AC-PH-ROUTE-002: tab_id with special characters is replaced with "unknown_tab"', () => {
+      expect(routeAnalyticsForPath('/projects/abc-123/tab with spaces')).toEqual({
+        route: '/projects/:projectId/:tab',
+        module: 'projects',
+        tab_id: 'unknown_tab',
+      });
+    });
+
+    it('AC-PH-ROUTE-003: unknown top-level route like /client-name uses route:"/unknown" and module:"unknown"', () => {
+      expect(routeAnalyticsForPath('/client-name')).toEqual({
+        route: '/unknown',
+        module: 'unknown',
+      });
+    });
+
+    it('AC-PH-ROUTE-004: email as top-level route uses route:"/unknown" and module:"unknown"', () => {
+      expect(routeAnalyticsForPath('/alice@example.com')).toEqual({
+        route: '/unknown',
+        module: 'unknown',
+      });
+    });
+  });
+
+  describe('App.tsx top-level routes', () => {
+    it('AC-PH-ROUTE-005: maps /approvals to route:"/approvals" and module:"approvals"', () => {
+      expect(routeAnalyticsForPath('/approvals')).toEqual({
+        route: '/approvals',
+        module: 'approvals',
+      });
+    });
+
+    it('AC-PH-ROUTE-006: maps /timesheets to route:"/timesheets" and module:"timesheets"', () => {
+      expect(routeAnalyticsForPath('/timesheets')).toEqual({
+        route: '/timesheets',
+        module: 'timesheets',
+      });
+    });
+
+    it('AC-PH-ROUTE-007: maps /companies to route:"/companies" and module:"companies"', () => {
+      expect(routeAnalyticsForPath('/companies')).toEqual({
+        route: '/companies',
+        module: 'companies',
+      });
+    });
+
+    it('AC-PH-ROUTE-008: maps /incidents to route:"/incidents" and module:"incidents"', () => {
+      expect(routeAnalyticsForPath('/incidents')).toEqual({
+        route: '/incidents',
+        module: 'incidents',
+      });
+    });
+
+    it('AC-PH-ROUTE-009: maps /my-tasks to route:"/my-tasks" and module:"my-tasks"', () => {
+      expect(routeAnalyticsForPath('/my-tasks')).toEqual({
+        route: '/my-tasks',
+        module: 'my-tasks',
+      });
+    });
+
+    it('AC-PH-ROUTE-010: maps /reports to route:"/reports" and module:"reports"', () => {
+      expect(routeAnalyticsForPath('/reports')).toEqual({
+        route: '/reports',
+        module: 'reports',
+      });
+    });
+
+    it('AC-PH-ROUTE-011: maps /administration to route:"/administration" and module:"administration"', () => {
+      expect(routeAnalyticsForPath('/administration')).toEqual({
+        route: '/administration',
+        module: 'administration',
+      });
+    });
+  });
 });

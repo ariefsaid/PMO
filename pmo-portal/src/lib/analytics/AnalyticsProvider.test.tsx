@@ -31,8 +31,11 @@ const mockConfig = vi.hoisted(() => ({
   demoAccount: 'local',
 }));
 
+const mockPersistDemoContext = vi.hoisted(() => vi.fn());
+
 vi.mock('./config', () => ({
   getAnalyticsConfig: () => mockConfig,
+  persistDemoContext: mockPersistDemoContext,
 }));
 
 // ── Mock useAuth ─────────────────────────────────────────────────────────
@@ -119,6 +122,28 @@ describe('AnalyticsProvider', () => {
     mockConfig.demoAccount = originalAccount;
   });
 
+  it('persists demo context when demoMode is on', () => {
+    const originalDemoMode = mockConfig.demoMode;
+    const originalAudience = mockConfig.demoAudience;
+    const originalAccount = mockConfig.demoAccount;
+    mockConfig.demoMode = true;
+    mockConfig.demoAudience = 'prospect';
+    mockConfig.demoAccount = 'comp1';
+
+    renderTree(makeAuthCtx());
+    expect(mockPersistDemoContext).toHaveBeenCalledWith(mockConfig, window.sessionStorage);
+
+    // Restore
+    mockConfig.demoMode = originalDemoMode;
+    mockConfig.demoAudience = originalAudience;
+    mockConfig.demoAccount = originalAccount;
+  });
+
+  it('does NOT persist demo context when demoMode is off', () => {
+    renderTree(makeAuthCtx());
+    expect(mockPersistDemoContext).not.toHaveBeenCalled();
+  });
+
   it('AC-PH-011: initial /projects/<uuid>?x=y captures app_route_viewed with route "/projects/:projectId"', () => {
     renderTree(makeAuthCtx(), ['/projects/d0000000-0000-0000-0000-000000000001?x=y']);
     expect(analytics.capture).toHaveBeenCalledWith(
@@ -179,7 +204,7 @@ describe('AnalyticsProvider', () => {
     }
   });
 
-  it('AC-PH-010: transition from user to null calls reset()', async () => {
+  it('AC-PH-010: transition from user to null calls reset() then re-registers base context', async () => {
     const profile = {
       id: 'u1',
       full_name: 'Alice Manager',
@@ -215,6 +240,7 @@ describe('AnalyticsProvider', () => {
     });
 
     analytics.reset.mockClear();
+    analytics.register.mockClear();
 
     // Transition to signed-out
     rerender(
@@ -230,6 +256,18 @@ describe('AnalyticsProvider', () => {
     await waitFor(() => {
       expect(analytics.reset).toHaveBeenCalledTimes(1);
     });
+
+    // After reset, base context must be re-registered
+    expect(analytics.register).toHaveBeenCalledWith({
+      environment: 'test',
+      demo_audience: undefined,
+      demo_account: undefined,
+    });
+
+    // Verify order: reset was called before the final register
+    const resetOrder = Math.max(...analytics.reset.mock.invocationCallOrder);
+    const registerOrder = Math.max(...analytics.register.mock.invocationCallOrder);
+    expect(resetOrder).toBeLessThan(registerOrder);
   });
 
   it('does not call reset on mount when no user was previously identified', () => {

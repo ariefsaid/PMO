@@ -65,15 +65,21 @@ export function parseDemoContext(args: {
     ctx = { demoAudience: fallback.demoAudience, demoAccount: explicitAccount };
   }
 
-  args.storage?.setItem(SESSION_AUDIENCE, ctx.demoAudience);
-  args.storage?.setItem(SESSION_ACCOUNT, ctx.demoAccount);
   return ctx;
+}
+
+export function persistDemoContext(
+  ctx: DemoContext,
+  storage: Pick<Storage, 'setItem'>,
+): void {
+  storage.setItem(SESSION_AUDIENCE, ctx.demoAudience);
+  storage.setItem(SESSION_ACCOUNT, ctx.demoAccount);
 }
 
 export function getAnalyticsConfig(
   env: EnvLike = import.meta.env,
   search = typeof window === 'undefined' ? '' : window.location.search,
-  storage = typeof window === 'undefined' ? undefined : window.sessionStorage
+  storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = typeof window === 'undefined' ? undefined : window.sessionStorage
 ): AnalyticsConfig {
   const demoMode = env.VITE_DEMO_MODE === 'true';
   const analyticsEnabled = env.VITE_ANALYTICS_ENABLED === 'true';

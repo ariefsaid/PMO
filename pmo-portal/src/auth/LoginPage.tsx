@@ -5,7 +5,11 @@ import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
 import { cn } from '../components/ui/cn';
 import { Icon } from '../components/ui/icons';
-import { analyticsClient } from '../lib/analytics';
+import {
+  trackDemoPersonaSelected,
+  trackAuthLoginSucceeded,
+  trackAuthLoginFailed,
+} from '../lib/analytics';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -116,14 +120,11 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
     if (error) {
-      analyticsClient.capture('auth_login_failed', {
-        method: 'password',
-        reason_code: authReasonCode(error),
-      });
+      trackAuthLoginFailed('password', authReasonCode(error));
       setError(error);
       return;
     }
-    analyticsClient.capture('auth_login_succeeded', { method: 'password' });
+    trackAuthLoginSucceeded('password');
     navigate('/', { replace: true });
   };
 
@@ -134,14 +135,11 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithMagicLink(email);
     setBusy(false);
     if (error) {
-      analyticsClient.capture('auth_login_failed', {
-        method: 'magic_link',
-        reason_code: authReasonCode(error),
-      });
+      trackAuthLoginFailed('magic_link', authReasonCode(error));
       setError(error);
       return;
     }
-    analyticsClient.capture('auth_login_succeeded', { method: 'magic_link' });
+    trackAuthLoginSucceeded('magic_link');
     setNotice('Check your email for a sign-in link.');
   };
 
@@ -239,9 +237,7 @@ const LoginPage: React.FC = () => {
                       type="button"
                       aria-label={`${label} — ${email}`}
                       onClick={() => {
-                        analyticsClient.capture('demo_persona_selected', {
-                          persona_role: label,
-                        });
+                        trackDemoPersonaSelected(label);
                         setEmail(email);
                         setPassword(DEMO_PASSWORD);
                         setError(null);

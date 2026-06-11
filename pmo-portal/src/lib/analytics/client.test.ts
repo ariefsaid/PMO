@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsConfig } from './config';
 
+/** Type for PostHog's captured network request object */
+type CapturedNetworkRequest = {
+  name: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  requestBody?: string;
+  responseBody?: string;
+  [key: string]: unknown;
+};
+
 const posthog = vi.hoisted(() => ({
   init: vi.fn(),
   capture: vi.fn(),
@@ -123,5 +133,51 @@ describe('analyticsClient', () => {
       environment: 'test',
       demo_audience: 'internal',
     }));
+  });
+
+  describe('replay network masking (deployed prospect demo)', () => {
+    it('AC-PH-NET-001: session_recording must set recordHeaders:false and recordBody:false', () => {
+      analyticsClient.init({
+        ...base,
+        demoMode: true,
+        replayAndAutocapture: true,
+        demoAudience: 'prospect',
+        demoAccount: 'comp1',
+      });
+      const [, opts] = posthog.init.mock.calls[0];
+      expect(opts.session_recording).toEqual(expect.objectContaining({
+        recordHeaders: false,
+        recordBody: false,
+      }));
+    });
+
+    it('AC-PH-NET-002: maskCapturedNetworkRequestFn strips query strings from URL', () => {
+      analyticsClient.init(base);
+      const [, opts] = posthog.init.mock.calls[0];
+      const fn = opts.session_recording!.maskCapturedNetworkRequestFn!;
+      const request: CapturedNetworkRequest = { name: 'https://api.example.com/data?token=secret&user=alice' };
+      const result = fn(request);
+      expect(result.name).toBe('https://api.example.com/data');
+    });
+
+    it('AC-PH-NET-003: maskCapturedNetworkRequestFn removes requestHeaders, responseHeaders, requestBody, responseBody', () => {
+      analyticsClient.init(base);
+      const [, opts] = posthog.init.mock.calls[0];
+      const fn = opts.session_recording!.maskCapturedNetworkRequestFn!;
+      const request: CapturedNetworkRequest = {
+        name: 'https://api.example.com/data',
+        requestHeaders: { authorization: 'Bearer secret' },
+        responseHeaders: { 'set-cookie': 'session=abc' },
+        requestBody: '{"password":"hunter2"}',
+        responseBody: '{"token":"abc"}',
+      };
+      const result = fn(request);
+      expect(result).not.toHaveProperty('requestHeaders');
+      expect(result).not.toHaveProperty('responseHeaders');
+      expect(result).not.toHaveProperty('requestBody');
+      expect(result).not.toHaveProperty('responseBody');
+      // name should still be present (with query stripped)
+      expect(result.name).toBe('https://api.example.com/data');
+    });
   });
 });

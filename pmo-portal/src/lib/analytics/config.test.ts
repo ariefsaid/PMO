@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { getAnalyticsConfig, parseDemoContext } from './config';
+import { getAnalyticsConfig, parseDemoContext, persistDemoContext } from './config';
 
 const baseEnv = {
   VITE_POSTHOG_KEY: 'ph_test',
@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 describe('parseDemoContext', () => {
-  it('AC-PH-007: ?da=comp1 becomes prospect/comp1 and persists for the session', () => {
+  it('AC-PH-007: ?da=comp1 becomes prospect/comp1', () => {
     const ctx = parseDemoContext({
       search: '?da=comp1',
       isDev: false,
@@ -26,8 +26,6 @@ describe('parseDemoContext', () => {
       storage: sessionStorage,
     });
     expect(ctx).toEqual({ demoAudience: 'prospect', demoAccount: 'comp1' });
-    expect(sessionStorage.getItem('pmo.demoAudience')).toBe('prospect');
-    expect(sessionStorage.getItem('pmo.demoAccount')).toBe('comp1');
   });
 
   it('AC-PH-006: ?da=internal marks deployed internal testing', () => {
@@ -65,6 +63,34 @@ describe('parseDemoContext', () => {
       storage: sessionStorage,
     })).toEqual({ demoAudience: 'prospect', demoAccount: 'default' });
   });
+
+  it('is pure — does not write to storage', () => {
+    const getItem = vi.fn(() => null);
+    const setItem = vi.fn();
+    const storage = { getItem, setItem };
+
+    parseDemoContext({
+      search: '?da=comp1',
+      isDev: false,
+      demoMode: true,
+      storage,
+    });
+
+    // parseDemoContext may call getItem for reads but must NOT call setItem
+    expect(setItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('persistDemoContext', () => {
+  it('writes demo audience and account to storage', () => {
+    const setItem = vi.fn();
+    const storage = { setItem };
+
+    persistDemoContext({ demoAudience: 'prospect', demoAccount: 'comp1' }, storage);
+
+    expect(setItem).toHaveBeenCalledWith('pmo.demoAudience', 'prospect');
+    expect(setItem).toHaveBeenCalledWith('pmo.demoAccount', 'comp1');
+  });
 });
 
 describe('getAnalyticsConfig', () => {
@@ -82,5 +108,15 @@ describe('getAnalyticsConfig', () => {
     const cfg = getAnalyticsConfig({ ...baseEnv, VITE_ANALYTICS_ENABLED: 'true' }, '', sessionStorage);
     expect(cfg.enabled).toBe(true);
     expect(cfg.replayAndAutocapture).toBe(false);
+  });
+
+  it('is pure — does not write to storage', () => {
+    const getItem = vi.fn(() => null);
+    const setItem = vi.fn();
+    const storage = { getItem, setItem };
+
+    getAnalyticsConfig({ ...baseEnv, VITE_DEMO_MODE: 'true' }, '?da=comp1', storage);
+
+    expect(setItem).not.toHaveBeenCalled();
   });
 });

@@ -8,8 +8,10 @@ const auth = vi.hoisted(() => ({
   signInWithOtp: vi.fn(),
 }));
 
-const analytics = vi.hoisted(() => ({
-  capture: vi.fn(),
+const trackHelpers = vi.hoisted(() => ({
+  trackDemoPersonaSelected: vi.fn(),
+  trackAuthLoginSucceeded: vi.fn(),
+  trackAuthLoginFailed: vi.fn(),
 }));
 
 const navigateSpy = vi.hoisted(() => vi.fn());
@@ -19,7 +21,9 @@ vi.mock('react-router-dom', async (orig) => {
 });
 
 vi.mock('@/src/lib/analytics', () => ({
-  analyticsClient: analytics,
+  trackDemoPersonaSelected: trackHelpers.trackDemoPersonaSelected,
+  trackAuthLoginSucceeded: trackHelpers.trackAuthLoginSucceeded,
+  trackAuthLoginFailed: trackHelpers.trackAuthLoginFailed,
 }));
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -55,7 +59,9 @@ function renderLogin() {
 beforeEach(() => {
   auth.signInWithPassword.mockReset();
   auth.signInWithOtp.mockReset();
-  analytics.capture.mockReset();
+  trackHelpers.trackDemoPersonaSelected.mockReset();
+  trackHelpers.trackAuthLoginSucceeded.mockReset();
+  trackHelpers.trackAuthLoginFailed.mockReset();
   navigateSpy.mockReset();
   vi.unstubAllEnvs();
 });
@@ -222,19 +228,23 @@ describe('LoginPage', () => {
     vi.unstubAllEnvs();
   });
 
-  it('AC-PH-012: demo persona selection captures role only, not email', async () => {
+  it('AC-PH-012: demo persona selection calls trackDemoPersonaSelected with role only, not email', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
 
     await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
 
-    expect(analytics.capture).toHaveBeenCalledWith('demo_persona_selected', {
-      persona_role: 'Executive',
-    });
-    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('exec@acme.test');
+    expect(trackHelpers.trackDemoPersonaSelected).toHaveBeenCalledWith('Executive');
+    // Verify no PII leaks through any of the tracking helpers
+    const allCalls = [
+      ...trackHelpers.trackDemoPersonaSelected.mock.calls,
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+    ];
+    expect(JSON.stringify(allCalls)).not.toContain('exec@acme.test');
   });
 
-  it('AC-PH-013: login failure emits a safe auth event', async () => {
+  it('AC-PH-013: login failure calls trackAuthLoginFailed with safe args', async () => {
     auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Invalid login credentials' } });
     renderLogin();
 
@@ -243,15 +253,17 @@ describe('LoginPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() =>
-      expect(analytics.capture).toHaveBeenCalledWith('auth_login_failed', {
-        method: 'password',
-        reason_code: 'invalid_credentials',
-      })
+      expect(trackHelpers.trackAuthLoginFailed).toHaveBeenCalledWith('password', 'invalid_credentials')
     );
-    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('pm@acme.test');
+    // No PII in any tracking call
+    const allCalls = JSON.stringify([
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+    ]);
+    expect(allCalls).not.toContain('pm@acme.test');
   });
 
-  it('AC-PH-013: login success emits a safe auth event', async () => {
+  it('AC-PH-013: login success calls trackAuthLoginSucceeded with safe args', async () => {
     auth.signInWithPassword.mockResolvedValueOnce({ error: null });
     renderLogin();
 
@@ -260,10 +272,13 @@ describe('LoginPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() =>
-      expect(analytics.capture).toHaveBeenCalledWith('auth_login_succeeded', {
-        method: 'password',
-      })
+      expect(trackHelpers.trackAuthLoginSucceeded).toHaveBeenCalledWith('password')
     );
-    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('pm@acme.test');
+    // No PII in any tracking call
+    const allCalls = JSON.stringify([
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+    ]);
+    expect(allCalls).not.toContain('pm@acme.test');
   });
 });
