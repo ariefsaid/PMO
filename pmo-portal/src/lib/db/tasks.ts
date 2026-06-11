@@ -21,6 +21,8 @@ export interface TaskInput {
   assignee_id: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** Optional milestone grouping (FR-DEL-016). null = Ungrouped. */
+  milestone_id?: string | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -104,6 +106,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       assignee_id: input.assignee_id || null,
       start_date: input.start_date || null,
       end_date: input.end_date || null,
+      milestone_id: input.milestone_id ?? null,
     })
     .select()
     .single();

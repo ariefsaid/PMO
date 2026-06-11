@@ -101,6 +101,14 @@ vi.mock('@/src/lib/db/incidents', () => ({
   transitionIncident: vi.fn(),
   deleteIncident: vi.fn(),
 }));
+vi.mock('@/src/lib/db/milestones', () => ({
+  listMilestones: vi.fn(),
+  getProjectsDelivery: vi.fn(),
+  createMilestone: vi.fn(),
+  updateMilestone: vi.fn(),
+  deleteMilestone: vi.fn(),
+  updateTaskMilestone: vi.fn(),
+}));
 
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
@@ -125,7 +133,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'document', 'incident', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'document', 'incident', 'milestone', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
     );
   });
 

@@ -54,6 +54,16 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+// MilestoneStrip now mounts in the header area — stub its hooks to avoid network.
+vi.mock('@/src/hooks/useMilestones', () => ({
+  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestoneMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
 // Tasks tab mounts the real TasksTab — stub its data hooks (empty register) to avoid network.
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
