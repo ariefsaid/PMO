@@ -78,13 +78,11 @@ describe('TasksTab add task in group (AC-DEL-011)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    // The milestone combobox should show "Engineering design" as the selected value
-    // The combobox renders the selected option as visible text in the trigger
+    // The milestone combobox inside the dialog should show "Engineering design" as selected
     await waitFor(() => {
-      // "Engineering design" appears as the selected milestone in the combobox
-      // It may appear multiple times (group heading + combobox) — just check it's there
-      const matches = screen.getAllByText('Engineering design');
-      expect(matches.length).toBeGreaterThan(0);
+      // Scope to the dialog to avoid matching the group-heading text outside the modal
+      const milestoneCombobox = within(dialog).getByRole('combobox', { name: /milestone/i });
+      expect(milestoneCombobox).toHaveTextContent('Engineering design');
     });
   });
 });
