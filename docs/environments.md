@@ -80,6 +80,10 @@ plaintext build env vars — no 1Password needed for the frontend.
   - `VITE_SUPABASE_URL` = `https://<project-ref>.supabase.co` (Supabase → Settings → API)
   - `VITE_SUPABASE_ANON_KEY` = the **anon / public** key (Settings → API) — NOT the service_role key
   - `VITE_APP_ENV` = `prod` (hides the env badge; use `test`/`local` elsewhere to show it)
+  - `VITE_DEMO_MODE` = `true` **(client demo only)** — surfaces the demo-login panel on the login page
+    (shows `admin@acme.test / Passw0rd!dev` + a "Use demo login" fill button). **Omit it on a real prod
+    deploy** so the credential never shows. The demo admin user is created by `supabase/seed-admin.sql`
+    (admin-only, no business data — run it once against the cloud).
 
 **Local dev** points at the local stack: `pmo-portal/.env.local` with `VITE_SUPABASE_URL=http://127.0.0.1:54321`,
 the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge

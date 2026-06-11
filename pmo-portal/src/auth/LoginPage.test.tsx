@@ -150,4 +150,22 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
   });
+
+  it('demo panel: shows the demo credential and "Use demo login" fills the form (VITE_DEMO_MODE)', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    renderLogin();
+    expect(screen.getByText(/admin@acme\.test \/ Passw0rd!dev/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /use demo login/i }));
+    expect(screen.getByLabelText(/email/i)).toHaveValue('admin@acme.test');
+    expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
+    vi.unstubAllEnvs();
+  });
+
+  it('demo panel is hidden on a real prod build (no DEV, no VITE_DEMO_MODE)', () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_DEMO_MODE', '');
+    renderLogin();
+    expect(screen.queryByRole('button', { name: /use demo login/i })).toBeNull();
+    vi.unstubAllEnvs();
+  });
 });

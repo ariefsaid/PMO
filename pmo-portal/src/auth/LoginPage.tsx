@@ -77,7 +77,16 @@ const InputBlock: React.FC<{
 
 // -----------------------------------------------------------------------
 
+// Demo credential surfaced on the login page in local dev OR a demo build
+// (VITE_DEMO_MODE=true) — never on a real prod build. admin@acme.test exists in
+// the local seed and is provisioned in the cloud demo. See docs/environments.md.
+const DEMO_EMAIL = 'admin@acme.test';
+const DEMO_PASSWORD = 'Passw0rd!dev';
+
 const LoginPage: React.FC = () => {
+  // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
+  const showDemoLogin =
+    import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
   const { signInWithPassword, signInWithMagicLink } = useAuth();
   const navigate = useNavigate();
 
@@ -191,12 +200,29 @@ const LoginPage: React.FC = () => {
               Send magic link
             </Button>
 
-            {/* Dev-seed hint (kept from prototype; muted-foreground, mono font) */}
-            {import.meta.env.DEV && (
-              <p className="text-center text-[11.5px] text-muted-foreground">
-                Dev seed:{' '}
-                <span className="font-mono text-[11px]">pm@acme.test / Passw0rd!dev</span>
-              </p>
+            {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
+                Surfaces the demo admin credential + a one-click fill so a client can sign in. */}
+            {showDemoLogin && (
+              <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5 text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  Demo login
+                </p>
+                <p className="font-mono text-[11.5px] text-foreground">
+                  {DEMO_EMAIL} / {DEMO_PASSWORD}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(DEMO_EMAIL);
+                    setPassword(DEMO_PASSWORD);
+                    setError(null);
+                  }}
+                  disabled={busy}
+                  className="text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Use demo login
+                </button>
+              </div>
             )}
           </CardPad>
         </Card>
