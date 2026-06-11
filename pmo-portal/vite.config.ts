@@ -45,6 +45,11 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: 'http://localhost:54321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+      VITE_POSTHOG_KEY: '',
+      VITE_POSTHOG_HOST: 'https://us.i.posthog.com',
+      VITE_ANALYTICS_ENABLED: 'false',
+      VITE_DEMO_MODE: 'false',
+      VITE_APP_ENV: 'test',
     },
     coverage: {
       provider: 'v8',
