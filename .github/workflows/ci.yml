@@ -72,7 +72,7 @@ jobs:
 
       - uses: supabase/setup-cli@v2
         with:
-          version: 2.104.0
+          version: 2.105.0
 
       - uses: actions/setup-node@v5
         with:
