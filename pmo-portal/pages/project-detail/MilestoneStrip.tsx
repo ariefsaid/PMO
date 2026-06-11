@@ -309,7 +309,7 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
           ) : (
             // m-4: text-foreground when input_pct is set (authoritative); muted otherwise.
             <span
-              className={`text-[13px] font-bold tabular ${m.input_pct != null ? 'text-foreground' : 'text-muted-foreground'} ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
+              className={`text-[13px] font-bold tabular ${m.input_pct != null ? 'text-foreground' : 'text-muted-foreground'} ${canEdit ? 'cursor-pointer hover:underline touch-target inline-flex min-h-8 items-center' : ''}`}
               onClick={canEdit ? startEdit : undefined}
               role={canEdit ? 'button' : undefined}
               tabIndex={canEdit ? 0 : undefined}
