@@ -80,9 +80,13 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
   const weightField = form.fieldProps('weight');
   const pctField = form.fieldProps('input_pct');
 
-  const errorSummary = form.errors.name
-    ? [{ fieldId: nameField.id, message: form.errors.name }]
-    : undefined;
+  const errorSummary = (() => {
+    const items: { fieldId: string; message: string }[] = [];
+    if (form.errors.name) items.push({ fieldId: nameField.id, message: form.errors.name });
+    if (form.errors.weight) items.push({ fieldId: weightField.id, message: form.errors.weight });
+    if (form.errors.input_pct) items.push({ fieldId: pctField.id, message: form.errors.input_pct });
+    return items.length > 0 ? items : undefined;
+  })();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
