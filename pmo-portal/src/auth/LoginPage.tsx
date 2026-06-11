@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
 import { cn } from '../components/ui/cn';
 import { Icon } from '../components/ui/icons';
+import { analyticsClient } from '../lib/analytics';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -90,6 +91,10 @@ const DEMO_PERSONAS: { label: string; email: string }[] = [
   { label: 'Admin',           email: 'admin@acme.test' },
 ];
 
+const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' => {
+  return message.toLowerCase().includes('invalid') ? 'invalid_credentials' : 'auth_error';
+};
+
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
@@ -111,9 +116,14 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
     if (error) {
+      analyticsClient.capture('auth_login_failed', {
+        method: 'password',
+        reason_code: authReasonCode(error),
+      });
       setError(error);
       return;
     }
+    analyticsClient.capture('auth_login_succeeded', { method: 'password' });
     navigate('/', { replace: true });
   };
 
@@ -124,9 +134,14 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithMagicLink(email);
     setBusy(false);
     if (error) {
+      analyticsClient.capture('auth_login_failed', {
+        method: 'magic_link',
+        reason_code: authReasonCode(error),
+      });
       setError(error);
       return;
     }
+    analyticsClient.capture('auth_login_succeeded', { method: 'magic_link' });
     setNotice('Check your email for a sign-in link.');
   };
 
@@ -224,6 +239,9 @@ const LoginPage: React.FC = () => {
                       type="button"
                       aria-label={`${label} — ${email}`}
                       onClick={() => {
+                        analyticsClient.capture('demo_persona_selected', {
+                          persona_role: label,
+                        });
                         setEmail(email);
                         setPassword(DEMO_PASSWORD);
                         setError(null);

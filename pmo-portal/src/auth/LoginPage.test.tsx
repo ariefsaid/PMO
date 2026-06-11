@@ -8,11 +8,19 @@ const auth = vi.hoisted(() => ({
   signInWithOtp: vi.fn(),
 }));
 
+const analytics = vi.hoisted(() => ({
+  capture: vi.fn(),
+}));
+
 const navigateSpy = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', async (orig) => {
   const actual = await orig<typeof import('react-router-dom')>();
   return { ...actual, useNavigate: () => navigateSpy };
 });
+
+vi.mock('@/src/lib/analytics', () => ({
+  analyticsClient: analytics,
+}));
 
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
@@ -47,7 +55,9 @@ function renderLogin() {
 beforeEach(() => {
   auth.signInWithPassword.mockReset();
   auth.signInWithOtp.mockReset();
+  analytics.capture.mockReset();
   navigateSpy.mockReset();
+  vi.unstubAllEnvs();
 });
 
 describe('LoginPage', () => {
@@ -210,5 +220,50 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: /Executive/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Project Manager/i })).toBeNull();
     vi.unstubAllEnvs();
+  });
+
+  it('AC-PH-012: demo persona selection captures role only, not email', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    renderLogin();
+
+    await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
+
+    expect(analytics.capture).toHaveBeenCalledWith('demo_persona_selected', {
+      persona_role: 'Executive',
+    });
+    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('exec@acme.test');
+  });
+
+  it('AC-PH-013: login failure emits a safe auth event', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Invalid login credentials' } });
+    renderLogin();
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() =>
+      expect(analytics.capture).toHaveBeenCalledWith('auth_login_failed', {
+        method: 'password',
+        reason_code: 'invalid_credentials',
+      })
+    );
+    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('pm@acme.test');
+  });
+
+  it('AC-PH-013: login success emits a safe auth event', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: null });
+    renderLogin();
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() =>
+      expect(analytics.capture).toHaveBeenCalledWith('auth_login_succeeded', {
+        method: 'password',
+      })
+    );
+    expect(JSON.stringify(analytics.capture.mock.calls)).not.toContain('pm@acme.test');
   });
 });
