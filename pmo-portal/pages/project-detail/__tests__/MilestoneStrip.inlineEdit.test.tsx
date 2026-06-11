@@ -153,4 +153,58 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     });
     expect(updateSpy).not.toHaveBeenCalled();
   });
+
+  it('I-6: pressing Enter commits the edit (calls update)', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    fireEvent.change(inputEl, { target: { value: '55' } });
+    fireEvent.keyDown(inputEl, { key: 'Enter' });
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 55 } });
+    });
+  });
+
+  it('I-6: pressing Esc cancels the edit (no mutation, input disappears)', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    fireEvent.change(inputEl, { target: { value: '55' } });
+    fireEvent.keyDown(inputEl, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('I-6: blur commits the edit (calls update)', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    fireEvent.change(inputEl, { target: { value: '42' } });
+    fireEvent.blur(inputEl);
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 42 } });
+    });
+  });
+
+  it('I-6: native number spinner is suppressed (appearance: textfield)', async () => {
+    mockRole = 'Project Manager';
+    render$();
+    const pmCell = screen.getByLabelText('PM input');
+    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
+    fireEvent.click(editableEl);
+    const inputEl = await screen.findByLabelText('Edit PM input %');
+    // The input should carry the class/style that suppresses the native spinner.
+    expect(inputEl.className).toMatch(/appearance.*textfield|textfield/);
+  });
 });

@@ -229,11 +229,16 @@ const Projects: React.FC = () => {
                 </button>
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
+              </div>
+              {/* I-5: delivery-% chip as a separated trailing element after the code line
+                  so it doesn't run-on into the project name. e2e locator stays intact:
+                  seabridgeRow.getByLabel('Delivery 100%'). */}
+              <div className="flex items-center gap-1.5">
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  {p.code ?? p.id.slice(0, 8)}
+                </div>
                 {/* AC-DEL-013: delivery-% chip (absent when project has no milestones). */}
                 <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
-              </div>
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
-                {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground/80">

@@ -99,19 +99,29 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   }, [open, confirmDiscard, requestClose]);
 
   // Focus: capture the trigger, move focus into the dialog on open, restore on close.
+  // C-1: prefer the first FORM FIELD (input/select/textarea) over buttons so the close
+  //      icon-button — which appears first in DOM order — is skipped on open.
+  // C-2: when the consumer conditionally unmounts the modal (the MilestoneStrip pattern),
+  //      the `open=false` branch never runs; a cleanup callback handles that case so focus
+  //      always restores to the trigger regardless of how the modal is removed from the tree.
   useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement | null;
-      // First focusable inside the dialog (a field), falling back to the dialog.
-      const root = dialogRef.current;
-      const first = root?.querySelector<HTMLElement>(
-        'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      (first ?? root)?.focus();
-    } else if (triggerRef.current) {
-      triggerRef.current.focus();
-      triggerRef.current = null;
-    }
+    if (!open) return;
+
+    triggerRef.current = document.activeElement as HTMLElement | null;
+    const root = dialogRef.current;
+    // First real form field; fall back to any focusable; then the dialog container itself.
+    const firstField = root?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const firstAny = root?.querySelector<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    (firstField ?? firstAny ?? root)?.focus();
+
+    // C-2 cleanup: restore focus when this effect re-runs (open→false) OR when the
+    // component is unmounted while still open (conditional-render consumer).
+    return () => {
+      if (triggerRef.current) {
+        triggerRef.current.focus();
+        triggerRef.current = null;
+      }
+    };
   }, [open]);
 
   // Move focus to the first invalid field when an error summary appears.

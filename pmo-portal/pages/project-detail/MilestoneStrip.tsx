@@ -118,7 +118,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
       ) : (
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h3>
+            {/* m-1: h3→h2 ("Milestones" is a top-level section of the page). */}
+            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h2>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
                 <Icon name="plus" />
@@ -221,7 +222,8 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/30 p-3">
+    // I-3: drop the inner bg — rely on the border alone (DESIGN.md borders-define-structure).
+    <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       {/* Header row: name + date + affordances */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" title={m.name}>
@@ -230,20 +232,21 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
         {m.target_date && (
           <span className="text-[11.5px] text-muted-foreground tabular">{m.target_date}</span>
         )}
+        {/* C-3: drop explicit size="sm" so iconOnly resolves to 'icon' (32px + touch-target). */}
         {canEdit && (
-          <Button variant="ghost" size="sm" iconOnly aria-label={`Edit ${m.name}`} onClick={onEdit}>
+          <Button variant="ghost" iconOnly aria-label={`Edit ${m.name}`} onClick={onEdit}>
             <Icon name="pencil" />
           </Button>
         )}
         {canDelete && (
           <Button
             variant="ghost"
-            size="sm"
             iconOnly
             aria-label={`Delete ${m.name}`}
             onClick={onDelete}
           >
-            <Icon name="x" />
+            {/* m-2: trash glyph instead of ×. */}
+            <Icon name="trash" />
           </Button>
         )}
       </div>
@@ -258,7 +261,8 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
           aria-label="From tasks"
           className="flex flex-col gap-0.5"
         >
-          <span className="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
+          {/* I-2: overline token treatment. */}
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             From tasks
           </span>
           <span className="text-[13px] font-bold tabular text-muted-foreground">
@@ -268,20 +272,27 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
 
         {/* PM input (editable for PM/Admin) */}
         <span aria-label="PM input" className="flex flex-col gap-0.5">
-          <span className="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
+          {/* I-2: overline token treatment. */}
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             PM input
           </span>
           {canEdit && editing ? (
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1">
+                {/* I-6: Enter commits, Esc cancels, blur commits; no native spinner. */}
                 <input
                   type="number"
                   min={0}
                   max={100}
                   aria-label="Edit PM input %"
-                  className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   value={inputVal}
                   onChange={(e) => { setInputVal(e.target.value); setInputError(null); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); void saveEdit(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                  }}
+                  onBlur={() => { void saveEdit(); }}
                   autoFocus
                 />
                 <Button variant="primary" size="sm" onClick={saveEdit}>
@@ -296,8 +307,9 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
               )}
             </span>
           ) : (
+            // m-4: text-foreground when input_pct is set (authoritative); muted otherwise.
             <span
-              className={`text-[13px] font-bold tabular ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
+              className={`text-[13px] font-bold tabular ${m.input_pct != null ? 'text-foreground' : 'text-muted-foreground'} ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
               onClick={canEdit ? startEdit : undefined}
               role={canEdit ? 'button' : undefined}
               tabIndex={canEdit ? 0 : undefined}

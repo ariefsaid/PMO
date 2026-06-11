@@ -720,6 +720,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
 
   const renderGroup = (ms: MilestoneWithProgress | null, groupTasks: TaskWithRefs[]) => {
     const sectionLabel = ms ? ms.name : 'Ungrouped';
+    const isUngrouped = ms === null;
     return (
       <section
         key={ms?.id ?? 'ungrouped'}
@@ -727,7 +728,12 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         className="mb-4"
       >
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
-          <span className="text-[13px] font-bold">{sectionLabel}</span>
+          {/* I-7: "Ungrouped" is a catch-all bucket — differentiate with muted+italic, no % chip. */}
+          {isUngrouped ? (
+            <span className="text-[12px] italic text-muted-foreground">{sectionLabel}</span>
+          ) : (
+            <span className="text-[13px] font-bold">{sectionLabel}</span>
+          )}
           {ms?.target_date && (
             <span className="text-[11.5px] text-muted-foreground">{ms.target_date}</span>
           )}

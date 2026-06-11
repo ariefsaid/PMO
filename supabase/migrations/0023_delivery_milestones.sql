@@ -76,6 +76,8 @@ revoke execute on function get_project_milestones(uuid) from anon;
 
 -- §5 — get_projects_delivery(p_ids): weight-weighted project delivery % per project (FR-DEL-006, D-2).
 -- NULL delivery_pct (or absent row) ⇒ no chip. A project with no milestones is simply not in the result.
+-- I-1 no-signal suppression: if ALL milestones carry no signal (input_pct IS NULL and task_count = 0),
+-- the project delivery_pct is NULL — suppresses the misleading "0%" chip for brand-new projects.
 -- Same effective_pct expression as §4 (single source of truth for the rollup formula).
 create or replace function get_projects_delivery(p_ids uuid[])
   returns table (project_id uuid, delivery_pct numeric)
@@ -86,14 +88,19 @@ create or replace function get_projects_delivery(p_ids uuid[])
              m.input_pct,
              count(t.id) filter (where t.status = 'Done') * 100.0 / nullif(count(t.id), 0),
              0
-           ) as effective_pct
+           ) as effective_pct,
+           -- has_signal: true when the milestone has tasks or an explicit input_pct.
+           (m.input_pct is not null or count(t.id) > 0) as has_signal
       from project_milestones m
       left join tasks t on t.milestone_id = m.id
      where m.project_id = any(p_ids)
      group by m.id
   )
   select project_id,
-         sum(weight * effective_pct) / nullif(sum(weight), 0) as delivery_pct
+         -- I-1: return NULL when NO milestone in the project carries any signal.
+         case when bool_or(has_signal) then
+           sum(weight * effective_pct) / nullif(sum(weight), 0)
+         else null end as delivery_pct
     from eff
    group by project_id;
 $$;

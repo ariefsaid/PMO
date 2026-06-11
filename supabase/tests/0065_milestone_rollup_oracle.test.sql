@@ -3,7 +3,7 @@
 -- Also covers: null calculated_pct for a task-less milestone; project with no milestones absent from result.
 -- Fixture namespace: 00650000-… (unique to this test).
 begin;
-select plan(7);
+select plan(9);
 
 -- ── Fixtures (table owner, bypassing RLS) ───────────────────────────────────
 insert into auth.users (id, email) values
@@ -112,6 +112,40 @@ select is(
      from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
   0,
   'AC-DEL-007/019: a project with no milestones is absent from get_projects_delivery');
+
+-- I-1 no-signal suppression: a project whose milestones ALL have no tasks and no input_pct
+-- must return NULL delivery_pct (not a misleading 0%), so the chip is suppressed.
+-- Using the empty project (00650000-0000-0000-0000-000000000021) with two no-signal milestones.
+reset role;
+insert into project_milestones (id, org_id, project_id, name, weight, sort_order)
+  values
+    ('00650000-0000-0000-0000-000000000041','00000000-0000-0000-0000-000000000001',
+     '00650000-0000-0000-0000-000000000021','No-signal A',1,0),
+    ('00650000-0000-0000-0000-000000000042','00000000-0000-0000-0000-000000000001',
+     '00650000-0000-0000-0000-000000000021','No-signal B',1,1);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00650000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select ok(
+  (select delivery_pct is null
+     from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
+  'I-1: get_projects_delivery returns NULL when ALL milestones have no tasks and no input_pct');
+
+-- I-1: a project with milestones that HAVE tasks (even 0 done) returns a non-null delivery_pct (real 0%).
+-- Add one task (not done) to no-signal A to give it a signal.
+reset role;
+insert into tasks (id, org_id, project_id, milestone_id, name, status)
+  values ('00650000-0000-0001-0004-000000000001','00000000-0000-0000-0000-000000000001',
+          '00650000-0000-0000-0000-000000000021','00650000-0000-0000-0000-000000000041','NS-T1','To Do');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00650000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select ok(
+  (select delivery_pct is not null
+     from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
+  'I-1: get_projects_delivery returns non-null when at least one milestone has a task (real 0%)');
 
 reset role;
 
