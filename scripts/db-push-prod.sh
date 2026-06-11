@@ -14,6 +14,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# PATH defense: Homebrew's libpq (psql) is keg-only / not symlinked onto PATH.
+export PATH="/opt/homebrew/opt/libpq/bin:/usr/local/opt/libpq/bin:$PATH"
+
 # Non-secret op-get coordinates (item / vault / field).
 . supabase/op.prod.env
 OP_GET="$(command -v op-get.sh || echo "$HOME/.local/bin/op-get.sh")"
@@ -33,9 +36,16 @@ fi
 : "${SUPABASE_PROD_DB_URL:?No PROD secret — set up 1Password (op-get.sh / vault $OP_PROD_VAULT) or supabase/.env.prod. See docs/environments.md}"
 
 if [ "${1:-}" = "--check" ]; then
-  echo "→ PROD: secret resolved; checking DB reachability…"
-  psql "$SUPABASE_PROD_DB_URL" -tAc 'select 1' >/dev/null \
-    && echo "✓ PROD is usable (1Password resolved + DB reachable)."
+  echo "→ PROD: secret resolved; checking DB reachability (supabase dry-run, no changes applied)…"
+  # --dry-run connects to compare migrations but applies nothing; needs no psql, prints no secret.
+  if supabase db push --db-url "$SUPABASE_PROD_DB_URL" --dry-run >/dev/null 2>&1; then
+    echo "✓ PROD is usable (1Password resolved + DB reachable)."
+  else
+    echo "✗ PROD check failed: secret resolved, but could not connect to the DB." >&2
+    echo "  Common causes: the URL is the Direct (IPv6) connection on an IPv4 network — use the" >&2
+    echo "  Session pooler URI (port 5432); or the password needs percent-encoding. See docs/environments.md." >&2
+    exit 1
+  fi
   exit 0
 fi
 

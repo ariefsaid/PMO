@@ -13,6 +13,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# PATH defense: Homebrew's libpq (psql, used by --seed) is keg-only / not on PATH.
+export PATH="/opt/homebrew/opt/libpq/bin:/usr/local/opt/libpq/bin:$PATH"
+
 . supabase/op.test.env
 OP_GET="$(command -v op-get.sh || echo "$HOME/.local/bin/op-get.sh")"
 
@@ -28,9 +31,13 @@ fi
 : "${SUPABASE_TEST_DB_URL:?No hosted-test secret — today test = local Docker ('supabase db reset'). See docs/environments.md}"
 
 if [ "${1:-}" = "--check" ]; then
-  echo "→ TEST: secret resolved; checking DB reachability…"
-  psql "$SUPABASE_TEST_DB_URL" -tAc 'select 1' >/dev/null \
-    && echo "✓ hosted TEST is usable (1Password resolved + DB reachable)."
+  echo "→ TEST: secret resolved; checking DB reachability (supabase dry-run)…"
+  if supabase db push --db-url "$SUPABASE_TEST_DB_URL" --dry-run >/dev/null 2>&1; then
+    echo "✓ hosted TEST is usable (1Password resolved + DB reachable)."
+  else
+    echo "✗ TEST check failed: secret resolved but could not connect (try the Session pooler URI). See docs/environments.md." >&2
+    exit 1
+  fi
   exit 0
 fi
 
