@@ -71,7 +71,9 @@ The SPA inlines `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at **build** time
 backend. The **anon key is public-safe** (it ships in the bundle; RLS is the authority), so it lives in the host's
 plaintext build env vars — no 1Password needed for the frontend.
 
-**Cloudflare Pages project settings** (dashboard → Workers & Pages → create → connect this repo):
+**Cloudflare Pages project settings** (project `pmo`, account `2484…1bbf`):
+- **Production branch:** `production` (the live deploy). `main` + PRs → **preview** deploys. **Release by
+  merging `main → production`.** (Set via the CF API; wrangler has no setter for an existing project.)
 - **Root directory:** `pmo-portal`  ·  **Build command:** `npm run build`  ·  **Build output directory:** `dist`
 - **Node:** pinned via `pmo-portal/.node-version` (22) — no env var needed.
 - **SPA routing:** `pmo-portal/public/_redirects` (`/*  /index.html  200`) is copied into `dist/` by Vite, so
