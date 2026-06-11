@@ -16,6 +16,25 @@ Establish the design system before any UI issue builds on it.
 2. **Owner sign-off** — the owner approves `DESIGN.md` (taste is the owner's gate, like spec
    sign-off). Until signed, no UI issue proceeds.
 
+## 1a. Pre-spec HTML mockup gate (every UI issue — before Spec)
+Runs at **intake**, right after the `grill-with-docs` alignment grill (`docs/director-playbook.md`
+§2 step 1b/1c) and **before any spec/plan/build effort is committed**. The mockup is the cheap
+artifact that absorbs taste/IxD/IA iteration so the per-issue loop (§2) doesn't re-litigate it
+post-build.
+
+1. **Artifact** — a static HTML+CSS mockup (no build step, no React) under
+   `docs/design-mockups/<issue-slug>/`, styled strictly with `DESIGN.md` tokens. It must show the
+   key states (default / empty / error at minimum) and the mobile breakpoint, not just the happy
+   desktop frame.
+2. **Full design round on the mockup** — same discipline as a real UI build:
+   design-plan (`design-architect`) → mockup build (`ui-implementer`) → the **three-lens review
+   battery** of §2.3 (visual/correctness, IxD task-flow, IA structure) rendered in a browser →
+   fix rounds until ship-clean.
+3. **Owner approval** — the owner approves the mockup the way they sign off a spec. The approved
+   mockup then becomes a **binding input** to the spec and the per-issue design-plan (§2.1).
+4. **Status: design-binding, code-throwaway** — the later React implementation builds to
+   `DESIGN.md` tokens + the design-plan; mockup markup is never copied into the app.
+
 ## 2. Per-UI-issue loop
 Slots into the Director per-issue loop **between Build and Accept** (so a feature's data/logic lands
 under TDD, then its UI is designed, built, and reviewed). The **BDD authoring rule** still governs the

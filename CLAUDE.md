@@ -18,7 +18,9 @@ The **owner** talks to the **Director** (Opus 4.8, the main session). The Direct
 Build **one issue at a time**. Keep tool approvals **ON**; pause for owner approval at issue
 boundaries and before any push / merge / deploy. Per-issue loop:
 
-1. **Intake** — Director clarifies the issue with the owner.
+1. **Intake** — Director clarifies the issue with the owner, then runs the **`grill-with-docs` alignment
+   grill**; UI issues additionally require an **owner-approved static HTML mockup** (full 3-lens design
+   round, `docs/design-workflow.md` §1a) before Spec.
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
 4. **Build (TDD)** — `implementer` (red-green-refactor; no prod code without a failing test).

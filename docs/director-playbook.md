@@ -13,6 +13,17 @@ never write app code yourself — you delegate and **verify**.
 ## 2. The per-issue loop (one issue at a time, one branch, one PR)
 1. **Intake** — clarify the issue with the owner (or, in autonomous mode, pick the top non-blocked
    backlog item). State the locked decisions you're applying up front.
+1b. **Grill (alignment gate — before any spec effort)** — run the `grill-with-docs` skill with the
+   owner: challenge the proposed issue against the existing domain model (`docs/glossary.md`, ADRs,
+   locked `OD-*` decisions in `docs/decisions.md`), sharpen terminology, and update glossary/ADRs
+   inline as decisions crystallise. No spec work starts until the grill ends in owner alignment —
+   this is where misframed issues die cheaply.
+1c. **HTML mockup (UI issues only — before any spec effort)** — when the issue includes frontend
+   work, produce a static HTML mockup FIRST and take it through a **full design round** per
+   `docs/design-workflow.md` §1a (design-plan → mockup build → three-lens design review → fix
+   rounds) before presenting it for **owner approval**. Only an approved mockup unlocks Spec.
+   Purpose: front-load taste/IxD/IA decisions onto a cheap artifact so they don't recur as
+   post-build fix rounds.
 2. **Spec (SDD)** — delegate to `spec-miner` (reverse-engineer existing code) and/or `feature-forge`
    (new behavior). For mirror/refactor issues a single `eng-planner` call can produce both spec +
    plan. Output: `docs/specs/<feature>.spec.md` — EARS `FR-/OBS-/NFR-###` + Given/When/Then `AC-###`,
