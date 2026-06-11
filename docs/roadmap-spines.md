@@ -201,11 +201,14 @@ approval (OD-TS-3 trigger is T3's billing / cost need, let it pull).
 
 ## 5. Decision log
 
-**2026-06-11 (owner):** Next build program = **spine 3, Delivery backbone** (phases + stage-gates
-+ %-complete). Delivery state lives on the canonical `/projects/:id` detail page (ADR-0021) —
-phase strip in the header area, phase grouping + rollups on the Tasks tab, current-phase /
-%-rollup chips on Projects list + dashboards; no new nav module. Phase-definition model (fixed
-enum vs org-configurable template vs free-form) NOT yet decided.
+**2026-06-11 (owner):** Next build program = **spine 3, Delivery backbone** (milestones + task
+grouping + %-complete rollup). Delivery state lives on the canonical `/projects/:id` detail
+page (ADR-0021) — milestone strip in the header area, milestone grouping on the Tasks tab,
+delivery-% rollup chips on Projects list + dashboards; no new nav module. All structural
+decisions are now locked: see **OD-DEL-2..7** in `docs/decisions.md` — milestones are
+free-form per project (OD-DEL-2), two-level hierarchy only (OD-DEL-3), two-column calculated
++ input % (OD-DEL-4), weight-weighted project delivery % (OD-DEL-5), no stage-gates (OD-DEL-6),
+PM + Admin writes (OD-DEL-7). Spec: `docs/specs/delivery-milestones.spec.md`.
 
 **2026-06-11 (owner):** O&M = **spine 9**, distinct from Delivery. Rationale: Delivery is a
 finite engagement ending at commissioning / handover. O&M is a recurring contract that begins

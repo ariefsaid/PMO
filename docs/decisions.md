@@ -353,5 +353,76 @@ Preserves the editable grid mental model; the sticky cols + scroll-fade make it 
 ### OD-W4-4 — Adopt `md` (768px) as the table→card reflow breakpoint, a DESIGN.md standard; keep TWO breakpoints (920px rail-collapse / 768px table-reflow)
 The shared `DataTable` dual-renders: `<table hidden md:block>` + a `md:hidden` stacked-card list reusing the existing `Column.header/cell/rowLabel/rowMenu/state` API — zero consumer churn, desktop byte-unchanged (can't regress), every list inherits it. The only DESIGN.md addition is documenting the 768px reflow breakpoint (no new color/type/spacing token). Build + 375px rendered design-review per PR (not mockup-first — the owner steered straight to mobile; the rendered review catches reads-wrong). PR order: PR-1 DataTable→card + touch-target sweep (highest reach, lowest risk) → PR-2 shell hardening → PR-3 detail surfaces (tabs strip, header, kanban scroll-snap, timesheet/stepper hardening).
 
+## OD-DEL — Delivery backbone: milestones + task grouping (LOCKED 2026-06-11)
+
+Feature: spine 3 — delivery execution state on the canonical `/projects/:id` detail page
+(ADR-0021). No new nav module.
+
+### OD-DEL-1 — Location: canonical project detail, no new nav module
+Delivery state lives entirely on the existing `/projects/:id` page (ADR-0021): a milestone
+strip in the header area, milestone grouping on the Tasks tab, and delivery-% rollup chips on
+the Projects list and dashboards. No standalone `/delivery` route or separate delivery module.
+Every lifecycle stage can display milestones (a pre-win deal can be planned) — consistent with
+ADR-0021's "tabs at every stage" rule.
+
+### OD-DEL-2 — Milestones are free-form per project (no org-level taxonomy in MVP)
+Milestones are created freely by the PM per project — there is no org-level template or
+taxonomy. Forward seam: an org template (following the `pipeline_stage_config` pattern) may
+later pre-fill per-project rows; because the per-project shape is identical either way, nothing
+would need to be unwound. Owner chose simplicity over portfolio phase-comparability; overall
+project-% stays comparable across projects regardless.
+
+### OD-DEL-3 — Two-level hierarchy only: milestone → tasks (nullable milestone_id)
+Milestones group tasks via a nullable `milestone_id` on `tasks`. Tasks without a `milestone_id`
+are ungrouped. No sub-milestones, sub-tasks, or WBS nesting beyond this two-level structure.
+Deeper nesting is deferred until a real customer need justifies it; it is additive (a
+`parent_id` on tasks) with no rework required.
+
+### OD-DEL-4 — Two-column progress: calculated + input (no override machinery)
+Milestone progress is two columns, both always visible:
+- **Calculated %** — read-only, derived from the milestone's tasks: `Done tasks / total tasks`
+  (expressed as a %). Empty (null) when the milestone has no tasks.
+- **Input %** — nullable, typed by the PM.
+- **Effective %** = `input_pct` when non-null; else `calculated_pct`; else `0`.
+
+Both columns render side by side so any divergence between the PM's figure and task-derived
+progress is self-evident. Blanking the input field returns authority to the calculated value.
+(Owner refined this from earlier "manual + hint" and "override-flag" variants discussed in the
+same session.)
+
+### OD-DEL-5 — Project delivery % = weight-weighted average of milestones' effective %
+`delivery_pct = Σ(milestone.weight × milestone.effective_pct) / Σ(milestone.weight)`.
+PM assigns weights; default = equal weights (each milestone's share = 1/N). Null milestones
+with no effective % contribute 0. A project with no milestones has no delivery %. Budget-
+value-weighted variant (weight = milestone budget allocation) is deferred to the cost-code
+track.
+
+**Worked example.** 3 milestones, weights 20/30/50, effective % 100/40/0:
+`(20×100 + 30×40 + 50×0) / (20+30+50) = (2000+1200+0)/100 = 3200/100 = 32%`.
+
+### OD-DEL-6 — No stage-gates in MVP
+Milestones are ordered and dated but nothing blocks progression between them. No gate
+enforcement: a later milestone may be marked in progress even if an earlier one is incomplete.
+Revisit gate enforcement with the progress-billing track — payment milestones naturally demand
+gated sign-off before a payment application can be raised.
+
+### OD-DEL-7 — Write authorization: PM + Admin (milestone CRUD, input-%, weights)
+Milestone create/edit/delete, input-% updates, and weight edits are gated to Project Manager
+and Admin roles (`can()` UX + RLS authority per ADR-0016/0019 patterns). Engineers influence
+the calculated % only through their own task statuses, governed by the existing
+migration-0016 task-status RLS (no change). Finance and Executive are read-only on milestones
+(no write affordance).
+
+### OD-DEL-8 — O&M = spine 9, distinct from Delivery
+Delivery is finite: it ends at handover/commissioning. O&M is a recurring post-handover
+contract (maintenance schedules, SLAs, asset care). Conflating them would force the milestone
+model to represent both a one-time project lifecycle and an ongoing maintenance cycle — two
+incompatible time shapes. The handover gate is the explicit birth event of an O&M contract and
+its installed-asset record. Spine 9 therefore has a hard dependency on spine 4 (recurring
+billing) and spine 8 (asset registry) and is sequenced after them. Defined in
+`docs/roadmap-spines.md` and `docs/glossary.md`.
+
+---
+
 ## OD-ARCH-1 — REST-first reads; RPCs reserved for SoD + aggregation + atomic minting (owner-affirmed 2026-06-10)
 (Re-recorded — an earlier commit of this was lost.) Owner asked "why not REST?" during Wave-5 C5 (after migration 0020 extended the `get_sales_pipeline` RPC). Confirmed principle (the app already follows it): data reads/writes go through **PostgREST `.from().select()`** via the repository/DAL seam (ADR-0017) — 17 DAL files, embedded joins, the portable/BE-swappable path. **`.rpc()` is reserved** for what REST can't/shouldn't do: (a) server-enforced **SoD / state machines** (`transition_*`, `set_project_contract_value`, `select_procurement_quote` — the authority must be a security function), (b) server-side **aggregation** (`get_executive_dashboard`, `get_sales_pipeline`, `get_win_rate`, `get_project_budget` — grouped rollups REST can't express in one call), (c) **atomic number-minting creates** (`create_procurement_receipt/invoice/quotation`). RPCs add Postgres coupling, justified only for these. **Owner chose to EXTEND the existing RPC** (Wave-5 C5 / migration 0020 added `last_update`+owner to `get_sales_pipeline`) for one-call/one-source cohesion rather than a second REST round-trip — accepting the modest coupling. Going forward: lean REST for simple per-row reads; extend/author an RPC only when the funnel/SoD already lives there.
