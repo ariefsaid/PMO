@@ -151,11 +151,13 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
   });
 
-  it('demo panel: shows the demo credential and "Use demo login" fills the form (VITE_DEMO_MODE)', async () => {
+  it('demo panel: shows the demo password and admin fill button (VITE_DEMO_MODE)', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
-    expect(screen.getByText(/admin@acme\.test \/ Passw0rd!dev/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /use demo login/i }));
+    // Password hint is visible
+    expect(screen.getByText(/password: Passw0rd!dev/i)).toBeInTheDocument();
+    // Admin persona button is present and fills admin@ credentials
+    await userEvent.click(screen.getByRole('button', { name: /admin@acme\.test/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('admin@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
     vi.unstubAllEnvs();
@@ -165,7 +167,48 @@ describe('LoginPage', () => {
     vi.stubEnv('DEV', false);
     vi.stubEnv('VITE_DEMO_MODE', '');
     renderLogin();
-    expect(screen.queryByRole('button', { name: /use demo login/i })).toBeNull();
+    // None of the persona buttons should be present
+    expect(screen.queryByRole('button', { name: /admin@acme\.test/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /exec@acme\.test/i })).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it('AC-DEMO-014: demo panel lists all five role personas with one-click fill', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    renderLogin();
+
+    // All 5 persona fill buttons must be present
+    const personas = [
+      { email: 'exec@acme.test',     label: /exec@acme\.test/i },
+      { email: 'pm@acme.test',       label: /pm@acme\.test/i },
+      { email: 'finance@acme.test',  label: /finance@acme\.test/i },
+      { email: 'engineer@acme.test', label: /engineer@acme\.test/i },
+      { email: 'admin@acme.test',    label: /admin@acme\.test/i },
+    ];
+
+    for (const p of personas) {
+      expect(screen.getByRole('button', { name: p.label })).toBeInTheDocument();
+    }
+
+    // Clicking exec@ button fills email + password
+    await userEvent.click(screen.getByRole('button', { name: /exec@acme\.test/i }));
+    expect(screen.getByLabelText(/email/i)).toHaveValue('exec@acme.test');
+    expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
+
+    // Clicking engineer@ button switches credentials
+    await userEvent.click(screen.getByRole('button', { name: /engineer@acme\.test/i }));
+    expect(screen.getByLabelText(/email/i)).toHaveValue('engineer@acme.test');
+    expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
+
+    vi.unstubAllEnvs();
+  });
+
+  it('AC-DEMO-014: demo panel does NOT render when VITE_DEMO_MODE is off (no DEV)', () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_DEMO_MODE', '');
+    renderLogin();
+    expect(screen.queryByRole('button', { name: /exec@acme\.test/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /pm@acme\.test/i })).toBeNull();
     vi.unstubAllEnvs();
   });
 });
