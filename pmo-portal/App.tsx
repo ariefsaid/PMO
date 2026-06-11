@@ -28,6 +28,7 @@ import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
+import { EnvBadge } from '@/src/components/EnvBadge';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -250,18 +251,22 @@ const Shell: React.FC = () => {
 
 // ── Root (eager — auth layer is never lazy-split) ─────────────────────────
 const App: React.FC = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<RequireAuth />}>
-            <Route path="/*" element={<Shell />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  </QueryClientProvider>
+  <>
+    {/* Non-prod backend ribbon (renders null in prod) — see VITE_APP_ENV in docs/environments.md. */}
+    <EnvBadge />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<RequireAuth />}>
+              <Route path="/*" element={<Shell />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  </>
 );
 
 export default App;
