@@ -275,6 +275,65 @@ describe('AnalyticsProvider', () => {
     expect(analytics.reset).not.toHaveBeenCalled();
   });
 
+  it('does not emit duplicate app_route_viewed when role hydrates on the same route', async () => {
+    // First render: no user, role=null, route=/projects
+    const authCtxNoUser = makeAuthCtx();
+    const { rerender } = render(
+      <AuthContext.Provider value={authCtxNoUser}>
+        <MemoryRouter initialEntries={['/projects']}>
+          <AnalyticsProvider>
+            <div />
+          </AnalyticsProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    // Exactly one app_route_viewed for initial mount
+    const routeCallsAfterMount = analytics.capture.mock.calls.filter(
+      (c: unknown[]) => c[0] === 'app_route_viewed',
+    );
+    expect(routeCallsAfterMount).toHaveLength(1);
+    expect(routeCallsAfterMount[0][1]).toMatchObject({
+      route: '/projects',
+      module: 'projects',
+    });
+
+    analytics.capture.mockClear();
+
+    // Re-render with role hydrated (same route, different auth state)
+    const profile = {
+      id: 'u1',
+      full_name: 'Alice Manager',
+      email: 'alice@acme.test',
+      role: 'Project Manager' as const,
+      org_id: 'o1',
+      company_id: null,
+      avatar_url: null,
+      title: null,
+      location: null,
+      manager_id: null,
+      skills: [] as string[],
+      utilization: null,
+      created_at: '',
+      updated_at: '',
+    };
+    rerender(
+      <AuthContext.Provider value={makeAuthCtx({ currentUser: profile, role: 'Project Manager' })}>
+        <MemoryRouter initialEntries={['/projects']}>
+          <AnalyticsProvider>
+            <div />
+          </AnalyticsProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    // Role hydrating on the SAME route must NOT emit another app_route_viewed
+    const routeCallsAfterHydrate = analytics.capture.mock.calls.filter(
+      (c: unknown[]) => c[0] === 'app_route_viewed',
+    );
+    expect(routeCallsAfterHydrate).toHaveLength(0);
+  });
+
   it('AC-PH-011: route capture includes role when available', () => {
     renderTree(
       makeAuthCtx({

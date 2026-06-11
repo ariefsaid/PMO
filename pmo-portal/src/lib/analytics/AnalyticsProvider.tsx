@@ -53,9 +53,14 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [currentUser?.id, currentUser?.org_id, role, superProperties]);
 
-  // Route tracking on every navigation
+  // Route tracking on every navigation — fire only when pathname+search actually
+  // change, NOT when role hydrates on the same route.
+  const trackedPathRef = useRef<string | null>(null);
   useEffect(() => {
-    const route = routeAnalyticsForPath(`${location.pathname}${location.search}`);
+    const pathKey = `${location.pathname}${location.search}`;
+    if (pathKey === trackedPathRef.current) return;
+    trackedPathRef.current = pathKey;
+    const route = routeAnalyticsForPath(pathKey);
     analyticsClient.capture('app_route_viewed', {
       ...route,
       role: role ?? undefined,

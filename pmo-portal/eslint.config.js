@@ -25,10 +25,20 @@ export default tseslint.config(
     ignores: ['src/lib/analytics/**'],
     rules: {
       'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['**/analytics/client'],
-          message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
-        }],
+        patterns: [
+          {
+            group: ['**/analytics/client'],
+            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+          },
+          {
+            group: ['**/analytics/client.ts', '**/analytics/client.js'],
+            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+          },
+          {
+            group: ['@/src/lib/analytics/client', '@/src/lib/analytics/client.ts'],
+            message: 'Import from src/lib/analytics/client only inside src/lib/analytics/. Use the public facade from src/lib/analytics instead.',
+          },
+        ],
       }],
     },
   },
