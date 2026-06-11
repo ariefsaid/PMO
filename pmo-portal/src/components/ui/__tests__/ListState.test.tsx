@@ -11,6 +11,12 @@ describe('ListState', () => {
     expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
   });
 
+  it('loading: testId prop overrides the default liststate-loading testid', () => {
+    render(<ListState variant="loading" testId="milestone-strip-skeleton" />);
+    expect(screen.getByTestId('milestone-strip-skeleton')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('liststate-loading')).toBeNull();
+  });
+
   it('empty: renders icon tile, title, sub, and a LIVE (never disabled) populating action', async () => {
     const onAction = vi.fn();
     render(

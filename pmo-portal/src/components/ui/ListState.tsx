@@ -23,6 +23,8 @@ export interface ListStateProps {
   /** Number of skeleton rows for the loading variant. */
   rows?: number;
   className?: string;
+  /** Override the default `liststate-loading` testid for the loading skeleton wrapper. */
+  testId?: string;
 }
 
 /**
@@ -39,11 +41,12 @@ export const ListState: React.FC<ListStateProps> = ({
   onRetry,
   rows = 5,
   className,
+  testId,
 }) => {
   if (variant === 'loading') {
     return (
       <div
-        data-testid="liststate-loading"
+        data-testid={testId ?? 'liststate-loading'}
         aria-busy="true"
         aria-live="polite"
         className={cn('p-4', className)}

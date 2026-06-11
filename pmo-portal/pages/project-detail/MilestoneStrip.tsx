@@ -84,7 +84,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
         data-testid="milestone-strip-loading"
         className="rounded-lg border border-border bg-card"
       >
-        <ListState variant="loading" rows={2} />
+        <ListState variant="loading" rows={2} testId="milestone-strip-skeleton" />
       </div>
     );
   }
@@ -100,64 +100,58 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
     );
   }
 
-  if (all.length === 0) {
-    if (!canCreate) return null;
-    return (
-      <div data-testid="milestone-strip-empty">
-        <ListState
-          variant="empty"
-          icon="inbox"
-          title="No milestones yet"
-          sub="Add a milestone to track delivery progress"
-          action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
-        />
-        {formTarget !== null && (
-          <MilestoneFormModal
-            milestone={formTarget.milestone}
-            onClose={() => setFormTarget(null)}
-            onCreate={handleModalCreate}
-            onUpdate={handleModalUpdate}
-            onError={handleModalError}
-          />
-        )}
-      </div>
-    );
-  }
+  // Empty with no create permission: render nothing at all.
+  if (all.length === 0 && !canCreate) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h3>
-        {canCreate && (
-          <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
-            <Icon name="plus" />
-            Add milestone
-          </Button>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {all.map((m) => (
-          <MilestoneRow
-            key={m.id}
-            milestone={m}
-            canEdit={canEdit}
-            canDelete={canDelete}
-            onEdit={() => setFormTarget({ milestone: m })}
-            onDelete={() => setDeleteTarget(m)}
-            onUpdateInputPct={async (id, input_pct) => {
-              try {
-                await update.mutateAsync({ id, patch: { input_pct } });
-                toast('Progress updated', m.name, 'success');
-              } catch (err) {
-                const { headline, detail } = classifyMutationError(err);
-                toast(headline, detail, 'warning');
-              }
-            }}
+    <>
+      {all.length === 0 ? (
+        <div data-testid="milestone-strip-empty">
+          <ListState
+            variant="empty"
+            icon="inbox"
+            title="No milestones yet"
+            sub="Add a milestone to track delivery progress"
+            action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
           />
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h3>
+            {canCreate && (
+              <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
+                <Icon name="plus" />
+                Add milestone
+              </Button>
+            )}
+          </div>
 
+          <div className="flex flex-col gap-3">
+            {all.map((m) => (
+              <MilestoneRow
+                key={m.id}
+                milestone={m}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onEdit={() => setFormTarget({ milestone: m })}
+                onDelete={() => setDeleteTarget(m)}
+                onUpdateInputPct={async (id, input_pct) => {
+                  try {
+                    await update.mutateAsync({ id, patch: { input_pct } });
+                    toast('Progress updated', m.name, 'success');
+                  } catch (err) {
+                    const { headline, detail } = classifyMutationError(err);
+                    toast(headline, detail, 'warning');
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Single MilestoneFormModal + ConfirmDialog — shared by both empty and populated branches */}
       {formTarget !== null && (
         <MilestoneFormModal
           milestone={formTarget.milestone}
@@ -178,7 +172,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+    </>
   );
 };
 
