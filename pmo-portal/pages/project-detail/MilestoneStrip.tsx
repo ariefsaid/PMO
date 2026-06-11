@@ -76,13 +76,13 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
     if (!canCreate) return null;
     return (
       <div data-testid="milestone-strip-empty">
-      <ListState
-        variant="empty"
-        icon="flag"
-        title="No milestones yet"
-        sub="Add a milestone to track delivery progress"
-        action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
-      >
+        <ListState
+          variant="empty"
+          icon="flag"
+          title="No milestones yet"
+          sub="Add a milestone to track delivery progress"
+          action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
+        />
         {formTarget !== null && (
           <MilestoneFormModal
             milestone={formTarget.milestone}
@@ -104,7 +104,6 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
             }}
           />
         )}
-      </ListState>
       </div>
     );
   }
