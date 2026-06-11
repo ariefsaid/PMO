@@ -35,7 +35,7 @@ describe('parseMoneyInput — the single parse for validation AND persistence (W
   });
 });
 
-describe('pct — nullable % formatter (m5, moved from milestoneUtils)', () => {
+describe('pct — nullable % formatter (added for delivery-milestones feature)', () => {
   it('null renders an em-dash', () => {
     expect(pct(null)).toBe('—');
   });
