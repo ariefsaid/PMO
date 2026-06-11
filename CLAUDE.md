@@ -107,8 +107,7 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
 - Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ## Supabase environments (binding — full rules + registry: `docs/environments.md`)
-Multiple envs (local/test/prod) on one device; the CLI link is **per-repo** (`supabase/.temp/`, gitignored)
-and **pinned to test**. Run `supabase` only from the repo root. Push migrations via the scripts, never raw:
-`scripts/db-push-test.sh` / `scripts/db-push-prod.sh` (prod = typed confirm + explicit `--db-url`).
-`db reset`/`seed.sql` = local+test ONLY, **never prod**; never hand-edit a cloud schema. Secrets
-(DB passwords, service-role) live in gitignored `supabase/.env.{test,prod}` + a password manager, never committed.
+**Local Docker = dev+test; the Supabase Cloud project = prod.** Test on local (`supabase db reset`); push
+schema to prod with `scripts/db-push-prod.sh` (typed `prod` confirm + explicit `--db-url`), never raw.
+The cloud DB secret is fetched from 1Password (vault `AS`) via `op-get.sh` — **NEVER read `~/.op-token` / the
+SA-key file**. `seed.sql` = local ONLY, **never prod**; never hand-edit a cloud schema; run `supabase` from the repo root.

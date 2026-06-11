@@ -1,94 +1,92 @@
 # Environments & Supabase CLI hygiene
 
-The binding rules an agent must follow live in `CLAUDE.md` (§ Supabase environments). This file is the
-**full reference + the environment registry**. Mental model: **one source of truth = `supabase/migrations/`
-+ `seed.sql` (in git); each environment is just a different connection target** for that same schema.
+The binding rules live in `CLAUDE.md` (§ Supabase environments). This is the **full reference + registry**.
+Mental model: **one source of truth = `supabase/migrations/` + `seed.sql` (in git); each environment is just a
+different connection target** for that same schema.
 
-## Registry (fill in as each env is created — refs/URLs/anon keys are public-safe; passwords are NOT)
+## Topology (current)
 
-| Env | Supabase project ref | API URL | Anon key | Frontend deploy | Seed |
-|---|---|---|---|---|---|
-| `local` | — (Docker, `supabase start`) | `http://127.0.0.1:54321` | local key in `pmo-portal/.env.local` | `npm run dev` | `db reset` (auto) |
-| `test` | `<fill-in>` | `https://<ref>.supabase.co` | `<fill-in>` | Vercel **Preview** env | `seed.sql` (OK) |
-| `prod` | `<fill-in>` | `https://<ref>.supabase.co` | `<fill-in>` | Vercel **Production** env | **NEVER** demo seed |
-| `selfhost` (later) | n/a (VPS) | `https://<your-domain>` | `<fill-in>` | a `selfhost` host env | reference data only |
+- **`local`** = where you develop **and test** — the Docker stack (`supabase start` / `supabase db reset`).
+  Its keys are the well-known local dev keys (not secret).
+- **`prod`** = the **Supabase Cloud** project (functionally staging, treated as prod). Its DB connection
+  string is a **secret, stored in 1Password** (vault `AS`).
+- **`selfhost`** (later) = a VPS Docker Supabase — a future target with the same schema.
+- A separate **hosted `test`/staging** project is not used yet; `scripts/db-push-test.sh` + `supabase/op.test.env`
+  are dormant forward-compat for when one is added.
+
+## Registry (fill in as each env is created — refs/URLs/anon keys are public-safe; secrets are NOT)
+
+| Env | Supabase project ref | API URL | Anon key | Frontend | Migrations | Seed |
+|---|---|---|---|---|---|---|
+| `local` | — (Docker) | `http://127.0.0.1:54321` | local key in `pmo-portal/.env.local` | `npm run dev` | `supabase db reset` | `seed.sql` (auto) |
+| `prod` (cloud) | `<fill-in>` | `https://<ref>.supabase.co` | `<fill-in>` | Vercel Production env | `scripts/db-push-prod.sh` | **never** demo seed |
+| `selfhost` (later) | n/a (VPS) | `https://<domain>` | `<fill-in>` | a `selfhost` host env | `db push --db-url …@vps` | reference data only |
 
 ## Which command hits which target
 
 | Command | Target | Notes |
 |---|---|---|
-| `supabase start` / `stop` | **local** Docker | dev DB on `127.0.0.1` |
+| `supabase start` / `stop` | **local** Docker | dev + test DB on `127.0.0.1` |
 | `supabase db reset` | **local** Docker | re-applies migrations **+ runs `seed.sql`** locally |
-| `supabase login` | your **account** | token in `~/.supabase/` (global, shared). No DB touched. |
-| `supabase link --project-ref X` | repo ↔ cloud pointer | writes `supabase/.temp/` (gitignored, **per-repo**). No DB touched. |
-| `scripts/db-push-test.sh` | **test** cloud | explicit `--db-url`; `--seed` to also load `seed.sql` |
-| `scripts/db-push-prod.sh` | **prod** cloud | explicit `--db-url` + typed `prod` confirm; **never seeds** |
-| `supabase db push` (raw) | the **linked** cloud | avoid — use the scripts; if used, it hits whatever is linked |
+| `supabase login` / `link` | account / repo↔cloud pointer | `link` writes `supabase/.temp/` (gitignored, **per-repo**). No DB touched. |
+| `scripts/db-push-prod.sh` | **prod** (cloud) | secret via 1Password; explicit `--db-url`; typed `prod` confirm; **never seeds** |
+| `scripts/db-push-prod.sh --check` | **prod** (cloud) | resolve secret + `select 1`, **no push** — the "is prod usable?" check |
+| `scripts/db-push-test.sh` | future hosted test | **dormant** — today test = local Docker |
+| `supabase db push` (raw) | the **linked** cloud | avoid — use the scripts (they pass an explicit `--db-url`) |
 
-`login`/`link` are account/cloud-side and **never** affect the local Docker stack. `db reset` = local; the
-scripts = cloud. `config.toml`'s `project_id` is only the local stack name — it binds to no cloud project.
+`login`/`link` are account/cloud-side and **never** affect the local Docker stack. `config.toml`'s
+`project_id` is only the local stack name — it binds to no cloud project.
 
-## Why this is safe (the design)
+## Secrets via 1Password (`op-get.sh`)
 
-- **Per-project isolation is automatic.** The link lives in each repo's own `supabase/.temp/` (gitignored);
-  the CLI resolves it by walking up to the nearest `supabase/config.toml`. So two repos on one device can't
-  pollute each other — **as long as you run `supabase` from the repo root.**
-- **Fail-safe default.** Keep the persisted link pinned to **test**. A forgotten flag then hits test, never
-  prod. **Never leave the link pinned to prod.** Pin it with: `supabase link --project-ref <TEST ref>`.
-- **Prod is gated.** `scripts/db-push-prod.sh` uses an explicit `--db-url` + a typed `prod` confirmation, so
-  prod is never reachable by accident.
-- **No drift.** All schema changes go through `supabase/migrations/*.sql`, applied test→prod via the scripts.
-  Never hand-edit a cloud DB's schema in the SQL editor (data-only edits on test are fine). `supabase db diff`
-  detects drift.
-- **Seed policy.** `seed.sql` (demo users + fake data) → local + test only. Prod starts empty (real signups)
-  or gets a separate `seed.prod.sql` (reference/lookup data only, no demo accounts).
+The cloud DB connection string is a secret. It is **never** stored in a file in the repo. Instead it lives in
+1Password (vault `AS`) and is fetched at runtime by the sanctioned host tool **`op-get.sh <item> <vault>
+<field>`**, which loads the 1Password **service-account token itself** (from `~/.op-token`). Scripts call
+`op-get.sh`; nothing here ever reads the token file.
 
-## Secrets
+What's committed is only the **coordinates** (item / vault / field — not secret): `supabase/op.prod.env`.
 
-Each env has its own: **anon key** (public — lives in the frontend host's env vars), **DB password** and
-**service-role key** (SECRET — password manager only; never in the repo; service-role NEVER client-side).
-`.gitignore` blocks `.env*`; the repo is public, so a committed secret is exposed instantly.
+**One-time setup (you):** in 1Password vault `AS`, create an item `pmo-supabase-prod` with a field labelled
+`db_url` = the Supabase pooler connection URI (dashboard → Settings → Database → Connection string → URI,
+port `6543`). Adjust `supabase/op.prod.env` if you name the item/field differently.
 
-### `supabase/.env.test` / `supabase/.env.prod` (gitignored — create locally, never commit)
-
-Connection string: Supabase dashboard → **Settings → Database → Connection string → URI** (use the pooler /
-port `6543`).
-
+**Confirm prod is usable (one command):**
 ```bash
-# supabase/.env.test
-SUPABASE_TEST_REF=your-test-project-ref
-SUPABASE_TEST_DB_URL=postgresql://postgres.<ref>:<password>@<host>:6543/postgres
+scripts/db-push-prod.sh --check      # → "✓ PROD is usable (1Password resolved + DB reachable)."
 ```
 
-```bash
-# supabase/.env.prod
-SUPABASE_PROD_REF=your-prod-project-ref
-SUPABASE_PROD_DB_URL=postgresql://postgres.<ref>:<password>@<host>:6543/postgres
-```
+**Fallback (no 1Password):** the gitignored `supabase/.env.prod` may hold `SUPABASE_PROD_DB_URL=…` instead;
+the script uses it only when `op-get.sh` is unavailable. Never commit it.
+
+Other secrets: the **service-role key** is SECRET (1Password only; NEVER client-side). The **anon key** is
+public-safe — it ships in the frontend bundle, so it lives in the host's env vars / `.env.local`, not 1Password.
 
 ## Frontend env binding (build-time)
 
-The SPA inlines `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at **build** time → each build is bolted to
-one backend. Set these **per host environment** (Vercel Production env → prod Supabase; Preview env → test
-Supabase) so PR previews auto-hit test and prod hits prod.
+The SPA inlines `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at **build** time → each build is bolted to one
+backend. Set these **per host environment** (Vercel Production env → the cloud project). For local dev, point
+`pmo-portal/.env.local` at the local stack (`http://127.0.0.1:54321` + the local anon key).
 
-Also set **`VITE_APP_ENV`** per environment (`local` / `test` / `prod`): the `<EnvBadge>` renders a corner
-ribbon naming the backend on every non-prod build (renders nothing when unset / `prod` / `production`), so a
-deploy can never silently talk to the wrong backend. Add `VITE_APP_ENV=local` to `pmo-portal/.env.local` for
-local dev.
+Also set **`VITE_APP_ENV`** per environment (`local` / `prod`): the `<EnvBadge>` renders a corner ribbon naming
+the backend on every non-prod build (renders nothing when unset / `prod` / `production`), so a deploy can never
+silently talk to the wrong backend. Add `VITE_APP_ENV=local` to `pmo-portal/.env.local`.
 
-## First-time test deploy (recap)
+## First-time prod (cloud) deploy
 
 ```bash
-supabase login                                   # account auth (browser)
-supabase link --project-ref <TEST ref>           # pin the link to TEST (safe default)
-scripts/db-push-test.sh --seed                    # migrations + demo data + login users
+# 1. Store the secret in 1Password (vault AS, item pmo-supabase-prod, field db_url = pooler URI).
+scripts/db-push-prod.sh --check                  # confirm 1Password + DB reachable
+# 2. Apply the schema:
+supabase login
+supabase link --project-ref <cloud ref>          # links this repo to the cloud project
+scripts/db-push-prod.sh                           # typed 'prod' confirm → migrations applied
+# 3. (cloud = prod, so NO demo seed.) For a clickable demo with login users, test on LOCAL instead:
+#    supabase start && supabase db reset
 ```
-
-Then in the dashboard: **Settings → API** → copy the URL + anon key into the host's `test`/Preview env vars.
-The seeded users are pre-confirmed (`pm@acme.test` / `Passw0rd!dev`), so they log in without email confirmation.
+Then dashboard → **Settings → API** → copy the URL + anon key into the frontend host's env vars (+ `VITE_APP_ENV=prod`).
 
 ## Self-hosted (Docker/VPS) later
 
-Just a 4th target: `supabase db push --db-url postgres://…@your-vps`. Migrations + the auth seed are portable;
-you own the JWT secret, backups, and upgrades. Add it as the `selfhost` row above with its own URL + anon key.
+Just another target: `supabase db push --db-url postgres://…@your-vps` (store that URL in 1Password too, add a
+`supabase/op.selfhost.env` coordinate file + a push script mirroring the prod one). Migrations + the auth seed
+are portable; you own the JWT secret, backups, and upgrades.
