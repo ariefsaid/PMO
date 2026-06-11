@@ -10,13 +10,9 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
+import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import MilestoneFormModal from './MilestoneFormModal';
-
-/** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
-export function pct(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v)}%`;
-}
+import { pct } from './milestoneUtils';
 
 export interface MilestoneStripProps {
   projectId: string;
@@ -78,7 +74,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
       <div data-testid="milestone-strip-empty">
         <ListState
           variant="empty"
-          icon="flag"
+          icon="inbox"
           title="No milestones yet"
           sub="Add a milestone to track delivery progress"
           action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
@@ -238,7 +234,7 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
         )}
         {canEdit && (
           <Button variant="ghost" size="sm" iconOnly aria-label={`Edit ${m.name}`} onClick={onEdit}>
-            <Icon name="edit" />
+            <Icon name="doc" />
           </Button>
         )}
         {canDelete && (
@@ -249,7 +245,7 @@ const MilestoneRow: React.FC<MilestoneRowProps> = ({
             aria-label={`Delete ${m.name}`}
             onClick={onDelete}
           >
-            <Icon name="trash" />
+            <Icon name="x" />
           </Button>
         )}
       </div>
