@@ -105,3 +105,10 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
 - React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).
 - `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · `npx playwright test` (e2e).
 - Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+
+## Supabase environments (binding — full rules + registry: `docs/environments.md`)
+Multiple envs (local/test/prod) on one device; the CLI link is **per-repo** (`supabase/.temp/`, gitignored)
+and **pinned to test**. Run `supabase` only from the repo root. Push migrations via the scripts, never raw:
+`scripts/db-push-test.sh` / `scripts/db-push-prod.sh` (prod = typed confirm + explicit `--db-url`).
+`db reset`/`seed.sql` = local+test ONLY, **never prod**; never hand-edit a cloud schema. Secrets
+(DB passwords, service-role) live in gitignored `supabase/.env.{test,prod}` + a password manager, never committed.
