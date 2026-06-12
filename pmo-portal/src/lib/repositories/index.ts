@@ -104,6 +104,7 @@ import {
 import {
   listMilestones,
   getProjectsDelivery,
+  getProjectsDeliverySummary,
   createMilestone,
   updateMilestone,
   deleteMilestone,
@@ -240,6 +241,7 @@ const incident: IncidentRepository = {
 const milestone: MilestoneRepository = {
   list: (projectId) => wrap(() => listMilestones(projectId)),
   deliveryForProjects: (ids) => wrap(() => getProjectsDelivery(ids)),
+  deliverySummaryForProjects: (ids) => wrap(() => getProjectsDeliverySummary(ids)),
   create: (input, projectId) => wrap(() => createMilestone(input, projectId)),
   update: (id, patch) => wrap(() => updateMilestone(id, patch)),
   delete: (id) => wrap(() => deleteMilestone(id)),

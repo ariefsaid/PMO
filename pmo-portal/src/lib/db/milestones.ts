@@ -22,6 +22,12 @@ export interface MilestoneWithProgress {
   effective_pct: number;
 }
 
+export interface ProjectDeliverySummary {
+  deliveryPct: number | null;
+  committedSpend: number;
+  budget: number;
+}
+
 /** Create form fields. org_id is NEVER among them — RLS stamps it. */
 export interface MilestoneInput {
   name: string;
@@ -85,22 +91,37 @@ export async function listMilestones(projectId: string): Promise<MilestoneWithPr
   }));
 }
 
+export async function getProjectsDeliverySummary(
+  ids: string[],
+): Promise<Record<string, ProjectDeliverySummary>> {
+  if (ids.length === 0) return {};
+  const { data, error } = await supabase.rpc('get_projects_delivery', { p_ids: ids });
+  if (error) throwWrite(error);
+  const map: Record<string, ProjectDeliverySummary> = {};
+  for (const row of data ?? []) {
+    if (row.project_id != null) {
+      map[row.project_id] = {
+        deliveryPct: row.delivery_pct ?? null,
+        committedSpend: row.committed_spend,
+        budget: row.budget,
+      };
+    }
+  }
+  return map;
+}
+
 /**
  * Get the weight-weighted project delivery % for a batch of project ids (FR-DEL-017, D-2).
  * Returns a { [project_id]: delivery_pct } map. An absent key means the project has no milestones.
  * Skips the RPC call (returns {}) when ids is empty (NFR-DEL-PERF-001).
  */
 export async function getProjectsDelivery(ids: string[]): Promise<Record<string, number>> {
-  if (ids.length === 0) return {};
-  const { data, error } = await supabase.rpc('get_projects_delivery', { p_ids: ids });
-  if (error) throwWrite(error);
-  const map: Record<string, number> = {};
-  for (const row of data ?? []) {
-    if (row.project_id != null && row.delivery_pct != null) {
-      map[row.project_id] = row.delivery_pct;
-    }
-  }
-  return map;
+  const summary = await getProjectsDeliverySummary(ids);
+  return Object.fromEntries(
+    Object.entries(summary)
+      .filter(([, row]) => row.deliveryPct != null)
+      .map(([id, row]) => [id, row.deliveryPct as number]),
+  );
 }
 
 /**

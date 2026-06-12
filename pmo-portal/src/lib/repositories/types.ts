@@ -67,6 +67,7 @@ import type {
   MilestoneWithProgress,
   MilestoneInput,
   MilestonePatch,
+  ProjectDeliverySummary,
 } from '@/src/lib/db/milestones';
 
 export interface ProjectRepository {
@@ -241,6 +242,7 @@ export interface IncidentRepository {
 export interface MilestoneRepository {
   list: (projectId: string) => Promise<MilestoneWithProgress[]>;
   deliveryForProjects: (ids: string[]) => Promise<Record<string, number>>;
+  deliverySummaryForProjects: (ids: string[]) => Promise<Record<string, ProjectDeliverySummary>>;
   create: (input: MilestoneInput, projectId: string) => Promise<MilestoneRow>;
   update: (id: string, patch: MilestonePatch) => Promise<void>;
   delete: (id: string) => Promise<void>;

@@ -54,6 +54,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 import {
   listMilestones,
   getProjectsDelivery,
+  getProjectsDeliverySummary,
   createMilestone,
   updateMilestone,
   deleteMilestone,
@@ -128,6 +129,20 @@ describe('AC-DEL-008 listMilestones', () => {
 // ── getProjectsDelivery ───────────────────────────────────────────────────────
 
 describe('AC-DEL-017 getProjectsDelivery', () => {
+  it('AC-DEL-017: getProjectsDeliverySummary maps richer RPC rows by project id', async () => {
+    h.rpcResult.value = {
+      data: [
+        { project_id: 'p1', delivery_pct: 75, committed_spend: 500000, budget: 900000 },
+      ],
+      error: null,
+    };
+    const map = await getProjectsDeliverySummary(['p1']);
+    expect(h.calls.rpc[0]).toEqual(['get_projects_delivery', { p_ids: ['p1'] }]);
+    expect(map).toEqual({
+      p1: { deliveryPct: 75, committedSpend: 500000, budget: 900000 },
+    });
+  });
+
   it('AC-DEL-017: calls get_projects_delivery RPC with p_ids, maps rows to a {project_id:pct} map', async () => {
     h.rpcResult.value = {
       data: [

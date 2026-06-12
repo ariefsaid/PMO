@@ -6,6 +6,7 @@ import React from 'react';
 const { milestone } = vi.hoisted(() => ({
   milestone: {
     deliveryForProjects: vi.fn(),
+    deliverySummaryForProjects: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { milestone } }));
@@ -13,7 +14,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-import { useProjectsDelivery } from './useProjectsDelivery';
+import { useProjectsDelivery, useProjectsDeliverySummary } from './useProjectsDelivery';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -23,10 +24,26 @@ const wrap = (client: QueryClient) =>
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 beforeEach(() => {
+  milestone.deliveryForProjects.mockReset();
+  milestone.deliverySummaryForProjects.mockReset();
   milestone.deliveryForProjects.mockResolvedValue({ 'p1': 32, 'p2': 100 });
+  milestone.deliverySummaryForProjects.mockResolvedValue({
+    p1: { deliveryPct: 75, committedSpend: 500000, budget: 900000 },
+  });
 });
 
 describe('useProjectsDelivery', () => {
+  it('useProjectsDeliverySummary returns the summary map', async () => {
+    const ids = ['p1'];
+    const { result } = renderHook(() => useProjectsDeliverySummary(ids), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(milestone.deliverySummaryForProjects).toHaveBeenCalledTimes(1);
+    expect(milestone.deliverySummaryForProjects).toHaveBeenCalledWith(['p1']);
+    expect(result.current.data).toEqual({
+      p1: { deliveryPct: 75, committedSpend: 500000, budget: 900000 },
+    });
+  });
+
   it('useProjectsDelivery fetches all delivery %s in one call (no N+1)', async () => {
     const ids = ['p1', 'p2'];
     const { result } = renderHook(() => useProjectsDelivery(ids), { wrapper: wrap(freshClient()) });
