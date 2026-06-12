@@ -8,6 +8,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { pct } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
@@ -53,6 +54,12 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
 
   const all = data ?? [];
   const currentMilestoneId = all.find((milestone) => milestone.effective_pct < 100)?.id ?? null;
+
+  // I2: weight-weighted rollup of effective_pct across all milestones.
+  const totalWeight = all.reduce((sum, m) => sum + m.weight, 0);
+  const deliveryRollup = totalWeight > 0
+    ? Math.round(all.reduce((sum, m) => sum + m.weight * m.effective_pct, 0) / totalWeight)
+    : 0;
 
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });
@@ -117,7 +124,11 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
       ) : (
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h2>
+            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Delivery phases</h2>
+            <div className="flex items-center gap-3" aria-label={`Project delivery ${deliveryRollup}%`}>
+              <span className="text-[12px] text-muted-foreground">Project delivery</span>
+              <span className="text-[23px] font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
+            </div>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
                 Add milestone

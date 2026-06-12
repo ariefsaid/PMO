@@ -176,6 +176,46 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 
+  it('I2: header shows "Delivery phases" heading and weight-weighted rollup', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Phase A',
+        sort_order: 0,
+        target_date: null,
+        weight: 2,
+        input_pct: 80,
+        task_count: 4,
+        calculated_pct: 80,
+        effective_pct: 80,
+      },
+      {
+        id: 'm2',
+        project_id: 'p1',
+        name: 'Phase B',
+        sort_order: 1,
+        target_date: null,
+        weight: 1,
+        input_pct: 20,
+        task_count: 2,
+        calculated_pct: 20,
+        effective_pct: 20,
+      },
+    ];
+    render$();
+
+    // Heading changed from 'Milestones' to 'Delivery phases'
+    expect(screen.getByText('Delivery phases')).toBeInTheDocument();
+    // Rollup: (2*80 + 1*20) / (2+1) = 180/3 = 60%
+    const rollup = screen.getByLabelText('Project delivery 60%');
+    expect(rollup).toBeInTheDocument();
+    expect(screen.getByText('Project delivery')).toBeInTheDocument();
+    // The big tabular % is rendered
+    const bigPct = screen.getByText('60%');
+    expect(bigPct.className).toContain('text-[23px]');
+  });
+
   it('AC-DEL-009: null calculated renders the muted from-tasks fallback and 0% effective headline', () => {
     milestoneState.data = [
       {
@@ -193,7 +233,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     ];
     render$();
 
-    expect(screen.getByText('0%')).toBeInTheDocument();
+    expect(screen.getAllByText('0%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('From tasks —')).toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
