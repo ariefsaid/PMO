@@ -1,100 +1,35 @@
-# PMO Portal — project instructions
+# PMO Portal — agent instructions
 
-Production SaaS for **contract- & project-based organizations** (NOT industry-specific — the
-prototype's oil & gas framing is being generalized out). Built from an AI-Studio React/Vite
-prototype. Tenancy is **single-tenant with a forward-compatible `org_id` seam** so it can scale to
-B2B multi-tenancy without a rewrite.
+> **`CLAUDE.md` (repo root) is the single canonical source of project instructions — read it in full.**
+> This file exists only because some tools auto-load `AGENTS.md`. It deliberately does **not** duplicate
+> `CLAUDE.md` (a past forked copy drifted out of sync and corrupted its paths). If anything here seems to
+> conflict with `CLAUDE.md`, `CLAUDE.md` wins. The operating model, architecture patterns, gates, and
+> conventions all live there and in the docs it points to.
 
-## Repo layout
-- `pmo-portal/` — the app (React 19 + Vite + TypeScript). Run npm/vite here.
-- `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
-- `pmo-portal/e2e/` — Playwright acceptance tests (the BDD layer).
-- `supabase/migrations/` — Postgres schema + RLS policies.
-- `.Codex/agents/`, `.Codex/skills/` — the role agents and vendored spec skills.
+## Non-negotiables (the rules most expensive to get wrong — full detail in `CLAUDE.md`)
 
-## Operating model: Owner → Director → role agents
-The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
-**issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**. Keep tool approvals **ON**; pause for owner approval at issue
-boundaries and before any push / merge / deploy. Per-issue loop:
+- **Per-issue intake gates (binding, in order):** (1) clarify with the owner → (1b) run the
+  **`grill-with-docs`** alignment grill **before any spec effort** → (1c) UI issues also require an
+  **owner-approved static HTML mockup** (full 3-lens design round, `docs/design-workflow.md` §1a) before
+  Spec. Do **not** skip 1b/1c.
+- **Operating model:** Owner → Director (main session) → role agents. One issue, one branch, one PR.
+  Loop: Intake → Spec (SDD) → Plan → Build (TDD) → Review (spec + code-quality) → Secure → Accept (BDD) →
+  Ship (release-engineer opens PR; **Director merges**). Full loop + rubric: `docs/director-playbook.md`.
+- **Architecture (binding):** FE → typed **repository** (`src/lib/repositories/`) → Supabase; **never send
+  `org_id` from the client** (RLS + defaults stamp it). `can()` is **UX-only**; **RLS is the enforcement
+  authority** (ADR-0016). SoD / destructive rules enforced server-side via security-definer RPC + a pgTAP
+  proof, not a hidden button (ADR-0019). Reference slice: `pmo-portal/pages/Companies.tsx` +
+  `src/lib/db/companies.ts`.
+- **Testing (ADR-0010):** each `AC-###` owned by **one** test at the lowest sufficient layer (Unit / pgTAP /
+  curated e2e), AC-id-tagged. **BDD rule:** the app conforms to the test — fix the app, never bend the
+  assertion to go green. Playwright runs from `pmo-portal/`.
+- **Quality gates (block merge):** ≥80% changed-line coverage · `npm run typecheck` 0 · ESLint
+  `--max-warnings=0` · unit · `npx playwright test` · `supabase test db` (pgTAP) all green.
+- **Git:** branch off up-to-date `main`; **never force-push, never `git add -A`**; Director merges then
+  `git reset --hard origin/main`. Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+- **Current executor:** role-agent work is presently dispatched to the **pi CLI** (GLM/codex substrates),
+  not Claude subagents — see `docs/pi-delegation.md`. This is a trial; the loop + gates above are unchanged.
 
-1. **Intake** — Director clarifies the issue with the owner.
-2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
-3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — `implementer` (red-green-refactor; no prod code without a failing test).
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`.
-6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
-7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + tenancy).
-8. **Ship** — `release-engineer` (branch → commit → push → PR).
-
-## Director posture (main session)
-Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
-ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
-prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
-implementation plan, and a production-ready solution. Build a production-grade MVP — minimal enough
-for one client, architected to scale to millions.
-
-## Quality gates & checkpoints (binding)
-- **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
-- **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
-- **Checkpoints:** the **owner** approves spec sign-off + production deploy / irreversible infra; the
-  **Director** approves merge-to-main and staging within the signed spec, and escalates anything
-  strategic or out-of-spec.
-- **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
-- **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; `/design-review`
-  before merging UI changes; Storybook for the shared component library (from Phase 3).
-
-The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
-The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
-The UI/UX cycle (Foundation → per-UI-issue loop → human-UX improvement loop; code→UI agent analogs) is **`docs/design-workflow.md`**.
-
-## Agent roster (`.Codex/agents/`) and models
-eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
-code-quality-reviewer (opus) · qa-acceptance (sonnet) · security-auditor (opus) ·
-release-engineer (sonnet) · mechanical (haiku) · design-architect (opus) ·
-ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
-
-## Skill ownership (one owner per concern — avoids collisions)
-| Concern | Owner |
-|---|---|
-| Reverse-engineer prototype → spec | spec-miner (`.Codex/skills/`) |
-| User stories + acceptance criteria | feature-forge (`.Codex/skills/`) |
-| Design + task planning | superpowers (brainstorming, writing-plans) |
-| TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
-| Code review | superpowers spec + quality reviewers |
-| Design-system reverse-eng / maintenance (`DESIGN.md`) | design-architect (impeccable, design-consultation) |
-| UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
-| Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
-| Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
-
-superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
-`Bash` tool was stripped (read-only). gstack telemetry stays `off`.
-
-## Spec & test conventions (normalized across all skills/agents)
-- Specs → `docs/specs/<feature>.spec.md`. Plans → `docs/plans/YYYY-MM-DD-<feature>.md` (no placeholders:
-  exact paths, real code, exact verify commands, 2–5 min tasks). ADRs → `docs/adr/NNNN-<slug>.md`.
-- IDs: `FR-###` (functional), `OBS-###` (observed/legacy), `NFR-###`, `AC-###` (acceptance).
-- Requirements in **EARS** (ubiquitous / event-driven `When…` / state-driven `While…` / optional
-  `Where…` / conditional `While…when…`). All acceptance criteria in **Given/When/Then**.
-- **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
-  Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
-  `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, ~6–8 curated journeys)
-  for real cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a
-  convention.
-- **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so
-  `grep -r AC-XXX` finds the canonical proof at whatever layer owns it: Vitest in the `it(...)` title;
-  pgTAP as the leading token of the test description; Playwright as the leading token of the `test(...)`
-  title with file `e2e/<AC-id>-<slug>.spec.ts`. An AC may be referenced at multiple layers but has exactly
-  one owning layer (recorded in the plan's traceability table).
-- **BDD authoring rule (binding).** A test encodes the **user's real, intuitive journey to the task's goal**
-  and asserts that **goal** — the app conforms to the test, never the test to the app. On failure: fix the
-  **app**; only for a *deliberate* UX change (e.g. a new confirm-before-write step, back-nav moving to the
-  breadcrumb) do you update the journey *steps*, and the goal-oracle still stays intact. **Never bend an
-  assertion to the app's current state to go green** (don't downgrade "Back navigates to the pipeline" to
-  "a Back element exists"). Full statement: `.Codex/agents/qa-acceptance.md` "Authoring principle".
-
-## Tech stack & commands (run inside `pmo-portal/`)
-- React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).
-- `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · `npx playwright test` (e2e).
-- Commit trailer: `Co-Authored-By: Codex Opus 4.8 (1M context) <noreply@anthropic.com>`.
+Canonical docs: `CLAUDE.md` · `docs/director-playbook.md` · `docs/product-expectations.md` ·
+`docs/design-workflow.md` · `docs/pi-delegation.md` · `docs/environments.md` · `docs/backlog.md` (live status).
+Role agents live in `.claude/agents/`; vendored skills in `.claude/skills/` (gitignored, via `scripts/vendor-skills.sh`).

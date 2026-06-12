@@ -1,284 +1,83 @@
-# PMO Portal — backlog & decisions (living doc; last updated 2026-06-12)
+# PMO Portal — live backlog (status + what's next)
 
-Status snapshot after the autonomous build run. 9 issues shipped & merged to `main` (PRs #1–#9).
-This file is the durable record of what's next; it is NOT loaded as session context (kept out of CLAUDE.md).
+**This is the living status doc — read it first.** Shipped-program *history* lives in
+[`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
+`docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
+
+## ▶ Current state (2026-06-12)
+- **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
+  infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
+  merge `main → production`. Migrations through **0025**; pgTAP through **0068**; PRs through **#78**.
+  (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
+- **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
+  Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),
+  per-role dashboards, mobile, **delivery milestones (spine 3)**, **document file upload (storage)**,
+  PostHog analytics. The CRUD/RBAC foundation (ADR-0015–0021) is the pattern all new work follows.
+- **Most recently shipped:** Issue #1 of the KANNA series — document file upload (PR #78). See history.md
+  for the full program timeline.
 
 ## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
-Competitor gap analysis: `review/kanna-gap-analysis.md` (KANNA/Aldagram). Issues run **in
-series, one worktree per issue**, under the new pre-spec gates (grill-with-docs + owner-approved
-HTML mockup for UI issues — playbook §2 1b/1c, c328a82). **Trial:** role-agent work dispatched
-via the **pi CLI** (zai/glm-5.1 = plan/complex · zai/glm-4.7 = routine · openai-codex/gpt-5.4 =
-review/audit; mutual API-limit fallback) — Claude session stays Director.
-- **✅ Issue #1 — Storage re-enable + document file upload — DONE & MERGED (PR #78, `main`@5a8314e, 2026-06-12).**
-  Decisions **OD-DOC-1..5** (`docs/decisions.md`). Migrations 0024 (Superseded enum) + 0025 (bucket +
-  `storage.objects` RLS + auto-Superseded RPC). Private org-scoped bucket; upload/replace on Draft only;
-  download (forced attachment, all types) + preview (inline) for any org member; "New revision" → Draft
-  child + auto-Superseded parent on child approval (server-side, SoD-enforced); 5 MB bumpable knob +
-  allowlist + explicit zip/exe denylist. Gates: typecheck/lint/2095 unit/build/pgTAP(0066/0067/0068)/
-  e2e(AC-DOC-020/060/090) all green; **security audit PASS** (live cross-org/path-forgery/SoD all blocked).
-  Ran almost entirely on the pi trial (GLM/codex/free-OpenRouter); see `docs/pi-delegation.md`.
-  - **⚑ Deferred follow-up [Medium, owner-acked] — signed-URL TTL hardening:** download signed URLs are
-    minted client-side with an arbitrary TTL (≥1yr observed); the 60-min limit is client-only, so a link
-    can outlive the user's access. Only affects objects the user can already read (org-scoped). Fix = move
-    signing to a server/Edge Function with a hard max TTL. Own issue.
-  - **Deferred follow-up [Minor] — query-key consistency:** document React-Query keys are project-only
-    (pre-existing across ALL document hooks incl. `useDocuments`); align to the org-scoped key convention
-    (`useProjects`/`useProcurements` pattern) in a separate consistency pass.
-- **▶ Issue #2 (NEXT) — Procurement attachments** (quotation files + GR/VI) reusing the shared upload
-  component (FileCell/useFileUpload/getSignedUrl + the storage bucket already shipped). Owner-sequenced
-  BEFORE S-curve/Gantt (daily approver pain).
-- **Then:** S-curve (delivery-% snapshots; rides milestones) · Gantt (`task_dependencies` is
-  seeded, unconsumed) · calendar · import/export · templates — see the gap doc's tiering.
-- **Deferred seams recorded:** per-category document access → Admin-settings/RBAC-config track
-  (OD-DOC-4); site photos → future field-reporting track (OD-DOC-1).
+Competitor gap analysis vs KANNA/Aldagram: `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Issues run
+**in series, one worktree per issue**, under the binding pre-spec gates (grill-with-docs + owner-approved
+HTML mockup for UI — playbook §2 1b/1c). Role work dispatched via the **pi CLI** (`docs/pi-delegation.md`).
+- **✅ Issue #1 — Storage re-enable + document file upload — DONE & MERGED (PR #78, `main`@5a8314e).**
+  Decisions OD-DOC-1..5; migrations 0024 (Superseded enum) + 0025 (bucket + `storage.objects` RLS +
+  auto-Superseded RPC). Private org-scoped bucket; Draft-only upload/replace; download (forced attachment,
+  all types) + preview; New-revision → auto-Supersede parent (server-side, SoD); 5 MB bumpable knob +
+  allowlist + zip/exe denylist. Security audit PASS.
+- **▶ Issue #2 (NEXT) — Procurement attachments** (quotation files + GR/VI) reusing the shipped upload
+  component (FileCell/useFileUpload/getSignedUrl + bucket). Owner-sequenced BEFORE S-curve/Gantt (daily
+  approver pain).
+- **Then (gap-doc tiering):** S-curve (delivery-% snapshots; rides milestones) · Gantt (`task_dependencies`
+  seeded, unconsumed) · project calendar · import/export · project templates.
 
-## ▶ DEPLOYMENT — LIVE (2026-06-11; hosting ADR-0006 now ACCEPTED). Full rules: `docs/environments.md`
-The app is **deployed and live** (was deferred). PRs #68–#72 + direct infra commits.
-- **Backend = Supabase Cloud** project `pmo` ref `prwccpsiumjzvnwjlkwq` (Oceania/Sydney) = **prod**; all 22 migrations pushed (`supabase migration list` clean); RLS/RPCs live. **`local` Docker = dev + test** (`supabase db reset`, full seed). The cloud carries **admin-only data** (`admin@acme.test`/`Passw0rd!dev`, role Admin, pre-confirmed) created by `supabase/seed-admin.sql` — **no demo business data** (owner chose admin-only; seed the full demo if a richer client demo is wanted).
-- **Frontend = Cloudflare Pages** project `pmo` (account `2484fdb1bc6a04e54853a2ff2ef91bbf`), Git-connected. **LIVE at https://pmo-bfb.pages.dev**. Root dir `pmo-portal`, build `npm run build`, output `dist`, Node 22 (`.node-version`), SPA fallback `pmo-portal/public/_redirects`. **Production branch = `production`** (the live deploy); **`main` + PRs = preview**; release by **merging `main → production`**. Env vars set on both scopes (`VITE_SUPABASE_URL`/`ANON_KEY`/`VITE_APP_ENV`; production also has `VITE_DEMO_MODE=true`).
-- **Secrets = 1Password (op)**: the cloud DB connection URL lives in vault **`AS`**, item `pmo-supabase-prod`, field **`URL`**, fetched via the host tool **`op-get.sh <item> <vault> <field>`** (loads the SA token from `~/.op-token` — NEVER read that file). Coordinates committed at `supabase/op.prod.env`. Migration pushes go through `scripts/db-push-prod.sh` (typed `prod` confirm, explicit `--db-url`, `--check` mode = resolve+`select 1` via `supabase db push --dry-run`, no psql dep). **Connection string MUST be the Direct or Session-pooler URI (port 5432) — NOT the transaction pooler (6543)**, which breaks `db push`/DDL.
-- **`VITE_APP_ENV` badge** (`EnvBadge`) shows a corner ribbon on non-prod builds; **`VITE_DEMO_MODE=true`** surfaces the login-page demo panel (`admin@acme.test`/`Passw0rd!dev` + "Use demo login" fill) — never on a real prod build. **CI** pins supabase CLI `2.105.0`.
-- **CF access:** `wrangler` is OAuth-logged-in (works for this user's session; the production-branch repoint was done via the CF API using the wrangler OAuth token's `pages:write` scope — wrangler has NO setter for an existing project's production branch). **Open (optional):** a durable CF API token (`Cloudflare Pages: Edit`, account-scoped) in op vault `AS` for non-interactive/CI CF access; add `VITE_DEMO_MODE` to the CF **preview** scope if main-preview should show the demo login; browser-verify the demo login end-to-end; if a real (non-demo) prod is later needed, stand up a SEPARATE Supabase project (the current cloud is a demo/staging-grade prod).
+## ▶ OPEN feature tracks (owner-scope-gated — not started)
+- **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct
+  authority signs off the order commitment vs budget+cashflow before PO): new state-machine state + RPC +
+  ADR; (b) a **cash-position/cashflow data domain** (opening balance, in/out-flows, runway — none exists
+  today). Spec together.
+- **Admin RBAC config engine (OD-PROC-6)** — configurable roles + access; re-enables Engineer-as-manager
+  approvals (OD-W2-2, currently FE-off / RPC-dormant). Also the home for per-category document access
+  (OD-DOC-4). The B2B-multitenancy bridge.
+- **Reports module** — `/reports` is a placeholder; needs owner definition (read-only dashboards/exports).
+  Export affordances (Sales, board pack) route here.
+- **Design-system normalization (H2/H4)** — full arbitrary-px-spacing sweep + off-scale-font normalization
+  (only a scoped subset done in Wave 6); touches dozens of components → own track with a rendered diff audit.
+- **Later spines:** Revenue/AR (progress billing, retention, change orders — spine 4; ties into milestones),
+  Resources/Assets (spine 8), Service/O&M (spine 9). See `docs/roadmap-spines.md`.
 
-## ✅ UX-NATURALNESS PROGRAM — COMPLETE (interaction-design / IA / RBAC-gating — 2026-06-08/10; PRs #36–#59)
-Triggered by the owner: the prior audits checked *correctness* (tokens/RBAC/a11y), none checked *naturalness* (does the flow match human/convention expectations?). Two new **standing review lenses** were added to `docs/design-workflow.md` §2.3 (the 3-lens battery) + §3a (e2e encodes the natural journey, not the app's current shape): **IxD/task-flow** (Nielsen + cognitive-load + persona, via `impeccable critique`) and **IA/structure-navigation** (one-canonical-view-per-entity; Nielsen #4). Audits live in `review/*.md` (**`review/` is gitignored — local working scratch**; the durable backlog is HERE).
-
-**▶ PROGRAM-COMPLETE SUMMARY (2026-06-10).** All planned waves shipped to `main` across **24 PRs (#36–#59)**: **Wave 1** (#36, Model B + write-policy + timesheet co-location + honest dashboard) · **Wave 2** (#37, RBAC view-gating + IxD naturalness) · **ADR-0021 unified detail** (#38) · **Wave 3** (#39–#45, correctness/integrity/lifecycle/authz; migration `0018`) · **Wave 5** (#46–#56, 6 detail/dashboard-IxD clusters; migrations `0019`+`0020`) · **Wave 4 mobile** (#57–#59). Decisions OD-W3-*, OD-PROC-8, OD-W5-1..5 / OD-W5-C2-A..E / OD-W5-C3-A..C / OD-W5-C6, OD-W4-1..4 (all in `docs/decisions.md`). pgTAP up to `0057`. **What remains is all deferred / new-feature work — see "▶ DEFERRED / REMAINING after the UX-naturalness program" below.**
-
-- **✅ Wave 1 — MERGED (`main`@688d125, PR #36).** Model B canonical project/opportunity lifecycle (**ADR-0020**: one `projects` record, one `/projects/:id` stage-adaptive lens, `/sales/:id` redirects, Projects/Pipeline disjoint partitions, lost-in-pipeline) + app-wide **write policy** (OD-UX-1: routine=single-click+toast, confirm only consequential/destructive — supersedes "confirm every write") + **timesheet Save+Submit** co-located (the owner's flagged flow) + **honest exec dashboard** (no contradictory margin, Board-pack disabled-coming-soon, Reports demoted) + **procurement state legibility**. FE-only, state machine untouched. 1329 unit · 332 pgTAP · 47 e2e. 3-lens rendered re-review + fixes. Deferred taste nits: Mark-as-Paid solid-green (vs One-Blue), 1440px stepper-node clip.
-- **✅ Unified detail page — MERGED (`main`@5042d16, PR #38; **ADR-0021** supersedes ADR-0020 §1; CI verify+integration green; owner confirmed).** Owner override after seeing Model B rendered: the stage-adaptive lens HID the delivery tabs pre-win → "why is there no budget in the project during pipeline … it needs to look like the project detail page … its not usable currently." `/projects/:id` now renders the full delivery layout (header + Overview/Budget/Procurement/Tasks/Documents tabs) at EVERY stage; a pre-win/lost record gets the PipelineLens deal-progression banner ABOVE the tabs (owner's chosen placement). Tabs work pre-win (budget RPC / tasks RLS / procurement RLS gate on org/role, not project status — a PM can plan a prospective deal's budget/tasks/procurement). FE-only, no migration; ADR-0020 §2-5 (canonical route, /sales redirect, disjoint partitions, breadcrumb, ⌘K) unchanged. Verified 1401 unit · typecheck/lint clean · e2e green (AC-IXD-PROJ-001 journey updated: pipeline deal now shows tabs + opens Budget) · rendered (deal banner + working Budget tab on a pipeline deal).
-- **✅ Wave 2 — MERGED (`main`@5778967, PR #37; 1401 unit · CI verify+integration green · owner taste sign-off given).** RBAC view-gating + IxD naturalness. Plan `docs/plans/2026-06-09-ux-naturalness-wave2.md`; decisions **OD-W2-1..5** (decisions.md). **Part A (RBAC view-gating) ✅ DONE** (8 commits cfd6dd2..40b05f0): PipelineLens permission gate (the Wave-1-surfaced A7 risk — RLS-safe, FE-only), ApprovalsQueue `isApprover=true`→`may('transition','approval')` fix, Engineer own-scoped procurement (OD-W2-1), Finance timesheet FE-gate, Documents author-check, shared `AccessDenied` surface + ⌘K view-gate guard. **Part B (IxD) ✅ DONE** (aa02099): My-Tasks IC landing (`/my-tasks`), +New-opportunity CTA, Finance "Needs approval" queue tab, role-shaped nav (Approvals hidden from Engineer), always-visible row ⋯ (B-4), honest-disabled no-ops (OD-W2-5: /reports stub w/ back link, bell removed, Sales Export demoted-disabled), AdminUsers h1→"Administration" + `/administration` route, project tab deep-links (`/projects/:id/:tab`), Engineer Projects default→My Projects. **Engineer-approval = FE-OFF** (OD-W2-2; `transition_timesheet` RPC unchanged — manager_id-authority dormant/reversible; deferred to the admin RBAC config engine, OD-PROC-6 bridge). **✅ Security pass** (security-auditor): **no merge blockers**; FE-stricter-than-RLS seam holds everywhere, no `can()` predicate looser than its RLS floor; the two then-known server-reachable holes (Q1 manager_id RPC approve, Q2 Finance own-Draft timesheet entry) were tracked as OD-W2-2 / `AC-W2-RBAC-011-RLS`. **⟶ UPDATE: Q2 (`AC-W2-RBAC-011-RLS`) was CLOSED by migration `0018` (Wave 3, PR #44) — `timesheet_entries_write` now role-gates out Finance; only Q1 (manager_id timesheet approve, OD-W2-2) remains dormant, deferred to the admin RBAC config engine OD-PROC-6.** **✅ 3-lens rendered re-review** (component tests weren't rendered-checked) drove **2 fixes**: (i) **F1/OD-W2-1** — Engineer procurement was only *relabeled* "your requests" but still showed the whole org index (+ a false "RLS-scoped" comment); now actually filtered to `requested_by_id===self` (commit 5d82463); (ii) **B-11 regression** — Engineer "My Projects" default was `project_manager_id===self` → permanently EMPTY for an IC; now = projects they're assigned to via tasks (commit e4f780e). Verified 1400 unit + the 2 fixes · typecheck/lint clean · full serial e2e. **Remaining minor (Wave 3):** My Tasks status pill is redundant beside the editable status select. **NEXT: owner taste sign-off (screenshots captured in `review/wave2-shots/`) → PR → CI → gate-merge.**
-
-### OUTSTANDING UX backlog — reconciled 2026-06-09 (item codes trace to `review/OUTSTANDING.md`)
-`review/OUTSTANDING.md` was triaged on the Wave-1 branch (before Wave 2 + the unified detail page). **Closed since:** Theme A RBAC view-gates **A1–A7** (Wave 2 Part A) + **A11** owner decisions resolved; Theme D IxD-Wave-2 **D1/D2/D3/D5/D14** + the hover-gating half of **D11/D12** + **G1** (Wave 2 Part B); Theme E nav cleanup **E1–E5** (Wave 2 B-5..B-10); **F9** dead bell/Export (Wave 2); the My-Tasks pill (Wave-2 follow-up); **ADR-0021** unified detail page; and **Wave 3 CORE** (PRs #39–#44): Theme F **F1–F7** + **G2** + **D10**, Theme B **B1/B2**, Theme A residual **A9/A10/AC-W2-RBAC-011-RLS** (migration `0018`, OD-PROC-8), and new-audit **N1/N2/N3/N4** + **O1/O3**. What REMAINS, reprioritized:
-
-**▶ Wave 3 — ✅ COMPLETE (correctness, integrity & lifecycle).** PRs #39–#45 all merged to `main` (`main`@71c5c0c). PR-F (F8/A8/B3) closed it — **PR #45**, FE-only, unit 1518 · 21/21 touched e2e · CI verify+integration green · code-quality ship. Build order Part 1→4 + PR-F shipped as 7 PRs:
-- **Silent-failure / data-integrity bugs (Theme F):** ✅ **F3/F4** numeric→0 silent coercion (shared `parseMoneyInput`, validate==persist) + **F1/F2** stale fk-options pickers (`['fk-options']` invalidation) — **DONE, PR #39** (`main`@21c58b2). ✅ **F5** timesheet delete rollback on failure + **F6** budget DAL preserves Postgres error codes (`toAppError`, incl supabase plain-object errors) + **F7** unknown URL → `NotFound` page — **DONE, PR #40** (`main`@b38c2cd). ✅ **F8** create modals no longer submit with blank required fields — shared `useEntityForm` opt-in `requiredFields`→`isComplete` gate disables submit; format-error→first-invalid-focus path preserved — **DONE, PR #45** (`main`@71c5c0c). Wave-6 a11y follow-up **G6** captured (disabled-submit needs a programmatic hint).
-- **Lifecycle rework dead-ends (Theme B):** ✅ **B1** timesheet Rejected→Draft "Revise" control + **B2** document Rejected→Draft/Closed actions — **DONE, PR #42** (`main`@3c6dcd4). ✅ **B3** Admin break-glass procurement moves in the FE (lock-with-tests — Admin was already in every transition role-set with SoD guards `!isRequester`/`!isApprover` intact; `0018` enforces the same SoD server-side; characterization tests added) + ✅ **A8** Admin edit Draft/Rejected PR header (`canEditHeader` now `isRequester || realRole==='Admin'`; RLS 0010 permits) — **DONE, PR #45**.
-- **Procurement role/authz gaps (Theme A residual):** ✅ **A9** `create_procurement_receipt` over-grant tightened to requester-OR-PM (Finance dropped) + **A10** Engineer-requester GR capture aligned + **AC-W2-RBAC-011-RLS** Finance own-Draft timesheet server hole closed + Admin-SoD (no self-approve/self-pay) — **DONE, PR #44** (`main`@5ff5ab9; migration `0018`, **OD-PROC-8**, pgTAP `0055`, security re-audit passed).
-- **Pulled-forward quick correctness:** ✅ **G2** PM-dashboard "Project Status" loading/error handling — **DONE, PR #40**. ✅ **D10** block submitting a $0 / no-line-item Draft PR — **DONE, PR #43** (`main`@9f20072).
-
-**⚑ OWNER REORDER (2026-06-09): Wave 5 (detail/dashboard IxD) ran BEFORE Wave 4 (mobile).** Near-term users are desktop; the IxD/decision-quality work was higher value first. Both are now ✅ COMPLETE (below).
-
-**▶ Wave 5 — Detail-page & dashboard IxD polish (Theme D residual + new-audit N6–N19) — ✅ COMPLETE (all 6 clusters; PRs #46–#56).** Design-plans `docs/plans/2026-06-09-wave5-approval-experience.md` · `2026-06-10-wave5-dashboard-console.md` · `2026-06-10-wave5-detail-legibility.md` · `2026-06-10-wave5-detail-drawers.md`; decisions OD-W5-1..5 / OD-W5-C2-A..E / OD-W5-C3-A..C / OD-W5-C6. Migrations `0019` (items-readable RLS fix) + `0020` (sales-pipeline attention RPC); pgTAP `0056`/`0057`.
-- **✅ Cluster 1 — Approval Experience (PRs #46/#47/#48).** **#46** procurement approval screen: N7 evidence-before-decision reorder + D6 SoD-up-front GateNotice + D7 One-Blue at Approved both-paths-reachable + D8 destructive-last (rendered 3-lens = SHIP, GateNotice `role=alert` a11y fix). **#47** N8 DecisionSupportPanel (committed-spend basis OD-W5-4) **+ a CRITICAL bug fix the rendered review caught** — `procurement_items_draft_only` (0015) was `as restrictive for all`, so line items were SELECTable ONLY while Draft → **approvers saw ZERO line items on any Requested+ PR** (evidence-before-decision was hollow). Migration **0019** re-scopes the freeze to `insert/update/delete` only (reads via the existing org-scoped `procurement_items_select`); pgTAP **0056** (354 total) + security-auditor verdict **READY** (no write hole, no cross-org). **#48** `/approvals` role-aware 2-section inbox (N6, PR rows route to detail — no inline approve) + N11 expand-in-place per-project/day grid + N12 SoD-safe bulk-approve (resilient batch, aggregate toast) + N15 dashboard tile (KPITile link variant) + `Checkbox` primitive. Follow-up H7 (DRY pending-approval predicate) tracked to Wave 6. **e2e LESSON: new bulk e2e passed isolated but RED in full CI suite (shared `Dave` sheet mutated by other specs) → fixed via dedicated seed actor `b4` (P011 pattern), full serial 53/53.**
-- **✅ Cluster 2 — Dashboard drill / finance-console (PRs #49/#50/#51).** **#49** PR-A dashboard KPI drill-through (N13) + at-risk filter (D16) + URL-param convention + shared `AT_RISK_THRESHOLD`. **#50** PR-B Finance console: Ready-to-pay segment (N16) + budget review ranked by variance (N17, **honest "top-5-by-variance" label** per plan-decision OD-E — the backend portfolio-wide `get_finance_budget_review()` RPC is tracked as a follow-up) + Vendor-Invoiced segment + J4 console reframe. **#51** PR-C PM risk-sort + at-risk pill (N18) + Engineer "Log hours" CTA (D4). Plan `docs/plans/2026-06-10-wave5-dashboard-console.md`; OD-W5-C2-A..E.
-- **✅ Cluster 3 — Project-detail legibility (PRs #52/#53).** **#52** PR-1 procurement legibility: full-word lifecycle labels (D9) + GR/VI demoted to quiet links (D17). **#53** PR-2 role-adaptive project detail (D15 finance-chrome de-emphasis for non-PM/Finance) + post-transition wayfinding (N10) + Pre-Qualification stage. **Render gate caught D15-above-tabs → relocated into the Overview tabpanel + rendered-position tests.** OD-W5-C3-A..C.
-- **✅ Cluster 4 — Budget IxD, N9 (PR #54).** Clone-to-revise auto-opens the new draft version + inline budget line-item edit (update mutation now wired; was delete+recreate only).
-- **✅ Cluster 5 — Pipeline attention (PR #55).** N14 owner/last-touch/aging columns + a "Needs attention" filter (migration **0020** `get_sales_pipeline` attention RPC + pgTAP **0057**) + N19 Engineer pipeline toolbar.
-- **✅ Cluster 6 — D13 dead-affordance cleanup (PR #56).** Removed the dead "Attach file (coming soon)" peers. **D11/D12 company/document detail-drawers DEFERRED** (OD-W5-C6, owner skipped to Wave 4); plan ready: `docs/plans/2026-06-10-wave5-detail-drawers.md`.
-
-**▶ Wave 4 — Mobile responsiveness (Theme C; the owner-flagged "big unanimous one") — ✅ COMPLETE (PRs #57/#58/#59).** Plan `docs/plans/2026-06-10-wave4-mobile.md`; decisions OD-W4-1..4. **#57** PR-1 DataTable single-renders table↔cards at 768px via `useIsDesktop` (the one structural reflow gap — C1) + touch-target sweep (C6). **#58** PR-2 shell hardening: drawer modal a11y via `useFocusTrap` (C3/G3), `h-[100dvh]`, breadcrumb truncation, safe-area insets, responsive gutters. **#59** PR-3 detail surfaces: Tabs scroll-snap strip (C2), kanban scroll-snap + `KanbanStageIndicator` (C5), procurement stepper / timesheet-grid scroll-fades (C4).
-
-## ▶ NEXT PROGRAM — Spine 3: Delivery backbone (decided 2026-06-11)
-Owner decisions locked in `docs/decisions.md` **OD-DEL-1..8**. Spec: `docs/specs/delivery-milestones.spec.md`.
-Core scope: `project_milestones` table (free-form per project, OD-DEL-2), `tasks.milestone_id` (nullable FK, OD-DEL-3),
-two-column % progress (calculated + input, effective rule, OD-DEL-4), weight-weighted delivery-% rollup (OD-DEL-5),
-milestone strip on `/projects/:id` header + Tasks tab grouping (OD-DEL-1), delivery-% chip on Projects list
-+ PM dashboard. No stage-gates (OD-DEL-6). Writes: PM + Admin (OD-DEL-7). No new nav module.
-
-## ▶ DEFERRED / REMAINING after the UX-naturalness program (the "what's next" — none mandate-blocking)
-With Waves 1–5 + ADR-0021 + mobile all merged (PRs #36–#59), the correctness / IA / RBAC / IxD / mobile mandate is **closed**. What remains is deferred polish + genuinely-new feature tracks:
-- **✅ D11/D12 detail-drawers — DONE (PR #66, `main`@8caaf2a).** New shared `Drawer` primitive (right-side quick-view sheet reusing EntityFormModal's portal/scrim/focus-trap/inert machinery) + D11 company drawer (read-first + inline Type select, OD-UX-1 single-click write) + D12 document drawer (status workflow promoted out of the ⋯ menu as gated buttons, SoD GateNotice on own-docs, ConfirmDialog stacks over the inert panel). Plan `docs/plans/2026-06-10-wave5-detail-drawers.md`. **⚑ rendered review caught a Critical:** focus wasn't restored on close because the consumers conditionally render the drawer → it UNMOUNTS, so the restore-on-`open=false` branch was dead code; fixed by restoring focus in the effect CLEANUP (+ an unmount-focus test). **⚑ the e2e gate (PR-only) caught AC-CO-001 again:** `rowLabel` ("View <name>") changed the name-cell's accessible name → the `getByRole('cell',{name})` row locator broke (same class as the AC-TASK-001 break) → updated to the "View <name>" button doorway. DURABLE: ANY `onActivate`/`rowLabel` addition shifts cell-name e2e locators — run the FULL local Playwright e2e for such changes, don't rely on unit+rendered alone.
-- **Commitment-governance track (NEW features, OD-W5-5):** (a) a *server-enforced* **PO-commitment approval gate** — a distinct authority signs off the actual order commitment (vs budget AND cashflow) before the PO is placed: a new state-machine state + RPC + ADR; (b) a **cash-position / cashflow data domain** (opening balance, in/out-flows, runway) — there is no cash data in the system today. Both are explicitly OUT of the Wave-5 IxD scope; spec them together.
-- **✅ Finance backend/data-debt — DONE (PR #67, `main`@46dc974; migration `0022`, plan `docs/plans/2026-06-10-finance-backend-debt.md`).** (a) **`get_finance_budget_review()` RPC** (security-invoker, search_path-pinned, anon-revoked) — true portfolio-wide variance ranking on **committed-spend basis** (owner-approved OD-BUDGET-2 alignment — N17 now ranks ALL org `budget>0` projects by committed variance, FE-sliced top-5; replaces the old client-side top-5-by-contract-value slice that used stored `projects.spent`; intentionally changed the visible numbers/ranking). Consumed via `useFinanceBudgetReview` (DAL-direct, parity w/ useDashboard/useSalesPipeline). (b) **`vendor_invoiced_at` column** on `procurements` — stamped server-side (`now()`) in `transition_procurement` on the →Vendor-Invoiced transition (SoD untouched), backfilled best-effort from `updated_at`; FinanceDashboard age now reads `vendor_invoiced_at ?? updated_at` ("Invoiced" header + honest fallback tooltip). pgTAP 0059/0060 (400 total); **security-auditor CLEAR** (live 2-org probe: zero cross-org leak, invoker-not-definer, unforgeable stamp, SoD verbatim-unchanged); code-quality ship (no 2nd source of truth for committed-spent); rendered SHIP. Follow-ups (seed/demo richness, non-blocking): seed one OVER-budget project (so N17's red "+$X over" variance path renders) + one ~80%-util project (H8 amber mid-band) — both seed-only; minor: the I2 budget>0 FE tests are now near-tautological (filter moved server-side — pgTAP 0060 owns it); the type-regen pulled in a benign `graphql_public` block.
-- **Admin RBAC config engine (OD-PROC-6)** — configurable roles + access; re-enables Engineer-as-manager approvals (OD-W2-2, currently FE-off / RPC-dormant). Bigger separate track.
-- **✅ Wave-6 polish sweep — SCOPED SUBSET DONE (PRs #61/#62/#63, `main`@a9627d6).** Plan `docs/plans/2026-06-10-wave6-polish.md`. **#61 (a11y):** G4 Tabs `aria-controls`/`id` wiring (active-tab-only — review caught dangling IDREFs on inactive tabs) + G6 disabled-submit `aria-describedby` reason. **#62 (clarity):** H8 ProgressBar ≥90 red band (pulled from `AT_RISK_THRESHOLD`; review caught + fixed a win%-bar regression → forced `tone="primary"`; rendered review: H8 red only lands on budget-basis surfaces e.g. Finance — the Projects/Overview bars are contract-basis by design, already labelled by the Wave-5 I3 "% of budget" caption) + J7 budget Draft-editor Total footer + J8 amount input `type=text` + J9 seed-an-aging-deal (P002 backdated 45d, pgTAP-neutral). **#63 (DS hygiene):** H7 shared `pendingProcurementApprovals()` selector (3 sites) + H1 removed off-palette cyan KPITone→violet + H3 StatusPill colors → real `--status-*-text` tokens (`var()` swap, rendered-verified exact RGB) + 5 scoped off-grid spacing fixes. Already done/no-op pre-sweep: G3 (#58), G5, H5, H6, I9, I10, J4. **STILL REMAINING (deferred, not in the scoped subset):** full **H2** arbitrary-spacing + **H4** off-scale-font normalization (the broad design-system-normalization track); design-review-dependent IxD/visual **I1/I6/I7/I8 + J1/J2/J3/J5/J6**; phantom/unscoped **I2/I3/I4/I5** (no incident-form UI / no dual-search surface exists). New review follow-ups (minor): at-risk-row Progress bar contract-vs-budget basis is a deliberate design-architect call (route there if the green-bar/amber-pill pairing should be unified); budget add-row Amount field could match Description's border; seed one ~80%-util project so the H8 amber mid-band is demonstrable; Exec dashboard now has two violet KPI chips on one row (cosmetic).
-- **Infra / unscoped modules:** ~~hosting/deploy (ADR-0006)~~ ✅ **DONE — LIVE** (Supabase Cloud + Cloudflare Pages; see the "▶ DEPLOYMENT — LIVE" section at the top). Still deferred: document **Storage / file-upload** (Supabase Storage still disabled — metadata CRUD only); **Reports** module (still a placeholder; needs owner definition).
-
-**✅ Wave-6 IxD/visual follow-ups — DONE (PRs #64/#65, `main`@d77186c).** A rendered `design-reviewer` IxD(b)+IA(c) triage (`docs/plans/2026-06-10-wave6-ixd-followups.md`) + owner decisions (at-risk→co-locate, task-row→Edit modal) drove two gated PRs. **#64 — I7** (app-wide DataTable ⋯ row-menu was `absolute` inside an `overflow` ancestor → clipped 66px@1440 / off-screen@375): re-implemented as a **portal-to-body + trigger-anchored `fixed`** menu (mirrors the Combobox pattern, z-820) with flip-up + gutter clamp + full keyboard a11y (focus-first, return-to-trigger, Arrow/Home/End roving, `aria-orientation`); rendered+AX SHIP. **#65 — IxD bundle:** **I1** timesheet note → collapse-on-demand "+ Note"; **I6** task row-click opens the Edit modal (DataTable `onActivate`/`rowLabel`, `canEdit`-gated); **J1** dropped the redundant `<h2>Project Budget</h2>`; **I2/I3** incident create-form Date defaults to today (local-date); **at-risk co-location** — moved the `% of budget` caption beside the delivery bar (Projects + Overview), NOT a recolor (preserves the I3 two-metric split, kills the glance-contradiction). **⚑ the e2e gate earned its keep:** AC-TASK-001 failed in CI (PR-only) — `rowLabel` changed the name-cell's accessible name (locator updated to the "Edit <name>" doorway) AND, the real bug, the new `<tr onActivate>` fired when clicking the in-row status `<select>` (would pop the edit modal) → added an interactive-element guard (`closest('button,a,select,input,…')`) on the row click, protecting every DataTable; full serial e2e 53/53. **Triage closed as non-issues (verified at render):** **I4** (no sales value-rule surface), **I5** (no dual-search — only ⌘K), **I8** (SoD gate + field-edit are mutually-exclusive states), **J3** (incidents list page already exists), **J5/J6** (empty states well-spaced, mobile text ≥13px), add-row Amount border (already matches Description).
-
-**▶ Wave 6 — what's genuinely left (deferred — none mandate-blocking):**
-- **Design-system normalization track (the deferred bulk of H2/H4):** **H2** the full arbitrary-px-spacing sweep (only 5 instances fixed in #63), **H4** off-scale font sizes (`text-[13.5px]` etc., app-wide), plus the pre-existing single-layer overlay-shadow vs the DESIGN.md two-layer spec (PR-A minor). Higher-risk, touches dozens of components → its own track with a rendered diff audit; not "polish".
-- **Cosmetic / needs owner sign-off:** **Exec two violet KPI chips** — fix needs a NEW `neutral` KPITone (reuse `secondary`/`muted-foreground`; `blue` would break One-Blue) → owner sign-off before adding to the categorical-color vocabulary; **J2** Reports placeholder dead-zone → defer until the Reports module ships (URL-only, not in nav); seed one ~80%-util project so H8's amber mid-band is demonstrable in a rendered review (cosmetic seed-data only).
-
-**Bigger feature (separate track) — REMAINING:** **Admin settings / RBAC config engine** (OD-PROC-6 bridge) — configurable roles + access; re-enables Engineer-as-manager approvals (OD-W2-2). **PO-commitment approval gate + cash-position/cashflow domain** (OD-W5-5, surfaced 2026-06-09): a *server-enforced* PO-commitment approval — a distinct authority signs off the actual order commitment (vs budget AND cashflow) before the PO is placed — is a new state-machine state + RPC + ADR; and there is **no cash/cashflow data in the system today**, so "current cashflow condition" needs a new cash-position data domain (opening balance, in/out-flows, runway). Both are NEW features, explicitly OUT of the Wave-5 IxD scope (which surfaces budget/committed-PO impact only, using existing OD-BUDGET-2 data). Spec these together as the "commitment governance" track. Also: hosting/deploy (ADR-0006), document file-upload (Storage), Reports module.
-
-**⚑ Owner decision — RESOLVED (2026-06-09): Wave 3 = CORRECTNESS-FIRST** (silent-data/integrity bugs + lifecycle rework dead-ends + procurement authz gaps), **mobile = Wave 4** (near-term users are desktop). **Wave 3 execution: ✅ CORE DONE across 6 PRs #39–#44 (`main`@5ff5ab9); only PR-F (F8/A8/B3, FE-only) remains.** Build order: ✅ Part 1 = wrong-data bugs (F3/F4/F1/F2, PR #39) → ✅ Part 2 = resilience + RBAC-leak completion (F5/F6/F7 + G2, PR #40; **N2/N3/N4** ⌘K/toolbar leaks + **O1** timesheet Submit-auto-saves, PR #41) → ✅ Part 3 = lifecycle dead-ends (B1/B2, PR #42) → ✅ Part 4 = procurement flow/authz (**N1** drop-Paid + **D10** $0-Draft gate + **O3** co-locate VI capture, PR #43; A9 over-grant + A10 + AC-W2-RBAC-011-RLS + Admin-SoD, PR #44 / migration `0018` / OD-PROC-8). **Remaining PR-F:** F8 (`EntityFormModal` readiness), A8 (Admin edit Draft/Rejected PR header), B3 (Admin break-glass procurement transitions in the FE — now safe since `0018` enforces SoD on Admin server-side).
-
-### New IxD task-flow audit — 2026-06-09 PM round (`review/ixd-{pm,exec-finance,engineer}-tasks.md`)
-Three new persona audits (run against the post-Wave-2 + ADR-0021 app) triaged via 3 parallel agents, **every claim verified in code** on `main`. ~63 findings → **~21 already ADDRESSED** (Wave 1/2/unified/PR-39, verified), **~16 already CAPTURED** (existing OUTSTANDING codes: D4, D11, D16, E1/F4, G2, I1/I2/I3, J4 …), **~20 NEW** (deduped). **None are mobile** → nothing lands in Wave 4; the new items are correctness/RBAC (pull into Wave 3) or detail-IxD (Wave 5) or owner-decisions.
-
-- **NEW → Wave 3 (correctness/RBAC; the unfinished halves of Wave-2 Theme A + a money-control bug) — ✅ ALL DONE:**
-  - ✅ **N1 (Blocker) Two competing payment controls** — dropped `Paid` from the VI status `<select>`; Mark-as-Paid is sole authority. **DONE, PR #43.**
-  - ✅ **N2 RBAC leak** — Approvals-queue toggle in the timesheet toolbar now gated on approver role. **DONE, PR #41.**
-  - ✅ **N3 RBAC leak** — ⌘K Navigate group role-filtered (`modulesForRole`). **DONE, PR #41.**
-  - ✅ **N4 ⌘K nav gaps** — My Tasks reachable via ⌘K. **DONE, PR #41.**
-- **NEW → Wave 5 (detail-page & dashboard IxD; extends the existing Theme D residual):** N6 no unified/PM **procurement approval inbox** (only a filter); N7 procurement **decision buttons render above** the line-item/quote evidence (approve-before-review); N8 **no budget-remaining/variance** on the approval screen; N9 budget **clone-to-revise doesn't auto-open** the new draft + **no inline budget line-item edit** (delete+recreate only, though update mutation exists); N10 **no return-to-pipeline/next-record** after a deal transition; N11 timesheet **approval rows too shallow** to verify before approving (no per-project/day breakdown); N12 **no bulk approve**; N13 **`KPITile` has no drill affordance** anywhere (extends D16 — wire exec/finance KPIs + Finance "Top Projects by Spend" table + BvA rows); N14 **pipeline table lacks attention signals** (owner/last-touch/aging + a "needs attention" filter); N15 **no pending-approval KPI/shortcut** on Exec/Finance dashboards (PM has one) + PM dashboard omits procurement approvals; N16 **no invoice-ready ("Vendor Invoiced") segment** in Procurement for Finance; N17 Finance budget review **ranked by absolute spend, not variance/over-budget**; N18 PM project lists **not sorted/pinned by risk**; N19 Projects page **leads with manager filters** even for the Engineer scope.
-- **NEW → Wave 6 (write-policy alignment):** N20 budget version **clone/create are confirm-gated** (vs OD-UX-1 routine=single-click); reserve confirm for activate/archive/delete.
-- **OWNER-DECISION items — RESOLVED 2026-06-09 (OD-W3-1..4 in decisions.md):**
-  - ✅ **O1 → BUILT (Wave 3, OD-W3-1):** timesheet **Submit auto-saves valid dirty rows first**, then submits — no prior Save click required. **DONE, PR #41.**
-  - **O2 → KEEP (no change, decided):** procurement create stays the two-step (modal creates a Draft → detail page adds line items). A Draft PR is a legitimate editable/cancellable state; not worth the composer rework.
-  - ✅ **O3 → BUILT (Wave 3, OD-W3-3):** inline VI capture **co-located with the Mark-Vendor-Invoiced action** (one step, mirroring Mark-won inline capture) — evidence-with-state. **DONE, PR #43.**
-  - **O4 → KEEP / DEFER (no change, decided):** no inline pipeline stage-change; the detail page stays the single place to advance a deal. Drag-and-drop kanban is a sizeable build, revisit only if pipeline grooming becomes a pain.
-
-## Shipped (merged to main)
-1. **#1** De-cruft + build foundation — removed AI Studio artifacts, real Tailwind-via-Vite, fixed a conditional-hooks crash, repo green, CI lint gate.
-2. **#2** Supabase backend foundation — 16-table schema, 11 enums, `org_id` seam on every table, RLS + `auth_org_id()`/`auth_role()`, generic seed, pgTAP suite. (Security audit caught + fixed 2 HIGH + 2 MEDIUM tenancy holes.)
-3. **#3** Auth — real Supabase Auth (password + magic link), session/role context, `RequireAuth`, BrowserRouter, Admin-only client-side impersonation (ADR-0008), credentialed dev seed.
-4. **#4** Data-access layer + Projects list on real data (TanStack Query, `src/lib/db/*` template).
-5. **#5** Procurement list on real data (seed enriched to 5 procurements).
-6. **#6** Timesheets on real data (fixed hard-coded `CURRENT_USER_ID=1` + a timezone bug).
-7. **#7** Executive Dashboard on real data via `get_executive_dashboard()` security-invoker RPC; removed the last mock bridge.
-8. **#8** Performance — code-split bundle 1,041 KB → 211 KB entry + lazy routes/vendor chunks.
-9. **#9** Security — `force row level security` on all 16 tables.
-
-**State:** all 5 MVP module pages (Auth, Projects, Procurement, Timesheets, Dashboard) run on real Supabase data with RLS-enforced tenancy. typecheck/lint/unit(77)/build green; 22 e2e specs + 28 pgTAP tests pass against the local stack. Tenancy seam verified non-bypassable (cross-org reads/writes blocked).
-
-## THE WALL — ✅ RESOLVED (2026-06-04) → see `docs/decisions.md`
-All the write-wave business decisions are now locked in **`docs/decisions.md`**: OD-PROC (procure-to-pay
-+ ERP audit + flat auth matrix), OD-TS (line-manager whole-timesheet approval), OD-BUDGET (Active-version
-authority + committed-spend derivation + 7 fixed categories), OD-MARGIN (dual-lens weighted margin),
-OD-SP-1/2/3 (pipeline membership, win-probabilities, dual win-rate + time filter + customer-contract-PO
-decision date). Deferred-but-seamed: fine-grained role config, proposed-vs-final value variance, admin
-config engine (OD-PROC-6). The wall is down — the write wave is unblocked.
-
-## Build wave (post-decisions) — status
-**Build order (dependency-driven):** Budget-versioning module → Procurement lifecycle → Sales-pipeline +
-Dashboard-margin re-formula. (Margin needs Active-version budget; on-hand spend needs committed
-procurement; pipeline/dashboard consume both.)
-Operating cadence: **mode A + Director-merge** (owner AFK) — autonomous spec→build→review→PR→merge;
-owner gates = prod deploy + genuinely-new decisions only.
-1. **Budget-versioning** — ✅ **MERGED (PR #13, `a17a2e9`).** ADR-0011 (security-definer mutation RPCs).
-   151 unit / 56 pgTAP / 1 e2e. Security found+fixed+re-verified HIGH-BV-1 (cross-tenant budget hijack) + LOW-BV-1.
-2. **Procurement lifecycle** — ✅ **MERGED (PR #14, `eb91b5e`).** ADR-0012 (`transition_procurement` security-definer
-   RPC: map + role×transition matrix + SoD + ref-number minter; `procurement_receipts`/`procurement_invoices`).
-   213 unit / 93 pgTAP / 1 e2e (AC-816 full Draft→Paid). Security found+fixed+re-verified HIGH-1 (minter callable
-   cross-org → revoked internal-only). (PR #12 old SalesPipeline closed — superseded.)
-3. **Timesheet submit/approve** — ✅ **MERGED (PR #15, `f12c934`).** `transition_timesheet` RPC (ADR-0012 pattern),
-   `manager_id` + RLS read-widening, line-manager approval + Admin/Exec fallback, SoD (no self-approve incl Admin).
-   232 unit / 113 pgTAP / 1 e2e (AC-911). Security found+fixed+re-verified HIGH-TS-1 (null-manager SQL 3-valued
-   fall-through → any member could approve), MED-TS-2 (direct-UPDATE RPC bypass), LOW-TS-3 (self-writable manager_id).
-4. **Projects: status-transitions + revenue fields** — ✅ **MERGED (PR #16, `3d899ce`).** `transition_project` RPC
-   (win-capture requires customer-contract-PO+date, stamps `decided_at`), `pipeline_stage_config` (seeded win-probs),
-   revenue columns. 247 unit / 140 pgTAP / 1 e2e (AC-1011). Security: no HIGH; MED-PR-1 (direct-UPDATE bypass of
-   the RPC) fixed via revoke-then-regrant (status/decided_at/customer cols are RPC-definer-only).
-5. **Sales-pipeline + Dashboard margin re-formula** — ✅ **MERGED (PR #17, `23f3b6d`).** ADR-0014. Replaced the
-   mislabeled `avg_gross_margin` with the OD-MARGIN dual-lens model: 3 security-invoker read RPCs
-   (`get_executive_dashboard` re-formula + `get_win_rate(from,to)` + `get_sales_pipeline`); Exec Dashboard dual-lens
-   tiles + win-rate widget (count/value toggle + period selector); SalesPipeline rebuilt on real data. 261 unit /
-   172 pgTAP / 1 e2e (AC-1117). pgTAP asserts the worked-example **oracle** exactly (on-hand margin 0.949375,
-   pipeline weighted 800k, projected 0.200, win-rate 2/3 + 0.9249). Security: **no HIGH/Med** (all invoker, cross-tenant
-   verified with live org-B fixture, anon revoked). FIRST issue with zero HIGH — no definer-bypass surface.
-
-## ✅ WRITE-CAPABLE MVP COMPLETE (2026-06-04)
-All 5 write-wave issues merged (PRs #13–#17), `main` @ `23f3b6d`. The portal now does real procure-to-pay,
-budget versioning, timesheet submit/approve, project win/loss with revenue capture, and a dual-lens
-margin/win-rate/pipeline dashboard — all RLS-tenant-safe, every business rule traced to `docs/decisions.md`.
-Cumulative on main: ~261 unit · 172 pgTAP (44 files) · curated e2e journeys · typecheck/lint/build green.
-Each issue ran the full SDD→TDD→BDD loop; the security gate caught + fixed a real HIGH on 3 of 4 definer-RPC
-issues (all missed by unit+pgTAP+spec-review). Production hardening since: **CI now gates pgTAP+e2e** (PR #19,
-also fixed a silently-red verify job) and the **procurements_update SoD bypass is closed** (PR #18) — the
-transition-RPC-bypass class is now shut on all 4 state machines. `main` @ `e95cf50`, PRs #13–#19 merged.
-
-## ✅ UI POLISH round — COMPLETE (merged PR #29, `main`@8199782, 2026-06-07)
-Post-IA-3 AI-slop cleanup + 4 owner directives. Audit `docs/reviews/2026-06-07-ui-slop-audit.md`; plans `docs/plans/2026-06-07-{ui-cleanup,shell-nav,confirm-mutations,thin-pages,budget-dropdown}.md`. Built sequentially on `feat/ui-polish` (49 commits), multi-lens reviewed, fixed, merged.
-- **4 directives shipped:** (1) **removed the tabbed workspace** (nav = rail + breadcrumb + ⌘K; deleted provider/strip/store/grid-row); (2) **⌘K searches records** (open a project/PR/opportunity by name/code across the 3 cached lists, not just modules); (3) **budget-version dropdown restored** (one version at a time via labelled `<select>`); (4) **confirm-before-every-DB-write** (`ConfirmDialog` primitive on every mutation site; forward=popover, destructive=scrim modal; toast-on-resolve).
-- **Transition-bug fix** (owner "clicked but status didn't change"): `error.code` preserved through `procurementLifecycle.ts`+`useProcurementDetail.ts`, classified `P0001`=illegal-stage / `42501`=not-permitted-SoD into clear toasts; Mark-as-Paid no longer offered to the request's approver (SoD-b). RPCs/migrations UNCHANGED. **OPEN owner decision (flagged):** the deeper root cause is impersonation-vs-real-JWT — client-only `effectiveRole` never re-issues the JWT, so the RPC authorizes against the real role. Symptoms fixed; architecture left for owner.
-- **AI-slop cleanup:** de-rainbow charts, token-palette dots, differentiated pills, no-emoji placeholders, em-dash→concrete copy, mobile ≥44px touch targets, `DataTable role=row` a11y fix, ⌘K ranking de-duplicated, inverted OpportunityDetail action hierarchy.
-- **BDD authoring rule made binding** (owner directive): tests model the user's journey to the goal + assert that goal; the app conforms to the test, never the reverse; on failure fix the app (or, for a deliberate UX change, update journey STEPS while keeping the goal-oracle). Documented in `CLAUDE.md` · `product-expectations.md` · `director-playbook.md` · `design-workflow.md` · `.claude/agents/qa-acceptance.md`.
-- **Bundled pre-existing fix:** 3 sales-pipeline pgTAP oracles (0035/0036/0044) were red on `main` since PR #27 added P011 (950k Tender) without syncing the worked-example — recomputed to the true 3-deal pipeline (weighted 1,275,000; total 2,950,000; projected ≈0.1356; Tender count 2) + synced the spec. **Process note: CI's `integration` job is NOT a required check** (red pgTAP didn't block merges) — make it required so `main` can't drift red.
-- **Verified green:** 733 unit · 180 pgTAP · 21 e2e · typecheck/lint/build · **CI green on the runner** (verify + integration). Open-Questions across the 5 plans resolved with recommended defaults (flagged in the PR).
-- Follow-up chip: **bump GitHub Actions off deprecated Node 20** (checkout/setup-node/supabase-cli) before ~2026-06-16.
-
-## ✅ APP-WIDE FE-CRUD + RBAC PROGRAM — COMPLETE (2026-06-08, `main`@ba04298; PRs #32/#34/#35)
-The app went from view+lifecycle-only to **full create/edit/delete for every entity, RBAC-gated + RLS-enforced**, across a 3-layer (FE / repository-API / Supabase) seam. Plan `docs/plans/2026-06-07-crud-rbac-program.md`; design `docs/design/{crud-components,rbac-visibility}.md` + `docs/design-mockups/crud-*.html` (owner taste-gated).
-- **Phase 0 (mockups):** design-architect→ui-implementer→design-reviewer loop; per-role HTML mockups + the role×affordance visibility map; owner-approved.
-- **Phase 1 foundation (PR #32):** ADR-0016 `can()`/`usePermission`/`<CanWrite>` on the **real JWT role** + impersonation banner; ADR-0017 repository/API seam + shared `AppError`; ADR-0018 soft-archive (`archived_at`); form primitives (`EntityFormModal`/`useEntityForm`/`TextField`/`SelectField`/`Combobox`). **Also fixed app-wide: the 28px→32px control-scale bug** (`index.css` root font) + the **timesheet date-drift** (relative-week seed + clock-pinned tests).
-- **Phase 2 slices:** **Companies (PR #34)** = proving slice (caught the scale/date-drift/delete-gating bugs before they ×7'd). Then **Projects, Procurement, Tasks, Incidents, Documents, Admin-Users (PR #35)** built in **parallel worktrees**, integrated, 5-lens reviewed (2 rendered design + security + spec + quality), fixed.
-- **Server-enforced SoD/RPCs (migrations 0013–0017):** company delete=Admin; `set_project_contract_value` (PM pre-win, Exec/Finance on won, sole writer); procurement select-quote RPC + `procurement_items` org_id-inherit trigger + Draft RLS; task engineer-own-status RLS (column-pinned); document-status RPC (approver≠author); incident delete=Admin + reporter stamping. RLS is the authority; `can()` is UX-only; no client sends `org_id`.
-- **Verified:** **1258 unit · 332 pgTAP (59 files) · 39 e2e**; CI green (verify+integration). `/work-orders` route removed (owner decision).
-- **DEFERRED (recorded):** Admin **user disable/Status + invite-create** (needs a profiles status column + server-side auth-admin); **assigned-projects** picker filter (needs an assignment model); document **file upload** (Supabase Storage still disabled — metadata CRUD only); minor responsive/taste nits (mobile KPI peek, role-pill distinctness) as fast-follow.
-
-## ▶ NEXT FEATURE WAVE — owner-set priority (updated 2026-06-08)
-Companies + Tasks + Documents + Administration are now DONE via the CRUD program; Work Orders route removed. Genuinely remaining:
-1. ✅ **Timesheet entry + edit — DONE (merged PR #31, `main`@b9ee6c4).** Engineers add a project row, type per-day hours, edit a row note, delete (confirm), and Save on the editable weekly grid (Draft-only; lazy Draft creation; save-diff insert/update/delete-zeroed; 0–24 validation; live totals; read-only once Submitted). Spec `docs/specs/timesheet-entry.spec.md`, plan `docs/plans/2026-06-07-timesheet-entry.md`, **ADR-0015** (migration `0011`: unique `(timesheet_id,project_id,entry_date)` cell key + WITH CHECK hardened to own+Draft **and** parent-project org). **Security audit caught + fixed a real cross-org integrity hole** (an own-draft entry could reference another org's project_id) before merge → pgTAP `0049`. 789 unit · 190 pgTAP · e2e `AC-TSE-021` · CI green. Multi-lens reviewed + a rendered re-check (AA contrast 6.48:1, mobile delete reachable, header/grid totals consistent). _Noted post-MVP follow-ups:_ restrict picker to **assigned** projects (needs an assignment model); bind `entry.org_id`/`entry_date` to the parent timesheet (defense-in-depth); picker uses `useProjects()`+client filter (acceptable).
-2. **▶ Project-level timesheet view — NEXT** (was deferred) — cross-user, project-scoped timesheet read on the project-detail Timesheets tab (PM/Exec see all members on their project). Needs a project-scoped RLS read + a visibility/auth **decision (owner-level — flagged)**. Build next.
-3. ✅ **Companies / Tasks / Documents / Administration** — DONE via the CRUD program (above).
-4. **Reports** module — still a placeholder; needs owner definition (read-only dashboards/exports over existing data).
-> CRUD-program fast-follows (recorded above): Admin user disable/invite, assigned-projects picker, document file-upload (re-enable Storage), minor responsive/taste nits. Work Orders route removed (owner decision).
-
-## ✅ UI REALIGNMENT PROGRAM — COMPLETE (2026-06-07, `main`@25d6963)
-The whole app was re-skinned to the owner-approved **RIS IA-3 identity** (`DESIGN.md` reverse-engineered from
-`RIS-portal-2/docs/design-mockups/*.html`; mockups in `docs/design-mockups/proposal-*.html`; master plan +
-per-surface plans in `docs/plans/2026-06-06-ui-*.md`). Shell = 224px grouped rail + context bar + ⌘K palette +
-tabbed workspace + index→full-page-detail w/ view toggles; light-only; RIS tokens verbatim. Ran via
-design-architect→ui-implementer→design-reviewer (every surface got a **rendered visual + contrast/AA review**).
-Shipped PRs:
-- **#20** procurement `profiles` ambiguous-embed fix (PGRST201 — list was broken for all roles).
-- **#21 Foundation** (token pipeline, shell, ~20 primitives). **#22 Sales Pipeline** (kanban/table + opportunity detail).
-- **#23 Procurement** (table/board + PR lifecycle detail). **#24 Projects + ProjectDetails decomposition**
-  (the ~1250-line god-component dismantled into `pages/project-detail/`). **#25 Dashboard + per-role** (status-chart
-  fix). **#26 Timesheets/Approvals** (grid/queue). **#27 cleanup** (e2e isolation + placeholder removal).
-- Two app-wide primitive bugs the **visual gate caught** (unit tests passed while broken): Tailwind-v4 `<alpha-value>`
-  dead-color-pipeline + invisible outline-`Button` border. (Both banked to memory.)
-
-### Deferred (placeholders REMOVED; features tracked; await owner scope decision)
-- Pipeline RPC-widen (contract-ref/decision-date/PM on cards + PM filter) — low value (empty for in-pipeline deals).
-- **Project-level timesheets view** — needs a cross-user, project-scoped RLS read + a visibility/auth decision (owner-level).
-- 3 dashboard data-slices — committed-spend-by-category donut, per-PM approvals count, engineer-tasks.
-- The prototype modules below (Tasks/Documents/Work-Orders/Reports/Companies/Administration).
-
-### Open follow-ups / debt
-- ✅ **Auth/LoginPage reskin DONE** — `b4741d9` on `feat/ui-polish` (reskinned to the RIS/IA-3 identity; ships with the polish PR). _(was: off-token, pending.)_
-- **e2e test-hardening**: full *local* suite has seed-coupling (AC-1011/AC-816/AC-911 share seeded entities → fail in
-  some local full-suite orderings; **CI passes**). Harden by giving each mutation spec a dedicated seed row (pattern:
-  AC-SP now uses P011). Not urgent.
-- **hosting/deploy** (owner-gated, ADR-0006); **deferred prototype modules** scope decision (below).
-
-## (SUPERSEDED) Deferred prototype modules — now mostly built by the CRUD program (2026-06-08)
-This section is HISTORICAL. The owner scope decision was made and most of these shipped in the CRUD program
-(PRs #32/#34/#35 — see "✅ APP-WIDE FE-CRUD + RBAC PROGRAM" above). Current status:
-- ✅ **Tasks** (+ `task_dependencies`) — DONE (project-detail Tasks tab CRUD + engineer-own-status RLS).
-- ✅ **Incident/risk register** (`incident_reports`) — DONE (`/incidents` file/investigate/close).
-- ✅ **Document control** (`project_documents`) — **metadata CRUD DONE** (status SoD); **file upload still deferred** (Supabase Storage disabled — re-enable first).
-- ✅ **Companies** — DONE (management screen, full CRUD).
-- ✅ **Administration** — Admin Users screen DONE (edit role/manager); **user disable + invite-create deferred** (needs a profiles status column + server-side auth-admin); the OD-PROC-6 admin config engine / B2B bridge remains future.
-- ❌ **Work Orders** — route REMOVED (owner decision; never modeled).
-- **Reports** — still a placeholder; the one module genuinely needing owner definition (read-only dashboards/exports).
-
-<details><summary>(superseded) original #5 design notes</summary>
-
-   Spec `docs/specs/sales-pipeline-dashboard.spec.md` + plan `docs/plans/2026-06-04-sales-pipeline-dashboard.md`.
-   Built as 5a (margin/win-rate RPC + dashboard) then A3 (`get_sales_pipeline`) + 5b (screen) — collapsed into one PR.
-   Replaces the mislabeled `avg_gross_margin` with
-   OD-MARGIN dual-lens; consumes budget (`get_project_budget`) + committed procurement spend + `pipeline_stage_config`
-   + `decided_at`. **Worked-example KPI oracle** is in the spec (on-hand margin 94.9%, pipeline weighted value 800k,
-   win-rate count 2/3 + value 92.5%) — pgTAP asserts those exact numbers. Seed task SPD-S1 reduces P002/P010 budgets
-   so pipeline projected margin is non-trivial (0.200). **Checkpointed for a fresh-context session** (capstone too
-   large to build well on this session's remaining budget). Resume: execute the plan from Phase 0.
-</details>
-
-## Non-blocked backlog (can proceed without owner; recommended order)
-> Reconciled 2026-06-04 after the write wave. ✅ = shipped during #1–#5; the rest are genuinely open.
-1. ✅ **ProcurementDetails read swap** — DONE in issue #2 (rewritten on real data + lifecycle actions).
-2. ✅ **SalesPipeline + Dashboard-margin** — DONE in issue #5 (PR #17). (Old `feat/sales-pipeline` branch may still linger on origin — safe to delete.)
-3. ✅ **pgTAP + e2e in CI** — DONE (PR #19, `18cfca5`). Added a parallel `integration` job (`supabase start` → `db reset` → `supabase test db` 45 files/180 tests → Playwright e2e); verified green on the real GitHub runner. ALSO fixed a latent failure it surfaced: the fast `verify` job had been **silently red** on missing `VITE_SUPABASE_URL` (CI has no `.env.local`) — made the unit suite hermetic via dummy Supabase env in `vite.config.ts` `test.env`. CI is now a trustworthy merge gate. **Going forward: watch the actual CI run on PRs, don't merge on local-green alone.**
-4. **ProjectDetails decomposition + read swap** — `pages/ProjectDetails.tsx` is still the ~1,388-line mockData prototype (imports `projects/users/companies/procurements/timesheets/tasks/projectDocuments` from `data/mockData`). Split into per-tab components, then wire budgets/tasks/documents tabs to real data (budget tab already mounts the real `<ProjectBudget>`). Large; decomposition first.
-5. **Per-role sub-dashboards on real data (OD-D3)** — `EngineerDashboard`/`PMDashboard`/`FinanceDashboard` in `ExecutiveDashboard.tsx` still read `data/mockData` (the only other mockData survivor). Wire to real per-role queries.
-6. **Shared `<ListState>` component** — extract loading/empty/error markup duplicated across list pages; memoize list filters consistently.
-7. **UI/UX design workflow** — ✅ harness BUILT (agents + `docs/design-workflow.md` + vendored skills); ▶ NOT yet run — see "RESUME HERE" above (reverse-engineer `DESIGN.md` via `design-architect`, owner sign-off, then run UI issues through the design cycle). `DESIGN.md` is reverse-engineered from the existing app (identity-preserved), NOT greenfield `/design-consultation`. Storybook adopted when the shared component library is extracted.
-
-## Tracked follow-ups / debt (from PR reviews)
-- **Storage:** `supabase/config.toml` has `[storage]` + `[edge_runtime]` disabled (sandbox health-check issue). MUST re-enable for the documents feature; `procurement_quotations.file_url` / `procurement_documents.link` / `project_documents.file_path` have no bucket yet. Buckets must be private + RLS/`org_id`-pathed.
-- **Auth prod cutover:** enable email confirmations (`enable_signup=false` + real SMTP); set `site_url`/redirect allowlist to HTTPS prod origin only; replace dev seed password `Passw0rd!dev`; `auto_expose_new_tables=false` before cloud deploy.
-- **Per-role sub-dashboards** (Engineer/PM/Finance views in ExecutiveDashboard) still show some hard-coded figures (OD-D3) — swap to real data in their own issues.
-- **Hosting** (ADR-0006 deferred) — pick Vercel/Netlify/Cloudflare + Supabase cloud project; production deploy needs owner approval (irreversible).
-- **JWT role claim:** `auth_role()` reads `profiles.role` (authoritative); re-introducing the `app_metadata.role` JWT fast-path requires GoTrue signing + an audited sync trigger.
-- **Budget module (from build-wave #1 reviews):** (a) `createBudgetVersion` computes `max(version)+1` client-side (TOCTOU race under concurrent "+New version"); move to a `create_budget_version` security-definer RPC like clone/activate. (b) Extract a shared `<LineItemTable readOnly>` in `ProjectBudget.tsx` (editor + read-only tables duplicate markup). (c) The project header **Budget MetricCard in `ProjectDetails.tsx` still reads the stale `projects.budget` header** — it becomes correct when the Projects/Dashboard margin re-formula issue derives budget from the Active version. Neither blocks the budget module.
-- **Procurement module (from build-wave #2 reviews):** (a) **transition-map drift guard** — `transition_procurement`'s legal-map + role matrix (SQL) and `procurementLifecycle.ts` `LEGAL_TRANSITIONS`/`allowedActions` (TS) are hand-maintained duplicates (SQL authoritative, TS cosmetic); add a sync test (or shared JSON fixture) before the matrix grows. (b) Extract a shared `formatDate` helper (dates formatted inline; `formatCurrency` already shared). Neither blocks.
-- **Dashboard module (from build-wave #5 reviews):** (a) the on-hand + pipeline **status-set literals are duplicated across all 3 RPCs** in `0009_dashboard_margin.sql` (4+ occurrences) — extract a shared SQL helper (`on_hand_statuses()`/`pipeline_statuses()` or a `status_membership` table) before the taxonomy changes. (b) `SalesPipeline.tsx` re-filters projects O(5×N) per render — `useMemo` a single group-by-status. (Win-rate cache-key staleness was already fixed in the build.) Neither blocks.
-- ✅ **SECURITY — transition-RPC direct-UPDATE bypass (MEDIUM, systemic): FULLY CLOSED across all 4 state machines.**
-  Coarse `*_write` RLS let a 4-role insider directly `UPDATE` status-machine columns, bypassing the security-definer
-  transition RPC (legal-map + SoD + capture/stamp). Fixed: timesheets (MED-TS-2, WITH CHECK status pin), projects
-  (MED-PR-1, revoke-then-regrant), and **procurements** (PR #18, `2bd40c0`, migration `0010` — revoke-then-regrant
-  locking `status`/`pr_number`/`po_number`/`approved_by_id`/notes + child doc-number cols to the definer RPCs; pgTAP `0045`).
-- **Win-rate date filter (issue #5, OWNER-FLAG-1):** MVP ships period presets (All-time/YTD/Last quarter/Trailing
-  12mo); the RPC takes arbitrary `p_from`/`p_to` so a custom date-range picker is a UI-only later add. Confirm at #5 sign-off if a custom picker is wanted in MVP.
+## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
+- **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
+  signing to a server/Edge Function with a hard max TTL. Own issue.
+- **Prod storage bucket** — migration 0025's `storage.buckets` insert + policies land in cloud only on the
+  next prod migration push (`db-push-prod.sh`); do before any prod file use.
+- **Document query-key consistency** [Minor] — document React-Query keys are project-only (pre-existing
+  across all document hooks); align to the org-scoped key convention in a consistency pass.
+- **Per-role sub-dashboards real data (OD-D3)** — Engineer/PM/Finance views still carry some hard-coded
+  figures; wire to real per-role queries.
+- **Auth prod cutover** — email confirmations + real SMTP; `site_url`/redirect allowlist to HTTPS prod only;
+  replace dev seed password; `auto_expose_new_tables=false`. (Cloud is demo/staging-grade today.)
+- **JWT role fast-path** — `auth_role()` reads `profiles.role` (authoritative); re-introducing an
+  `app_metadata.role` JWT claim needs GoTrue signing + an audited sync trigger.
+- **Transition-map drift guard** — `transition_procurement`'s SQL legal-map/role-matrix and
+  `procurementLifecycle.ts` (TS, cosmetic) are hand-maintained duplicates; add a sync test before the
+  matrix grows.
+- **SQL helper extraction** — dashboard on-hand/pipeline status-set literals duplicated across the 3 RPCs in
+  `0009_dashboard_margin.sql`; extract a shared helper before the taxonomy changes.
+- **e2e seed-coupling** — a few mutation specs (AC-1011/AC-816/AC-911) share seeded entities → can fail in
+  some *local* full-suite orderings (CI passes); harden with dedicated per-spec seed rows (the P011 pattern).
+- **Shared `<ListState>`** — loading/empty/error markup duplicated across list pages; extract + memoize
+  list filters consistently. Minor.
+- **Admin user disable/invite** — needs a `profiles` status column + server-side Supabase auth-admin API.
+- **Monitoring** (Sentry/uptime) — deferred. Optional CF API token in op vault `AS` for non-interactive CI.
 
 ## Run locally
-- One-time: `claude plugin install superpowers@claude-plugins-official --scope project` (plugin); `scripts/vendor-skills.sh` (vendored skills); `cd pmo-portal && npm install`; `npx playwright install chromium`.
-- Backend: `supabase start && supabase db reset` (seeds generic professional-services data + credentialed users; password `Passw0rd!dev`). Put the printed URL/anon key in `pmo-portal/.env.local`.
-- App: `cd pmo-portal && npm run dev`. Gates: `npm run typecheck` · `npm run lint:ci` · `npm test` · `npm run build` · `npx playwright test` (stack up) · `supabase test db` (pgTAP).
-
-**✅ UX-NATURALNESS PROGRAM COMPLETE (2026-06-10) — Wave 1–5 + ADR-0021 + Wave-4 mobile all merged (PRs #36–#59).** Remaining work is deferred polish + new-feature tracks — see "▶ DEFERRED / REMAINING after the UX-naturalness program" near the top. (Wave-5 Cluster 6: D13 dead Attach-file button removed; D11/D12 detail drawers DEFERRED per OD-W5-C6, plan ready `docs/plans/2026-06-10-wave5-detail-drawers.md`.)
+- One-time: `claude plugin install superpowers@claude-plugins-official --scope project`;
+  `scripts/vendor-skills.sh` (vendored skills, gitignored); `cd pmo-portal && npm install`;
+  `npx playwright install chromium`.
+- Backend: `supabase start && supabase db reset` (seeds professional-services data + credentialed users,
+  password `Passw0rd!dev`). Put the printed URL/anon key in `pmo-portal/.env.local`.
+- App: `cd pmo-portal && npm run dev`. Gates: `npm run typecheck` · `npm run lint:ci` · `npm test` ·
+  `npm run build` · `npx playwright test` (stack up, from `pmo-portal/`) · `supabase test db` (pgTAP).
+- **Parallel-worktree caution:** one shared local Supabase stack — serialize DB-driving work; `db reset`
+  between an e2e run and pgTAP. See `docs/environments.md` "Local stack hygiene".
