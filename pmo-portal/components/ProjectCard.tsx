@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatusPill, ProgressBar } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus, projectIconColor } from './projects';
 import ProjectStatusControl from './ProjectStatusControl';
@@ -10,6 +10,8 @@ export interface ProjectCardProps {
   project: ProjectWithRefs;
   /** Drill into the full-page project detail. */
   onOpen: (project: ProjectWithRefs) => void;
+  /** I5: delivery summary (from useProjectsDeliverySummary) for consistent card-view display. */
+  deliverySummary?: { deliveryPct: number | null; committedSpend: number; budget: number } | undefined;
 }
 
 /**
@@ -20,7 +22,7 @@ export interface ProjectCardProps {
  * focusable activation target; the inline ProjectStatusControl (AC-1011's
  * win-transition RPC) is preserved and stops propagation so it never drills.
  */
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary }) => {
   const contract = project.contract_value ?? 0;
   const committed = project.budget ?? 0;
   const actual = project.spent ?? 0;
@@ -79,27 +81,51 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen }) => {
         </div>
       </dl>
 
-      {/* Dual utilization bars — labeled (I6): a 2-col [label | bar] mini-grid
-          so each bar's meaning is explicit (the orphaned-bars fix). Labels use
-          the `label` type token (12px/600 muted-foreground). */}
-      <div
-        data-testid="project-card-bars"
-        className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
-      >
-        <span className="text-[12px] font-semibold text-muted-foreground">Committed</span>
-        <ProgressBar
-          value={Math.round(committedPct)}
-          tone="warning"
-          showValue
-          aria-label={`Committed: ${Math.round(committedPct)}% of contract`}
-        />
-        <span className="text-[12px] font-semibold text-muted-foreground">Actual</span>
-        <ProgressBar
-          value={Math.round(actualPct)}
-          showValue
-          aria-label={`Actual spend: ${Math.round(actualPct)}% of contract`}
-        />
-      </div>
+      {/* I5: Delivery + Budget used — consistent with table view */}
+      {deliverySummary && deliverySummary.deliveryPct != null ? (
+        <div
+          data-testid="project-card-bars"
+          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
+        >
+          <span className="text-[12px] font-semibold text-muted-foreground">Delivery</span>
+          <ProgressBar
+            value={Math.round(deliverySummary.deliveryPct)}
+            showValue
+            aria-label={`Delivery ${Math.round(deliverySummary.deliveryPct)}%`}
+          />
+          <span className="text-[12px] font-semibold text-muted-foreground">Budget used</span>
+          <div className="flex flex-col gap-0.5">
+            <ProgressBar
+              value={deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0}
+              showValue
+              tone="warning"
+              aria-label={`Budget used ${deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0}%`}
+            />
+            <span className="text-[11px] text-muted-foreground">
+              {`${formatCompactCurrency(deliverySummary.committedSpend)} of ${formatCompactCurrency(deliverySummary.budget)} budget`}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div
+          data-testid="project-card-bars"
+          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
+        >
+          <span className="text-[12px] font-semibold text-muted-foreground">Committed</span>
+          <ProgressBar
+            value={Math.round(committedPct)}
+            tone="warning"
+            showValue
+            aria-label={`Committed: ${Math.round(committedPct)}% of contract`}
+          />
+          <span className="text-[12px] font-semibold text-muted-foreground">Actual</span>
+          <ProgressBar
+            value={Math.round(actualPct)}
+            showValue
+            aria-label={`Actual spend: ${Math.round(actualPct)}% of contract`}
+          />
+        </div>
+      )}
 
       {/* Foot: PM + inline status control */}
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-3">

@@ -95,4 +95,24 @@ describe('ProjectCard', () => {
     expect(labels).toContain('Committed');
     expect(labels).toContain('Actual');
   });
+
+  it('I5: when deliverySummary is provided, shows Delivery + Budget used consistent with table', () => {
+    render(
+      <ProjectCard
+        project={base}
+        onOpen={vi.fn()}
+        deliverySummary={{ deliveryPct: 50, committedSpend: 2_000_000, budget: 3_800_000 }}
+      />,
+    );
+    // Delivery progress bar
+    const deliveryBar = screen.getByLabelText('Delivery 50%');
+    expect(deliveryBar).toBeInTheDocument();
+    // Budget used bar
+    const budgetBar = screen.getByLabelText(/Budget used 53%/i);
+    expect(budgetBar).toBeInTheDocument();
+    // Compact currency subtext
+    expect(screen.getByText('$2.0M of $3.8M budget')).toBeInTheDocument();
+    // Should NOT show the old Committed/Actual bars
+    expect(screen.queryByLabelText(/Committed: \d+% of contract/i)).not.toBeInTheDocument();
+  });
 });

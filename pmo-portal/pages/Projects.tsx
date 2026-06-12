@@ -27,7 +27,7 @@ import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
@@ -51,12 +51,6 @@ const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
 
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
-
-function formatCompactCurrency(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  return formatCurrency(value);
-}
 
 const Projects: React.FC = () => {
   const { effectiveRole } = useEffectiveRole();
@@ -493,7 +487,7 @@ const Projects: React.FC = () => {
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
           {filtered.map((p) => (
-            <ProjectCard key={p.id} project={p} onOpen={onOpen} />
+            <ProjectCard key={p.id} project={p} onOpen={onOpen} deliverySummary={deliverySummary?.[p.id]} />
           ))}
         </div>
       )}

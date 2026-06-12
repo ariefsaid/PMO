@@ -33,3 +33,10 @@ export function parseMoneyInput(raw: string): number | null {
 export function pct(v: number | null): string {
   return v == null ? '—' : `${Math.round(v)}%`;
 }
+
+/** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces. */
+export function formatCompactCurrency(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return formatCurrency(value);
+}
