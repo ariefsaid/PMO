@@ -17,7 +17,8 @@
 --   Tasks:     d3000000-...
 --   Timesheets: d4000000-...
 --   Incidents/docs: d5000000-... / d6000000-...
---   Milestones:     d7000000-...
+--   Milestones:     d7000000-...-0001..000c (01-04 SP-2401, 05-08 SP-2402, 09-0c SP-2403)
+--   Extra tasks:    d3000000-...-013..039 (SP-2401/SP-2402 detail + SP-2403 all phases)
 \set ON_ERROR_STOP on
 set search_path = public, extensions;
 
@@ -785,95 +786,327 @@ update projects set
   where id = 'd0000000-0000-0000-0000-000000000008';  -- SP-2408 Westfield Cannery (Loss Tender)
 
 -- ============================================================
--- §K project_milestones — Engineering → Procurement → Construction sequence
--- for the two ongoing flagship projects (d0…01 healthy, d0…02 at-risk).
--- UUID namespace: d7000000-... (free range, see header map above).
+-- §K project_milestones — 4-phase EPC model: Engineering Design → Procurement →
+-- Construction → Commissioning & Grid Connection — for all three delivery projects.
+-- UUID namespace:
+--   Milestones: d7000000-...-0001..000c
+--     01-04 = SP-2401 (Meridian Steelworks, healthy mid-delivery)
+--     05-08 = SP-2402 (Cascade Foods, at-risk behind schedule)
+--     09-0c = SP-2403 (Atlas Chemicals, Close Out / completed)
+--   Extra tasks: d3000000-...-013..039
+--     013-017 = SP-2401 Procurement (5 Done, push calc to ~71%)
+--     018-019 = SP-2401 Construction (1 Done + 1 To Do, calc 25%)
+--     020-022 = SP-2401 Commissioning (3 To Do, calc 0%)
+--     023-024 = SP-2402 Procurement additions (2 Done)
+--     025-027 = SP-2402 Construction additions (2 Done + 1 In Progress, divergence story)
+--     028-030 = SP-2402 Commissioning (3 To Do, past-due)
+--     031-032 = SP-2403 Engineering Design (2 Done)
+--     033-034 = SP-2403 Procurement (2 Done)
+--     035-037 = SP-2403 Construction (3 Done)
+--     038-039 = SP-2403 Commissioning (2 Done)
 --
--- Milestone story:
---   d0…01 Meridian Steelworks (healthy, ~52% committed):
---     m01 Engineering Design  — input_pct NULL  → 100% calculated (2 Done / 2 tasks)
---     m02 Procurement         — input_pct 65    → diverges from 0% calculated (0/2 In Progress)
---                               Demonstrates the PM-input column overriding task-derived %.
---     m03 Site Construction   — input_pct NULL  → 0% calculated (0/2 To Do)
+-- Weights 15/35/40/10 (EPC phase-effort split; RPC normalises by sum(weight)).
+-- Idempotency: milestones use DO UPDATE so re-applying mutates existing cloud rows;
+-- task INSERTs use DO NOTHING (new rows); milestone_id UPDATEs are keyed.
 --
---   d0…02 Cascade Foods (at-risk, ~91% committed):
---     m04 Engineering Design  — input_pct NULL  → 100% calculated (2 Done / 2 tasks)
---     m05 Procurement         — input_pct NULL  → 0% calculated (0/2 In Progress)
---     m06 Site Construction   — input_pct 85    → PM optimism diverges from 0% calculated
---                               (1 In Progress + 1 To Do = 0 Done / 2 tasks).
+-- Progress story:
+--   SP-2401 (healthy, mid-delivery):
+--     Engineering Design  — NULL input  → 100% calc (2/2 Done)    eff=100%
+--     Procurement         — NULL input  → ~71% calc (5/7 Done)    eff= 71%
+--     Construction        — NULL input  →  25% calc (1/4 Done)    eff= 25%
+--     Commissioning       — NULL input  →   0% calc (0/3 To Do)   eff=  0%
+--     Weighted overall ≈ (15×100 + 35×71 + 40×25 + 10×0)/100 ≈ 50%
 --
--- Weights 20/35/45 are believable EPC phase-effort splits; they need not sum to 100
--- (the RPC normalises by sum(weight)).
+--   SP-2402 (at-risk, behind schedule):
+--     Engineering Design  — NULL input  → 100% calc (2/2 Done)    eff=100%
+--     Procurement         — NULL input  → 100% calc (4/4 Done)    eff=100%
+--     Construction        — input_pct=70 (PM optimistic) vs 40% calc (2/5 Done) — DIVERGENCE
+--     Commissioning       — NULL input  →   0% calc (0/3 To Do)   eff=  0%
+--     target_dates for Construction and Commissioning are PAST-DUE.
+--     Weighted overall (effective) ≈ (15×100 + 35×100 + 40×70 + 10×0)/100 = 78%
+--
+--   SP-2403 (Close Out / completed):
+--     All 4 milestones 100% (all tasks Done), target_dates in past, eff=100%.
+--     Weighted overall = 100%.
 -- ============================================================
+
+-- ── Additional tasks for SP-2401 Procurement (5 Done — drive calc to ~71%) ──────
+
+insert into tasks (id, project_id, name, start_date, end_date, assignee_id, status) values
+  -- SP-2401 Procurement additions (all Done — these are the completed procurement sub-tasks)
+  ('d3000000-0000-0000-0000-000000000013', 'd0000000-0000-0000-0000-000000000001',
+   'PROC — Issue RFQ for DC/AC Cabling',
+   '2024-03-20', '2024-04-10', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+  ('d3000000-0000-0000-0000-000000000014', 'd0000000-0000-0000-0000-000000000001',
+   'PROC — Evaluate Panel Vendor Quotations',
+   '2024-03-20', '2024-04-05', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+  ('d3000000-0000-0000-0000-000000000015', 'd0000000-0000-0000-0000-000000000001',
+   'PROC — Place PV Module Purchase Order',
+   '2024-04-06', '2024-04-15', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+  ('d3000000-0000-0000-0000-000000000016', 'd0000000-0000-0000-0000-000000000001',
+   'PROC — Confirm Inverter Delivery Schedule',
+   '2024-04-10', '2024-04-20', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+  ('d3000000-0000-0000-0000-000000000017', 'd0000000-0000-0000-0000-000000000001',
+   'PROC — Receive & Inspect PV Modules at Site',
+   '2024-05-15', '2024-05-25', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+
+  -- SP-2401 Construction additions (1 Done + 1 To Do — gives 1/4 = 25% calc)
+  ('d3000000-0000-0000-0000-000000000018', 'd0000000-0000-0000-0000-000000000001',
+   'CONST — Site survey & geotech — Rooftop Section A',
+   '2024-06-01', '2024-06-20', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000019', 'd0000000-0000-0000-0000-000000000001',
+   'CONST — Structural load calc & racking design',
+   '2024-06-21', '2024-07-15', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+
+  -- SP-2401 Commissioning tasks (all To Do — phase not started)
+  ('d3000000-0000-0000-0000-000000000020', 'd0000000-0000-0000-0000-000000000001',
+   'COMM — Inverter energization & string testing',
+   '2024-10-01', '2024-10-31', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+  ('d3000000-0000-0000-0000-000000000021', 'd0000000-0000-0000-0000-000000000001',
+   'COMM — Grid interconnection witness test',
+   '2024-11-01', '2024-11-15', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+  ('d3000000-0000-0000-0000-000000000022', 'd0000000-0000-0000-0000-000000000001',
+   'COMM — Performance ratio test & handover report',
+   '2024-11-15', '2024-11-30', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+
+  -- SP-2402 Procurement additions (Done — all materials bought, consistent with 91% committed)
+  ('d3000000-0000-0000-0000-000000000023', 'd0000000-0000-0000-0000-000000000002',
+   'PROC — Receive & Inspect Central Inverters',
+   '2024-05-20', '2024-05-30', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000024', 'd0000000-0000-0000-0000-000000000002',
+   'PROC — Confirm HV Cable & Grid-Kit Delivery',
+   '2024-06-01', '2024-06-15', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+
+  -- SP-2402 Construction additions (2 Done + 1 In Progress → 2/5 = 40% calc; input_pct=70 divergence)
+  ('d3000000-0000-0000-0000-000000000025', 'd0000000-0000-0000-0000-000000000002',
+   'CONST — Site survey & geotech — Field Block A',
+   '2024-06-15', '2024-07-10', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000026', 'd0000000-0000-0000-0000-000000000002',
+   'CONST — Drive steel piles — Block A (600 piles)',
+   '2024-07-11', '2024-08-31', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000027', 'd0000000-0000-0000-0000-000000000002',
+   'CONST — Mount PV array — Block B racking',
+   '2024-09-01', '2024-10-31', '00000000-0000-0000-0000-0000000000a4', 'In Progress'),
+
+  -- SP-2402 Commissioning tasks (all To Do — past-due, behind schedule)
+  ('d3000000-0000-0000-0000-000000000028', 'd0000000-0000-0000-0000-000000000002',
+   'COMM — Install DC string cabling — all blocks',
+   '2024-11-01', '2024-12-15', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+  ('d3000000-0000-0000-0000-000000000029', 'd0000000-0000-0000-0000-000000000002',
+   'COMM — Inverter energization & protection relay test',
+   '2024-12-16', '2025-01-15', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+  ('d3000000-0000-0000-0000-000000000030', 'd0000000-0000-0000-0000-000000000002',
+   'COMM — Grid interconnection witness test & export permit',
+   '2025-01-16', '2025-02-28', '00000000-0000-0000-0000-0000000000a4', 'To Do'),
+
+  -- SP-2403 Close Out — Engineering Design tasks (all Done)
+  ('d3000000-0000-0000-0000-000000000031', 'd0000000-0000-0000-0000-000000000003',
+   'ENG — Site survey & geotech assessment',
+   '2023-11-15', '2023-12-01', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000032', 'd0000000-0000-0000-0000-000000000003',
+   'ENG — Detail design package — Carport PV 2.8 MW',
+   '2023-11-15', '2024-01-10', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+
+  -- SP-2403 Close Out — Procurement tasks (all Done)
+  ('d3000000-0000-0000-0000-000000000033', 'd0000000-0000-0000-0000-000000000003',
+   'PROC — Place PV module & inverter purchase orders',
+   '2024-01-11', '2024-01-25', '00000000-0000-0000-0000-0000000000a2', 'Done'),
+  ('d3000000-0000-0000-0000-000000000034', 'd0000000-0000-0000-0000-000000000003',
+   'PROC — Receive carport steel structures on site',
+   '2024-01-26', '2024-02-20', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+
+  -- SP-2403 Close Out — Construction tasks (all Done)
+  ('d3000000-0000-0000-0000-000000000035', 'd0000000-0000-0000-0000-000000000003',
+   'CONST — Erect carport steel columns & beams',
+   '2024-02-21', '2024-04-15', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000036', 'd0000000-0000-0000-0000-000000000003',
+   'CONST — Mount PV panels on carport structure',
+   '2024-04-16', '2024-06-10', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000037', 'd0000000-0000-0000-0000-000000000003',
+   'CONST — Install DC string cabling & combiner boxes',
+   '2024-06-01', '2024-06-30', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+
+  -- SP-2403 Close Out — Commissioning tasks (all Done)
+  ('d3000000-0000-0000-0000-000000000038', 'd0000000-0000-0000-0000-000000000003',
+   'COMM — Inverter energization & string testing',
+   '2024-07-01', '2024-07-25', '00000000-0000-0000-0000-0000000000a4', 'Done'),
+  ('d3000000-0000-0000-0000-000000000039', 'd0000000-0000-0000-0000-000000000003',
+   'COMM — Grid interconnection witness test & handover',
+   '2024-07-26', '2024-08-15', '00000000-0000-0000-0000-0000000000a4', 'Done')
+
+on conflict (id) do nothing;
+
+-- Update SP-2402 existing PROC tasks to Done (all materials delivered — 91% committed spend)
+update tasks set status = 'Done' where id in (
+  'd3000000-0000-0000-0000-000000000009',  -- PROC — Panel & Inverter Procurement
+  'd3000000-0000-0000-0000-000000000010'   -- PROC — Mounting Structure Procurement
+);
+
+-- ── project_milestones — upsert (DO UPDATE so re-applying mutates existing cloud rows) ──
 
 insert into project_milestones
   (id, project_id, name, sort_order, target_date, weight, input_pct)
 values
-  -- d0…01 Meridian Steelworks milestones
+  -- ── SP-2401 Meridian Steelworks (healthy, mid-delivery) ──────────────────────
   ('d7000000-0000-0000-0000-000000000001',
    'd0000000-0000-0000-0000-000000000001',
-   'Engineering Design', 1, '2024-03-15', 20, null),
+   'Engineering Design',              1, '2024-03-15', 15, null),
 
   ('d7000000-0000-0000-0000-000000000002',
    'd0000000-0000-0000-0000-000000000001',
-   'Procurement',        2, '2024-06-30', 35, 65),
+   'Procurement',                     2, '2024-06-30', 35, null),
 
   ('d7000000-0000-0000-0000-000000000003',
    'd0000000-0000-0000-0000-000000000001',
-   'Site Construction',  3, '2024-11-30', 45, null),
+   'Construction',                    3, '2024-09-30', 40, null),
 
-  -- d0…02 Cascade Foods milestones
+  ('d7000000-0000-0000-0000-000000000007',
+   'd0000000-0000-0000-0000-000000000001',
+   'Commissioning & Grid Connection', 4, '2024-11-30', 10, null),
+
+  -- ── SP-2402 Cascade Foods (at-risk, behind schedule) ─────────────────────────
   ('d7000000-0000-0000-0000-000000000004',
    'd0000000-0000-0000-0000-000000000002',
-   'Engineering Design', 1, '2024-04-15', 20, null),
+   'Engineering Design',              1, '2024-04-15', 15, null),
 
   ('d7000000-0000-0000-0000-000000000005',
    'd0000000-0000-0000-0000-000000000002',
-   'Procurement',        2, '2024-07-31', 35, null),
+   'Procurement',                     2, '2024-07-31', 35, null),
 
+  -- Construction: PM input_pct=70 (optimistic) vs 40% task-derived (2/5 Done) — DIVERGENCE
+  -- target_date is PAST-DUE (construction should have finished October 2024)
   ('d7000000-0000-0000-0000-000000000006',
    'd0000000-0000-0000-0000-000000000002',
-   'Site Construction',  3, '2025-02-28', 45, 85)
+   'Construction',                    3, current_date - interval '60 days', 40, 70),
 
-on conflict (id) do nothing;
+  -- Commissioning: not started; target_date also PAST-DUE (was due Feb 2025)
+  ('d7000000-0000-0000-0000-000000000008',
+   'd0000000-0000-0000-0000-000000000002',
+   'Commissioning & Grid Connection', 4, current_date - interval '10 days', 10, null),
 
--- Wire §G tasks → milestones (keyed UPDATE — naturally idempotent).
--- d0…01 Meridian Steelworks:
+  -- ── SP-2403 Atlas Chemicals (Close Out — completed) ───────────────────────────
+  ('d7000000-0000-0000-0000-000000000009',
+   'd0000000-0000-0000-0000-000000000003',
+   'Engineering Design',              1, '2024-01-10', 15, null),
+
+  ('d7000000-0000-0000-0000-000000000010',
+   'd0000000-0000-0000-0000-000000000003',
+   'Procurement',                     2, '2024-02-20', 35, null),
+
+  ('d7000000-0000-0000-0000-000000000011',
+   'd0000000-0000-0000-0000-000000000003',
+   'Construction',                    3, '2024-06-30', 40, null),
+
+  ('d7000000-0000-0000-0000-000000000012',
+   'd0000000-0000-0000-0000-000000000003',
+   'Commissioning & Grid Connection', 4, '2024-08-15', 10, null)
+
+on conflict (id) do update set
+  name        = excluded.name,
+  sort_order  = excluded.sort_order,
+  target_date = excluded.target_date,
+  weight      = excluded.weight,
+  input_pct   = excluded.input_pct;
+
+-- ── Wire tasks → milestones (keyed UPDATEs — naturally idempotent) ─────────────
+
+-- SP-2401 Engineering Design (m01):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000001'
   where id in (
     'd3000000-0000-0000-0000-000000000001',  -- ENG — Detail Design Package
     'd3000000-0000-0000-0000-000000000002'   -- ENG — Single Line Diagram
   );
 
+-- SP-2401 Procurement (m02):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000002'
   where id in (
     'd3000000-0000-0000-0000-000000000003',  -- PROC — Panel & Inverter Procurement
-    'd3000000-0000-0000-0000-000000000004'   -- PROC — Mounting Structure Procurement
+    'd3000000-0000-0000-0000-000000000004',  -- PROC — Mounting Structure Procurement
+    'd3000000-0000-0000-0000-000000000013',  -- PROC — Issue RFQ for DC/AC Cabling
+    'd3000000-0000-0000-0000-000000000014',  -- PROC — Evaluate Panel Vendor Quotations
+    'd3000000-0000-0000-0000-000000000015',  -- PROC — Place PV Module Purchase Order
+    'd3000000-0000-0000-0000-000000000016',  -- PROC — Confirm Inverter Delivery Schedule
+    'd3000000-0000-0000-0000-000000000017'   -- PROC — Receive & Inspect PV Modules at Site
   );
 
+-- SP-2401 Construction (m03):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000003'
   where id in (
     'd3000000-0000-0000-0000-000000000005',  -- CONST — Roof Mounting Install
-    'd3000000-0000-0000-0000-000000000006'   -- CONST — Electrical Termination & Commissioning
+    'd3000000-0000-0000-0000-000000000006',  -- CONST — Electrical Termination & Commissioning
+    'd3000000-0000-0000-0000-000000000018',  -- CONST — Site survey & geotech — Rooftop Section A
+    'd3000000-0000-0000-0000-000000000019'   -- CONST — Structural load calc & racking design
   );
 
--- d0…02 Cascade Foods:
+-- SP-2401 Commissioning & Grid Connection (m07):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000007'
+  where id in (
+    'd3000000-0000-0000-0000-000000000020',  -- COMM — Inverter energization & string testing
+    'd3000000-0000-0000-0000-000000000021',  -- COMM — Grid interconnection witness test
+    'd3000000-0000-0000-0000-000000000022'   -- COMM — Performance ratio test & handover report
+  );
+
+-- SP-2402 Engineering Design (m04):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000004'
   where id in (
     'd3000000-0000-0000-0000-000000000007',  -- ENG — Detail Design Package
     'd3000000-0000-0000-0000-000000000008'   -- ENG — Single Line Diagram
   );
 
+-- SP-2402 Procurement (m05):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000005'
   where id in (
     'd3000000-0000-0000-0000-000000000009',  -- PROC — Panel & Inverter Procurement
-    'd3000000-0000-0000-0000-000000000010'   -- PROC — Mounting Structure Procurement
+    'd3000000-0000-0000-0000-000000000010',  -- PROC — Mounting Structure Procurement
+    'd3000000-0000-0000-0000-000000000023',  -- PROC — Receive & Inspect Central Inverters
+    'd3000000-0000-0000-0000-000000000024'   -- PROC — Confirm HV Cable & Grid-Kit Delivery
   );
 
+-- SP-2402 Construction (m06, DIVERGENCE milestone):
 update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000006'
   where id in (
     'd3000000-0000-0000-0000-000000000011',  -- CONST — Ground Mounting Install
-    'd3000000-0000-0000-0000-000000000012'   -- CONST — Electrical Termination & Commissioning
+    'd3000000-0000-0000-0000-000000000012',  -- CONST — Electrical Termination & Commissioning
+    'd3000000-0000-0000-0000-000000000025',  -- CONST — Site survey & geotech — Field Block A
+    'd3000000-0000-0000-0000-000000000026',  -- CONST — Drive steel piles — Block A
+    'd3000000-0000-0000-0000-000000000027'   -- CONST — Mount PV array — Block B racking
+  );
+
+-- SP-2402 Commissioning & Grid Connection (m08, past-due):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000008'
+  where id in (
+    'd3000000-0000-0000-0000-000000000028',  -- COMM — Install DC string cabling
+    'd3000000-0000-0000-0000-000000000029',  -- COMM — Inverter energization & protection relay test
+    'd3000000-0000-0000-0000-000000000030'   -- COMM — Grid interconnection witness test
+  );
+
+-- SP-2403 Engineering Design (m09):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000009'
+  where id in (
+    'd3000000-0000-0000-0000-000000000031',  -- ENG — Site survey & geotech assessment
+    'd3000000-0000-0000-0000-000000000032'   -- ENG — Detail design package
+  );
+
+-- SP-2403 Procurement (m10):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000010'
+  where id in (
+    'd3000000-0000-0000-0000-000000000033',  -- PROC — Place PV module & inverter purchase orders
+    'd3000000-0000-0000-0000-000000000034'   -- PROC — Receive carport steel structures
+  );
+
+-- SP-2403 Construction (m11):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000011'
+  where id in (
+    'd3000000-0000-0000-0000-000000000035',  -- CONST — Erect carport steel columns & beams
+    'd3000000-0000-0000-0000-000000000036',  -- CONST — Mount PV panels on carport structure
+    'd3000000-0000-0000-0000-000000000037'   -- CONST — Install DC string cabling & combiner boxes
+  );
+
+-- SP-2403 Commissioning & Grid Connection (m12):
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000012'
+  where id in (
+    'd3000000-0000-0000-0000-000000000038',  -- COMM — Inverter energization & string testing
+    'd3000000-0000-0000-0000-000000000039'   -- COMM — Grid interconnection witness test & handover
   );
 
 commit;
