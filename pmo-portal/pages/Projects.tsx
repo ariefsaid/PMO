@@ -35,7 +35,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AT_RISK_THRESHOLD, isAtRisk } from '@/src/lib/dashboardConstants';
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -103,7 +103,16 @@ const Projects: React.FC = () => {
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
-  const { data: deliverySummary } = useProjectsDeliverySummary(all.map((p) => p.id));
+  const { data: deliverySummary, isPending: deliveryPending } = useProjectsDeliverySummary(all.map((p) => p.id));
+
+  // I6: committed-spend-based at-risk (not stale p.spent/p.budget).
+  // Derives from the SAME committed-spend summary used in the Budget used column.
+  const isAtRiskCommitted = (p: ProjectWithRefs) => {
+    if (!ONGOING.includes(p.status as string)) return false;
+    const summary = deliverySummary?.[p.id];
+    if (!summary || summary.budget <= 0) return false;
+    return summary.committedSpend / summary.budget >= AT_RISK_THRESHOLD;
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -119,15 +128,9 @@ const Projects: React.FC = () => {
             return ONGOING.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
-          // AC-IXD-DASH-W5-C2A: at-risk = active projects where spent/budget >= AT_RISK_THRESHOLD
-          // (OD-W5-C2-A: reuses the same 0.9 constant as PMDashboard + BvACard; active-only so
-          // completed projects with high historical utilization don't trigger false alarms).
+          // I6: at-risk now uses committed-spend from delivery summary, not stale p.spent.
           case 'at-risk':
-            return (
-              ONGOING.includes(p.status as string) &&
-              p.budget > 0 &&
-              p.spent / p.budget >= AT_RISK_THRESHOLD
-            );
+            return isAtRiskCommitted(p);
           default:
             return true;
         }
@@ -143,8 +146,8 @@ const Projects: React.FC = () => {
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds]);
+    return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
+  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, deliverySummary]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
@@ -198,7 +201,7 @@ const Projects: React.FC = () => {
       key: 'project',
       header: 'Project',
       cell: (p) => {
-        const atRisk = isAtRisk(p);
+        const atRisk = isAtRiskCommitted(p);
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             <span

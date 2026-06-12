@@ -17,7 +17,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
 
-const { projectsState, myTasksState } = vi.hoisted(() => ({
+const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -25,6 +25,10 @@ const { projectsState, myTasksState } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   myTasksState: { data: [] as Array<Record<string, unknown>> },
+  deliverySummaryState: {
+    data: {} as Record<string, { deliveryPct: number | null; committedSpend: number; budget: number }>,
+    isPending: false,
+  },
 }));
 
 vi.mock('../../components/ProjectStatusControl', () => ({
@@ -51,7 +55,7 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
-  useProjectsDeliverySummary: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => deliverySummaryState,
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -136,6 +140,18 @@ beforeEach(() => {
   projectsState.isPending = false;
   projectsState.isError = false;
   myTasksState.data = [];
+  // I6: committed-spend-based at-risk summary data.
+  // p1: committedSpend=40K/budget=80K = 50% → safe
+  // p2: committedSpend=95K/budget=100K = 95% → at risk
+  // p3: committedSpend=90K/budget=100K = 90% → at risk
+  // p4: completed (not active regardless of spend)
+  deliverySummaryState.data = {
+    p1: { deliveryPct: null, committedSpend: 40_000, budget: 80_000 },
+    p2: { deliveryPct: null, committedSpend: 95_000, budget: 100_000 },
+    p3: { deliveryPct: null, committedSpend: 90_000, budget: 100_000 },
+    p4: { deliveryPct: null, committedSpend: 49_000, budget: 50_000 },
+  };
+  deliverySummaryState.isPending = false;
 });
 
 describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
@@ -145,14 +161,14 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('AC-IXD-DASH-W5-C2A-PROJ-2: at-risk filter shows only active projects where spent/budget >= 0.9', () => {
+  it('AC-IXD-DASH-W5-C2A-PROJ-2 I6: at-risk filter uses committed-spend, not stale p.spent', () => {
     renderWithUrl('/projects?filter=at-risk');
-    // At risk: p2 (95%) and p3 (90%) — both active
+    // At risk: p2 (committedSpend/budget = 95%) and p3 (90%) — both active
     expect(screen.getByText('At Risk Project')).toBeInTheDocument();
     expect(screen.getByText('Exactly At Threshold')).toBeInTheDocument();
-    // Not at risk: p1 (50%) — excluded
+    // Not at risk: p1 (committedSpend/budget = 50%) — excluded
     expect(screen.queryByText('Safe Project')).not.toBeInTheDocument();
-    // Completed even though high utilization: p4 excluded (not active)
+    // Completed even though high committed-spend: p4 excluded (not active)
     expect(screen.queryByText('Completed Not At Risk')).not.toBeInTheDocument();
   });
 
