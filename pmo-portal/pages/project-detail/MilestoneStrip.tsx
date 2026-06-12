@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ListState,
   Button,
@@ -41,10 +41,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const [deleteTarget, setDeleteTarget] = useState<MilestoneWithProgress | null>(null);
 
   const all = data ?? [];
-  const currentMilestoneId = useMemo(
-    () => all.find((milestone) => milestone.effective_pct < 100)?.id ?? null,
-    [all],
-  );
+  const currentMilestoneId = all.find((milestone) => milestone.effective_pct < 100)?.id ?? null;
 
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });

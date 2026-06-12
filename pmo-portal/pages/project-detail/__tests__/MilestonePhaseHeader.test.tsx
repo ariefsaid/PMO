@@ -30,7 +30,7 @@ describe('MilestonePhaseHeader', () => {
     expect(screen.getByText('Current')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit progress' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit progress for Engineering' }));
     expect(onEditProgress).toHaveBeenCalledTimes(1);
   });
 
@@ -48,6 +48,6 @@ describe('MilestonePhaseHeader', () => {
     expect(screen.getByText('Procurement')).toBeInTheDocument();
     expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
     expect(screen.queryByText('40%')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit progress' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit progress/i })).not.toBeInTheDocument();
   });
 });

@@ -35,7 +35,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AT_RISK_THRESHOLD, isAtRisk, budgetUtilPct } from '@/src/lib/dashboardConstants';
+import { AT_RISK_THRESHOLD, isAtRisk } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
