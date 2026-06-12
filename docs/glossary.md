@@ -25,6 +25,21 @@ progresses*, not a zero-duration checkpoint event.
 under exactly one milestone. The delivery hierarchy is two levels only: milestone → tasks
 (decided 2026-06-11; deeper nesting deferred until a real customer needs it).
 
+**Document** — a controlled record in a project's document register (drawing, specification,
+report, contract …). Carries a category, a revision mark, and a lifecycle status with
+separation-of-duties approval (approver ≠ author). A document may carry **one file**; the
+file may change only while the document is Draft — once issued, content changes require a
+new revision (decided 2026-06-12).
+
+**Revision** — a successive issue of the same document (Rev A → Rev B …). Each revision is
+its own register entry and walks the full lifecycle itself. A revision is always created
+*from* its predecessor — that explicit act is what links the lineage (no name/code matching).
+Prior revisions are never deleted or hidden: when a newer revision is Approved, the older
+one becomes Superseded but stays readable (audit trail).
+
+**Superseded** — terminal document status meaning "replaced by a newer Approved revision of
+the same document". Read-only, reached automatically, never hand-picked.
+
 **O&M (Service)** — recurring post-handover service performed under its own contract
 (maintenance schedules, breakdown response, installed-asset care). NOT part of Delivery:
 delivery is finite, O&M is recurring. The handover of a delivered project is the birth event

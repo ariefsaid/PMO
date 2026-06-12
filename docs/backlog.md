@@ -1,7 +1,25 @@
-# PMO Portal — backlog & decisions (living doc; last updated 2026-06-10)
+# PMO Portal — backlog & decisions (living doc; last updated 2026-06-12)
 
 Status snapshot after the autonomous build run. 9 issues shipped & merged to `main` (PRs #1–#9).
 This file is the durable record of what's next; it is NOT loaded as session context (kept out of CLAUDE.md).
+
+## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
+Competitor gap analysis: `review/kanna-gap-analysis.md` (KANNA/Aldagram). Issues run **in
+series, one worktree per issue**, under the new pre-spec gates (grill-with-docs + owner-approved
+HTML mockup for UI issues — playbook §2 1b/1c, c328a82). **Trial:** role-agent work dispatched
+via the **pi CLI** (zai/glm-5.1 = plan/complex · zai/glm-4.7 = routine · openai-codex/gpt-5.4 =
+review/audit; mutual API-limit fallback) — Claude session stays Director.
+- **▶ Issue #1 (ACTIVE) — Storage re-enable + document file upload.** Grilled 2026-06-12,
+  decisions **OD-DOC-1..5** (`docs/decisions.md`): infra + `project_documents` end-to-end only;
+  one file/doc, Draft-only replace; explicit "New revision" action (visible button) + auto
+  `Superseded` via parent link; file access = row access; 5 MB bumpable cap + strict allowlist.
+  Next: HTML mockup round → spec → plan → build.
+- **Issue #2 (QUEUED) — Procurement attachments** (quotation files + GR/VI) reusing the shared
+  upload component. Owner-sequenced BEFORE S-curve/Gantt (daily approver pain).
+- **Then:** S-curve (delivery-% snapshots; rides milestones) · Gantt (`task_dependencies` is
+  seeded, unconsumed) · calendar · import/export · templates — see the gap doc's tiering.
+- **Deferred seams recorded:** per-category document access → Admin-settings/RBAC-config track
+  (OD-DOC-4); site photos → future field-reporting track (OD-DOC-1).
 
 ## ▶ DEPLOYMENT — LIVE (2026-06-11; hosting ADR-0006 now ACCEPTED). Full rules: `docs/environments.md`
 The app is **deployed and live** (was deferred). PRs #68–#72 + direct infra commits.

@@ -426,3 +426,47 @@ billing) and spine 8 (asset registry) and is sequenced after them. Defined in
 
 ## OD-ARCH-1 — REST-first reads; RPCs reserved for SoD + aggregation + atomic minting (owner-affirmed 2026-06-10)
 (Re-recorded — an earlier commit of this was lost.) Owner asked "why not REST?" during Wave-5 C5 (after migration 0020 extended the `get_sales_pipeline` RPC). Confirmed principle (the app already follows it): data reads/writes go through **PostgREST `.from().select()`** via the repository/DAL seam (ADR-0017) — 17 DAL files, embedded joins, the portable/BE-swappable path. **`.rpc()` is reserved** for what REST can't/shouldn't do: (a) server-enforced **SoD / state machines** (`transition_*`, `set_project_contract_value`, `select_procurement_quote` — the authority must be a security function), (b) server-side **aggregation** (`get_executive_dashboard`, `get_sales_pipeline`, `get_win_rate`, `get_project_budget` — grouped rollups REST can't express in one call), (c) **atomic number-minting creates** (`create_procurement_receipt/invoice/quotation`). RPCs add Postgres coupling, justified only for these. **Owner chose to EXTEND the existing RPC** (Wave-5 C5 / migration 0020 added `last_update`+owner to `get_sales_pipeline`) for one-call/one-source cohesion rather than a second REST round-trip — accepting the modest coupling. Going forward: lean REST for simple per-row reads; extend/author an RPC only when the funnel/SoD already lives there.
+
+---
+
+## OD-DOC — Document file storage (grill-with-docs session, owner-locked 2026-06-12)
+
+First issue of the KANNA gap-closing series (`review/kanna-gap-analysis.md`). Grilled per the
+new playbook §2 step-1b gate.
+
+### OD-DOC-1 — Issue scope: infra + Documents tab only; procurement next; photos out
+Issue #1 = Storage re-enable (local config + prod buckets) + private org-scoped bucket +
+storage RLS + upload/preview/download on `project_documents` end-to-end. **Issue #2 =
+procurement attachments** (quotation files + GR/VI) reusing the shared upload component —
+sequenced immediately after #1 and **before S-curve/Gantt** (daily approver pain beats
+visualization). **Site photos are explicitly OUT** — field capture/gallery is a different
+domain concept (future field-reporting track), not a register entry.
+
+### OD-DOC-2 — One file per document; Draft-only replacement
+A document row carries at most one file. The file may be uploaded/replaced only while the
+document is **Draft**. Once it leaves Draft (Issued+) the file is immutable — content changes
+require a new revision (OD-DOC-3). Free file replacement on approved documents would gut the
+approval workflow's meaning.
+
+### OD-DOC-3 — Revisions via explicit "New revision" action; auto-Superseded through the link
+Rev B is created *from* Rev A by an explicit **"New revision"** action (visible primary
+affordance on Issued/Approved documents — NOT buried in an overflow menu; owner-specified to
+reduce bypass risk). It copies code/title/category, bumps the revision mark, and stores an
+explicit parent link. When the newer revision is Approved, the parent flips to a new terminal
+status **`Superseded`** automatically — through the link only, never by code/title matching
+(heuristic misfires corrupt the register; manual-bypass merely degrades to today's behavior).
+Old revisions stay readable forever.
+
+### OD-DOC-4 — File read access = register row access; category-gating deferred to Admin settings
+Whoever can read the document row can download its file (org-scoped, all roles) — consistent
+with the real security model (`can()` is UX; RLS is authority; finance-hiding for ICs is UX
+chrome). **Deferred seam (owner-directed):** per-category access control lands with the
+Admin-settings / RBAC-config-engine track (OD-PROC-6) — document categories become managed
+entities there, each carrying a who-can-access rule. Until then: don't upload what the whole
+org may not read (same rule as today's metadata).
+
+### OD-DOC-5 — File constraints: 5 MB cap (bumpable), strict type allowlist
+Cap is **5 MB for now** (testing) — implemented as a single bumpable knob (bucket limit + one
+shared constant), not scattered literals. Allowlist: pdf · png/jpg/webp · docx/xlsx/pptx ·
+dwg/dxf · csv/txt. **No zip, no executables** until a real user asks — every allowlist
+exception is forever.
