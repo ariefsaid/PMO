@@ -8,11 +8,23 @@ const auth = vi.hoisted(() => ({
   signInWithOtp: vi.fn(),
 }));
 
+const trackHelpers = vi.hoisted(() => ({
+  trackDemoPersonaSelected: vi.fn(),
+  trackAuthLoginSucceeded: vi.fn(),
+  trackAuthLoginFailed: vi.fn(),
+}));
+
 const navigateSpy = vi.hoisted(() => vi.fn());
 vi.mock('react-router-dom', async (orig) => {
   const actual = await orig<typeof import('react-router-dom')>();
   return { ...actual, useNavigate: () => navigateSpy };
 });
+
+vi.mock('@/src/lib/analytics', () => ({
+  trackDemoPersonaSelected: trackHelpers.trackDemoPersonaSelected,
+  trackAuthLoginSucceeded: trackHelpers.trackAuthLoginSucceeded,
+  trackAuthLoginFailed: trackHelpers.trackAuthLoginFailed,
+}));
 
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
@@ -47,7 +59,11 @@ function renderLogin() {
 beforeEach(() => {
   auth.signInWithPassword.mockReset();
   auth.signInWithOtp.mockReset();
+  trackHelpers.trackDemoPersonaSelected.mockReset();
+  trackHelpers.trackAuthLoginSucceeded.mockReset();
+  trackHelpers.trackAuthLoginFailed.mockReset();
   navigateSpy.mockReset();
+  vi.unstubAllEnvs();
 });
 
 describe('LoginPage', () => {
@@ -210,5 +226,59 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: /Executive/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Project Manager/i })).toBeNull();
     vi.unstubAllEnvs();
+  });
+
+  it('AC-PH-012: demo persona selection calls trackDemoPersonaSelected with role only, not email', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    renderLogin();
+
+    await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
+
+    expect(trackHelpers.trackDemoPersonaSelected).toHaveBeenCalledWith('Executive');
+    // Verify no PII leaks through any of the tracking helpers
+    const allCalls = [
+      ...trackHelpers.trackDemoPersonaSelected.mock.calls,
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+    ];
+    expect(JSON.stringify(allCalls)).not.toContain('exec@acme.test');
+  });
+
+  it('AC-PH-013: login failure calls trackAuthLoginFailed with safe args', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Invalid login credentials' } });
+    renderLogin();
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() =>
+      expect(trackHelpers.trackAuthLoginFailed).toHaveBeenCalledWith('password', 'invalid_credentials')
+    );
+    // No PII in any tracking call
+    const allCalls = JSON.stringify([
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+    ]);
+    expect(allCalls).not.toContain('pm@acme.test');
+  });
+
+  it('AC-PH-013: login success calls trackAuthLoginSucceeded with safe args', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: null });
+    renderLogin();
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() =>
+      expect(trackHelpers.trackAuthLoginSucceeded).toHaveBeenCalledWith('password')
+    );
+    // No PII in any tracking call
+    const allCalls = JSON.stringify([
+      ...trackHelpers.trackAuthLoginSucceeded.mock.calls,
+      ...trackHelpers.trackAuthLoginFailed.mock.calls,
+    ]);
+    expect(allCalls).not.toContain('pm@acme.test');
   });
 });

@@ -5,6 +5,11 @@ import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
 import { cn } from '../components/ui/cn';
 import { Icon } from '../components/ui/icons';
+import {
+  trackDemoPersonaSelected,
+  trackAuthLoginSucceeded,
+  trackAuthLoginFailed,
+} from '../lib/analytics';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -82,13 +87,17 @@ const InputBlock: React.FC<{
 // in the local seed and the cloud demo. See docs/environments.md.
 const DEMO_PASSWORD = 'Passw0rd!dev';
 
-const DEMO_PERSONAS: { label: string; email: string }[] = [
+const DEMO_PERSONAS = [
   { label: 'Executive',       email: 'exec@acme.test' },
   { label: 'Project Manager', email: 'pm@acme.test' },
   { label: 'Finance',         email: 'finance@acme.test' },
   { label: 'Engineer',        email: 'engineer@acme.test' },
   { label: 'Admin',           email: 'admin@acme.test' },
-];
+] as const;
+
+const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' => {
+  return message.toLowerCase().includes('invalid') ? 'invalid_credentials' : 'auth_error';
+};
 
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
@@ -111,9 +120,11 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
     if (error) {
+      trackAuthLoginFailed('password', authReasonCode(error));
       setError(error);
       return;
     }
+    trackAuthLoginSucceeded('password');
     navigate('/', { replace: true });
   };
 
@@ -124,9 +135,11 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithMagicLink(email);
     setBusy(false);
     if (error) {
+      trackAuthLoginFailed('magic_link', authReasonCode(error));
       setError(error);
       return;
     }
+    trackAuthLoginSucceeded('magic_link');
     setNotice('Check your email for a sign-in link.');
   };
 
@@ -224,6 +237,7 @@ const LoginPage: React.FC = () => {
                       type="button"
                       aria-label={`${label} — ${email}`}
                       onClick={() => {
+                        trackDemoPersonaSelected(label);
                         setEmail(email);
                         setPassword(DEMO_PASSWORD);
                         setError(null);

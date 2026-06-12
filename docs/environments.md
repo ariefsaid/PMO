@@ -86,6 +86,28 @@ plaintext build env vars — no 1Password needed for the frontend.
     (shows `admin@acme.test / Passw0rd!dev` + a "Use demo login" fill button). **Omit it on a real prod
     deploy** so the credential never shows. The demo admin user is created by `supabase/seed-admin.sql`
     (admin-only, no business data — run it once against the cloud).
+  - `VITE_POSTHOG_KEY` = the public PostHog project key for the owner's US Cloud project.
+  - `VITE_POSTHOG_HOST` = `https://us.i.posthog.com` unless the project settings provide a more specific
+    ingestion host.
+  - `VITE_ANALYTICS_ENABLED` = `false` for the deployed client demo unless running non-demo analytics.
+    Analytics still initializes when `VITE_DEMO_MODE=true`.
+
+### PostHog demo analytics flags
+
+PostHog is gated by `VITE_DEMO_MODE=true || VITE_ANALYTICS_ENABLED=true`.
+
+- Deployed demo with no URL flag defaults to `demo_audience=prospect` and `demo_account=default`.
+- Local/dev defaults to `demo_audience=internal` and `demo_account=local`.
+- `?da=internal` marks deployed internal testing and disables replay/autocapture.
+- `?da=prospect` marks a prospect demo as `demo_account=default`.
+- `?da=comp1` marks a prospect demo as `demo_account=comp1`; use any safe slug for separate client
+  showcase sessions.
+- `?demo_account=<safe-slug>` may override the account label when needed.
+
+Session replay and click-only autocapture run only for deployed prospect demo sessions. Internal,
+local/dev, and analytics-only sessions keep route tracking and explicit safe events but disable replay
+and autocapture. PostHog dashboards are a required follow-up after this instrumentation emits data;
+dashboard setup is not part of the first instrumentation PR.
 
 **Local dev** points at the local stack: `pmo-portal/.env.local` with `VITE_SUPABASE_URL=http://127.0.0.1:54321`,
 the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge
