@@ -1226,6 +1226,8 @@ export type Database = {
       get_projects_delivery: {
         Args: { p_ids: string[] }
         Returns: {
+          budget: number
+          committed_spend: number
           delivery_pct: number
           project_id: string
         }[]
