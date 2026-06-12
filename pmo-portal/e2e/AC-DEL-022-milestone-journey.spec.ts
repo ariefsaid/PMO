@@ -16,7 +16,7 @@ import { login } from './helpers';
 //  4. PM marks "Detail drawings" Done via the status select.
 // GOAL ORACLE:
 //  - Milestone strip shows "Engineering design" with "From tasks" = 100%.
-//  - Navigate to /projects — Seabridge row shows delivery-% chip reading "100%".
+//  - Navigate to /projects — Seabridge row shows delivery progress reading "100%".
 
 test.setTimeout(120_000);
 
@@ -40,7 +40,8 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await expect(page.getByTestId('milestone-strip-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('milestone-strip-empty')).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole('button', { name: /Add a milestone/i }).click();
+  // The empty strip now teaches the PM to plan phases; the primary doorway opens the same modal.
+  await page.getByRole('button', { name: /Add the first phase/i }).click();
 
   // MilestoneFormModal opens (EntityFormModal renders a dialog).
   const dialog = page.getByRole('dialog');
@@ -54,8 +55,8 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
 
   // Modal closes and the strip now shows the new milestone.
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-  // Wait for the milestone name to appear in the strip (title attribute on the name span).
-  await expect(page.getByTitle(MILESTONE_NAME)).toBeVisible({ timeout: 15_000 });
+  // Wait for the milestone name to appear in the redesigned stepper labels.
+  await expect(page.getByText(MILESTONE_NAME).first()).toBeVisible({ timeout: 15_000 });
 
   // ── Step 3: navigate to Tasks tab, add a task under the milestone group ───────
   await page.getByRole('tab', { name: /tasks/i }).click();
@@ -96,15 +97,14 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
 
   // ── GOAL ORACLE part 1: milestone strip "From tasks" = 100% ──────────────────
   // The milestone row in the strip (above the Tasks tab) shows "From tasks" = 100%.
-  // Allow time for the TanStack Query invalidation to re-fetch the milestone strip data.
-  const fromTasksLabel = page.getByLabel('From tasks');
-  await expect(fromTasksLabel.getByText('100%')).toBeVisible({ timeout: 20_000 });
+  // The redesigned stepper shows the task-derived line in the milestone label stack.
+  await expect(page.getByText(/From tasks\s+100%/).first()).toBeVisible({ timeout: 20_000 });
 
   // ── GOAL ORACLE part 2: Projects list shows delivery chip 100% ───────────────
   await page.goto('/projects');
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // The Seabridge row has a DeliveryPctChip with aria-label="Delivery 100%".
+  // The Seabridge row has a delivery progress bar with aria-label="Delivery 100%".
   const seabridgeRow = page.getByRole('row').filter({ hasText: PROJECT_NAME });
   await expect(seabridgeRow).toBeVisible({ timeout: 15_000 });
   await expect(seabridgeRow.getByLabel('Delivery 100%')).toBeVisible({ timeout: 20_000 });
