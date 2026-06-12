@@ -31,14 +31,23 @@ Three further directives from the owner's second mockup review. D1 and D3 are ma
 | # | Directive | Surface(s) | Applied |
 |---|---|---|---|
 | D1 | "Edit progress" affordance on **every** phase cell for PM/Admin, not just the current one (the spec lets a PM/Admin edit the input-% of *any* milestone). Engineer = read-only (no affordance). Keep it quiet — a small "Edit progress" link/pencil that recedes until hover/focus, but **always in the DOM** so it is keyboard-reachable on every phase. Match the per-cell rhythm; don't clutter. | Stage Stepper nodes (desktop), mobile vstep rows | Mockup: `.step .edit` link added to all four nodes; `opacity:0.55` at rest → `1` on `:hover`/`:focus-within`/`:focus-visible`; mobile `.vstep .vedit` 44px button per row. |
-| D2 | Make each phase's **weight** (its share of the project) legible **without** confusing numbers. **Chosen pattern: weight encoded as stepper segment WIDTH** (+ a cumulative weighted-fill track + a quiet per-cell caption). See §D2 — weight-display decision for the full rationale and the ui-ux-pro-max source. | Stage Stepper (desktop band + cumulative track), mobile vstep (weight label fallback) | Mockup: `.stepper` grid columns now `15fr 35fr 40fr 10fr`; per-cell `.step-weight` "N% of project" caption; `.delivery-track` cumulative weighted band; mobile `.vweight` explicit label fallback. |
+| D2 | ~~Make each phase's weight legible via segment-width encoding~~ **SUPERSEDED — see §D2 below.** Final owner decision: per-phase **weight is NOT surfaced in the stepper at all** (neither as segment width nor as an "N% of project" caption). Segments are **even-width** (`flex-1`), completion shown by fill only; weight still drives the **rollup math** (the weight-weighted PROJECT DELIVERY %) but is not displayed per phase. | Stage Stepper (desktop + mobile use the same even-segment bar) | Built: `MilestoneStrip.tsx` segment = `flex-1`; no `grid-template-columns`, no `.step-weight` caption. Weight lives only in `project_milestones.weight` (rollup input). |
 | D3 | Tasks-tab group header shows **NO progress %** at all — only phase name + target date ("Procurement · Target 30 Jun"). 75% IS the manual/effective value, so showing it alone is still "manual without context" (the owner's repeated objection). The progress story (completion, weight, from-tasks) lives **only** in the Stage Stepper. Apply the same "no % in compact secondary surfaces" rule everywhere it recurs. **Supersedes OR-4.** | Tasks-tab group header; any compact/secondary milestone surface | Mockup: group-head now `name + "Target DD Mon"` only; `.g-pct` element removed. R3 and the component-delta updated below. |
 
 ---
 
 ## D2 — weight-display decision (segment-width encoding) + research
 
-**Decision: ADOPT the Director's hypothesis — encode weight SPATIALLY as stepper segment WIDTH, with three coordinated parts:**
+> **⚠ SUPERSEDED (owner, 2026-06-12).** The width-encoding decision below was reversed across two
+> owner review rounds. The FINAL design: **even-width segments, completion-by-fill only, and per-phase
+> weight is NOT surfaced** (no width-encoding, no "N% of project" caption). Weight remains a data field
+> that drives the weight-weighted PROJECT DELIVERY rollup, but it is not shown per phase. The rationale
+> below is retained as the record of a decision that was made and then reversed (owner found the
+> width-band + extra captions too busy; the calmer name / big-% / Target / From-tasks / Edit-link block
+> won). The built `MilestoneStrip.tsx` implements the even-segment version. Do not implement the text
+> below.
+
+**~~Decision: ADOPT the Director's hypothesis — encode weight SPATIALLY as stepper segment WIDTH~~ (SUPERSEDED), with three coordinated parts:**
 
 1. **Segment width ∝ weight.** The horizontal stepper is a CSS grid whose column tracks are weight-proportional (`grid-template-columns: 15fr 35fr 40fr 10fr` for Eng 15 / Proc 35 / Const 40 / Commiss 10). Each segment fills by its own completion %. So "Engineering is 100% complete but only 15% of the project" reads **pre-attentively** — a narrow, fully-filled cell — with zero arithmetic. The project's 48% is the visual sum of weighted fills.
 2. **A cumulative weighted "Project delivery" track** under the stepper: weight-proportional segments, each inner-filled by its phase's completion%. Read left→right the filled area literally *is* the 48% rollup (`15×100% + 35×75% + 40×20% + 10×0% ≈ 48%`). This is the earned-value rollup band made visible.
@@ -75,14 +84,15 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 
 ---
 
-### R2 — Milestone strip → horizontal phase stepper (now weight-proportional, D2)
+### R2 — Milestone strip → horizontal phase stepper (even-segment, completion-by-fill)
 **Findings:** F-DEL-06 (Critical IA/visual), F-DEL-09, F-DEL-13.
-**Decision:** restructure `MilestoneStrip` from `flex flex-col gap-3` of bordered cards into the DESIGN.md **Lifecycle / Stage Stepper** — a responsive row of phase nodes in `sort_order`, with **weight-proportional segment widths (D2)**:
-- The node row is a CSS grid whose columns are weight-proportional (`grid-template-columns` built from each phase's `weight`, normalized). Each node: `jbar` (6px `secondary` track) filling by effective-% + phase name + effective-% headline + "From tasks N%" muted line + target date ("Target DD Mon", OR-2) + a muted "N% of project" weight caption (D2) + the per-phase "Edit progress" affordance (D1).
-- **done** (effective=100) → `jbar` fill `success`, name `foreground`/600.
-- **current** (first phase with effective<100) → `jbar` fill `primary`, name `foreground`/600, "Current" marker.
-- **at-risk** (R5) → `jbar` fill `warning` + Overdue pill.
-- A **cumulative weighted "Project delivery" track** (D2) renders once below the node row: weight-proportional segments each inner-filled by completion%, with the 48% rollup figure beside its caption. This *replaces* the ad-hoc per-node rollup derivation — the rollup is shown once, and the track shows it is the weighted sum.
+**Decision:** restructure `MilestoneStrip` from `flex flex-col gap-3` of bordered cards into the DESIGN.md **Lifecycle / Stage Stepper** — a responsive row of phase nodes in `sort_order`, with **EVEN-width segments** (weight-proportional width SUPERSEDED — see §D2):
+- The node row is a single bar of **even segments** (`flex-1` each, equal width), each filling by its phase's effective-%. Below each segment, a left-aligned vertical label block: phase **name** → **large bold effective %** on its own line → muted **"Target DD Mon"** (warning color when overdue) → muted **"From tasks N%"** ("From tasks —" when no tasks) → a quiet **"Edit progress"** text link (PM/Admin only, D1; absent for Engineer). **No per-phase weight caption** (owner-superseded).
+- **done** (effective=100) → segment fill `success`, name `foreground`/600.
+- **current** (first phase with effective<100) → segment fill `primary`, name `foreground`/600, "Current" micro-label.
+- **at-risk** (R5) → segment fill `warning` + Overdue chip + red target.
+- The **PROJECT DELIVERY %** headline (top-right) is the weight-weighted rollup of effective-%s — shown once as a number; there is **no separate cumulative weighted track** (the earlier dual-track design was superseded with the width-encoding).
+- Section heading uses the named `subheading` token (F-DEL-09).
 - Section heading uses the named `subheading` token (fixes F-DEL-09's `text-[14px]` vs Tasks' `text-[16px]` mismatch — both become the shared heading).
 - Per-phase delete moves into a per-node `⋯` popover (DESIGN.md `#rowmenu` overlay token), removing the 8-always-visible-icons density (F-DEL-13). Delete keeps its excellent `ConfirmDialog` copy verbatim. (Edit is now the quiet per-node "Edit progress" link, D1.)
 
