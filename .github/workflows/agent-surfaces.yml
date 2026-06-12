@@ -1,0 +1,44 @@
+name: Agent Surfaces
+
+on:
+  pull_request:
+    paths:
+      - '.claude/**'
+      - '.codex/**'
+      - '.github/workflows/agent-surfaces.yml'
+      - '.gitignore'
+      - 'docs/pi-delegation.md'
+      - 'scripts/sync-agent-surfaces.mjs'
+      - 'scripts/sync-agent-surfaces.test.mjs'
+      - 'scripts/vendor-skills.sh'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/**'
+      - '.codex/**'
+      - '.github/workflows/agent-surfaces.yml'
+      - '.gitignore'
+      - 'docs/pi-delegation.md'
+      - 'scripts/sync-agent-surfaces.mjs'
+      - 'scripts/sync-agent-surfaces.test.mjs'
+      - 'scripts/vendor-skills.sh'
+  workflow_dispatch: {}
+
+concurrency:
+  group: agent-surfaces-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test scripts/sync-agent-surfaces.test.mjs
+      - name: Agent surface drift check
+        run: node scripts/sync-agent-surfaces.mjs --check
+      - name: Vendor script syntax
+        run: bash -n scripts/vendor-skills.sh

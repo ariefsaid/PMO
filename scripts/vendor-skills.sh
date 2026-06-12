@@ -87,5 +87,7 @@ fi
 
 echo
 echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs agent-browser impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
+node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

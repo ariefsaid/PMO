@@ -147,6 +147,21 @@ spec/plan/review/short dispatches). Switch to detached-tmux when a phase spawns 
 toolchain (Docker `db reset`, full e2e) AND session RAM is already high — crash-survival then beats
 the convenience of auto-notification.
 
+### 3d. Keeping Claude / Codex / Pi role surfaces in sync
+
+`.claude/` is the canonical authoring surface. When changing role prompts, edit
+`.claude/agents/*.md` first, then run:
+
+```bash
+node scripts/sync-agent-surfaces.mjs --write
+node scripts/sync-agent-surfaces.mjs --check
+```
+
+The sync script regenerates `.codex/agents/*.toml` from `.claude/agents/*.md`. If this repo later
+adds a project-local `.pi/`, the same command mirrors `.claude/agents/*.md` into `.pi/agents/`.
+For skills, run `scripts/vendor-skills.sh`; it vendors `.claude/skills/` and then mirrors the
+ignored skill payloads to `.agents/skills/` and optional `.pi/skills/`.
+
 ## 4. Brief structure — the quality lever
 
 pi agents see NOTHING of your session. The brief must stand alone:

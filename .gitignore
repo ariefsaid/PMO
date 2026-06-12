@@ -32,6 +32,9 @@ test-results
 .claude/skills/
 # Codex-harness vendored skill mirror (same convention as .claude/skills/ — regenerated, not committed)
 .agents/skills/
+# Optional Pi project-local generated mirrors — regenerated from .claude/ when .pi exists
+.pi/agents/
+.pi/skills/
 
 # agent worktrees (transient)
 .claude/worktrees/
