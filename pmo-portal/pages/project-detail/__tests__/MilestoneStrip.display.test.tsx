@@ -30,6 +30,11 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
+let mockIsDesktop = true;
+vi.mock('@/src/components/ui/useIsDesktop', () => ({
+  useIsDesktop: () => mockIsDesktop,
+}));
+
 import MilestoneStrip from '../MilestoneStrip';
 
 const render$ = (projectId = 'p1') =>
@@ -236,5 +241,62 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getAllByText('0%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('From tasks —')).toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
+  });
+});
+
+describe('C2: mobile stepper reflow', () => {
+  const phases: MilestoneWithProgress[] = [
+    {
+      id: 'm1',
+      project_id: 'p1',
+      name: 'Phase A',
+      sort_order: 0,
+      target_date: null,
+      weight: 1,
+      input_pct: 80,
+      task_count: 3,
+      calculated_pct: 80,
+      effective_pct: 80,
+    },
+    {
+      id: 'm2',
+      project_id: 'p1',
+      name: 'Phase B',
+      sort_order: 1,
+      target_date: null,
+      weight: 1,
+      input_pct: null,
+      task_count: 0,
+      calculated_pct: null,
+      effective_pct: 0,
+    },
+  ];
+
+  it('C2: desktop renders horizontal even-segment bar + phase cards in grid', () => {
+    milestoneState.data = phases;
+    mockIsDesktop = true;
+    const { container } = render$();
+    // Desktop: should render the horizontal bar (flex h-3)
+    const bar = container.querySelector('.flex.h-3');
+    expect(bar).toBeInTheDocument();
+    // Desktop: phase cards should be in a grid
+    const grid = container.querySelector('[style*="grid-template-columns"]');
+    expect(grid).toBeInTheDocument();
+  });
+
+  it('C2: mobile renders vertical stacked rows (one per phase) with NO horizontal bar or grid', () => {
+    milestoneState.data = phases;
+    mockIsDesktop = false;
+    const { container } = render$();
+    // Mobile: NO horizontal bar
+    expect(container.querySelector('.flex.h-3')).not.toBeInTheDocument();
+    // Mobile: NO grid
+    expect(container.querySelector('[style*="grid-template-columns"]')).not.toBeInTheDocument();
+    // Mobile: should render both phase names in stacked compact rows
+    expect(screen.getByText('Phase A')).toBeInTheDocument();
+    expect(screen.getByText('Phase B')).toBeInTheDocument();
+    // Mobile: each phase row has a dot indicator
+    const dots = container.querySelectorAll('.h-2.w-2.shrink-0.rounded-full');
+    expect(dots.length).toBe(2);
   });
 });

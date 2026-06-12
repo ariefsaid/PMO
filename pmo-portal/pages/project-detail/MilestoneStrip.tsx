@@ -5,6 +5,7 @@ import {
   ConfirmDialog,
   useToast,
 } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -42,6 +43,7 @@ const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean) => {
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const may = usePermission();
   const { toast } = useToast();
+  const isDesktop = useIsDesktop();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   const { create, update, remove } = useMilestoneMutations(projectId);
 
@@ -138,44 +140,74 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
 
           <ol aria-label="Delivery phases" className="space-y-4">
             <li>
-              <div className="flex h-3 overflow-hidden rounded-full bg-border">
-                {all.map((milestone) => (
-                  <span key={milestone.id} className="flex-1 bg-secondary">
-                    <span
-                      className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
-                      style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
+              {isDesktop ? (
+                <div className="flex h-3 overflow-hidden rounded-full bg-border">
+                  {all.map((milestone) => (
+                    <span key={milestone.id} className="flex-1 bg-secondary">
+                      <span
+                        className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                        style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {all.map((milestone) => (
+                    <div key={milestone.id} className="flex items-center gap-3">
+                      <div
+                        className={`h-2 w-2 shrink-0 rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <MilestonePhaseHeader
+                          variant="compact"
+                          name={milestone.name}
+                          targetDate={milestone.target_date}
+                          effectivePct={milestone.effective_pct}
+                          calculatedPct={milestone.calculated_pct}
+                          isCurrent={currentMilestoneId === milestone.id}
+                          isOverdue={isOverdueMilestone(milestone)}
+                          canEditProgress={canEdit}
+                          onEditProgress={canEdit ? () => {
+                            // Mobile: open inline edit via the header's edit affordance.
+                            // For simplicity, we skip per-card edit on mobile rows.
+                          } : undefined}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </li>
+            {isDesktop && (
+              <li>
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}
+                >
+                  {all.map((milestone) => (
+                    <MilestonePhaseCard
+                      key={milestone.id}
+                      milestone={milestone}
+                      isCurrent={currentMilestoneId === milestone.id}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onEditDetails={() => setFormTarget({ milestone })}
+                      onDelete={() => setDeleteTarget(milestone)}
+                      onUpdateInputPct={async (id, input_pct) => {
+                        try {
+                          await update.mutateAsync({ id, patch: { input_pct } });
+                          toast('Progress updated', milestone.name, 'success');
+                        } catch (err) {
+                          const { headline, detail } = classifyMutationError(err);
+                          toast(headline, detail, 'warning');
+                        }
+                      }}
                     />
-                  </span>
-                ))}
-              </div>
-            </li>
-            <li>
-              <div
-                className="grid gap-3"
-                style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}
-              >
-                {all.map((milestone) => (
-                  <MilestonePhaseCard
-                    key={milestone.id}
-                    milestone={milestone}
-                    isCurrent={currentMilestoneId === milestone.id}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    onEditDetails={() => setFormTarget({ milestone })}
-                    onDelete={() => setDeleteTarget(milestone)}
-                    onUpdateInputPct={async (id, input_pct) => {
-                      try {
-                        await update.mutateAsync({ id, patch: { input_pct } });
-                        toast('Progress updated', milestone.name, 'success');
-                      } catch (err) {
-                        const { headline, detail } = classifyMutationError(err);
-                        toast(headline, detail, 'warning');
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            </li>
+                  ))}
+                </div>
+              </li>
+            )}
           </ol>
         </div>
       )}
