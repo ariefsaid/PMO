@@ -23,7 +23,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Repository-seam-backed hooks (mirrors DocumentsTab.test.tsx) ─────────────
-const { listState, mutations } = vi.hoisted(() => ({
+const { listState, mutations, fileUploadState, revisionState } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -36,11 +36,29 @@ const { listState, mutations } = vi.hoisted(() => ({
     transition: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
+  fileUploadState: {
+    upload: { mutate: vi.fn(), isPending: false },
+    replace: { mutate: vi.fn(), isPending: false },
+    progress: {} as Record<string, number>,
+    uploadErrors: {} as Record<string, { message: string }>,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  },
+  revisionState: {
+    createRevision: { mutate: vi.fn(), isPending: false },
+  },
 }));
 
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => listState,
   useDocumentMutations: () => mutations,
+  useChildDocument: () => ({ data: null, isPending: false }),
+}));
+vi.mock('@/src/hooks/useFileUpload', () => ({
+  useFileUpload: () => fileUploadState,
+}));
+vi.mock('@/src/hooks/useRevision', () => ({
+  useRevision: () => revisionState,
 }));
 
 let realRole: Role = 'Admin';

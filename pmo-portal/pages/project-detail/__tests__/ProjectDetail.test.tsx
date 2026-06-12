@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
@@ -99,16 +100,20 @@ vi.mock('react-router-dom', async (orig) => {
 // B-9 (AC-W2-IA-004): all tabs are now deep-linkable via /projects/:projectId/:tab.
 // Both the `:tab` route and the bare `:projectId` route are registered so navigation
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
+const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 const renderAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <ToastProvider>
-        <Routes>
-          <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
-          <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        </Routes>
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={freshClient()}>
+      <MemoryRouter initialEntries={[path]}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('ProjectDetail shell (decomposition)', () => {

@@ -1298,7 +1298,13 @@ export type Database = {
         | "Contingency"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
-      doc_status: "Draft" | "Issued" | "Approved" | "Rejected" | "Closed"
+      doc_status:
+        | "Draft"
+        | "Issued"
+        | "Approved"
+        | "Rejected"
+        | "Closed"
+        | "Superseded"
       incident_severity: "Low" | "Medium" | "High" | "Critical"
       incident_status: "Open" | "Investigating" | "Closed"
       procurement_invoice_status: "Received" | "Scheduled" | "Paid"
@@ -1476,7 +1482,14 @@ export const Constants = {
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],
-      doc_status: ["Draft", "Issued", "Approved", "Rejected", "Closed"],
+      doc_status: [
+        "Draft",
+        "Issued",
+        "Approved",
+        "Rejected",
+        "Closed",
+        "Superseded",
+      ],
       incident_severity: ["Low", "Medium", "High", "Critical"],
       incident_status: ["Open", "Investigating", "Closed"],
       procurement_invoice_status: ["Received", "Scheduled", "Paid"],

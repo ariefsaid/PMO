@@ -18,7 +18,7 @@ import { ToastProvider } from '@/src/components/ui';
  */
 
 // vi.hoisted must be the first call; author/reviewer IDs are inlined here.
-const { docsState, reviewerId } = vi.hoisted(() => ({
+const { docsState, reviewerId, fileUploadState, revisionState } = vi.hoisted(() => ({
   reviewerId: 'reviewer-456',
   docsState: {
     data: [
@@ -40,6 +40,17 @@ const { docsState, reviewerId } = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
+  fileUploadState: {
+    upload: { mutate: vi.fn(), isPending: false },
+    replace: { mutate: vi.fn(), isPending: false },
+    progress: {} as Record<string, number>,
+    uploadErrors: {} as Record<string, { message: string }>,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  },
+  revisionState: {
+    createRevision: { mutate: vi.fn(), isPending: false },
+  },
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -53,6 +64,13 @@ vi.mock('@/src/hooks/useDocuments', () => ({
     transition: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   }),
+  useChildDocument: () => ({ data: null, isPending: false }),
+}));
+vi.mock('@/src/hooks/useFileUpload', () => ({
+  useFileUpload: () => fileUploadState,
+}));
+vi.mock('@/src/hooks/useRevision', () => ({
+  useRevision: () => revisionState,
 }));
 
 import DocumentsTab from '../DocumentsTab';

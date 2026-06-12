@@ -42,6 +42,9 @@ const DOC_STATUS_PILL: Record<ProcurementDocStatus, StatusVariant> = {
   Approved: 'won',
   Rejected: 'lost',
   Closed: 'neutral',
+  // Superseded is a project-document lifecycle state; procurement docs never reach it,
+  // but doc_status is shared so the map must stay exhaustive (added with migration 0024).
+  Superseded: 'neutral',
 };
 
 export interface ProcurementDocumentsSectionProps {

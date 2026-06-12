@@ -413,10 +413,10 @@ describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
     expect(within(drawer).getByText('Drawing')).toBeInTheDocument();
   });
 
-  it('AC-DOC-082 / AC-DOC-080: drawer shows lineage and file information for superseded rows', async () => {
+  it('AC-DOC-082 / AC-DOC-080: drawer shows superseding lineage and file information for superseded rows', async () => {
     renderTab('Admin', 'admin-1');
     const drawer = await openDrawer('Structural calculation report', 0);
-    expect(within(drawer).getByText(/Revision lineage/i)).toBeInTheDocument();
+    expect(within(drawer).getByText(/Superseded by/i)).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /Download structural-calc-rev-a\.pdf/i })).toBeInTheDocument();
   });
