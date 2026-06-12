@@ -8,24 +8,48 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
-const { listState, mutations } = vi.hoisted(() => ({
+const { listState, childDocs, mutations, fileUploadState, revisionState } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
     isError: false,
     refetch: vi.fn(),
   },
+  childDocs: {} as Record<string, unknown>,
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
     transition: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
+  fileUploadState: {
+    upload: { mutate: vi.fn(), isPending: false },
+    replace: { mutate: vi.fn(), isPending: false },
+    progress: {} as Record<string, number>,
+    uploadErrors: {} as Record<string, { message: string }>,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  },
+  revisionState: {
+    createRevision: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false },
+  },
 }));
 
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => listState,
   useDocumentMutations: () => mutations,
+  useChildDocument: (parentId: string | null) => ({
+    data: parentId ? childDocs[parentId] ?? null : null,
+    isPending: false,
+  }),
+}));
+
+vi.mock('@/src/hooks/useFileUpload', () => ({
+  useFileUpload: () => fileUploadState,
+}));
+
+vi.mock('@/src/hooks/useRevision', () => ({
+  useRevision: () => revisionState,
 }));
 
 // usePermission reads the REAL JWT role; the SoD also reads the current user id.
@@ -43,10 +67,12 @@ import DocumentsTab from './DocumentsTab';
 // d1 Draft (authored by pm-1), d2 Issued (authored by pm-1, awaiting approval),
 // d3 Approved (authored by admin-1), d4 Rejected (authored by pm-1).
 const seed = [
-  { id: 'd1', project_id: 'p1', code: 'DOC-001', category: 'Drawing', title: 'Site Plan', revision: 'A', status: 'Draft', author_id: 'pm-1', doc_date: '2026-06-01', org_id: 'org-1', file_path: null, created_at: '2026-06-01T00:00:00Z' },
-  { id: 'd2', project_id: 'p1', code: 'DOC-002', category: 'Specification', title: 'Steel Spec', revision: 'B', status: 'Issued', author_id: 'pm-1', doc_date: '2026-06-02', org_id: 'org-1', file_path: null, created_at: '2026-06-02T00:00:00Z' },
-  { id: 'd3', project_id: 'p1', code: 'DOC-003', category: 'Report', title: 'Survey Report', revision: null, status: 'Approved', author_id: 'admin-1', doc_date: null, org_id: 'org-1', file_path: null, created_at: '2026-06-03T00:00:00Z' },
-  { id: 'd4', project_id: 'p1', code: null, category: 'Transmittal', title: 'Cover Note', revision: null, status: 'Rejected', author_id: 'pm-1', doc_date: null, org_id: 'org-1', file_path: null, created_at: '2026-06-04T00:00:00Z' },
+  { id: 'd1', project_id: 'p1', code: 'DOC-001', category: 'Drawing', title: 'Site Plan', revision: 'A', status: 'Draft', author_id: 'pm-1', doc_date: '2026-06-01', org_id: 'org-1', file_path: null, parent_document_id: null, created_at: '2026-06-01T00:00:00Z' },
+  { id: 'd2', project_id: 'p1', code: 'DOC-002', category: 'Specification', title: 'Steel Spec', revision: 'B', status: 'Issued', author_id: 'pm-1', doc_date: '2026-06-02', org_id: 'org-1', file_path: 'org-1/p1/d2/steel-spec-rev-b.pdf', parent_document_id: null, created_at: '2026-06-02T00:00:00Z' },
+  { id: 'd3', project_id: 'p1', code: 'DOC-003', category: 'Report', title: 'Survey Report', revision: 'A', status: 'Approved', author_id: 'admin-1', doc_date: null, org_id: 'org-1', file_path: 'org-1/p1/d3/survey-report-rev-a.pdf', parent_document_id: null, created_at: '2026-06-03T00:00:00Z' },
+  { id: 'd4', project_id: 'p1', code: null, category: 'Transmittal', title: 'Cover Note', revision: null, status: 'Rejected', author_id: 'pm-1', doc_date: null, org_id: 'org-1', file_path: null, parent_document_id: null, created_at: '2026-06-04T00:00:00Z' },
+  { id: 'd5', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'A', status: 'Superseded', author_id: 'pm-1', doc_date: '2026-04-20', org_id: 'org-1', file_path: 'org-1/p1/d5/structural-calc-rev-a.pdf', parent_document_id: null, created_at: '2026-04-20T00:00:00Z' },
+  { id: 'd6', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'B', status: 'Issued', author_id: 'pm-2', doc_date: '2026-05-20', org_id: 'org-1', file_path: 'org-1/p1/d6/structural-calc-rev-b.pdf', parent_document_id: 'd5', created_at: '2026-05-20T00:00:00Z' },
 ];
 
 const renderTab = (role: Role = 'Admin', uid = 'admin-1') => {
@@ -71,6 +97,17 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
+  Object.keys(childDocs).forEach((key) => delete childDocs[key]);
+  childDocs.d5 = seed[5];
+  fileUploadState.upload.mutate.mockReset();
+  fileUploadState.replace.mutate.mockReset();
+  fileUploadState.cancelUpload.mockReset();
+  fileUploadState.clearUploadError.mockReset();
+  fileUploadState.progress = {};
+  fileUploadState.uploadErrors = {};
+  revisionState.createRevision.mutate.mockReset();
+  revisionState.createRevision.mutateAsync.mockReset();
+  revisionState.createRevision.isPending = false;
   realRole = 'Admin';
   currentUserId = 'admin-1';
 });
@@ -95,11 +132,11 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
 
   // Polish #6 — the toolbar gains a left-aligned "N documents" count (matching the
   // Admin Users toolbar pattern) so the previously-empty left side reads as anchored.
-  it('polish#6: the toolbar shows a left-aligned document count (4 documents)', () => {
+  it('polish#6: the toolbar shows a left-aligned document count (6 documents)', () => {
     renderTab();
     const count = screen.getByTestId('documents-count');
     expect(count).toBeInTheDocument();
-    expect(count).toHaveTextContent(/^4 documents$/);
+    expect(count).toHaveTextContent(/^6 documents$/);
   });
 
   it('polish#6: the count uses the singular noun for a single document', () => {
@@ -131,13 +168,13 @@ describe('DocumentsTab — states', () => {
   });
 });
 
-describe('DocumentsTab — file upload deferral is signposted by copy, not a dead button (AC-DOC-008 / D13)', () => {
-  it('AC-DOC-008 (D13, OD-W2-5 honest-affordance): NO dead "Attach file (coming soon)" button — the deferral is signposted by the register copy instead', () => {
+describe('DocumentsTab — file upload integration copy (AC-DOC-085)', () => {
+  it('AC-DOC-085: subtitle teaches upload-on-draft behavior and keeps fake attach buttons absent', () => {
     renderTab('Admin');
-    // The disabled "Attach file" placeholder was removed (honest-affordance rule: no fake
-    // disabled control). The deferral is communicated by the register subtitle copy.
     expect(screen.queryByRole('button', { name: /Attach file/i })).toBeNull();
-    expect(screen.getByText(/file attachments arrive with Storage/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Drawings, specifications, and transmittals for this project\. Upload files on Draft rows\./i),
+    ).toBeInTheDocument();
   });
 });
 
@@ -307,9 +344,61 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
   });
 });
 
+describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC-DOC-081 / AC-DOC-082 / AC-DOC-083)', () => {
+  it('AC-DOC-080: renders the File column between Code and Category with upload/download affordances', () => {
+    renderTab('Admin', 'admin-1');
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent?.trim());
+    expect(headers).toContain('File');
+    expect(headers.indexOf('Code')).toBeLessThan(headers.indexOf('File'));
+    expect(headers.indexOf('File')).toBeLessThan(headers.indexOf('Category'));
+
+    expect(screen.getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download file for Survey Report/i })).toBeInTheDocument();
+  });
+
+  it('AC-DOC-081 / AC-DOC-082: renders the Superseded pill, lineage links, and continue-on microcopy', () => {
+    renderTab('Admin', 'admin-1');
+    expect(screen.getAllByText('Superseded').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /View revision A of Structural calculation report/i })).toHaveTextContent('← Rev A');
+    expect(screen.getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('→ Rev B');
+    expect(screen.getByText(/continue on Rev B/i)).toBeInTheDocument();
+  });
+
+  it('AC-DOC-050: New revision is visible on Issued/Approved rows only', () => {
+    renderTab('Admin', 'admin-1');
+    expect(within(screen.getByText('Steel Spec').closest('tr')!).getByRole('button', { name: /Create new revision for Steel Spec/i })).toBeInTheDocument();
+    expect(within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Create new revision for Survey Report/i })).toBeInTheDocument();
+    expect(within(screen.getByText('Site Plan').closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
+    expect(within(screen.getByText('Cover Note').closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
+    expect(within(screen.getAllByText('Structural calculation report')[0].closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-DOC-050: New revision opens the modal and calls useRevision so a Draft child is created', async () => {
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(
+      within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Create new revision for Survey Report/i }),
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: /New revision/i })).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
+    expect(revisionState.createRevision.mutate).toHaveBeenCalledWith(
+      { parentId: 'd3', revision: 'B' },
+      expect.any(Object),
+    );
+  });
+
+  it('AC-DOC-083: mobile card affordances keep the touch-target hook on file actions', () => {
+    renderTab('Admin', 'admin-1');
+    const upload = screen.getAllByRole('button', { name: /Upload file for Site Plan/i })[0];
+    const download = screen.getAllByRole('button', { name: /Download file for Survey Report/i })[0];
+    expect(upload.className).toContain('touch-target');
+    expect(download.className).toContain('touch-target');
+  });
+});
+
 describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
-  const openDrawer = async (title: string) => {
-    await userEvent.click(screen.getByRole('button', { name: `View ${title}` }));
+  const openDrawer = async (title: string, index = 0) => {
+    await userEvent.click(screen.getAllByRole('button', { name: `View ${title}` })[index]);
     return screen.getByRole('dialog');
   };
 
@@ -322,6 +411,14 @@ describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
     // Read-first body: code (mono), category, status pill.
     expect(within(drawer).getByText('DOC-001')).toBeInTheDocument();
     expect(within(drawer).getByText('Drawing')).toBeInTheDocument();
+  });
+
+  it('AC-DOC-082 / AC-DOC-080: drawer shows lineage and file information for superseded rows', async () => {
+    renderTab('Admin', 'admin-1');
+    const drawer = await openDrawer('Structural calculation report', 0);
+    expect(within(drawer).getByText(/Revision lineage/i)).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: /Download structural-calc-rev-a\.pdf/i })).toBeInTheDocument();
   });
 
   it('AC-W5-C6-D12: a Draft document shows an Issue status button in the drawer (workflow promoted out of ⋯)', async () => {
