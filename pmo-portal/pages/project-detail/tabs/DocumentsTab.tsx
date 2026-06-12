@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
@@ -24,7 +24,15 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
+import { useFileUpload } from '@/src/hooks/useFileUpload';
+import { useRevision } from '@/src/hooks/useRevision';
+import { FileCell } from '@/src/components/FileCell';
+import { NewRevisionModal } from '@/src/components/NewRevisionModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
+import { validateFile } from '@/src/lib/validateFile';
+import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
+import { repositories } from '@/src/lib/repositories';
 import type {
   ProjectDocumentRow,
   ProjectDocumentInput,
@@ -58,18 +66,8 @@ const STATUS_PILL: Record<DocStatus, StatusVariant> = {
   Approved: 'won',
   Rejected: 'lost',
   Closed: 'neutral',
+  Superseded: 'superseded',
 };
-
-/** The category list (short fixed enum → native SelectField). */
-const CATEGORY_OPTIONS = [
-  { value: 'Drawing', label: 'Drawing' },
-  { value: 'Specification', label: 'Specification' },
-  { value: 'Report', label: 'Report' },
-  { value: 'Transmittal', label: 'Transmittal' },
-  { value: 'Submittal', label: 'Submittal' },
-  { value: 'Certificate', label: 'Certificate' },
-  { value: 'Other', label: 'Other' },
-];
 
 interface FormValues {
   title: string;
@@ -100,6 +98,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
   const { create, update, transition, remove } = useDocumentMutations(projectId);
+  const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
+  const { createRevision } = useRevision(projectId);
 
   const [search, setSearch] = useState('');
 
@@ -114,6 +114,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   // no extra fetch). Row activation opens it; the status section + footer reuse
   // the existing statusActions gating + setPending/setFormTarget/setDeleteTarget.
   const [drawerDoc, setDrawerDoc] = useState<ProjectDocumentRow | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
+  const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
+  const [revisionParent, setRevisionParent] = useState<ProjectDocumentRow | null>(null);
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
@@ -131,6 +135,22 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     may('edit', 'document', { currentUserId, record: { author_id: d.author_id } });
 
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
+
+  const documentsById = useMemo(() => {
+    const map = new Map<string, ProjectDocumentRow>();
+    all.forEach((doc) => map.set(doc.id, doc));
+    return map;
+  }, [all]);
+
+  const childDocumentsByParentId = useMemo(() => {
+    const map = new Map<string, ProjectDocumentRow>();
+    all.forEach((doc) => {
+      if (doc.parent_document_id) {
+        map.set(doc.parent_document_id, doc);
+      }
+    });
+    return map;
+  }, [all]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -164,14 +184,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       key: 'title',
       header: 'Document',
       cell: (d) => (
-        <div className="min-w-0">
-          <span className="block truncate font-semibold" title={d.title}>
-            {d.title}
-          </span>
-          {d.revision && (
-            <span className="text-[12px] text-muted-foreground">Rev {d.revision}</span>
-          )}
-        </div>
+        <DocumentTitleCell
+          doc={d}
+          parentDoc={d.parent_document_id ? (documentsById.get(d.parent_document_id) ?? null) : null}
+          childDoc={childDocumentsByParentId.get(d.id) ?? null}
+          onViewDocument={setDrawerDoc}
+        />
       ),
     },
     {
@@ -186,6 +204,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         ) : (
           <span className="text-muted-foreground">{'—'}</span>
         ),
+    },
+    {
+      key: 'file_path',
+      header: 'File',
+      colClassName: 'hidden md:table-cell',
+      cell: (d) => (
+        <FileCell
+          status={d.status}
+          filePath={d.file_path}
+          title={d.title}
+          uploadProgress={progress[d.id]}
+          uploadError={clientUploadErrors[d.id] ?? uploadErrors[d.id]?.message ?? null}
+          onUpload={d.status === 'Draft' && canWriteDocs ? () => handleUploadClick(d.id) : undefined}
+          onReplace={d.status === 'Draft' && d.file_path && canWriteDocs ? () => handleReplaceClick(d.id) : undefined}
+          onCancelUpload={() => cancelUpload(d.id)}
+          onRemoveError={() => clearAnyUploadError(d.id)}
+          onDownload={d.file_path ? () => void handleDownload(d) : undefined}
+          onPreview={d.file_path ? () => void handlePreview(d) : undefined}
+        />
+      ),
     },
     {
       key: 'category',
@@ -208,6 +246,22 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       key: 'status',
       header: 'Status',
       cell: (d) => <StatusPill variant={STATUS_PILL[d.status]}>{d.status}</StatusPill>,
+    },
+    {
+      key: 'revision_action',
+      header: '',
+      align: 'center',
+      cell: (d) =>
+        (d.status === 'Issued' || d.status === 'Approved') && canWriteDocs ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRevisionParent(d)}
+            aria-label={`Create new revision for ${d.title}`}
+          >
+            New revision
+          </Button>
+        ) : null,
     },
   ];
 
@@ -246,7 +300,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     const items: RowMenuItem[] = [];
     // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected) AND
     // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
-    if (canEditDoc(d) && d.status !== 'Closed') {
+    if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
       items.push({ label: 'Edit', onClick: () => setFormTarget({ doc: d }) });
     }
     items.push(...statusActions(d));
@@ -284,14 +338,106 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     }
   };
 
+  const removeClientUploadError = (docId: string) => {
+    setClientUploadErrors((prev) => {
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
+  };
+
+  const clearAnyUploadError = (docId: string) => {
+    removeClientUploadError(docId);
+    clearUploadError(docId);
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeFileDoc) return;
+
+    clearAnyUploadError(activeFileDoc.docId);
+    const validation = validateFile(file);
+    if (!validation.ok) {
+      setClientUploadErrors((prev) => ({
+        ...prev,
+        [activeFileDoc.docId]: validation.message ?? 'File validation failed',
+      }));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveFileDoc(null);
+      return;
+    }
+
+    if (activeFileDoc.mode === 'upload') {
+      upload.mutate({ docId: activeFileDoc.docId, file });
+    } else {
+      replace.mutate({ docId: activeFileDoc.docId, file });
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setActiveFileDoc(null);
+  };
+
+  const handleUploadClick = (docId: string) => {
+    clearAnyUploadError(docId);
+    setActiveFileDoc({ docId, mode: 'upload' });
+    fileInputRef.current?.click();
+  };
+
+  const handleReplaceClick = (docId: string) => {
+    clearAnyUploadError(docId);
+    setActiveFileDoc({ docId, mode: 'replace' });
+    fileInputRef.current?.click();
+  };
+
+  const handleDownload = async (doc: ProjectDocumentRow) => {
+    if (!doc.file_path) return;
+    try {
+      const url = await repositories.document.getSignedUrl(doc.file_path, { download: true });
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_path.split('/').pop() || 'file';
+      a.click();
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const handlePreview = async (doc: ProjectDocumentRow) => {
+    if (!doc.file_path) return;
+    try {
+      const url = await repositories.document.getSignedUrl(doc.file_path);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string }) => {
+    if (!revisionParent) return;
+    createRevision.mutate(
+      { parentId: revisionParent.id, ...data },
+      {
+        onSuccess: () => {
+          toast('Revision created', `${revisionParent.title} Rev ${data.revision}`, 'success');
+          setRevisionParent(null);
+        },
+        onError: (err) => {
+          const { headline, detail } = classifyMutationError(err);
+          toast(headline, detail, 'warning');
+        },
+      },
+    );
+  };
+
   return (
     <div>
       <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">Document register</h2>
           <p className="mt-0.5 max-w-[64ch] text-[13px] text-muted-foreground">
-            Drawings, specifications, and transmittals for this project. Metadata is tracked
-            here; file attachments arrive with Storage.
+            Drawings, specifications, and transmittals for this project. Upload files on Draft rows.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -373,7 +519,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           columns={columns}
           rowKey={(d) => d.id}
           onActivate={(d) => setDrawerDoc(d)}
-          rowLabel={(d) => `View ${d.title}`}
           rowMenu={anyRowWrite ? rowMenu : undefined}
           selectedKey={drawerDoc?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
@@ -389,13 +534,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       {drawerDoc && (
         <DocumentDrawer
           doc={drawerDoc}
+          parentDoc={drawerDoc.parent_document_id ? (documentsById.get(drawerDoc.parent_document_id) ?? null) : null}
+          childDoc={childDocumentsByParentId.get(drawerDoc.id) ?? null}
           // The transitions, already role- + SoD-gated by statusActions(d).
           transitions={statusActions(drawerDoc).filter(
             (a) => a.label !== 'Why is review unavailable?',
           )}
           // SoD: author of their own Issued doc → no Approve/Reject; show the reason inline.
           sodBlocked={drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc)}
-          canEdit={canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed'}
+          canEdit={canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed' && drawerDoc.status !== 'Superseded'}
           canDelete={canDelete}
           // A status transition opens the ConfirmDialog on top of the drawer; make
           // the panel inert so the confirm owns focus + AT (no two live traps).
@@ -412,6 +559,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
             setDrawerDoc(null);
             setDeleteTarget(d);
           }}
+          onViewDocument={setDrawerDoc}
+          onDownload={handleDownload}
         />
       )}
 
@@ -434,6 +583,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
             const { headline, detail } = classifyMutationError(err);
             toast(headline, detail, 'warning');
           }}
+        />
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={FILE_INPUT_ACCEPT}
+        className="hidden"
+        onChange={handleFileSelected}
+        data-testid="file-input"
+      />
+
+      {revisionParent && (
+        <NewRevisionModal
+          parent={revisionParent}
+          onSubmit={handleCreateRevision}
+          onClose={() => setRevisionParent(null)}
+          loading={createRevision.isPending}
         />
       )}
 
@@ -474,9 +641,80 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
 // ── D12: read-first quick-view drawer + inline status workflow ────────────────
 
+interface LineageButtonProps {
+  revision: string;
+  title: string;
+  direction: 'back' | 'forward';
+  onClick: () => void;
+}
+
+const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => (
+  <button
+    type="button"
+    className="w-fit text-[11px] text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    aria-label={`View revision ${revision} of ${title}`}
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+  >
+    {direction === 'back' ? '←' : '→'} Rev {revision}
+  </button>
+);
+
+const DocumentTitleCell: React.FC<{
+  doc: ProjectDocumentRow;
+  parentDoc: ProjectDocumentRow | null;
+  childDoc: ProjectDocumentRow | null;
+  onViewDocument: (doc: ProjectDocumentRow) => void;
+}> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        aria-label={`View ${doc.title}`}
+        onClick={() => onViewDocument(doc)}
+        className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <span className="block truncate font-semibold" title={doc.title}>
+          {doc.title}
+        </span>
+        {doc.revision && (
+          <span className="text-[12px] text-muted-foreground">Rev {doc.revision}</span>
+        )}
+      </button>
+      {parentDoc?.revision && (
+        <div className="mt-1">
+          <LineageButton
+            revision={parentDoc.revision}
+            title={doc.title}
+            direction="back"
+            onClick={() => onViewDocument(parentDoc)}
+          />
+        </div>
+      )}
+      {childDoc?.revision && (
+        <div className="mt-1 flex flex-col gap-1">
+          <LineageButton
+            revision={childDoc.revision}
+            title={doc.title}
+            direction="forward"
+            onClick={() => onViewDocument(childDoc)}
+          />
+          {doc.status === 'Superseded' && (
+            <span className="text-[11px] text-muted-foreground">Read-only — continue on Rev {childDoc.revision}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface DocumentDrawerProps {
   /** The in-hand ProjectDocumentRow (no extra fetch). */
   doc: ProjectDocumentRow;
+  parentDoc: ProjectDocumentRow | null;
+  childDoc: ProjectDocumentRow | null;
   /** Available transitions from statusActions(d) (the "Why…?" item filtered out). */
   transitions: RowMenuItem[];
   /** Author of their own Issued doc → no Approve/Reject; show the reason inline. */
@@ -488,6 +726,8 @@ interface DocumentDrawerProps {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onViewDocument: (doc: ProjectDocumentRow) => void;
+  onDownload: (doc: ProjectDocumentRow) => Promise<void>;
 }
 
 /** Definition-list row — label (overline voice) + value. */
@@ -502,6 +742,8 @@ const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ labe
 
 const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   doc,
+  parentDoc,
+  childDoc,
   transitions,
   sodBlocked,
   canEdit,
@@ -510,6 +752,8 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   onClose,
   onEdit,
   onDelete,
+  onViewDocument,
+  onDownload,
 }) => {
   const hasFooter = canEdit || canDelete;
   // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
@@ -557,6 +801,38 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             <span className="text-muted-foreground">{'—'}</span>
           )}
         </DocField>
+        {parentDoc?.revision && (
+          <DocField label="Revision lineage">
+            <LineageButton
+              revision={parentDoc.revision}
+              title={doc.title}
+              direction="back"
+              onClick={() => onViewDocument(parentDoc)}
+            />
+          </DocField>
+        )}
+        {doc.status === 'Superseded' && childDoc?.revision && (
+          <DocField label="Superseded by">
+            <LineageButton
+              revision={childDoc.revision}
+              title={doc.title}
+              direction="forward"
+              onClick={() => onViewDocument(childDoc)}
+            />
+          </DocField>
+        )}
+        {doc.file_path && (
+          <DocField label="File">
+            <button
+              type="button"
+              onClick={() => void onDownload(doc)}
+              className="touch-target inline-flex rounded-sm text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              aria-label={`Download ${doc.file_path.split('/').pop() || 'file'}`}
+            >
+              {doc.file_path.split('/').pop()}
+            </button>
+          </DocField>
+        )}
         <DocField label="Status">
           <StatusPill variant={STATUS_PILL[doc.status]}>{doc.status}</StatusPill>
         </DocField>
@@ -669,7 +945,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       subtitle={
         isEdit
           ? 'Update this register entry'
-          : 'Record a drawing, specification, or transmittal. File upload arrives with Storage.'
+          : 'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.'
       }
       submitLabel={isEdit ? 'Save document' : 'Add document'}
       onSubmit={handleSubmit}

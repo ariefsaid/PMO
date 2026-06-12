@@ -129,6 +129,31 @@ describe('StatusPill', () => {
   });
 });
 
+describe('StatusPill — superseded variant (AC-DOC-081)', () => {
+  it('AC-DOC-081: superseded variant renders grey pill with "Superseded" label', () => {
+    render(<StatusPill variant="superseded">Superseded</StatusPill>);
+    const pill = screen.getByText('Superseded');
+    expect(pill).toBeInTheDocument();
+    // The dot is rendered (data-pill-dot attribute)
+    expect(pill.querySelector('[data-pill-dot]') ?? pill.closest('span')?.querySelector('[data-pill-dot]')).toBeInTheDocument();
+  });
+
+  it('AC-DOC-081: superseded pill has correct aria-label', () => {
+    render(<StatusPill variant="superseded" aria-label="Status: Superseded">Superseded</StatusPill>);
+    expect(screen.getByLabelText('Status: Superseded')).toBeInTheDocument();
+  });
+
+  it('AC-DOC-081: superseded reuses neutral/draft treatment (bg-secondary + muted-foreground)', () => {
+    render(<StatusPill variant="superseded">Superseded</StatusPill>);
+    const pill = screen.getByText('Superseded').closest('span')!;
+    expect(pill.className).toContain('bg-secondary');
+    expect(pill.className).toContain('text-muted-foreground');
+    const dot = pill.querySelector('[data-pill-dot]') as HTMLElement;
+    expect(dot).not.toBeNull();
+    expect(dot.style.background).toBe('hsl(var(--muted-foreground))');
+  });
+});
+
 describe('Badge (count)', () => {
   it('renders secondary by default', () => {
     render(<Badge>4</Badge>);

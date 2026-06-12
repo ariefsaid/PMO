@@ -113,18 +113,25 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-# Disabled for the backend-foundation issue: out of scope (no Storage buckets yet) and the local image's
-# health check is unreliable in this environment. Re-enable when the Storage/documents issue lands.
-enabled = false
-# The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+# Re-enabled 2026-06-12 for the document-file-upload issue (OD-DOC-1; Phase 0 health gate
+# in docs/plans/2026-06-12-document-file-upload.md). Historical health-check flake is the
+# named abort condition — if `supabase db reset` hangs or /storage/v1/health is non-200, STOP.
+enabled = true
+# The maximum file size allowed (e.g. "5MB", "500KB"). Mirrors MAX_FILE_SIZE_BYTES (OD-DOC-5 knob).
+file_size_limit = "5MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+[storage.buckets.project-documents]
+public = false
+file_size_limit = "5MiB"
+allowed_mime_types = [
+  "application/pdf",
+  "image/png", "image/jpeg", "image/webp",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "image/vnd.dxf", "application/dxf", "application/acad",
+  "text/csv", "text/plain",
+]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

@@ -58,6 +58,7 @@ import {
   updateProjectDocument,
   transitionProjectDocument,
   deleteProjectDocument,
+  createDocumentRevision,
 } from './documents';
 import { AppError } from '@/src/lib/appError';
 
@@ -211,11 +212,54 @@ describe('AC-DOC-005 transitionProjectDocument (status workflow — RPC-only)', 
   });
 });
 
+describe('AC-DOC-052 createDocumentRevision', () => {
+  it('AC-DOC-052 C1: inserts the edited child fields, parent link, Draft status, and author_id', async () => {
+    h.result.value = {
+      data: {
+        id: 'child-1',
+        project_id: 'p1',
+        title: 'Edited revision title',
+        code: 'DWG-009',
+        category: 'Specification',
+        revision: 'B',
+        doc_date: '2026-06-12',
+        status: 'Draft',
+        parent_document_id: 'd1',
+        author_id: 'author-2',
+      },
+      error: null,
+    };
+
+    await createDocumentRevision(
+      'd1',
+      {
+        title: 'Edited revision title',
+        code: 'DWG-009',
+        category: 'Specification',
+        revision: 'B',
+        doc_date: '2026-06-12',
+      },
+      'author-2',
+    );
+
+    expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.title).toBe('Edited revision title');
+    expect(insert.code).toBe('DWG-009');
+    expect(insert.category).toBe('Specification');
+    expect(insert.revision).toBe('B');
+    expect(insert.doc_date).toBe('2026-06-12');
+    expect(insert.parent_document_id).toBe('d1');
+    expect(insert.author_id).toBe('author-2');
+    expect(insert.status).toBe('Draft');
+  });
+});
+
 describe('AC-DOC-006 deleteProjectDocument (hard-delete; Admin)', () => {
   it('AC-DOC-006: deletes by id, NEVER org_id', async () => {
     h.result.value = { data: null, error: null };
     await deleteProjectDocument('d1');
-    expect(h.calls.from).toEqual(['project_documents']);
+    expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
     expect(h.calls.delete).toBe(1);
     expect(h.calls.eq).toContainEqual(['id', 'd1']);
     expect(JSON.stringify(h.calls.eq)).not.toContain('org_id');

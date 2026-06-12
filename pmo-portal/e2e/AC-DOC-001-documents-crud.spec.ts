@@ -140,9 +140,11 @@ test(
     // GOAL ORACLE: no write affordance for the Engineer.
     await expect(page.getByRole('button', { name: /add document/i })).not.toBeVisible({ timeout: 10_000 });
 
-    // D13 (honest-affordance): the dead disabled "Attach file (coming soon)" button was removed;
-    // the Storage deferral is signposted by the register copy, never a fake disabled control.
+    // D13 (honest-affordance): the dead disabled "Attach file" button is gone; the tab copy
+    // now honestly teaches that files are uploaded on Draft rows, never via a fake disabled control.
     await expect(page.getByRole('button', { name: /attach file/i })).toHaveCount(0);
-    await expect(page.getByText(/file attachments arrive with Storage/i)).toBeVisible();
+    await expect(
+      page.getByText(/Drawings, specifications, and transmittals for this project\. Upload files on Draft rows\./i),
+    ).toBeVisible();
   },
 );

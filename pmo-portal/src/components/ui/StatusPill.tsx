@@ -10,6 +10,7 @@ export type StatusVariant =
   | 'overdue'
   | 'neutral'
   | 'draft'
+  | 'superseded'
   | 'violet';
 
 /**
@@ -41,6 +42,8 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
   neutral: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   draft: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
+  // Superseded: neutral grey pill — the word carries the meaning (design-plan §1.4 / Tinted-Status Rule / One Blue Rule).
+  superseded: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   // Categorical violet — NON-interactive categorization only (DESIGN.md: KPI/avatar/
   // timeline/type pills, never an action color). Tinted violet/12 + the darkened-AA
   // text token --status-violet-text = hsl(262 60% 42%) (7.4:1 on white).

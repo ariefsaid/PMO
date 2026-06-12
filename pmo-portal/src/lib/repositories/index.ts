@@ -37,6 +37,12 @@ import {
   updateProjectDocument,
   transitionProjectDocument,
   deleteProjectDocument,
+  prepareUpload,
+  confirmUpload,
+  cleanupStorageObject,
+  getSignedDownloadUrl,
+  createDocumentRevision,
+  getChildDocument,
 } from '@/src/lib/db/documents';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
@@ -161,6 +167,13 @@ const document: DocumentRepository = {
   update: (id, input) => wrap(() => updateProjectDocument(id, input)),
   transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
   delete: (id) => wrap(() => deleteProjectDocument(id)),
+  prepareUpload: (docId, fileName) => wrap(() => prepareUpload(docId, fileName)),
+  confirmUpload: (docId, path) => wrap(() => confirmUpload(docId, path)),
+  cleanupObject: (filePath) => wrap(() => cleanupStorageObject(filePath)),
+  getSignedUrl: (filePath, opts) => wrap(() => getSignedDownloadUrl(filePath, opts)),
+  createRevision: (parentId, input, authorId) =>
+    wrap(() => createDocumentRevision(parentId, input, authorId)),
+  getChild: (parentId) => wrap(() => getChildDocument(parentId)),
 };
 
 const profile: ProfileRepository = {

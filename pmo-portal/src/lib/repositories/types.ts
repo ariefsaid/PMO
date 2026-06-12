@@ -150,6 +150,22 @@ export interface DocumentRepository {
   transition(id: string, status: DocStatus): Promise<void>;
   /** Hard-delete a document (Admin-only in the FE gate). */
   delete(id: string): Promise<void>;
+  /** Prepare a signed upload URL for a Draft document (DAL fetches row internally). */
+  prepareUpload(docId: string, fileName: string): Promise<{ signedUrl: string; path: string; oldPath: string | null }>;
+  /** Confirm upload by updating file_path on the document row. */
+  confirmUpload(docId: string, path: string): Promise<void>;
+  /** Delete a storage object (non-fatal cleanup). */
+  cleanupObject(filePath: string): Promise<void>;
+  /** Generate a signed download URL for a document file. `opts.download` forces attachment (true download); omit for inline preview. */
+  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  /** Create a revision (child) document row. */
+  createRevision(
+    parentId: string,
+    input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
+    authorId: string | null,
+  ): Promise<ProjectDocumentRow>;
+  /** Get the child (successor) document for lineage display. */
+  getChild(parentId: string): Promise<ProjectDocumentRow | null>;
 }
 
 export interface ProcurementRepository {

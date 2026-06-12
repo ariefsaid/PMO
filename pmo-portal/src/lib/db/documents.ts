@@ -145,12 +145,168 @@ export async function transitionProjectDocument(id: string, status: DocStatus): 
 }
 
 /**
- * Hard-delete a document by id (AC-DOC-006) — Admin only. The `project_documents_delete_admin_only`
- * restrictive RLS policy (migration 0017) is the server authority; the FE gate is the clarity
- * projection. A non-Admin delete is a silent 0-row no-op. org_id is NEVER sent — RLS scopes the
- * delete. Throws an `AppError` (code preserved) on failure.
+ * Hard-delete a document by id (AC-DOC-006) — Admin only.
+ * For Draft documents, also removes the associated storage object (if any).
  */
 export async function deleteProjectDocument(id: string): Promise<void> {
+  const doc = await getProjectDocument(id);
   const { error } = await supabase.from('project_documents').delete().eq('id', id);
   if (error) throwWrite(error);
+  if (doc?.file_path) {
+    await cleanupStorageObject(doc.file_path);
+  }
+}
+
+// ── Storage operations ──────────────────────────────────────────────────────
+
+import { buildStoragePath } from '@/src/lib/storageKey';
+import {
+  ALLOWED_FILE_TYPES,
+  DENIED_EXTENSIONS,
+  SIGNED_URL_EXPIRY_SECONDS,
+} from '@/src/lib/fileConstants';
+
+const BUCKET = 'project-documents';
+
+function getFileExtension(fileName: string): string {
+  const lastDot = fileName.lastIndexOf('.');
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : '';
+}
+
+function validateUploadExtension(fileName: string): void {
+  const ext = getFileExtension(fileName);
+  if (DENIED_EXTENSIONS.includes(ext)) {
+    throw new AppError(`File type not allowed (${ext})`);
+  }
+  if (!ALLOWED_FILE_TYPES.includes(ext)) {
+    throw new AppError(`File type not allowed (${ext})`);
+  }
+}
+
+/**
+ * Prepare a signed upload URL for a document file (FR-DOC-020).
+ * Fetches the document row internally (org_id, project_id, file_path, status)
+ * and builds the storage path — never takes orgId/projectId as parameters.
+ * Validates the document is in Draft status before creating the URL.
+ *
+ * Returns { signedUrl, path, oldPath } for the hook to use with uploadWithProgress.
+ */
+export async function prepareUpload(
+  docId: string,
+  fileName: string,
+): Promise<{ signedUrl: string; path: string; oldPath: string | null }> {
+  validateUploadExtension(fileName);
+  const { data: doc, error: fetchError } = await supabase
+    .from('project_documents')
+    .select('id, org_id, project_id, file_path, status')
+    .eq('id', docId)
+    .maybeSingle();
+  if (fetchError) throwWrite(fetchError);
+  if (!doc) throw new AppError('Document not found');
+  if (doc.status !== 'Draft') throw new AppError('Cannot upload to a document that is not Draft', '42501');
+
+  const path = buildStoragePath(doc.org_id, doc.project_id, docId, fileName);
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUploadUrl(path);
+  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (!data?.signedUrl) throw new AppError('Could not create upload URL');
+
+  return { signedUrl: data.signedUrl, path: data.path, oldPath: doc.file_path };
+}
+
+/**
+ * Confirm an upload: update file_path on the document row (FR-DOC-025).
+ * Called by the hook after uploadWithProgress succeeds.
+ */
+export async function confirmUpload(docId: string, path: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_documents')
+    .update({ file_path: path })
+    .eq('id', docId);
+  if (error) throwWrite(error);
+}
+
+/**
+ * Delete a storage object (non-fatal — used for cleanup after replace or row delete).
+ * Orphan-new is acceptable; cleanup is a nice-to-have.
+ */
+export async function cleanupStorageObject(filePath: string): Promise<void> {
+  if (!filePath) return;
+  const { error: _error } = await supabase.storage.from(BUCKET).remove([filePath]);
+  // Non-fatal — orphan cleanup is low-severity
+}
+
+/**
+ * Generate a signed URL for downloading/previewing a document file (FR-DOC-041).
+ * Uses SIGNED_URL_EXPIRY_SECONDS (60 min). Returns the signed URL string.
+ *
+ * When `opts.download` is set, the URL forces a browser download via
+ * `Content-Disposition: attachment` (Supabase `download` option) — required
+ * because the signed URL is cross-origin (storage host), where the anchor
+ * `download` attribute is ignored and inline-renderable types (images, PDFs)
+ * would otherwise open in the tab instead of downloading. Preview omits it so
+ * previewable types render inline in a new tab.
+ */
+export async function getSignedDownloadUrl(
+  filePath: string,
+  opts?: { download?: boolean },
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(
+      filePath,
+      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
+    );
+  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (!data?.signedUrl) throw new AppError('Could not generate download link');
+  return data.signedUrl;
+}
+
+/**
+ * Create a revision (child) document row (FR-DOC-052).
+ * Copies code/title/category from parent, bumps revision, sets parent_document_id.
+ * File is NOT carried over (file_path = null). Author = current user.
+ */
+export async function createDocumentRevision(
+  parentId: string,
+  input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
+  authorId: string | null,
+): Promise<ProjectDocumentRow> {
+  const parent = await getProjectDocument(parentId);
+  if (!parent) throw new AppError('Parent document not found');
+
+  const { data, error } = await supabase
+    .from('project_documents')
+    .insert({
+      project_id: parent.project_id,
+      code: nullable(input.code),
+      category: input.category.trim(),
+      title: input.title.trim(),
+      revision: nullable(input.revision),
+      doc_date: nullable(input.doc_date),
+      status: 'Draft',
+      author_id: authorId,
+      parent_document_id: parentId,
+    })
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return data as ProjectDocumentRow;
+}
+
+/**
+ * Get the child document (successor) of a parent, for lineage display.
+ * Returns null if no child exists.
+ */
+export async function getChildDocument(parentId: string): Promise<ProjectDocumentRow | null> {
+  const { data, error } = await supabase
+    .from('project_documents')
+    .select('*')
+    .eq('parent_document_id', parentId)
+    .maybeSingle();
+  if (error) throwWrite(error);
+  return data ?? null;
 }

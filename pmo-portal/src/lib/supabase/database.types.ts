@@ -712,6 +712,7 @@ export type Database = {
           file_path: string | null
           id: string
           org_id: string
+          parent_document_id: string | null
           project_id: string
           revision: string | null
           status: Database["public"]["Enums"]["doc_status"]
@@ -726,6 +727,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           org_id?: string
+          parent_document_id?: string | null
           project_id: string
           revision?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
@@ -740,6 +742,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           org_id?: string
+          parent_document_id?: string | null
           project_id?: string
           revision?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
@@ -758,6 +761,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
             referencedColumns: ["id"]
           },
           {
@@ -1288,7 +1298,13 @@ export type Database = {
         | "Contingency"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
-      doc_status: "Draft" | "Issued" | "Approved" | "Rejected" | "Closed"
+      doc_status:
+        | "Draft"
+        | "Issued"
+        | "Approved"
+        | "Rejected"
+        | "Closed"
+        | "Superseded"
       incident_severity: "Low" | "Medium" | "High" | "Critical"
       incident_status: "Open" | "Investigating" | "Closed"
       procurement_invoice_status: "Received" | "Scheduled" | "Paid"
@@ -1466,7 +1482,14 @@ export const Constants = {
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],
-      doc_status: ["Draft", "Issued", "Approved", "Rejected", "Closed"],
+      doc_status: [
+        "Draft",
+        "Issued",
+        "Approved",
+        "Rejected",
+        "Closed",
+        "Superseded",
+      ],
       incident_severity: ["Low", "Medium", "High", "Critical"],
       incident_status: ["Open", "Investigating", "Closed"],
       procurement_invoice_status: ["Received", "Scheduled", "Paid"],
