@@ -75,6 +75,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: 2_100_000, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useTasks', () => ({

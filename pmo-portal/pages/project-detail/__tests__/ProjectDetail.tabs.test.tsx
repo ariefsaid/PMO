@@ -66,6 +66,10 @@ vi.mock('@/src/hooks/useMilestones', () => ({
     setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div>Header</div>,
   // Re-export the predicate so ProjectDetail.tsx's import of hasFinanceView resolves.

@@ -1,8 +1,7 @@
 /**
- * AC-W6-IXD-ATRISK (Overview) — the Budget-utilization card co-locates the
- * budget-util basis WITH the delivery-progress bar: when the project is at-risk a
- * "% of budget" caption + an "At risk" StatusPill render BELOW the existing
- * contract-basis bar. Healthy projects render the bar only. budget===0 → no caption.
+ * AC-W6-IXD-ATRISK (Overview) — the Budget-utilization card uses the committed
+ * PO basis. When committed spend is at-risk, a "% of budget" caption + an
+ * "At risk" StatusPill render below the budget-committed bar.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -35,7 +34,10 @@ const baseProject = {
 const procState = { data: [] as ProcurementWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 const budgetState = { data: [] as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => procState,
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -50,10 +52,10 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs) =>
+const renderTab = (p: ProjectWithRefs, committedSpend = 0) =>
   render(
     <MemoryRouter>
-      <OverviewTab project={p} setTab={vi.fn()} />
+      <OverviewTab project={p} committedSpend={committedSpend} setTab={vi.fn()} />
     </MemoryRouter>,
   );
 
@@ -64,11 +66,11 @@ beforeEach(() => {
 });
 
 describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => {
-  it('AC-W6-IXD-ATRISK: an at-risk project renders the bar + a "% of budget" caption + an "At risk" pill below the contract line', () => {
-    // spent/budget = 850/900 = 94% (≥ 0.9 threshold) → at-risk.
-    const p = { ...baseProject, budget: 900_000, spent: 850_000 } as ProjectWithRefs;
-    renderTab(p);
-    const bar = screen.getByRole('progressbar', { name: /of contract/i });
+  it('AC-W6-IXD-ATRISK: an at-risk project renders the committed-budget bar + a "% of budget" caption + an "At risk" pill', () => {
+    // committed/budget = 850/900 = 94% (>= 0.9 threshold) -> at-risk.
+    const p = { ...baseProject, budget: 900_000, spent: 0 } as ProjectWithRefs;
+    renderTab(p, 850_000);
+    const bar = screen.getByRole('progressbar', { name: /budget committed/i });
     expect(bar).toBeInTheDocument();
     // The caption + flag are co-located inside the same card as the bar.
     const card = bar.closest('div')!;
@@ -77,16 +79,16 @@ describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => 
   });
 
   it('AC-W6-IXD-ATRISK: a healthy project renders the bar only — no budget caption, no pill', () => {
-    // spent/budget = 400/900 = 44% → healthy.
-    renderTab(baseProject);
-    expect(screen.getByRole('progressbar', { name: /of contract/i })).toBeInTheDocument();
+    // committed/budget = 400/900 = 44% -> healthy.
+    renderTab(baseProject, 400_000);
+    expect(screen.getByRole('progressbar', { name: /budget committed/i })).toBeInTheDocument();
     expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^At risk$/i)).not.toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN (guarded)', () => {
     const p = { ...baseProject, budget: 0, spent: 500_000 } as ProjectWithRefs;
-    renderTab(p);
+    renderTab(p, 500_000);
     expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
   });

@@ -51,12 +51,12 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
-const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand) => {
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000) => {
   roleBox.value = role;
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectDetailHeader project={project} />
+        <ProjectDetailHeader project={project} committedSpend={committedSpend} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -88,8 +88,8 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByText('$2,900,000')).toBeInTheDocument();
   });
 
-  it('shows a negative margin with a true minus glyph and destructive tone (edge)', () => {
-    renderHeader('Project Manager', { ...onHand, spent: 6000000 } as ProjectWithRefs);
+  it('shows a negative committed margin with a true minus glyph and destructive tone (edge)', () => {
+    renderHeader('Project Manager', onHand, 6_000_000);
     expect(screen.getByText(/−\$1,000,000/)).toBeInTheDocument();
   });
 
