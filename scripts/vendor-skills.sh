@@ -67,7 +67,25 @@ for s in ui-ux-pro-max design-system ui-styling; do
 done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
+# --- agent-browser CLI skill (vercel-labs/agent-browser) — rendered UI/FE verification from Bash ---
+# The CLI ships version-matched skills; we vendor only the lightweight DISCOVERY STUB so the Skill
+# tool (and pi via path) learn to run `agent-browser skills get core` for always-fresh usage content.
+echo "==> agent-browser (vercel-labs) — browser-automation CLI for rendered design-review / qa"
+if command -v agent-browser >/dev/null 2>&1; then
+  AB_SKILLS="$(agent-browser skills path 2>/dev/null | head -1)"
+  if [ -n "$AB_SKILLS" ] && [ -f "$AB_SKILLS/agent-browser/SKILL.md" ]; then
+    rm -rf "${DEST:?}/agent-browser"
+    cp -R "$AB_SKILLS/agent-browser" "$DEST/agent-browser"
+    # un-hide so it lists in the project's Skill picker (the upstream stub is hidden:true)
+    sed -i.bak '/^hidden: true$/d' "$DEST/agent-browser/SKILL.md" && rm -f "$DEST/agent-browser/SKILL.md.bak"
+  else
+    echo "    !! agent-browser skills path not found — skipping stub vendor"
+  fi
+else
+  echo "    !! agent-browser not installed. Install: npm i -g agent-browser && agent-browser install"
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs agent-browser impeccable taste ui-ux-pro-max design-system ui-styling"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

@@ -57,8 +57,13 @@ pi agents can drive a real browser through Bash with the **`agent-browser`** CLI
 Use it in design-review / qa-style dispatches and in ui-implementer self-checks:
 
 - **Tell the agent to start with** `agent-browser skills get core --full` — the CLI ships its own
-  version-matched usage skill (workflow patterns, ref/selector usage, examples). Put that line in
-  the brief; don't paste flag docs.
+  version-matched usage skill (snapshot-and-ref workflow, examples). Put that line in the brief;
+  don't paste flag docs. A discovery stub is also vendored at `.claude/skills/agent-browser/` (so
+  the Claude `Skill` tool finds it too); the stub just points back at `skills get core`. Setup:
+  `npm i -g agent-browser && agent-browser install`, then `scripts/vendor-skills.sh` copies the stub.
+- **For a structured exploratory pass / bug-hunt**, brief the agent to load
+  `agent-browser skills get dogfood` — it produces a reproducible defect report with screenshots,
+  matching the design-workflow §2.3 lens (b)/(c) walk.
 - Core verbs: `open <url>` · `click/fill/type/press` · `wait <sel|ms>` · `screenshot [path]` ·
   snapshot/refs per the core skill. Serve static mockups with `python3 -m http.server <port>`
   from the mockup directory; the app via `npm run dev` from `pmo-portal/`.

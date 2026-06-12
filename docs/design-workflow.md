@@ -92,8 +92,8 @@ variants) + a11y checks in isolation. Not before — premature Storybook is over
 | Agent | Primary | Secondary / checklist | Not used |
 |---|---|---|---|
 | **design-architect** | `impeccable` `document`→`extract`→`distill`; `ui-ux-pro-max` `design-system` + `plan`; `impeccable shape` (per-issue) | `design-consultation` (format only); `taste` (states/a11y into the plan) | design-consultation greenfield brand interview |
-| **ui-implementer** | `ui-ux-pro-max` `ui-styling` + `build`/`implement`; `taste` (discipline) | `impeccable` `harden`/`adapt`/`animate`/`optimize`/`clarify`/`layout`/`typeset` — per plan only | `impeccable live` (localhost browser loop) |
-| **design-reviewer** | `design-review` (render→screenshot→audit) | `impeccable` `critique` + `audit`; `taste` AI-tells/pre-flight; `ui-ux-pro-max` `review`/`check` | — |
+| **ui-implementer** | `ui-ux-pro-max` `ui-styling` + `build`/`implement`; `taste` (discipline) | `impeccable` `harden`/`adapt`/`animate`/`optimize`/`clarify`/`layout`/`typeset` — per plan only; `agent-browser` (rendered self-check) | `impeccable live` (localhost browser loop) |
+| **design-reviewer** | `design-review` (render→screenshot→audit); `agent-browser` (the render engine — `skills get core`; `dogfood` for exploratory QA) | `impeccable` `critique` + `audit`; `taste` AI-tells/pre-flight; `ui-ux-pro-max` `review`/`check` | — |
 
 ## 6. Skill caveats
 - **impeccable** — phone-home / telemetry disabled (vendored copy); use offline.
