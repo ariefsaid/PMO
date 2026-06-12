@@ -106,6 +106,39 @@ concurrently — launch them in one message, each `run_in_background`. But **sta
 drives the single local Supabase stack** (migrations, `db reset`, pgTAP, e2e) — two at once corrupt
 each other (playbook §3).
 
+### 3c. Resource isolation — pi is a CHILD of the Claude app (RAM + crash survival)
+
+A `Bash(run_in_background)` pi dispatch is spawned **inside the Claude-app process tree**. Consequences:
+- pi's **model inference is remote** (z.ai/OpenAI) — zero local RAM. But **pi's own process and
+  everything it spawns are local and parented under the app**: `supabase db reset` (Docker, ~10
+  containers, multi-GB), `vitest`/`vite`, chromium for agent-browser/playwright. Those are the real
+  local hogs.
+- Because they're children of the app, **a Claude-app crash kills the in-flight pi run** (we've
+  seen this — half-applied edits). And the app's own RAM grows over a long session from the
+  transcript, any screenshots read into context, and retained background-task output buffers.
+
+**Levers when local RAM is the binding constraint (most effective first):**
+1. **`supabase stop` when not DB-testing** — the local stack is the biggest persistent chunk; bring
+   it up only for migration/pgTAP/e2e phases, down otherwise.
+2. **Detached-tmux mode for long/heavy phases** — run the dispatch *outside* the app's process tree
+   so it survives an app crash and the app doesn't hold its output:
+   ```bash
+   tmux new-session -d -s pi_<phase> \
+     "cd <worktree> && pi --provider <p> --model <m> -p --no-session \
+        --append-system-prompt .claude/agents/<role>.md '<brief>' </dev/null \
+        > /tmp/pi_<phase>.log 2>&1; echo '__PI_EXIT_'\$?'__' >> /tmp/pi_<phase>.log"
+   ```
+   Trade-off vs §3b: **no auto-notification** — you must check the log for the `__PI_EXIT_0__`
+   sentinel. This is the *one* justified poll (the work is now harness-untracked). Pick a cadence
+   matched to the phase length, not a tight loop.
+3. **Compact/clear at issue boundaries**, and **don't read screenshots into the Director context** —
+   grep/DOM-verify; let a vision pass open image files only when a visual judgment is actually due.
+
+**Choosing the mode:** §3b harness-background is the default (context economy + auto-notify, best for
+spec/plan/review/short dispatches). Switch to detached-tmux when a phase spawns the heavy local
+toolchain (Docker `db reset`, full e2e) AND session RAM is already high — crash-survival then beats
+the convenience of auto-notification.
+
 ## 4. Brief structure — the quality lever
 
 pi agents see NOTHING of your session. The brief must stand alone:
