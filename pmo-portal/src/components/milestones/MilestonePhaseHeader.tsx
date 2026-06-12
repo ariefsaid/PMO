@@ -57,7 +57,8 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
         {canEditProgress && onEditProgress && (
           <button
             type="button"
-            className="text-[12px] font-semibold text-primary hover:underline"
+            aria-label={`Edit progress for ${name}`}
+            className="text-[12px] font-semibold text-primary opacity-60 hover:underline hover:opacity-100 focus-visible:opacity-100"
             onClick={onEditProgress}
           >
             Edit progress

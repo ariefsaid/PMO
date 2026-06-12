@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   ListState,
   Button,
-  Icon,
   ConfirmDialog,
   useToast,
 } from '@/src/components/ui';
@@ -97,19 +96,15 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
     );
   }
 
-  if (all.length === 0 && !canCreate) return null;
-
   return (
     <>
       {all.length === 0 ? (
-        <div data-testid="milestone-strip-empty">
-          <ListState
-            variant="empty"
-            icon="inbox"
-            title="No milestones yet"
-            sub="Add a milestone to track delivery progress"
-            action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
-          />
+        <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
+          {canCreate ? (
+            <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
+          ) : (
+            <p className="text-[13px] text-muted-foreground">No delivery phases yet</p>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card p-4">
@@ -117,7 +112,6 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
             <h2 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h2>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
-                <Icon name="plus" />
                 Add milestone
               </Button>
             )}
@@ -191,6 +185,29 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   );
 };
 
+const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
+  <div className="flex flex-col gap-4">
+    <div className="flex items-end gap-1.5" aria-hidden="true">
+      {[100, 72, 36, 0].map((width, index) => (
+        <span key={index} className="flex-1 rounded-full bg-secondary">
+          <span className="block h-3 rounded-full bg-primary/20" style={{ width: `${width}%` }} />
+        </span>
+      ))}
+    </div>
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold">Plan this project&apos;s delivery phases</h3>
+      <p className="max-w-[52ch] text-[13px] text-muted-foreground">
+        Add the key phases for this project so delivery progress can roll up from weighted milestones.
+      </p>
+    </div>
+    <div>
+      <Button variant="primary" size="sm" onClick={onCreate}>
+        Add the first phase
+      </Button>
+    </div>
+  </div>
+);
+
 interface MilestonePhaseCardProps {
   milestone: MilestoneWithProgress;
   isCurrent: boolean;
@@ -211,10 +228,12 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   onUpdateInputPct,
 }) => {
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
 
   const startEdit = () => {
+    setMenuOpen(false);
     setInputVal(milestone.input_pct != null ? String(Math.round(milestone.input_pct)) : '');
     setInputError(null);
     setEditing(true);
@@ -238,19 +257,65 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   return (
     <section
       aria-current={isCurrent ? 'step' : undefined}
-      className="min-w-0 rounded-md border border-border bg-background/60 p-3"
+      className="relative min-w-0 rounded-md border border-border bg-background/60 p-3"
     >
-      <MilestonePhaseHeader
-        variant="stepper"
-        name={milestone.name}
-        targetDate={milestone.target_date}
-        effectivePct={milestone.effective_pct}
-        calculatedPct={milestone.calculated_pct}
-        isCurrent={isCurrent}
-        isOverdue={isOverdueMilestone(milestone)}
-        canEditProgress={canEdit && !editing}
-        onEditProgress={canEdit ? startEdit : undefined}
-      />
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <MilestonePhaseHeader
+            variant="stepper"
+            name={milestone.name}
+            targetDate={milestone.target_date}
+            effectivePct={milestone.effective_pct}
+            calculatedPct={milestone.calculated_pct}
+            isCurrent={isCurrent}
+            isOverdue={isOverdueMilestone(milestone)}
+            canEditProgress={canEdit && !editing}
+            onEditProgress={canEdit ? startEdit : undefined}
+          />
+        </div>
+
+        {(canEdit || canDelete) && (
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              aria-label={`More actions for ${milestone.name}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEditDetails();
+                    }}
+                  >
+                    Edit milestone
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                    aria-label={`Delete milestone ${milestone.name}`}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete();
+                    }}
+                  >
+                    Delete milestone
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {editing && (
         <div className="mt-2 flex flex-col gap-1">
@@ -260,7 +325,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               min={0}
               max={100}
               aria-label="Edit PM input %"
-              className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {
                 setInputVal(e.target.value);
@@ -288,23 +353,6 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             </Button>
           </div>
           {inputError && <span className="text-[11.5px] text-destructive">{inputError}</span>}
-        </div>
-      )}
-
-      {(canEdit || canDelete) && (
-        <div className="mt-3 flex items-center gap-1">
-          {canEdit && (
-            <Button variant="ghost" size="sm" onClick={onEditDetails} aria-label={`Edit ${milestone.name}`}>
-              <Icon name="pencil" />
-              Details
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="ghost" size="sm" onClick={onDelete} aria-label={`Delete ${milestone.name}`}>
-              <Icon name="trash" />
-              Delete
-            </Button>
-          )}
         </div>
       )}
     </section>

@@ -58,21 +58,23 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(screen.getByTestId('milestone-strip-loading')).toBeInTheDocument();
   });
 
-  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders milestone-strip-empty with "Add a milestone" CTA', () => {
+  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders the planning prompt and first-phase CTA', () => {
     milestoneState.data = [];
     milestoneState.isPending = false;
     mockRole = 'Project Manager';
     render$();
     expect(screen.getByTestId('milestone-strip-empty')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add a milestone/i })).toBeInTheDocument();
+    expect(screen.getByText("Plan this project's delivery phases")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add the first phase/i })).toBeInTheDocument();
   });
 
-  it('FR-DEL-013: empty + Engineer viewer hides the empty prompt', () => {
+  it('FR-DEL-013: empty + Engineer viewer sees a quiet "No delivery phases yet" line', () => {
     milestoneState.data = [];
     milestoneState.isPending = false;
     mockRole = 'Engineer';
     render$();
-    expect(screen.queryByTestId('milestone-strip-empty')).toBeNull();
+    expect(screen.getByText('No delivery phases yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add the first phase/i })).not.toBeInTheDocument();
   });
 
   it('AC-DEL-014: error renders an error + Retry, and Retry calls refetch', () => {
