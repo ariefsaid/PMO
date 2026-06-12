@@ -11,8 +11,8 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 
 | Who | Keeps |
 |---|---|
-| **pi dispatches** | Spec/plan authoring, implementation slices, mockup HTML builds, code-level reviews & audits — i.e. the role-agent work of playbook §2 steps 2–7 |
-| **Director (you)** | Dispatch briefs · verification of every claim (§5 below) · **rendered** visual/3-lens checks (pi models have no browser or vision — design-workflow §2.3 lens (a) stays with you) · merge + git hygiene (playbook §6) · prod operations (`docs/environments.md`) |
+| **pi dispatches** | Spec/plan authoring, implementation slices, mockup HTML builds, code-level reviews & audits — i.e. the role-agent work of playbook §2 steps 2–7 · **rendered UI/UX/FE verification via the `agent-browser` CLI** (§3a below) |
+| **Director (you)** | Dispatch briefs · verification of every claim (§5 below) · the **final rendered visual-taste lens** + owner-facing screenshots (design-workflow §2.3 lens (a) sign-off quality needs vision; pi text models work from the a11y tree) · merge + git hygiene (playbook §6) · prod operations (`docs/environments.md`) |
 | **Owner** | Spec sign-off, mockup approval, production/irreversible approvals — exactly as in CLAUDE.md "Quality gates & checkpoints" |
 
 pi agents may **commit on the issue branch** (implementer discipline) but never push, open PRs,
@@ -49,6 +49,26 @@ pi --provider zai --model glm-5.1 -p --no-session \
   `nohup … &`** — the wrapper is reaped when the parent shell exits and the run dies silently.
 - Avoid `--mode json` unless piping to a file — a single long run once emitted 664 MB of stdout.
 - pi has no MCP and no built-in subagents; its power tool is Bash. Default tools: read/bash/edit/write.
+
+### 3a. Rendered UI/FE verification from pi — `agent-browser` CLI
+
+pi agents can drive a real browser through Bash with the **`agent-browser`** CLI
+([vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser), installed globally).
+Use it in design-review / qa-style dispatches and in ui-implementer self-checks:
+
+- **Tell the agent to start with** `agent-browser skills get core --full` — the CLI ships its own
+  version-matched usage skill (workflow patterns, ref/selector usage, examples). Put that line in
+  the brief; don't paste flag docs.
+- Core verbs: `open <url>` · `click/fill/type/press` · `wait <sel|ms>` · `screenshot [path]` ·
+  snapshot/refs per the core skill. Serve static mockups with `python3 -m http.server <port>`
+  from the mockup directory; the app via `npm run dev` from `pmo-portal/`.
+- **Text models verify against the accessibility tree / DOM assertions** (snapshot + selector
+  checks: states, labels, focus order, counts) — that covers design-workflow §2.3 lens (b)/(c)
+  walks and functional FE verification. **Screenshots are for vision-capable reviewers** — have
+  the pi agent save them to a known path and the Director (or a vision model) judges lens (a)
+  pixel/taste quality from the files.
+- The owner-approval artifact (design-workflow §2.5, §3) is still produced/curated by the
+  Director — pi screenshots feed it, they don't replace the gate.
 
 ## 4. Brief structure — the quality lever
 
