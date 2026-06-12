@@ -27,9 +27,17 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 | `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment | opus |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+| `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
 
-**Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. Smoke-test
-with `pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+**Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. **When BOTH are
+rate-limited at once** (the 5-hour windows can overlap — observed 2026-06-12), drop to the
+**OpenRouter free models** (`openrouter` provider, both smoke-tested OK): Nemotron 3 Ultra for the
+heavier slice, NEX N2 Pro as its alternate. They're free — no quota — but unproven on this codebase,
+so treat their output as lower-trust: keep them to routine/mechanical/throwaway work, **never the
+sole author of a security/schema/RLS slice**, and the Director re-verifies harder (gates + read the
+diff). If the work is high-stakes and both primaries are down, prefer to **wait for the reset** over
+shipping a free-model security change. Smoke-test any substrate with
+`pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
 
 ## 3. Invocation pattern
 
