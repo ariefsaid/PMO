@@ -464,13 +464,14 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Admin', 'admin-1');
 
     await userEvent.click(screen.getByRole('button', { name: /Download file for Survey Report/i }));
-    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf');
+    // Download forces attachment so all file types download rather than open inline.
+    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', { download: true });
     expect(anchorClick).toHaveBeenCalled();
 
     await userEvent.click(screen.getAllByRole('button', { name: /View Structural calculation report/i })[0]);
     const drawer = screen.getByRole('dialog');
     await userEvent.click(within(drawer).getByRole('button', { name: /Download structural-calc-rev-a\.pdf/i }));
-    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf');
+    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
   });
 
   it('AC-DOC-041: preview affordances open the signed URL in a new tab', async () => {
