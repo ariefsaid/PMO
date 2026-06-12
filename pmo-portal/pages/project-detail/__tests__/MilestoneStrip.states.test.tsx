@@ -88,4 +88,51 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     fireEvent.click(retryBtn);
     expect(refetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('empty state + clicking "Add the first phase" opens CREATE modal (formTarget with null milestone)', () => {
+    render$();
+    fireEvent.click(screen.getByRole('button', { name: /add the first phase/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('non-empty state + clicking "Add milestone" opens CREATE modal (formTarget with null milestone)', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Engineering design',
+        sort_order: 0,
+        target_date: null,
+        weight: 1,
+        input_pct: 75,
+        task_count: 5,
+        calculated_pct: 60,
+        effective_pct: 75,
+      },
+    ];
+    render$();
+    fireEvent.click(screen.getByRole('button', { name: /add milestone/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('clicking "Edit milestone" in row menu opens EDIT modal (formTarget with milestone)', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Engineering design',
+        sort_order: 0,
+        target_date: null,
+        weight: 1,
+        input_pct: 75,
+        task_count: 5,
+        calculated_pct: 60,
+        effective_pct: 75,
+      },
+    ];
+    render$();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Engineering design' }));
+    fireEvent.click(screen.getByRole('button', { name: /edit milestone/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -23,10 +23,11 @@ const milestoneState = {
   isError: false,
   refetch: vi.fn(),
 };
+const removeSpy = vi.fn().mockResolvedValue(undefined);
 const milestoneMutations = {
   create: { mutateAsync: vi.fn(), isPending: false },
   update: { mutateAsync: vi.fn(), isPending: false },
-  remove: { mutateAsync: vi.fn(), isPending: false },
+  remove: { mutateAsync: removeSpy, isPending: false },
   setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
 };
 
@@ -52,6 +53,11 @@ const render$ = () =>
   );
 
 describe('MilestoneStrip delete confirm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    removeSpy.mockResolvedValue(undefined);
+  });
+
   it('AC-DEL-014: the per-phase overflow delete path opens the destructive confirm copy', () => {
     render$();
 
@@ -63,5 +69,19 @@ describe('MilestoneStrip delete confirm', () => {
     expect(
       screen.getByText('Tasks under this milestone become ungrouped; they are not deleted.'),
     ).toBeInTheDocument();
+  });
+
+  it('confirming delete calls remove.mutateAsync with milestone ID', async () => {
+    render$();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Engineering design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete milestone Engineering design' }));
+
+    const confirmBtn = screen.getByRole('button', { name: 'Delete milestone' });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(removeSpy).toHaveBeenCalledWith('m1');
+    });
   });
 });

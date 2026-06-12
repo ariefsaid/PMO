@@ -171,4 +171,31 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 42 } });
     });
   });
+
+  it('success path: saving shows "Progress updated" success toast with milestone name', async () => {
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '85' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 85 } });
+    });
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Progress updated/);
+    expect(toast).toHaveTextContent(/Engineering design/);
+  });
+
+  it('error path: mutation rejection shows warning toast with classified error', async () => {
+    updateSpy.mockRejectedValue(new Error('Network error'));
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '90' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 90 } });
+    });
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Update failed/);
+    expect(toast).toHaveTextContent(/Network error/);
+  });
 });
