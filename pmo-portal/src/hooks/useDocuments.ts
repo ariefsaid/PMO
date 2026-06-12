@@ -20,6 +20,18 @@ export function useDocuments(projectId: string) {
   });
 }
 
+/**
+ * Fetch the child (successor) document for lineage display.
+ * Returns null when no child exists or the parent has no children.
+ */
+export function useChildDocument(parentId: string | null) {
+  return useQuery<ProjectDocumentRow | null>({
+    queryKey: ['project-document-child', parentId],
+    queryFn: () => parentId ? repositories.document.getChild(parentId) : Promise.resolve(null),
+    enabled: Boolean(parentId),
+  });
+}
+
 export interface UpdateDocumentArgs {
   id: string;
   input: ProjectDocumentInput;
