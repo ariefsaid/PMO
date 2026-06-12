@@ -25,7 +25,7 @@ describe('MilestonePhaseHeader', () => {
     expect(screen.getByText('75%')).toBeInTheDocument();
     const target = screen.getByText('Target 15 Aug');
     expect(target).toBeInTheDocument();
-    expect(target.className).toContain('text-destructive');
+    expect(target.className).toContain('text-warning-foreground');
     expect(screen.getByText('From tasks 60%')).toBeInTheDocument();
     expect(screen.getByText('Current')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
