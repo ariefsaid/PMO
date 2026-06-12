@@ -58,6 +58,8 @@ never write app code yourself — you delegate and **verify**.
   stagger those.
 - **Model choice:** opus for planning, all review, security, and hard/security build slices; sonnet
   for routine implementation, QA runs, releases; haiku for mechanical edits.
+  **pi-trial alternative:** when delegating role work to the pi CLI (GLM/codex substrates), follow
+  `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
 ## 4. Decision policy (decide vs escalate)
