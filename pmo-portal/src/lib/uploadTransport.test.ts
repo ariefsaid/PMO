@@ -14,25 +14,25 @@ let xhrInstances: Array<{
   responseText: string;
 }> = [];
 
-const MockXHR = vi.fn().mockImplementation(() => {
-  const inst = {
-    open: vi.fn(),
-    send: vi.fn(),
-    abort: vi.fn(),
-    setRequestHeader: vi.fn(),
-    upload: { onprogress: null as any },
-    onload: null as any,
-    onerror: null as any,
-    status: 200,
-    responseText: '',
-  };
-  xhrInstances.push(inst);
-  return inst;
-});
+class MockXHR {
+  open = vi.fn();
+  send = vi.fn();
+  abort = vi.fn();
+  setRequestHeader = vi.fn();
+  upload: { onprogress: ((e: { lengthComputable: boolean; loaded: number; total: number }) => void) | null } = { onprogress: null };
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  status = 200;
+  responseText = '';
+
+  constructor() {
+    xhrInstances.push(this);
+  }
+}
 
 beforeEach(() => {
   xhrInstances = [];
-  vi.stubGlobal('XMLHttpRequest', MockXHR);
+  vi.stubGlobal('XMLHttpRequest', MockXHR as any);
 });
 
 afterEach(() => {
