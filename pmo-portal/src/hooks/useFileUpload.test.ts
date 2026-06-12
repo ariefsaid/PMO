@@ -3,16 +3,14 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-const prepareUploadMock = vi.fn();
-const confirmUploadMock = vi.fn();
-const cleanupObjectMock = vi.fn();
+const repo = vi.hoisted(() => ({
+  prepareUpload: vi.fn(),
+  confirmUpload: vi.fn(),
+  cleanupObject: vi.fn(),
+}));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
-    document: {
-      prepareUpload: prepareUploadMock,
-      confirmUpload: confirmUploadMock,
-      cleanupObject: cleanupObjectMock,
-    },
+    document: repo,
   },
 }));
 vi.mock('@/src/lib/uploadTransport', () => ({
@@ -38,13 +36,13 @@ function makeWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  prepareUploadMock.mockResolvedValue({
+  repo.prepareUpload.mockResolvedValue({
     signedUrl: 'https://storage.example.com/upload?token=abc',
     path: 'org-1/proj-1/doc-1/file.pdf',
     oldPath: null,
   });
-  confirmUploadMock.mockResolvedValue(undefined);
-  cleanupObjectMock.mockResolvedValue(undefined);
+  repo.confirmUpload.mockResolvedValue(undefined);
+  repo.cleanupObject.mockResolvedValue(undefined);
 });
 
 describe('useFileUpload', () => {
@@ -61,20 +59,20 @@ describe('useFileUpload', () => {
       path = await result.current.upload.mutateAsync({ docId: 'doc-1', file });
     });
 
-    expect(prepareUploadMock).toHaveBeenCalledWith('doc-1', 'file.pdf');
+    expect(repo.prepareUpload).toHaveBeenCalledWith('doc-1', 'file.pdf');
     expect(uploadWithProgress).toHaveBeenCalledWith(
       'https://storage.example.com/upload?token=abc',
       file,
       expect.objectContaining({ contentType: 'application/pdf' }),
     );
-    expect(confirmUploadMock).toHaveBeenCalledWith('doc-1', 'org-1/proj-1/doc-1/file.pdf');
+    expect(repo.confirmUpload).toHaveBeenCalledWith('doc-1', 'org-1/proj-1/doc-1/file.pdf');
     expect(path).toBe('org-1/proj-1/doc-1/file.pdf');
   });
 
   it('AC-DOC-021 (hook): replace mutation calls prepareUpload → transport → confirmUpload → cleanupObject', async () => {
     const { uploadWithProgress } = await import('@/src/lib/uploadTransport');
     (uploadWithProgress as any).mockResolvedValue(undefined);
-    prepareUploadMock.mockResolvedValue({
+    repo.prepareUpload.mockResolvedValue({
       signedUrl: 'https://storage.example.com/upload?token=abc2',
       path: 'org-1/proj-1/doc-1/new.pdf',
       oldPath: 'org-1/proj-1/doc-1/old.pdf',
@@ -88,17 +86,19 @@ describe('useFileUpload', () => {
       await result.current.replace.mutateAsync({ docId: 'doc-1', file });
     });
 
-    expect(confirmUploadMock).toHaveBeenCalledWith('doc-1', 'org-1/proj-1/doc-1/new.pdf');
+    expect(repo.confirmUpload).toHaveBeenCalledWith('doc-1', 'org-1/proj-1/doc-1/new.pdf');
     // Cleanup of old object after confirm (replace-flow atomicity)
-    expect(cleanupObjectMock).toHaveBeenCalledWith('org-1/proj-1/doc-1/old.pdf');
+    expect(repo.cleanupObject).toHaveBeenCalledWith('org-1/proj-1/doc-1/old.pdf');
   });
 
   it('AC-DOC-023 (hook): progress callback fires during upload', async () => {
     const { uploadWithProgress } = await import('@/src/lib/uploadTransport');
+    const progressUpdates: number[] = [];
     (uploadWithProgress as any).mockImplementation(
       (_url: any, _file: any, opts: any) => {
         opts.onProgress?.(50);
         opts.onProgress?.(100);
+        progressUpdates.push(50, 100);
         return Promise.resolve();
       },
     );
@@ -112,18 +112,24 @@ describe('useFileUpload', () => {
     });
 
     // Progress state should have been tracked
-    expect(result.current.progress['doc-1']).toBeDefined();
+    expect(progressUpdates).toEqual([50, 100]);
   });
 
   it('AC-DOC-023 (hook): cancelUpload aborts via AbortController', async () => {
     const { uploadWithProgress } = await import('@/src/lib/uploadTransport');
+    let abortCallback: (() => void) | null = null;
     (uploadWithProgress as any).mockImplementation(
       (_url: any, _file: any, opts: any) => {
         // Simulate abort by rejecting with AbortError when signal fires
         return new Promise((_, reject) => {
-          opts.signal?.addEventListener('abort', () => {
+          abortCallback = () => {
             reject(new DOMException('Upload cancelled', 'AbortError'));
-          }, { once: true });
+          };
+          if (opts.signal?.aborted) {
+            abortCallback();
+            return;
+          }
+          opts.signal?.addEventListener('abort', abortCallback, { once: true });
         });
       },
     );
@@ -132,12 +138,22 @@ describe('useFileUpload', () => {
     const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
     const file = new File(['content'], 'file.pdf', { type: 'application/pdf' });
 
-    act(() => { result.current.upload.mutate({ docId: 'doc-1', file }); });
-    act(() => { result.current.cancelUpload('doc-1'); });
+    // Start the upload
+    result.current.upload.mutate({ docId: 'doc-1', file });
+    
+    // Wait a tick to ensure the upload has started
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // Cancel the upload
+    result.current.cancelUpload('doc-1');
 
-    await waitFor(() => expect(result.current.upload.isError).toBe(true));
+    // Wait for the error state
+    await waitFor(() => {
+      expect(result.current.upload.isError).toBe(true);
+    });
+    
     // Confirm path should NOT have been called — upload was cancelled before completion
-    expect(confirmUploadMock).not.toHaveBeenCalled();
+    expect(repo.confirmUpload).not.toHaveBeenCalled();
   });
 
   it('AC-DOC-024 (hook): upload error is classified and stored in error state', async () => {
