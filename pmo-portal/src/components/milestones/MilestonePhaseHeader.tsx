@@ -44,7 +44,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="text-[12px] font-semibold text-foreground">{name}</div>
-      <div className="text-[24px] font-bold leading-none tabular text-foreground">{pct(effectivePct)}</div>
+      <div className="text-[23px] font-bold leading-none tabular text-foreground">{pct(effectivePct)}</div>
       {targetLabel && (
         <div className={`text-[11.5px] ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
           {targetLabel}
