@@ -119,7 +119,7 @@ describe('Projects delivery progress + budget used', () => {
     expect(ongoingStatus?.className).toContain('bg-primary/10');
     expect(ongoingStatus?.className).not.toContain('bg-success/12');
 
-    const deliveryCell = screen.getByLabelText('Delivery 50%');
+    const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();
   });
 });
