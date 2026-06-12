@@ -25,8 +25,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
-import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
-import { DeliveryPctChip } from '../components/DeliveryPctChip';
+import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -53,9 +52,10 @@ const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
-/** Utilization tone: ≤55 neutral(primary) · 55–100 warning · >100 destructive. */
-function utilizationPct(p: ProjectWithRefs): number {
-  return p.contract_value > 0 ? (p.spent / p.contract_value) * 100 : 0;
+function formatCompactCurrency(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return formatCurrency(value);
 }
 
 const Projects: React.FC = () => {
@@ -108,8 +108,8 @@ const Projects: React.FC = () => {
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
-  // NFR-DEL-PERF-001: one batched call for all project delivery %s (no per-row N+1).
-  const { data: delivery } = useProjectsDelivery(all.map((p) => p.id));
+  // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
+  const { data: deliverySummary } = useProjectsDeliverySummary(all.map((p) => p.id));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -230,15 +230,8 @@ const Projects: React.FC = () => {
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
               </div>
-              {/* I-5: delivery-% chip as a separated trailing element after the code line
-                  so it doesn't run-on into the project name. e2e locator stays intact:
-                  seabridgeRow.getByLabel('Delivery 100%'). */}
-              <div className="flex items-center gap-1.5">
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
-                  {p.code ?? p.id.slice(0, 8)}
-                </div>
-                {/* AC-DEL-013: delivery-% chip (absent when project has no milestones). */}
-                <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground/80">
@@ -297,25 +290,32 @@ const Projects: React.FC = () => {
       key: 'progress',
       header: 'Progress',
       cell: (p) => {
-        // AC-W6-IXD-ATRISK (B-1): co-locate the budget-util basis WITH the delivery
-        // bar. The bar stays the contract-basis (spent/contract) metric — NOT recolored;
-        // when at-risk a second line shows the budget-basis (spent/budget) figure right
-        // below it so the two metrics read together and the green-bar/red-pill glance
-        // contradiction is killed at the bar (the "At risk" pill stays by the name).
-        const budgetPct = isAtRisk(p) ? budgetUtilPct(p) : null;
+        const summary = deliverySummary?.[p.id];
+        if (summary?.deliveryPct == null) {
+          return <span className="text-[12px] text-muted-foreground">No phases yet</span>;
+        }
+        const roundedDelivery = Math.round(summary.deliveryPct);
+        return (
+          <div aria-label={`Delivery ${roundedDelivery}%`} className="flex flex-col gap-0.5">
+            <ProgressBar value={roundedDelivery} showValue compact />
+          </div>
+        );
+      },
+    },
+    {
+      key: 'budget-used',
+      header: 'Budget used',
+      cell: (p) => {
+        const summary = deliverySummary?.[p.id];
+        const budgetUsedPct = summary && summary.budget > 0
+          ? Math.round((summary.committedSpend / summary.budget) * 100)
+          : 0;
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar
-              value={Math.round(utilizationPct(p))}
-              showValue
-              compact
-              aria-label={`Spend: ${Math.round(utilizationPct(p))}% of contract`}
-            />
-            {budgetPct !== null && (
-              <div className="text-[11px] font-semibold tabular text-warning-foreground">
-                {budgetPct}% of budget
-              </div>
-            )}
+            <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
+            <div className="text-[11px] text-muted-foreground">
+              {`${formatCompactCurrency(summary?.committedSpend ?? 0)} of ${formatCompactCurrency(summary?.budget ?? 0)} budget`}
+            </div>
           </div>
         );
       },
