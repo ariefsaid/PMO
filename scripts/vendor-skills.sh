@@ -30,6 +30,16 @@ echo "==> harden spec-miner: read-only + Write (drop Bash)"
 sed -i.bak 's/^allowed-tools:.*/allowed-tools: Read, Grep, Glob, Write/' "$DEST/spec-miner/SKILL.md"
 rm -f "$DEST/spec-miner/SKILL.md.bak"
 
+echo "==> mattpocock/skills (grill-with-docs only — stress-test a plan against the project's domain docs)"
+git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mp"
+git -C "$TMP/mp" sparse-checkout set skills/engineering/grill-with-docs
+rm -rf "${DEST:?}/grill-with-docs"
+cp -R "$TMP/mp/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
+# caveat: retarget the glossary output. ADRs already land in docs/adr/ (matches this repo);
+# the root CONTEXT.md glossary -> docs/glossary.md (do NOT use docs/decisions.md — that's locked OD-* decisions, not a glossary).
+sed -i.bak 's#CONTEXT\.md#docs/glossary.md#g' "$DEST/grill-with-docs/SKILL.md"
+rm -f "$DEST/grill-with-docs/SKILL.md.bak"
+
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
 git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
@@ -58,6 +68,6 @@ done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs impeccable taste ui-ux-pro-max design-system ui-styling"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

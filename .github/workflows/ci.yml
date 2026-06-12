@@ -8,6 +8,9 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
+      - 'scripts/**'
+      - '.claude/**'
+      - '.codex/**'
       - '**/*.md'
       - '.gitignore'
       - 'AGENTS.md'
@@ -16,6 +19,9 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
+      - 'scripts/**'
+      - '.claude/**'
+      - '.codex/**'
       - '**/*.md'
       - '.gitignore'
       - 'AGENTS.md'
