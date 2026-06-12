@@ -15,6 +15,7 @@ const projectsState = {
 
 const deliverySummaryState = {
   data: null as Record<string, { deliveryPct: number | null; committedSpend: number; budget: number }> | null,
+  isPending: false,
 };
 
 vi.mock('../../components/ProjectStatusControl', () => ({
@@ -121,5 +122,16 @@ describe('Projects delivery progress + budget used', () => {
 
     const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();
+  });
+
+  it('I7: while delivery summary is loading, shows placeholder — no flash of false empty state', () => {
+    deliverySummaryState.isPending = true;
+    deliverySummaryState.data = null;
+    renderPage();
+
+    // Progress and budget-used cells should NOT show 'No phases yet' or '$0 of $0 budget'
+    // while loading — they show a placeholder.
+    expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$0 of/i)).not.toBeInTheDocument();
   });
 });

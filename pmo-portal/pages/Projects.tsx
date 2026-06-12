@@ -287,6 +287,10 @@ const Projects: React.FC = () => {
       key: 'progress',
       header: 'Progress',
       cell: (p) => {
+        // I7: defer while delivery summary is loading to prevent flash of false empty state.
+        if (deliveryPending) {
+          return <span className="text-[12px] text-muted-foreground">…</span>;
+        }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
           return <span className="text-[12px] text-muted-foreground">No phases yet</span>;
@@ -303,6 +307,10 @@ const Projects: React.FC = () => {
       key: 'budget-used',
       header: 'Budget used',
       cell: (p) => {
+        // I7: defer while delivery summary is loading to prevent flash of $0/$0.
+        if (deliveryPending) {
+          return <span className="text-[12px] text-muted-foreground">…</span>;
+        }
         const summary = deliverySummary?.[p.id];
         const budgetUsedPct = summary && summary.budget > 0
           ? Math.round((summary.committedSpend / summary.budget) * 100)
