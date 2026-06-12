@@ -18,12 +18,23 @@ export interface MilestoneStripProps {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-const isOverdueMilestone = (milestone: MilestoneWithProgress) =>
-  Boolean(milestone.target_date && milestone.target_date < todayIso() && milestone.effective_pct < 100);
+/** I1/I4: A phase is 'overdue' only if it has STARTED (effective>0 or has tasks) AND past its target AND <100%. */
+const hasStarted = (milestone: MilestoneWithProgress) =>
+  milestone.effective_pct > 0 || milestone.task_count > 0;
 
-const fillClass = (milestone: MilestoneWithProgress) => {
-  if (isOverdueMilestone(milestone)) return 'bg-warning';
+const isOverdueMilestone = (milestone: MilestoneWithProgress) =>
+  Boolean(
+    milestone.target_date &&
+    milestone.target_date < todayIso() &&
+    milestone.effective_pct < 100 &&
+    hasStarted(milestone),
+  );
+
+/** I1: priority: done(100%)→success, current→primary, overdue(started+past+<100%)→warning, else→primary (future/not-started). */
+const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean) => {
   if (milestone.effective_pct >= 100) return 'bg-success';
+  if (isCurrent) return 'bg-primary';
+  if (isOverdueMilestone(milestone)) return 'bg-warning';
   return 'bg-primary';
 };
 
@@ -120,7 +131,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
                 {all.map((milestone) => (
                   <span key={milestone.id} className="flex-1 bg-secondary">
                     <span
-                      className={`block h-full rounded-full ${fillClass(milestone)}`}
+                      className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
                       style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
                     />
                   </span>

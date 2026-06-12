@@ -39,6 +39,105 @@ const render$ = (projectId = 'p1') =>
     </ToastProvider>,
   );
 
+describe('fillClass priority (I1, I4)', () => {
+  // We test the bar fill color by inspecting the rendered span's class.
+  // The fill bar is the <span className={...}> inside each even-segment track slot.
+  const getFillClass = (milestone: MilestoneWithProgress) => {
+    milestoneState.data = [milestone];
+      const { container } = render$();
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
+    // First such span is the fill (inside the first segment slot)
+    return fills[0]?.className ?? '';
+  };
+
+  it('I1: current phase with past target date gets bg-primary (not bg-warning)', () => {
+    const cls = getFillClass({
+      id: 'm1',
+      project_id: 'p1',
+      name: 'Current Phase',
+      sort_order: 0,
+      target_date: '2020-01-01', // past target
+      weight: 1,
+      input_pct: null,
+      task_count: 3,
+      calculated_pct: 40,
+      effective_pct: 40, // < 100, so it's the current (first incomplete)
+    });
+    expect(cls).toContain('bg-primary');
+    expect(cls).not.toContain('bg-warning');
+  });
+
+  it('I1: 100% complete phase gets bg-success', () => {
+    const cls = getFillClass({
+      id: 'm2',
+      project_id: 'p1',
+      name: 'Done Phase',
+      sort_order: 0,
+      target_date: '2020-01-01',
+      weight: 1,
+      input_pct: 100,
+      task_count: 5,
+      calculated_pct: 100,
+      effective_pct: 100,
+    });
+    expect(cls).toContain('bg-success');
+  });
+
+  it('I4: 0% future phase (not started, past target) gets bg-primary NOT bg-warning', () => {
+    // A phase with effective_pct=0, no tasks, past target — it's 'not started', not overdue.
+    const cls = getFillClass({
+      id: 'm3',
+      project_id: 'p1',
+      name: 'Future Phase',
+      sort_order: 0,
+      target_date: '2020-01-01', // past
+      weight: 1,
+      input_pct: null,
+      task_count: 0, // not started
+      calculated_pct: null,
+      effective_pct: 0,
+    });
+    expect(cls).not.toContain('bg-warning');
+    expect(cls).toContain('bg-primary');
+  });
+
+  it('I1/I4: overdue (started + past target + <100%) gets bg-warning', () => {
+    // The overdue phase must NOT be the current (first incomplete) one.
+    // So: phase 1 is current (40%), phase 2 is overdue (started + past + <100%).
+    milestoneState.data = [
+      {
+        id: 'm0',
+        project_id: 'p1',
+        name: 'Current Phase',
+        sort_order: 0,
+        target_date: null,
+        weight: 1,
+        input_pct: null,
+        task_count: 3,
+        calculated_pct: 40,
+        effective_pct: 40,
+      },
+      {
+        id: 'm4',
+        project_id: 'p1',
+        name: 'Overdue Phase',
+        sort_order: 1,
+        target_date: '2020-01-01',
+        weight: 1,
+        input_pct: 25,
+        task_count: 5,
+        calculated_pct: 25,
+        effective_pct: 25,
+      },
+    ];
+    const { container } = render$();
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
+    // First fill = current (bg-primary), second fill = overdue (bg-warning)
+    expect(fills[0]?.className ?? '').toContain('bg-primary');
+    expect(fills[1]?.className ?? '').toContain('bg-warning');
+  });
+});
+
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
   it('AC-DEL-008: renders a single segmented track plus the effective headline and from-tasks line', () => {
     milestoneState.data = [
