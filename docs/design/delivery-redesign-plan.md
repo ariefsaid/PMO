@@ -6,7 +6,7 @@
 - **Token authority:** `DESIGN.md`. No new token required (confirmed §Tokens). Identity preserved.
 - **Consumers:** eng-planner (the committed-spend data delta + reorder decision are architectural; the per-phase `weight` is already on `project_milestones`), then ui-implementer (the component restyle). Build behind the standard per-UI loop: design-plan → implement (TDD) → `/design-review` before merge.
 - **Constraint:** this is a FIX issue over merged, AC-passing code. **Do not regress any of the 22 ACs.** Every change below preserves the AC's behavioral oracle; where a test asserts a now-changed visual (e.g. AC-DEL-008 "two cells side by side", AC-DEL-013 "no chip"), the test's *intent* is preserved and the assertion is updated only for a deliberate UX change per the BDD authoring rule (CLAUDE.md). Flagged inline as `[AC-TOUCH]`.
-- **2026-06-12 note — stepper even-bar + mobile-style labels:** owner direction supersedes the earlier width-as-weight treatment in the mockup only. Desktop/mocked steppers now use four equal bar segments (`flex:1 1 0` each) with completion shown by fill only; weight is carried in the label line (`N% of project`). Label stack is unified across desktop + mobile: row 1 name + emphasized completion %, row 2 muted weight, row 3 muted `Target DD Mon`; overdue keeps warning treatment and current keeps the micro-label.
+- **2026-06-12 note — stepper even-bar (first pass):** owner direction supersedes the earlier width-as-weight treatment in the mockup only. Desktop/mocked steppers now use four equal bar segments (`flex:1 1 0` each) with completion shown by fill only. Weight was initially carried in the label line (`N% of project`) — this was later superseded by the second note below (vertical big-% layout revert), which removed all per-phase weight display entirely.
 - **2026-06-12 note — stepper label revert to vertical big-% layout 2026-06-12:** owner approved a calmer label block and asked the mockup to revert in place. For every stepper instance the label block is now left-aligned and vertically stacked as: bold phase name → large bold effective % on its own line → muted `Target DD Mon` (warning for overdue Construction) → muted `From tasks N%` / `From tasks —` → quiet `Edit progress` text link for PM/Admin only. The four even segments, completion fills, `Current` micro-label, `Overdue` chip, rollup, and read-only Engineer omission of the edit link remain unchanged.
 
 ---
@@ -96,11 +96,11 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 - Section heading uses the named `subheading` token (fixes F-DEL-09's `text-[14px]` vs Tasks' `text-[16px]` mismatch — both become the shared heading).
 - Per-phase delete moves into a per-node `⋯` popover (DESIGN.md `#rowmenu` overlay token), removing the 8-always-visible-icons density (F-DEL-13). Delete keeps its excellent `ConfirmDialog` copy verbatim. (Edit is now the quiet per-node "Edit progress" link, D1.)
 
-**Rationale:** an EPC phase sequence is ordered and directional; the stepper communicates sequence + current phase + completion at a glance in ~1/3 the vertical space, and the weight-proportional widths add "how big is this phase" for free (D2). DESIGN.md already ships this primitive for budget-version + deal-stage journeys; delivery phases are its textbook use.
+**Rationale:** an EPC phase sequence is ordered and directional; the stepper communicates sequence + current phase + completion at a glance in ~1/3 the vertical space. DESIGN.md already ships this primitive for budget-version + deal-stage journeys; delivery phases are its textbook use.
 
-**Tokens:** Stage Stepper (`jbar` 6px / `secondary` track / `success` done / `primary` current / `warning` at-risk); **segment width = layout (grid `fr` from `weight`), NOT a color token** (D2 — zero palette invention); weight caption = `overline` (11px) / `muted-foreground`; cumulative track = same `jbar` colors on weight-proportional flex segments; rollup value = page-title/KPI 23px/700 `tabular`; node name = `body`/600; date = `label`/`muted-foreground` ("Target DD Mon"); overdue date = `warning-foreground`/600; per-node `⋯` menu = `#rowmenu` overlay; "Edit progress" link = `primary` text, `overline`/11px, quiet at rest.
+**Tokens:** Stage Stepper (`jbar` 6px / `secondary` track / `success` done / `primary` current / `warning` at-risk); segments are **even `flex-1` width** (no grid `fr`, no weight encoding); rollup value = page-title/KPI 23px/700 `tabular`; node name = `body`/600; date = `label`/`muted-foreground` ("Target DD Mon"); overdue date = `warning-foreground`/600; per-node `⋯` menu = `#rowmenu` overlay; "Edit progress" link = `primary` text, `overline`/11px, quiet at rest.
 
-**Responsive:** desktop (≥768px) = horizontal weight-proportional stepper + cumulative track; **<768px = thin vertical rows** (bar + name + effective-% + an explicit "N% of project" weight LABEL — the D2 mobile fallback, since narrow segments fail readability/tap at 375px), NOT chunky cards (see mockup narrow rendition). Single-render via `useIsDesktop()` (768px, the established DataTable-reflow breakpoint) so one branch is in the DOM (no `aria-hidden` doubling). Each mobile row's edit affordance is a 44px target (D1).
+**Responsive:** desktop (≥768px) = horizontal even-segment stepper (`flex-1` each); **<768px = thin vertical rows** (bar + name + effective-% + "Target DD Mon"), NOT chunky cards (see mockup narrow rendition). No per-phase weight label on mobile (weight is not surfaced). Single-render via `useIsDesktop()` (768px, the established DataTable-reflow breakpoint) so one branch is in the DOM (no `aria-hidden` doubling). Each mobile row's edit affordance is a 44px target (D1).
 
 `[AC-TOUCH]` **AC-DEL-008 / AC-DEL-009** (Unit, `MilestoneStrip.display.test.tsx`): currently assert "From tasks" + "PM input" as two side-by-side cells reading "60%"/"75%" and "—"/"—". The redesign leads with effective-% as the headline and shows "From tasks N%" as a muted secondary line beneath (OR-1: no "Manual" badge in the DOM). Preserve the oracle (calculated value is surfaced; null renders "—"; effective % is visible) but update the DOM-shape assertion to the new readout: effective-% headline element + "From tasks N%" muted line. The goal (both values legible) is intact; the shape changes. Deliberate UX change, allowed per BDD rule.
 
@@ -114,10 +114,10 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 - **Readout (OR-1 applied):** the phase's **effective %** is the primary figure (drives the bar), rendered as a headline number. Directly beneath, a muted `text-[11px]`/`muted-foreground` secondary line reads "From tasks N%". When `input_pct` is set and differs from `calc_pct`, the juxtaposition of the two numbers IS the divergence cue — no pill, no badge required. When effective == calculated (no override), "From tasks N%" is still shown for consistent rhythm (the numbers just match). A `title` tooltip "Set by PM" may be added to the effective-% element when `input_pct` is set, but this is the maximum marker; the default is no visible badge at all.
 - **Per-phase edit (D1, second review):** the "Edit progress" affordance is present on **every** phase node for PM/Admin (the spec permits editing any milestone's `input_pct`), not only the current phase. It is a quiet `primary`-text link/pencil that recedes at rest (`opacity:~0.55`) and lifts to full opacity on `:hover` / `:focus-within` / `:focus-visible`, but is **always rendered in the DOM** so every phase is keyboard-reachable in focus order. Engineer role: the affordance is **omitted** entirely (read-only path, FR-DEL gating preserved). One link per cell on its own quiet line below the meta — no per-cell clutter.
 - **Inline edit (F-DEL-08):** replace the raw `<input className="w-16 rounded ... focus:ring-1">` with the **`input` token** (32px height, `rounded-md` 8px, `input` border, global `:focus-visible` 2px/2px ring). Keep the good interaction: click-to-edit (opened by any phase's "Edit progress"), Enter commits, Esc cancels, blur commits, toast on success (OD-UX-1), `classifyMutationError` on failure, blank → `input_pct: null` (FR-DEL-009 clear).
-- **Shared component (F-DEL-18):** extract one presentational `MilestonePhaseHeader` reused by (a) the stepper node (full variant — name + "Target DD Mon" + effective-% headline + "From tasks N%" muted + "N% of project" weight caption + Edit-progress), (b) the Tasks-tab group header (compact variant — **name + "Target DD Mon" only, NO % per D3**), (c) any modal context. This kills the triple-divergence and is the **Storybook entry** for the feature (charter Phase-3 component-library hook) with a state matrix: loading / empty / divergence / 0 / 100 / overdue / null-calc / weight-render.
+- **Shared component (F-DEL-18):** extract one presentational `MilestonePhaseHeader` reused by (a) the stepper node (full variant — name + "Target DD Mon" + effective-% headline + "From tasks N%" muted + Edit-progress; **no weight caption**), (b) the Tasks-tab group header (compact variant — **name + "Target DD Mon" only, NO % per D3**), (c) any modal context. This kills the triple-divergence and is the **Storybook entry** for the feature (charter Phase-3 component-library hook) with a state matrix: loading / empty / divergence / 0 / 100 / overdue / null-calc.
 - **Ungrouped (F-DEL-19):** "No milestone" label at adequate contrast, not 12px italic-muted.
 
-**Tokens:** effective figure = `body`/700 `tabular`; "From tasks N%" line = `overline` (11px) / `muted-foreground`; weight caption = `overline` (11px) / `muted-foreground` (D2); "Edit progress" link = `primary` text / `overline` / quiet-at-rest (D1); inline field = `input` component token; tooltip (optional, max marker) = `#tip` overlay token. **No badge-status token used for divergence** (OR-1 removes it).
+**Tokens:** effective figure = `body`/700 `tabular`; "From tasks N%" line = `overline` (11px) / `muted-foreground`; "Edit progress" link = `primary` text / `overline` / quiet-at-rest (D1); inline field = `input` component token; tooltip (optional, max marker) = `#tip` overlay token. **No badge-status token used for divergence** (OR-1 removes it).
 
 **States:** input-set (effective headline differs from "From tasks" secondary — divergence visible by contrast) / input-null (calc shown plain; if calc also null: "From tasks —") / editing / error / saving / PM-or-Admin (edit shown on every phase) / Engineer (no edit affordance, all phases).
 
@@ -127,7 +127,7 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 
 ### R4 — Purpose-built empty state
 **Finding:** F-DEL-10. **Decision:** replace the generic `ListState inbox / "No milestones yet"` with a planning prompt: faded **weighted-width** stepper silhouette + "Plan this project's delivery phases" + sub-copy (mentions each phase carries a weight) + the PM/Admin-gated "Add the first phase" CTA. Non-PM sees a quiet "No delivery phases yet" line (FR-DEL-013 role gating — **preserved exactly**, it is correct in the shipped build).
-**Tokens:** silhouette = `secondary` bars (weight-proportional widths); heading = `subheading`/700; sub = `body`/`muted-foreground`; CTA = `button-primary`.
+**Tokens:** silhouette = `secondary` bars (even widths); heading = `subheading`/700; sub = `body`/`muted-foreground`; CTA = `button-primary`.
 `[AC-TOUCH]` **AC-DEL-014** (Unit, `MilestoneStrip.states.test.tsx`): loading/empty/error. The empty branch's testid (`milestone-strip-empty`) and the PM-gated "Add a milestone" CTA presence/absence are preserved; only the empty's internal markup changes. Keep the loading skeleton + error+retry untouched.
 
 ---
@@ -143,7 +143,7 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 **Findings:** F-DEL-14, F-DEL-15, F-DEL-16, F-DEL-17.
 **Decision:**
 - **`sort_order` (F-DEL-14):** remove the visible field; server-default to append (`max(sort_order)+1`) on create. Reordering is deferred (OPEN-Q-A1) or added later via stepper up/down. If owner wants it visible for v1, label "Display order" + helper + auto-suggest next.
-- **`weight` (F-DEL-15):** add helper text "Heavier phases count more toward project delivery %. Equal weights = equal share." Show each phase's **live share %** in the helper — this is now doubly important because the stepper renders that share as segment width (D2), so the modal's live share preview lets the PM predict how wide the phase will be.
+- **`weight` (F-DEL-15):** add helper text "Heavier phases count more toward project delivery %. Equal weights = equal share." Show each phase's **live share %** in the helper — this lets the PM see how much this phase contributes to the rollup %, not a width prediction (the stepper uses even-width segments; weight drives math only).
 - Field order becomes: name / target_date / weight (+ input_pct on edit). `input_pct`-on-create stays out (F-DEL-16, defensible).
 **Tokens:** `TextField` primitives unchanged (already token-correct); helper text = `label`/`muted-foreground`.
 **Note:** dropping the `sort_order` field is FE-only IF the DAL defaults it; eng-planner confirms the create path appends. No AC asserts the `sort_order` field's presence — safe.
@@ -164,7 +164,7 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 - Adequate horizontal padding: `padding: 0 9px` minimum for standard pills.
 - Rows that mix text + pills must use `flex-wrap: wrap` or `min-width: 0` sibling discipline so a pill is never squashed.
 
-**Verification gate:** the ui-implementer must screenshot the delivery surfaces at 375px (Playwright viewport override or DevTools) and confirm no pill clips its background **and** that the D2 weight-width fallback (explicit "N% of project" labels, 44px edit targets) renders before the `/design-review` gate.
+**Verification gate:** the ui-implementer must screenshot the delivery surfaces at 375px (Playwright viewport override or DevTools) and confirm no pill clips its background **and** that 44px edit targets render before the `/design-review` gate.
 
 ---
 
@@ -175,8 +175,8 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 | `pmo-portal/pages/Projects.tsx` | `progress` column: value = delivery-% (`delivery?.[p.id]`) not `utilizationPct`; threshold-coloured bar; "No phases yet" when null. **New `budget` column "Budget used"** = committed/budget (from new committed hook), warning sub-line over threshold. **Remove** the title-line `<DeliveryPctChip>` (L240-242). Drop `utilizationPct` reading `p.spent`. | F-DEL-01a/01b/02/03/04 | `[AC-TOUCH]` AC-DEL-013 |
 | `pmo-portal/src/lib/db/projects.ts` (or new RPC) | **(eng-planner)** Projects list must return committed-spend per project, batched (committed basis, never `projects.spent`). New `get_projects_committed(p_ids)` invoker RPC OR extend `get_projects_delivery`. | F-DEL-01b | — (new pgTAP for the committed oracle recommended) |
 | `pmo-portal/src/hooks/useProjectsCommitted.ts` (new) OR extend `useProjectsDelivery` | One batched call for the page's project ids; `{ [id]: committed }` map; disabled when ids empty; staleTime mirrors delivery hook. | F-DEL-01b | — |
-| `pmo-portal/pages/project-detail/MilestoneStrip.tsx` | Card stack → **Stage Stepper** with **weight-proportional segment widths (D2)**: grid `grid-template-columns` built from each phase's `weight` (normalized to `fr` units); per-node muted "N% of project" weight caption; a **cumulative weighted "Project delivery" track** below the nodes (weight-proportional segments inner-filled by completion%, with `aria-label`). Single rollup header; per-node `⋯` menu (delete); **"Edit progress" affordance on EVERY node for PM/Admin (D1)**, quiet (opacity at rest → full on hover/focus), always in DOM, omitted for Engineer; effective-% headline + "From tasks N%" muted line (no Manual badge — OR-1); dates as "Target DD Mon" (OR-2); token-correct inline `input`; named `subheading`; at-risk state; responsive thin-rows <768px with **explicit "N% of project" weight LABEL fallback (D2 mobile)** + 44px edit targets; pills `shrink-0`/`whitespace-nowrap` (OR-3). | F-DEL-06/07/08/09/12/13 + R4 empty + D1 + D2 | `[AC-TOUCH]` AC-DEL-008/009/012/014 |
-| `pmo-portal/components/MilestonePhaseHeader.tsx` (new, shared) | Presentational: **full variant** (stepper) = name + "Target DD Mon" + effective-% headline + "From tasks N%" muted + "N% of project" weight caption + per-phase Edit-progress slot (D1/D2); **compact variant** (tasks-tab) = name + "Target DD Mon" only, **NO %** (D3). Storybook state-matrix entry (incl. weight render + per-phase edit visibility by role). | F-DEL-18 | new unit coverage |
+| `pmo-portal/pages/project-detail/MilestoneStrip.tsx` | Card stack → **Stage Stepper** with **even-width segments** (`flex-1` each, equal width); each segment fills left→right by its phase's effective-% (done=`success`, current=`primary`, at-risk=`warning`, future=`secondary`). Below each segment: left-aligned vertical label block — phase **name** → **large bold effective %** on its own line → muted **"Target DD Mon"** (warning color if overdue) → muted **"From tasks N%"** ("From tasks —" if no tasks) → quiet **"Edit progress"** text link (PM/Admin only, D1; absent for Engineer). **No per-phase weight caption, no "N% of project" label** (weight not surfaced per phase). **No separate cumulative weighted track** (PROJECT DELIVERY % shown once as a rollup number top-right). Single rollup header; per-node `⋯` menu (delete); "Edit progress" always in DOM for keyboard access, omitted for Engineer; effective-% headline + "From tasks N%" muted line (no Manual badge — OR-1); dates as "Target DD Mon" (OR-2); token-correct inline `input`; named `subheading`; at-risk state; responsive thin-rows <768px (even-segment approach as thin stacked vertical rows, name + effective-% + thin bar + "Target DD Mon", **no weight label**) + 44px edit targets; pills `shrink-0`/`whitespace-nowrap` (OR-3). | F-DEL-06/07/08/09/12/13 + R4 empty + D1 + D2 | `[AC-TOUCH]` AC-DEL-008/009/012/014 |
+| `pmo-portal/components/MilestonePhaseHeader.tsx` (new, shared) | Presentational: **full variant** (stepper) = name + "Target DD Mon" + effective-% headline + "From tasks N%" muted + per-phase Edit-progress slot (D1); **NO "N% of project" weight caption** (weight not surfaced per phase); **compact variant** (tasks-tab) = name + "Target DD Mon" only, **NO %** (D3). Storybook state-matrix entry (incl. per-phase edit visibility by role). | F-DEL-18 | new unit coverage |
 | `pmo-portal/pages/project-detail/tabs/TasksTab.tsx` | Group header (L730-744) uses `MilestonePhaseHeader` compact variant: name + "Target DD Mon" **only — NO percentage at all (D3, supersedes OR-4)**. Remove the `bg-primary/10` %-pill entirely. "No milestone" label instead of italic-muted "Ungrouped". | F-DEL-18/19/20 | `[AC-TOUCH]` AC-DEL-010/015-FR-015 (heading now shows name+date only) |
 | `pmo-portal/pages/project-detail/MilestoneFormModal.tsx` | Remove visible `sort_order` field (or relabel + helper); `weight` helper text + **live share %** (now feeds the stepper width, D2); field-order tidy. | F-DEL-14/15/16/17 | none assert these fields |
 | `pmo-portal/components/DeliveryPctChip.tsx` | **Fate:** survives only on PM dashboard (S6). Restyle to neutral `badge-status` OR replace with a mini-bar (OPEN-Q-A4). Remove its `bg-primary/10 text-primary`. | F-DEL-04/21 | AC-DEL-013 moves to dashboard context |
@@ -185,15 +185,14 @@ A 10%-weight segment at 375px is ~30px wide — **below the readable-label and 4
 
 ---
 
-## Data the FE needs for D2 (weight rendering) — no new backend work
+## Data the FE needs for the stepper — no new backend work
 
-The weight-as-width treatment needs **only the per-phase `weight` already stored on `project_milestones`** (OD-DEL-5; the rollup `Σ weight×eff / Σ weight` already uses it). No schema, RPC, or query change for D2:
+The even-segment stepper needs **only what `project_milestones` already returns** (OD-DEL-5; `weight` continues to drive the rollup `Σ weight×eff / Σ weight` but is not displayed per phase). No schema, RPC, or query change:
 
-- **Each milestone's `weight`** (already returned by the milestone list the strip consumes). The component normalizes the set to grid `fr` units (`weight_i / Σweight × 100` → either the `fr` track value directly, or the cumulative-track segment flex-basis %).
-- **Each milestone's `effective_pct`** (already derived: `input_pct ?? calc_pct ?? 0`) — drives both the per-node fill and the cumulative-track segment fill.
-- **The per-cell "N% of project" caption** = `weight_i / Σweight × 100`, rounded, computed client-side from the same data. No new field.
+- **Each milestone's `effective_pct`** (already derived: `input_pct ?? calc_pct ?? 0`) — drives the per-node fill color and percentage display.
+- **Each milestone's `weight`** (already returned by the milestone list) — used only for the weight-weighted PROJECT DELIVERY rollup math, not rendered per phase.
 
-So D2 is a **pure ui-implementer change** (presentation of data already on hand). The only eng-planner-blocking data delta in this plan remains R1's committed-spend (OPEN-Q-A3), unchanged.
+The stepper is a **pure ui-implementer change** (presentation of data already on hand). The only eng-planner-blocking data delta in this plan remains R1's committed-spend (OPEN-Q-A3), unchanged.
 
 ---
 
@@ -205,9 +204,7 @@ So D2 is a **pure ui-implementer change** (presentation of data already on hand)
 | Projects "Budget used" bar + sub | `ProgressBar`; sub-line `label` + `muted-foreground`; over = `warning-foreground` |
 | "No phases yet" / empty copy | `body` + `muted-foreground` |
 | Phase stepper bars | Stage-Stepper `jbar` (6px, `secondary` track; `success` done / `primary` current / `warning` at-risk) |
-| **Phase segment WIDTH (weight, D2)** | **Layout only — grid `fr` tracks from each phase's `weight`. NOT a color/size token (zero palette invention); uses existing spacing/gap scale (`spacing.2`/`spacing.3`).** |
-| **Cumulative weighted "Project delivery" track (D2)** | Same `jbar` color set (`success`/`primary`/`warning` per phase state) on weight-proportional flex segments; track height = existing 7–8px bar; `aria-label` describes weights + completion |
-| **Per-cell weight caption "N% of project" (D2)** | `overline` (11px) / `muted-foreground` + `tabular`; muted, never blue |
+| **Phase segment width** | **Even `flex-1` — no grid `fr`, no weight encoding. Layout only; uses existing spacing/gap scale (`spacing.2`/`spacing.3`).** |
 | "Current" marker | `overline` + `primary` |
 | Rollup delivery value | KPI headline 23px/700 + `tabular` |
 | Phase name | `body` (14px) / 600 |
@@ -225,25 +222,25 @@ So D2 is a **pure ui-implementer change** (presentation of data already on hand)
 | All %/figures | `tabular-nums` (mandatory) |
 | All pills / chips | `flex-shrink:0; white-space:nowrap` on element + `min-width:0` on shrinkable sibling (OR-3) |
 
-**New tokens required: NONE.** at-risk = `warning`; stepper states = `success`/`primary`/`warning`; **weight = layout (segment width) + a muted `overline` caption — no new color, size, or font** (impeccable identity-preservation rule + DESIGN.md "Don't introduce a second brand color/font/border"). Identity preserved; zero palette/font invention.
+**New tokens required: NONE.** at-risk = `warning`; stepper states = `success`/`primary`/`warning`; segments are even `flex-1` (no new color, size, or font — impeccable identity-preservation rule + DESIGN.md "Don't introduce a second brand color/font/border"). Identity preserved; zero palette/font invention.
 
 ---
 
 ## WCAG-AA / a11y
 
-- **Contrast (measure in render, F-DEL-A3):** effective-% and "From tasks N%" figures, the "N% of project" weight caption, the "Budget used" sub-line, and any muted number on `secondary`/tint must clear **4.5:1**. `muted-foreground` is L40% (DESIGN.md AA-tuned) — verify the small muted numbers on the `bg-secondary/30` group header and stepper, and the weight caption specifically. Warning/overdue text uses `warning-foreground` (deep brown, AA on amber tint — preserve, never the base hue).
-- **Stepper semantics:** the stepper is an ordered list of phases — use `<ol>`/`<li>` (or `role="list"`) with each node's accessible name = "Phase: {name}, {effective}% complete, {weight}% of project, target {date}{, overdue}". Current phase carries `aria-current="step"`. The cumulative weighted track carries a single `aria-label` summarizing each phase's weight + completion (so weight is never width-only — color-not-only / `pattern-texture`, ui-ux-pro-max §1/§10).
+- **Contrast (measure in render, F-DEL-A3):** effective-% and "From tasks N%" figures, the "Budget used" sub-line, and any muted number on `secondary`/tint must clear **4.5:1**. `muted-foreground` is L40% (DESIGN.md AA-tuned) — verify the small muted numbers on the `bg-secondary/30` group header and stepper. Warning/overdue text uses `warning-foreground` (deep brown, AA on amber tint — preserve, never the base hue).
+- **Stepper semantics:** the stepper is an ordered list of phases — use `<ol>`/`<li>` (or `role="list"`) with each node's accessible name = "Phase: {name}, {effective}% complete, target {date}{, overdue}". Current phase carries `aria-current="step"`.
 - **Per-phase edit (D1):** every phase's "Edit progress" trigger is a real `button` with `aria-label="Edit progress for {name}"`, present in DOM (keyboard-reachable) even while visually quiet; PM/Admin only. The field is a labelled `input` (`aria-label`); the global focus ring applies; Enter/Esc/blur keyboard paths preserved.
-- **Focus order:** rollup → each phase node (name → effective-% → "Edit progress" → `⋯`) in order → cumulative track (non-interactive, `img` role) → strip CTA. The `⋯` popover is keyboard-openable and Esc-closable.
-- **Color is never the only cue:** at-risk carries the "Overdue" pill text + the date color (not just the amber bar); weight carries the segment width + the explicit "N% of project" text caption (not width alone); PM override divergence is cued by the two differing numbers in text.
-- **Touch targets <768px:** the thin-row stepper edit affordance is a ≥44px target (`.touch-target` / 44px button); the weight is an explicit text label (the D2 mobile fallback for un-tappable narrow segments).
+- **Focus order:** rollup → each phase node (name → effective-% → "Edit progress" → `⋯`) in order → strip CTA. The `⋯` popover is keyboard-openable and Esc-closable.
+- **Color is never the only cue:** at-risk carries the "Overdue" pill text + the date color (not just the amber bar); PM override divergence is cued by the two differing numbers in text.
+- **Touch targets <768px:** the thin-row stepper edit affordance is a ≥44px target (`.touch-target` / 44px button).
 
 ## Responsive breakpoints
 
 | Breakpoint | Behavior |
 |---|---|
-| ≥768px | Projects = `<table>`; stepper = **weight-proportional horizontal nodes** + cumulative weighted track (D2); "Edit progress" link on every node (D1). |
-| <768px | Projects = stacked `<dl>` cards (Progress bar + "Budget used %" as rows); stepper = thin vertical rows (bar + name + effective-% + **explicit "N% of project" weight label, D2 fallback**), NOT chunky cards; 44px per-row edit target (D1). Single-render via `useIsDesktop()` (768px). All pills `shrink-0` + `whitespace-nowrap` (OR-3). |
+| ≥768px | Projects = `<table>`; stepper = **even-segment horizontal nodes** (`flex-1` each); "Edit progress" link on every node (D1). |
+| <768px | Projects = stacked `<dl>` cards (Progress bar + "Budget used %" as rows); stepper = thin vertical rows (bar + name + effective-% + "Target DD Mon", **no weight label**), NOT chunky cards; 44px per-row edit target (D1). Single-render via `useIsDesktop()` (768px). All pills `shrink-0` + `whitespace-nowrap` (OR-3). |
 | 920px | Rail-collapse (unchanged, app-wide). |
 
 ---
@@ -252,16 +249,15 @@ So D2 is a **pure ui-implementer change** (presentation of data already on hand)
 
 - All four states of the stepper render: loading skeleton, empty (PM CTA vs non-PM quiet line), error+retry, populated.
 - Divergence is visible: a phase with `input_pct` set (e.g. 75%) and a differing `calc_pct` (e.g. 40%) shows the effective % as the headline and "From tasks 40%" muted beneath. No badge or pill accompanies the divergence.
-- **Weight is legible (D2):** at ≥768px each phase segment's width is proportional to its weight and a muted "N% of project" caption shows the exact share; the cumulative weighted track's filled area equals the rollup. At <768px each row shows an explicit "N% of project" label. A 100%-complete-but-low-weight phase reads as narrow-and-filled; a high-weight-barely-started phase reads as wide-and-empty.
 - **Edit-progress on every phase (D1):** for PM/Admin, every phase node exposes an "Edit progress" affordance that is keyboard-reachable; for Engineer, no phase exposes it. Editing any phase (not just current) opens the token-correct inline field.
 - At-risk: a phase past target + <100% shows the overdue treatment; not past / =100% does not. No gating (a later phase can still advance).
 - Projects list: Progress = delivery-%; no-milestone row shows "No phases yet" and NO delivery chip; "Budget used" sources committed spend, never `projects.spent`.
 - **Tasks-tab group header reads "{name} · Target {DD Mon}" — NO percentage at all (D3).** No "Manual" label, no calculated number, no effective %.
 - All date labels read "Target DD Mon" — no "Tgt" abbreviation anywhere.
-- At 375px: every pill (At risk, Overdue, status pills) fully encapsulates its background fill; no pill clips or overflows its row; the D2 weight labels + 44px edit targets render. Verified by screenshot at 375px before `/design-review` merge gate.
+- At 375px: every pill (At risk, Overdue, status pills) fully encapsulates its background fill; no pill clips or overflows its row; 44px edit targets render. Verified by screenshot at 375px before `/design-review` merge gate.
 - AA contrast measured on every muted figure on a tint (render check), including the weight caption.
 - Keyboard: full stepper traversal + per-phase "Edit progress" (D1) + inline edit (Enter/Esc/blur) + `⋯` popover (open/Esc) reachable; focus visible throughout.
-- No DESIGN.md token added; no raw hex/px in the diff (every value names a token; weight width is layout, not a color/size literal).
+- No DESIGN.md token added; no raw hex/px in the diff (every value names a token).
 - `/design-review` (rendered screenshot audit) passes before merge — the gate that was skipped.
 
 ---
@@ -279,7 +275,7 @@ Eight fixes from the PI mockup review (`docs/design/delivery-mockup-pi-review.md
 | PI-5 | **Budget basis ambiguous:** basis locked to **committed ÷ budget** (owner decision). Column label = "Budget used"; subline = "$X of $Y budget" (not "contract"). Mobile shows full "$X.XM of $Y.XM budget" subline — never a bare percentage. | ✓ |
 | PI-6 | **One-Blue violation:** SP-2401 project icon tile changed from `hsl(var(--primary))` (blue) to `hsl(var(--violet))` (categorical violet). Blue reserved for interactive only (One-Blue Rule). | ✓ |
 | PI-7 | **Mobile target dates dropped:** each mobile `vstep` row now includes a muted `.vdate` "Target DD Mon" line; overdue row shows target date in `warning-foreground` token. | ✓ |
-| PI-8 | **Prior refinements preserved:** no Manual pill, Target spelled out, pill encapsulation at 375px (shrink-0/nowrap/min-width-0), tasks-tab header = name+target only (no %), Edit progress on every phase for PM/Admin, weight-as-segment-width + "N% of project" caption + cumulative track. All verified intact. | ✓ |
+| PI-8 | **Prior refinements preserved:** no Manual pill, Target spelled out, pill encapsulation at 375px (shrink-0/nowrap/min-width-0), tasks-tab header = name+target only (no %), Edit progress on every phase for PM/Admin, even-width segments (flex-1), no per-phase weight caption, no cumulative track. All verified intact. | ✓ |
 
 ---
 
