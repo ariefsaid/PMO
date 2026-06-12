@@ -37,7 +37,11 @@ export type IconName =
   | 'bell'
   | 'admin'
   | 'pencil'
-  | 'trash';
+  | 'trash'
+  | 'upload'
+  | 'file'
+  | 'download'
+  | 'eye';
 
 /** Raw <path>/<rect>/<circle> children per icon, stroke-2 throughout. */
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -178,6 +182,30 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
       <path d="M10 11v6M14 11v6" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M17 8l-5-5-5 5M12 3v12" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5M12 15V3" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
     </>
   ),
 };
