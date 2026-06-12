@@ -1,9 +1,8 @@
 /**
  * AC-W6-IXD-ATRISK — Projects list co-locates the budget-util basis WITH the
- * delivery-progress bar (owner decision: inline tabular caption beside the bar,
- * NOT a sub-bar, NOT a recolor). The caption sits in the Progress cell (a sibling
- * of the progressbar) and is ABSENT from the Project/name cell. Healthy rows show
- * no caption. budget===0 → no caption, no NaN.
+ * delivery-progress bar. The budget basis lives in the new "Budget used" column, while
+ * the Project/name cell carries only identity + at-risk pill. Healthy rows still have
+ * a Budget used value; budget===0 → no NaN.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,7 +12,7 @@ import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
-const { projectsState, myTasksState } = vi.hoisted(() => ({
+const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -21,6 +20,11 @@ const { projectsState, myTasksState } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   myTasksState: { data: [] as Array<Record<string, unknown>> },
+  deliverySummaryState: {
+    'p-risk': { deliveryPct: 32, committedSpend: 95_000, budget: 100_000 },
+    'p-safe': { deliveryPct: 50, committedSpend: 40_000, budget: 80_000 },
+    'p-zero': { deliveryPct: null, committedSpend: 0, budget: 0 },
+  },
 }));
 
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
@@ -43,6 +47,7 @@ vi.mock('@/src/hooks/useProjectView', () => ({
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -115,36 +120,37 @@ beforeEach(() => {
 });
 
 describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => {
-  it('AC-W6-IXD-ATRISK: an at-risk row renders the "% of budget" caption as a SIBLING of the progressbar in the Progress cell', () => {
+  it('AC-W6-IXD-ATRISK: an at-risk row renders the "% of budget" caption in the Budget used cell', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
-    // The progressbar's containing <td> (the Progress cell) also holds the caption.
-    const bar = within(row).getByRole('progressbar');
-    const progressCell = bar.closest('td')!;
-    expect(within(progressCell).getByText(/95% of budget/i)).toBeInTheDocument();
+    const progressCell = row.children[row.children.length - 2] as HTMLElement;
+    expect(within(progressCell).getByRole('progressbar')).toHaveAttribute('aria-label', 'Budget used 95%');
+    expect(within(progressCell).getByText('$95.0K of $100.0K budget')).toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name cell (moved out)', () => {
+  it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
-    // The name cell holds the project name button; it must NOT also carry the budget caption.
     const nameCell = within(row).getByRole('button', { name: 'At Risk Project' }).closest('td')!;
+    const progressCell = row.children[row.children.length - 3] as HTMLElement;
     expect(within(nameCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
-    // The "At risk" pill stays next to the name.
+    expect(within(progressCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(nameCell).getByText(/^At risk$/i)).toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-ATRISK: a healthy row has no budget caption anywhere', () => {
+  it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
     renderPage();
     const row = screen.getByText('Safe Project').closest('tr')!;
-    expect(within(row).queryByText(/% of budget/i)).not.toBeInTheDocument();
+    const budgetUsedCell = row.children[row.children.length - 2] as HTMLElement;
+    expect(within(budgetUsedCell).getByRole('progressbar')).toHaveAttribute('aria-label', 'Budget used 50%');
+    expect(within(budgetUsedCell).getByText('$40.0K of $80.0K budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {
     projectsState.data = [zeroBudget];
     renderPage();
     const row = screen.getByText('Zero Budget Project').closest('tr')!;
-    expect(within(row).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
+    expect(within(row).getByText(/\$0 of \$0 budget/i)).toBeInTheDocument();
   });
 });

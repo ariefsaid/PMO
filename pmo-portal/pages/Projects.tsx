@@ -296,8 +296,8 @@ const Projects: React.FC = () => {
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
-          <div aria-label={`Delivery ${roundedDelivery}%`} className="flex flex-col gap-0.5">
-            <ProgressBar value={roundedDelivery} showValue compact />
+          <div className="flex flex-col gap-0.5">
+            <ProgressBar value={roundedDelivery} showValue compact aria-label={`Delivery ${roundedDelivery}%`} />
           </div>
         );
       },
