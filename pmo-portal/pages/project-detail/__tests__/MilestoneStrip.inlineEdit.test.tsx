@@ -172,6 +172,38 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     });
   });
 
+  it('C1: clicking Cancel does NOT mutate (blur-save suppressed by mouseDown preventDefault)', async () => {
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '99' } });
+    // Click Cancel — mouseDown on the button prevents the input's blur-save,
+    // then click triggers cancelEdit.
+    const cancelBtn = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.mouseDown(cancelBtn);
+    fireEvent.click(cancelBtn);
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('C1: clicking Save mutates exactly once (no double-fire from blur+click)', async () => {
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '42' } });
+    // Click Save — both blur and click fire, but the handler must save exactly once.
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    // Simulate the natural sequence: focus stays on input, then click on Save
+    // first blurs the input, then clicks the button.
+    fireEvent.blur(inputEl);
+    fireEvent.click(saveBtn);
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalled();
+    });
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 42 } });
+  });
+
   it('success path: saving shows "Progress updated" success toast with milestone name', async () => {
     render$();
     const inputEl = await openEdit();

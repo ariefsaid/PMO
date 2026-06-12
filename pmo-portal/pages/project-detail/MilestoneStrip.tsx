@@ -228,22 +228,34 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+  // C1: guard refs to prevent double-save (blur+click) and to suppress blur-save on Cancel.
+  const cancellingRef = React.useRef(false);
+  const savedRef = React.useRef(false);
 
   const startEdit = () => {
     setMenuOpen(false);
     setInputVal(milestone.input_pct != null ? String(Math.round(milestone.input_pct)) : '');
     setInputError(null);
+    cancellingRef.current = false;
+    savedRef.current = false;
     setEditing(true);
   };
   const cancelEdit = () => {
+    cancellingRef.current = false;
     setInputError(null);
     setEditing(false);
   };
   const saveEdit = async () => {
+    // C1: if Cancel's mouseDown fired first, suppress save.
+    if (cancellingRef.current) return;
+    // C1: prevent double-fire from blur + Save click.
+    if (savedRef.current) return;
+    savedRef.current = true;
     const raw = inputVal.trim();
     const parsed = raw === '' ? null : Number(raw);
     if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) {
       setInputError('Progress must be between 0 and 100');
+      savedRef.current = false;
       return;
     }
     setInputError(null);
@@ -338,6 +350,8 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                 }
               }}
               onBlur={() => {
+                // C1: if Cancel was clicked, suppress blur-save.
+                if (cancellingRef.current) return;
                 void saveEdit();
               }}
               autoFocus
@@ -345,7 +359,17 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             <Button variant="primary" size="sm" onClick={saveEdit}>
               Save
             </Button>
-            <Button variant="ghost" size="sm" onClick={cancelEdit}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => {
+                // C1: preventDefault stops the input from losing focus,
+                // so onBlur does NOT fire before the Cancel click.
+                e.preventDefault();
+                cancellingRef.current = true;
+              }}
+              onClick={cancelEdit}
+            >
               Cancel
             </Button>
           </div>
