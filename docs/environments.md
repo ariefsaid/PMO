@@ -37,6 +37,50 @@ different connection target** for that same schema.
 `login`/`link` are account/cloud-side and **never** affect the local Docker stack. `config.toml`'s
 `project_id` is only the local stack name — it binds to no cloud project.
 
+## Local stack hygiene — parallel / multi-worktree development (binding)
+
+Multiple agents/worktrees develop this repo at once. The local Supabase stack is **one shared
+Docker stack keyed by the `config.toml` `project_id` (`pmo-portal`)** — **every PMO worktree drives
+the SAME stack.** This is the #1 parallel-dev footgun; the rules below are binding.
+
+- **`db reset` is global, not per-worktree.** Running `supabase db reset` from worktree A re-applies
+  **A's** migrations + seed to the single shared DB, clobbering whatever schema/state worktree B left.
+  → **Serialize all DB-driving work** (migrations, `supabase test db`/pgTAP, Playwright e2e) across
+  worktrees. Before trusting a DB result, know **which worktree's migrations are currently applied** —
+  if unsure, `db reset` from *your* worktree first. (Real incident 2026-06-12: a pgTAP run launched
+  from the `main` worktree silently reset the shared DB to main's schema mid-feature.)
+- **Never run two DB-driving tasks concurrently** (even across worktrees) — they corrupt each other.
+  Two `db reset`s, or a pgTAP run racing an e2e run, is the failure. FE-only work (vitest is mocked,
+  `typecheck`, `lint`, `build`) needs **no** stack and may run in parallel freely.
+- **pgTAP needs a pristine base; e2e mutates and persists.** Running `supabase test db` right after a
+  Playwright e2e run gives **false pgTAP failures** — e2e mutations (e.g. winning a deal) persist and
+  skew count/aggregate assertions. Always `db reset` **between** an e2e run and pgTAP. (Real incident:
+  test 0044 "failed" only because an AC-1011 e2e had moved a pipeline deal first.)
+- **`fullyParallel` e2e flakes under local resource pressure.** On a loaded machine you'll see spurious
+  "element should be visible / observed none" timeouts; the same specs pass `--workers=1` in isolation.
+  Don't treat a local full-parallel e2e run as a gate signal — re-run suspects serially, and trust **CI**
+  (clean env) as the authority.
+
+### RAM / disk cleanup (the stack + browsers are the hogs)
+
+- **Stop the stack when not DB-testing.** It's multi-GB and the biggest persistent chunk. **`supabase
+  stop` is a *partial* stop** — it leaves the core `db` container UP (observed). To fully release RAM use
+  **`supabase stop --no-backup`** (or `docker stop $(docker ps -q --filter name=pmo-portal)`). Bring it
+  up only for migration/pgTAP/e2e phases; down otherwise.
+- **Close browsers after every rendered check** — `agent-browser close` / kill stray Chromium and
+  `@playwright/mcp` servers immediately; they accumulate and (with the stack + the Electron app's
+  context) have crashed the Claude app at >20 GB, killing in-flight agent runs. See `docs/pi-delegation.md`
+  §3c for the pi process-tree detail (pi + everything it spawns lives under the app's process tree).
+- **Reclaim Docker disk periodically.** Stopped containers + dangling images pile up fast (seen: ~40 GB
+  reclaimable). **`docker container prune` + `docker image prune`** are safe — they touch only *stopped*
+  containers / *dangling* images, never a running stack or its **volumes** (Supabase data lives in volumes,
+  which survive). ⚠ This host also runs **other projects' stacks** (e.g. `gordi-mos`) — `docker container
+  prune` spares their *running* containers, but **never** `docker volume prune` or `docker system prune
+  --volumes` (that destroys other projects' DB data).
+- **Prune merged worktrees promptly.** After a squash-merge, remove the issue worktree
+  (`git worktree remove --force <path>` then `git worktree prune`) — each stale worktree carries a
+  `node_modules`/test-artifact footprint and is another accidental `db reset` surface.
+
 ## Secrets via 1Password (`op-get.sh`)
 
 The cloud DB connection string is a secret. It is **never** stored in a file in the repo. Instead it lives in
