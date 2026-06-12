@@ -17,6 +17,7 @@
 --   Tasks:     d3000000-...
 --   Timesheets: d4000000-...
 --   Incidents/docs: d5000000-... / d6000000-...
+--   Milestones:     d7000000-...
 \set ON_ERROR_STOP on
 set search_path = public, extensions;
 
@@ -782,5 +783,97 @@ update projects set
 update projects set
   decided_at = '2024-03-20T00:00:00Z'
   where id = 'd0000000-0000-0000-0000-000000000008';  -- SP-2408 Westfield Cannery (Loss Tender)
+
+-- ============================================================
+-- §K project_milestones — Engineering → Procurement → Construction sequence
+-- for the two ongoing flagship projects (d0…01 healthy, d0…02 at-risk).
+-- UUID namespace: d7000000-... (free range, see header map above).
+--
+-- Milestone story:
+--   d0…01 Meridian Steelworks (healthy, ~52% committed):
+--     m01 Engineering Design  — input_pct NULL  → 100% calculated (2 Done / 2 tasks)
+--     m02 Procurement         — input_pct 65    → diverges from 0% calculated (0/2 In Progress)
+--                               Demonstrates the PM-input column overriding task-derived %.
+--     m03 Site Construction   — input_pct NULL  → 0% calculated (0/2 To Do)
+--
+--   d0…02 Cascade Foods (at-risk, ~91% committed):
+--     m04 Engineering Design  — input_pct NULL  → 100% calculated (2 Done / 2 tasks)
+--     m05 Procurement         — input_pct NULL  → 0% calculated (0/2 In Progress)
+--     m06 Site Construction   — input_pct 85    → PM optimism diverges from 0% calculated
+--                               (1 In Progress + 1 To Do = 0 Done / 2 tasks).
+--
+-- Weights 20/35/45 are believable EPC phase-effort splits; they need not sum to 100
+-- (the RPC normalises by sum(weight)).
+-- ============================================================
+
+insert into project_milestones
+  (id, project_id, name, sort_order, target_date, weight, input_pct)
+values
+  -- d0…01 Meridian Steelworks milestones
+  ('d7000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-000000000001',
+   'Engineering Design', 1, '2024-03-15', 20, null),
+
+  ('d7000000-0000-0000-0000-000000000002',
+   'd0000000-0000-0000-0000-000000000001',
+   'Procurement',        2, '2024-06-30', 35, 65),
+
+  ('d7000000-0000-0000-0000-000000000003',
+   'd0000000-0000-0000-0000-000000000001',
+   'Site Construction',  3, '2024-11-30', 45, null),
+
+  -- d0…02 Cascade Foods milestones
+  ('d7000000-0000-0000-0000-000000000004',
+   'd0000000-0000-0000-0000-000000000002',
+   'Engineering Design', 1, '2024-04-15', 20, null),
+
+  ('d7000000-0000-0000-0000-000000000005',
+   'd0000000-0000-0000-0000-000000000002',
+   'Procurement',        2, '2024-07-31', 35, null),
+
+  ('d7000000-0000-0000-0000-000000000006',
+   'd0000000-0000-0000-0000-000000000002',
+   'Site Construction',  3, '2025-02-28', 45, 85)
+
+on conflict (id) do nothing;
+
+-- Wire §G tasks → milestones (keyed UPDATE — naturally idempotent).
+-- d0…01 Meridian Steelworks:
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000001'
+  where id in (
+    'd3000000-0000-0000-0000-000000000001',  -- ENG — Detail Design Package
+    'd3000000-0000-0000-0000-000000000002'   -- ENG — Single Line Diagram
+  );
+
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000002'
+  where id in (
+    'd3000000-0000-0000-0000-000000000003',  -- PROC — Panel & Inverter Procurement
+    'd3000000-0000-0000-0000-000000000004'   -- PROC — Mounting Structure Procurement
+  );
+
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000003'
+  where id in (
+    'd3000000-0000-0000-0000-000000000005',  -- CONST — Roof Mounting Install
+    'd3000000-0000-0000-0000-000000000006'   -- CONST — Electrical Termination & Commissioning
+  );
+
+-- d0…02 Cascade Foods:
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000004'
+  where id in (
+    'd3000000-0000-0000-0000-000000000007',  -- ENG — Detail Design Package
+    'd3000000-0000-0000-0000-000000000008'   -- ENG — Single Line Diagram
+  );
+
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000005'
+  where id in (
+    'd3000000-0000-0000-0000-000000000009',  -- PROC — Panel & Inverter Procurement
+    'd3000000-0000-0000-0000-000000000010'   -- PROC — Mounting Structure Procurement
+  );
+
+update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000006'
+  where id in (
+    'd3000000-0000-0000-0000-000000000011',  -- CONST — Ground Mounting Install
+    'd3000000-0000-0000-0000-000000000012'   -- CONST — Electrical Termination & Commissioning
+  );
 
 commit;
