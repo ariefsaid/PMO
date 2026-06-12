@@ -25,11 +25,10 @@
   Second mockup-review refinements applied 2026-06-12 (prior revision):
   D1. "Edit progress" affordance on EVERY phase cell for PM/Admin (not just current). Quiet
       (recedes until hover/focus), always in the DOM, keyboard-reachable. Engineer = read-only (omitted).
-  D2. WEIGHT encoded SPATIALLY as the stepper SEGMENT WIDTH (Eng 15 / Proc 35 / Const 40 / Commiss 10),
-      each segment FILLS by its own completion %. A single thin cumulative "project delivery" track
-      under the stepper shows the weighted sum (50%). Exact weight in a quiet muted caption per cell
-      ("15% of project"). On <768px the proportional-width band falls back to stacked rows, each with
-      an explicit "15% of project" label (width too narrow to read/tap at 375px — see plan §a11y).
+  D2. Owner direction superseded the earlier width-as-weight pass: the stepper bar now uses FOUR EVEN
+      segments, each FILLED by its own completion %. Exact weight lives in the quiet muted caption
+      ("15% of project"). On desktop and mobile the label stack is now aligned: name + emphasized %,
+      then weight, then target date.
   D3. Tasks-tab group header shows NO progress % — only phase name + target date ("Procurement · Target 30 Jun").
       The progress story lives ONLY in the Stage Stepper. Same rule for any compact/secondary surface.
 
@@ -37,7 +36,7 @@
   PI-1. Weighted-rollup math corrected to real SP-2401 demo data: Engineering 100%, Procurement 71%,
         Construction 25%, Commissioning 0%, weights 15/35/40/10.
         Math: (15×100 + 35×71 + 40×25 + 10×0)/100 = (1500+2485+1000+0)/100 = 4985/100 = 49.85 → 50%.
-        Headline, cumulative track, mobile rollup, aria-label, and comments all set to 50%.
+        Headline, mobile rollup, aria-label, and comments all set to 50%.
   PI-2. Four missing rendered states added: loading skeleton, error+retry, delete-confirm
         (ConfirmDialog over the strip), and Engineer read-only stepper (no Edit progress affordances).
   PI-3. Non-token literals replaced with DESIGN.md tokens: color:#fff → hsl(var(--primary-foreground));
@@ -58,7 +57,7 @@
         target date in warning-foreground token.
   PI-8. All prior owner refinements verified intact: no Manual pill, Target spelled out, pill
         encapsulation at 375px, tasks-tab header = name+target only no %, edit-progress on every phase
-        for PM/Admin, weight-as-segment-width + "N% of project" caption + cumulative track.
+        for PM/Admin, four even segments, weight as "N% of project" label, mobile + desktop label parity.
 -->
 <style>
   /* ── DESIGN.md tokens — :root HSL triplets (bare H S% L%, the runtime form) ── */
@@ -180,54 +179,56 @@
   .rollup .big{font-size:23px; font-weight:700; letter-spacing:-0.01em;}
   .rollup .cap{font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:hsl(var(--muted-foreground));}
 
-  /* ── ONE-BAR STEPPER (redesign 2026-06-12) ──
-    ONE horizontal segmented bar, full width, ~12px tall. Divided into 4 segments
-    by WEIGHT (flex 15/35/40/10, small gap). Each segment = muted track + colored
-    FILL from left = completion %. Fill color by state: completed=success, current=primary,
-    overdue=warning, future=muted. Labels below = 2 lines only (name + effective %).
-    Target date, From tasks %, weight live ONLY in title= tooltip + edit popover + mobile.
-    The bar IS the weighted view — no separate cumulative track. */
+  /* ── ONE-BAR STEPPER (owner restyle 2026-06-12) ──
+    ONE horizontal segmented bar, full width, ~12px tall. Divided into 4 EVEN segments
+    (flex:1 1 0 each, small gap). Each segment = muted track + colored FILL from left =
+    completion %. Fill color by state: completed=success, current=primary,
+    overdue=warning, future=muted. Labels below follow the mobile rule:
+    row 1 = name + emphasized %; line 2 = "N% of project"; line 3 = "Target DD Mon".
+    Weight is text only now, not width. */
   .bar-track{
     display:flex; gap:2px; height:12px;
     border-radius:var(--r-full); background:hsl(var(--border)); overflow:hidden;
   }
-  .bar-track .seg{background:hsl(var(--secondary)); overflow:hidden;}
+  .bar-track .seg{flex:1 1 0; background:hsl(var(--secondary)); overflow:hidden;}
   .bar-track .seg-fill{display:block; height:100%; background:hsl(var(--muted-foreground) / 0.15);}
   .bar-track .seg.done .seg-fill{background:hsl(var(--success));}
   .bar-track .seg.current .seg-fill{background:hsl(var(--primary));}
   .bar-track .seg.overdue .seg-fill{background:hsl(var(--warning));}
 
-  .bar-labels{display:flex; gap:2px; margin-top:8px;}
+  .bar-labels{display:flex; gap:2px; margin-top:var(--s3);}
   .bar-labels .seg-label{
-    display:flex; flex-direction:column; gap:1px;
-    min-width:0; position:relative; padding-top:2px;
+    flex:1 1 0;
+    display:flex; flex-direction:column; align-items:flex-start; gap:var(--s1);
+    min-width:0; padding-top:var(--s1); padding-right:var(--s4);
   }
-  .seg-label .seg-name{
-    font-size:12px; font-weight:500; color:hsl(var(--muted-foreground));
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
-  }
-  .seg-label .seg-pct{font-size:14px; font-weight:700;}
-  .seg-label.done .seg-name{color:hsl(var(--foreground)); font-weight:600;}
-  .seg-label.done .seg-pct{color:hsl(var(--success));}
-  .seg-label.current .seg-name{color:hsl(var(--foreground)); font-weight:600;}
   .seg-label .seg-micro{
     font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
     color:hsl(var(--primary)); line-height:1;
   }
-  .seg-label.overdue .seg-name{color:hsl(var(--warning-foreground));}
-  .seg-label .overdue-chip{
-    display:inline-block; font-size:10px; font-weight:600;
-    color:hsl(var(--warning-foreground)); background:hsl(var(--warning) / 0.14);
-    padding:1px 5px; border-radius:var(--r-full); line-height:1.4;
+  .seg-label .seg-name-row{display:flex; align-items:center; gap:var(--s2); min-width:0; flex-wrap:wrap;}
+  .seg-label .seg-name{
+    min-width:0;
+    font-size:14px; font-weight:700; color:hsl(var(--foreground));
+    line-height:1.45;
   }
+  .seg-label .seg-pct{
+    display:block;
+    font-size:23px; font-weight:700; line-height:1.2; letter-spacing:-0.01em;
+    color:hsl(var(--foreground));
+  }
+  .seg-label .seg-date,.seg-label .seg-from{font-size:11px; color:hsl(var(--muted-foreground)); white-space:nowrap;}
+  .seg-label.done .seg-pct{color:hsl(var(--foreground));}
+  .seg-label.current .seg-pct{color:hsl(var(--foreground));}
+  .seg-label.overdue .seg-date{color:hsl(var(--warning-foreground)); font-weight:600;}
   .seg-label .seg-edit{
-    position:absolute; top:1px; right:0;
     display:inline-flex; align-items:center;
-    font-size:10px; color:hsl(var(--primary)); background:none; border:none; cursor:pointer;
-    padding:0; opacity:0; transition:opacity 120ms ease;
+    min-height:32px;
+    font-size:11px; font-weight:600; letter-spacing:0.02em;
+    color:hsl(var(--primary)); background:none; border:none; cursor:pointer;
+    padding:0; text-decoration:none; opacity:0.7; transition:opacity 120ms ease;
   }
   .seg-label:hover .seg-edit, .seg-label:focus-within .seg-edit, .seg-label .seg-edit:focus-visible{opacity:1;}
-  .seg-label .seg-edit svg{width:11px; height:11px;}
 
   /* kept for inline-edit popover mock */
   .step-name{font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; min-width:0;}
@@ -310,32 +311,32 @@
     PI-7: each vstep now includes a "Target DD Mon" muted line; overdue row shows target in
     warning-foreground.
   */
-  .vstep{display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid hsl(var(--border) / 0.7);}
+  .vstep{display:flex; align-items:flex-start; gap:10px; padding:9px 14px; border-bottom:1px solid hsl(var(--border) / 0.7);}
   .vstep:last-child{border-bottom:none;}
-  .vstep .vbar{width:64px; flex:0 0 auto;}
-  .vstep .vmain{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
-  .vstep .vname{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .vstep .vweight{font-size:11px; color:hsl(var(--muted-foreground)); white-space:nowrap;}  /* explicit weight label — the mobile fallback for width */
-  /* PI-7: target date line on mobile rows — muted by default, warning-foreground for overdue */
-  .vstep .vdate{font-size:11px; color:hsl(var(--muted-foreground)); white-space:nowrap;}
+  .vstep .vbar{width:64px; flex:0 0 auto; margin-top:var(--s2);}
+  .vstep .vmain{flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:var(--s1);}
+  .vstep .vmicro{font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:hsl(var(--primary)); line-height:1;}
+  .vstep .vname-row{display:flex; align-items:center; gap:var(--s2); min-width:0; flex-wrap:wrap;}
+  .vstep .vname{min-width:0; font-size:14px; font-weight:700; line-height:1.45;}
+  .vstep .vdate,.vstep .vfrom{font-size:11px; color:hsl(var(--muted-foreground)); white-space:nowrap;}
   .vstep .vdate.overdue{color:hsl(var(--warning-foreground)); font-weight:600;}
-  .vstep .vpct{font-size:13px; font-weight:700; width:38px; text-align:right; flex-shrink:0;}
+  .vstep .vpct{font-size:23px; font-weight:700; line-height:1.2; letter-spacing:-0.01em; flex-shrink:0;}
   /* mobile edit affordance — ≥44px touch target (D1 on mobile too, for PM/Admin) */
-  .vstep .vedit{flex-shrink:0; width:44px; height:44px; display:inline-grid; place-items:center; border:none; background:none; color:hsl(var(--primary)); cursor:pointer; opacity:0.7;}
-  .vstep .vedit svg{width:14px; height:14px;}
+  .vstep .vedit{flex-shrink:0; min-height:44px; display:inline-flex; align-items:center; border:none; background:none; color:hsl(var(--primary)); cursor:pointer; opacity:0.7; padding:0; font-size:11px; font-weight:600;}
+  .vstep .vedit:focus-visible, .vstep:hover .vedit{opacity:1;}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <h1 class="doc-h1">Delivery milestones — redesign mockup</h1>
-  <p class="doc-sub">Owner-approval artifact for the delivery-feature fix. Every color, radius, type size, and component here is a <b>DESIGN.md</b> token transcribed verbatim. No new brand, palette, or font. Numbers are from SP-2401 "Meridian Steelworks" live demo seed (4-phase EPC). Resolves the audit Criticals: the Projects-list progress/chip contradiction (R1) and the milestone "strip" that shipped as a vertical card stack (R2). Prior refinements locked 2026-06-11 (OR-1–4) and 2026-06-12 (D1–D3). PI-review fixes applied 2026-06-12 (PI-1–8). <b>Stepper one-bar redesign 2026-06-12:</b> old 4-column stepper + redundant cumulative track replaced by a single segmented bar (12px, weight-proportional segments, fill by state). Labels reduced to 2 lines (name + %). Target/From-tasks/weight moved to tooltip + popover + mobile only.</p>
+  <p class="doc-sub">Owner-approval artifact for the delivery-feature fix. Every color, radius, type size, and component here is a <b>DESIGN.md</b> token transcribed verbatim. No new brand, palette, or font. Numbers are from SP-2401 "Meridian Steelworks" live demo seed (4-phase EPC). Resolves the audit Criticals: the Projects-list progress/chip contradiction (R1) and the milestone "strip" that shipped as a vertical card stack (R2). Prior refinements locked 2026-06-11 (OR-1–4) and 2026-06-12 (D1–D3). PI-review fixes applied 2026-06-12 (PI-1–8). <b>Stepper owner restyle 2026-06-12:</b> the desktop one-bar stepper keeps four even segments with completion fill only; labels revert to the calm vertical stack (name, big %, <span class="mono">Target DD Mon</span>, <span class="mono">From tasks N%</span>, quiet <span class="mono">Edit progress</span> link).</p>
 
   <div class="legend">
     <span><b>R1</b> Projects list: delivery-% = Progress; committed÷budget = "Budget used"; title chip retired.</span>
     <span><b>R2</b> Milestone strip → horizontal phase stepper (DESIGN.md Stage Stepper).</span>
     <span><b>D1</b> "Edit progress" on every phase for PM/Admin (quiet, keyboard-reachable).</span>
-    <span><b>D2</b> Weight = segment WIDTH; completion = FILL; one-bar stepper (no separate cumulative track).</span>
+    <span><b>D2</b> Four even segments stay; labels revert to the original vertical big-% stack.</span>
     <span><b>D3</b> Tasks-tab group header = name + target date only, no %.</span>
     <span><b>R5</b> At-risk milestone = past target + &lt;100% → amber.</span>
     <span><b>PI-1</b> Corrected math: 50% (Engineering 100%, Procurement 71%, Construction 25%, Commissioning 0%).</span>
@@ -519,11 +520,11 @@
   </div>
 
   <!-- ════════════════════════ S2 — PHASE STEPPER ════════════════════════ -->
-  <div class="section-eyebrow">S2 · Project detail — milestone strip → phase stepper (R2 / R3 / R5 / D1 / D2 / PI-1)</div>
+  <div class="section-eyebrow">S2 · Project detail — milestone strip → phase stepper (R2 / R3 / R5 / D1 / owner revert / PI-1)</div>
 
   <div class="render-pair">
     <div>
-      <div class="narrow-tag">Desktop · 1440px — PM/Admin view: 4-phase EPC, weighted-width stepper, corrected data (PI-1)</div>
+      <div class="narrow-tag">Desktop · 1440px — PM/Admin view: 4-phase EPC, even-bar stepper, reverted vertical labels (PI-1)</div>
       <div class="panel">
         <div class="strip">
           <div class="strip-head">
@@ -545,46 +546,61 @@
           </div>
 
           <!--
-            One-bar stepper (redesign 2026-06-12):
-            ONE segmented bar = the weighted view. Labels = 2 lines only (name + %).
-            Target date, From tasks %, weight live in title= tooltip + edit popover.
+            One-bar stepper (owner restyle 2026-06-12):
+            ONE segmented bar with four EVEN segments. Weight is label text now.
             PI-1: Engineering 100%, Procurement 71%, Construction 25%, Commissioning 0%.
-            Weights: 15/35/40/10. Rollup: 50%.
+            Weights remain 15/35/40/10 in text. Rollup remains 50%.
           -->
-          <div class="bar-track" role="img" aria-label="Project delivery 50 percent — weighted. Engineering 15% weight 100% complete, Procurement 35% weight 71% complete, Construction 40% weight 25% complete (overdue), Commissioning 10% weight not started.">
-            <div class="seg done" style="flex:15 0 0;" title="Engineering design — 100% complete. From tasks 100%. Target 15 Mar. 15% of project."><div class="seg-fill" style="width:100%"></div></div>
-            <div class="seg current" style="flex:35 0 0;" title="Procurement — 71% complete. From tasks 71%. Target 30 Jun. 35% of project."><div class="seg-fill" style="width:71%"></div></div>
-            <div class="seg overdue" style="flex:40 0 0;" title="Construction — 25% complete. From tasks 25%. Target 01 May (overdue). 40% of project."><div class="seg-fill" style="width:25%"></div></div>
-            <div class="seg" style="flex:10 0 0;" title="Commissioning — 0% complete. From tasks —. Target 15 Sep. 10% of project."><div class="seg-fill" style="width:0%"></div></div>
+          <div class="bar-track" role="img" aria-label="Project delivery 50 percent. Engineering 100 percent complete, 15 percent of project. Procurement current, 71 percent complete, 35 percent of project. Construction 25 percent complete, 40 percent of project, overdue. Commissioning 0 percent complete, 10 percent of project.">
+            <div class="seg done" title="Engineering design — 100% complete. 15% of project. Target 15 Mar."><div class="seg-fill" style="width:100%"></div></div>
+            <div class="seg current" title="Procurement — 71% complete. 35% of project. Target 30 Jun. Current phase."><div class="seg-fill" style="width:71%"></div></div>
+            <div class="seg overdue" title="Construction — 25% complete. 40% of project. Target 01 May. Overdue."><div class="seg-fill" style="width:25%"></div></div>
+            <div class="seg" title="Commissioning — 0% complete. 10% of project. Target 15 Sep."><div class="seg-fill" style="width:0%"></div></div>
           </div>
           <div class="bar-labels">
-            <div class="seg-label done" style="flex:15 0 0;">
-              <span class="seg-name">Engineering design</span>
+            <div class="seg-label done">
+              <div class="seg-name-row">
+                <span class="seg-name">Engineering design</span>
+              </div>
               <span class="seg-pct tabular">100%</span>
-              <button class="seg-edit" type="button" aria-label="Edit progress for Engineering design"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <span class="seg-date">Target 15 Mar</span>
+              <span class="seg-from tabular">From tasks 100%</span>
+              <button class="seg-edit" type="button" aria-label="Edit progress for Engineering design">Edit progress</button>
             </div>
-            <div class="seg-label current" style="flex:35 0 0;">
+            <div class="seg-label current">
               <span class="seg-micro">Current</span>
-              <span class="seg-name">Procurement</span>
+              <div class="seg-name-row">
+                <span class="seg-name">Procurement</span>
+              </div>
               <span class="seg-pct tabular">71%</span>
-              <button class="seg-edit" type="button" aria-label="Edit progress for Procurement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <span class="seg-date">Target 30 Jun</span>
+              <span class="seg-from tabular">From tasks 71%</span>
+              <button class="seg-edit" type="button" aria-label="Edit progress for Procurement">Edit progress</button>
             </div>
-            <div class="seg-label overdue" style="flex:40 0 0;">
-              <span class="overdue-chip">Overdue</span>
-              <span class="seg-name">Construction</span>
+            <div class="seg-label overdue">
+              <div class="seg-name-row">
+                <span class="seg-name">Construction</span>
+                <span class="pill warn"><span class="dot"></span>Overdue</span>
+              </div>
               <span class="seg-pct tabular">25%</span>
-              <button class="seg-edit" type="button" aria-label="Edit progress for Construction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <span class="seg-date">Target 01 May</span>
+              <span class="seg-from tabular">From tasks 25%</span>
+              <button class="seg-edit" type="button" aria-label="Edit progress for Construction">Edit progress</button>
             </div>
-            <div class="seg-label" style="flex:10 0 0;">
-              <span class="seg-name">Commissioning</span>
+            <div class="seg-label">
+              <div class="seg-name-row">
+                <span class="seg-name">Commissioning</span>
+              </div>
               <span class="seg-pct tabular">0%</span>
-              <button class="seg-edit" type="button" aria-label="Edit progress for Commissioning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <span class="seg-date">Target 15 Sep</span>
+              <span class="seg-from tabular">From tasks —</span>
+              <button class="seg-edit" type="button" aria-label="Edit progress for Commissioning">Edit progress</button>
             </div>
           </div>
         </div>
       </div>
-      <p class="callout"><b>One-bar stepper (redesign 2026-06-12):</b> ONE segmented bar replaces the old 4-column stepper + separate cumulative track. Each segment is weight-proportional (flex 15/35/40/10); fill color by state (<span class="mono">success</span> done / <span class="mono">primary</span> current / <span class="mono">warning</span> overdue / muted future). Labels = 2 lines only (phase name + effective %). Target date, From tasks %, and weight are in <span class="mono">title=</span> tooltip only (visible on hover + in edit popover + on mobile). Rollup: 50%. Edit-pencil appears on hover/focus per segment (PM/Admin only).</p>
-      <p class="callout"><b>PI-1 math:</b> Engineering 100% × 15 + Procurement 71% × 35 + Construction 25% × 40 + Commissioning 0% × 10 = 1500 + 2485 + 1000 + 0 = 4985 / 100 = <b>49.85 → 50%</b>. All rendered values (headline, cumulative track label, mobile rollup, aria-label) are consistent at 50%. <b>PI-3:</b> Overdue pill uses standard .pill token (22px height, 0 9px padding) — no inline size overrides. Ghost buttons use 32px token height. <b>D1+D2:</b> weight-proportional widths (15/35/40/10); per-cell "N% of project" captions; cumulative track; "Edit progress" on every phase for PM/Admin; all dates spell "Target".</p>
+      <p class="callout"><b>One-bar stepper (owner restyle 2026-06-12):</b> the bar stays <b>evenly divided</b> across all four phases, while each label block reverts to the calmer vertical stack: bold phase name, big bold %, muted <span class="mono">Target DD Mon</span>, muted <span class="mono">From tasks N%</span>, then a quiet blue <span class="mono">Edit progress</span> link for PM/Admin. Construction keeps the amber <b>Overdue</b> pill and warning target date.</p>
+      <p class="callout"><b>PI-1 math:</b> Engineering 100% × 15 + Procurement 71% × 35 + Construction 25% × 40 + Commissioning 0% × 10 = 1500 + 2485 + 1000 + 0 = 4985 / 100 = <b>49.85 → 50%</b>. All rendered values (headline, aria-label, mobile rollup) stay consistent at 50%. <b>Owner restyle:</b> no same-row name/% pairing, no weight caption line in the stepper labels, no pencil icon.</p>
 
       <div class="narrow-tag" style="margin-top:18px;">Inline PM-input edit (R3 / token-correct field) — opened from any phase's "Edit progress"</div>
       <div class="panel" style="padding:14px;">
@@ -603,18 +619,14 @@
     </div>
 
     <div>
-      <div class="narrow-tag">Mobile · 375px — stepper → thin vertical rows (weight as LABEL, not width)</div>
+      <div class="narrow-tag">Mobile · 375px — stepper → thin vertical rows (reconciled to the vertical label stack)</div>
       <!--
-        D2 mobile fallback: a 10%-weight segment is ~30px wide at 375px — too narrow to read
-        its label or hit a 44px tap target. So below 768px the proportional-width band is dropped and
-        weight becomes an explicit "15% of project" muted LABEL on each row. Weight stays legible; the
-        cumulative track is replaced by the 50% rollup figure in the header.
-        D1 mobile: a 44px edit affordance per row for PM/Admin (Engineer omits it).
-        PI-1: rollup header updated to 50%; phase fills updated to real demo data.
-        PI-3: mobile header uses subheading token (18px) + rollup .big token (23px); padding uses
-              spacing tokens 12px 16px (var(--s3)/var(--s4)).
-        PI-7: each vstep now includes a muted "Target DD Mon" line; overdue row shows target in
-              warning-foreground.
+        Mobile rows now mirror the desktop label rule exactly: row 1 name + emphasized %, row 2
+        explicit weight label, row 3 target date. D1 mobile: a 44px edit affordance per row for
+        PM/Admin (Engineer omits it). PI-1: rollup header updated to 50%; phase fills updated to
+        real demo data. PI-3: mobile header uses subheading token (18px) + rollup .big token (23px);
+        padding uses spacing tokens 12px 16px (var(--s3)/var(--s4)). PI-7: overdue row shows target
+        in warning-foreground.
       -->
       <div class="narrow">
         <!-- PI-3: font-size uses token values — 18px (subheading) + 23px (rollup big); padding 12px 16px (s3/s4) -->
@@ -622,65 +634,49 @@
           <span style="font-size:18px; font-weight:600; line-height:1.3;">Delivery phases</span>
           <span><span class="cap">Delivery</span> <b class="tabular" style="font-size:23px; font-weight:700; letter-spacing:-0.01em;">50%</b></span>
         </div>
-        <!-- Engineering: done, 100%, Target 15 Mar -->
-        <!-- PI-7: added Target date line -->
         <div class="vstep">
           <span class="bar is-success vbar"><i style="width:100%"></i></span>
           <span class="vmain">
-            <span class="vname">Engineering design</span>
-            <span class="vweight tabular">100% · 15% of project</span>
+            <span class="vname-row"><span class="vname">Engineering design</span></span>
+            <span class="vpct tabular">100%</span>
             <span class="vdate">Target 15 Mar</span>
+            <span class="vfrom tabular">From tasks 100%</span>
+            <button class="vedit" type="button" aria-label="Edit progress for Engineering design">Edit progress</button>
           </span>
-          <span class="vpct tabular">100%</span>
-          <button class="vedit" type="button" aria-label="Edit progress for Engineering design">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
         </div>
-        <!-- Current phase: Procurement 71%, Target 30 Jun -->
-        <!-- PI-1: fill updated from 75% → 71%; PI-7: Target date added -->
         <div class="vstep" style="background:hsl(var(--primary) / 0.05);">
           <span class="bar vbar"><i style="width:71%"></i></span>
           <span class="vmain">
-            <span class="vname">Procurement</span>
-            <span class="vweight tabular">71% · 35% of project</span>
+            <span class="vmicro">Current</span>
+            <span class="vname-row"><span class="vname">Procurement</span></span>
+            <span class="vpct tabular">71%</span>
             <span class="vdate">Target 30 Jun</span>
+            <span class="vfrom tabular">From tasks 71%</span>
+            <button class="vedit" type="button" aria-label="Edit progress for Procurement">Edit progress</button>
           </span>
-          <span class="vpct tabular">71%</span>
-          <button class="vedit" type="button" aria-label="Edit progress for Procurement">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
         </div>
-        <!-- Construction: at-risk, 25%, overdue Target 01 May -->
-        <!-- PI-1: fill updated from 20% → 25%; PI-7: Target date in warning-foreground (overdue) -->
         <div class="vstep">
           <span class="bar is-warning vbar"><i style="width:25%"></i></span>
           <span class="vmain">
-            <span class="vname" style="color:hsl(var(--warning-foreground));">Construction · overdue</span>
-            <span class="vweight tabular">25% · 40% of project</span>
-            <!-- PI-7: overdue target date uses warning-foreground token -->
+            <span class="vname-row"><span class="vname">Construction</span><span class="pill warn"><span class="dot"></span>Overdue</span></span>
+            <span class="vpct tabular">25%</span>
             <span class="vdate overdue">Target 01 May</span>
+            <span class="vfrom tabular">From tasks 25%</span>
+            <button class="vedit" type="button" aria-label="Edit progress for Construction">Edit progress</button>
           </span>
-          <span class="vpct tabular">25%</span>
-          <button class="vedit" type="button" aria-label="Edit progress for Construction">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
         </div>
-        <!-- Commissioning: not started, Target 15 Sep -->
-        <!-- PI-7: Target date added -->
         <div class="vstep">
           <span class="bar vbar"><i style="width:0%"></i></span>
           <span class="vmain">
-            <span class="vname" style="color:hsl(var(--muted-foreground));">Commissioning</span>
-            <span class="vweight tabular">0% · 10% of project</span>
+            <span class="vname-row"><span class="vname">Commissioning</span></span>
+            <span class="vpct tabular">0%</span>
             <span class="vdate">Target 15 Sep</span>
+            <span class="vfrom tabular">From tasks —</span>
+            <button class="vedit" type="button" aria-label="Edit progress for Commissioning">Edit progress</button>
           </span>
-          <span class="vpct tabular">0%</span>
-          <button class="vedit" type="button" aria-label="Edit progress for Commissioning">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
         </div>
       </div>
-      <p class="callout" style="margin-top:8px;"><b>PI-1:</b> rollup header = 50% (corrected); phase fills = Engineering 100%, Procurement 71%, Construction 25%, Commissioning 0%. <b>PI-3:</b> mobile header uses subheading token (18px) + rollup .big token (23px); padding 12px 16px (spacing s3/s4). <b>PI-7:</b> each mobile row now shows a muted "Target DD Mon" date line; overdue Construction row renders its target date in <b>warning-foreground</b> token. <b>D2 mobile fallback:</b> weight shown as explicit "N% of project" label per row.</p>
+      <p class="callout" style="margin-top:8px;"><b>Mobile rows reconciled:</b> each row now matches the owner-approved vertical stack — bold name, big % on its own line, muted <span class="mono">Target DD Mon</span>, muted <span class="mono">From tasks N%</span>, then the quiet blue <span class="mono">Edit progress</span> link. Overdue Construction keeps the amber chip and warning target date.</p>
     </div>
   </div>
 
@@ -689,14 +685,14 @@
   <div class="panel">
     <div class="empty">
       <div class="ghost-bar" aria-hidden="true">
-        <span style="flex:15 0 0;"></span><span style="flex:35 0 0;"></span><span style="flex:40 0 0;"></span><span style="flex:10 0 0;"></span>
+        <span style="flex:1 1 0;"></span><span style="flex:1 1 0;"></span><span style="flex:1 1 0;"></span><span style="flex:1 1 0;"></span>
       </div>
       <h3>Plan this project's delivery phases</h3>
       <p>Break delivery into ordered phases (Engineering, Procurement, Construction, Commissioning). Each carries a weight and rolls up into the project delivery %.</p>
       <button class="btn primary">+ Add the first phase</button>
     </div>
   </div>
-  <p class="callout"><b>Empty (R4):</b> a purpose-built planning prompt with a faded one-bar segmented silhouette (redesign 2026-06-12), replacing the generic <span class="mono">inbox</span>/"No milestones yet" list-empty. PM/Admin see the CTA; other roles see a quiet "No delivery phases yet" line (FR-DEL-013 — the role gating in the shipped build is correct and preserved). <b>At-risk (R5):</b> shown above in the Construction node — past target date + &lt;100% renders the amber bar + Overdue pill, with no gating (OD-DEL-6 preserved).</p>
+  <p class="callout"><b>Empty (R4):</b> a purpose-built planning prompt with a faded one-bar segmented silhouette, replacing the generic <span class="mono">inbox</span>/"No milestones yet" list-empty. PM/Admin see the CTA; other roles see a quiet "No delivery phases yet" line (FR-DEL-013 — the role gating in the shipped build is correct and preserved). <b>At-risk (R5):</b> shown above in the Construction node — past target date + &lt;100% renders the amber bar + overdue treatment, with no gating (OD-DEL-6 preserved).</p>
 
   <!-- ════════════════════════ PI-2: LOADING STATE ════════════════════════ -->
   <div class="section-eyebrow">PI-2 · Loading skeleton state</div>
@@ -712,17 +708,40 @@
       </div>
       <!-- One-bar skeleton — single bar + label placeholders (redesign 2026-06-12) -->
       <div class="skeleton" style="height:12px; border-radius:var(--r-full);"></div>
-      <div style="display:flex; gap:2px; margin-top:8px;">
-        <div class="skeleton" style="flex:15 0 0; height:28px; border-radius:var(--r-xs);"></div>
-        <div class="skeleton" style="flex:35 0 0; height:28px; border-radius:var(--r-xs);"></div>
-        <div class="skeleton" style="flex:40 0 0; height:28px; border-radius:var(--r-xs);"></div>
-        <div class="skeleton" style="flex:10 0 0; height:28px; border-radius:var(--r-xs);"></div>
+      <div style="display:flex; gap:2px; margin-top:var(--s3);">
+        <div style="flex:1 1 0; display:flex; flex-direction:column; gap:var(--s1); padding-top:var(--s1); padding-right:var(--s4);">
+          <div class="skeleton" style="width:75%; height:14px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:42%; height:23px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:58%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:66%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:54%; height:11px; border-radius:var(--r-xs);"></div>
+        </div>
+        <div style="flex:1 1 0; display:flex; flex-direction:column; gap:var(--s1); padding-top:var(--s1); padding-right:var(--s4);">
+          <div class="skeleton" style="width:68%; height:10px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:64%; height:14px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:40%; height:23px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:55%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:70%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:52%; height:11px; border-radius:var(--r-xs);"></div>
+        </div>
+        <div style="flex:1 1 0; display:flex; flex-direction:column; gap:var(--s1); padding-top:var(--s1); padding-right:var(--s4);">
+          <div class="skeleton" style="width:78%; height:14px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:38%; height:23px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:52%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:64%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:48%; height:11px; border-radius:var(--r-xs);"></div>
+        </div>
+        <div style="flex:1 1 0; display:flex; flex-direction:column; gap:var(--s1); padding-top:var(--s1); padding-right:var(--s4);">
+          <div class="skeleton" style="width:72%; height:14px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:28%; height:23px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:50%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:58%; height:11px; border-radius:var(--r-xs);"></div>
+          <div class="skeleton" style="width:46%; height:11px; border-radius:var(--r-xs);"></div>
+        </div>
       </div>
     </div>
   </div>
-  <p class="callout"><b>Loading skeleton (redesign 2026-06-12):</b> pulsing <span class="mono">secondary</span>-filled bar skeleton (12px) + four weight-proportional label placeholders. Weight proportions (15/35/40/10) preserved so no layout reflow on data arrival. Uses the <span class="mono">skeleton</span> shimmer animation — flat by default per DESIGN.md. No color, no content, no loading spinners.</p>
-  </div>
-  <p class="callout"><b>Loading skeleton (PI-2):</b> pulsing <span class="mono">secondary</span>-filled rectangles at the exact positions of the real stepper — header title + rollup, four phase jbars + name + value lines, cumulative track. Weight-proportional grid columns preserved in the silhouette (15/35/40/10 fr) so layout does not reflow on data arrival. Uses the <span class="mono">skeleton</span> shimmer animation at <span class="mono">secondary</span> fill with no border — flat by default per DESIGN.md Elevation rule. No color, no content, no loading spinners.</p>
+  <p class="callout"><b>Loading skeleton (owner restyle):</b> pulsing <span class="mono">secondary</span>-filled bar skeleton (12px) + four <b>even</b> vertical label silhouettes sized for the reverted stack: name, big %, target, from-tasks, edit-link line. Uses the <span class="mono">skeleton</span> shimmer animation — flat by default per DESIGN.md. No color, no content, no loading spinners.</p>
 
   <!-- ════════════════════════ PI-2: ERROR + RETRY STATE ════════════════════════ -->
   <div class="section-eyebrow">PI-2 · Error + retry state</div>
@@ -755,11 +774,42 @@
           <div class="rollup"><span class="cap">Project delivery</span><span class="big tabular">50%</span></div>
         </div>
         <div style="margin-top:14px;">
-          <div class="bar-track" role="img" aria-label="Project delivery 50 percent (dimmed).">
-            <div class="seg done" style="flex:15 0 0;"><div class="seg-fill" style="width:100%"></div></div>
-            <div class="seg current" style="flex:35 0 0;"><div class="seg-fill" style="width:71%"></div></div>
-            <div class="seg overdue" style="flex:40 0 0;"><div class="seg-fill" style="width:25%"></div></div>
-            <div class="seg" style="flex:10 0 0;"><div class="seg-fill" style="width:0%"></div></div>
+          <div class="bar-track" role="img" aria-label="Project delivery 50 percent (dimmed). Engineering 100 percent complete. Procurement current, 71 percent complete. Construction 25 percent complete, overdue. Commissioning 0 percent complete.">
+            <div class="seg done"><div class="seg-fill" style="width:100%"></div></div>
+            <div class="seg current"><div class="seg-fill" style="width:71%"></div></div>
+            <div class="seg overdue"><div class="seg-fill" style="width:25%"></div></div>
+            <div class="seg"><div class="seg-fill" style="width:0%"></div></div>
+          </div>
+          <div class="bar-labels">
+            <div class="seg-label done">
+              <div class="seg-name-row"><span class="seg-name">Engineering design</span></div>
+              <span class="seg-pct tabular">100%</span>
+              <span class="seg-date">Target 15 Mar</span>
+              <span class="seg-from tabular">From tasks 100%</span>
+              <span class="seg-edit">Edit progress</span>
+            </div>
+            <div class="seg-label current">
+              <span class="seg-micro">Current</span>
+              <div class="seg-name-row"><span class="seg-name">Procurement</span></div>
+              <span class="seg-pct tabular">71%</span>
+              <span class="seg-date">Target 30 Jun</span>
+              <span class="seg-from tabular">From tasks 71%</span>
+              <span class="seg-edit">Edit progress</span>
+            </div>
+            <div class="seg-label overdue">
+              <div class="seg-name-row"><span class="seg-name">Construction</span><span class="pill warn"><span class="dot"></span>Overdue</span></div>
+              <span class="seg-pct tabular">25%</span>
+              <span class="seg-date">Target 01 May</span>
+              <span class="seg-from tabular">From tasks 25%</span>
+              <span class="seg-edit">Edit progress</span>
+            </div>
+            <div class="seg-label">
+              <div class="seg-name-row"><span class="seg-name">Commissioning</span></div>
+              <span class="seg-pct tabular">0%</span>
+              <span class="seg-date">Target 15 Sep</span>
+              <span class="seg-from tabular">From tasks —</span>
+              <span class="seg-edit">Edit progress</span>
+            </div>
           </div>
         </div>
       </div>
@@ -801,35 +851,42 @@
           <!-- No "+ Add phase" button — Engineer cannot create phases -->
         </div>
       </div>
-      <div class="bar-track" role="img" aria-label="Project delivery 50 percent — weighted. Engineering 15% weight 100% complete, Procurement 35% weight 71% complete, Construction 40% weight 25% complete (overdue), Commissioning 10% weight not started.">
-        <div class="seg done" style="flex:15 0 0;" title="Engineering design — 100% complete. From tasks 100%. Target 15 Mar. 15% of project."><div class="seg-fill" style="width:100%"></div></div>
-        <div class="seg current" style="flex:35 0 0;" title="Procurement — 71% complete. From tasks 71%. Target 30 Jun. 35% of project."><div class="seg-fill" style="width:71%"></div></div>
-        <div class="seg overdue" style="flex:40 0 0;" title="Construction — 25% complete. From tasks 25%. Target 01 May (overdue). 40% of project."><div class="seg-fill" style="width:25%"></div></div>
-        <div class="seg" style="flex:10 0 0;" title="Commissioning — 0% complete. From tasks —. Target 15 Sep. 10% of project."><div class="seg-fill" style="width:0%"></div></div>
+      <div class="bar-track" role="img" aria-label="Project delivery 50 percent. Engineering 100 percent complete, 15 percent of project. Procurement current, 71 percent complete, 35 percent of project. Construction 25 percent complete, 40 percent of project, overdue. Commissioning 0 percent complete, 10 percent of project.">
+        <div class="seg done" title="Engineering design — 100% complete. 15% of project. Target 15 Mar."><div class="seg-fill" style="width:100%"></div></div>
+        <div class="seg current" title="Procurement — 71% complete. 35% of project. Target 30 Jun. Current phase."><div class="seg-fill" style="width:71%"></div></div>
+        <div class="seg overdue" title="Construction — 25% complete. 40% of project. Target 01 May. Overdue."><div class="seg-fill" style="width:25%"></div></div>
+        <div class="seg" title="Commissioning — 0% complete. 10% of project. Target 15 Sep."><div class="seg-fill" style="width:0%"></div></div>
       </div>
       <div class="bar-labels">
-        <div class="seg-label done" style="flex:15 0 0;">
-          <span class="seg-name">Engineering design</span>
+        <div class="seg-label done">
+          <div class="seg-name-row"><span class="seg-name">Engineering design</span></div>
           <span class="seg-pct tabular">100%</span>
+          <span class="seg-date">Target 15 Mar</span>
+          <span class="seg-from tabular">From tasks 100%</span>
         </div>
-        <div class="seg-label current" style="flex:35 0 0;">
+        <div class="seg-label current">
           <span class="seg-micro">Current</span>
-          <span class="seg-name">Procurement</span>
+          <div class="seg-name-row"><span class="seg-name">Procurement</span></div>
           <span class="seg-pct tabular">71%</span>
+          <span class="seg-date">Target 30 Jun</span>
+          <span class="seg-from tabular">From tasks 71%</span>
         </div>
-        <div class="seg-label overdue" style="flex:40 0 0;">
-          <span class="overdue-chip">Overdue</span>
-          <span class="seg-name">Construction</span>
+        <div class="seg-label overdue">
+          <div class="seg-name-row"><span class="seg-name">Construction</span><span class="pill warn"><span class="dot"></span>Overdue</span></div>
           <span class="seg-pct tabular">25%</span>
+          <span class="seg-date">Target 01 May</span>
+          <span class="seg-from tabular">From tasks 25%</span>
         </div>
-        <div class="seg-label" style="flex:10 0 0;">
-          <span class="seg-name">Commissioning</span>
+        <div class="seg-label">
+          <div class="seg-name-row"><span class="seg-name">Commissioning</span></div>
           <span class="seg-pct tabular">0%</span>
+          <span class="seg-date">Target 15 Sep</span>
+          <span class="seg-from tabular">From tasks —</span>
         </div>
       </div>
     </div>
   </div>
-  <p class="callout"><b>Engineer read-only stepper (PI-2 / Directive 5):</b> identical to the PM/Admin stepper — same phases, same fills, same weights, same cumulative track — but with <b>every "Edit progress" button absent from the DOM</b> (not hidden, not opacity:0, not pointer-events:none — simply not rendered). No "+ Add phase" button. The role indicator pill is a mockup label only. This proves Directive 5's gating: Engineer gets the full data picture but zero write affordances. <b>AC-DEL-012 oracle preserved and strengthened (D1):</b> PM/Admin → every phase has an edit button; Engineer → no phase has one.</p>
+  <p class="callout"><b>Engineer read-only stepper (PI-2 / Directive 5):</b> identical to the PM/Admin stepper — same even bar, same reverted vertical labels, same from-tasks lines — but with <b>every "Edit progress" link absent from the DOM</b>. No "+ Add phase" button. The role indicator pill is a mockup label only. This proves Directive 5's gating: Engineer gets the full data picture but zero write affordances.</p>
 
   <!-- ════════════════════════ S5 — TASKS TAB GROUPING ════════════════════════ -->
   <div class="section-eyebrow">S5 · Tasks tab — milestone grouping (D3: no % in group header)</div>
@@ -880,7 +937,8 @@
   </div>
   <p class="callout"><b>D3 (no % in compact surfaces):</b> group header = "Procurement · Target 30 Jun" only. <b>PI-4 note:</b> the task "Done" pill correctly stays <span class="mono">.pill.won</span> (green) — task completion IS a won/done outcome. "In Progress" is <span class="mono">.pill.open</span> (blue). Only project-lifecycle "Ongoing" was wrongly green; it is now corrected to <span class="mono">.pill.open</span> across all project-list rows. <b>PI-3:</b> "Add task" buttons use standard 32px height via <span class="mono">.btn.ghost</span> token.</p>
 
-  <p style="margin-top:40px; font-size:12px; color:hsl(var(--muted-foreground));">Token authority: <b>/DESIGN.md</b>. No new brand, palette, or font introduced. At-risk = existing <span class="mono">warning</span>; stepper done/current = existing <span class="mono">success</span>/<span class="mono">primary</span>; weight = layout (segment width) in the one-bar stepper; labels = 2 lines only (name + %); detail in tooltip/popover/mobile. Zero DESIGN.md additions required. Owner-review refinements locked 2026-06-11; second-review refinements (D1/D2/D3) applied 2026-06-12; PI-review fixes (PI-1–8) applied 2026-06-12; <b>stepper one-bar redesign applied 2026-06-12</b> — see delivery-redesign-plan.md.</p>
+  <p style="margin-top:40px; font-size:12px; color:hsl(var(--muted-foreground));">Token authority: <b>/DESIGN.md</b>. No new brand, palette, or font introduced. At-risk = existing <span class="mono">warning</span>; stepper done/current = existing <span class="mono">success</span>/<span class="mono">primary</span>; even segments stay fixed while labels return to the original vertical stack (name, big %, target, from tasks, edit link). Zero DESIGN.md additions required. Owner-review refinements locked 2026-06-11; second-review refinements (D1/D2/D3) applied 2026-06-12; PI-review fixes (PI-1–8) applied 2026-06-12; <b>stepper owner restyle applied 2026-06-12</b> — see delivery-redesign-plan.md.</p>
 
+</div>
 </body>
 </html>
