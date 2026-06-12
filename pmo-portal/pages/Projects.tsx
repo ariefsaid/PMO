@@ -107,12 +107,15 @@ const Projects: React.FC = () => {
 
   // I6: committed-spend-based at-risk (not stale p.spent/p.budget).
   // Derives from the SAME committed-spend summary used in the Budget used column.
-  const isAtRiskCommitted = (p: ProjectWithRefs) => {
-    if (!ONGOING.includes(p.status as string)) return false;
-    const summary = deliverySummary?.[p.id];
-    if (!summary || summary.budget <= 0) return false;
-    return summary.committedSpend / summary.budget >= AT_RISK_THRESHOLD;
-  };
+  const isAtRiskCommitted = React.useCallback(
+    (p: ProjectWithRefs) => {
+      if (!ONGOING.includes(p.status as string)) return false;
+      const summary = deliverySummary?.[p.id];
+      if (!summary || summary.budget <= 0) return false;
+      return summary.committedSpend / summary.budget >= AT_RISK_THRESHOLD;
+    },
+    [deliverySummary],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -147,7 +150,7 @@ const Projects: React.FC = () => {
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, deliverySummary]);
+  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
