@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  DOCUMENT FILE UPLOAD MOCKUP
+  ============================================================================
+  Feature: Document file upload on the project Documents tab
+  Source: docs/design-mockups/document-file-upload/design-plan.md
+  Tokens: :root block + component classes COPIED VERBATIM from
+          docs/design-mockups/crud-companies.html (shadcn-vue HSL Token System A).
+          No new hex, no new font, no new border color, no new radius.
+
+  WHAT THIS SHOWS (all states):
+   • (A) Desktop register table with 6-row mixed-status dataset (§2.1)
+   • (B) Mobile card-list variant of the same rows (render BOTH as separate sections)
+   • (C) Empty state (§2.2)
+   • (D) Uploading-progress row (§2.3)
+   • (E) Two error rows: too large (§2.4) + disallowed type (§2.5)
+   • (F) New Revision modal rendered open as a section (§2.8)
+   • (G) Download/preview affordances with visible tooltip examples (§2.9)
+
+  A11y notes: All aria-labels from plan §4; focus-visible ring on all focusable
+              elements; touch targets ≥44px in card variant.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>PMO Portal — Document File Upload Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens — COPIED VERBATIM from crud-companies.html :root ===== */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 4% 40%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 22 78% 26%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    --violet: 262 83% 58%;
+    --radius: 0.5rem;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: hsl(var(--background)); color: hsl(var(--foreground));
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility; font-size: 14px; line-height: 1.45; }
+
+  .font-bold { font-weight: 700; } .font-semibold { font-weight: 600; } .font-medium { font-weight: 500; }
+  .font-mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .muted { color: hsl(var(--muted-foreground)); }
+  .text-xs { font-size: 12px; }
+
+  /* ===== Layout ===== */
+  .page { padding: 20px 24px 64px; max-width: 1280px; margin: 0 auto; }
+  .page-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-sub { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 80ch; }
+  .page-head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ===== Section headings ===== */
+  .section-label { display: flex; align-items: center; gap: 12px; margin: 36px 0 16px; }
+  .section-label .sl-line { flex: 1; height: 1px; background: hsl(var(--border)); }
+  .section-label .sl-text { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+
+  /* ===== Buttons ===== */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px;
+    font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer;
+    white-space: nowrap; user-select: none; font-family: inherit;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease, transform .05s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; stroke-width: 2; flex-shrink: 0; }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px hsl(var(--primary) / 0.25); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-outline { border-color: hsl(var(--input)); background: hsl(var(--background)); color: hsl(var(--foreground)); }
+  .btn-outline:hover { background: hsl(var(--accent)); }
+  .btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+  .btn-ghost:hover { background: hsl(var(--accent)); }
+  .btn-sm { height: 28px; padding: 0 9px; font-size: 13px; }
+  .btn:disabled, .btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+  .btn-icon-only { padding: 0; width: 20px; height: 20px; min-width: 20px; }
+  .touch-target { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ===== Link-style buttons (Upload, Replace, Remove) ===== */
+  .link-btn { background: transparent; border: none; color: hsl(var(--foreground)); font-size: 12px; font-weight: 500;
+    padding: 0; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px;
+    transition: color .12s ease; }
+  .link-btn:hover { color: hsl(var(--primary)); }
+  .link-btn svg { width: 13px; height: 13px; stroke-width: 2; }
+  .link-btn.primary { color: hsl(var(--primary)); }
+  .link-btn.remove { color: hsl(var(--muted-foreground)); }
+  .link-btn.remove:hover { color: hsl(var(--foreground)); }
+
+  /* ===== Toolbar ===== */
+  .toolbar { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none; padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar-spacer { flex: 1; }
+  .search-mini { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input));
+    border-radius: var(--radius); background: hsl(var(--background)); min-width: 190px; }
+  .search-mini svg { width: 15px; height: 15px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .search-mini input { border: none; outline: none; background: transparent; font-size: 13.5px; font-family: inherit; width: 100%; color: hsl(var(--foreground)); }
+  .search-mini input::placeholder { color: hsl(var(--muted-foreground)); }
+
+  /* ===== Data table ===== */
+  .table-wrap { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.grid thead th { position: sticky; top: 0; background: hsl(var(--card)); height: 38px; text-align: left; font-size: 11.5px;
+    font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: hsl(var(--muted-foreground)); padding: 0 12px;
+    border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; user-select: none; z-index: 2; }
+  table.grid thead th:not(:first-child) { padding-left: 12px; }
+  th.num, td.num { text-align: right; } th.center, td.center { text-align: center; }
+  table.grid tbody td { height: 54px; padding: 12px; border-bottom: 1px solid hsl(var(--border) / 0.7); vertical-align: middle; white-space: nowrap; }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid tbody tr.row { cursor: pointer; transition: background .1s ease; }
+  table.grid tbody tr.row:hover { background: hsl(var(--accent) / 0.6); }
+  table.grid tbody tr.row:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+
+  /* Document cell (title + revision) */
+  .doc-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .doc-title { font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+  .doc-rev { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .doc-lineage { display: flex; align-items: center; gap: 4px; font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .doc-lineage a { color: hsl(var(--muted-foreground)); text-decoration: none; }
+  .doc-lineage a:hover { color: hsl(var(--primary)); }
+
+  /* File column cell */
+  .file-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .file-icon { width: 16px; height: 16px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+  .file-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 20ch; }
+  .file-action { display: flex; align-items: center; gap: 6px; }
+  .file-download { display: flex; align-items: center; gap: 4px; }
+  .file-download-btn { width: 20px; height: 20px; border: none; background: transparent; color: hsl(var(--muted-foreground));
+    cursor: pointer; display: grid; place-items: center; border-radius: 4px; padding: 0; }
+  .file-download-btn:hover { background: hsl(var(--accent)); color: hsl(var(--primary)); }
+  .file-download-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .file-download-btn svg { width: 14px; height: 14px; }
+
+  /* Progress bar in file column */
+  .file-progress { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+  .progress-track { height: 4px; background: hsl(var(--secondary)); border-radius: var(--radius); overflow: hidden; }
+  .progress-fill { height: 100%; background: hsl(var(--primary)); border-radius: var(--radius); }
+  .progress-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .progress-pct { font-weight: 600; }
+  .cancel-upload { width: 20px; height: 20px; border: none; background: transparent; color: hsl(var(--muted-foreground));
+    cursor: pointer; display: grid; place-items: center; border-radius: 4px; }
+  .cancel-upload:hover { background: hsl(var(--accent)); color: hsl(var(--destructive)); }
+  .cancel-upload svg { width: 12px; height: 12px; }
+
+  /* File error state */
+  .file-error { display: flex; flex-direction: column; gap: 4px; }
+  .file-error-msg { font-size: 12px; color: hsl(var(--destructive)); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+  .file-error-msg svg { width: 12px; height: 12px; }
+
+  /* ===== Status pills ===== */
+  .status { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .status .sdot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+
+  .status.draft { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+  .status.draft .sdot { background: hsl(var(--muted-foreground)); }
+  .status.approved { background: hsl(var(--success) / 0.12); color: hsl(142 64% 30%); }
+  .status.approved .sdot { background: hsl(var(--success)); }
+  .status.issued { background: hsl(221 83% 53% / 0.1); color: hsl(221 70% 45%); }
+  .status.issued .sdot { background: hsl(221 83% 53%); }
+  .status.superseded { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+  .status.superseded .sdot { background: hsl(var(--muted-foreground)); }
+  .status.rejected { background: hsl(var(--destructive) / 0.1); color: hsl(0 72% 45%); }
+  .status.rejected .sdot { background: hsl(var(--destructive)); }
+
+  /* ===== Mobile card variant ===== */
+  .card-list { display: flex; flex-direction: column; gap: 12px; }
+  .doc-card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 16px;
+    transition: box-shadow .12s ease, border-color .12s ease; }
+  .doc-card:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }
+  .doc-card-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+  .doc-card-title { font-weight: 600; font-size: 14px; line-height: 1.25; }
+  .doc-card-rev { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .doc-card-status-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .doc-card-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin-bottom: 8px; }
+  .doc-card-meta dt { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .doc-card-meta dd { font-size: 13px; color: hsl(var(--foreground)); }
+  .doc-card-meta dd.mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  .doc-card-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .doc-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid hsl(var(--border) / 0.7); }
+  .doc-card-progress { margin-top: 12px; padding-top: 12px; border-top: 1px solid hsl(var(--border) / 0.7); }
+
+  /* ===== Empty state ===== */
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 56px 24px; text-align: center; }
+  .empty-ico { width: 52px; height: 52px; border-radius: 14px; background: hsl(var(--secondary)); display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+  .empty-ico svg { width: 24px; height: 24px; stroke-width: 1.75; }
+  .empty-title { font-size: 15px; font-weight: 600; }
+  .empty-sub { font-size: 13px; color: hsl(var(--muted-foreground)); max-width: 44ch; }
+
+  /* ===== Tooltip ===== */
+  .tooltip { position: relative; display: inline-block; }
+  .tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-4px);
+    padding: 6px 10px; background: hsl(240 10% 8%); color: hsl(0 0% 98%); font-size: 12px; font-weight: 500; white-space: nowrap;
+    border-radius: 7px; box-shadow: 0 8px 24px hsl(240 10% 4% / 0.4); pointer-events: none; opacity: 0; transition: opacity 0.15s ease; z-index: 100; }
+  .tooltip::before { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: hsl(240 10% 8%); pointer-events: none; opacity: 0; transition: opacity 0.15s ease; z-index: 100; }
+  .tooltip:hover::after, .tooltip:focus-within::after { opacity: 1; }
+  .tooltip:hover::before, .tooltip:focus-within::before { opacity: 1; }
+  .tooltip-bottom::after { bottom: auto; top: 100%; transform: translateX(-50%) translateY(4px); }
+  .tooltip-bottom::before { bottom: auto; top: 100%; border-top-color: transparent; border-bottom-color: hsl(240 10% 8%); }
+  /* Section G tooltip examples: always visible for documentation purposes */
+  .section-tooltip-example .tooltip::after,
+  .section-tooltip-example .tooltip::before { opacity: 1 !important; }
+
+  /* ===== Modal (EntityFormModal) ===== */
+  .scrim { position: fixed; inset: 0; background: hsl(240 10% 4% / 0.45); backdrop-filter: blur(3px); z-index: 800;
+    display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; overflow-y: auto; }
+  .scrim[hidden] { display: none; }
+  .modal { width: 100%; max-width: 520px; background: hsl(var(--popover)); border: 1px solid hsl(var(--border));
+    border-radius: 10px; box-shadow: 0 24px 60px hsl(240 10% 4% / 0.35); display: flex; flex-direction: column; max-height: 84vh;
+    animation: modalin .14s ease; }
+  @keyframes modalin { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+  .modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid hsl(var(--border)); }
+  .modal-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .modal-head .mh-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+  .modal-head .mh-spacer { flex: 1; }
+  .icon-close { width: 30px; height: 30px; border-radius: 7px; border: none; background: transparent; color: hsl(var(--muted-foreground));
+    display: grid; place-items: center; cursor: pointer; }
+  .icon-close:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .icon-close svg { width: 17px; height: 17px; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-foot { display: flex; align-items: center; gap: 8px; padding: 13px 18px; border-top: 1px solid hsl(var(--border)); }
+  .modal-foot .mf-spacer { flex: 1; }
+
+  /* ===== Form primitives ===== */
+  fieldset.fs { border: none; padding: 0; margin: 0 0 18px; }
+  fieldset.fs:last-of-type { margin-bottom: 0; }
+  legend.fs-legend { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; padding-bottom: 10px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.col-span-2 { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 600; line-height: 1.3; color: hsl(var(--foreground)); }
+  .field label .req { color: hsl(var(--destructive)); margin-left: 2px; }
+  .field .helper { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .inp { height: 32px; padding: 0 10px; border: 1px solid hsl(var(--input)); border-radius: var(--radius);
+    background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 13.5px; font-family: inherit; width: 100%; }
+  .inp::placeholder { color: hsl(var(--muted-foreground)); }
+  .inp:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+  .inp.mono { font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace; }
+  select.inp { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737380' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 15px; padding-right: 30px; }
+
+  /* ===== Focus visible ===== */
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+  /* ===== Mobile card viewport frame (for design review at all viewports) ===== */
+  .mobile-frame-container { display: flex; flex-direction: column; gap: 8px; }
+  .mobile-frame { width: 375px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; background: hsl(var(--background)); box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }
+  .mobile-frame-caption { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); text-align: center; }
+  .mobile-frame-header { background: hsl(var(--card)); border-bottom: 1px solid hsl(var(--border)); padding: 10px 12px; }
+  .mobile-frame-body { padding: 12px; }
+  .row-menu-btn { width: 44px; min-height: 44px; border: none; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; display: grid; place-items: center; border-radius: 4px; }
+  .row-menu-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .row-menu-btn:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+  .row-menu-btn svg { width: 16px; height: 16px; }
+
+  /* ===== Responsive: hide mobile section at desktop, show at mobile ===== */
+  /* NOTE: The real @media rule below would hide section-mobile at desktop. For design review,
+     section B is rendered in a fixed 375px frame so it's always visible. */
+  /* @media (min-width: 768px) { .section-mobile { display: none; } } */
+  @media (max-width: 767px) {
+    .section-desktop { display: none; }
+    .mobile-frame-container { display: none; } /* Hide the review frame on actual mobile devices */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h2 class="page-title">Document register</h2>
+      <p class="page-sub">Drawings, specifications, and transmittals for this project. Upload files on Draft rows.</p>
+    </div>
+    <div class="page-head-actions">
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        Add document
+      </button>
+    </div>
+  </div>
+
+  <!-- Hidden file inputs for Upload/Replace affordances (OD-DOC-5 allowlist) -->
+  <input type="file" id="file-upload-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,.dwg,.dxf,.csv,.txt" style="display:none" aria-hidden="true" />
+  <input type="file" id="file-replace-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,.dwg,.dxf,.csv,.txt" style="display:none" aria-hidden="true" />
+
+  <!-- ===== SECTION (A): DESKTOP REGISTER TABLE (6-row mixed-status dataset, §2.1) ===== -->
+  <div class="section-label">
+    <span class="sl-text">A — Desktop Register Table (≥768px)</span>
+    <span class="sl-line"></span>
+  </div>
+  <section class="section-desktop" aria-label="Desktop document register table">
+    <div class="toolbar">
+      <span style="font-size:13px;color:hsl(var(--muted-foreground))">7 documents</span>
+      <div class="toolbar-spacer"></div>
+      <div class="search-mini">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search documents…" aria-label="Search documents"/>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Code</th>
+              <th>File</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Row 1: Approved, has file, download + preview, "New revision" button -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Foundation general arrangement</span>
+                  <span class="doc-rev">Rev A</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">DWG-001</td>
+              <td>
+                <div class="file-cell">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  <span class="file-name">foundation-ga-rev-a.pdf</span>
+                  <div class="file-download">
+                    <div class="tooltip" data-tip="Download file">
+                      <button class="file-download-btn" aria-label="Download file for Foundation general arrangement">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      </button>
+                    </div>
+                    <div class="tooltip" data-tip="Preview file">
+                      <button class="file-download-btn" aria-label="Preview file for Foundation general arrangement">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>Drawing</td>
+              <td class="tnum">2026-05-10</td>
+              <td><span class="status approved"><span class="sdot" aria-hidden="true"></span>Approved</span></td>
+              <td>
+                <button class="btn btn-outline btn-sm" aria-label="Create new revision of Foundation general arrangement">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                  New revision
+                </button>
+              </td>
+            </tr>
+
+            <!-- Row 2: Draft, no file, "Upload" link -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Foundation general arrangement</span>
+                  <span class="doc-rev">Rev B</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">DWG-001</td>
+              <td>
+                <button class="link-btn primary" onclick="document.getElementById('file-upload-input').click()" aria-label="Upload file for Foundation general arrangement">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                  Upload
+                </button>
+              </td>
+              <td>Drawing</td>
+              <td class="tnum">2026-06-01</td>
+              <td><span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span></td>
+              <td></td>
+            </tr>
+
+            <!-- Row 3: Draft, has file, filename + "Replace" link, lineage "← Rev A" -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Foundation general arrangement</span>
+                  <span class="doc-rev">Rev B</span>
+                  <div class="doc-lineage">
+                    <a href="#" aria-label="View revision A of Foundation general arrangement">← Rev A</a>
+                  </div>
+                </div>
+              </td>
+              <td class="font-mono tnum">DWG-001</td>
+              <td>
+                <div class="file-cell">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  <span class="file-name">foundation-ga-rev-b.pdf</span>
+                  <button class="link-btn primary" onclick="document.getElementById('file-replace-input').click()" aria-label="Replace file for Foundation general arrangement">
+                    Replace
+                  </button>
+                </div>
+              </td>
+              <td>Drawing</td>
+              <td class="tnum">2026-06-01</td>
+              <td><span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span></td>
+              <td></td>
+            </tr>
+
+            <!-- Row 4: Superseded, grey pill, download, lineage "→ Rev B" -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Structural calculation report</span>
+                  <span class="doc-rev">Rev A</span>
+                  <div class="doc-lineage">
+                    <a href="#" aria-label="View revision B of Structural calculation report">→ Rev B</a>
+                  </div>
+                  <div class="doc-lineage" style="margin-top:2px">
+                    <span style="font-size:11px;color:hsl(var(--muted-foreground))">Read-only — continue on Rev B</span>
+                  </div>
+                </div>
+              </td>
+              <td class="font-mono tnum">RPT-003</td>
+              <td>
+                <div class="file-cell">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  <span class="file-name">structural-calc-rev-a.pdf</span>
+                  <div class="file-download">
+                    <div class="tooltip" data-tip="Download file">
+                      <button class="file-download-btn" aria-label="Download file for Structural calculation report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      </button>
+                    </div>
+                    <div class="tooltip" data-tip="Preview file">
+                      <button class="file-download-btn" aria-label="Preview file for Structural calculation report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>Report</td>
+              <td class="tnum">2026-04-20</td>
+              <td><span class="status superseded"><span class="sdot" aria-hidden="true"></span>Superseded</span></td>
+              <td></td>
+            </tr>
+
+            <!-- Row 5: Issued, has file, download + preview, "New revision" button -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Structural calculation report</span>
+                  <span class="doc-rev">Rev B</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">RPT-003</td>
+              <td>
+                <div class="file-cell">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  <span class="file-name">structural-calc-rev-b.pdf</span>
+                  <div class="file-download">
+                    <div class="tooltip" data-tip="Download file">
+                      <button class="file-download-btn" aria-label="Download file for Structural calculation report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      </button>
+                    </div>
+                    <div class="tooltip" data-tip="Preview file">
+                      <button class="file-download-btn" aria-label="Preview file for Structural calculation report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>Report</td>
+              <td class="tnum">2026-04-20</td>
+              <td><span class="status issued"><span class="sdot" aria-hidden="true"></span>Issued</span></td>
+              <td>
+                <button class="btn btn-outline btn-sm" aria-label="Create new revision of Structural calculation report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                  New revision
+                </button>
+              </td>
+            </tr>
+
+            <!-- Row 6: Rejected, no file, em-dash, NO upload affordance (read-only per OD-DOC-2) -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">HSE plan</span>
+                  <span class="doc-rev">Rev A</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">—</td>
+              <td><span class="muted">—</span></td>
+              <td>Other</td>
+              <td class="tnum">—</td>
+              <td><span class="status rejected"><span class="sdot" aria-hidden="true"></span>Rejected</span></td>
+              <td></td>
+            </tr>
+
+            <!-- Row 7: Closed, has file, download-only (full lifecycle example) -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Project closeout report</span>
+                  <span class="doc-rev">Rev A</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">RPT-999</td>
+              <td>
+                <div class="file-cell">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  <span class="file-name">project-closeout-rev-a.pdf</span>
+                  <div class="file-download">
+                    <div class="tooltip" data-tip="Download file">
+                      <button class="file-download-btn" aria-label="Download file for Project closeout report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>Report</td>
+              <td class="tnum">2026-05-30</td>
+              <td><span class="status" style="background:hsl(var(--secondary));color:hsl(var(--muted-foreground))"><span class="sdot" aria-hidden="true" style="background:hsl(var(--muted-foreground))"></span>Closed</span></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECTION (B): MOBILE CARD LIST VARIANT (same 6 rows, <768px, §3) ===== -->
+  <div class="section-label">
+    <span class="sl-text">B — Mobile Card List Variant (&lt;768px)</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="Mobile card list variant">
+  <div class="mobile-frame-container">
+    <div class="mobile-frame-caption">iPhone-width frame (375px)</div>
+    <div class="mobile-frame">
+      <div class="mobile-frame-header">
+        <span style="font-size:13px;color:hsl(var(--muted-foreground))">7 documents</span>
+        <div class="search-mini" style="margin-left:auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" placeholder="Search documents…" aria-label="Search documents"/>
+        </div>
+      </div>
+      <div class="mobile-frame-body">
+        <div class="card-list">
+      <!-- Card 1: Approved, has file, download + preview -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Foundation general arrangement</span>
+          <span class="doc-card-rev">Rev A</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Foundation general arrangement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status approved"><span class="sdot" aria-hidden="true"></span>Approved</span>
+          <div class="touch-target">
+            <div class="file-download">
+              <div class="tooltip tooltip-bottom" data-tip="Download file">
+                <button class="file-download-btn" aria-label="Download file for Foundation general arrangement">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+              </div>
+              <div class="tooltip tooltip-bottom" data-tip="Preview file">
+                <button class="file-download-btn" aria-label="Preview file for Foundation general arrangement">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">DWG-001</dd>
+          <dt>Category</dt><dd>Drawing</dd>
+          <dt>Date</dt><dd class="tnum">2026-05-10</dd>
+          <dt>File</dt><dd>foundation-ga-rev-a.pdf</dd>
+        </dl>
+        <div class="doc-card-footer">
+          <button class="btn btn-outline" style="width:100%" aria-label="Create new revision of Foundation general arrangement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+            New revision
+          </button>
+        </div>
+      </article>
+
+      <!-- Card 2: Draft, no file, "Upload" link -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Foundation general arrangement</span>
+          <span class="doc-card-rev">Rev B</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Foundation general arrangement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span>
+          <div class="touch-target">
+            <button class="link-btn primary" aria-label="Upload file for Foundation general arrangement">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              Upload
+            </button>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">DWG-001</dd>
+          <dt>Category</dt><dd>Drawing</dd>
+          <dt>Date</dt><dd class="tnum">2026-06-01</dd>
+          <dt>File</dt><dd>—</dd>
+        </dl>
+      </article>
+
+      <!-- Card 3: Draft, has file, "Replace" link, lineage -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Foundation general arrangement</span>
+          <span class="doc-card-rev">Rev B</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Foundation general arrangement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span>
+          <div class="touch-target">
+            <span class="file-name" style="max-width:15ch">foundation-ga-rev-b.pdf</span>
+            <button class="link-btn primary" aria-label="Replace file for Foundation general arrangement">Replace</button>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">DWG-001</dd>
+          <dt>Category</dt><dd>Drawing</dd>
+          <dt>Date</dt><dd class="tnum">2026-06-01</dd>
+          <dt>File</dt><dd>foundation-ga-rev-b.pdf</dd>
+        </dl>
+        <div class="doc-lineage" style="margin-top:8px">
+          <a href="#" aria-label="View revision A of Foundation general arrangement">← Rev A</a>
+        </div>
+      </article>
+
+      <!-- Card 4: Superseded, grey pill, download -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Structural calculation report</span>
+          <span class="doc-card-rev">Rev A</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Structural calculation report">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status superseded"><span class="sdot" aria-hidden="true"></span>Superseded</span>
+          <div class="touch-target">
+            <div class="file-download">
+              <div class="tooltip tooltip-bottom" data-tip="Download file">
+                <button class="file-download-btn" aria-label="Download file for Structural calculation report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+              </div>
+              <div class="tooltip tooltip-bottom" data-tip="Preview file">
+                <button class="file-download-btn" aria-label="Preview file for Structural calculation report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">RPT-003</dd>
+          <dt>Category</dt><dd>Report</dd>
+          <dt>Date</dt><dd class="tnum">2026-04-20</dd>
+          <dt>File</dt><dd>structural-calc-rev-a.pdf</dd>
+        </dl>
+        <div class="doc-lineage" style="margin-top:8px">
+          <a href="#" aria-label="View revision B of Structural calculation report">→ Rev B</a>
+        </div>
+        <div class="doc-lineage" style="margin-top:2px">
+          <span style="font-size:11px;color:hsl(var(--muted-foreground))">Read-only — continue on Rev B</span>
+        </div>
+      </article>
+
+      <!-- Card 5: Issued, has file, download + preview -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Structural calculation report</span>
+          <span class="doc-card-rev">Rev B</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Structural calculation report">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status issued"><span class="sdot" aria-hidden="true"></span>Issued</span>
+          <div class="touch-target">
+            <div class="file-download">
+              <div class="tooltip tooltip-bottom" data-tip="Download file">
+                <button class="file-download-btn" aria-label="Download file for Structural calculation report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+              </div>
+              <div class="tooltip tooltip-bottom" data-tip="Preview file">
+                <button class="file-download-btn" aria-label="Preview file for Structural calculation report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">RPT-003</dd>
+          <dt>Category</dt><dd>Report</dd>
+          <dt>Date</dt><dd class="tnum">2026-04-20</dd>
+          <dt>File</dt><dd>structural-calc-rev-b.pdf</dd>
+        </dl>
+        <div class="doc-card-footer">
+          <button class="btn btn-outline" style="width:100%" aria-label="Create new revision of Structural calculation report">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+            New revision
+          </button>
+        </div>
+      </article>
+
+      <!-- Card 6: Rejected, no file, em-dash, NO upload -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">HSE plan</span>
+          <span class="doc-card-rev">Rev A</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for HSE plan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status rejected"><span class="sdot" aria-hidden="true"></span>Rejected</span>
+          <span class="muted">—</span>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">—</dd>
+          <dt>Category</dt><dd>Other</dd>
+          <dt>Date</dt><dd>—</dd>
+          <dt>File</dt><dd>—</dd>
+        </dl>
+      </article>
+
+      <!-- Card 7: Closed, has file, download-only (full lifecycle example) -->
+      <article class="doc-card">
+        <div class="doc-card-header">
+          <span class="doc-card-title">Project closeout report</span>
+          <span class="doc-card-rev">Rev A</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:8px">
+          <button class="row-menu-btn" aria-label="Open menu for Project closeout report">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <div class="doc-card-status-row">
+          <span class="status" style="background:hsl(var(--secondary));color:hsl(var(--muted-foreground))"><span class="sdot" aria-hidden="true" style="background:hsl(var(--muted-foreground))"></span>Closed</span>
+          <div class="touch-target">
+            <div class="file-download">
+              <div class="tooltip tooltip-bottom" data-tip="Download file">
+                <button class="file-download-btn" aria-label="Download file for Project closeout report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <dl class="doc-card-meta">
+          <dt>Code</dt><dd class="mono">RPT-999</dd>
+          <dt>Category</dt><dd>Report</dd>
+          <dt>Date</dt><dd class="tnum">2026-05-30</dd>
+          <dt>File</dt><dd>project-closeout-rev-a.pdf</dd>
+        </dl>
+      </article>
+        </div>
+      </div>
+    </div>
+  </div>
+  </section>
+
+  <!-- ===== SECTION (C): EMPTY STATE (§2.2) ===== -->
+  <div class="section-label">
+    <span class="sl-text">C — Empty State</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="Empty documents state">
+    <div class="toolbar">
+      <span style="font-size:13px;color:hsl(var(--muted-foreground))">0 documents</span>
+      <div class="toolbar-spacer"></div>
+      <div class="search-mini">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search documents…" aria-label="Search documents"/>
+      </div>
+    </div>
+    <div class="table-wrap" style="border-radius:var(--radius)">
+      <div class="empty">
+        <div class="empty-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
+        </div>
+        <div class="empty-title">No documents yet</div>
+        <div class="empty-sub">Add a drawing, specification, or transmittal to start the project's document register.</div>
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+          Add document
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECTION (D): UPLOADING-PROGRESS ROW (§2.3) ===== -->
+  <div class="section-label">
+    <span class="sl-text">D — Uploading Progress Row</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="Uploading progress state">
+    <div class="table-wrap" style="border-radius:var(--radius)">
+      <div class="table-scroll">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Code</th>
+              <th>File</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Large structural drawing</span>
+                  <span class="doc-rev">Rev B</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">DWG-045</td>
+              <td>
+                <div class="file-progress">
+                  <div class="progress-meta">
+                    <span class="file-name">large-drawing-v2.dwg</span>
+                    <span class="progress-pct tnum">60%</span>
+                  </div>
+                  <div class="progress-track" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="Upload progress for Large structural drawing">
+                    <div class="progress-fill" style="width:60%"></div>
+                  </div>
+                  <div class="progress-meta">
+                    <span style="font-size:12px;color:hsl(var(--muted-foreground))">Uploading…</span>
+                    <button class="cancel-upload" aria-label="Cancel upload for Large structural drawing">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </td>
+              <td>Drawing</td>
+              <td class="tnum">2026-06-12</td>
+              <td><span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECTION (E): ERROR ROWS — TOO LARGE (§2.4) + DISALLOWED TYPE (§2.5) ===== -->
+  <div class="section-label">
+    <span class="sl-text">E — Error Rows (Too Large / Disallowed Type)</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="Upload error states">
+    <div class="table-wrap" style="border-radius:var(--radius)">
+      <div class="table-scroll">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Code</th>
+              <th>File</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Error: File too large -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Site survey map</span>
+                  <span class="doc-rev">Rev A</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">MAP-012</td>
+              <td>
+                <div class="file-error">
+                  <div class="file-error-msg" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                    File exceeds 5 MB limit
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button class="link-btn primary" onclick="document.getElementById('file-upload-input').click()" aria-label="Try uploading Site survey map again">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                      Try again
+                    </button>
+                    <button class="link-btn remove" aria-label="Remove failed upload for Site survey map">Remove</button>
+                  </div>
+                </div>
+              </td>
+              <td>Drawing</td>
+              <td class="tnum">2026-06-12</td>
+              <td><span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span></td>
+              <td></td>
+            </tr>
+
+            <!-- Error: Disallowed type -->
+            <tr class="row">
+              <td>
+                <div class="doc-cell">
+                  <span class="doc-title">Project archive bundle</span>
+                  <span class="doc-rev">Rev A</span>
+                </div>
+              </td>
+              <td class="font-mono tnum">ARC-001</td>
+              <td>
+                <div class="file-error">
+                  <div class="file-error-msg" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                    File type not allowed (.zip)
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button class="link-btn primary" onclick="document.getElementById('file-upload-input').click()" aria-label="Try uploading Project archive bundle again">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                      Try again
+                    </button>
+                    <button class="link-btn remove" aria-label="Remove failed upload for Project archive bundle">Remove</button>
+                  </div>
+                </div>
+              </td>
+              <td>Other</td>
+              <td class="tnum">2026-06-12</td>
+              <td><span class="status draft"><span class="sdot" aria-hidden="true"></span>Draft</span></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECTION (F): NEW REVISION MODAL (rendered open as section, §2.8) ===== -->
+  <div class="section-label">
+    <span class="sl-text">F — New Revision Modal (Rendered Open)</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="New revision modal">
+    <div style="position:relative;background:hsl(var(--secondary)/0.35);border-radius:10px;padding:20px">
+      <!-- Modal scrim background simulation -->
+      <div style="position:absolute;inset:0;background:hsl(240 10% 4% / 0.45);backdrop-filter:blur(3px);border-radius:10px"></div>
+
+      <!-- Actual modal content -->
+      <!-- BUILD-TIME BINDINGS: Focus trap on modal open; Esc to close -->
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" style="position:relative;margin:0 auto;max-height:none">
+        <form>
+          <div class="modal-head">
+            <div>
+              <h2 id="modalTitle">New revision</h2>
+              <div class="mh-sub">Create the next revision of this document. The file can be uploaded once the revision is created.</div>
+              <div class="mh-sub">After creation, the new Draft revision appears at the top of the register, ready for file upload.</div>
+            </div>
+            <div class="mh-spacer"></div>
+            <button type="button" class="icon-close" aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <fieldset class="fs">
+              <legend class="fs-legend">Document details</legend>
+              <div class="form-grid">
+                <div class="field col-span-2">
+                  <label for="f-title">Title <span class="req" aria-hidden="true">*</span></label>
+                  <input class="inp" id="f-title" type="text" value="Foundation general arrangement" aria-required="true" autofocus/>
+                </div>
+                <div class="field">
+                  <label for="f-code">Code</label>
+                  <input class="inp mono" id="f-code" type="text" value="DWG-001"/>
+                </div>
+                <div class="field">
+                  <label for="f-category">Category <span class="req" aria-hidden="true">*</span></label>
+                  <select class="inp" id="f-category" aria-required="true">
+                    <option selected>Drawing</option>
+                    <option>Report</option>
+                    <option>Specification</option>
+                    <option>Transmittal</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="f-rev">Revision</label>
+                  <input class="inp mono" id="f-rev" type="text" value="B" style="width:80px"/>
+                  <span class="helper">Auto-bumped from Rev A</span>
+                </div>
+                <div class="field">
+                  <label for="f-date">Document date</label>
+                  <input class="inp" id="f-date" type="date"/>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+          <div class="modal-foot">
+            <span class="mf-spacer"></span>
+            <button type="button" class="btn btn-outline">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create revision</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Toggle button to show modal as overlay -->
+    <div style="margin-top:16px;text-align:center">
+      <button class="btn btn-outline" onclick="toggleModal()" id="modalToggleBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 12H3m12 0-4-4m4 4-4 4"/></svg>
+        Toggle modal as overlay
+      </button>
+    </div>
+  </section>
+
+  <!-- Real overlay modal (hidden by default) -->
+  <div class="scrim" id="overlayModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="overlayModalTitle">
+      <form>
+        <div class="modal-head">
+          <div>
+            <h2 id="overlayModalTitle">New revision</h2>
+            <div class="mh-sub">Create the next revision of this document. The file can be uploaded once the revision is created.</div>
+            <div class="mh-sub">After creation, the new Draft revision appears at the top of the register, ready for file upload.</div>
+          </div>
+          <div class="mh-spacer"></div>
+          <button type="button" class="icon-close" aria-label="Close" onclick="toggleModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <fieldset class="fs">
+            <legend class="fs-legend">Document details</legend>
+            <div class="form-grid">
+              <div class="field col-span-2">
+                <label for="f-title-ov">Title <span class="req" aria-hidden="true">*</span></label>
+                <input class="inp" id="f-title-ov" type="text" value="Foundation general arrangement" aria-required="true"/>
+              </div>
+              <div class="field">
+                <label for="f-code-ov">Code</label>
+                <input class="inp mono" id="f-code-ov" type="text" value="DWG-001"/>
+              </div>
+              <div class="field">
+                <label for="f-category-ov">Category <span class="req" aria-hidden="true">*</span></label>
+                <select class="inp" id="f-category-ov" aria-required="true">
+                  <option selected>Drawing</option>
+                  <option>Specification</option>
+                  <option>Report</option>
+                  <option>Transmittal</option>
+                  <option>Submittal</option>
+                  <option>Certificate</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="f-rev-ov">Revision</label>
+                <input class="inp mono" id="f-rev-ov" type="text" value="B" style="width:80px"/>
+                <span class="helper">Auto-bumped from Rev A</span>
+              </div>
+              <div class="field">
+                <label for="f-date-ov">Document date</label>
+                <input class="inp" id="f-date-ov" type="date"/>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+        <div class="modal-foot">
+          <span class="mf-spacer"></span>
+          <button type="button" class="btn btn-outline" onclick="toggleModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create revision</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== SECTION (G): DOWNLOAD/PREVIEW AFFORDANCES WITH TOOLTIPS (§2.9) ===== -->
+  <div class="section-label">
+    <span class="sl-text">G — Download/Preview Affordances (Tooltip Examples)</span>
+    <span class="sl-line"></span>
+  </div>
+  <section aria-label="Download and preview affordances" class="section-tooltip-example">
+    <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);padding:20px">
+      <p style="margin-bottom:16px;font-size:13px;color:hsl(var(--muted-foreground))">Icon buttons with visible tooltips (simulated with ::after pseudo-element):</p>
+
+      <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        <!-- Download button with tooltip -->
+        <div>
+          <div class="tooltip" data-tip="Download file">
+            <button class="file-download-btn" aria-label="Download file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </button>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:hsl(var(--muted-foreground));text-align:center">Download ↓</p>
+        </div>
+
+        <!-- Preview button with tooltip -->
+        <div>
+          <div class="tooltip" data-tip="Preview file">
+            <button class="file-download-btn" aria-label="Preview file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:hsl(var(--muted-foreground));text-align:center">Preview 👁</p>
+        </div>
+
+        <!-- Both buttons together (as they appear in table) -->
+        <div>
+          <div class="file-download">
+            <div class="tooltip" data-tip="Download file">
+              <button class="file-download-btn" aria-label="Download file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              </button>
+            </div>
+            <div class="tooltip" data-tip="Preview file">
+              <button class="file-download-btn" aria-label="Preview file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:hsl(var(--muted-foreground));text-align:center">Both together</p>
+        </div>
+
+        <!-- Tooltip bottom variant -->
+        <div>
+          <div class="tooltip tooltip-bottom" data-tip="Preview file (bottom tooltip)">
+            <button class="file-download-btn" aria-label="Preview file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:hsl(var(--muted-foreground));text-align:center">Bottom tooltip</p>
+        </div>
+      </div>
+
+      <p style="margin-top:20px;font-size:12px;color:hsl(var(--muted-foreground))">
+        <strong>Note:</strong> Tooltips use CSS ::after pseudo-elements with data-tip attribute for mockup purposes.
+        In production, use a proper tooltip component with positioning, aria-describedby, and keyboard handling.
+      </p>
+    </div>
+  </section>
+</div>
+
+<script>
+  // Toggle modal as overlay
+  function toggleModal() {
+    const overlay = document.getElementById('overlayModal');
+    overlay.hidden = !overlay.hidden;
+    if (!overlay.hidden) {
+      document.getElementById('f-title-ov').focus();
+    }
+  }
+
+  // Close modal on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('overlayModal');
+      if (!overlay.hidden) {
+        overlay.hidden = true;
+        document.getElementById('modalToggleBtn').focus();
+      }
+    }
+  });
+
+  // Hidden file inputs for Upload/Replace affordances (OD-DOC-5 allowlist)
+  // NOTE: In production, these inputs are triggered by the onClick handlers on Upload/Replace buttons
+</script>
+</body>
+</html>
