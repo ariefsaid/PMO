@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
 import { FileCell } from './FileCell';
 
 const noop = () => {};
@@ -117,6 +118,28 @@ describe('FileCell', () => {
     render(<FileCell status="Draft" filePath={null} uploadError="Error" title="Test Doc" onRemoveError={onRemove} />);
     fireEvent.click(screen.getByLabelText(/Remove failed upload for Test Doc/));
     expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-DOC-092: storage-unavailable error shows the approved copy and Remove returns to the no-file state', () => {
+    const Wrapper = () => {
+      const [uploadError, setUploadError] = React.useState<string | null>('Upload failed — try again');
+      return (
+        <FileCell
+          status="Draft"
+          filePath={null}
+          uploadError={uploadError}
+          title="Test Doc"
+          onUpload={noop}
+          onRemoveError={() => setUploadError(null)}
+        />
+      );
+    };
+
+    render(<Wrapper />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Upload failed — try again');
+    fireEvent.click(screen.getByLabelText(/Remove failed upload for Test Doc/));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Upload file for Test Doc/)).toBeInTheDocument();
   });
 
   it('Download button fires onDownload callback', () => {
