@@ -170,7 +170,7 @@ const document: DocumentRepository = {
   prepareUpload: (docId, fileName) => wrap(() => prepareUpload(docId, fileName)),
   confirmUpload: (docId, path) => wrap(() => confirmUpload(docId, path)),
   cleanupObject: (filePath) => wrap(() => cleanupStorageObject(filePath)),
-  getSignedUrl: (filePath) => wrap(() => getSignedDownloadUrl(filePath)),
+  getSignedUrl: (filePath, opts) => wrap(() => getSignedDownloadUrl(filePath, opts)),
   createRevision: (parentId, input, authorId) =>
     wrap(() => createDocumentRevision(parentId, input, authorId)),
   getChild: (parentId) => wrap(() => getChildDocument(parentId)),

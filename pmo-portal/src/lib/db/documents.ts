@@ -241,11 +241,25 @@ export async function cleanupStorageObject(filePath: string): Promise<void> {
 /**
  * Generate a signed URL for downloading/previewing a document file (FR-DOC-041).
  * Uses SIGNED_URL_EXPIRY_SECONDS (60 min). Returns the signed URL string.
+ *
+ * When `opts.download` is set, the URL forces a browser download via
+ * `Content-Disposition: attachment` (Supabase `download` option) — required
+ * because the signed URL is cross-origin (storage host), where the anchor
+ * `download` attribute is ignored and inline-renderable types (images, PDFs)
+ * would otherwise open in the tab instead of downloading. Preview omits it so
+ * previewable types render inline in a new tab.
  */
-export async function getSignedDownloadUrl(filePath: string): Promise<string> {
+export async function getSignedDownloadUrl(
+  filePath: string,
+  opts?: { download?: boolean },
+): Promise<string> {
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrl(filePath, SIGNED_URL_EXPIRY_SECONDS);
+    .createSignedUrl(
+      filePath,
+      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
+    );
   if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
   if (!data?.signedUrl) throw new AppError('Could not generate download link');
   return data.signedUrl;

@@ -156,8 +156,8 @@ export interface DocumentRepository {
   confirmUpload(docId: string, path: string): Promise<void>;
   /** Delete a storage object (non-fatal cleanup). */
   cleanupObject(filePath: string): Promise<void>;
-  /** Generate a signed download URL for a document file. */
-  getSignedUrl(filePath: string): Promise<string>;
+  /** Generate a signed download URL for a document file. `opts.download` forces attachment (true download); omit for inline preview. */
+  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
   /** Create a revision (child) document row. */
   createRevision(
     parentId: string,

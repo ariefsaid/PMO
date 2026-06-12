@@ -392,7 +392,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   const handleDownload = async (doc: ProjectDocumentRow) => {
     if (!doc.file_path) return;
     try {
-      const url = await repositories.document.getSignedUrl(doc.file_path);
+      const url = await repositories.document.getSignedUrl(doc.file_path, { download: true });
       const a = document.createElement('a');
       a.href = url;
       a.download = doc.file_path.split('/').pop() || 'file';
