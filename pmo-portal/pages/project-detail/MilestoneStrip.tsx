@@ -145,7 +145,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
                   {all.map((milestone) => (
                     <span key={milestone.id} className="flex-1 bg-secondary">
                       <span
-                        className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                        className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
                         style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
                       />
                     </span>
@@ -190,6 +190,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
                       key={milestone.id}
                       milestone={milestone}
                       isCurrent={currentMilestoneId === milestone.id}
+                      totalWeight={totalWeight}
                       canEdit={canEdit}
                       canDelete={canDelete}
                       onEditDetails={() => setFormTarget({ milestone })}
@@ -262,6 +263,7 @@ const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) =
 interface MilestonePhaseCardProps {
   milestone: MilestoneWithProgress;
   isCurrent: boolean;
+  totalWeight: number;
   canEdit: boolean;
   canDelete: boolean;
   onEditDetails: () => void;
@@ -272,6 +274,7 @@ interface MilestonePhaseCardProps {
 const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   milestone,
   isCurrent,
+  totalWeight,
   canEdit,
   canDelete,
   onEditDetails,
@@ -330,6 +333,8 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             targetDate={milestone.target_date}
             effectivePct={milestone.effective_pct}
             calculatedPct={milestone.calculated_pct}
+            weight={milestone.weight}
+            totalWeight={totalWeight}
             isCurrent={isCurrent}
             isOverdue={isOverdueMilestone(milestone)}
             canEditProgress={canEdit && !editing}

@@ -315,14 +315,16 @@ const Projects: React.FC = () => {
           return <span className="text-[12px] text-muted-foreground">…</span>;
         }
         const summary = deliverySummary?.[p.id];
-        const budgetUsedPct = summary && summary.budget > 0
-          ? Math.round((summary.committedSpend / summary.budget) * 100)
-          : 0;
+        // If no summary or no budget, show a muted dash instead of misleading "$0 of $0 budget".
+        if (!summary || summary.budget <= 0) {
+          return <span className="text-[12px] text-muted-foreground">—</span>;
+        }
+        const budgetUsedPct = Math.round((summary.committedSpend / summary.budget) * 100);
         return (
           <div className="flex flex-col gap-0.5">
             <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
             <div className="text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(summary?.committedSpend ?? 0)} of ${formatCompactCurrency(summary?.budget ?? 0)} budget`}
+              {`${formatCompactCurrency(summary.committedSpend)} of ${formatCompactCurrency(summary.budget)} budget`}
             </div>
           </div>
         );

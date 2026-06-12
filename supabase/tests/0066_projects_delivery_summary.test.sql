@@ -54,6 +54,7 @@ insert into procurements (id, org_id, title, status, total_value, project_id, re
 -- ── Tests (as the org-A PM, so RLS scopes results to org A). ───────────────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00660000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claim.sub = '00660000-0000-0000-0000-0000000000a1';
 
 select is(
   (select delivery_pct::numeric(10,0)

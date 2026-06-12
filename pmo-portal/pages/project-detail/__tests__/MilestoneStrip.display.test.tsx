@@ -47,10 +47,11 @@ const render$ = (projectId = 'p1') =>
 describe('fillClass priority (I1, I4)', () => {
   // We test the bar fill color by inspecting the rendered span's class.
   // The fill bar is the <span className={...}> inside each even-segment track slot.
+  // Requirement: continuous bar — no rounded-full on inner fills.
   const getFillClass = (milestone: MilestoneWithProgress) => {
     milestoneState.data = [milestone];
       const { container } = render$();
-    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.delivery-fill');
     // First such span is the fill (inside the first segment slot)
     return fills[0]?.className ?? '';
   };
@@ -136,7 +137,7 @@ describe('fillClass priority (I1, I4)', () => {
       },
     ];
     const { container } = render$();
-    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.delivery-fill');
     // First fill = current (bg-primary), second fill = overdue (bg-warning)
     expect(fills[0]?.className ?? '').toContain('bg-primary');
     expect(fills[1]?.className ?? '').toContain('bg-warning');
@@ -144,7 +145,7 @@ describe('fillClass priority (I1, I4)', () => {
 });
 
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
-  it('AC-DEL-008: renders a single segmented track plus the effective headline and from-tasks line', () => {
+  it('AC-DEL-008: renders a single segmented track plus the effective headline, weight share, and NO From tasks on desktop', () => {
     milestoneState.data = [
       {
         id: 'm1',
@@ -177,7 +178,10 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getByText('Engineering design')).toBeInTheDocument();
     expect(screen.getByText('75%')).toBeInTheDocument();
     expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
-    expect(screen.getByText('From tasks 60%')).toBeInTheDocument();
+    // Weight share: both milestones have weight 1 out of 2 total = 50% each
+    expect(screen.getAllByText('50% of project')).toHaveLength(2);
+    // Desktop cards should NOT show 'From tasks' anymore
+    expect(screen.queryByText(/From tasks/i)).not.toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 
@@ -221,7 +225,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(bigPct.className).toContain('text-[23px]');
   });
 
-  it('AC-DEL-009: null calculated renders the muted from-tasks fallback and 0% effective headline', () => {
+  it('AC-DEL-009: null calculated renders 0% effective headline and weight share, no From tasks on desktop', () => {
     milestoneState.data = [
       {
         id: 'm2',
@@ -239,8 +243,52 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     render$();
 
     expect(screen.getAllByText('0%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('From tasks —')).toBeInTheDocument();
+    // Weight share: 1/1 * 100 = 100%
+    expect(screen.getByText('100% of project')).toBeInTheDocument();
+    // Desktop cards should NOT show 'From tasks' anymore
+    expect(screen.queryByText(/From tasks/i)).not.toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
+  });
+});
+
+describe('continuous desktop delivery track (no rounded per-segment fills)', () => {
+  it('desktop bar: inner fills are NOT rounded — continuous track', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Phase A',
+        sort_order: 0,
+        target_date: null,
+        weight: 1,
+        input_pct: 80,
+        task_count: 3,
+        calculated_pct: 80,
+        effective_pct: 80,
+      },
+      {
+        id: 'm2',
+        project_id: 'p1',
+        name: 'Phase B',
+        sort_order: 1,
+        target_date: null,
+        weight: 1,
+        input_pct: 20,
+        task_count: 1,
+        calculated_pct: 20,
+        effective_pct: 20,
+      },
+    ];
+    mockIsDesktop = true;
+    const { container } = render$();
+    const track = container.querySelector('.flex.h-3');
+    expect(track).toBeInTheDocument();
+    // Outer track may be rounded, but inner fills must NOT have rounded-full
+    const fills = track!.querySelectorAll('.delivery-fill');
+    expect(fills.length).toBe(2);
+    for (const fill of fills) {
+      expect(fill.classList.contains('rounded-full')).toBe(false);
+    }
   });
 });
 

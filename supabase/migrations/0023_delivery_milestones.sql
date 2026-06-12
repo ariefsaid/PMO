@@ -80,51 +80,29 @@ revoke execute on function get_project_milestones(uuid) from anon;
 -- the project delivery_pct is NULL — suppresses the misleading "0%" chip for brand-new projects.
 -- Same effective_pct expression as §4 (single source of truth for the rollup formula).
 create or replace function get_projects_delivery(p_ids uuid[])
-  returns table (
-    project_id uuid,
-    delivery_pct numeric,
-    committed_spend numeric,
-    budget numeric
-  )
+  returns table (project_id uuid, delivery_pct numeric)
   language sql stable security invoker set search_path = public as $$
   with eff as (
-    select
-      m.project_id,
-      m.weight,
-      coalesce(
-        m.input_pct,
-        count(t.id) filter (where t.status = 'Done') * 100.0 / nullif(count(t.id), 0),
-        0
-      ) as effective_pct,
-      (m.input_pct is not null or count(t.id) > 0) as has_signal
-    from project_milestones m
-    left join tasks t on t.milestone_id = m.id
-    where m.project_id = any(p_ids)
-    group by m.id
-  ),
-  committed as (
-    select
-      p.id as project_id,
-      p.budget,
-      coalesce(sum(pr.total_value), 0) as committed_spend
-    from projects p
-    left join procurements pr
-      on pr.project_id = p.id
-     and pr.status in ('Ordered', 'Received', 'Vendor Invoiced', 'Paid')
-    where p.id = any(p_ids)
-    group by p.id, p.budget
+    select m.project_id, m.weight,
+           coalesce(
+             m.input_pct,
+             count(t.id) filter (where t.status = 'Done') * 100.0 / nullif(count(t.id), 0),
+             0
+           ) as effective_pct,
+           -- has_signal: true when the milestone has tasks or an explicit input_pct.
+           (m.input_pct is not null or count(t.id) > 0) as has_signal
+      from project_milestones m
+      left join tasks t on t.milestone_id = m.id
+     where m.project_id = any(p_ids)
+     group by m.id
   )
-  select
-    c.project_id,
-    case
-      when bool_or(e.has_signal) then sum(e.weight * e.effective_pct) / nullif(sum(e.weight), 0)
-      else null
-    end as delivery_pct,
-    c.committed_spend,
-    c.budget
-  from committed c
-  left join eff e on e.project_id = c.project_id
-  group by c.project_id, c.committed_spend, c.budget;
+  select project_id,
+         -- I-1: return NULL when NO milestone in the project carries any signal.
+         case when bool_or(has_signal) then
+           sum(weight * effective_pct) / nullif(sum(weight), 0)
+         else null end as delivery_pct
+    from eff
+   group by project_id;
 $$;
 revoke all     on function get_projects_delivery(uuid[]) from public;
 grant  execute on function get_projects_delivery(uuid[]) to   authenticated;
