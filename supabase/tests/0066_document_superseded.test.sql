@@ -3,7 +3,7 @@
 --   AC-DOC-061  Superseded is terminal (no outbound transitions)
 --   AC-DOC-070  (deferred to Task 1.4 storage RLS — this file owns RPC-level)
 begin;
-select plan(7);
+select plan(8);
 
 -- Fixtures
 insert into organizations (id, name) values
