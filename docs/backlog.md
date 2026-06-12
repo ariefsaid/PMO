@@ -9,13 +9,24 @@ series, one worktree per issue**, under the new pre-spec gates (grill-with-docs 
 HTML mockup for UI issues — playbook §2 1b/1c, c328a82). **Trial:** role-agent work dispatched
 via the **pi CLI** (zai/glm-5.1 = plan/complex · zai/glm-4.7 = routine · openai-codex/gpt-5.4 =
 review/audit; mutual API-limit fallback) — Claude session stays Director.
-- **▶ Issue #1 (ACTIVE) — Storage re-enable + document file upload.** Grilled 2026-06-12,
-  decisions **OD-DOC-1..5** (`docs/decisions.md`): infra + `project_documents` end-to-end only;
-  one file/doc, Draft-only replace; explicit "New revision" action (visible button) + auto
-  `Superseded` via parent link; file access = row access; 5 MB bumpable cap + strict allowlist.
-  Next: HTML mockup round → spec → plan → build.
-- **Issue #2 (QUEUED) — Procurement attachments** (quotation files + GR/VI) reusing the shared
-  upload component. Owner-sequenced BEFORE S-curve/Gantt (daily approver pain).
+- **✅ Issue #1 — Storage re-enable + document file upload — DONE & MERGED (PR #78, `main`@5a8314e, 2026-06-12).**
+  Decisions **OD-DOC-1..5** (`docs/decisions.md`). Migrations 0024 (Superseded enum) + 0025 (bucket +
+  `storage.objects` RLS + auto-Superseded RPC). Private org-scoped bucket; upload/replace on Draft only;
+  download (forced attachment, all types) + preview (inline) for any org member; "New revision" → Draft
+  child + auto-Superseded parent on child approval (server-side, SoD-enforced); 5 MB bumpable knob +
+  allowlist + explicit zip/exe denylist. Gates: typecheck/lint/2095 unit/build/pgTAP(0066/0067/0068)/
+  e2e(AC-DOC-020/060/090) all green; **security audit PASS** (live cross-org/path-forgery/SoD all blocked).
+  Ran almost entirely on the pi trial (GLM/codex/free-OpenRouter); see `docs/pi-delegation.md`.
+  - **⚑ Deferred follow-up [Medium, owner-acked] — signed-URL TTL hardening:** download signed URLs are
+    minted client-side with an arbitrary TTL (≥1yr observed); the 60-min limit is client-only, so a link
+    can outlive the user's access. Only affects objects the user can already read (org-scoped). Fix = move
+    signing to a server/Edge Function with a hard max TTL. Own issue.
+  - **Deferred follow-up [Minor] — query-key consistency:** document React-Query keys are project-only
+    (pre-existing across ALL document hooks incl. `useDocuments`); align to the org-scoped key convention
+    (`useProjects`/`useProcurements` pattern) in a separate consistency pass.
+- **▶ Issue #2 (NEXT) — Procurement attachments** (quotation files + GR/VI) reusing the shared upload
+  component (FileCell/useFileUpload/getSignedUrl + the storage bucket already shipped). Owner-sequenced
+  BEFORE S-curve/Gantt (daily approver pain).
 - **Then:** S-curve (delivery-% snapshots; rides milestones) · Gantt (`task_dependencies` is
   seeded, unconsumed) · calendar · import/export · templates — see the gap doc's tiering.
 - **Deferred seams recorded:** per-category document access → Admin-settings/RBAC-config track
