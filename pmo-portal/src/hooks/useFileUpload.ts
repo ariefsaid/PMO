@@ -21,7 +21,7 @@ export interface UploadArgs {
   file: File;
 }
 
-export interface ReplaceArgs extends UploadArgs {}
+export type ReplaceArgs = UploadArgs;
 
 export function useFileUpload(projectId: string) {
   const qc = useQueryClient();

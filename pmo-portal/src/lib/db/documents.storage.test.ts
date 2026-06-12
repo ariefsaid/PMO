@@ -1,62 +1,86 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock helpers using the vi.hoisted pattern from existing tests
+type QueryResult<TData> = { data: TData; error: { message: string; code?: string } | null };
+type StorageResult<TData> = { data: TData; error: { message: string; name?: string } | null };
+
+interface StorageBuilder {
+  createSignedUploadUrl: (path: string) => Promise<StorageResult<{ signedUrl: string; path: string; token: string } | null>>;
+  remove: (paths: string[]) => Promise<StorageResult<null>>;
+  createSignedUrl: (path: string, expiresIn: number) => Promise<StorageResult<{ signedUrl: string } | null>>;
+}
+
+interface TableBuilder {
+  select: (columns: string) => TableBuilder;
+  eq: (column: string, value: string) => TableBuilder;
+  update: (values: { file_path: string }) => TableBuilder;
+  maybeSingle: () => Promise<QueryResult<typeof mockDocRow | null>>;
+  then: <TResult1 = QueryResult<null>, TResult2 = never>(
+    onfulfilled?: ((value: QueryResult<null>) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ) => Promise<TResult1 | TResult2>;
+}
+
 const h = vi.hoisted(() => {
-  const storageResult = { value: { data: null as unknown, error: null as unknown } };
+  const storageResult: { value: StorageResult<{ signedUrl: string; path: string; token: string } | { signedUrl: string } | null> } = {
+    value: { data: null, error: null },
+  };
   const storageCalls = {
-    from: [] as unknown[],
-    createSignedUploadUrl: [] as unknown[],
-    remove: [] as unknown[],
-    createSignedUrl: [] as unknown[],
+    from: [] as string[],
+    createSignedUploadUrl: [] as [string][],
+    remove: [] as [string[]][],
+    createSignedUrl: [] as [string, number][],
   };
 
-  const storageBuilder: Record<string, unknown> = {};
-  const storageChain = (name: keyof typeof storageCalls) => (...args: unknown[]) => {
-    (storageCalls[name] as unknown[]).push(args);
-    return storageBuilder;
+  const storageBuilder: StorageBuilder = {
+    createSignedUploadUrl: vi.fn((path: string) => {
+      storageCalls.createSignedUploadUrl.push([path]);
+      return Promise.resolve(storageResult.value as StorageResult<{ signedUrl: string; path: string; token: string } | null>);
+    }),
+    remove: vi.fn((paths: string[]) => {
+      storageCalls.remove.push([paths]);
+      return Promise.resolve({ data: null, error: storageResult.value.error });
+    }),
+    createSignedUrl: vi.fn((path: string, expiresIn: number) => {
+      storageCalls.createSignedUrl.push([path, expiresIn]);
+      return Promise.resolve(storageResult.value as StorageResult<{ signedUrl: string } | null>);
+    }),
   };
-  storageBuilder.createSignedUploadUrl = vi.fn((...args: unknown[]) => {
-    storageCalls.createSignedUploadUrl.push(args);
-    return Promise.resolve(storageResult.value);
-  });
-  storageBuilder.remove = vi.fn((...args: unknown[]) => {
-    storageCalls.remove.push(args);
-    return Promise.resolve(storageResult.value);
-  });
-  storageBuilder.createSignedUrl = vi.fn((...args: unknown[]) => {
-    storageCalls.createSignedUrl.push(args);
-    return Promise.resolve(storageResult.value);
-  });
 
   const storageFrom = vi.fn((bucket: string) => {
     storageCalls.from.push(bucket);
     return storageBuilder;
   });
 
-  // Table mock helpers
-  const result = { value: { data: null as unknown, error: null as unknown } };
+  const result: { value: QueryResult<typeof mockDocRow | null> | QueryResult<null> } = {
+    value: { data: null, error: null },
+  };
   const calls = {
-    from: [] as unknown[],
-    select: [] as unknown[],
-    eq: [] as unknown[],
-    update: [] as unknown[],
+    from: [] as string[],
+    select: [] as string[],
+    eq: [] as [string, string][],
+    update: [] as [{ file_path: string }][],
     maybeSingle: 0,
   };
 
-  const builder: Record<string, unknown> = {};
-  const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
-    if (name === 'maybeSingle') {
-      (calls[name] as number)++;
-    } else {
-      (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
-    }
-    return builder;
+  const builder: TableBuilder = {
+    select: vi.fn((columns: string) => {
+      calls.select.push(columns);
+      return builder;
+    }),
+    eq: vi.fn((column: string, value: string) => {
+      calls.eq.push([column, value]);
+      return builder;
+    }),
+    update: vi.fn((values: { file_path: string }) => {
+      calls.update.push([values]);
+      return builder;
+    }),
+    maybeSingle: vi.fn(() => {
+      calls.maybeSingle += 1;
+      return Promise.resolve(result.value as QueryResult<typeof mockDocRow | null>);
+    }),
+    then: (onfulfilled, onrejected) => Promise.resolve(result.value as QueryResult<null>).then(onfulfilled, onrejected),
   };
-  builder.select = chain('select');
-  builder.eq = chain('eq');
-  builder.update = chain('update');
-  builder.maybeSingle = chain('maybeSingle');
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
 
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -75,10 +99,7 @@ import {
   confirmUpload,
   cleanupStorageObject,
   getSignedDownloadUrl,
-  createDocumentRevision,
-  getChildDocument,
 } from './documents';
-import { MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 
 const mockDocRow = {
   id: 'doc-1',
@@ -100,13 +121,15 @@ describe('documents DAL — storage operations', () => {
   beforeEach(() => {
     h.from.mockClear();
     h.storageFrom.mockClear();
-    for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) {
-      if (typeof h.calls[k] === 'number') (h.calls[k] as unknown) = 0;
-      else (h.calls[k] as unknown[]).length = 0;
-    }
-    for (const k of Object.keys(h.storageCalls) as (keyof typeof h.storageCalls)[]) {
-      (h.storageCalls[k] as unknown[]).length = 0;
-    }
+    h.calls.from.length = 0;
+    h.calls.select.length = 0;
+    h.calls.eq.length = 0;
+    h.calls.update.length = 0;
+    h.calls.maybeSingle = 0;
+    h.storageCalls.from.length = 0;
+    h.storageCalls.createSignedUploadUrl.length = 0;
+    h.storageCalls.remove.length = 0;
+    h.storageCalls.createSignedUrl.length = 0;
     h.result.value = { data: null, error: null };
     h.storageResult.value = { data: null, error: null };
   });
@@ -120,10 +143,8 @@ describe('documents DAL — storage operations', () => {
 
     const result = await prepareUpload('doc-1', 'File.PDF');
 
-    // DAL fetched the document row internally — no orgId/projectId param
     expect(h.calls.from).toContain('project_documents');
     expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
-    // DAL built the path from the fetched row + sanitized filename
     expect(h.storageCalls.from).toContain('project-documents');
     expect(h.storageCalls.createSignedUploadUrl).toContainEqual(['org-1/proj-1/doc-1/file.pdf']);
     expect(result.signedUrl).toBe('https://storage.example.com/upload?token=abc');

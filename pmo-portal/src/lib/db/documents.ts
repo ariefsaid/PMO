@@ -160,7 +160,7 @@ export async function deleteProjectDocument(id: string): Promise<void> {
 // ── Storage operations ──────────────────────────────────────────────────────
 
 import { buildStoragePath } from '@/src/lib/storageKey';
-import { SIGNED_URL_EXPIRY_SECONDS, FILE_MIME_BY_EXT } from '@/src/lib/fileConstants';
+import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 
 const BUCKET = 'project-documents';
 
@@ -214,7 +214,7 @@ export async function confirmUpload(docId: string, path: string): Promise<void> 
  */
 export async function cleanupStorageObject(filePath: string): Promise<void> {
   if (!filePath) return;
-  const { error } = await supabase.storage.from(BUCKET).remove([filePath]);
+  const { error: _error } = await supabase.storage.from(BUCKET).remove([filePath]);
   // Non-fatal — orphan cleanup is low-severity
 }
 

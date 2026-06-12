@@ -2,24 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { uploadWithProgress, TransportError, classifyUploadError } from './uploadTransport';
 
 // ── XHR mock ────────────────────────────────────────────────────────────────
-let xhrInstances: Array<{
-  open: ReturnType<typeof vi.fn>;
-  send: ReturnType<typeof vi.fn>;
-  abort: ReturnType<typeof vi.fn>;
-  setRequestHeader: ReturnType<typeof vi.fn>;
-  upload: { onprogress: ((e: { lengthComputable: boolean; loaded: number; total: number }) => void) | null };
-  onload: (() => void) | null;
-  onerror: (() => void) | null;
-  status: number;
-  responseText: string;
-}> = [];
+let xhrInstances: MockXHR[] = [];
+
+type MockUploadProgressHandler = (event: ProgressEvent) => void;
 
 class MockXHR {
-  open = vi.fn();
-  send = vi.fn();
-  abort = vi.fn();
-  setRequestHeader = vi.fn();
-  upload: { onprogress: ((e: { lengthComputable: boolean; loaded: number; total: number }) => void) | null } = { onprogress: null };
+  open = vi.fn<(method: string, url: string) => void>();
+  send = vi.fn<(body?: Document | XMLHttpRequestBodyInit | null) => void>();
+  abort = vi.fn<() => void>();
+  setRequestHeader = vi.fn<(name: string, value: string) => void>();
+  upload: { onprogress: MockUploadProgressHandler | null } = { onprogress: null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   status = 200;
@@ -32,7 +24,7 @@ class MockXHR {
 
 beforeEach(() => {
   xhrInstances = [];
-  vi.stubGlobal('XMLHttpRequest', MockXHR as any);
+  vi.stubGlobal('XMLHttpRequest', MockXHR);
 });
 
 afterEach(() => {
@@ -50,9 +42,8 @@ describe('uploadWithProgress', () => {
     expect(xhr.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
     expect(xhr.setRequestHeader).toHaveBeenCalledWith('x-upsert', 'true');
     expect(xhr.send).toHaveBeenCalled();
-    // Resolve
-    (xhr as any).status = 200;
-    xhr.onload!();
+    xhr.status = 200;
+    xhr.onload?.();
     await promise;
   });
 
@@ -63,13 +54,12 @@ describe('uploadWithProgress', () => {
       onProgress,
     });
     const xhr = xhrInstances[0];
-    // Simulate XHR upload progress events
-    xhr.upload.onprogress!({ lengthComputable: true, loaded: 2560, total: 5120 });
+    xhr.upload.onprogress?.(new ProgressEvent('progress', { lengthComputable: true, loaded: 2560, total: 5120 }));
     expect(onProgress).toHaveBeenCalledWith(50);
-    xhr.upload.onprogress!({ lengthComputable: true, loaded: 5120, total: 5120 });
+    xhr.upload.onprogress?.(new ProgressEvent('progress', { lengthComputable: true, loaded: 5120, total: 5120 }));
     expect(onProgress).toHaveBeenCalledWith(100);
-    (xhr as any).status = 200;
-    xhr.onload!();
+    xhr.status = 200;
+    xhr.onload?.();
     await promise;
   });
 
@@ -89,11 +79,15 @@ describe('uploadWithProgress', () => {
       contentType: 'application/pdf',
     });
     const xhr = xhrInstances[0];
-    (xhr as any).status = 413;
+    xhr.status = 413;
     xhr.responseText = 'Payload too large';
-    xhr.onload!();
+    xhr.onload?.();
     await expect(promise).rejects.toThrow(TransportError);
-    try { await promise; } catch (e) { expect((e as TransportError).status).toBe(413); }
+    try {
+      await promise;
+    } catch (error) {
+      expect((error as TransportError).status).toBe(413);
+    }
   });
 
   it('rejects with TransportError on network error', async () => {
@@ -101,9 +95,13 @@ describe('uploadWithProgress', () => {
       contentType: 'application/pdf',
     });
     const xhr = xhrInstances[0];
-    xhr.onerror!();
+    xhr.onerror?.();
     await expect(promise).rejects.toThrow(TransportError);
-    try { await promise; } catch (e) { expect((e as TransportError).status).toBe(0); }
+    try {
+      await promise;
+    } catch (error) {
+      expect((error as TransportError).status).toBe(0);
+    }
   });
 });
 
