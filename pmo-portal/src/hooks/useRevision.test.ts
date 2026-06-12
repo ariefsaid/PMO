@@ -28,14 +28,32 @@ beforeEach(() => {
 });
 
 describe('useRevision', () => {
-  it('AC-DOC-051 (hook): createRevision mutation passes parentId + revision + authorId', async () => {
+  it('AC-DOC-051 (hook): createRevision mutation passes the full editable payload + authorId', async () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useRevision('proj1'), { wrapper: Wrapper });
 
     await act(async () => {
-      await result.current.createRevision.mutateAsync({ parentId: 'parent-1', revision: 'B' });
+      await result.current.createRevision.mutateAsync({
+        parentId: 'parent-1',
+        title: 'Edited title',
+        code: 'DWG-002',
+        category: 'Specification',
+        revision: 'B',
+        doc_date: '2026-06-12',
+      });
     });
 
-    expect(repo.createRevision).toHaveBeenCalledWith('parent-1', 'B', 'author-1');
+    expect(repo.createRevision).toHaveBeenCalledWith(
+      'parent-1',
+      {
+        parentId: 'parent-1',
+        title: 'Edited title',
+        code: 'DWG-002',
+        category: 'Specification',
+        revision: 'B',
+        doc_date: '2026-06-12',
+      },
+      'author-1',
+    );
   });
 });

@@ -150,19 +150,38 @@ export async function transitionProjectDocument(id: string, status: DocStatus): 
  */
 export async function deleteProjectDocument(id: string): Promise<void> {
   const doc = await getProjectDocument(id);
+  const { error } = await supabase.from('project_documents').delete().eq('id', id);
+  if (error) throwWrite(error);
   if (doc?.file_path) {
     await cleanupStorageObject(doc.file_path);
   }
-  const { error } = await supabase.from('project_documents').delete().eq('id', id);
-  if (error) throwWrite(error);
 }
 
 // ── Storage operations ──────────────────────────────────────────────────────
 
 import { buildStoragePath } from '@/src/lib/storageKey';
-import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
+import {
+  ALLOWED_FILE_TYPES,
+  DENIED_EXTENSIONS,
+  SIGNED_URL_EXPIRY_SECONDS,
+} from '@/src/lib/fileConstants';
 
 const BUCKET = 'project-documents';
+
+function getFileExtension(fileName: string): string {
+  const lastDot = fileName.lastIndexOf('.');
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : '';
+}
+
+function validateUploadExtension(fileName: string): void {
+  const ext = getFileExtension(fileName);
+  if (DENIED_EXTENSIONS.includes(ext)) {
+    throw new AppError(`File type not allowed (${ext})`);
+  }
+  if (!ALLOWED_FILE_TYPES.includes(ext)) {
+    throw new AppError(`File type not allowed (${ext})`);
+  }
+}
 
 /**
  * Prepare a signed upload URL for a document file (FR-DOC-020).
@@ -176,6 +195,7 @@ export async function prepareUpload(
   docId: string,
   fileName: string,
 ): Promise<{ signedUrl: string; path: string; oldPath: string | null }> {
+  validateUploadExtension(fileName);
   const { data: doc, error: fetchError } = await supabase
     .from('project_documents')
     .select('id, org_id, project_id, file_path, status')
@@ -238,7 +258,7 @@ export async function getSignedDownloadUrl(filePath: string): Promise<string> {
  */
 export async function createDocumentRevision(
   parentId: string,
-  revision: string,
+  input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
   authorId: string | null,
 ): Promise<ProjectDocumentRow> {
   const parent = await getProjectDocument(parentId);
@@ -248,10 +268,11 @@ export async function createDocumentRevision(
     .from('project_documents')
     .insert({
       project_id: parent.project_id,
-      code: parent.code,
-      category: parent.category,
-      title: parent.title,
-      revision: nullable(revision),
+      code: nullable(input.code),
+      category: input.category.trim(),
+      title: input.title.trim(),
+      revision: nullable(input.revision),
+      doc_date: nullable(input.doc_date),
       status: 'Draft',
       author_id: authorId,
       parent_document_id: parentId,

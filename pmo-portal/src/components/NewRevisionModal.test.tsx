@@ -34,6 +34,14 @@ describe('NewRevisionModal', () => {
     expect(screen.queryByText('foundation-ga.pdf')).not.toBeInTheDocument();
   });
 
+  it('AC-DOC-052: letter revision auto-bumps (A→B)', () => {
+    render(
+      <NewRevisionModal parent={baseDoc} onSubmit={vi.fn()} onClose={vi.fn()} loading={false} />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Revision' })).toHaveValue('B');
+  });
+
   it('AC-DOC-052: digit revision auto-bumps (3→4)', () => {
     render(
       <NewRevisionModal
@@ -64,6 +72,32 @@ describe('NewRevisionModal', () => {
 
     await user.type(title, 'Updated title');
     expect(createButton).toBeEnabled();
+  });
+
+  it('C1: submits edited revision fields, including document date', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <NewRevisionModal parent={baseDoc} onSubmit={onSubmit} onClose={vi.fn()} loading={false} />,
+    );
+
+    await user.clear(screen.getByRole('textbox', { name: 'Title' }));
+    await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Edited title');
+    await user.clear(screen.getByRole('textbox', { name: 'Code' }));
+    await user.type(screen.getByRole('textbox', { name: 'Code' }), 'DWG-009');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Specification');
+    await user.clear(screen.getByRole('textbox', { name: 'Revision' }));
+    await user.type(screen.getByRole('textbox', { name: 'Revision' }), 'C');
+    await user.type(screen.getByLabelText('Document date'), '2026-06-12');
+    await user.click(screen.getByRole('button', { name: 'Create revision' }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      title: 'Edited title',
+      code: 'DWG-009',
+      category: 'Specification',
+      revision: 'C',
+      doc_date: '2026-06-12',
+    });
   });
 
   it('AC-DOC-084: subtitle matches the approved design copy and the modal is a dialog', () => {

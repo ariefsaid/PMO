@@ -9,7 +9,11 @@ import { useAuth } from '@/src/auth/useAuth';
 
 export interface CreateRevisionArgs {
   parentId: string;
+  title: string;
+  code: string;
+  category: string;
   revision: string;
+  doc_date: string;
 }
 
 export function useRevision(projectId: string) {
@@ -18,7 +22,7 @@ export function useRevision(projectId: string) {
 
   const createRevision = useMutation({
     mutationFn: (args: CreateRevisionArgs) =>
-      repositories.document.createRevision(args.parentId, args.revision, currentUser?.id ?? null),
+      repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-documents', projectId] });
     },

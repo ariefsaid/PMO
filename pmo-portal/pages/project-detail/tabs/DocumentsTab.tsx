@@ -23,7 +23,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { useDocuments, useDocumentMutations, useChildDocument } from '@/src/hooks/useDocuments';
+import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useRevision } from '@/src/hooks/useRevision';
 import { FileCell } from '@/src/components/FileCell';
@@ -142,6 +142,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     return map;
   }, [all]);
 
+  const childDocumentsByParentId = useMemo(() => {
+    const map = new Map<string, ProjectDocumentRow>();
+    all.forEach((doc) => {
+      if (doc.parent_document_id) {
+        map.set(doc.parent_document_id, doc);
+      }
+    });
+    return map;
+  }, [all]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return all;
@@ -177,6 +187,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         <DocumentTitleCell
           doc={d}
           parentDoc={d.parent_document_id ? (documentsById.get(d.parent_document_id) ?? null) : null}
+          childDoc={childDocumentsByParentId.get(d.id) ?? null}
           onViewDocument={setDrawerDoc}
         />
       ),
@@ -205,8 +216,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           title={d.title}
           uploadProgress={progress[d.id]}
           uploadError={clientUploadErrors[d.id] ?? uploadErrors[d.id]?.message ?? null}
-          onUpload={d.status === 'Draft' ? () => handleUploadClick(d.id) : undefined}
-          onReplace={d.status === 'Draft' && d.file_path ? () => handleReplaceClick(d.id) : undefined}
+          onUpload={d.status === 'Draft' && canWriteDocs ? () => handleUploadClick(d.id) : undefined}
+          onReplace={d.status === 'Draft' && d.file_path && canWriteDocs ? () => handleReplaceClick(d.id) : undefined}
           onCancelUpload={() => cancelUpload(d.id)}
           onRemoveError={() => clearAnyUploadError(d.id)}
           onDownload={d.file_path ? () => void handleDownload(d) : undefined}
@@ -406,7 +417,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string }) => {
     if (!revisionParent) return;
     createRevision.mutate(
-      { parentId: revisionParent.id, revision: data.revision },
+      { parentId: revisionParent.id, ...data },
       {
         onSuccess: () => {
           toast('Revision created', `${revisionParent.title} Rev ${data.revision}`, 'success');
@@ -524,6 +535,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         <DocumentDrawer
           doc={drawerDoc}
           parentDoc={drawerDoc.parent_document_id ? (documentsById.get(drawerDoc.parent_document_id) ?? null) : null}
+          childDoc={childDocumentsByParentId.get(drawerDoc.id) ?? null}
           // The transitions, already role- + SoD-gated by statusActions(d).
           transitions={statusActions(drawerDoc).filter(
             (a) => a.label !== 'Why is review unavailable?',
@@ -653,10 +665,9 @@ const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, directio
 const DocumentTitleCell: React.FC<{
   doc: ProjectDocumentRow;
   parentDoc: ProjectDocumentRow | null;
+  childDoc: ProjectDocumentRow | null;
   onViewDocument: (doc: ProjectDocumentRow) => void;
-}> = ({ doc, parentDoc, onViewDocument }) => {
-  const { data: childDoc } = useChildDocument(doc.parent_document_id ? null : doc.id);
-
+}> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
   return (
     <div className="min-w-0">
       <button
@@ -703,6 +714,7 @@ interface DocumentDrawerProps {
   /** The in-hand ProjectDocumentRow (no extra fetch). */
   doc: ProjectDocumentRow;
   parentDoc: ProjectDocumentRow | null;
+  childDoc: ProjectDocumentRow | null;
   /** Available transitions from statusActions(d) (the "Why…?" item filtered out). */
   transitions: RowMenuItem[];
   /** Author of their own Issued doc → no Approve/Reject; show the reason inline. */
@@ -731,6 +743,7 @@ const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ labe
 const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   doc,
   parentDoc,
+  childDoc,
   transitions,
   sodBlocked,
   canEdit,
@@ -742,7 +755,6 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   onViewDocument,
   onDownload,
 }) => {
-  const { data: childDoc } = useChildDocument(doc.id);
   const hasFooter = canEdit || canDelete;
   // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
   // destructive (danger flag from statusActions); the rest are quiet outlines.

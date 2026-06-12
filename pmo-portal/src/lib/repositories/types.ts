@@ -159,7 +159,11 @@ export interface DocumentRepository {
   /** Generate a signed download URL for a document file. */
   getSignedUrl(filePath: string): Promise<string>;
   /** Create a revision (child) document row. */
-  createRevision(parentId: string, revision: string, authorId: string | null): Promise<ProjectDocumentRow>;
+  createRevision(
+    parentId: string,
+    input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
+    authorId: string | null,
+  ): Promise<ProjectDocumentRow>;
   /** Get the child (successor) document for lineage display. */
   getChild(parentId: string): Promise<ProjectDocumentRow | null>;
 }
