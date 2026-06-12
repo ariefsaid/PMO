@@ -215,7 +215,7 @@ describe('AC-DOC-006 deleteProjectDocument (hard-delete; Admin)', () => {
   it('AC-DOC-006: deletes by id, NEVER org_id', async () => {
     h.result.value = { data: null, error: null };
     await deleteProjectDocument('d1');
-    expect(h.calls.from).toEqual(['project_documents']);
+    expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
     expect(h.calls.delete).toBe(1);
     expect(h.calls.eq).toContainEqual(['id', 'd1']);
     expect(JSON.stringify(h.calls.eq)).not.toContain('org_id');

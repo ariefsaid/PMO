@@ -146,7 +146,20 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
-      ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
+      [
+        'cleanupObject',
+        'confirmUpload',
+        'create',
+        'createRevision',
+        'delete',
+        'get',
+        'getChild',
+        'getSignedUrl',
+        'list',
+        'prepareUpload',
+        'transition',
+        'update',
+      ].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(
       ['assignUserManager', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'updateUserRole'].sort(),
