@@ -40,32 +40,44 @@ const render$ = (projectId = 'p1') =>
   );
 
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
-  it('AC-DEL-008: From-tasks cell reads "60%" and PM-input cell reads "75%"', () => {
+  it('AC-DEL-008: renders a single segmented track plus the effective headline and from-tasks line', () => {
     milestoneState.data = [
       {
         id: 'm1',
         project_id: 'p1',
         name: 'Engineering design',
         sort_order: 0,
-        target_date: null,
+        target_date: '2026-08-15',
         weight: 1,
         input_pct: 75,
         task_count: 5,
         calculated_pct: 60,
         effective_pct: 75,
       },
+      {
+        id: 'm2',
+        project_id: 'p1',
+        name: 'Procurement',
+        sort_order: 1,
+        target_date: null,
+        weight: 1,
+        input_pct: null,
+        task_count: 0,
+        calculated_pct: null,
+        effective_pct: 0,
+      },
     ];
     render$();
+
+    expect(screen.getByRole('list', { name: 'Delivery phases' })).toBeInTheDocument();
     expect(screen.getByText('Engineering design')).toBeInTheDocument();
-    // From-tasks cell shows calculated_pct.
-    const fromTasksCell = screen.getByLabelText('From tasks');
-    expect(fromTasksCell).toHaveTextContent('60%');
-    // PM input cell shows input_pct.
-    const pmInputCell = screen.getByLabelText('PM input');
-    expect(pmInputCell).toHaveTextContent('75%');
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
+    expect(screen.getByText('From tasks 60%')).toBeInTheDocument();
+    expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 
-  it('AC-DEL-009: null calculated and null input render "—" in both cells', () => {
+  it('AC-DEL-009: null calculated renders the muted from-tasks fallback and 0% effective headline', () => {
     milestoneState.data = [
       {
         id: 'm2',
@@ -81,9 +93,9 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
       },
     ];
     render$();
-    const fromTasksCell = screen.getByLabelText('From tasks');
-    expect(fromTasksCell).toHaveTextContent('—');
-    const pmInputCell = screen.getByLabelText('PM input');
-    expect(pmInputCell).toHaveTextContent('—');
+
+    expect(screen.getByText('0%')).toBeInTheDocument();
+    expect(screen.getByText('From tasks —')).toBeInTheDocument();
+    expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 });
