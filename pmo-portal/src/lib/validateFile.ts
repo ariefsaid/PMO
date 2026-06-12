@@ -1,4 +1,9 @@
-import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from './fileConstants';
+import {
+  ALLOWED_FILE_TYPES,
+  DENIED_EXTENSIONS,
+  MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_MB,
+} from './fileConstants';
 
 export interface ValidationResult {
   ok: boolean;
@@ -15,6 +20,9 @@ export function validateFile(file: File): ValidationResult {
   }
 
   const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`;
+  if (DENIED_EXTENSIONS.includes(ext)) {
+    return { ok: false, message: `File type not allowed (${ext})` };
+  }
   if (!ALLOWED_FILE_TYPES.includes(ext)) {
     return { ok: false, message: `File type not allowed (${ext})` };
   }

@@ -13,6 +13,7 @@ interface TableBuilder {
   select: (columns: string) => TableBuilder;
   eq: (column: string, value: string) => TableBuilder;
   update: (values: { file_path: string }) => TableBuilder;
+  delete: () => TableBuilder;
   maybeSingle: () => Promise<QueryResult<typeof mockDocRow | null>>;
   then: <TResult1 = QueryResult<null>, TResult2 = never>(
     onfulfilled?: ((value: QueryResult<null>) => TResult1 | PromiseLike<TResult1>) | null,
@@ -59,6 +60,7 @@ const h = vi.hoisted(() => {
     select: [] as string[],
     eq: [] as [string, string][],
     update: [] as [{ file_path: string }][],
+    delete: 0,
     maybeSingle: 0,
   };
 
@@ -73,6 +75,10 @@ const h = vi.hoisted(() => {
     }),
     update: vi.fn((values: { file_path: string }) => {
       calls.update.push([values]);
+      return builder;
+    }),
+    delete: vi.fn(() => {
+      calls.delete += 1;
       return builder;
     }),
     maybeSingle: vi.fn(() => {
@@ -99,6 +105,7 @@ import {
   confirmUpload,
   cleanupStorageObject,
   getSignedDownloadUrl,
+  deleteProjectDocument,
 } from './documents';
 
 const mockDocRow = {
@@ -125,6 +132,7 @@ describe('documents DAL — storage operations', () => {
     h.calls.select.length = 0;
     h.calls.eq.length = 0;
     h.calls.update.length = 0;
+    h.calls.delete = 0;
     h.calls.maybeSingle = 0;
     h.storageCalls.from.length = 0;
     h.storageCalls.createSignedUploadUrl.length = 0;
@@ -152,6 +160,12 @@ describe('documents DAL — storage operations', () => {
     expect(result.oldPath).toBeNull();
   });
 
+  it('FR-DOC-033 (DAL): prepareUpload rejects explicitly denied extensions before the allowlist', async () => {
+    await expect(prepareUpload('doc-1', 'archive.zip')).rejects.toThrow('File type not allowed (.zip)');
+    expect(h.calls.from).toEqual([]);
+    expect(h.storageCalls.createSignedUploadUrl).toEqual([]);
+  });
+
   it('AC-DOC-020 (DAL): prepareUpload throws if document not Draft', async () => {
     h.result.value = { data: { ...mockDocRow, status: 'Issued' }, error: null };
 
@@ -170,6 +184,17 @@ describe('documents DAL — storage operations', () => {
     expect(result.path).toBe('org-1/proj-1/doc-1/new.pdf');
   });
 
+  it('AC-DOC-021 I4 (DAL): confirmUpload sets the new path and cleanupStorageObject deletes the old object after a successful replace', async () => {
+    h.result.value = { data: null, error: null };
+
+    await confirmUpload('doc-1', 'org-1/proj-1/doc-1/new.pdf');
+    await cleanupStorageObject('org-1/proj-1/doc-1/old.pdf');
+    expect(h.calls.from).toContain('project_documents');
+    expect(h.calls.update).toContainEqual([{ file_path: 'org-1/proj-1/doc-1/new.pdf' }]);
+    expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
+    expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
+  });
+
   it('AC-DOC-021 (DAL): confirmUpload updates file_path on the row', async () => {
     h.result.value = { data: null, error: null };
 
@@ -183,6 +208,15 @@ describe('documents DAL — storage operations', () => {
 
     await cleanupStorageObject('org-1/proj-1/doc-1/old.pdf');
     expect(h.storageCalls.from).toContain('project-documents');
+    expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
+  });
+
+  it('I6 (DAL): deleteProjectDocument deletes the row first, then best-effort cleans up the storage object', async () => {
+    h.result.value = { data: { ...mockDocRow, file_path: 'org-1/proj-1/doc-1/old.pdf' }, error: null };
+    await deleteProjectDocument('doc-1');
+    expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
+    expect(h.calls.delete).toBe(1);
+    expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
     expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
   });
 

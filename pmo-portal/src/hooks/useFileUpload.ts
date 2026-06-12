@@ -35,64 +35,35 @@ export function useFileUpload(projectId: string) {
   // Per-doc AbortControllers
   const abortRefs = useRef<Record<string, AbortController>>({});
 
-  const upload = useMutation({
-    mutationFn: async ({ docId, file }: UploadArgs) => {
-      // Clear prior state
-      setProgress((prev) => ({ ...prev, [docId]: 0 }));
-      setUploadErrors((prev) => { const next = { ...prev }; delete next[docId]; return next; });
+  const clearProgress = (docId: string) => {
+    setProgress((prev) => {
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
+  };
 
-      // Create AbortController for this upload
-      const controller = new AbortController();
-      abortRefs.current[docId] = controller;
+  const clearError = (docId: string) => {
+    setUploadErrors((prev) => {
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
+  };
 
-      // Step 1: DAL prepares signed upload URL (fetches row internally)
+  const clearAbortRef = (docId: string) => {
+    delete abortRefs.current[docId];
+  };
+
+  const uploadDocumentFile = async (docId: string, file: File, allowReplace: boolean) => {
+    setProgress((prev) => ({ ...prev, [docId]: 0 }));
+    clearError(docId);
+
+    const controller = new AbortController();
+    abortRefs.current[docId] = controller;
+
+    try {
       const { signedUrl, path, oldPath } = await repositories.document.prepareUpload(docId, file.name);
-
-      // Step 2: Upload via XHR (real progress + abort)
-      const ext = getExtension(file.name);
-      const contentType = FILE_MIME_BY_EXT[ext] || file.type || 'application/octet-stream';
-      await uploadWithProgress(signedUrl, file, {
-        contentType,
-        onProgress: (p) => setProgress((prev) => ({ ...prev, [docId]: p })),
-        signal: controller.signal,
-      });
-
-      // Step 3: Confirm — update file_path on the row
-      await repositories.document.confirmUpload(docId, path);
-
-      // Cleanup prior object if replacing (non-fatal)
-      // NOTE: oldPath is only non-null when replacing
-      if (oldPath) {
-        repositories.document.cleanupObject(oldPath).catch(() => {});
-      }
-
-      return path;
-    },
-    onSuccess: () => {
-      invalidate();
-      setProgress({});
-    },
-    onError: (error, variables) => {
-      const classified = classifyUploadError(error, MAX_FILE_SIZE_MB);
-      if (classified.type !== 'cancel') {
-        setUploadErrors((prev) => ({ ...prev, [variables.docId]: classified }));
-      }
-      setProgress((prev) => { const next = { ...prev }; delete next[variables.docId]; return next; });
-    },
-  });
-
-  const replace = useMutation({
-    mutationFn: async ({ docId, file }: ReplaceArgs) => {
-      setProgress((prev) => ({ ...prev, [docId]: 0 }));
-      setUploadErrors((prev) => { const next = { ...prev }; delete next[docId]; return next; });
-
-      const controller = new AbortController();
-      abortRefs.current[docId] = controller;
-
-      // DAL prepares (returns oldPath from the fetched row)
-      const { signedUrl, path, oldPath } = await repositories.document.prepareUpload(docId, file.name);
-
-      // Upload new file first (replace-flow atomicity: upload → confirm → delete old)
       const ext = getExtension(file.name);
       const contentType = FILE_MIME_BY_EXT[ext] || file.type || 'application/octet-stream';
       await uploadWithProgress(signedUrl, file, {
@@ -101,27 +72,44 @@ export function useFileUpload(projectId: string) {
         onProgress: (p) => setProgress((prev) => ({ ...prev, [docId]: p })),
         signal: controller.signal,
       });
-
-      // Confirm new file path BEFORE deleting old (atomicity: old stays intact if this fails)
       await repositories.document.confirmUpload(docId, path);
-
-      // Delete old object (non-fatal — orphan is acceptable)
-      if (oldPath) {
+      if (allowReplace && oldPath) {
         repositories.document.cleanupObject(oldPath).catch(() => {});
       }
-
       return path;
-    },
+    } finally {
+      clearAbortRef(docId);
+    }
+  };
+
+  const onError = (error: unknown, docId: string) => {
+    const classified = classifyUploadError(error, MAX_FILE_SIZE_MB);
+    if (classified.type !== 'cancel') {
+      setUploadErrors((prev) => ({ ...prev, [docId]: classified }));
+    }
+    clearProgress(docId);
+    clearAbortRef(docId);
+  };
+
+  const upload = useMutation({
+    mutationFn: async ({ docId, file }: UploadArgs) => uploadDocumentFile(docId, file, true),
     onSuccess: () => {
       invalidate();
       setProgress({});
     },
     onError: (error, variables) => {
-      const classified = classifyUploadError(error, MAX_FILE_SIZE_MB);
-      if (classified.type !== 'cancel') {
-        setUploadErrors((prev) => ({ ...prev, [variables.docId]: classified }));
-      }
-      setProgress((prev) => { const next = { ...prev }; delete next[variables.docId]; return next; });
+      onError(error, variables.docId);
+    },
+  });
+
+  const replace = useMutation({
+    mutationFn: async ({ docId, file }: ReplaceArgs) => uploadDocumentFile(docId, file, true),
+    onSuccess: () => {
+      invalidate();
+      setProgress({});
+    },
+    onError: (error, variables) => {
+      onError(error, variables.docId);
     },
   });
 

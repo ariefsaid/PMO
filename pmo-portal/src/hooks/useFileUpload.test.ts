@@ -13,6 +13,8 @@ interface PrepareUploadResult {
 interface MockUploadError {
   name?: string;
   status?: number;
+  code?: string;
+  message?: string;
 }
 
 const repo = vi.hoisted(() => ({
@@ -30,6 +32,7 @@ vi.mock('@/src/lib/uploadTransport', () => ({
   classifyUploadError: vi.fn<(error: MockUploadError) => ClassifiedUploadError>((error) => {
     if (error.name === 'AbortError') return { type: 'cancel', message: 'Upload cancelled' };
     if (error.status === 413) return { type: 'oversize', message: 'File exceeds 5 MB limit' };
+    if (error.code === '42501') return { type: 'server', message: 'Upload failed — try again' };
     return { type: 'server', message: 'Upload failed — try again' };
   }),
 }));
@@ -145,9 +148,13 @@ describe('useFileUpload', () => {
     const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
     const file = new File(['content'], 'file.pdf', { type: 'application/pdf' });
 
-    result.current.upload.mutate({ docId: 'doc-1', file });
+    act(() => {
+      result.current.upload.mutate({ docId: 'doc-1', file });
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    result.current.cancelUpload('doc-1');
+    act(() => {
+      result.current.cancelUpload('doc-1');
+    });
 
     await waitFor(() => {
       expect(result.current.upload.isError).toBe(true);
@@ -156,13 +163,9 @@ describe('useFileUpload', () => {
     expect(repo.confirmUpload).not.toHaveBeenCalled();
   });
 
-  it('AC-DOC-024 (hook): upload error is classified and stored in error state', async () => {
+  it('AC-DOC-024 (hook): upload error is stored with the approved copy and cleared on Remove', async () => {
     const mockedUploadWithProgress = vi.mocked(uploadTransport.uploadWithProgress);
-    const transportErr = new (class extends Error {
-      status = 413;
-      name = 'TransportError';
-    })('Payload too large');
-    mockedUploadWithProgress.mockRejectedValue(transportErr);
+    mockedUploadWithProgress.mockRejectedValue({ code: '42501', message: 'storage unavailable' });
 
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
@@ -170,8 +173,19 @@ describe('useFileUpload', () => {
 
     await expect(
       act(async () => result.current.upload.mutateAsync({ docId: 'doc-1', file })),
-    ).rejects.toThrow('Payload too large');
+    ).rejects.toEqual({ code: '42501', message: 'storage unavailable' });
 
-    expect(uploadTransport.classifyUploadError).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.uploadErrors['doc-1']).toEqual({
+        type: 'server',
+        message: 'Upload failed — try again',
+      });
+    });
+
+    act(() => {
+      result.current.clearUploadError('doc-1');
+    });
+
+    expect(result.current.uploadErrors['doc-1']).toBeUndefined();
   });
 });

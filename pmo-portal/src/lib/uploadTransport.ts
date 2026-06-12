@@ -49,22 +49,44 @@ export function uploadWithProgress(
       }
     };
 
+
+    let settled = false;
+    let onAbort: (() => void) | null = null;
+    const cleanupAbort = () => {
+      if (options.signal && onAbort) {
+        options.signal.removeEventListener('abort', onAbort);
+      }
+      onAbort = null;
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanupAbort();
+      reject(error);
+    };
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      cleanupAbort();
+      resolve();
+    };
+
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
+        resolveOnce();
       } else {
-        reject(new TransportError(xhr.status, xhr.responseText || `Upload failed (${xhr.status})`));
+        rejectOnce(new TransportError(xhr.status, xhr.responseText || `Upload failed (${xhr.status})`));
       }
     };
 
     xhr.onerror = () => {
-      reject(new TransportError(0, 'Network error during upload'));
+      rejectOnce(new TransportError(0, 'Network error during upload'));
     };
 
     if (options.signal) {
-      const onAbort = () => {
+      onAbort = () => {
         xhr.abort();
-        reject(new DOMException('Upload cancelled', 'AbortError'));
+        rejectOnce(new DOMException('Upload cancelled', 'AbortError'));
       };
       if (options.signal.aborted) {
         onAbort();
@@ -94,6 +116,20 @@ export function classifyUploadError(
   error: unknown,
   maxFileSizeMB: number = 5,
 ): ClassifiedUploadError {
+  const code = typeof (error as { code?: unknown })?.code === 'string'
+    ? (error as { code: string }).code
+    : undefined;
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+
+  if (
+    code === '42501' ||
+    code === 'P0001' ||
+    message.includes('not draft') ||
+    message.includes('storage unavailable') ||
+    message.includes('could not create upload url')
+  ) {
+    return { type: 'server', message: 'Upload failed — try again' };
+  }
   if (error instanceof DOMException && error.name === 'AbortError') {
     return { type: 'cancel', message: 'Upload cancelled' };
   }
@@ -103,16 +139,16 @@ export function classifyUploadError(
     }
     if (
       error.status === 413 ||
-      error.message.toLowerCase().includes('exceed') ||
-      error.message.toLowerCase().includes('size') ||
-      error.message.toLowerCase().includes('payload too large')
+      message.includes('exceed') ||
+      message.includes('size') ||
+      message.includes('payload too large')
     ) {
       return { type: 'oversize', message: `File exceeds ${maxFileSizeMB} MB limit` };
     }
     if (
-      error.message.toLowerCase().includes('mime') ||
-      error.message.toLowerCase().includes('type') ||
-      error.message.toLowerCase().includes('not allowed')
+      message.includes('mime') ||
+      message.includes('type') ||
+      message.includes('not allowed')
     ) {
       return { type: 'type', message: 'File type not allowed' };
     }

@@ -61,6 +61,11 @@ export const FILE_MIME_BY_EXT: Record<string, string> = {
   '.txt':  'text/plain',
 };
 
+/** Explicit denylist enforced before the allowlist. FR-DOC-033. */
+export const DENIED_EXTENSIONS: readonly string[] = [
+  '.zip', '.exe', '.bat', '.sh', '.cmd', '.dll', '.msi', '.app',
+] as const;
+
 /** Signed URL expiry in seconds (60 minutes). NFR-DOC-003 / FR-DOC-013. */
 export const SIGNED_URL_EXPIRY_SECONDS = 3600;
 

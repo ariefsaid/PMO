@@ -132,4 +132,9 @@ describe('classifyUploadError', () => {
     expect(result.type).toBe('server');
     expect(result.message).toContain('try again');
   });
+
+  it('AC-DOC-024: classifies structural AppErrors from the DAL as upload-failed copy', () => {
+    const result = classifyUploadError({ code: '42501', message: 'storage unavailable' });
+    expect(result).toEqual({ type: 'server', message: 'Upload failed — try again' });
+  });
 });
