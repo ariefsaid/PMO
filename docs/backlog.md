@@ -7,14 +7,34 @@
 ## ▶ Current state (2026-06-12)
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
-  merge `main → production`. Migrations through **0025**; pgTAP through **0068**; PRs through **#78**.
+  merge `main → production`. Migrations through **0025** (local); PRs through **#79**.
   (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
 - **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
   Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),
-  per-role dashboards, mobile, **delivery milestones (spine 3)**, **document file upload (storage)**,
-  PostHog analytics. The CRUD/RBAC foundation (ADR-0015–0021) is the pattern all new work follows.
-- **Most recently shipped:** Issue #1 of the KANNA series — document file upload (PR #78). See history.md
-  for the full program timeline.
+  per-role dashboards, mobile, **delivery milestones (spine 3)**, **delivery UI redesign** (even-bar
+  stepper + 'Project delivery %' rollup + 'Budget used' committed-spend column), **document file upload
+  (storage)**, PostHog analytics, Solar EPC demo seed (4-phase milestones). The CRUD/RBAC foundation
+  (ADR-0015–0021) is the pattern all new work follows.
+- **Most recently shipped:** PR #79 delivery-UI redesign (even-bar milestone stepper, project-level
+  delivery % + budget-used rollup on Projects list; 2-gate design review). KANNA Issue #1 document
+  file upload (PR #78). See history.md for the full program timeline.
+
+## ▶ KNOWN ISSUES (action required before next prod push)
+
+### ⚠ Migration 0023 immutability bug — live 'Budget used' broken against prod (HIGH)
+PR #79 (delivery UI redesign) added `committed_spend` to the `get_projects_delivery` RPC by **editing
+migration 0023**, which was already pushed to prod in PR #74. Supabase `db push` is migration-id-based
+and will not re-apply 0023 — so the `committed_spend` column (and the Projects list 'Budget used'
+column that depends on it) will remain broken against prod until this is corrected.
+
+**Fix (before next prod push):**
+1. Restore `supabase/migrations/0023_*.sql` to its PR #74 content (the RPC without `committed_spend`).
+2. Add a new migration **0026** that `CREATE OR REPLACE FUNCTION get_projects_delivery(...)` with the
+   committed-spend version (the change currently embedded in 0023).
+3. Then `db-push-prod.sh` will apply 0024 (Superseded enum) + 0025 (doc storage) + 0026 (delivery RPC
+   v2) together — in one safe run.
+
+Until fixed, 'Budget used' on the Projects list is broken in prod (column missing from RPC response).
 
 ## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
 Competitor gap analysis vs KANNA/Aldagram: `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Issues run
@@ -25,11 +45,14 @@ HTML mockup for UI — playbook §2 1b/1c). Role work dispatched via the **pi CL
   auto-Superseded RPC). Private org-scoped bucket; Draft-only upload/replace; download (forced attachment,
   all types) + preview; New-revision → auto-Supersede parent (server-side, SoD); 5 MB bumpable knob +
   allowlist + zip/exe denylist. Security audit PASS.
-- **▶ Issue #2 (NEXT) — Procurement attachments** (quotation files + GR/VI) reusing the shipped upload
-  component (FileCell/useFileUpload/getSignedUrl + bucket). Owner-sequenced BEFORE S-curve/Gantt (daily
-  approver pain).
-- **Then (gap-doc tiering):** S-curve (delivery-% snapshots; rides milestones) · Gantt (`task_dependencies`
-  seeded, unconsumed) · project calendar · import/export · project templates.
+
+**⚠ BEFORE starting Issue #2:** resolve the migration 0023 bug above (prod push will land 0024 + 0025 +
+new 0026 as a unit). That prod push is the gate for any further live demo use.
+
+**Recommended next (owner confirmation needed):** The forward roadmap is `docs/roadmap-spines.md`. Spine 4
+(Revenue/AR — progress billing, retention, change orders) is sequenced as the logical next spine after
+delivery. Within the KANNA series, candidate gap-closers include S-curve, Gantt/task-dependencies (seeded,
+unconsumed), and procurement attachments — owner to confirm sequencing at next intake.
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)
 - **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct
@@ -49,8 +72,9 @@ HTML mockup for UI — playbook §2 1b/1c). Role work dispatched via the **pi CL
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
-- **Prod storage bucket** — migration 0025's `storage.buckets` insert + policies land in cloud only on the
-  next prod migration push (`db-push-prod.sh`); do before any prod file use.
+- **Prod migration push (blocked on 0023 fix)** — migrations 0024 (Superseded enum) + 0025 (doc storage
+  bucket + RLS) + new 0026 (delivery RPC v2 with committed_spend) must be pushed together as a unit once
+  0023 is restored and 0026 is added. See KNOWN ISSUES above. Do before any prod file/delivery-% use.
 - **Document query-key consistency** [Minor] — document React-Query keys are project-only (pre-existing
   across all document hooks); align to the org-scoped key convention in a consistency pass.
 - **Per-role sub-dashboards real data (OD-D3)** — Engineer/PM/Finance views still carry some hard-coded

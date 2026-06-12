@@ -157,6 +157,21 @@ dashboard setup is not part of the first instrumentation PR.
 the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge
 the backend so a deploy can never silently talk to the wrong one).
 
+## Prod-pending migrations (action required)
+
+> ⚠ **KNOWN ISSUE — migration 0023 immutability bug:** PR #79 edited migration 0023 (already live in
+> prod) to add `committed_spend` to `get_projects_delivery`. Supabase will NOT re-apply it. Before the
+> next prod push, restore 0023 to its #74 content and add a new **0026** migration that `CREATE OR
+> REPLACE`s the RPC with the committed-spend version. Then push 0024 + 0025 + 0026 together.
+> See `docs/backlog.md` KNOWN ISSUES for the complete fix procedure.
+
+Migrations currently pending for prod (not yet pushed to cloud):
+- **0024** — Superseded document status enum (PR #78)
+- **0025** — Storage: org bucket + `storage.objects` RLS + auto-Supersede RPC (PR #78)
+- **0026** *(to be created)* — `get_projects_delivery` RPC v2 with `committed_spend` (fixes #79 regression)
+
+Push all three together once 0026 is in place: `scripts/db-push-prod.sh`.
+
 ## First-time prod (cloud) deploy
 
 ```bash
