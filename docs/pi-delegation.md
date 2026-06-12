@@ -75,6 +75,37 @@ Use it in design-review / qa-style dispatches and in ui-implementer self-checks:
 - The owner-approval artifact (design-workflow §2.5, §3) is still produced/curated by the
   Director — pi screenshots feed it, they don't replace the gate.
 
+### 3b. Dispatch mechanics — background, never block or poll (Claude Code harness)
+
+A pi dispatch runs minutes-to-hours. The whole point of offloading to pi is that the **Director's
+own context/turn-budget is NOT consumed while it runs.** Get this wrong and you defeat the purpose.
+
+**Do — fire-and-forget on the harness:**
+- Launch every pi dispatch with **`Bash(run_in_background: true)`** + a generous `timeout` +
+  `< /dev/null`. The tool returns immediately with a task id; **your turn ends and your context
+  stops being spent.**
+- The harness sends a **`<task-notification>`** when the background command exits and **re-invokes
+  you automatically** with the result. You do nothing to wait — the wake-up is free.
+- On that wake, **Read the output file ONCE** to verify (sentinel line, greps, re-run gates), then
+  dispatch the next phase. One read, not a stream.
+- While pi runs you may either **end the turn** (preferred — zero spend) or start an *independent*
+  dispatch in another worktree. Don't invent busywork to "stay active".
+
+**Don't — the capacity-hogging anti-patterns:**
+- ❌ **Foreground Bash** (no `run_in_background`) — ties up the turn for the entire run, burning
+  context the whole time. This is the main way capacity gets hogged.
+- ❌ **Polling loops** — repeatedly `TaskOutput`/`Read`-ing the output file, or `ScheduleWakeup`/
+  sleep-checking a harness-tracked task. The completion notification is automatic; polling spends
+  turns to learn nothing. (External, harness-*untracked* work — a remote CI run — is the only case
+  where a paced check is justified; a local backgrounded `pi`/`supabase`/`npm` is always tracked.)
+- ❌ **Blocking the owner** — never sit waiting "to see if it finishes". Hand control back; the
+  notification will bring you back exactly when there's something to do.
+
+**Parallel vs serial:** independent dispatches (different worktrees, no shared stack) can run
+concurrently — launch them in one message, each `run_in_background`. But **stagger anything that
+drives the single local Supabase stack** (migrations, `db reset`, pgTAP, e2e) — two at once corrupt
+each other (playbook §3).
+
 ## 4. Brief structure — the quality lever
 
 pi agents see NOTHING of your session. The brief must stand alone:
