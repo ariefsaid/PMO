@@ -26,10 +26,10 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 |---|---|---|
 | `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment | opus |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-| `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+| `openai-codex` / `gpt-5.5` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 | `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
 
-**Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. **When BOTH are
+**Fallback (owner rule):** z.ai API limit → use `gpt-5.5`; OpenAI limit → use GLM. **When BOTH are
 rate-limited at once** (the 5-hour windows can overlap — observed 2026-06-12), drop to the
 **OpenRouter free models** (`openrouter` provider, both smoke-tested OK): Nemotron 3 Ultra for the
 heavier slice, NEX N2 Pro as its alternate. They're free — no quota — but unproven on this codebase,
@@ -183,7 +183,7 @@ Never accept a pi completion report. Minimum per dispatch:
   completion round, never a blind retry.
 
 **Cross-family review is complementary, not sufficient.** Trial empirics (issue #1, plan review):
-`gpt-5.4` caught 3 criticals the GLM author missed (fake progress bar, e2e tests not proving
+`gpt-5.5` caught 3 criticals the GLM author missed (fake progress bar, e2e tests not proving
 their ACs, an org_id seam violation) — while the Director's own read caught 2 the reviewer missed
 (an Issued-parent supersede bug, a missing DWG MIME). Run **both** lenses on anything load-bearing.
 
