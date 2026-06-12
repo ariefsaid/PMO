@@ -104,6 +104,7 @@ vi.mock('@/src/lib/db/incidents', () => ({
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
   getProjectsDelivery: vi.fn(),
+  getProjectsDeliverySummary: vi.fn(),
   createMilestone: vi.fn(),
   updateMilestone: vi.fn(),
   deleteMilestone: vi.fn(),
@@ -631,6 +632,15 @@ describe('delegation — methods pass args through and return the DAL result', (
     const result = await repositories.milestone.deliveryForProjects(ids);
     expect(milestonesDal.getProjectsDelivery).toHaveBeenCalledWith(ids);
     expect(result).toBe(delivery);
+  });
+
+  it('AC-DEL-017: milestone.deliverySummaryForProjects delegates to getProjectsDeliverySummary', async () => {
+    const summary = { p1: { deliveryPct: 75, committedSpend: 500000, budget: 900000 } };
+    vi.mocked(milestonesDal.getProjectsDeliverySummary).mockResolvedValue(summary);
+    const ids = ['p1'];
+    const result = await repositories.milestone.deliverySummaryForProjects(ids);
+    expect(milestonesDal.getProjectsDeliverySummary).toHaveBeenCalledWith(ids);
+    expect(result).toBe(summary);
   });
 
   it('AC-DEL-008: milestone.create normalizes a thrown error to AppError (code preserved)', async () => {

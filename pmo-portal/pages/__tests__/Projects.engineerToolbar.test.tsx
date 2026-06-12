@@ -65,6 +65,7 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: {} }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({

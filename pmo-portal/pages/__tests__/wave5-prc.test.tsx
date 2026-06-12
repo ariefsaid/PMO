@@ -6,13 +6,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 
 // ─── Shared mocks (hoisted so vi.mock factories can reference them) ─────────
 
-const { projState, tsState } = vi.hoisted(() => ({
+const { projState, tsState, deliverySummaryState } = vi.hoisted(() => ({
   projState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -24,6 +24,12 @@ const { projState, tsState } = vi.hoisted(() => ({
     isPending: false,
     isError: false,
     refetch: vi.fn(),
+  },
+  deliverySummaryState: {
+    pl1: { deliveryPct: 25, committedSpend: 100_000, budget: 400_000 },
+    pl2: { deliveryPct: 95, committedSpend: 475_000, budget: 500_000 },
+    pl3: { deliveryPct: 50, committedSpend: 150_000, budget: 300_000 },
+    pl4: { deliveryPct: 92, committedSpend: 555_000, budget: 600_000 },
   },
 }));
 
@@ -63,6 +69,7 @@ vi.mock('@/src/hooks/useProjectView', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimesheets', () => ({
@@ -274,12 +281,15 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     projState.isError = false;
   });
 
-  it('C2C-I3-1: at-risk row shows budget utilization % in the project cell (spent/budget)', () => {
+  it('C2C-I3-1: at-risk row shows budget utilization % in the Budget used column', () => {
     renderProjectsPage('/projects');
-    // Burning Beta: spent=475k, budget=500k → 95% budget utilization
-    // The budget utilization is shown in the project cell for at-risk rows
-    const pageText = document.body.textContent ?? '';
-    expect(pageText).toContain('95%');
+    const rows = screen.getAllByRole('row');
+    const atRiskRow = rows.find((r) => r.textContent?.includes('Burning Beta'));
+    expect(atRiskRow).toBeDefined();
+    const cells = within(atRiskRow!).getAllByRole('cell');
+    const budgetUsedCell = cells[cells.length - 2];
+    expect(budgetUsedCell).toHaveTextContent('95%');
+    expect(budgetUsedCell).toHaveTextContent('$475.0K of $500.0K budget');
   });
 
   it('C2C-I3-2: the at-risk pill in the project cell is text+dot (not color-only) — a11y', () => {

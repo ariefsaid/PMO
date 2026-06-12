@@ -1,9 +1,9 @@
 -- 0065_milestone_rollup_oracle.test.sql — worked-example rollup oracle (AC-DEL-019).
 -- Milestones E(w=20)/P(w=30)/C(w=50) → effective% 100/40/0 → project delivery = 32%.
--- Also covers: null calculated_pct for a task-less milestone; project with no milestones absent from result.
+-- Also covers: null calculated_pct for a task-less milestone; project with no milestones returns a summary row with null delivery.
 -- Fixture namespace: 00650000-… (unique to this test).
 begin;
-select plan(9);
+select plan(12);
 
 -- ── Fixtures (table owner, bypassing RLS) ───────────────────────────────────
 insert into auth.users (id, email) values
@@ -16,16 +16,16 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('00650000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','RO Client','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value) values
   ('00650000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'RO-001','Rollup Test Project','Ongoing Project',
    '00650000-0000-0000-0000-000000000010',
-   '00650000-0000-0000-0000-0000000000a1',100000),
-  -- empty project (no milestones) for the absent-from-result check
+   '00650000-0000-0000-0000-0000000000a1',100000,100000),
+  -- empty project (no milestones) for the summary-row check
   ('00650000-0000-0000-0000-000000000021','00000000-0000-0000-0000-000000000001',
    'RO-002','Empty Project','Ongoing Project',
    '00650000-0000-0000-0000-000000000010',
-   '00650000-0000-0000-0000-0000000000a1',100000);
+   '00650000-0000-0000-0000-0000000000a1',100000,100000);
 
 -- Milestones E(w=20), P(w=30), C(w=50), N(w=0, no tasks — zero weight excluded from denominator).
 insert into project_milestones (id, org_id, project_id, name, weight, sort_order) values
@@ -106,12 +106,30 @@ select is(
   32::numeric,
   'AC-DEL-019: get_projects_delivery returns 32 for the worked-example project (weights 20/30/50 → 32%)');
 
--- AC-DEL-007/019: a project with no milestones is absent from get_projects_delivery.
+-- AC-DEL-007/019: a project with no milestones is present in get_projects_delivery so
+-- the Projects list can render committed spend + budget even when delivery is unknown.
 select is(
   (select count(*)::int
      from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
-  0,
-  'AC-DEL-007/019: a project with no milestones is absent from get_projects_delivery');
+  1,
+  'AC-DEL-007/019: a project with no milestones is present in get_projects_delivery');
+
+select ok(
+  (select delivery_pct is null
+     from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
+  'AC-DEL-007/019: a project with no milestones has null delivery_pct');
+
+select is(
+  (select committed_spend::numeric(10,0)
+     from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
+  0::numeric,
+  'AC-DEL-007/019: a project with no milestones still reports committed_spend');
+
+select is(
+  (select budget::numeric(10,0)
+     from get_projects_delivery(array['00650000-0000-0000-0000-000000000021'::uuid])),
+  100000::numeric,
+  'AC-DEL-007/019: a project with no milestones still reports budget');
 
 -- I-1 no-signal suppression: a project whose milestones ALL have no tasks and no input_pct
 -- must return NULL delivery_pct (not a misleading 0%), so the chip is suppressed.

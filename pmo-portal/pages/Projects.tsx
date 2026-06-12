@@ -25,10 +25,9 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
-import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
-import { DeliveryPctChip } from '../components/DeliveryPctChip';
+import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
@@ -36,7 +35,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AT_RISK_THRESHOLD, isAtRisk, budgetUtilPct } from '@/src/lib/dashboardConstants';
+import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -52,11 +51,6 @@ const VALID_URL_FILTERS = new Set<StatusFilter>(FILTERS);
 
 const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, ProjectStatusEnum.OnHold] as string[];
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
-
-/** Utilization tone: ≤55 neutral(primary) · 55–100 warning · >100 destructive. */
-function utilizationPct(p: ProjectWithRefs): number {
-  return p.contract_value > 0 ? (p.spent / p.contract_value) * 100 : 0;
-}
 
 const Projects: React.FC = () => {
   const { effectiveRole } = useEffectiveRole();
@@ -108,8 +102,20 @@ const Projects: React.FC = () => {
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
-  // NFR-DEL-PERF-001: one batched call for all project delivery %s (no per-row N+1).
-  const { data: delivery } = useProjectsDelivery(all.map((p) => p.id));
+  // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
+  const { data: deliverySummary, isPending: deliveryPending } = useProjectsDeliverySummary(all.map((p) => p.id));
+
+  // I6: committed-spend-based at-risk (not stale p.spent/p.budget).
+  // Derives from the SAME committed-spend summary used in the Budget used column.
+  const isAtRiskCommitted = React.useCallback(
+    (p: ProjectWithRefs) => {
+      if (!ONGOING.includes(p.status as string)) return false;
+      const summary = deliverySummary?.[p.id];
+      if (!summary || summary.budget <= 0) return false;
+      return summary.committedSpend / summary.budget >= AT_RISK_THRESHOLD;
+    },
+    [deliverySummary],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -125,15 +131,9 @@ const Projects: React.FC = () => {
             return ONGOING.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
-          // AC-IXD-DASH-W5-C2A: at-risk = active projects where spent/budget >= AT_RISK_THRESHOLD
-          // (OD-W5-C2-A: reuses the same 0.9 constant as PMDashboard + BvACard; active-only so
-          // completed projects with high historical utilization don't trigger false alarms).
+          // I6: at-risk now uses committed-spend from delivery summary, not stale p.spent.
           case 'at-risk':
-            return (
-              ONGOING.includes(p.status as string) &&
-              p.budget > 0 &&
-              p.spent / p.budget >= AT_RISK_THRESHOLD
-            );
+            return isAtRiskCommitted(p);
           default:
             return true;
         }
@@ -149,8 +149,8 @@ const Projects: React.FC = () => {
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1));
-  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds]);
+    return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
+  }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
@@ -204,7 +204,7 @@ const Projects: React.FC = () => {
       key: 'project',
       header: 'Project',
       cell: (p) => {
-        const atRisk = isAtRisk(p);
+        const atRisk = isAtRiskCommitted(p);
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             <span
@@ -230,15 +230,8 @@ const Projects: React.FC = () => {
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
               </div>
-              {/* I-5: delivery-% chip as a separated trailing element after the code line
-                  so it doesn't run-on into the project name. e2e locator stays intact:
-                  seabridgeRow.getByLabel('Delivery 100%'). */}
-              <div className="flex items-center gap-1.5">
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
-                  {p.code ?? p.id.slice(0, 8)}
-                </div>
-                {/* AC-DEL-013: delivery-% chip (absent when project has no milestones). */}
-                <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                {p.code ?? p.id.slice(0, 8)}
               </div>
               {p.customer_contract_ref && (
                 <div className="truncate font-mono text-[11px] text-muted-foreground/80">
@@ -297,25 +290,40 @@ const Projects: React.FC = () => {
       key: 'progress',
       header: 'Progress',
       cell: (p) => {
-        // AC-W6-IXD-ATRISK (B-1): co-locate the budget-util basis WITH the delivery
-        // bar. The bar stays the contract-basis (spent/contract) metric — NOT recolored;
-        // when at-risk a second line shows the budget-basis (spent/budget) figure right
-        // below it so the two metrics read together and the green-bar/red-pill glance
-        // contradiction is killed at the bar (the "At risk" pill stays by the name).
-        const budgetPct = isAtRisk(p) ? budgetUtilPct(p) : null;
+        // I7: defer while delivery summary is loading to prevent flash of false empty state.
+        if (deliveryPending) {
+          return <span className="text-[12px] text-muted-foreground">…</span>;
+        }
+        const summary = deliverySummary?.[p.id];
+        if (summary?.deliveryPct == null) {
+          return <span className="text-[12px] text-muted-foreground">No phases yet</span>;
+        }
+        const roundedDelivery = Math.round(summary.deliveryPct);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar
-              value={Math.round(utilizationPct(p))}
-              showValue
-              compact
-              aria-label={`Spend: ${Math.round(utilizationPct(p))}% of contract`}
-            />
-            {budgetPct !== null && (
-              <div className="text-[11px] font-semibold tabular text-warning-foreground">
-                {budgetPct}% of budget
-              </div>
-            )}
+            <ProgressBar value={roundedDelivery} showValue compact aria-label={`Delivery ${roundedDelivery}%`} />
+          </div>
+        );
+      },
+    },
+    {
+      key: 'budget-used',
+      header: 'Budget used',
+      cell: (p) => {
+        // I7: defer while delivery summary is loading to prevent flash of $0/$0.
+        if (deliveryPending) {
+          return <span className="text-[12px] text-muted-foreground">…</span>;
+        }
+        const summary = deliverySummary?.[p.id];
+        const budgetUsedPct = summary && summary.budget > 0
+          ? Math.round((summary.committedSpend / summary.budget) * 100)
+          : 0;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
+            <div className="text-[11px] text-muted-foreground">
+              {`${formatCompactCurrency(summary?.committedSpend ?? 0)} of ${formatCompactCurrency(summary?.budget ?? 0)} budget`}
+            </div>
           </div>
         );
       },
@@ -493,7 +501,7 @@ const Projects: React.FC = () => {
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
           {filtered.map((p) => (
-            <ProjectCard key={p.id} project={p} onOpen={onOpen} />
+            <ProjectCard key={p.id} project={p} onOpen={onOpen} deliverySummary={deliverySummary?.[p.id]} />
           ))}
         </div>
       )}

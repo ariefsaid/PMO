@@ -26,9 +26,9 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { pct } from '@/src/lib/format';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
 // The four task_status enum values. Each maps to a distinct StatusPill variant
@@ -687,7 +687,7 @@ interface MilestoneGroupedListProps {
 /**
  * Renders tasks grouped under their milestone headings (AC-DEL-010, FR-DEL-015).
  * Milestone sections ordered by sort_order; ungrouped tasks trail at the end.
- * Each milestone heading shows name, target date, and effective % (FR-DEL-015).
+ * Each milestone heading shows name + target date only (FR-DEL-015).
  */
 const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   milestones,
@@ -728,19 +728,16 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         className="mb-4"
       >
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
-          {/* I-7: "Ungrouped" is a catch-all bucket — differentiate with muted+italic, no % chip. */}
           {isUngrouped ? (
-            <span className="text-[12px] italic text-muted-foreground">{sectionLabel}</span>
+            <span className="text-[12px] text-muted-foreground">No milestone</span>
           ) : (
-            <span className="text-[13px] font-bold">{sectionLabel}</span>
-          )}
-          {ms?.target_date && (
-            <span className="text-[11.5px] text-muted-foreground">{ms.target_date}</span>
-          )}
-          {ms && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-bold text-primary tabular">
-              {pct(ms.effective_pct)}
-            </span>
+            <MilestonePhaseHeader
+              variant="compact"
+              name={ms.name}
+              targetDate={ms.target_date}
+              effectivePct={ms.effective_pct}
+              calculatedPct={ms.calculated_pct}
+            />
           )}
           {canCreate && (
             <Button

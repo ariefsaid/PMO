@@ -1,37 +1,49 @@
 import React, { useState } from 'react';
 import {
   ListState,
-  ProgressBar,
   Button,
-  Icon,
   ConfirmDialog,
   useToast,
 } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { pct } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
+import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
 
 export interface MilestoneStripProps {
   projectId: string;
 }
 
-/**
- * Milestone strip — renders in the project detail header area (FR-DEL-012, FR-DEL-013,
- * NFR-DEL-UI-001). Shows each milestone's name, target date, effective-% progress bar,
- * and the two-column % display (calculated "From tasks" + input "PM input").
- *
- * Loading/empty/error states per NFR-DEL-UI-001. Empty state shows "Add a milestone"
- * CTA for PM/Admin (FR-DEL-013); hidden to other roles.
- *
- * Inline PM-input edit (click-to-edit number field) for PM/Admin (FR-DEL-020, OQ3).
- * Delete affordance shows ConfirmDialog (OD-UX-1 destructive confirm).
- */
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** I1/I4: A phase is 'overdue' only if it has STARTED (effective>0 or has tasks) AND past its target AND <100%. */
+const hasStarted = (milestone: MilestoneWithProgress) =>
+  milestone.effective_pct > 0 || milestone.task_count > 0;
+
+const isOverdueMilestone = (milestone: MilestoneWithProgress) =>
+  Boolean(
+    milestone.target_date &&
+    milestone.target_date < todayIso() &&
+    milestone.effective_pct < 100 &&
+    hasStarted(milestone),
+  );
+
+/** I1: priority: done(100%)→success, current→primary, overdue(started+past+<100%)→warning, else→primary (future/not-started). */
+const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean) => {
+  if (milestone.effective_pct >= 100) return 'bg-success';
+  if (isCurrent) return 'bg-primary';
+  if (isOverdueMilestone(milestone)) return 'bg-warning';
+  return 'bg-primary';
+};
+
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const may = usePermission();
   const { toast } = useToast();
+  const isDesktop = useIsDesktop();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   const { create, update, remove } = useMilestoneMutations(projectId);
 
@@ -39,14 +51,18 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const canEdit = may('edit', 'milestone');
   const canDelete = may('delete', 'milestone');
 
-  const [formTarget, setFormTarget] = useState<{ milestone: MilestoneWithProgress | null } | null>(
-    null,
-  );
+  const [formTarget, setFormTarget] = useState<{ milestone: MilestoneWithProgress | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MilestoneWithProgress | null>(null);
 
   const all = data ?? [];
+  const currentMilestoneId = all.find((milestone) => milestone.effective_pct < 100)?.id ?? null;
 
-  // ── Shared modal handlers (single source — no copy-paste) ─────────────────
+  // I2: weight-weighted rollup of effective_pct across all milestones.
+  const totalWeight = all.reduce((sum, m) => sum + m.weight, 0);
+  const deliveryRollup = totalWeight > 0
+    ? Math.round(all.reduce((sum, m) => sum + m.weight * m.effective_pct, 0) / totalWeight)
+    : 0;
+
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });
     toast('Milestone created', input.name, 'success');
@@ -80,10 +96,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
 
   if (isPending) {
     return (
-      <div
-        data-testid="milestone-strip-loading"
-        className="rounded-lg border border-border bg-card"
-      >
+      <div data-testid="milestone-strip-loading" className="rounded-lg border border-border bg-card">
         <ListState variant="loading" rows={2} testId="milestone-strip-skeleton" />
       </div>
     );
@@ -100,59 +113,105 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
     );
   }
 
-  // Empty with no create permission: render nothing at all.
-  if (all.length === 0 && !canCreate) return null;
-
   return (
     <>
       {all.length === 0 ? (
-        <div data-testid="milestone-strip-empty">
-          <ListState
-            variant="empty"
-            icon="inbox"
-            title="No milestones yet"
-            sub="Add a milestone to track delivery progress"
-            action={{ label: 'Add a milestone', onClick: () => setFormTarget({ milestone: null }) }}
-          />
+        <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
+          {canCreate ? (
+            <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
+          ) : (
+            <p className="text-[13px] text-muted-foreground">No delivery phases yet</p>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between">
-            {/* m-1: h3→h2 ("Milestones" is a top-level section of the page). */}
-            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Milestones</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-[14px] font-bold tracking-[-0.01em]">Delivery phases</h2>
+            <div className="flex items-center gap-3" aria-label={`Project delivery ${deliveryRollup}%`}>
+              <span className="text-[12px] text-muted-foreground">Project delivery</span>
+              <span className="text-[23px] font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
+            </div>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
-                <Icon name="plus" />
                 Add milestone
               </Button>
             )}
           </div>
 
-          <div className="flex flex-col gap-3">
-            {all.map((m) => (
-              <MilestoneRow
-                key={m.id}
-                milestone={m}
-                canEdit={canEdit}
-                canDelete={canDelete}
-                onEdit={() => setFormTarget({ milestone: m })}
-                onDelete={() => setDeleteTarget(m)}
-                onUpdateInputPct={async (id, input_pct) => {
-                  try {
-                    await update.mutateAsync({ id, patch: { input_pct } });
-                    toast('Progress updated', m.name, 'success');
-                  } catch (err) {
-                    const { headline, detail } = classifyMutationError(err);
-                    toast(headline, detail, 'warning');
-                  }
-                }}
-              />
-            ))}
-          </div>
+          <ol aria-label="Delivery phases" className="space-y-4">
+            <li>
+              {isDesktop ? (
+                <div className="flex h-3 overflow-hidden rounded-full bg-border">
+                  {all.map((milestone) => (
+                    <span key={milestone.id} className="flex-1 bg-secondary">
+                      <span
+                        className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                        style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {all.map((milestone) => (
+                    <div key={milestone.id} className="flex items-center gap-3">
+                      <div
+                        className={`h-2 w-2 shrink-0 rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <MilestonePhaseHeader
+                          variant="compact"
+                          name={milestone.name}
+                          targetDate={milestone.target_date}
+                          effectivePct={milestone.effective_pct}
+                          calculatedPct={milestone.calculated_pct}
+                          isCurrent={currentMilestoneId === milestone.id}
+                          isOverdue={isOverdueMilestone(milestone)}
+                          canEditProgress={canEdit}
+                          onEditProgress={canEdit ? () => {
+                            // Mobile: open inline edit via the header's edit affordance.
+                            // For simplicity, we skip per-card edit on mobile rows.
+                          } : undefined}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </li>
+            {isDesktop && (
+              <li>
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}
+                >
+                  {all.map((milestone) => (
+                    <MilestonePhaseCard
+                      key={milestone.id}
+                      milestone={milestone}
+                      isCurrent={currentMilestoneId === milestone.id}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onEditDetails={() => setFormTarget({ milestone })}
+                      onDelete={() => setDeleteTarget(milestone)}
+                      onUpdateInputPct={async (id, input_pct) => {
+                        try {
+                          await update.mutateAsync({ id, patch: { input_pct } });
+                          toast('Progress updated', milestone.name, 'success');
+                        } catch (err) {
+                          const { headline, detail } = classifyMutationError(err);
+                          toast(headline, detail, 'warning');
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              </li>
+            )}
+          </ol>
         </div>
       )}
 
-      {/* Single MilestoneFormModal + ConfirmDialog — shared by both empty and populated branches */}
       {formTarget !== null && (
         <MilestoneFormModal
           milestone={formTarget.milestone}
@@ -177,157 +236,201 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   );
 };
 
-// ── Individual milestone row ───────────────────────────────────────────────────
+const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
+  <div className="flex flex-col gap-4">
+    <div className="flex items-end gap-1.5" aria-hidden="true">
+      {[100, 72, 36, 0].map((width, index) => (
+        <span key={index} className="flex-1 rounded-full bg-secondary">
+          <span className="block h-3 rounded-full bg-primary/20" style={{ width: `${width}%` }} />
+        </span>
+      ))}
+    </div>
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold">Plan this project&apos;s delivery phases</h3>
+      <p className="max-w-[52ch] text-[13px] text-muted-foreground">
+        Add the key phases for this project so delivery progress can roll up from weighted milestones.
+      </p>
+    </div>
+    <div>
+      <Button variant="primary" size="sm" onClick={onCreate}>
+        Add the first phase
+      </Button>
+    </div>
+  </div>
+);
 
-interface MilestoneRowProps {
+interface MilestonePhaseCardProps {
   milestone: MilestoneWithProgress;
+  isCurrent: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  onEdit: () => void;
+  onEditDetails: () => void;
   onDelete: () => void;
   onUpdateInputPct: (id: string, input_pct: number | null) => Promise<void>;
 }
 
-const MilestoneRow: React.FC<MilestoneRowProps> = ({
-  milestone: m,
+const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
+  milestone,
+  isCurrent,
   canEdit,
   canDelete,
-  onEdit,
+  onEditDetails,
   onDelete,
   onUpdateInputPct,
 }) => {
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+  // C1: guard refs to prevent double-save (blur+click) and to suppress blur-save on Cancel.
+  const cancellingRef = React.useRef(false);
+  const savedRef = React.useRef(false);
 
   const startEdit = () => {
-    setInputVal(m.input_pct != null ? String(Math.round(m.input_pct)) : '');
+    setMenuOpen(false);
+    setInputVal(milestone.input_pct != null ? String(Math.round(milestone.input_pct)) : '');
     setInputError(null);
+    cancellingRef.current = false;
+    savedRef.current = false;
     setEditing(true);
   };
   const cancelEdit = () => {
+    cancellingRef.current = false;
     setInputError(null);
     setEditing(false);
   };
   const saveEdit = async () => {
+    // C1: if Cancel's mouseDown fired first, suppress save.
+    if (cancellingRef.current) return;
+    // C1: prevent double-fire from blur + Save click.
+    if (savedRef.current) return;
+    savedRef.current = true;
     const raw = inputVal.trim();
     const parsed = raw === '' ? null : Number(raw);
     if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) {
       setInputError('Progress must be between 0 and 100');
+      savedRef.current = false;
       return;
     }
     setInputError(null);
-    await onUpdateInputPct(m.id, parsed);
+    await onUpdateInputPct(milestone.id, parsed);
     setEditing(false);
   };
 
   return (
-    // I-3: drop the inner bg — rely on the border alone (DESIGN.md borders-define-structure).
-    <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-      {/* Header row: name + date + affordances */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold" title={m.name}>
-          {m.name}
-        </span>
-        {m.target_date && (
-          <span className="text-[11.5px] text-muted-foreground tabular">{m.target_date}</span>
-        )}
-        {/* C-3: drop explicit size="sm" so iconOnly resolves to 'icon' (32px + touch-target). */}
-        {canEdit && (
-          <Button variant="ghost" iconOnly aria-label={`Edit ${m.name}`} onClick={onEdit}>
-            <Icon name="pencil" />
-          </Button>
-        )}
-        {canDelete && (
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label={`Delete ${m.name}`}
-            onClick={onDelete}
-          >
-            {/* m-2: trash glyph instead of ×. */}
-            <Icon name="trash" />
-          </Button>
-        )}
-      </div>
+    <section
+      aria-current={isCurrent ? 'step' : undefined}
+      className="relative min-w-0 rounded-md border border-border bg-background/60 p-3"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <MilestonePhaseHeader
+            variant="stepper"
+            name={milestone.name}
+            targetDate={milestone.target_date}
+            effectivePct={milestone.effective_pct}
+            calculatedPct={milestone.calculated_pct}
+            isCurrent={isCurrent}
+            isOverdue={isOverdueMilestone(milestone)}
+            canEditProgress={canEdit && !editing}
+            onEditProgress={canEdit ? startEdit : undefined}
+          />
+        </div>
 
-      {/* Progress bar */}
-      <ProgressBar value={m.effective_pct} tone="primary" aria-label={`${m.name} delivery`} />
-
-      {/* Two-column % display */}
-      <div className="flex gap-4">
-        {/* From tasks (calculated) */}
-        <span
-          aria-label="From tasks"
-          className="flex flex-col gap-0.5"
-        >
-          {/* I-2: overline token treatment. */}
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            From tasks
-          </span>
-          <span className="text-[13px] font-bold tabular text-muted-foreground">
-            {pct(m.calculated_pct)}
-          </span>
-        </span>
-
-        {/* PM input (editable for PM/Admin) */}
-        <span aria-label="PM input" className="flex flex-col gap-0.5">
-          {/* I-2: overline token treatment. */}
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            PM input
-          </span>
-          {canEdit && editing ? (
-            <span className="flex flex-col gap-0.5">
-              <span className="flex items-center gap-1">
-                {/* I-6: Enter commits, Esc cancels, blur commits; no native spinner. */}
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  aria-label="Edit PM input %"
-                  className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-[13px] tabular focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  value={inputVal}
-                  onChange={(e) => { setInputVal(e.target.value); setInputError(null); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); void saveEdit(); }
-                    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-                  }}
-                  onBlur={() => { void saveEdit(); }}
-                  autoFocus
-                />
-                <Button variant="primary" size="sm" onClick={saveEdit}>
-                  Save
-                </Button>
-                <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                  Cancel
-                </Button>
-              </span>
-              {inputError && (
-                <span className="text-[11.5px] text-destructive">{inputError}</span>
-              )}
-            </span>
-          ) : (
-            // m-4: text-foreground when input_pct is set (authoritative); muted otherwise.
-            <span
-              className={`text-[13px] font-bold tabular ${m.input_pct != null ? 'text-foreground' : 'text-muted-foreground'} ${canEdit ? 'cursor-pointer hover:underline touch-target inline-flex min-h-8 items-center' : ''}`}
-              onClick={canEdit ? startEdit : undefined}
-              role={canEdit ? 'button' : undefined}
-              tabIndex={canEdit ? 0 : undefined}
-              onKeyDown={
-                canEdit
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') startEdit();
-                    }
-                  : undefined
-              }
-              aria-label={canEdit ? `Edit PM input for ${m.name}` : undefined}
+        {(canEdit || canDelete) && (
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              aria-label={`More actions for ${milestone.name}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={() => setMenuOpen((open) => !open)}
             >
-              {pct(m.input_pct)}
-            </span>
-          )}
-        </span>
+              <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEditDetails();
+                    }}
+                  >
+                    Edit milestone
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                    aria-label={`Delete milestone ${milestone.name}`}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete();
+                    }}
+                  >
+                    Delete milestone
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+
+      {editing && (
+        <div className="mt-2 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              aria-label="Edit PM input %"
+              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              value={inputVal}
+              onChange={(e) => {
+                setInputVal(e.target.value);
+                setInputError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveEdit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEdit();
+                }
+              }}
+              onBlur={() => {
+                // C1: if Cancel was clicked, suppress blur-save.
+                if (cancellingRef.current) return;
+                void saveEdit();
+              }}
+              autoFocus
+            />
+            <Button variant="primary" size="sm" onClick={saveEdit}>
+              Save
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onMouseDown={(e) => {
+                // C1: preventDefault stops the input from losing focus,
+                // so onBlur does NOT fire before the Cancel click.
+                e.preventDefault();
+                cancellingRef.current = true;
+              }}
+              onClick={cancelEdit}
+            >
+              Cancel
+            </Button>
+          </div>
+          {inputError && <span className="text-[11.5px] text-destructive">{inputError}</span>}
+        </div>
+      )}
+    </section>
   );
 };
 

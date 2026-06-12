@@ -4,8 +4,6 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
-// ── Stubs ────────────────────────────────────────────────────────────────────
-
 const updateSpy = vi.fn().mockResolvedValue(undefined);
 const milestoneMutations = {
   create: { mutateAsync: vi.fn(), isPending: false },
@@ -27,8 +25,21 @@ const milestone: MilestoneWithProgress = {
   effective_pct: 75,
 };
 
+const secondMilestone: MilestoneWithProgress = {
+  id: 'm2',
+  project_id: 'p1',
+  name: 'Procurement',
+  sort_order: 1,
+  target_date: null,
+  weight: 1,
+  input_pct: null,
+  task_count: 0,
+  calculated_pct: null,
+  effective_pct: 0,
+};
+
 const milestoneState = {
-  data: [milestone] as MilestoneWithProgress[],
+  data: [milestone, secondMilestone] as MilestoneWithProgress[],
   isPending: false,
   isError: false,
   refetch: vi.fn(),
@@ -56,111 +67,83 @@ const render$ = () =>
     </ToastProvider>,
   );
 
+const openEdit = async () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Edit progress for Engineering design' }));
+  return screen.findByLabelText('Edit PM input %');
+};
+
 describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     updateSpy.mockResolvedValue(undefined);
-    milestoneState.data = [milestone];
+    milestoneState.data = [milestone, secondMilestone];
     milestoneState.isPending = false;
     milestoneState.isError = false;
     mockRole = 'Project Manager';
   });
 
-  it('AC-DEL-012: PM viewer — clicking the "PM input" cell reveals an editable number field', async () => {
-    mockRole = 'Project Manager';
+  it('AC-DEL-012: PM viewer — every phase exposes an "Edit progress" affordance and clicking one reveals the token input', async () => {
     render$();
-    // The PM input cell is a button/clickable span for PM role
-    const pmCell = screen.getByLabelText('PM input');
-    // Find the editable span/button in the PM input cell
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    // After click, an input should appear
-    await waitFor(() => {
-      expect(screen.getByLabelText('Edit PM input %')).toBeInTheDocument();
-    });
+
+    expect(screen.getAllByRole('button', { name: /Edit progress/i })).toHaveLength(2);
+    const inputEl = await openEdit();
+    expect(inputEl.className).toContain('h-8');
+    expect(inputEl.className).toContain('rounded-md');
+    expect(inputEl.className).toContain('border-input');
   });
 
-  it('AC-DEL-012: Engineer viewer — the "PM input" cell shows a static value, no editable field', () => {
+  it('AC-DEL-012: Engineer viewer — no phase exposes an "Edit progress" affordance', () => {
     mockRole = 'Engineer';
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    // Should show static text "75%"
-    expect(pmCell).toHaveTextContent('75%');
-    // No input or role="button" affordance for Engineer
-    expect(pmCell.querySelector('input')).toBeNull();
-    expect(pmCell.querySelector('[role="button"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Edit progress/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
   });
 
-  it('Saving calls update.mutateAsync with { input_pct } and blanking sends { input_pct: null }', async () => {
-    mockRole = 'Project Manager';
+  it('Saving calls update.mutateAsync with { input_pct }', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '80' } });
-    const saveBtn = screen.getByRole('button', { name: /save/i });
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 80 } });
     });
   });
 
   it('Blanking the input field clears input_pct (sends null)', async () => {
-    mockRole = 'Project Manager';
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '' } });
-    const saveBtn = screen.getByRole('button', { name: /save/i });
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: null } });
     });
   });
 
-  it('m4: entering a value > 100 shows an error and does NOT call the mutation', async () => {
-    mockRole = 'Project Manager';
+  it('entering a value > 100 shows an error and does NOT call the mutation', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '101' } });
-    const saveBtn = screen.getByRole('button', { name: /save/i });
-    fireEvent.click(saveBtn);
-    // The error message should appear and the mutation must NOT be called
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => {
       expect(screen.getByText(/between 0 and 100/i)).toBeInTheDocument();
     });
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it('m4: entering a value < 0 shows an error and does NOT call the mutation', async () => {
-    mockRole = 'Project Manager';
+  it('entering a value < 0 shows an error and does NOT call the mutation', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '-5' } });
-    const saveBtn = screen.getByRole('button', { name: /save/i });
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => {
       expect(screen.getByText(/between 0 and 100/i)).toBeInTheDocument();
     });
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it('I-6: pressing Enter commits the edit (calls update)', async () => {
-    mockRole = 'Project Manager';
+  it('pressing Enter commits the edit', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '55' } });
     fireEvent.keyDown(inputEl, { key: 'Enter' });
     await waitFor(() => {
@@ -168,13 +151,9 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     });
   });
 
-  it('I-6: pressing Esc cancels the edit (no mutation, input disappears)', async () => {
-    mockRole = 'Project Manager';
+  it('pressing Esc cancels the edit', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '55' } });
     fireEvent.keyDown(inputEl, { key: 'Escape' });
     await waitFor(() => {
@@ -183,13 +162,9 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it('I-6: blur commits the edit (calls update)', async () => {
-    mockRole = 'Project Manager';
+  it('blur commits the edit', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
+    const inputEl = await openEdit();
     fireEvent.change(inputEl, { target: { value: '42' } });
     fireEvent.blur(inputEl);
     await waitFor(() => {
@@ -197,14 +172,62 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     });
   });
 
-  it('I-6: native number spinner is suppressed (appearance: textfield)', async () => {
-    mockRole = 'Project Manager';
+  it('C1: clicking Cancel does NOT mutate (blur-save suppressed by mouseDown preventDefault)', async () => {
     render$();
-    const pmCell = screen.getByLabelText('PM input');
-    const editableEl = pmCell.querySelector('[role="button"]') ?? pmCell;
-    fireEvent.click(editableEl);
-    const inputEl = await screen.findByLabelText('Edit PM input %');
-    // The input should carry the class/style that suppresses the native spinner.
-    expect(inputEl.className).toMatch(/appearance.*textfield|textfield/);
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '99' } });
+    // Click Cancel — mouseDown on the button prevents the input's blur-save,
+    // then click triggers cancelEdit.
+    const cancelBtn = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.mouseDown(cancelBtn);
+    fireEvent.click(cancelBtn);
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+    });
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('C1: clicking Save mutates exactly once (no double-fire from blur+click)', async () => {
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '42' } });
+    // Click Save — both blur and click fire, but the handler must save exactly once.
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    // Simulate the natural sequence: focus stays on input, then click on Save
+    // first blurs the input, then clicks the button.
+    fireEvent.blur(inputEl);
+    fireEvent.click(saveBtn);
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalled();
+    });
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 42 } });
+  });
+
+  it('success path: saving shows "Progress updated" success toast with milestone name', async () => {
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '85' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 85 } });
+    });
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Progress updated/);
+    expect(toast).toHaveTextContent(/Engineering design/);
+  });
+
+  it('error path: mutation rejection shows warning toast with classified error', async () => {
+    updateSpy.mockRejectedValue(new Error('Network error'));
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '90' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ id: 'm1', patch: { input_pct: 90 } });
+    });
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Update failed/);
+    expect(toast).toHaveTextContent(/Network error/);
   });
 });

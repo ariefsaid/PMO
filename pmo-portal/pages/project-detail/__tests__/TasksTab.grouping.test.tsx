@@ -1,6 +1,6 @@
 /**
  * AC-DEL-010 — Tasks tab groups tasks under their milestone; ungrouped tasks appear last.
- * FR-DEL-015 — Each milestone heading shows name, target date, and effective %.
+ * FR-DEL-015 — Each milestone heading shows name + target date only.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -105,7 +105,7 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     expect(within(ungroupedSection).getByText('Admin task')).toBeInTheDocument();
   });
 
-  it('FR-DEL-015: each milestone heading shows its name, target date, and effective %', () => {
+  it('FR-DEL-015: each milestone heading shows its name + target date only', () => {
     const m1: MilestoneWithProgress = {
       id: 'm1', project_id: 'p1', name: 'Engineering design', sort_order: 0,
       target_date: '2026-08-15', weight: 1, input_pct: null, task_count: 2,
@@ -118,11 +118,8 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     render$();
 
     const m1Section = screen.getByRole('region', { name: /Engineering design/i });
-    // Milestone name
     expect(within(m1Section).getByText(/Engineering design/i)).toBeInTheDocument();
-    // Target date
-    expect(within(m1Section).getByText(/2026-08-15/i)).toBeInTheDocument();
-    // Effective %
-    expect(within(m1Section).getByText(/50%/i)).toBeInTheDocument();
+    expect(within(m1Section).getByText('Target 15 Aug')).toBeInTheDocument();
+    expect(within(m1Section).queryByText(/50%/i)).toBeNull();
   });
 });

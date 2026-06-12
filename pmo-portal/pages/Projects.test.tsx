@@ -35,13 +35,18 @@ const seedWithWon = [
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
-const { roleBox, projectMutations } = vi.hoisted(() => ({
+const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  },
+  deliverySummaryState: {
+    p1: { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 },
+    p2: { deliveryPct: 25, committedSpend: 0, budget: 0 },
+    p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
   },
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -57,6 +62,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
@@ -226,6 +232,8 @@ describe('Projects table — compact layout (#1)', () => {
     expect(progressbars.length).toBeGreaterThan(0);
     // The outer wrapper span should have min-w-[80px] (compact mode)
     const bar = progressbars[0];
+    expect(bar).toHaveAttribute('aria-label', 'Delivery 50%');
+    expect(screen.getByText('50%')).toBeInTheDocument();
     const wrapper = bar.closest('span')?.parentElement;
     expect(wrapper).toBeTruthy();
     // The outermost span container should use compact sizing (min-w-[80px])

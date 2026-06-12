@@ -9,10 +9,12 @@ describe('DeliveryPctChip (AC-DEL-013)', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders "32%" pill when pct=32', () => {
-    render(<DeliveryPctChip pct={32} />);
+  it('renders a mini-bar + value pair when pct=32', () => {
+    const { container } = render(<DeliveryPctChip pct={32} />);
     expect(screen.getByText('32%')).toBeInTheDocument();
-    expect(screen.getByLabelText('Delivery 32%')).toBeInTheDocument();
+    const summary = screen.getByLabelText('Delivery 32%');
+    expect(summary).toBeInTheDocument();
+    expect(container.querySelector('[class*="h-1.5"][class*="w-12"]')).not.toBeNull();
   });
 
   it('rounds fractional pct to nearest integer', () => {
