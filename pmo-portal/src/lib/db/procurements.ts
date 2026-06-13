@@ -18,6 +18,11 @@ const SELECT =
  * Ordered / Received / Vendor Invoiced / Paid — the EXACT basis the dashboards use
  * (0009_dashboard_margin.sql `on_hand.spent`). org_id is NEVER sent — RLS scopes by org.
  * Returns 0 when the project has no committed POs.
+ *
+ * SINGLE DEFINITION (OD-BUDGET-2): committed spend = Σ(total_value) for statuses Ordered,
+ * Received, Vendor Invoiced, Paid. The three implementations of this basis — this client hook,
+ * projects.spent (0009), and get_projects_delivery.committed_spend (0026) — MUST agree. A pgTAP
+ * drift guard (0069_dashboard_at_risk_boundary.test.sql) asserts the SQL pair stays in sync.
  */
 const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Ordered',
