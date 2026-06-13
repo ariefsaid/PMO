@@ -21,18 +21,12 @@
   pi-trial; e2e gate caught a redesign-locator regression + an ambient esbuild CI-audit breakage, both
   fixed. PR #79 delivery-UI redesign; KANNA Issue #1 document file upload (PR #78). Full timeline: history.md.
 
-## ▶ KNOWN ISSUES (action required before next prod push)
+## ▶ KNOWN ISSUES
 
-### ⚠ Prod migration push pending — 'Budget used' + doc storage not yet live on prod (HIGH)
-Local migrations are ahead of prod. The next `scripts/db-push-prod.sh` must land **0024** (Superseded
-enum) + **0025** (doc storage bucket + RLS) + **0026** (delivery RPC v2 with `committed_spend`) + **0027**
-(dashboard at-risk `>=` boundary) together as one unit. Until pushed, the Projects-list 'Budget used'
-column, document file upload, and the at-risk boundary fix are **not live on prod**.
-
-> The migration-0023 immutability bug that caused this (0023 was edited in place in PR #79 *after* it had
-> already been pushed to prod in PR #74, and id-based `db push` won't re-apply it) was **fixed in PR #80**:
-> 0023 restored byte-identical to its #74 content, the committed-spend RPC moved into new 0026. Verified by
-> the full review loop + a clean local `db reset` (0001→0026 apply) + pgTAP 0066. Prod push is now unblocked.
+_None blocking._ (Prod migration push **DONE 2026-06-13** — `scripts/db-push-prod.sh` applied 0024+0025+0026+0027
+to the Supabase Cloud project; `production` branch promoted to `main`@094406c → Cloudflare prod FE redeployed.
+'Budget used', document file upload + the prod storage bucket, and the at-risk `>=` boundary are now LIVE.
+The migration-0023 immutability bug behind this was fixed in PR #80; 0023 is byte-identical to its #74 prod content.)
 
 ## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
 Competitor gap analysis vs KANNA/Aldagram: `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Issues run
@@ -70,9 +64,7 @@ unconsumed), and procurement attachments — owner to confirm sequencing at next
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
-- **Prod migration push (unblocked — ready)** — 0024 (Superseded enum) + 0025 (doc storage bucket + RLS) +
-  0026 (delivery RPC v2 with committed_spend) + 0027 (dashboard at-risk `>=` boundary) push together as a
-  unit via `scripts/db-push-prod.sh`. See KNOWN ISSUES. Do before any prod file/delivery-% use. **Next action.**
+- ~~**Prod migration push**~~ — **DONE 2026-06-13** (0024–0027 applied to prod; `production` promoted; FE redeployed).
 - ~~**At-risk classification consolidation**~~ — **DONE (PR #82).** One shared rule in `dashboardConstants`
   (private predicate; `isAtRisk`/`isAtRiskByCommitted` delegate), all surfaces (PMDashboard/Projects/OverviewTab)
   call it; server `projects_at_risk` reconciled `>`→`>=` via new migration 0027 (0009 untouched); dead
