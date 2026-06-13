@@ -116,6 +116,14 @@ import {
   deleteMilestone,
   updateTaskMilestone,
 } from '@/src/lib/db/milestones';
+import {
+  listProcurementFiles,
+  prepareUpload as prepareProcurementFileUpload,
+  confirmUpload as confirmProcurementFileUpload,
+  archiveProcurementFile,
+  getSignedDownloadUrl as getProcurementFileSignedUrl,
+  cleanupStorageObject as cleanupProcurementFileObject,
+} from '@/src/lib/db/procurementFiles';
 import type {
   Repositories,
   ProjectRepository,
@@ -128,6 +136,7 @@ import type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  ProcurementFileRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -261,6 +270,17 @@ const milestone: MilestoneRepository = {
   setTaskMilestone: (taskId, milestoneId) => wrap(() => updateTaskMilestone(taskId, milestoneId)),
 };
 
+const procurementFiles: ProcurementFileRepository = {
+  list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
+  prepareUpload: (phase, parentId, procurementId, orgId, fileName) =>
+    wrap(() => prepareProcurementFileUpload(phase, parentId, procurementId, orgId, fileName)),
+  confirmUpload: (phase, parentId, path, title, uploadedById) =>
+    wrap(() => confirmProcurementFileUpload(phase, parentId, path, title, uploadedById)),
+  archive: (phase, id) => wrap(() => archiveProcurementFile(phase, id)),
+  getSignedUrl: (filePath, opts) => wrap(() => getProcurementFileSignedUrl(filePath, opts)),
+  cleanupObject: (filePath) => wrap(() => cleanupProcurementFileObject(filePath)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -273,6 +293,7 @@ export const repositories: Repositories = {
   task,
   incident,
   milestone,
+  procurementFiles,
 };
 
 export type {
@@ -287,4 +308,5 @@ export type {
   TaskRepository,
   IncidentRepository,
   MilestoneRepository,
+  ProcurementFileRepository,
 } from './types';

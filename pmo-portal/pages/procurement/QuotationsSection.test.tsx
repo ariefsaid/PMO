@@ -15,6 +15,12 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   }),
 }));
 
+// The per-quotation file sub-section has its own unit test + needs a QueryClient;
+// stub it here so this suite stays focused on quote add/select behavior.
+vi.mock('./ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+
 import { QuotationsSection } from './QuotationsSection';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -41,6 +47,10 @@ function renderSection(props: Partial<React.ComponentProps<typeof QuotationsSect
         selectedId={props.selectedId}
         canAdd={props.canAdd ?? true}
         canSelect={props.canSelect ?? true}
+        procurementId={props.procurementId ?? 'proc-1'}
+        orgId={props.orgId ?? 'org-1'}
+        canManageFiles={props.canManageFiles ?? true}
+        currentUserId={props.currentUserId ?? 'user-1'}
         onAdd={onAdd}
         onSelect={onSelect}
         onError={onError}

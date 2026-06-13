@@ -18,6 +18,11 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   }),
 }));
 
+// The per-quotation file sub-section is unit-tested separately; stub it here.
+vi.mock('./ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+
 import { QuotationsSection } from './QuotationsSection';
 
 function renderSection(props: Partial<React.ComponentProps<typeof QuotationsSection>> = {}) {
@@ -30,6 +35,10 @@ function renderSection(props: Partial<React.ComponentProps<typeof QuotationsSect
         quotations={props.quotations ?? []}
         canAdd={props.canAdd ?? true}
         canSelect={props.canSelect ?? false}
+        procurementId={props.procurementId ?? 'proc-1'}
+        orgId={props.orgId ?? 'org-1'}
+        canManageFiles={props.canManageFiles ?? true}
+        currentUserId={props.currentUserId ?? 'user-1'}
         onAdd={onAdd}
         onSelect={onSelect}
         onError={onError}
