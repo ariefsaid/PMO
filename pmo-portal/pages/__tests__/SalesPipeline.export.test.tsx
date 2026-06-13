@@ -6,27 +6,30 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
- * B-5 (AC-W2-IXD-008): Sales Pipeline Export is demoted to an honest
- * disabled "Export (arrives with Reports)" control with a keyboard-reachable
- * tooltip explanation — not a live-looking button with no handler (OD-W2-5).
+ * B-5 (AC-W2-IXD-008 / W1-E): Sales Pipeline Export is now a LIVE xlsx download
+ * of the current table view (KANNA W1-E). The disabled "arrives with Reports" stub
+ * has been replaced with the shared ExportButton.
  *
- * OD-UX-3 precedent: a "coming soon" with a known future destination = visibly
- * disabled + tooltip; a truly-dead control = removed. Export is "coming soon"
- * (Reports will own it), so it is disabled-with-tooltip, not removed.
+ * Updated from the prior dead-affordance honesty test: the goal (Export is reachable
+ * and honest) is unchanged, but the journey step changed — the button is now live,
+ * not disabled-with-tooltip (deliberate UX change per the CLAUDE.md authoring rule).
  */
+
+vi.mock('@/src/lib/export/exportToXlsx', () => ({
+  exportToXlsx: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
+// Empty pipeline — tests the disabled state.
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useLostDeals: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['table', vi.fn()] }));
-// B-3: SalesPipeline now renders a "+ New opportunity" CTA (useProjectMutations / usePermission);
-// stub to avoid the QueryClientProvider requirement.
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
   useClientCompanies: () => ({ data: [] }),
@@ -49,28 +52,24 @@ const renderAs = (role: 'Project Manager' | 'Finance') =>
     </ImpersonationProvider>,
   );
 
-describe('SalesPipeline — Export dead-affordance honesty (B-5, AC-W2-IXD-008)', () => {
-  it('AC-W2-IXD-008: Export is disabled — not a live button with no handler (OD-W2-5)', () => {
+describe('SalesPipeline — Export live button (B-5 / W1-E, AC-W2-IXD-008)', () => {
+  it('AC-W2-IXD-008: Export button is present (no longer the disabled Reports stub)', () => {
     renderAs('Project Manager');
-    // The Export control must be present but disabled.
+    // The Export button is present — it is now a real ExportButton, not a Tooltip-wrapped stub.
     const exportBtn = screen.getByRole('button', { name: /export/i });
     expect(exportBtn).toBeInTheDocument();
+  });
+
+  it('AC-W2-IXD-008: Export button is disabled when there are no rows (empty pipeline)', () => {
+    renderAs('Project Manager');
+    // The pipeline is empty (mock returns []) so the ExportButton disables itself.
+    const exportBtn = screen.getByRole('button', { name: /export/i });
     expect(exportBtn).toBeDisabled();
   });
 
-  it('AC-W2-IXD-008: the Export label/aria-label indicates it arrives with Reports (honest reason)', () => {
-    renderAs('Project Manager');
-    // The aria-label must name the "Reports" destination so keyboard users understand why.
-    const exportBtn = screen.getByRole('button', { name: /export.*reports/i });
-    expect(exportBtn).toBeInTheDocument();
-  });
-
-  it('AC-W2-IXD-008: the Export button is wrapped in a focusable span so the tooltip is keyboard-reachable (G5 a11y)', () => {
-    renderAs('Project Manager');
-    // The disabled button is inside a <span> wrapper (per the Tooltip/disabled-button a11y pattern).
+  it('AC-W2-IXD-008: Export is accessible to Finance role as well', () => {
+    renderAs('Finance');
     const exportBtn = screen.getByRole('button', { name: /export/i });
-    expect(exportBtn.parentElement?.tagName).toBe('SPAN');
-    // The span itself is focusable-by-proximity (mouse/pointer enters the span → tooltip opens).
-    // Keyboard: Tab reaches the focusable span; the tooltip wires onFocus via React.cloneElement.
+    expect(exportBtn).toBeInTheDocument();
   });
 });
