@@ -245,21 +245,31 @@ const ProcurementPage: React.FC = () => {
       {/* Toolbar */}
       {state !== 'loading' && (
         <Toolbar standalone>
-          <ViewToggle<'table' | 'board'>
-            options={[
-              { value: 'table', label: 'Table', icon: 'table' },
-              { value: 'board', label: 'By-stage Board', icon: 'cols' },
-            ]}
-            value={view}
-            onChange={setView}
-            ariaLabel="Procurement view"
-          />
-          <ViewToggle<StatusFilter>
-            options={FILTERS.map((f) => ({ value: f, label: f }))}
-            value={filter}
-            onChange={setFilter}
-            ariaLabel="Status filter"
-          />
+          {/* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
+              so hide the Table/Board toggle — it would be a state-lie. */}
+          <div className="hidden md:block">
+            <ViewToggle<'table' | 'board'>
+              options={[
+                { value: 'table', label: 'Table', icon: 'table' },
+                { value: 'board', label: 'By-stage Board', icon: 'cols' },
+              ]}
+              value={view}
+              onChange={setView}
+              ariaLabel="Procurement view"
+            />
+          </div>
+          {/* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */}
+          <div
+            data-testid="status-filter-scroll"
+            className="overflow-x-auto scroll-fade-x"
+          >
+            <ViewToggle<StatusFilter>
+              options={FILTERS.map((f) => ({ value: f, label: f }))}
+              value={filter}
+              onChange={setFilter}
+              ariaLabel="Status filter"
+            />
+          </div>
           <SearchMini
             placeholder="Filter requests…"
             aria-label="Filter requests"
