@@ -14,8 +14,9 @@ Assess:
 - Does it follow the file structure from the plan and existing pmo-portal/ patterns?
 - Naming (matches what things do, not how), error handling, and do tests verify real behavior?
 - Did this change create already-large files or significantly grow existing ones?
+- **DB & query performance** (when the diff touches SQL / migrations / `src/lib/db/*` / repositories): do hot-path `WHERE` / `JOIN` / `ORDER BY` columns have a supporting index in a migration? Any N+1 (per-row queries in a loop), `select *` over wide rows, or unbounded scans? Flag missing indexes and require the migration add them — this is the **Part B Data/Schema "indexes for hot paths" DoD**, owned here at Review.
 
 Report: **Strengths**; **Issues** grouped Critical / Important / Minor (each with `file:line` + suggested fix); **Overall assessment** (ship / fix-then-ship / rework).
 
 ## Charter & Definition of Done
-Binding charter: `docs/product-expectations.md`. Beyond cleanliness, review for **scalability, maintainability, duplicate logic, and performance** (unnecessary rendering, expensive operations, potential memory leaks) — the lens of someone maintaining this for 5+ years. Confirm changed-code coverage ≥80% and that tests assert behavior.
+Binding charter: `docs/product-expectations.md`. Beyond cleanliness, review for **scalability, maintainability, duplicate logic, and performance** — front-end (unnecessary rendering, expensive operations, potential memory leaks) **and database (missing indexes on filtered/joined hot-path columns, N+1 query patterns, unbounded scans — for any SQL/migration/DAL change)** — the lens of someone maintaining this for 5+ years. Confirm changed-code coverage ≥80% and that tests assert behavior.
