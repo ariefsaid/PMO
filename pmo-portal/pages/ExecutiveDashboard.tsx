@@ -19,13 +19,37 @@ import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
 import { AwaitingApprovalTile } from '@/src/components/dashboard/AwaitingApprovalTile';
+import { MobileExecutiveDashboard } from '@/src/components/dashboard/MobileExecutiveDashboard';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { useProcurements } from '@/src/hooks/useProcurements';
+import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
+import { useAuth } from '@/src/auth/useAuth';
+import { can } from '@/src/auth/policy';
+import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 
 const ExecutiveDashboard: React.FC = () => {
-  const { effectiveRole } = useEffectiveRole();
+  const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
   // is the very last statement so no hook is conditional.
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: pipeline, isPending: pipePending, isError: pipeError, refetch: refetchPipe } = useSalesPipeline();
+  const isDesktop = useIsDesktop();
+
+  // Approval count — computed unconditionally (hooks rules) so the mobile
+  // approvals band has an honest count without re-querying inside the mobile
+  // component. The same predicate as AwaitingApprovalTile (H7 — single source).
+  const { currentUser } = useAuth();
+  const selfId = currentUser?.id;
+  const { data: procurements } = useProcurements();
+  const { data: timesheets } = useTimesheetsAwaitingApproval();
+  const canApproveProc = can('transition', 'procurement', { realRole });
+  const mobileApprovalCount = useMemo(() => {
+    const procCount = canApproveProc
+      ? pendingProcurementApprovals(procurements, selfId).length
+      : 0;
+    const tsCount = timesheets?.length ?? 0;
+    return procCount + tsCount;
+  }, [canApproveProc, procurements, selfId, timesheets]);
 
   const procByStatus = useMemo(
     () =>
@@ -79,6 +103,79 @@ const ExecutiveDashboard: React.FC = () => {
     const onHandPct = `${(data.on_hand_margin * 100).toFixed(1)}%`;
     const weightedPct = `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
 
+    /** Chart/detail section — shared between mobile (below fold) and desktop. */
+    const chartsSection = (
+      <>
+        <DashGrid>
+          <Card data-testid="dashboard-pipeline">
+            <span className="sr-only">{`${data.active_projects} active projects`}</span>
+            <CardHead>Budget vs Actual — Active Projects</CardHead>
+            <div className="px-4 pb-3.5">
+              {data.top_projects.length === 0 ? (
+                <ListState variant="empty" icon="folder" title="No active projects yet" />
+              ) : (
+                <BvACard projects={data.top_projects} />
+              )}
+            </div>
+          </Card>
+
+          <WinRateCard />
+        </DashGrid>
+
+        <DashGrid>
+          <Card data-testid="dashboard-proc-status">
+            <span className="sr-only">{`${data.procurements_by_status.length} statuses`}</span>
+            <CardHead>Procurement by Status</CardHead>
+            <div className="px-4 pb-4 pt-2">
+              {procByStatus.length === 0 ? (
+                <ListState variant="empty" icon="cart" title="No procurement activity yet" />
+              ) : (
+                <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
+                  label="Procurement by status" noun="requests" />
+              )}
+            </div>
+          </Card>
+
+          <Card data-testid="dashboard-pipeline-margin">
+            {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
+                ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
+            <CardHead>Pipeline forecast margin</CardHead>
+            <div className="px-4 pb-4 pt-3">
+              {pipeError ? (
+                <ListState variant="error" title="Couldn't load the pipeline" onRetry={() => refetchPipe()} />
+              ) : pipePending ? (
+                <ListState variant="loading" rows={5} />
+              ) : !pipeline || pipeline.stages.length === 0 ? (
+                <ListState variant="empty" icon="pipe" title="No open pipeline" />
+              ) : (
+                <ProjectedMarginBars projectedMargin={data.pipeline_projected_margin} stages={pipeline.stages} />
+              )}
+            </div>
+          </Card>
+        </DashGrid>
+      </>
+    );
+
+    // ── Mobile branch (<768px, useIsDesktop()=false) ──────────────────────────
+    // Single-render seam: exactly one DOM branch (mobile or desktop) is in the
+    // tree at a time. No dual a11y tree, no flash of wrong layout on first paint.
+    if (!isDesktop) {
+      return (
+        <div className="space-y-4">
+          <DashPageHead
+            title="Executive Dashboard"
+            sub="What needs your attention across the contracting book."
+          />
+          <MobileExecutiveDashboard
+            data={data}
+            approvalCount={mobileApprovalCount}
+            belowFold={<div className="mt-3 space-y-4">{chartsSection}</div>}
+          />
+        </div>
+      );
+    }
+
+    // ── Desktop branch (≥768px) — VERBATIM existing layout ───────────────────
     return (
       <div className="space-y-4">
         <DashPageHead
@@ -160,53 +257,7 @@ const ExecutiveDashboard: React.FC = () => {
           <AwaitingApprovalTile includeTimesheets />
         </section>
 
-        <DashGrid>
-          <Card data-testid="dashboard-pipeline">
-            <span className="sr-only">{`${data.active_projects} active projects`}</span>
-            <CardHead>Budget vs Actual — Active Projects</CardHead>
-            <div className="px-4 pb-3.5">
-              {data.top_projects.length === 0 ? (
-                <ListState variant="empty" icon="folder" title="No active projects yet" />
-              ) : (
-                <BvACard projects={data.top_projects} />
-              )}
-            </div>
-          </Card>
-
-          <WinRateCard />
-        </DashGrid>
-
-        <DashGrid>
-          <Card data-testid="dashboard-proc-status">
-            <span className="sr-only">{`${data.procurements_by_status.length} statuses`}</span>
-            <CardHead>Procurement by Status</CardHead>
-            <div className="px-4 pb-4 pt-2">
-              {procByStatus.length === 0 ? (
-                <ListState variant="empty" icon="cart" title="No procurement activity yet" />
-              ) : (
-                <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
-                  label="Procurement by status" noun="requests" />
-              )}
-            </div>
-          </Card>
-
-          <Card data-testid="dashboard-pipeline-margin">
-            {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
-                ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
-            <CardHead>Pipeline forecast margin</CardHead>
-            <div className="px-4 pb-4 pt-3">
-              {pipeError ? (
-                <ListState variant="error" title="Couldn't load the pipeline" onRetry={() => refetchPipe()} />
-              ) : pipePending ? (
-                <ListState variant="loading" rows={5} />
-              ) : !pipeline || pipeline.stages.length === 0 ? (
-                <ListState variant="empty" icon="pipe" title="No open pipeline" />
-              ) : (
-                <ProjectedMarginBars projectedMargin={data.pipeline_projected_margin} stages={pipeline.stages} />
-              )}
-            </div>
-          </Card>
-        </DashGrid>
+        {chartsSection}
       </div>
     );
   };
