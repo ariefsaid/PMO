@@ -331,11 +331,16 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  it('H2: the success render drops the redundant in-page Back bar (top-bar crumb owns wayfinding)', () => {
+  it('H2: the success render has no ALWAYS-VISIBLE BackBar; the mobile BackBar (≤920px) is CSS-hidden on desktop', () => {
     renderPage();
-    // the record loaded — and there is NO in-page "Back to Procurement" bar
+    // The record is loaded; the PageHeader heading is present.
     expect(screen.getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Back to Procurement/i })).toBeNull();
+    // C-IMP-1 (AC-S6-3): a mobile BackBar IS in the DOM for mobile back-nav (≤920px),
+    // but it is wrapped in `hidden max-[920px]:block` — CSS-only, single render.
+    // The wrapper must carry `hidden` to keep desktop unchanged (I7 intent preserved).
+    const mobileBackBarWrapper = screen.getByTestId('mobile-back-bar');
+    expect(mobileBackBarWrapper).toBeInTheDocument();
+    expect(mobileBackBarWrapper.className).toContain('hidden');
   });
 
   it('E4: the success render has no disabled "Audit trail" stub action', () => {
