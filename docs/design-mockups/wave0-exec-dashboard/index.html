@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wave-0 — Executive Dashboard (390px mobile)</title>
+<style>
+  /* ============================================================
+     DESIGN.md tokens — bare HSL triplets on :root (canonical runtime form).
+     Every value below is a DESIGN.md token; no invented brand/palette/font.
+     ============================================================ */
+  :root {
+    /* Surfaces */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    /* Brand / action */
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    /* Quiet UI */
+    --secondary: 240 4.8% 95.9%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 4% 40%;
+    --accent: 240 4.8% 95.9%;
+    /* Status / semantic */
+    --destructive: 0 84.2% 60.2%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 22 78% 26%;
+    --success: 142 71% 45%;
+    /* Lines / fields / focus */
+    --border: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+    /* Categorical accent */
+    --violet: 262 83% 58%;
+    /* Darkened-AA status pill text (DESIGN.md §5) */
+    --status-lost-text: 0 72% 45%;
+    --status-won-text: 142 64% 30%;
+    --status-violet-text: 262 60% 42%;
+    /* Radius spine */
+    --radius: 0.5rem; /* 8px = rounded.md */
+  }
+
+  * { box-sizing: border-box; }
+  *:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+  body {
+    margin: 0;
+    /* The secondary/35% main wash that lifts white cards off the page (DESIGN.md §4) */
+    background: hsl(240 4.8% 95.9% / 0.35);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: hsl(var(--foreground));
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    padding: 24px;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  /* ---- 390px phone frame ---- */
+  .frame {
+    width: 390px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 18px;
+    overflow: hidden;
+    background: hsl(240 4.8% 95.9% / 0.35);
+    box-shadow: 0 10px 30px hsl(240 10% 8% / 0.10);
+  }
+  .frame-cap {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); margin: 0 0 8px 4px;
+  }
+  /* the fold marker — 844px tall viewport minus the 56px header */
+  .fold {
+    position: relative;
+    border-top: 2px dashed hsl(var(--primary) / 0.5);
+    margin: 0;
+  }
+  .fold span {
+    position: absolute; right: 8px; top: -9px;
+    background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+    padding: 1px 7px; border-radius: 999px;
+  }
+
+  /* ---- Header (56px) ---- */
+  .hdr {
+    height: 56px; background: hsl(var(--background));
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  }
+  .hdr .ham { width: 32px; height: 32px; border: 1px solid hsl(var(--border)); border-radius: 8px;
+    display: grid; place-items: center; color: hsl(var(--muted-foreground)); }
+  .hdr .ham svg { width: 17px; height: 17px; }
+  .hdr .crumb { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .hdr .spacer { flex: 1; }
+  .hdr .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+    color: hsl(var(--muted-foreground)); position: relative; }
+  .hdr .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 999px;
+    background: hsl(var(--destructive)); }
+
+  /* ---- Page scroll body ---- */
+  .body { padding: 14px; }
+
+  /* Page head */
+  .pagehead { margin-bottom: 14px; }
+  .pagehead h1 { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+  .pagehead p { margin: 4px 0 0; font-size: 12.5px; color: hsl(var(--muted-foreground)); line-height: 1.4; }
+
+  /* Section overline */
+  .overline {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); margin: 18px 0 8px;
+  }
+
+  /* ============================================================
+     PRIMARY ATTENTION CARD — the at-risk decision block.
+     One card, borders-first, flat at rest. Amber = warning state.
+     ============================================================ */
+  .attn {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: 8px; padding: 16px; margin-bottom: 12px;
+  }
+  .attn-top { display: flex; align-items: center; gap: 10px; }
+  .attn-icon {
+    width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0;
+    background: hsl(var(--warning) / 0.14); color: hsl(var(--warning-foreground));
+  }
+  .attn-icon svg { width: 17px; height: 17px; }
+  .attn-label { font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .attn-row { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+  .attn-val { font-size: 23px; font-weight: 700; line-height: 1.1; }
+  .attn-val.warn { color: hsl(var(--warning-foreground)); }
+  .attn-sub { font-size: 12.5px; color: hsl(var(--muted-foreground)); }
+  .attn-split { display: flex; gap: 10px; margin-top: 12px; }
+  .attn-cell {
+    flex: 1; border: 1px solid hsl(var(--border)); border-radius: 6px; padding: 9px 10px;
+    text-decoration: none; color: inherit; display: block;
+  }
+  .attn-cell .k { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); }
+  .attn-cell .v { font-size: 17px; font-weight: 700; margin-top: 3px; }
+  .attn-cell .arrow { font-size: 11px; color: hsl(var(--primary)); font-weight: 600; margin-top: 4px; display: block; }
+
+  /* Approvals primary action band */
+  .approve {
+    display: flex; align-items: center; gap: 12px;
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: 8px; padding: 13px 14px; margin-bottom: 12px;
+    text-decoration: none; color: inherit;
+  }
+  .approve .ai {
+    width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0;
+    background: hsl(var(--warning) / 0.14); color: hsl(var(--warning-foreground));
+  }
+  .approve .ai svg { width: 17px; height: 17px; }
+  .approve .acount { font-size: 21px; font-weight: 700; line-height: 1; }
+  .approve .alabel { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .approve .cta {
+    margin-left: auto; height: 32px; padding: 0 12px; border-radius: 8px;
+    background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+    font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
+  }
+  .approve .cta svg { width: 14px; height: 14px; }
+
+  /* ============================================================
+     HEADLINE KPI PAIR — the 2 decision-ready money figures.
+     B-MIN-3 fix lives here: grouped under one "Contract book"
+     overline with explicit source micro-labels.
+     ============================================================ */
+  .kpi-pair { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .kpi {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-radius: 8px; padding: 14px;
+  }
+  .kpi-head { display: flex; align-items: center; gap: 9px; }
+  .kpi-ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+  .kpi-ic svg { width: 16px; height: 16px; }
+  .ic-green { background: hsl(var(--success) / 0.12); color: hsl(var(--status-won-text)); }
+  .ic-amber { background: hsl(var(--warning) / 0.16); color: hsl(var(--warning-foreground)); }
+  .ic-violet { background: hsl(var(--violet) / 0.12); color: hsl(var(--status-violet-text)); }
+  .ic-blue { background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); }
+  .ic-red { background: hsl(var(--destructive) / 0.12); color: hsl(var(--status-lost-text)); }
+  .kpi-label { font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .kpi-val { font-size: 23px; font-weight: 700; line-height: 1.1; margin-top: 9px; }
+  .kpi-src {
+    font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground));
+    margin-top: 5px; display: flex; align-items: center; gap: 5px;
+  }
+  .kpi-src .pdot { width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--muted-foreground)); flex-shrink: 0; }
+
+  /* Collapsed "more metrics" disclosure (below the fold) */
+  .more-summary {
+    list-style: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+    padding: 12px 14px; font-size: 13px; font-weight: 600;
+  }
+  .more-summary::-webkit-details-marker { display: none; }
+  .more-summary .chev { color: hsl(var(--muted-foreground)); transition: transform .15s; }
+  details[open] .more-summary .chev { transform: rotate(180deg); }
+  .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .mini {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 12px;
+  }
+  .mini .ml { font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .mini .mv { font-size: 18px; font-weight: 700; margin-top: 6px; }
+  .mini .ms { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 3px; }
+
+  /* Charts (below fold) — flat card, header + body */
+  .chart {
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+    margin-top: 10px; overflow: hidden;
+  }
+  .chart-head { font-size: 13.5px; font-weight: 700; padding: 12px 14px; border-bottom: 1px solid hsl(var(--border)); }
+  .chart-body { padding: 14px; }
+  /* fake bars */
+  .bars { display: flex; flex-direction: column; gap: 9px; }
+  .barrow { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; font-size: 11.5px; }
+  .barrow .bn { color: hsl(var(--muted-foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .track { height: 8px; border-radius: 999px; background: hsl(var(--secondary)); overflow: hidden; }
+  .fill { height: 100%; border-radius: 999px; }
+  .fill.s { background: hsl(var(--success)); }
+  .fill.w { background: hsl(var(--warning)); }
+  .fill.d { background: hsl(var(--destructive)); }
+  .barrow .bv { text-align: right; color: hsl(var(--foreground)); font-weight: 600; }
+
+  .note {
+    width: 360px; font-size: 12.5px; color: hsl(var(--muted-foreground)); line-height: 1.55;
+  }
+  .note h3 { color: hsl(var(--foreground)); font-size: 13px; margin: 16px 0 6px; }
+  .note code { background: hsl(var(--secondary)); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+</style>
+</head>
+<body>
+
+  <!-- ===================== ABOVE-THE-FOLD FRAME ===================== -->
+  <div>
+    <p class="frame-cap">390 × 844 — above the fold (first viewport)</p>
+    <div class="frame">
+      <!-- Header -->
+      <div class="hdr">
+        <div class="ham" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </div>
+        <span class="crumb">Dashboard</span>
+        <div class="spacer"></div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="dot"></span>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- Page head -->
+        <div class="pagehead">
+          <h1>Executive Dashboard</h1>
+          <p>What needs your attention across the contracting book.</p>
+        </div>
+
+        <!-- 1 — DELIVERY EXPOSURE / AT-RISK (top decision block) -->
+        <div class="overline">Needs attention</div>
+        <div class="attn" aria-label="Delivery exposure">
+          <div class="attn-top">
+            <div class="attn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            </div>
+            <span class="attn-label">Projects at risk</span>
+          </div>
+          <div class="attn-row">
+            <span class="attn-val warn tabular">3</span>
+            <span class="attn-sub">of 18 active projects flagged over budget or behind schedule</span>
+          </div>
+          <div class="attn-split">
+            <a class="attn-cell" href="#" aria-label="Open active projects, total contract value $23.05M">
+              <span class="k">Active projects</span>
+              <span class="v tabular">18</span>
+              <span class="arrow">View &rarr;</span>
+            </a>
+            <a class="attn-cell" href="#" aria-label="Open spend breakdown, $14.20M spent to date">
+              <span class="k">Spent to date</span>
+              <span class="v tabular">$14.20M</span>
+              <span class="arrow">Breakdown &rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 2 — APPROVALS (primary action) -->
+        <a class="approve" href="#" aria-label="Awaiting your approval: 5 items. Open approvals inbox.">
+          <div class="ai" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <div>
+            <div class="acount tabular">5</div>
+            <div class="alabel">Awaiting your approval</div>
+          </div>
+          <span class="cta">Review
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </span>
+        </a>
+
+        <!-- 3 — HEADLINE MONEY PAIR (B-MIN-3 fix: grouped + sourced) -->
+        <div class="overline">Contract book</div>
+        <div class="kpi-pair">
+          <div class="kpi" aria-label="Revenue on hand">
+            <div class="kpi-head">
+              <div class="kpi-ic ic-green" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <span class="kpi-label">Revenue on hand</span>
+            </div>
+            <div class="kpi-val tabular">$26.65M</div>
+            <div class="kpi-src"><span class="pdot"></span>Booked across active + closed-out contracts &middot; 22.4% margin realized</div>
+          </div>
+          <div class="kpi" aria-label="Active contract value">
+            <div class="kpi-head">
+              <div class="kpi-ic ic-amber" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <span class="kpi-label">Active contract value</span>
+            </div>
+            <div class="kpi-val tabular">$23.05M</div>
+            <div class="kpi-src"><span class="pdot"></span>Signed value of the 18 projects still in delivery</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THE FOLD -->
+      <div class="fold"><span>FOLD &middot; 844px</span></div>
+
+      <!-- ===================== BELOW THE FOLD ===================== -->
+      <div class="body" style="padding-top: 4px;">
+
+        <!-- 4 — PIPELINE summary (forward-looking, demoted below fold) -->
+        <div class="overline">Pipeline</div>
+        <div class="kpi-pair">
+          <div class="kpi" aria-label="Pipeline weighted value">
+            <div class="kpi-head">
+              <div class="kpi-ic ic-violet" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M6 7v13M18 7v13M3 12h18"/></svg>
+              </div>
+              <span class="kpi-label">Pipeline (weighted)</span>
+            </div>
+            <div class="kpi-val tabular">$8.40M</div>
+            <div class="kpi-src"><span class="pdot"></span>of $19.2M gross &middot; 31.5% forecast margin</div>
+          </div>
+        </div>
+
+        <!-- 5 — MORE METRICS (collapsed disclosure) -->
+        <div class="overline">More metrics</div>
+        <details>
+          <summary class="more-summary">
+            <span>Show 1 more KPI</span>
+            <span class="chev" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </span>
+          </summary>
+          <div class="more-grid">
+            <div class="mini" aria-label="Pipeline forecast margin">
+              <div class="ml">Pipeline forecast margin</div>
+              <div class="mv tabular">31.5%</div>
+              <div class="ms">probability-weighted</div>
+            </div>
+            <div class="mini" aria-label="Total project spend">
+              <div class="ml">Total project spend</div>
+              <div class="mv tabular">$14.20M</div>
+              <div class="ms">actual to date</div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 6 — CHARTS (deferred, single column, scroll) -->
+        <div class="overline">Detail</div>
+
+        <div class="chart">
+          <div class="chart-head">Budget vs Actual — Active projects</div>
+          <div class="chart-body">
+            <div class="bars">
+              <div class="barrow"><span class="bn">North Sea</span><div class="track"><div class="fill s" style="width:62%"></div></div><span class="bv tabular">62%</span></div>
+              <div class="barrow"><span class="bn">Pipeline R5</span><div class="track"><div class="fill w" style="width:88%"></div></div><span class="bv tabular">88%</span></div>
+              <div class="barrow"><span class="bn">Onshore-4</span><div class="track"><div class="fill d" style="width:104%"></div></div><span class="bv tabular">104%</span></div>
+              <div class="barrow"><span class="bn">Maint. C</span><div class="track"><div class="fill s" style="width:41%"></div></div><span class="bv tabular">41%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart">
+          <div class="chart-head">Win rate</div>
+          <div class="chart-body" style="color:hsl(var(--muted-foreground));font-size:12.5px;">Donut / trend renders here (recharts, themed to tokens).</div>
+        </div>
+
+        <div class="chart">
+          <div class="chart-head">Procurement by status</div>
+          <div class="chart-body" style="color:hsl(var(--muted-foreground));font-size:12.5px;">Status bar chart renders here.</div>
+        </div>
+
+        <div class="chart">
+          <div class="chart-head">Pipeline forecast margin</div>
+          <div class="chart-body" style="color:hsl(var(--muted-foreground));font-size:12.5px;">Per-stage projected-margin bars render here.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ANNOTATION ===================== -->
+  <div class="note">
+    <p class="frame-cap" style="margin-left:0">Reading the mockup</p>
+    <p>All color/type/radius/spacing values are <strong>DESIGN.md tokens</strong> (bare-HSL <code>:root</code>, the canonical runtime form). No raw hex where a token exists; no invented brand or font. Figures carry <code>tabular-nums</code>.</p>
+    <h3>Above the fold (≤844px, minus 56px header)</h3>
+    <p>1 &mdash; <strong>Projects at risk</strong> (the exec's first question). 2 &mdash; <strong>Awaiting approval</strong> with a primary <em>Review</em> CTA. 3 &mdash; <strong>Contract book</strong> money pair, grouped &amp; sourced.</p>
+    <h3>B-MIN-3 fix</h3>
+    <p>"Revenue on hand $26.65M" and "$23.05M contract value" are <strong>grouped under one "Contract book" overline</strong>, relabeled <strong>"Active contract value"</strong>, each carrying a micro source-line. They no longer read as a contradiction &mdash; revenue includes closed-out work; contract value is active-only.</p>
+    <h3>Demoted below the fold</h3>
+    <p>Pipeline (weighted), Pipeline forecast margin + Total spend (collapsed disclosure), and all 4 charts.</p>
+  </div>
+
+</body>
+</html>

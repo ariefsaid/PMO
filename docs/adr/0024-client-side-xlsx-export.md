@@ -1,4 +1,4 @@
-# ADR-0023 — Client-side `.xlsx` export of the current list view
+# ADR-0024 — Client-side `.xlsx` export of the current list view
 
 Status: Accepted (2026-06-14)
 Companion plan: `docs/plans/2026-06-13-bulk-export.md`
