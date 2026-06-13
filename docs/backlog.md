@@ -7,7 +7,7 @@
 ## ▶ Current state (2026-06-13)
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
-  merge `main → production`. Migrations through **0026** (local); PRs through **#80**.
+  merge `main → production`. Migrations through **0027** (local); PRs through **#82**.
   (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
 - **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
   Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),
@@ -15,7 +15,8 @@
   stepper + 'Project delivery %' rollup + 'Budget used' committed-spend column), **document file upload
   (storage)**, PostHog analytics, Solar EPC demo seed (4-phase milestones). The CRUD/RBAC foundation
   (ADR-0015–0021) is the pattern all new work follows.
-- **Most recently shipped:** PR #80 delivery migration-chain fix (restored 0023, new 0026 committed-spend
+- **Most recently shipped:** PR #82 at-risk consolidation (one shared rule + migration 0027 + drift-guard).
+  PR #80 delivery migration-chain fix (restored 0023, new 0026 committed-spend
   RPC) + committed-spend budget basis — ran the full 4-agent review loop (security/spec/quality/qa) on the
   pi-trial; e2e gate caught a redesign-locator regression + an ambient esbuild CI-audit breakage, both
   fixed. PR #79 delivery-UI redesign; KANNA Issue #1 document file upload (PR #78). Full timeline: history.md.
@@ -24,9 +25,9 @@
 
 ### ⚠ Prod migration push pending — 'Budget used' + doc storage not yet live on prod (HIGH)
 Local migrations are ahead of prod. The next `scripts/db-push-prod.sh` must land **0024** (Superseded
-enum) + **0025** (doc storage bucket + RLS) + **0026** (delivery RPC v2 with `committed_spend`) together
-as one unit. Until pushed, the Projects-list 'Budget used' column and document file upload are **not live
-on prod**.
+enum) + **0025** (doc storage bucket + RLS) + **0026** (delivery RPC v2 with `committed_spend`) + **0027**
+(dashboard at-risk `>=` boundary) together as one unit. Until pushed, the Projects-list 'Budget used'
+column, document file upload, and the at-risk boundary fix are **not live on prod**.
 
 > The migration-0023 immutability bug that caused this (0023 was edited in place in PR #79 *after* it had
 > already been pushed to prod in PR #74, and id-based `db push` won't re-apply it) was **fixed in PR #80**:
@@ -70,15 +71,14 @@ unconsumed), and procurement attachments — owner to confirm sequencing at next
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
 - **Prod migration push (unblocked — ready)** — 0024 (Superseded enum) + 0025 (doc storage bucket + RLS) +
-  0026 (delivery RPC v2 with committed_spend) push together as a unit via `scripts/db-push-prod.sh`. The
-  0023 fix landed (PR #80). See KNOWN ISSUES. Do before any prod file/delivery-% use. **This is the next action.**
-- **At-risk classification consolidation** [Important, from PR #80 quality review] — committed-spend is now
-  computed three ways (0009 `spent` view / 0026 RPC `committed_spend` / client `getProjectCommittedSpend`
-  reduce) and at-risk is classified inconsistently: PMDashboard on `project.spent/budget` (`>0.9`, via
-  `dashboardConstants.isAtRisk`) vs Projects-list + OverviewTab on `committedSpend/budget` (`>=0.9`, inlined).
-  Same *value* (spent IS the committed basis per OD-BUDGET-2) but a real `>`-vs-`>=` boundary mismatch at
-  exactly 90%. Fix: one shared committed-basis helper in `dashboardConstants`; decide if PMDashboard moves to
-  the committed basis. Also remove the now-dead `calculatedPct` prop on `MilestonePhaseHeader`.
+  0026 (delivery RPC v2 with committed_spend) + 0027 (dashboard at-risk `>=` boundary) push together as a
+  unit via `scripts/db-push-prod.sh`. See KNOWN ISSUES. Do before any prod file/delivery-% use. **Next action.**
+- ~~**At-risk classification consolidation**~~ — **DONE (PR #82).** One shared rule in `dashboardConstants`
+  (private predicate; `isAtRisk`/`isAtRiskByCommitted` delegate), all surfaces (PMDashboard/Projects/OverviewTab)
+  call it; server `projects_at_risk` reconciled `>`→`>=` via new migration 0027 (0009 untouched); dead
+  `calculatedPct` prop removed; pgTAP 0069 drift-guard pins the three committed-spend definitions in agreement;
+  fixed a latent bug (PMDashboard counted inactive projects as at-risk). `budgetUtilPct` dead export left
+  (unrelated pre-existing). Reviewed SHIP; 2214 unit + 459 pgTAP green.
 - **Vite 8 upgrade (real esbuild remediation)** [Medium, from PR #80] — esbuild GHSA-gv7w-rqvm-qjhr (build-time
   devDep, not shipped) has no in-range fix; the blocking CI audit was scoped to prod deps (`--omit=dev`, clean)
   with a non-blocking full audit (`.github/workflows/ci.yml`). The actual patch is the Vite 6→8 major (moves to
