@@ -48,6 +48,23 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     ]);
   });
 
+  it('AC-PF-007(ux): create procFile = Admin·Exec·PM·Finance (writers), Engineer denied', () => {
+    expect(allowedRoles('create', 'procFile')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(can('create', 'procFile', { realRole: 'Engineer' })).toBe(false);
+    // delete (archive) shares the same writer set.
+    expect(allowedRoles('delete', 'procFile')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+  });
+
   it('ADR-0016: create user = Admin only', () => {
     expect(allowedRoles('create', 'user')).toEqual(['Admin']);
   });

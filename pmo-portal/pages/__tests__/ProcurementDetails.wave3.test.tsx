@@ -29,6 +29,12 @@ const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new', vi_number: 'V
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 
+// The per-phase file sub-section has its own unit test + needs a QueryClient;
+// stub it here so the page tests stay focused on the lifecycle behavior.
+vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({

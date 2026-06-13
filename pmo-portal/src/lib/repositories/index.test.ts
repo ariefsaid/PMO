@@ -110,6 +110,14 @@ vi.mock('@/src/lib/db/milestones', () => ({
   deleteMilestone: vi.fn(),
   updateTaskMilestone: vi.fn(),
 }));
+vi.mock('@/src/lib/db/procurementFiles', () => ({
+  listProcurementFiles: vi.fn(),
+  prepareUpload: vi.fn(),
+  confirmUpload: vi.fn(),
+  archiveProcurementFile: vi.fn(),
+  getSignedDownloadUrl: vi.fn(),
+  cleanupStorageObject: vi.fn(),
+}));
 
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
@@ -135,7 +143,13 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'document', 'incident', 'milestone', 'procurement', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet'].sort(),
+    );
+  });
+
+  it('procurementFiles exposes its expected methods', () => {
+    expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
+      ['archive', 'cleanupObject', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
     );
   });
 
