@@ -16,6 +16,22 @@ export function useProjects() {
   });
 }
 
+/**
+ * Dated milestones for a set of visible projects — the read-only Project Calendar view.
+ * One batched read (NFR-CAL-PERF-001); short-circuits (no query) on an empty id set so an
+ * empty/filtered-out list never issues an RPC. queryKey is org-scoped + keyed on the sorted
+ * id set so the cache is tenant-scoped and stable across re-renders.
+ */
+export function useProjectsMilestoneDates(ids: string[]) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['milestone-dates', orgId, [...ids].sort()],
+    queryFn: () => repositories.milestone.milestoneDatesForProjects(ids),
+    enabled: Boolean(orgId) && ids.length > 0,
+  });
+}
+
 export function useClientCompanies() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
