@@ -125,6 +125,16 @@ import {
   getSignedDownloadUrl as getProcurementFileSignedUrl,
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
+import {
+  listContacts,
+  listContactsByCompany,
+  getContact,
+  createContact,
+  updateContact,
+  archiveContact,
+  deleteContact,
+} from '@/src/lib/db/contacts';
+import { listActivities, createActivity } from '@/src/lib/db/crmActivities';
 import type {
   Repositories,
   ProjectRepository,
@@ -138,6 +148,7 @@ import type {
   IncidentRepository,
   MilestoneRepository,
   ProcurementFileRepository,
+  ContactRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -283,6 +294,18 @@ const procurementFiles: ProcurementFileRepository = {
   cleanupObject: (filePath) => wrap(() => cleanupProcurementFileObject(filePath)),
 };
 
+const contact: ContactRepository = {
+  list: () => wrap(() => listContacts()),
+  listByCompany: (id) => wrap(() => listContactsByCompany(id)),
+  get: (id) => wrap(() => getContact(id)),
+  create: (input) => wrap(() => createContact(input)),
+  update: (id, input) => wrap(() => updateContact(id, input)),
+  archive: (id) => wrap(() => archiveContact(id)),
+  delete: (id) => wrap(() => deleteContact(id)),
+  listActivities: (id) => wrap(() => listActivities(id)),
+  createActivity: (input, loggedById) => wrap(() => createActivity(input, loggedById)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -296,6 +319,7 @@ export const repositories: Repositories = {
   incident,
   milestone,
   procurementFiles,
+  contact,
 };
 
 export type {
@@ -311,4 +335,5 @@ export type {
   IncidentRepository,
   MilestoneRepository,
   ProcurementFileRepository,
+  ContactRepository,
 } from './types';

@@ -143,7 +143,13 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet'].sort(),
+    );
+  });
+
+  it('contact exposes its expected methods (W3-CRM)', () => {
+    expect(Object.keys(repositories.contact).sort()).toEqual(
+      ['archive', 'create', 'createActivity', 'delete', 'get', 'list', 'listActivities', 'listByCompany', 'update'].sort(),
     );
   });
 

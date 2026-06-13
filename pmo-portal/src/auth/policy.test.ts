@@ -215,6 +215,56 @@ describe('can() — milestone RBAC (OD-DEL-7)', () => {
   });
 });
 
+describe('can() — CRM RBAC (W3-CRM)', () => {
+  it('AC-CRM-024: create/edit contact = MASTER_DATA (Admin·Exec·PM·Finance), Engineer denied', () => {
+    expect(allowedRoles('create', 'contact')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(allowedRoles('edit', 'contact')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(can('create', 'contact', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('AC-CRM-024: view contact = MASTER_DATA (Engineer has no CRM)', () => {
+    expect(allowedRoles('view', 'contact')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+  });
+
+  it('AC-CRM-024: archive contact = ARCHIVE_ROLES (Admin·Exec); PM/Finance denied', () => {
+    expect(allowedRoles('archive', 'contact')).toEqual(['Admin', 'Executive']);
+    expect(can('archive', 'contact', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('archive', 'contact', { realRole: 'Executive' })).toBe(true);
+  });
+
+  it('AC-CRM-024: delete contact = ADMIN only', () => {
+    expect(allowedRoles('delete', 'contact')).toEqual(['Admin']);
+    expect(can('delete', 'contact', { realRole: 'Admin' })).toBe(true);
+    expect(can('delete', 'contact', { realRole: 'Executive' })).toBe(false);
+  });
+
+  it('AC-CRM-025: create contactActivity = MASTER_DATA; Finance allowed, Engineer denied', () => {
+    expect(allowedRoles('create', 'contactActivity')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(can('create', 'contactActivity', { realRole: 'Finance' })).toBe(true);
+    expect(can('create', 'contactActivity', { realRole: 'Engineer' })).toBe(false);
+  });
+});
+
 describe('can() — deny-by-default safety', () => {
   it('ADR-0016: a null role is always denied (RLS stays the authority; FE never opens on no role)', () => {
     expect(can('create', 'project', { realRole: null })).toBe(false);
