@@ -37,6 +37,7 @@ import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
+import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 
 /**
@@ -422,11 +423,12 @@ const Projects: React.FC = () => {
             toggle is a state-lie on mobile — wrap in hidden/md:block so it disappears below md.
             Status filter stays always visible. */}
         <div className="hidden md:block">
-          <ViewToggle<'table' | 'cards' | 'calendar'>
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
             options={[
               { value: 'table', label: 'Table', icon: 'table' },
               { value: 'cards', label: 'Cards', icon: 'cards' },
               { value: 'calendar', label: 'Calendar', icon: 'cal' },
+              { value: 'kanban', label: 'Kanban', icon: 'cols' },
             ]}
             value={view}
             onChange={setView}
@@ -477,7 +479,9 @@ const Projects: React.FC = () => {
       </Toolbar>
 
       {/* Body */}
-      {view === 'calendar' ? (
+      {view === 'kanban' ? (
+        <ProjectKanbanBoard projects={filtered} />
+      ) : view === 'calendar' ? (
         <ProjectCalendarView
           projects={filtered}
           milestoneDates={milestoneDates}

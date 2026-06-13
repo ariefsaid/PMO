@@ -89,6 +89,26 @@ const renderPage = (role = 'Project Manager') => {
   );
 };
 
+describe('Projects index — kanban view (AC-PK-008)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    navigate.mockClear();
+  });
+
+  it('AC-PK-008: the view toggle offers a Kanban option; selecting it renders the kanban board', async () => {
+    renderPage();
+    const toggle = screen.getByRole('tablist', { name: /projects view/i });
+    expect(within(toggle).getByRole('tab', { name: /Kanban/i })).toBeInTheDocument();
+    await userEvent.click(within(toggle).getByRole('tab', { name: /Kanban/i }));
+    // Board root appears; no project-card elements (kanban uses its own card format)
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('project-card').length).toBe(0);
+  });
+});
+
 describe('Projects index — IA-3 (real data)', () => {
   beforeEach(() => {
     sessionStorage.clear();
