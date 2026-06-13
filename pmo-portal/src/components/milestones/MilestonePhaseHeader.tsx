@@ -7,7 +7,6 @@ export type MilestonePhaseHeaderProps = {
   name: string;
   targetDate: string | null;
   effectivePct: number;
-  calculatedPct: number | null;
   /** Milestone weight (from project_milestones.weight). */
   weight?: number;
   /** Sum of all milestone weights in the project. */

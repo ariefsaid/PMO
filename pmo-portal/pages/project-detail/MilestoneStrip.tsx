@@ -391,7 +391,6 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             name={milestone.name}
             targetDate={milestone.target_date}
             effectivePct={milestone.effective_pct}
-            calculatedPct={milestone.calculated_pct}
             weight={milestone.weight}
             totalWeight={totalWeight}
             isCurrent={isCurrent}

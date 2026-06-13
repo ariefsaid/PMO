@@ -736,7 +736,6 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
               name={ms.name}
               targetDate={ms.target_date}
               effectivePct={ms.effective_pct}
-              calculatedPct={ms.calculated_pct}
             />
           )}
           {canCreate && (
