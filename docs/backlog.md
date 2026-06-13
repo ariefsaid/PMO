@@ -7,7 +7,7 @@
 ## ▶ Current state (2026-06-13)
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
-  merge `main → production`. Migrations through **0027** (local); PRs through **#82**.
+  merge `main → production`. **Prod is current** — Cloud at migration **0027**, `production` promoted (2026-06-13). PRs through **#83**.
   (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
 - **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
   Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),

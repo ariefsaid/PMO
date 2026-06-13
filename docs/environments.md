@@ -61,6 +61,27 @@ the SAME stack.** This is the #1 parallel-dev footgun; the rules below are bindi
   Don't treat a local full-parallel e2e run as a gate signal — re-run suspects serially, and trust **CI**
   (clean env) as the authority.
 
+### CI is the isolated-DB-per-PR pool — parallelize verification THERE, not locally
+
+The local stack is ONE shared lock; **CI is not.** PMO is a **public repo ⇒ unlimited free GitHub-Actions
+minutes**, and each PR's `integration` job spins up its **own** Postgres + pgTAP + full e2e on a clean
+runner. So parallel PRs verify **in parallel, in isolation, at zero local RAM** — CI is effectively the
+"multi-branch database" that free Supabase doesn't give you (Supabase Branching is **paid**; and you must
+never `db reset` the single cloud/prod DB).
+
+**The parallel-build pattern (binding for parallel work):**
+- Build N independent features in **N worktrees** — FE/logic is cheap RAM; the DB is the only local lock.
+- Push **a PR per feature** → CI runs each one's isolated DB verification concurrently.
+- The Director verifies from **CI** (`gh pr checks <n>`) + light local checks (unit / typecheck / a
+  targeted run); merge **serially**. The local stack comes up only for **interactive DB debugging** —
+  `supabase stop` otherwise (it's the biggest persistent RAM chunk; see RAM levers below).
+- **Re-run a confirmed-flake integration job** (`gh run rerun <id> --failed`) rather than fighting it
+  locally — CI flakes (Supabase container-restart 502s, mutation-spec retry-pollution) are routine, not
+  signal. Diagnose the failing spec first; only re-run if it's unrelated to the diff.
+
+Render / Cloudflare-free do **not** substitute for the Supabase test stack (a bare Postgres lacks
+Supabase's auth/RLS/storage/pgTAP). Full parallel/serialized-owner operating model: `docs/kanna-program.md` §1.
+
 ### RAM / disk cleanup (the stack + browsers are the hogs)
 
 - **Stop the stack when not DB-testing.** It's multi-GB and the biggest persistent chunk. **`supabase
@@ -157,20 +178,17 @@ dashboard setup is not part of the first instrumentation PR.
 the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge
 the backend so a deploy can never silently talk to the wrong one).
 
-## Prod-pending migrations (action required)
+## Prod migration state
 
-> ⚠ **KNOWN ISSUE — migration 0023 immutability bug:** PR #79 edited migration 0023 (already live in
-> prod) to add `committed_spend` to `get_projects_delivery`. Supabase will NOT re-apply it. Before the
-> next prod push, restore 0023 to its #74 content and add a new **0026** migration that `CREATE OR
-> REPLACE`s the RPC with the committed-spend version. Then push 0024 + 0025 + 0026 together.
-> See `docs/backlog.md` KNOWN ISSUES for the complete fix procedure.
+**Prod is CURRENT at migration 0027** (0024–0027 pushed 2026-06-13 via `scripts/db-push-prod.sh`; the
+`production` branch was then promoted to `main` so the FE matches). No migrations pending.
 
-Migrations currently pending for prod (not yet pushed to cloud):
-- **0024** — Superseded document status enum (PR #78)
-- **0025** — Storage: org bucket + `storage.objects` RLS + auto-Supersede RPC (PR #78)
-- **0026** *(to be created)* — `get_projects_delivery` RPC v2 with `committed_spend` (fixes #79 regression)
-
-Push all three together once 0026 is in place: `scripts/db-push-prod.sh`.
+The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
+0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
+**0027** (dashboard at-risk `>=` boundary). **Rule going forward (binding):** once a migration is pushed to
+prod it is IMMUTABLE — any later change to a function/view/policy goes in a NEW forward migration (RPCs are
+`create or replace`, so trivially re-appliable). Push order: **DB first (`db-push-prod.sh`), then promote the
+FE** (`git push origin main:production`) — the old FE ignores new RPC columns, so DB-ahead-of-FE is safe.
 
 ## First-time prod (cloud) deploy
 

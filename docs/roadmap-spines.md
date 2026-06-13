@@ -24,11 +24,11 @@ first for current state.
 |---|---|---|---|
 | 1 | **Commercial** | Win the work: pipeline / tenders / win-rate | ✅ built & hardened |
 | 2 | **Cost / AP** | Money OUT: budgets, procure-to-pay, timesheets | ✅ built & hardened |
-| 3 | **Delivery** | Do the work: execution phases (E→P→C), stage-gates, %-complete / schedule, field ops | ❌ missing |
-| 4 | **Revenue / AR** | Money IN: progress billing, retention, change orders, cashflow | ❌ missing |
+| 3 | **Delivery** | Do the work: execution phases (E→P→C), %-complete / schedule, field ops | ✅ built (#74/#79/#80 — milestones, delivery-%, committed-spend; no stage-gates per OD-DEL-6) |
+| 4 | **Revenue / AR** | Money IN: progress billing, retention, change orders, cashflow | ❌ missing (recommended next big spine) |
 | 5 | **CRM** | Contacts, activity log, follow-ups | 🟡 thin |
 | 6 | **HSE / Quality** | Incidents ✓; inspections / NCRs / permits ✗ | 🟡 partial |
-| 7 | **Documents** | Register + approval workflow ✓; files / transmittals / RFIs ✗ | 🟡 partial |
+| 7 | **Documents** | Register + approval ✓; **file upload ✓ (#78)**; transmittals / RFIs ✗ | 🟡 advancing |
 | 8 | **Resources / Assets** | Capacity planning, equipment, inventory | ❌ missing |
 | 9 | **Service / O&M** | Post-handover: recurring service contracts, preventive-maintenance schedules, breakdown tickets / SLAs, installed-asset registry, renewals + recurring billing | ❌ missing |
 
@@ -41,7 +41,7 @@ flowchart LR
     classDef missing  fill:#dc2626,color:#fff,stroke:#b91c1c,stroke-dasharray:5 5
 
     S1["1 · Commercial\n(win work)"]:::built
-    S3["3 · Delivery\n(execute)"]:::missing
+    S3["3 · Delivery\n(execute)"]:::built
     S2["2 · Cost / AP\n(money out)"]:::built
     S4["4 · Revenue / AR\n(money in)"]:::missing
     S5["5 · CRM"]:::partial

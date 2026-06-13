@@ -69,6 +69,20 @@ never write app code yourself — you delegate and **verify**.
   `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
+## 3a. Parallel execution & the serialized owner (the wave model)
+Independent issues can run in parallel — but two things stay serial: the **single human owner** and `main`
+integration. Binding for any parallel push (full model: `docs/kanna-program.md` §1):
+- **The owner is a single, non-parallelizable resource; the Director is the sole proxy.** Front-load,
+  serialize, and **batch per wave** every owner-interactive gate (grill-with-docs, spec sign-off, mockup
+  approval) **before** fan-out. Parallel agents consume only **locked** decisions; an agent that hits an
+  unresolved owner question **STOPS and escalates to the Director** — it never asks the owner mid-run.
+- **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes
+  a PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions;
+  see `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local checks; merge
+  one PR at a time.
+- **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
+  starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.
+
 ## 4. Decision policy (decide vs escalate)
 - **Decide yourself** (then state it): tactical sequencing, which agent/model, file layout, library
   patterns already chosen, fixing a failing gate, applying `[OWNER-DECISION]` defaults and flagging them.
