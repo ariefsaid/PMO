@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
-/** The Projects index body layouts (ViewToggle options): table, cards, or the read-only calendar. */
-export type ProjectView = 'table' | 'cards' | 'calendar';
+/** The Projects index body layouts (ViewToggle options): table, cards, calendar, or kanban board. */
+export type ProjectView = 'table' | 'cards' | 'calendar' | 'kanban';
 
 const DEFAULT_VIEW: ProjectView = 'table';
 
 function isProjectView(v: unknown): v is ProjectView {
-  return v === 'table' || v === 'cards' || v === 'calendar';
+  return v === 'table' || v === 'cards' || v === 'calendar' || v === 'kanban';
 }
 
 /**

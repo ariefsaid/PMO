@@ -22,8 +22,13 @@ describe('useProjectView persistence (VIEW.project)', () => {
     expect(map.procurement).toBe('board');
   });
 
+  it('round-trips kanban view (AC-PK-007)', () => {
+    writeProjectView('kanban');
+    expect(readProjectView()).toBe('kanban');
+  });
+
   it('falls back to table for an out-of-range stored value', () => {
-    sessionStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify({ project: 'kanban' }));
+    sessionStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify({ project: 'nonsense' }));
     expect(readProjectView()).toBe('table');
   });
 

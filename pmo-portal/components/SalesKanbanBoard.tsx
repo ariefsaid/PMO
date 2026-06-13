@@ -1,5 +1,6 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React from 'react';
 import { Kanban, KanbanColumn, KanbanCard, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
+import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
@@ -78,58 +79,15 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number }> = ({ gross, we
  *     and lets the user jump to a column by tapping. The strip is `md:hidden` so
  *     it appears only on narrow viewports (the full column headers are visible
  *     on desktop, making the indicator redundant there).
- *   - The indicator tracks scroll position via an `onScroll` handler passed DIRECTLY
- *     to the `<Kanban>` primitive. `<Kanban>` spreads `...rest` onto its outermost
- *     `.kanban-scroll` div, so the listener attaches to the actual scrolling element.
- *     CRITICAL: scroll events do NOT bubble — attaching onScroll to any ancestor div
- *     would silently never fire on a swipe gesture (was the Defect-1 bug pre-fix).
- *   - `scrollWrapRef` on the outer wrapper is kept for `handleStageClick`'s programmatic
- *     `scrollEl.scrollTo(...)` — it locates `.kanban-scroll` via querySelector.
+ *   - Scroll tracking + programmatic scroll-to-column live in the shared
+ *     `useKanbanMobileScroll` hook (also used by ProjectKanbanBoard). CRITICAL:
+ *     scroll events do NOT bubble — `onScroll` is passed DIRECTLY to `<Kanban>`,
+ *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
-  const [activeStageIndex, setActiveStageIndex] = useState(0);
-  // Wrapper ref used by handleStageClick to locate .kanban-scroll for programmatic scrollTo.
-  // The scroll LISTENER is NOT on this wrapper — it's on <Kanban> (= .kanban-scroll) directly,
-  // because scroll events do not bubble.
-  const scrollWrapRef = useRef<HTMLDivElement>(null);
-  // Refs to each column div — used for programmatic scroll-to-column
-  const colRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  // Detect which column is nearest the left edge of the scroll container.
-  // NOTE: this handler MUST be attached to the actual .kanban-scroll element —
-  // scroll events do not bubble, so a parent wrapper's onScroll never fires.
-  // We pass this directly to <Kanban> which spreads ...rest onto .kanban-scroll.
-  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollLeft = e.currentTarget.scrollLeft;
-    // Find the column whose left offset is closest to scrollLeft
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    colRefs.current.forEach((col, i) => {
-      if (!col) return;
-      const dist = Math.abs(col.offsetLeft - scrollLeft);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
-      }
-    });
-    setActiveStageIndex(bestIdx);
-  }, []);
-
-  // Scroll to a specific column when the stage indicator button is tapped.
-  const handleStageClick = useCallback((index: number) => {
-    const wrap = scrollWrapRef.current;
-    if (!wrap) return;
-    const scrollEl = wrap.querySelector('.kanban-scroll') as HTMLElement | null;
-    const col = colRefs.current[index];
-    if (!scrollEl || !col) return;
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scrollEl.scrollTo({
-      left: col.offsetLeft,
-      behavior: prefersReduced ? 'instant' : 'smooth',
-    });
-    setActiveStageIndex(index);
-  }, []);
+  const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
+    useKanbanMobileScroll();
 
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
