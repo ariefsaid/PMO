@@ -19,6 +19,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`roadmap-spines.md`** | The 9-spine contractor business model + generalization roadmap (spine status, gap analysis, sequencing, decision log). Durable strategic reference; `backlog.md` is the live status tracker. |
 | **`glossary.md`** | Canonical domain language (Delivery, Milestone, Task, Document, Revision, Superseded, O&M, Spine …). Binding — when usage conflicts, the definition wins. |
 | **`specs/`** | SDD specs per feature — `FR-`/`AC-` requirements; Playwright/pgTAP/unit tests trace to these AC-ids. |
+| **`analytics-events.md`** | The PostHog event taxonomy + naming/property contract (the analytics spec, PR #77). Reference when instrumenting a new surface. |
 | **`product-expectations.md`** | The product charter + per-layer Definition of Done (binding on all agents). |
 | **`director-playbook.md`** | The Director's per-issue orchestration loop, gates, grading rubric. |
 | **`design-workflow.md`** | The UI/UX cycle (Foundation → per-UI-issue loop) + the standing 3-lens rendered design-review battery + the design-agent→skill-command map. |
