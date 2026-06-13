@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, tabId, tabPanelId, ListState, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { useOpportunity } from '@/src/lib/db/opportunity';
@@ -53,6 +54,7 @@ function tabFromParam(param: string | undefined, isDeliveryForward: boolean): PT
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const { data, isPending } = useProjects();
 
@@ -129,6 +131,11 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div>
+      {/* C-IMP-1: on mobile (< 768px) the top-bar breadcrumb is not visible, so
+          we surface the BackBar in-content so mobile users have an up/back escape.
+          Desktop keeps the breadcrumb-only pattern (I7). Single-render: one DOM
+          branch per breakpoint via useIsDesktop(), never dual-tree. */}
+      {!isDesktop && <BackBar label="Projects" onBack={goBack} />}
       {/* I7: no in-page BackBar / Breadcrumb on the success render — the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
