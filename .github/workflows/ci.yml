@@ -28,6 +28,11 @@ on:
       - 'LICENSE'
   workflow_dispatch: {}
 
+# Least privilege: the workflow only reads the repo (checkout + diff); it never writes
+# contents, issues, PRs, or packages.
+permissions:
+  contents: read
+
 # Cancel an in-progress run when a newer commit is pushed to the same branch/PR —
 # avoids paying for superseded runs during iterative pushes.
 concurrency:
@@ -70,10 +75,15 @@ jobs:
       - name: Changed-lines coverage gate (≥80%)
         if: github.event_name == 'pull_request'
         working-directory: .
+        # BASE_REF is passed via env (not interpolated into the shell) so the
+        # untrusted github.base_ref can't be shell-injected. fetch-depth: 0 above
+        # already provides full history, so no extra --depth is needed.
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          git fetch --no-tags origin "$BASE_REF"
           node scripts/changed-lines-coverage.mjs \
-            --base "origin/${{ github.base_ref }}" \
+            --base "origin/$BASE_REF" \
             --coverage pmo-portal/coverage/coverage-final.json \
             --min 80
       - name: Build

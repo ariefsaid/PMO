@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   computeChangedLinesCoverage,
   parseDiffForChangedLines,
+  collectChangedFromDiff,
   normalizeCoveragePath,
   isExcludedSource,
 } from './changed-lines-coverage.mjs';
@@ -157,6 +158,40 @@ test('AC: 79.9% fails the boundary', () => {
   assert.equal(result.ok, false);
 });
 
+test('I1: 79.95% fails despite rounding to 80 (ok computed from raw ratio)', () => {
+  // 1599 covered of 2000 -> 79.95% -> rounds to 80.0 for display, but MUST fail.
+  const statements = [];
+  for (let i = 1; i <= 2000; i += 1) statements.push({ start: i, end: i, hits: i <= 1599 ? 1 : 0 });
+  const coverage = makeCoverage({ '/repo/pmo-portal/src/a.ts': statements });
+  const lines = new Set();
+  for (let i = 1; i <= 2000; i += 1) lines.add(i);
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', lines]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 2000);
+  assert.equal(result.covered, 1599);
+  assert.equal(result.pct, 80); // display rounds up
+  assert.equal(result.ok, false); // but the gate fails on the raw 79.95%
+});
+
+test('M1: a suffix-colliding coverage key is not matched (exact repo-relative wins)', () => {
+  // The changed file is pmo-portal/src/x.ts (uncovered). A DIFFERENT, fully-covered
+  // file living under a nested checkout shares the `/pmo-portal/src/x.ts` suffix and
+  // is listed FIRST. Suffix-only matching would pick the covered stray and the gate
+  // would FALSELY PASS; normalizing keys to repo-relative makes the changed path
+  // resolve by EXACT match to its own (uncovered) entry.
+  const coverage = makeCoverage({
+    '/repo/vendor/nested/pmo-portal/src/x.ts': [{ start: 1, end: 1, hits: 9 }],
+    '/repo/pmo-portal/src/x.ts': [{ start: 1, end: 1, hits: 0 }],
+  });
+  const changedLinesByFile = new Map([
+    ['pmo-portal/src/x.ts', new Set([1])],
+  ]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80, root: '/repo' });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 0); // resolved to the real file, NOT the covered stray
+  assert.equal(result.ok, false);
+});
+
 test('perFile breakdown is reported per changed file', () => {
   const coverage = makeCoverage({
     '/repo/pmo-portal/src/a.ts': [{ start: 1, end: 1, hits: 1 }],
@@ -224,6 +259,51 @@ test('parseDiffForChangedLines skips pure-deletion hunks (new count 0)', () => {
   ].join('\n');
   const map = parseDiffForChangedLines(diff);
   assert.equal(map.has('pmo-portal/src/a.ts'), false);
+});
+
+// --- diff collection (C1: root-level files must be collected) ---
+
+test('C1: a ROOT-level source file (pmo-portal/App.tsx) IS collected from the diff', () => {
+  // App.tsx is in vite coverage `include` but lives directly under pmo-portal/, which
+  // the old `pmo-portal/**/*.tsx` git pathspec failed to match. The collection path
+  // must capture it.
+  const diff = [
+    '+++ b/pmo-portal/App.tsx',
+    '@@ -0,0 +1,2 @@',
+    '+const x = 1;',
+    '+const y = 2;',
+  ].join('\n');
+  const map = collectChangedFromDiff(diff);
+  assert.ok(map.has('pmo-portal/App.tsx'), 'pmo-portal/App.tsx should be collected');
+  assert.deepEqual([...map.get('pmo-portal/App.tsx')].sort((a, b) => a - b), [1, 2]);
+});
+
+test('C1: collectChangedFromDiff filters non-source and excluded files', () => {
+  const diff = [
+    '+++ b/pmo-portal/index.tsx',
+    '@@ -0,0 +1,1 @@',
+    '+root tsx',
+    '+++ b/pmo-portal/types.ts',
+    '@@ -0,0 +1,1 @@',
+    '+root ts',
+    '+++ b/pmo-portal/README.md', // not .ts/.tsx -> dropped
+    '@@ -0,0 +1,1 @@',
+    '+doc',
+    '+++ b/pmo-portal/src/a.test.ts', // excluded source -> dropped
+    '@@ -0,0 +1,1 @@',
+    '+test',
+    '+++ b/pmo-portal/vite.config.ts', // excluded (config) -> dropped
+    '@@ -0,0 +1,1 @@',
+    '+config',
+    '+++ b/pmo-portal/src/deep/nested.ts', // nested source -> kept
+    '@@ -0,0 +1,1 @@',
+    '+nested',
+  ].join('\n');
+  const map = collectChangedFromDiff(diff);
+  assert.deepEqual(
+    [...map.keys()].sort(),
+    ['pmo-portal/index.tsx', 'pmo-portal/src/deep/nested.ts', 'pmo-portal/types.ts'],
+  );
 });
 
 // --- path/exclude helpers ---
