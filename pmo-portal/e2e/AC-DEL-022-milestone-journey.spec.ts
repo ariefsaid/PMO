@@ -15,7 +15,7 @@ import { login } from './helpers';
 //     creates "Detail drawings" (milestone pre-populated), saves.
 //  4. PM marks "Detail drawings" Done via the status select.
 // GOAL ORACLE:
-//  - Milestone strip shows "Engineering design" with "From tasks" = 100%.
+//  - Milestone strip shows the "Engineering design" phase card reading 100% effective.
 //  - Navigate to /projects — Seabridge row shows delivery progress reading "100%".
 
 test.setTimeout(120_000);
@@ -25,7 +25,7 @@ const PROJECT_NAME = 'Seabridge Terminal Delivery';
 const MILESTONE_NAME = 'Engineering design';
 const TASK_NAME = 'Detail drawings';
 
-test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done — the strip shows From-tasks 100% and the Projects list chip shows 100%', async ({ page }) => {
+test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done — the phase card reads 100% effective and the Projects list chip shows 100%', async ({ page }) => {
   await login(page, 'pm@acme.test');
 
   // ── Step 1: navigate directly to P013 detail page ────────────────────────────
@@ -95,10 +95,13 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // Wait for the mutation to commit (query re-fetch propagates back to the milestone strip).
   await expect(statusSelect).toHaveValue('Done', { timeout: 10_000 });
 
-  // ── GOAL ORACLE part 1: milestone strip "From tasks" = 100% ──────────────────
-  // The milestone row in the strip (above the Tasks tab) shows "From tasks" = 100%.
-  // The redesigned stepper shows the task-derived line in the milestone label stack.
-  await expect(page.getByText(/From tasks\s+100%/).first()).toBeVisible({ timeout: 20_000 });
+  // ── GOAL ORACLE part 1: milestone strip effective % = 100% ──────────────────
+  // The redesigned stepper removed "From tasks" text; each phase card (<section>) now shows
+  // the effective % as a large headline number on the right. With input_pct=null the effective %
+  // equals the task-derived value, so asserting the "Engineering design" card reads 100% is the
+  // full-strength equivalent oracle.
+  const phaseCard = page.locator('section').filter({ hasText: MILESTONE_NAME });
+  await expect(phaseCard.getByText('100%', { exact: true })).toBeVisible({ timeout: 20_000 });
 
   // ── GOAL ORACLE part 2: Projects list shows delivery chip 100% ───────────────
   await page.goto('/projects');
