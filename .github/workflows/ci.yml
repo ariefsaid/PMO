@@ -43,6 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history so the changed-lines coverage gate can diff against the
+          # PR base ref.
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -63,6 +67,15 @@ jobs:
         run: npm run typecheck
       - name: Unit tests (+ coverage)
         run: npm run test:coverage
+      - name: Changed-lines coverage gate (≥80%)
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          node scripts/changed-lines-coverage.mjs \
+            --base "origin/${{ github.base_ref }}" \
+            --coverage pmo-portal/coverage/coverage-final.json \
+            --min 80
       - name: Build
         run: npm run build
       - name: Lint
