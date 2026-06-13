@@ -372,7 +372,7 @@ export function DataTable<Row>({
                         </dt>
                         <dd
                           className={cn(
-                            'text-[13.5px] text-foreground',
+                            'min-w-0 break-words text-[13.5px] text-foreground',
                             col.align === 'num' && 'tabular text-right',
                             col.align === 'center' && 'text-center',
                             stripHiddenClasses(col.colClassName)
