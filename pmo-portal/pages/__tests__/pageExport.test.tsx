@@ -1,10 +1,8 @@
 /**
- * AC-EXP-008: Companies, Incidents, Procurement, and SalesPipeline each render a live
- * (enabled) Export button in their toolbar when data is available, and the SalesPipeline
- * Export is no longer the disabled "arrives with Reports" stub.
- *
- * AC-EXP-005 (page-level): the Export button in each page is enabled (not disabled) when
- * the page has data.
+ * AC-EXP-008 (in-page wiring): Companies, Incidents, Procurement, and SalesPipeline each
+ * render a live (enabled) Export button in their toolbar when data is available. The
+ * canonical AC-EXP-008 stub-gone proof lives in SalesPipeline.export.test.tsx; this file
+ * confirms the shared <ExportButton> is wired into every v1 page's toolbar.
  */
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
@@ -14,9 +12,9 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
-// ── Mock exportToXlsx so no file download happens in tests ──────────────────
-vi.mock('@/src/lib/export/exportToXlsx', () => ({
-  exportToXlsx: vi.fn().mockResolvedValue(undefined),
+// ── Stub the export seam so no real serialization/download happens in tests ──
+vi.mock('@/src/components/export/useExport', () => ({
+  useExport: () => ({ exportXlsx: vi.fn(), busy: false }),
 }));
 
 // ── Shared mocks ─────────────────────────────────────────────────────────────

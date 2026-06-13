@@ -20,12 +20,10 @@ export interface Column<Row> {
    */
   colClassName?: string;
   /**
-   * Optional export projection. When present, `exportToXlsx` calls this instead
-   * of `cell()` to get a plain string | number | boolean for the spreadsheet cell.
-   * Use this whenever `cell()` returns a React element (badge, icon, formatted node)
-   * that would stringify as "[object Object]".
-   *
-   * If absent, `cell()` is used directly — safe only when it returns a primitive.
+   * Optional value used by the `.xlsx` export seam (`src/lib/export`). Returns the
+   * column's DISPLAY value as a plain scalar — never a React node. Numbers stay
+   * numbers (tabular), dates as ISO `YYYY-MM-DD`, status as its label. Columns
+   * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
 }

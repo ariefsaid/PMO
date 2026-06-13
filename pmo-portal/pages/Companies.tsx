@@ -19,11 +19,11 @@ import {
   useToast,
   Button,
   Icon,
-  ExportButton,
   type Column,
   type RowMenuItem,
   type StatusVariant,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
@@ -262,11 +262,7 @@ const Companies: React.FC = () => {
             // `sm`+ it right-aligns at its natural width (ml-auto).
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
-          <ExportButton
-            rows={filtered}
-            columns={columns}
-            filename="companies"
-          />
+          <ExportButton rows={filtered} columns={columns} entity="Companies" />
         </Toolbar>
       )}
 

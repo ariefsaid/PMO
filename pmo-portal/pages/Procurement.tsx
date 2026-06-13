@@ -9,10 +9,10 @@ import {
   LifecycleStepper,
   Button,
   Icon,
-  ExportButton,
   useToast,
   type Column,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -285,11 +285,7 @@ const ProcurementPage: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="ml-auto"
           />
-          <ExportButton
-            rows={filtered}
-            columns={columns}
-            filename="procurement"
-          />
+          <ExportButton rows={filtered} columns={columns} entity="Procurement" />
         </Toolbar>
       )}
 

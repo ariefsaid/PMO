@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Button,
-  ExportButton,
   Funnel,
   Toolbar,
   SearchMini,
@@ -35,6 +34,7 @@ import {
 } from '../components/salesPipeline';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { ExportButton } from '@/src/components/export';
 import ProjectFormModal from '../components/ProjectFormModal';
 
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
@@ -314,11 +314,7 @@ const SalesPipeline: React.FC = () => {
           {/* B-5 (AC-W2-IXD-008 / W1-E): Export is now a live xlsx download of the
               current table view. The disabled "arrives with Reports" stub is replaced
               now that the client-side export layer is shipped (KANNA W1-E). */}
-          <ExportButton
-            rows={filtered}
-            columns={tableColumns}
-            filename="sales-pipeline"
-          />
+          <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
           {/* B-3 (AC-W2-IXD-005): the natural place to start a deal is the pipeline you
               manage deals on — not the Projects list. Reuses the same create modal +
               mutation as Projects.tsx (no new create path). Gated on can('create','project')
