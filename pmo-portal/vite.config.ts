@@ -53,7 +53,22 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      // 'json' writes coverage/coverage-final.json (istanbul shape) for the
+      // diff-aware changed-lines gate (scripts/changed-lines-coverage.mjs).
+      reporter: ['text', 'html', 'json'],
+      // Report EVERY source file, not just test-touched ones (Vitest 4 replaced
+      // the old `all: true` with an explicit `include` glob). This makes a
+      // newly-added untested file show up as uncovered changed lines rather than
+      // being silently absent from the report.
+      include: [
+        'src/**/*.{ts,tsx}',
+        'pages/**/*.{ts,tsx}',
+        'components/**/*.{ts,tsx}',
+        'data/**/*.{ts,tsx}',
+        'App.tsx',
+        'index.tsx',
+        'types.ts',
+      ],
       exclude: ['e2e/**', 'test/**', '**/*.config.*', 'dist/**'],
     },
   },

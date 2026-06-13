@@ -10,6 +10,8 @@ on:
       - 'docs/pi-delegation.md'
       - 'scripts/sync-agent-surfaces.mjs'
       - 'scripts/sync-agent-surfaces.test.mjs'
+      - 'scripts/changed-lines-coverage.mjs'
+      - 'scripts/changed-lines-coverage.test.mjs'
       - 'scripts/vendor-skills.sh'
   push:
     branches: [main]
@@ -21,6 +23,8 @@ on:
       - 'docs/pi-delegation.md'
       - 'scripts/sync-agent-surfaces.mjs'
       - 'scripts/sync-agent-surfaces.test.mjs'
+      - 'scripts/changed-lines-coverage.mjs'
+      - 'scripts/changed-lines-coverage.test.mjs'
       - 'scripts/vendor-skills.sh'
   workflow_dispatch: {}
 
@@ -37,7 +41,7 @@ jobs:
         with:
           node-version: 22
       - name: Unit tests
-        run: node --test scripts/sync-agent-surfaces.test.mjs
+        run: node --test scripts/sync-agent-surfaces.test.mjs scripts/changed-lines-coverage.test.mjs
       - name: Agent surface drift check
         run: node scripts/sync-agent-surfaces.mjs --check
       - name: Vendor script syntax
