@@ -4,7 +4,8 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-06-13)
+## ▶ Current state (2026-06-14)
+- **⚑ `dev` branch — unreviewed autonomous burst awaiting owner review (2026-06-14).** A parallel Director-run burst (Claude `Task` subagents + the `Workflow` tool, owner serialized, exploiting the Claude weekly-quota window) shipped to **`dev`** (NOT main/prod): **Wave 0** — 8 mobile/UX streams @390 (exec dashboard glanceable · shell touch-targets+404/h1 · DataTable card-clip · scrollable status filter + Table-toggle hidden on mobile · bottom-sheet confirm · procurement-detail mobile actions/back/SoD · one-handed day-stacked timesheet · project-detail back-affordance). **KANNA Wave 1** — Bulk **Export** (xlsx, #92) · Project **Calendar** read-only (#93) · **Procurement attachments** per-phase child tables+RLS+storage (#94). **KANNA Wave 2** — **S-Curve** planned-vs-actual (#95) · Projects **Kanban** by status (#96) · mobile view-toggle/S-curve drift fix (#97). Each ran TDD + the **3-reviewer battery** (spec+quality+security) + **design-review round 2 @390**; CI green; merged to `dev` (PRs **#84–#97**; new migrations **0028** procurement-files, **0029** calendar-milestone RPC). **Prod is UNCHANGED at 0027/#83.** Owner: review `dev` → promote `dev → main` when satisfied. **Deferred-debt ledger from this burst is in OPEN debt below.** The verification floor caught real defects again (a prod-breaking missing `org_id` stamp-trigger on 0028 that 3 reviewers passed; an export shipped sub-spec with its xlsx serialization fully mocked; full-suite-red-but-subset-green twice).
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
   merge `main → production`. **Prod is current** — Cloud at migration **0027**, `production` promoted (2026-06-13). PRs through **#83**.
@@ -37,8 +38,16 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **✅ Issue #1 — document file upload — DONE & MERGED (PR #78).** Decisions OD-DOC-1..5; migrations 0024+0025;
   private org-scoped bucket; Draft-only upload/replace; download + preview; New-revision auto-Supersede (SoD);
   5 MB bumpable + allowlist. Security PASS. **Live on prod** (pushed 2026-06-13).
-- **▶ Wave 1 (next) — NOT yet grilled/locked:** proposed = procurement attachments · bulk import/export · project
-  calendar (kanna-program.md §4). S-Curve leads Wave 2. Phase-A owner grill is the gate before fan-out.
+- **✅ Wave 1 — BUILT ON `dev` (review-pending, 2026-06-14):** Bulk **Export** (xlsx, #92) · Project **Calendar**
+  read-only (#93) · **Procurement attachments** per-phase child tables/RLS/storage (#94). **Bulk Import** wizard was
+  split out → a later wave (owner steer: visual-first for demo). Grill + mockup were skipped (owner directive for the
+  burst); Director locked the `[OWNER-DECISION]`s. All 3 reviewed + design-reviewed; on `dev`.
+- **✅ Wave 2 — BUILT ON `dev` (review-pending, 2026-06-14):** **S-Curve** planned-vs-actual (#95) · Projects
+  **Kanban** by status (#96) · mobile view-toggle drift fix (#97, also makes Calendar reachable on mobile). Demo-visual
+  priority per owner.
+- **▶ Wave 3 (next, NOT started):** candidates per kanna-program.md §3 — Gantt · CRM contacts+activity · sub-projects ·
+  **Bulk Import** wizard. **Default SOP reverts to series + pi** once the Claude weekly-quota window closes (the parallel
+  burst was the transient mode, [[kanna-parallel-model]]).
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)
 - **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct
@@ -56,6 +65,32 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   Resources/Assets (spine 8), Service/O&M (spine 9). See `docs/roadmap-spines.md`.
 
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
+
+### Deferred-debt ledger from the 2026-06-14 `dev` burst (review-pending; fold in before promote where noted)
+- **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit
+  `org_id=B` override-insert test (caller in org A supplies `org_id=B` → expect `42501` from WITH CHECK) and (b) an
+  anon-read=0 assertion on the three `procurement_*_files` metadata tables. Code is provably safe (stamp-trigger guard
+  mirrors 0015 + force-RLS); these only pin the regression. **Migration 0028 is unshipped to prod — fold in before promote.**
+- **Projects xlsx Export opt-in** [Low]: the Export button was wired to Companies/Incidents/Procurement/SalesPipeline but
+  **deliberately skipped on `pages/Projects.tsx`** (collision-avoidance with the Calendar/Kanban view-mode stream). Add the
+  one-line `<ExportButton entity=…>` to the Projects toolbar now that those merged.
+- **B-MIN-1 noun consistency** [Low, owner copy call]: Projects / "New deal" / "Opportunity name" / "Create deal" mix nouns
+  in one create flow. Pulled out of the Wave-0 mobile sweep as a product-copy decision (pipeline *opportunity* vs delivery
+  *project* may be intentional) — **owner to decide the canonical copy.**
+- **Detail-page metric-tile strip clips a tile @390** [Low, pre-existing]: project/procurement detail metric tiles render
+  as a horizontal-scroll strip with the right-edge tile cut (no page overflow, no content loss). Pre-existing; surfaced by
+  the Wave-0 audit, outside its scope.
+- **S-Curve actual model = single as-of-today point** (OBS-SC-001 / ADR-0025) [Low, by design]: no per-date actual history
+  exists; a future `project_milestones.completed_on` (or progress-history) migration upgrades the actual to a stepped curve
+  with **no FE rewrite** (`buildSCurve` already consumes a `{date, cumulativePct}` list).
+- **Procurement attachments v1 scope** [Low]: quotation/GR/VI phases only; **PR/PO-header attachments + legacy
+  `procurement_quotations.file_url` backfill** deferred (ADR-0023).
+- **Kanban status-dot color reuse** [Minor]: Won + Close Out share the green status dot (disambiguated by label) — assign
+  distinct DESIGN.md status tokens.
+- **Calendar/Kanban e2e depth** [Minor]: the toggle→render→click journeys are covered (AC-CAL/AC-PK e2e); confirm the new
+  mobile-toggle path (#97) is exercised once when convenient.
+
+### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
 - ~~**Prod migration push**~~ — **DONE 2026-06-13** (0024–0027 applied to prod; `production` promoted; FE redeployed).

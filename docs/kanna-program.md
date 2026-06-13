@@ -91,7 +91,12 @@ Revenue/AR ties into the milestones already built and is differentiation KANNA c
 
 ## 4. Wave 1 — proposed (to LOCK in the grill, Phase A)
 
-> Status: **draft — the grill input.** Not locked until the owner-serialized grill (Phase A) signs off.
+> Status: **DELIVERED on `dev` (2026-06-14), review-pending.** Built via the parallel burst — **grill + mockup were
+> skipped per the owner's directive for this run; the Director locked the `[OWNER-DECISION]`s.** Composition changed vs
+> this draft: Bulk **Import** was split out (Export shipped now; the Import wizard → a later wave) on the owner's
+> visual-first-for-demo steer, and **Calendar** shipped read-only. Shipped: **Export** (#92), **Calendar** (#93),
+> **Procurement attachments** per-phase child tables (#94). **Wave 2** (S-Curve #95, Kanban #96, drift fix #97) is also
+> on `dev`. Prod unchanged at 0027/#83. See `docs/backlog.md` for the full dev-burst summary + deferred-debt ledger.
 
 | Feature | One-line scope | Key `[OWNER-DECISION]`s to lock in the grill |
 |---|---|---|
