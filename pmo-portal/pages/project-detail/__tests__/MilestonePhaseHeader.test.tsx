@@ -13,7 +13,6 @@ describe('MilestonePhaseHeader', () => {
         name="Engineering"
         targetDate="2026-08-15"
         effectivePct={75}
-        calculatedPct={60}
         weight={30}
         totalWeight={200}
         isCurrent
@@ -58,7 +57,6 @@ describe('MilestonePhaseHeader', () => {
         name="Engineering"
         targetDate="2026-08-15"
         effectivePct={75}
-        calculatedPct={60}
         weight={30}
         totalWeight={200}
         isCurrent
@@ -82,7 +80,6 @@ describe('MilestonePhaseHeader', () => {
         name="Engineering"
         targetDate="2026-08-15"
         effectivePct={75}
-        calculatedPct={60}
         weight={30}
         totalWeight={200}
       />,
@@ -102,7 +99,6 @@ describe('MilestonePhaseHeader', () => {
         name="Procurement"
         targetDate={null}
         effectivePct={0}
-        calculatedPct={null}
         weight={1}
         totalWeight={3}
       />,
@@ -119,7 +115,6 @@ describe('MilestonePhaseHeader', () => {
         name="Procurement"
         targetDate={null}
         effectivePct={0}
-        calculatedPct={null}
         weight={1}
         totalWeight={0}
       />,
@@ -136,7 +131,6 @@ describe('MilestonePhaseHeader', () => {
         name="Engineering"
         targetDate="2026-08-15"
         effectivePct={75}
-        calculatedPct={60}
         weight={1}
         totalWeight={1}
         isCurrent
@@ -158,7 +152,6 @@ describe('MilestonePhaseHeader', () => {
         name="Procurement"
         targetDate="2026-08-15"
         effectivePct={40}
-        calculatedPct={25}
         weight={1}
         totalWeight={4}
       />,
