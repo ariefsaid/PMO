@@ -539,10 +539,15 @@ const ProcurementDetails: React.FC = () => {
 
   return (
     <div>
-      {/* I7: no in-page BackBar on the success render — the top-bar breadcrumb
-          (Procurement > record) owns wayfinding. BackBar is kept on the
-          loading / error / not-found branches above, where there is no in-page
-          header to orient from and the crumb shows only the raw id. */}
+      {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
+          The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
+          is collapsed and the breadcrumb is not visible, so the BackBar is the
+          only in-content escape. CSS-only visibility: `hidden` on desktop,
+          `max-[920px]:block` on mobile — single DOM, no dual a11y tree. */}
+      <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
+        <BackBar label="Procurement" onBack={goBack} />
+      </div>
+
       <PageHeader
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
@@ -687,6 +692,20 @@ const ProcurementDetails: React.FC = () => {
               <b>Ready to advance.</b> You may move this request to its next lifecycle stage below.
             </GateNotice>
           ) : null}
+
+          {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
+              The author (requester) is about to submit their own request; they need to know
+              that submission hands it to a different approver — self-approval is not allowed.
+              This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD gate
+              (blocked notice at Requested) already handles the non-author blocker path. */}
+          {isDraft && isRequester && (
+            <p
+              data-testid="sod-pre-announce"
+              className="text-[13px] text-muted-foreground"
+            >
+              Submitting hands this to another approver — you can&apos;t approve your own request.
+            </p>
+          )}
 
           {showNotes && (
             <div className="flex max-w-md flex-col gap-1">
@@ -977,6 +996,44 @@ const ProcurementDetails: React.FC = () => {
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />
+
+      {/* B-C-2 + A-IMP-2 (AC-S6-1): sticky mobile primary action bar.
+          On a long procurement record the decision card can be far below the fold.
+          On mobile (≤920px) the stage-appropriate primary action is anchored at
+          the viewport bottom so it is always reachable without scrolling.
+          CSS-only: `hidden max-[920px]:flex` — single DOM, no dual a11y tree.
+          Only rendered when at least one action is available; terminal/no-action
+          states omit the bar entirely (nothing to anchor).
+          The in-card action row remains the canonical slot; this bar mirrors the
+          primary CTA only, providing the mobile reach affordance. */}
+      {actions.length > 0 && !showVICapture && (
+        <div
+          data-testid="mobile-sticky-action"
+          aria-hidden="true"
+          className="hidden max-[920px]:flex fixed bottom-0 left-0 right-0 z-10 items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-sm"
+        >
+          {actions
+            .filter((a) => a.variant === 'primary')
+            .slice(0, 1)
+            .map((action) => {
+              const isSubmitBlocked =
+                action.to === 'Requested' && isDraft && p.items.length === 0;
+              return (
+                <Button
+                  key={`sticky-${action.to}`}
+                  variant="primary"
+                  tabIndex={-1}
+                  className="flex-1"
+                  loading={mutations.transition.isPending}
+                  disabled={isSubmitBlocked}
+                  onClick={() => onActionClick(action)}
+                >
+                  {action.label}
+                </Button>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 };
