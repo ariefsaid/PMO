@@ -63,6 +63,9 @@ the SAME stack.** This is the #1 parallel-dev footgun; the rules below are bindi
 
 ### CI is the isolated-DB-per-PR pool — parallelize verification THERE, not locally
 
+> This is the **parallel-mode** verification path (`docs/kanna-program.md` §1 — an opt-in transient mode). The
+> **series-default SOP** just uses the single local stack; reach for the pattern below only during a parallel push.
+
 The local stack is ONE shared lock; **CI is not.** PMO is a **public repo ⇒ unlimited free GitHub-Actions
 minutes**, and each PR's `integration` job spins up its **own** Postgres + pgTAP + full e2e on a clean
 runner. So parallel PRs verify **in parallel, in isolation, at zero local RAM** — CI is effectively the

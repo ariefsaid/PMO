@@ -19,6 +19,15 @@ The coverage, typecheck/lint, and CI e2e/pgTAP gates are binding.
 
 ## 1. Operating model — parallel build, serialized human
 
+> **⚑ This is an OPT-IN, TRANSIENT mode — not the default SOP.** The default is **series**: one issue at a
+> time, role work dispatched via **pi** (`docs/director-playbook.md` §2 + `docs/pi-delegation.md`). This
+> wave/parallel mode is switched on *deliberately* to exploit a window of abundant **Claude weekly quota**
+> (active 2026-06-13, ~2 days). **Executor flips by mode:** series → **pi** (spares the Claude 5h quota);
+> the parallel burst → **Claude `Task` subagents** (pi hits its 5h limits fast under parallel load, so the
+> burst spends the abundant weekly Claude quota instead). `docs/pi-delegation.md` stays unchanged — it is the
+> series executor. When the quota window closes, **revert to series + pi.** Everything below describes the
+> parallel mode only.
+
 Going fast under the quality bar = **parallelize what doesn't contend; serialize what does.** This session
 proved the bottleneck isn't building (cheap substrates build fast) — it's **verification + integration +
 the human checkpoints.**

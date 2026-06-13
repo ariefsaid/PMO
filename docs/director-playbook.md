@@ -69,17 +69,21 @@ never write app code yourself — you delegate and **verify**.
   `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
-## 3a. Parallel execution & the serialized owner (the wave model)
-Independent issues can run in parallel — but two things stay serial: the **single human owner** and `main`
-integration. Binding for any parallel push (full model: `docs/kanna-program.md` §1):
+## 3a. Series is the default SOP; parallel is an opt-in transient mode
+**Default = one issue at a time** (§2: one branch, one PR; role work via pi, `docs/pi-delegation.md`). That is
+the SOP — use it unless the owner *explicitly* opts into a **parallel push** (a transient burst, e.g. to
+exploit a window of abundant Claude weekly quota). When parallel, the wave model below applies (full model:
+`docs/kanna-program.md` §1); two things still stay serial — the **single human owner** and `main` integration:
 - **The owner is a single, non-parallelizable resource; the Director is the sole proxy.** Front-load,
   serialize, and **batch per wave** every owner-interactive gate (grill-with-docs, spec sign-off, mockup
   approval) **before** fan-out. Parallel agents consume only **locked** decisions; an agent that hits an
-  unresolved owner question **STOPS and escalates to the Director** — it never asks the owner mid-run.
-- **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes
-  a PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions;
-  see `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local checks; merge
-  one PR at a time.
+  unresolved owner question **STOPS and escalates** — never asks the owner mid-run.
+- **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes a
+  PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions; see
+  `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local; merge one PR at a time.
+- **Executor by mode:** series → **pi** (spares the Claude 5h quota); parallel burst → **Claude `Task` subagents**
+  (pi hits 5h limits fast under parallel load, so the burst exploits abundant Claude quota instead).
+  `docs/pi-delegation.md` is the series default and is unchanged.
 - **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
   starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.
 
