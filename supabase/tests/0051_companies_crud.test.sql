@@ -20,7 +20,7 @@
 -- ADR-0018: archive (UPDATE archived_at) stays open to all four write-roles server-side; the
 -- "archive = Admin/Exec" split in §D is an FE-only convention.
 begin;
-select plan(20);
+select plan(21);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- "Org-A" is the DEFAULT org ('00000000-…-0001'): the org_id column default is that literal (0001 schema),
@@ -70,6 +70,16 @@ select throws_ok(
   $$ insert into companies (name, type) values ('Eng Co','Vendor') $$,
   '42501', null,
   'AC-CO-104: Engineer cannot INSERT a company (companies_write WITH CHECK role gate → 42501)');
+
+-- AC-IMP-007: the bulk-import write path is exactly this companies INSERT (the wizard reuses
+-- repositories.company.create → createCompany; no new RLS/RPC — ADR-0027). A non-write-role
+-- (Engineer) importing companies therefore CANNOT persist: every row insert is rejected by the
+-- companies_write WITH CHECK → 42501, even if the FE Import affordance were bypassed. RLS is the
+-- enforcement authority; the can('create','company') gate is FE clarity only.
+select throws_ok(
+  $$ insert into companies (name, type) values ('Imported Co','Vendor') $$,
+  '42501', null,
+  'AC-IMP-007: a non-write-role (Engineer) bulk-import INSERT into companies is rejected by RLS (companies_write WITH CHECK → 42501) — import cannot bypass the write authority');
 
 -- AC-CO-105: Engineer UPDATE runs without error but the USING clause hides the row → 0-row no-op (RLS silences it).
 select lives_ok(

@@ -24,6 +24,8 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
+import { ImportButton } from '@/src/components/import';
+import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
@@ -263,6 +265,14 @@ const Companies: React.FC = () => {
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
           <ExportButton rows={filtered} columns={columns} entity="Companies" />
+          {/* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
+              entity's create repository so RLS stamps org_id + gates the write role. On a
+              successful import the wizard close refetches the list. */}
+          <ImportButton
+            entity="company"
+            descriptor={companyImportDescriptor}
+            onImported={() => void refetch()}
+          />
         </Toolbar>
       )}
 
