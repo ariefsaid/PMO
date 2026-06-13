@@ -12,6 +12,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
+import ProjectSCurve from './ProjectSCurve';
 import OverviewTab from './tabs/OverviewTab';
 import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
@@ -145,6 +146,11 @@ const ProjectDetail: React.FC = () => {
       {/* Milestone strip — renders at every lifecycle stage (FR-DEL-012, ADR-0021). */}
       <div className="mb-4">
         <MilestoneStrip projectId={project.id} />
+      </div>
+
+      {/* S-curve — planned vs actual cumulative progress (FR-SC-001, below the stepper). */}
+      <div className="mb-4">
+        <ProjectSCurve projectId={project.id} />
       </div>
 
       {/* Deal-progression banner — pre-win/lost only, ABOVE the tabs (ADR-0021 owner placement). */}
