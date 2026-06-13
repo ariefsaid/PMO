@@ -8,6 +8,28 @@ import { breadcrumbForPath, MODULES } from '../routeMatch';
  *   includes them.
  */
 
+// C-MIN-4: unknown route breadcrumb must read "Not found", not "Dashboard".
+describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
+  it('C-MIN-4: an unknown path resolves breadcrumb label to "Not found"', () => {
+    const crumbs = breadcrumbForPath('/no-such-route');
+    expect(crumbs).toHaveLength(1);
+    expect(crumbs[0].label).toBe('Not found');
+    expect(crumbs[0].label).not.toBe('Dashboard');
+  });
+
+  it('C-MIN-4: another unknown path also resolves to "Not found"', () => {
+    const crumbs = breadcrumbForPath('/some/deeply/nested/unknown');
+    expect(crumbs).toHaveLength(1);
+    expect(crumbs[0].label).toBe('Not found');
+  });
+
+  it('C-MIN-4: real module paths are NOT affected', () => {
+    // Dashboard still resolves correctly
+    const crumbs = breadcrumbForPath('/');
+    expect(crumbs[0].label).toBe('Dashboard');
+  });
+});
+
 describe('breadcrumbForPath — IA cleanup (B-6/B-7)', () => {
   it('AC-W2-IA-001: /approvals resolves to "Approvals", not "Dashboard"', () => {
     const crumbs = breadcrumbForPath('/approvals');

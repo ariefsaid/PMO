@@ -35,10 +35,13 @@ const PlaceholderPage: React.FC<PlaceholderPageProps> = ({ title }) => {
   const meta = META[title] ?? { icon: 'inbox' as IconName, sub: 'This section arrives in a later release.' };
   return (
     <div>
+      {/* C-MIN-3: page-level h1 so screen readers and document.querySelector('h1')
+          find a level-1 heading. Token: DESIGN.md page-title (24px / 700 / –0.02em),
+          matching Companies, MyTasks, Incidents etc. */}
+      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
       <ListState
         variant="empty"
         icon={meta.icon}
-        title={title}
         sub={meta.sub}
         className="items-start py-12 text-left"
       />

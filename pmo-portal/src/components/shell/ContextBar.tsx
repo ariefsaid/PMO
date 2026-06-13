@@ -158,10 +158,12 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       {/* Sign out. `shrink-0` + `whitespace-nowrap` guarantee the label never
           wraps to two lines / clips past the right edge at phone widths; ≤920px
           the cluster compacts (tighter padding) since the user name/role hide. */}
+      {/* touch-target: extends hit area to ≥44px on coarse pointer (A-IMP-1 / WCAG 2.5.5).
+          Visual size (h-8 / 32px) is unchanged; the ::before overlay adds the touch buffer. */}
       <button
         type="button"
         onClick={() => void signOut()}
-        className="inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent max-[921px]:px-2.5"
+        className="touch-target inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-input bg-background px-3 text-[13px] font-medium text-foreground hover:bg-accent max-[921px]:px-2.5"
       >
         Sign out
       </button>
