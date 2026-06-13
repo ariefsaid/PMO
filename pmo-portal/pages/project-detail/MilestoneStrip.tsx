@@ -40,6 +40,10 @@ const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean) => {
   return 'bg-primary';
 };
 
+const clampPct = (value: number) => Math.max(0, Math.min(100, value));
+
+const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
+
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const may = usePermission();
   const { toast } = useToast();
@@ -62,6 +66,12 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   const deliveryRollup = totalWeight > 0
     ? Math.round(all.reduce((sum, m) => sum + m.weight * m.effective_pct, 0) / totalWeight)
     : 0;
+  const deliverySegments = totalWeight > 0
+    ? all.map((milestone) => ({
+        milestone,
+        width: (milestone.weight / totalWeight) * clampPct(milestone.effective_pct),
+      }))
+    : all.map((milestone) => ({ milestone, width: 0 }));
 
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });
@@ -141,55 +151,39 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
           <ol aria-label="Delivery phases" className="space-y-4">
             <li>
               {isDesktop ? (
-                <div className="flex h-3 overflow-hidden rounded-full bg-border">
-                  {all.map((milestone) => (
-                    <span key={milestone.id} className="flex-1 bg-secondary">
+                <div className="delivery-track flex h-3 overflow-hidden rounded-full bg-secondary">
+                  {deliverySegments.map(({ milestone, width }) => (
                       <span
-                        className={`block h-full rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
-                        style={{ width: `${Math.max(0, Math.min(100, milestone.effective_pct))}%` }}
+                        className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                        style={{ width: percentStyle(width) }}
+                        key={milestone.id}
                       />
-                    </span>
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col divide-y divide-border/70 rounded-md border border-border">
                   {all.map((milestone) => (
-                    <div key={milestone.id} className="flex items-center gap-3">
-                      <div
-                        className={`h-2 w-2 shrink-0 rounded-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <MilestonePhaseHeader
-                          variant="compact"
-                          name={milestone.name}
-                          targetDate={milestone.target_date}
-                          effectivePct={milestone.effective_pct}
-                          calculatedPct={milestone.calculated_pct}
-                          isCurrent={currentMilestoneId === milestone.id}
-                          isOverdue={isOverdueMilestone(milestone)}
-                          canEditProgress={canEdit}
-                          onEditProgress={canEdit ? () => {
-                            // Mobile: open inline edit via the header's edit affordance.
-                            // For simplicity, we skip per-card edit on mobile rows.
-                          } : undefined}
-                        />
-                      </div>
-                    </div>
+                    <MilestoneMobileRow
+                      key={milestone.id}
+                      milestone={milestone}
+                      isCurrent={currentMilestoneId === milestone.id}
+                      totalWeight={totalWeight}
+                      canEdit={canEdit}
+                      onEdit={() => setFormTarget({ milestone })}
+                    />
                   ))}
                 </div>
               )}
             </li>
             {isDesktop && (
               <li>
-                <div
-                  className="grid gap-3"
-                  style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}
-                >
+                <div data-testid="milestone-card-grid" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {all.map((milestone) => (
                     <MilestonePhaseCard
                       key={milestone.id}
                       milestone={milestone}
                       isCurrent={currentMilestoneId === milestone.id}
+                      totalWeight={totalWeight}
                       canEdit={canEdit}
                       canDelete={canDelete}
                       onEditDetails={() => setFormTarget({ milestone })}
@@ -236,6 +230,72 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   );
 };
 
+interface MilestoneMobileRowProps {
+  milestone: MilestoneWithProgress;
+  isCurrent: boolean;
+  totalWeight: number;
+  canEdit: boolean;
+  onEdit: () => void;
+}
+
+const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
+  milestone,
+  isCurrent,
+  totalWeight,
+  canEdit,
+  onEdit,
+}) => {
+  const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
+  const targetLabel = milestone.target_date
+    ? `Target ${new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${milestone.target_date}T00:00:00`))}`
+    : null;
+  const overdue = isOverdueMilestone(milestone);
+
+  return (
+    <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
+      <div className="h-2 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+        <span
+          data-testid="milestone-mobile-fill"
+          className={`block h-full ${fillClass(milestone, isCurrent)}`}
+          style={{ width: percentStyle(clampPct(milestone.effective_pct)) }}
+        />
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className={`text-[13px] font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
+            {milestone.name}
+          </span>
+          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">Current</span>}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span>{pct(milestone.effective_pct)}</span>
+          {weightShare != null && <span>{weightShare}% of project</span>}
+          {targetLabel && (
+            <span className={overdue ? 'font-semibold text-warning-foreground' : undefined}>
+              {targetLabel}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-[14px] font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
+        {canEdit && (
+          <button
+            type="button"
+            aria-label={`Edit progress for ${milestone.name}`}
+            className="text-[11px] font-semibold text-primary hover:underline"
+            onClick={onEdit}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
   <div className="flex flex-col gap-4">
     <div className="flex items-end gap-1.5" aria-hidden="true">
@@ -262,6 +322,7 @@ const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) =
 interface MilestonePhaseCardProps {
   milestone: MilestoneWithProgress;
   isCurrent: boolean;
+  totalWeight: number;
   canEdit: boolean;
   canDelete: boolean;
   onEditDetails: () => void;
@@ -272,6 +333,7 @@ interface MilestonePhaseCardProps {
 const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   milestone,
   isCurrent,
+  totalWeight,
   canEdit,
   canDelete,
   onEditDetails,
@@ -330,6 +392,8 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             targetDate={milestone.target_date}
             effectivePct={milestone.effective_pct}
             calculatedPct={milestone.calculated_pct}
+            weight={milestone.weight}
+            totalWeight={totalWeight}
             isCurrent={isCurrent}
             isOverdue={isOverdueMilestone(milestone)}
             canEditProgress={canEdit && !editing}

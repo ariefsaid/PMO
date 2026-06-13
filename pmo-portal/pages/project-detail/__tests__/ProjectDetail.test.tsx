@@ -16,6 +16,7 @@ const seed = [
 ] as unknown as ProjectWithRefs[];
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
+const committedSpendState = { data: 2_350_000 };
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
@@ -48,6 +49,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
@@ -121,6 +123,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
+    committedSpendState.data = 2_350_000;
     navigate.mockClear();
   });
 
@@ -131,6 +134,16 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     // Overview content (real): project information card
     expect(screen.getByText('Project information')).toBeInTheDocument();
+  });
+
+  it('passes committed PO spend through to the header and Overview budget utilization', () => {
+    committedSpendState.data = 2_350_000;
+    renderAt('/projects/p1');
+
+    expect(screen.getByText('Committed')).toBeInTheDocument();
+    expect(screen.getAllByText('$2,350,000').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Budget committed: 50% of budget')).toBeInTheDocument();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {

@@ -47,11 +47,12 @@ const render$ = (projectId = 'p1') =>
 describe('fillClass priority (I1, I4)', () => {
   // We test the bar fill color by inspecting the rendered span's class.
   // The fill bar is the <span className={...}> inside each even-segment track slot.
+  // Requirement: continuous bar — no rounded-full on inner fills.
   const getFillClass = (milestone: MilestoneWithProgress) => {
     milestoneState.data = [milestone];
       const { container } = render$();
-    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
-    // First such span is the fill (inside the first segment slot)
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.delivery-fill');
+    // First such span is the fill inside the continuous delivery track.
     return fills[0]?.className ?? '';
   };
 
@@ -136,7 +137,7 @@ describe('fillClass priority (I1, I4)', () => {
       },
     ];
     const { container } = render$();
-    const fills = container.querySelectorAll<HTMLSpanElement>('span.block.h-full.rounded-full');
+    const fills = container.querySelectorAll<HTMLSpanElement>('span.delivery-fill');
     // First fill = current (bg-primary), second fill = overdue (bg-warning)
     expect(fills[0]?.className ?? '').toContain('bg-primary');
     expect(fills[1]?.className ?? '').toContain('bg-warning');
@@ -144,7 +145,7 @@ describe('fillClass priority (I1, I4)', () => {
 });
 
 describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
-  it('AC-DEL-008: renders a single segmented track plus the effective headline and from-tasks line', () => {
+  it('AC-DEL-008: renders a single segmented track plus the effective headline, weight share, and NO From tasks on desktop', () => {
     milestoneState.data = [
       {
         id: 'm1',
@@ -177,7 +178,10 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getByText('Engineering design')).toBeInTheDocument();
     expect(screen.getByText('75%')).toBeInTheDocument();
     expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
-    expect(screen.getByText('From tasks 60%')).toBeInTheDocument();
+    // Weight share: both milestones have weight 1 out of 2 total = 50% each
+    expect(screen.getAllByText('50% of project')).toHaveLength(2);
+    // Desktop cards should NOT show 'From tasks' anymore
+    expect(screen.queryByText(/From tasks/i)).not.toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 
@@ -221,7 +225,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(bigPct.className).toContain('text-[23px]');
   });
 
-  it('AC-DEL-009: null calculated renders the muted from-tasks fallback and 0% effective headline', () => {
+  it('AC-DEL-009: null calculated renders 0% effective headline and weight share, no From tasks on desktop', () => {
     milestoneState.data = [
       {
         id: 'm2',
@@ -239,8 +243,80 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     render$();
 
     expect(screen.getAllByText('0%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('From tasks —')).toBeInTheDocument();
+    // Weight share: 1/1 * 100 = 100%
+    expect(screen.getByText('100% of project')).toBeInTheDocument();
+    // Desktop cards should NOT show 'From tasks' anymore
+    expect(screen.queryByText(/From tasks/i)).not.toBeInTheDocument();
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
+  });
+});
+
+describe('continuous desktop delivery track (no rounded per-segment fills)', () => {
+  it('desktop bar: inner fills are NOT rounded and use weighted contribution widths', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Phase A',
+        sort_order: 0,
+        target_date: null,
+        weight: 15,
+        input_pct: 100,
+        task_count: 3,
+        calculated_pct: 100,
+        effective_pct: 100,
+      },
+      {
+        id: 'm2',
+        project_id: 'p1',
+        name: 'Phase B',
+        sort_order: 1,
+        target_date: null,
+        weight: 35,
+        input_pct: 71,
+        task_count: 1,
+        calculated_pct: 71,
+        effective_pct: 71,
+      },
+      {
+        id: 'm3',
+        project_id: 'p1',
+        name: 'Phase C',
+        sort_order: 2,
+        target_date: '2020-01-01',
+        weight: 40,
+        input_pct: 25,
+        task_count: 1,
+        calculated_pct: 25,
+        effective_pct: 25,
+      },
+      {
+        id: 'm4',
+        project_id: 'p1',
+        name: 'Phase D',
+        sort_order: 3,
+        target_date: null,
+        weight: 10,
+        input_pct: null,
+        task_count: 0,
+        calculated_pct: null,
+        effective_pct: 0,
+      },
+    ];
+    mockIsDesktop = true;
+    const { container } = render$();
+    const track = container.querySelector('.delivery-track');
+    expect(track).toBeInTheDocument();
+    // Outer track may be rounded, but inner fills must NOT have rounded-full
+    const fills = track!.querySelectorAll('.delivery-fill');
+    expect(fills.length).toBe(4);
+    expect((fills[0] as HTMLElement).style.width).toBe('15%');
+    expect((fills[1] as HTMLElement).style.width).toBe('24.85%');
+    expect((fills[2] as HTMLElement).style.width).toBe('10%');
+    expect((fills[3] as HTMLElement).style.width).toBe('0%');
+    for (const fill of fills) {
+      expect(fill.classList.contains('rounded-full')).toBe(false);
+    }
   });
 });
 
@@ -272,31 +348,33 @@ describe('C2: mobile stepper reflow', () => {
     },
   ];
 
-  it('C2: desktop renders horizontal even-segment bar + phase cards in grid', () => {
+  it('C2: desktop renders horizontal continuous bar + responsive phase cards grid', () => {
     milestoneState.data = phases;
     mockIsDesktop = true;
     const { container } = render$();
     // Desktop: should render the horizontal bar (flex h-3)
-    const bar = container.querySelector('.flex.h-3');
+    const bar = container.querySelector('.delivery-track');
     expect(bar).toBeInTheDocument();
-    // Desktop: phase cards should be in a grid
-    const grid = container.querySelector('[style*="grid-template-columns"]');
+    // Desktop/tablet: phase cards should be in a responsive grid, not an inline fixed-column style.
+    const grid = screen.getByTestId('milestone-card-grid');
     expect(grid).toBeInTheDocument();
   });
 
-  it('C2: mobile renders vertical stacked rows (one per phase) with NO horizontal bar or grid', () => {
+  it('C2: mobile renders vertical rows with per-phase progress and no horizontal desktop grid', () => {
     milestoneState.data = phases;
     mockIsDesktop = false;
     const { container } = render$();
     // Mobile: NO horizontal bar
-    expect(container.querySelector('.flex.h-3')).not.toBeInTheDocument();
+    expect(container.querySelector('.delivery-track')).not.toBeInTheDocument();
     // Mobile: NO grid
-    expect(container.querySelector('[style*="grid-template-columns"]')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('milestone-card-grid')).not.toBeInTheDocument();
     // Mobile: should render both phase names in stacked compact rows
     expect(screen.getByText('Phase A')).toBeInTheDocument();
     expect(screen.getByText('Phase B')).toBeInTheDocument();
-    // Mobile: each phase row has a dot indicator
-    const dots = container.querySelectorAll('.h-2.w-2.shrink-0.rounded-full');
-    expect(dots.length).toBe(2);
+    // Mobile: per-phase progress remains visible in each row.
+    expect(screen.getAllByText('80%').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('0%').length).toBeGreaterThanOrEqual(1);
+    const mobileFills = screen.getAllByTestId('milestone-mobile-fill');
+    expect(mobileFills.length).toBe(2);
   });
 });

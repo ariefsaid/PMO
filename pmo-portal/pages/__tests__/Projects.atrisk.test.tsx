@@ -2,7 +2,7 @@
  * AC-W6-IXD-ATRISK — Projects list co-locates the budget-util basis WITH the
  * delivery-progress bar. The budget basis lives in the new "Budget used" column, while
  * the Project/name cell carries only identity + at-risk pill. Healthy rows still have
- * a Budget used value; budget===0 → no NaN.
+ * a Budget used value; budget===0 → muted dash, no NaN.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -151,6 +151,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('Zero Budget Project').closest('tr')!;
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
-    expect(within(row).getByText(/\$0 of \$0 budget/i)).toBeInTheDocument();
+    const budgetUsedCell = row.children[row.children.length - 2] as HTMLElement;
+    expect(within(budgetUsedCell).getByText('—')).toBeInTheDocument();
   });
 });

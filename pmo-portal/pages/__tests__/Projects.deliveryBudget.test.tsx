@@ -101,6 +101,7 @@ describe('Projects delivery progress + budget used', () => {
     projectsState.data = fixtures;
     projectsState.isPending = false;
     projectsState.isError = false;
+    deliverySummaryState.isPending = false;
     deliverySummaryState.data = {
       p1: { deliveryPct: 50, committedSpend: 2_000_000, budget: 3_800_000 },
       p2: { deliveryPct: null, committedSpend: 0, budget: 900_000 },
@@ -133,5 +134,18 @@ describe('Projects delivery progress + budget used', () => {
     // while loading — they show a placeholder.
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
     expect(screen.queryByText(/\$0 of/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-DEL-017: when budget summary is unavailable, does not render a false $0 of $0 budget', () => {
+    deliverySummaryState.data = {
+      p1: { deliveryPct: 50, committedSpend: 2_000_000, budget: 3_800_000 },
+    };
+
+    renderPage();
+
+    const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
+    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[7];
+    expect(within(budgetCell).getByText('—')).toBeInTheDocument();
+    expect(within(budgetCell).queryByText(/\$0 of \$0 budget/i)).not.toBeInTheDocument();
   });
 });

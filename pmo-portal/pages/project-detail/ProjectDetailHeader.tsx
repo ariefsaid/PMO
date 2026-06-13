@@ -38,6 +38,7 @@ export function hasFinanceView(role: Role | null): boolean {
 
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
+  committedSpend?: number;
 }
 
 function fmtDate(iso: string | null): string {
@@ -84,7 +85,7 @@ function formatThousands(raw: string): string {
  *    audit confirm that NAMES the segregation of duties. A delivery role that cannot edit
  *    a won value sees a static "Read-only" lock (read-only-distinction), never a dead input.
  */
-const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) => {
+const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, committedSpend }) => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
@@ -101,10 +102,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project }) =>
   const [pendingValue, setPendingValue] = useState<number | null>(null);
 
   const contract = project.contract_value ?? 0;
-  const committed = project.budget ?? 0;
+  const committed = committedSpend ?? 0;
   const spent = project.spent ?? 0;
-  const margin = contract - spent;
-  const spendPct = contract > 0 ? Math.round((spent / contract) * 100) : 0;
+  const activeBudget = project.budget ?? 0;
+  const margin = contract - committed;
+  const spendPct = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
 
   const status = project.status as string;
   const isOnHand = ON_HAND_STATUSES.includes(status);

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, tabId, tabPanelId, ListState, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { useOpportunity } from '@/src/lib/db/opportunity';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -64,6 +65,7 @@ const ProjectDetail: React.FC = () => {
   // lives in the Sales Pipeline partition). Only fired when the cache misses, so on-hand records
   // (the common path) cost no extra query.
   const { data: opp, isPending: oppPending } = useOpportunity(cached ? undefined : projectId);
+  const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
 
   // A pre-win/lost record's full row comes from the opportunity fetch; map it onto the
   // ProjectWithRefs shape the header + lens consume (delivery-only fields the pipeline lens never
@@ -131,7 +133,7 @@ const ProjectDetail: React.FC = () => {
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
           at every stage so a record's wayfinding is identical regardless of stage. */}
-      <ProjectDetailHeader project={project} />
+      <ProjectDetailHeader project={project} committedSpend={committedSpend} />
 
       {/* Milestone strip — renders at every lifecycle stage (FR-DEL-012, ADR-0021). */}
       <div className="mb-4">
@@ -156,6 +158,7 @@ const ProjectDetail: React.FC = () => {
         {tab === 'overview' && (
           <OverviewTab
             project={project}
+            committedSpend={committedSpend}
             setTab={setTab}
             // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
             // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)

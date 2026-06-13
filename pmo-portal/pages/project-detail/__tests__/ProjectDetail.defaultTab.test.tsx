@@ -74,6 +74,10 @@ vi.mock('@/src/hooks/useMilestones', () => ({
     setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 // Stub ProjectDetailHeader — its own mutation/auth setup is tested separately.
 vi.mock('../ProjectDetailHeader', () => ({

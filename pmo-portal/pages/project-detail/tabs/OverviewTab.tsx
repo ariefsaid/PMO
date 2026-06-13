@@ -9,10 +9,11 @@ import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summ
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import { isAtRisk, budgetUtilPct } from '@/src/lib/dashboardConstants';
+import { ACTIVE_PROJECT_STATUSES, AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
+  committedSpend?: number;
   /** Callback to switch to a sibling tab (budget / procurement). */
   setTab?: (tab: 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents') => void;
   /**
@@ -57,19 +58,23 @@ const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
  * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
-const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab, showFinanceSummary = false }) => {
+const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
   const navigate = useNavigate();
   const contract = project.contract_value ?? 0;
   const spent = project.spent ?? 0;
-  const spendPct = contract > 0 ? Math.round((spent / contract) * 100) : 0;
-  // AC-W6-IXD-ATRISK (B-1): budget-basis util shown alongside the contract bar when
-  // at-risk. budget>0-guarded by the shared helpers (null → no caption, no NaN).
-  const budgetUtil = isAtRisk(project) ? budgetUtilPct(project) : null;
+  const activeBudget = project.budget ?? 0;
+  const committed = committedSpend ?? 0;
+  const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
+  // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk.
+  const budgetUtil = ACTIVE_PROJECT_STATUSES.has(project.status as string) &&
+    activeBudget > 0 &&
+    committed / activeBudget >= AT_RISK_THRESHOLD
+    ? budgetUtilPctValue
+    : null;
 
   // D15: finance summary tile data (only computed when showFinanceSummary is true).
-  const committed = project.budget ?? 0;
-  const margin = contract - spent;
-  const spendPctTile = contract > 0 ? Math.round((spent / contract) * 100) : 0;
+  const margin = contract - committed;
+  const spendPctTile = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
         { label: 'Contract', value: formatCurrency(contract) },
@@ -141,14 +146,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, setTab, showFinanceS
           <CardHead>Budget utilization</CardHead>
           <CardPad className="flex flex-col gap-3">
             <div className="text-[12px] text-muted-foreground">
-              <span className="font-semibold tabular text-foreground">{formatCurrency(spent)}</span> of{' '}
-              <span className="font-semibold tabular text-foreground">{formatCurrency(contract)}</span>{' '}
-              contract spent
+              <span className="font-semibold tabular text-foreground">{formatCurrency(committed)}</span> of{' '}
+              <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget)}</span>{' '}
+              budget committed
             </div>
             <ProgressBar
-              value={spendPct}
+              value={budgetUtilPctValue}
               showValue
-              aria-label={`Spend: ${spendPct}% of contract`}
+              aria-label={`Budget committed: ${budgetUtilPctValue}% of budget`}
             />
             {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
                 When at-risk, show the spent/budget figure + the "At risk" flag below the

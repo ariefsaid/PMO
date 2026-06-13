@@ -114,10 +114,10 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn()) =>
+const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpend = 150_000) =>
   render(
     <MemoryRouter>
-      <OverviewTab project={p} setTab={setTab} />
+      <OverviewTab project={p} committedSpend={committedSpend} setTab={setTab} />
     </MemoryRouter>,
   );
 
@@ -198,8 +198,15 @@ describe('OverviewTab T16: Budget snapshot card', () => {
 
   it('T16: shows spent value', () => {
     renderTab();
-    // project.spent = 400k — appears in both budget utilization and budget snapshot
+    // project.spent = 400k — actual spent remains in the budget snapshot.
     expect(screen.getAllByText(/\$400,000/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('T16: budget utilization uses committed spend over active budget, not actual spent over contract', () => {
+    renderTab(project, vi.fn(), 450_000);
+    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Budget committed: 50% of budget')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
   });
 
   it('T16: shows negative variance in destructive color when spent > activeTotal', () => {
