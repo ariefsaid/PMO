@@ -48,3 +48,5 @@ of an O&M contract. Spine 9 in the spine model.
 **Spine** — one of the nine top-level business-capability domains a project contractor runs on
 (Commercial, Cost/AP, Delivery, Revenue/AR, CRM, HSE/Quality, Documents, Resources/Assets,
 Service/O&M). Defined in `docs/roadmap-spines.md`.
+
+**Active contract value** — the sum of signed contract values across projects currently in delivery (status = Ongoing). Excludes closed-out and won-but-not-started projects. Smaller than *Revenue on hand* because revenue also accrues on completed work; the two figures are intentionally compared side by side to make the scope difference self-evident.
