@@ -69,7 +69,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
       >
         <figure role="img" aria-label={summary} className="m-0">
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={model.points} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
+            <LineChart data={model.points} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
               <XAxis
                 dataKey="date"
