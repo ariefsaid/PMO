@@ -12,7 +12,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
-import { AT_RISK_THRESHOLD, isAtRisk } from '@/src/lib/dashboardConstants';
+import { isAtRisk } from '@/src/lib/dashboardConstants';
 
 function statusVariant(status: string): StatusVariant {
   if (status === 'Ongoing Project' || status === 'Internal Project') return 'open';
@@ -37,10 +37,7 @@ export const PMDashboard: React.FC = () => {
     [projects, currentUser?.id],
   );
   const contractValue = useMemo(() => mine.reduce((s, p) => s + (p.contract_value || 0), 0), [mine]);
-  const atRiskCount = useMemo(
-    () => mine.filter((p) => p.budget > 0 && p.spent / p.budget >= AT_RISK_THRESHOLD).length,
-    [mine],
-  );
+  const atRiskCount = useMemo(() => mine.filter(isAtRisk).length, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(

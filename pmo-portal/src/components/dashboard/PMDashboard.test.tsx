@@ -139,6 +139,34 @@ describe('PMDashboard states', () => {
 });
 
 // ---------------------------------------------------------------------------
+// AC-AT-RISK-INACTIVE — inactive projects must NOT inflate the at-risk KPI
+// ---------------------------------------------------------------------------
+
+describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
+  it('AC-AT-RISK-INACTIVE: a Loss Tender project at 95% budget utilization is NOT counted as at-risk', () => {
+    // Override projState with one active at-risk project + one inactive at-risk project.
+    // Only the active one should count.
+    projState.data = [
+      // Active, 95% utilized → should count
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+      // Inactive (Loss Tender), 95% utilized → must NOT count
+      { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null },
+    ];
+    renderPane();
+    // Only the active one qualifies — count must be 1, not 2
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+  });
+
+  it('AC-AT-RISK-INACTIVE: an active project at 95% budget utilization IS counted as at-risk', () => {
+    projState.data = [
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+    ];
+    renderPane();
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC-W3-G2 — Project Status card loading/error states
 // ---------------------------------------------------------------------------
 
