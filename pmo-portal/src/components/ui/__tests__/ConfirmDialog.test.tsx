@@ -1,8 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ConfirmDialog } from '../ConfirmDialog';
+
+// ---------------------------------------------------------------------------
+// matchMedia helpers — let tests control the breakpoint seam.
+// ---------------------------------------------------------------------------
+function mockMatchMedia(matches: boolean) {
+  const listeners: ((e: MediaQueryListEvent) => void)[] = [];
+  const mql = {
+    matches,
+    media: '(min-width: 768px)',
+    onchange: null,
+    addEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => listeners.push(cb),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mql));
+  return mql;
+}
 
 // ---------------------------------------------------------------------------
 // AC-CONFIRM-001..009 — the reusable ConfirmDialog primitive.
@@ -22,6 +41,10 @@ const baseProps = {
 beforeEach(() => {
   baseProps.onConfirm = vi.fn();
   baseProps.onCancel = vi.fn();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('AC-CONFIRM-001: render gating', () => {
@@ -194,5 +217,126 @@ describe('AC-CONFIRM-009: reduced-motion variant', () => {
     render(<ConfirmDialog {...baseProps} tone="destructive" />);
     const dialog = screen.getByRole('alertdialog');
     expect(dialog.className).toContain('motion-reduce:');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-CONFIRM-010: mobile bottom-sheet vs desktop centered-dialog layout
+// B-IMP-1 fix: below the 768px seam the confirm renders as a bottom-anchored
+// sheet (action row in the thumb zone); desktop stays the centered overlay.
+// Single-render: one branch in the DOM (useIsDesktop seam — no dual a11y tree).
+// ---------------------------------------------------------------------------
+
+describe('AC-CONFIRM-010: desktop — centered dialog layout (≥768px)', () => {
+  it('AC-CONFIRM-010: desktop wrapper uses flex items-center justify-center (centered)', () => {
+    // Simulate desktop viewport
+    mockMatchMedia(true);
+    render(<ConfirmDialog {...baseProps} />);
+    // The outer portal wrapper must be the centering flex container
+    const dialog = screen.getByRole('dialog');
+    const wrapper = dialog.parentElement!;
+    expect(wrapper.className).toContain('items-center');
+    expect(wrapper.className).toContain('justify-center');
+    // It must NOT have the bottom-sheet anchoring class
+    expect(wrapper.className).not.toContain('items-end');
+  });
+
+  it('AC-CONFIRM-010: desktop dialog carries the centered scale-in animation class', () => {
+    mockMatchMedia(true);
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('confirm-anim');
+  });
+
+  it('AC-CONFIRM-010: desktop a11y — role, aria-modal, labelledby, describedby intact', () => {
+    mockMatchMedia(true);
+    render(<ConfirmDialog {...baseProps} tone="destructive" />);
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
+  });
+});
+
+describe('AC-CONFIRM-010: mobile — bottom-sheet layout (<768px)', () => {
+  it('AC-CONFIRM-010: mobile wrapper uses items-end (bottom-anchored, not centered)', () => {
+    // Simulate mobile viewport
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    const wrapper = dialog.parentElement!;
+    // Bottom-anchored: items-end, NOT items-center
+    expect(wrapper.className).toContain('items-end');
+    expect(wrapper.className).not.toContain('items-center');
+  });
+
+  it('AC-CONFIRM-010: mobile sheet spans the full bottom width (w-full, no max-width clamp)', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    // Full-width sheet on mobile
+    expect(dialog.className).toContain('w-full');
+    // Should NOT have the desktop max-width cap that constrains the centered dialog
+    expect(dialog.className).not.toContain('max-w-[420px]');
+  });
+
+  it('AC-CONFIRM-010: mobile sheet has rounded-t corners only (bottom-sheet rounding)', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    // Bottom-sheet: top corners rounded, bottom square
+    expect(dialog.className).toContain('rounded-t-lg');
+    // Must NOT have the symmetric rounded-lg used by the centered desktop dialog
+    expect(dialog.className).not.toContain(' rounded-lg ');
+  });
+
+  it('AC-CONFIRM-010: mobile action row stacks buttons full-width for thumb zone reach', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    // Buttons should be accessible in thumb zone — verify action row is present
+    // and buttons are full-width on mobile (flex-col or w-full layout)
+    const actionRow = screen.getByTestId('confirm-action-row');
+    expect(actionRow.className).toContain('flex-col');
+  });
+
+  it('AC-CONFIRM-010: mobile slide-up animation class applied to sheet', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('confirm-sheet-anim');
+  });
+
+  it('AC-CONFIRM-010: mobile a11y — role, aria-modal, labelledby, describedby intact on sheet', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} tone="destructive" />);
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const labelId = dialog.getAttribute('aria-labelledby')!;
+    const descId = dialog.getAttribute('aria-describedby')!;
+    expect(labelId).toBeTruthy();
+    expect(descId).toBeTruthy();
+    expect(document.getElementById(labelId)?.textContent).toContain('Mark deal as lost');
+    expect(document.getElementById(descId)?.textContent).toContain('terminal stage');
+  });
+
+  it('AC-CONFIRM-010: mobile ESC closes the sheet', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(baseProps.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-CONFIRM-010: mobile scrim click closes the sheet', async () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    await userEvent.click(screen.getByTestId('confirm-scrim'));
+    expect(baseProps.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-CONFIRM-010: mobile focus lands on Cancel on open', async () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} tone="destructive" />);
+    await screen.findByRole('alertdialog');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 });

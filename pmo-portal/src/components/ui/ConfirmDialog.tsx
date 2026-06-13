@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
+import { useIsDesktop } from './useIsDesktop';
 
 export type ConfirmTone = 'default' | 'destructive';
 export type ConfirmSurface = 'modal' | 'popover';
@@ -34,6 +35,13 @@ export interface ConfirmDialogProps {
  * verbatim "Overlay" shadow, the One-Blue primary confirm, and the ONLY solid
  * `destructive` fill in the system (reserved for the destructive confirm button).
  *
+ * Responsive layout (single-render — one DOM branch at a time via useIsDesktop):
+ *   - Desktop (>=768px): centered modal overlay with scale+fade entrance.
+ *   - Mobile (<768px): bottom-sheet anchored to the viewport bottom edge with
+ *     slide-up entrance. The action row stacks full-width so confirm/cancel
+ *     both sit in the natural thumb zone, fixing B-IMP-1 (primary actions at
+ *     y=449-459 on a centered dialog, above the one-handed thumb zone).
+ *
  * a11y contract (WCAG-AA): destructive => `role="alertdialog"`, default =>
  * `role="dialog"`; `aria-modal`, `aria-labelledby`, `aria-describedby` wired;
  * focus moves to Cancel on open (safe default), focus restored to the trigger
@@ -54,6 +62,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const isDestructive = tone === 'destructive';
   const titleId = useId();
   const descId = useId();
+  const isDesktop = useIsDesktop();
 
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -108,9 +117,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   if (!open) return null;
 
-  // scale+fade in 150ms ease-out; degrades to a plain crossfade under
-  // prefers-reduced-motion (no scale) — handled by the motion-reduce: variant.
-  const dialog = (
+  // ── Desktop: centered modal (scale+fade in 150ms ease-out) ──────────────
+  // ── Mobile: bottom-sheet (slide-up in 220ms spring) ─────────────────────
+  //
+  // Single-render: exactly one branch is in the DOM (useIsDesktop reads
+  // matchMedia synchronously at first paint — no flash). No aria-hidden
+  // on either branch; the unrendered branch is simply absent.
+
+  const dialog = isDesktop ? (
+    // Desktop — centered, max-width-capped, rounded on all sides
     <div
       ref={dialogRef}
       role={isDestructive ? 'alertdialog' : 'dialog'}
@@ -146,7 +161,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 flex justify-end gap-2 [@media(pointer:coarse)]:[&_button]:px-4 [@media(pointer:coarse)]:[&_button]:py-2.5">
+      <div
+        data-testid="confirm-action-row"
+        className="mt-4 flex justify-end gap-2"
+      >
         <Button ref={cancelRef} variant="outline" disabled={loading} onClick={onCancel}>
           {cancelLabel}
         </Button>
@@ -159,15 +177,84 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </Button>
       </div>
     </div>
+  ) : (
+    // Mobile — bottom-sheet: full-width, top corners rounded only, slide-up
+    <div
+      ref={dialogRef}
+      role={isDestructive ? 'alertdialog' : 'dialog'}
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descId}
+      onKeyDown={onTrapKeyDown}
+      className={cn(
+        'confirm-sheet-anim relative z-[810] w-full rounded-t-lg border border-border bg-popover px-4 pt-4 pb-6',
+        'shadow-[0_-4px_20px_hsl(240_10%_8%/0.12),0_-1px_4px_hsl(240_10%_8%/0.06)]',
+        'motion-reduce:animate-none',
+      )}
+    >
+      {/* Drag handle visual affordance — aria-hidden, purely decorative */}
+      <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+
+      <div className="flex items-start gap-3">
+        {isDestructive && (
+          <span
+            aria-hidden
+            className="mt-px flex size-7 shrink-0 items-center justify-center rounded-md bg-destructive/10 [&_svg]:size-4 [&_svg]:text-destructive"
+          >
+            <Icon name="alert" />
+          </span>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <h2 id={titleId} className="text-[18px] font-semibold leading-[1.3] text-popover-foreground">
+            {title}
+          </h2>
+          <div id={descId} className="text-[14px] leading-[1.45] text-foreground">
+            {description}
+          </div>
+        </div>
+      </div>
+
+      {/* Action row: stacked full-width buttons so confirm/cancel land in
+          the natural thumb zone (bottom of screen on mobile). Confirm first
+          (prominent primary action), Cancel below it as the escape hatch.
+          touch-target on each button ensures >=44px hit area on coarse pointer. */}
+      <div
+        data-testid="confirm-action-row"
+        className="mt-5 flex flex-col gap-2"
+      >
+        <Button
+          variant={isDestructive ? 'destructive' : 'primary'}
+          loading={loading}
+          className="touch-target h-11 w-full text-[15px]"
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+        <Button
+          ref={cancelRef}
+          variant="outline"
+          disabled={loading}
+          className="touch-target h-11 w-full text-[15px]"
+          onClick={onCancel}
+        >
+          {cancelLabel}
+        </Button>
+      </div>
+    </div>
   );
 
   // Always render via a portal at the document root — never inside an
   // overflow container, so the dialog is never clipped (dropdown-clipping).
-  // Centered fixed overlay for both severities (the app has no sheet pattern;
-  // don't invent one). Scrim is desaturated near-black at low alpha, not
-  // rgba(0,0,0,..) (No-Pure-Black-Shadow Rule).
+  // Desktop: centered fixed overlay. Mobile: bottom-anchored sheet.
+  // Scrim is desaturated near-black at low alpha, not rgba(0,0,0,..)
+  // (No-Pure-Black-Shadow Rule).
   return createPortal(
-    <div className="fixed inset-0 z-[800] flex items-center justify-center p-4">
+    <div
+      className={cn(
+        'fixed inset-0 z-[800] flex',
+        isDesktop ? 'items-center justify-center p-4' : 'items-end',
+      )}
+    >
       <div
         data-testid="confirm-scrim"
         aria-hidden
