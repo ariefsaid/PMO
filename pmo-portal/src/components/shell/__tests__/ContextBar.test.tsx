@@ -81,4 +81,26 @@ describe('ContextBar', () => {
     await userEvent.click(screen.getByRole('button', { name: /sign out/i }));
     expect(signOut).toHaveBeenCalled();
   });
+
+  // A-IMP-1: Sign-out button must carry touch-target class for ≥44px hit area on coarse pointers.
+  it('A-IMP-1: sign-out button has .touch-target for WCAG 2.5.5 hit area', () => {
+    canImpersonate = false;
+    renderBar();
+    const signOutBtn = screen.getByRole('button', { name: /sign out/i });
+    expect(signOutBtn.className).toContain('touch-target');
+  });
+
+  // A-IMP-1: hamburger already carries touch-target (regression guard).
+  it('A-IMP-1: hamburger (open nav) button has .touch-target', () => {
+    renderBar();
+    const hamburger = screen.getByRole('button', { name: /open navigation/i });
+    expect(hamburger.className).toContain('touch-target');
+  });
+
+  // A-IMP-1: ⌘K trigger already carries touch-target (regression guard).
+  it('A-IMP-1: command palette trigger has .touch-target', () => {
+    renderBar();
+    const trigger = screen.getByRole('button', { name: /command palette/i });
+    expect(trigger.className).toContain('touch-target');
+  });
 });

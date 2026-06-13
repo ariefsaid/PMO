@@ -16,6 +16,28 @@ const renderPage = (title: string) =>
     </MemoryRouter>,
   );
 
+// C-MIN-3: PlaceholderPage must render a level-1 heading (<h1>) with the title.
+describe('PlaceholderPage — h1 heading (C-MIN-3)', () => {
+  it('C-MIN-3: renders an h1 element with the page title', () => {
+    const { container } = renderPage('Reports');
+    const h1 = container.querySelector('h1');
+    expect(h1).not.toBeNull();
+    expect(h1!.textContent).toBe('Reports');
+  });
+
+  it('C-MIN-3: h1 reflects the title prop for any route', () => {
+    const { container } = renderPage('Administration');
+    const h1 = container.querySelector('h1');
+    expect(h1).not.toBeNull();
+    expect(h1!.textContent).toBe('Administration');
+  });
+
+  it('C-MIN-3: getByRole("heading", { level: 1 }) finds the title', () => {
+    renderPage('Tasks');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Tasks');
+  });
+});
+
 describe('PlaceholderPage (C5 — calm on-brand empty state)', () => {
   it('C5/AS-1: renders no emoji in any markup', () => {
     const { container } = renderPage('Tasks');

@@ -206,8 +206,8 @@ export function breadcrumbForPath(
     }
   }
 
-  // Unknown route → the dashboard (matches the router's `*` fallback).
-  return [{ label: 'Dashboard' }];
+  // Unknown route → "Not found" (C-MIN-4: the `*` route renders the 404 page, not the dashboard).
+  return [{ label: 'Not found' }];
 }
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */

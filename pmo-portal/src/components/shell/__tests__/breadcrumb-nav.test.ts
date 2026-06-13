@@ -94,8 +94,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     }
   });
 
-  it('an unknown route falls back to a single Dashboard crumb', () => {
-    expect(breadcrumbForPath('/totally-unknown')).toEqual([{ label: 'Dashboard' }]);
+  // C-MIN-4: an unknown route renders "Not found" — the `*` route is a 404, not the dashboard.
+  it('C-MIN-4: an unknown route resolves to a "Not found" crumb, not "Dashboard"', () => {
+    expect(breadcrumbForPath('/totally-unknown')).toEqual([{ label: 'Not found' }]);
   });
 
   it('the /budget deep-link route resolves under the Projects module', () => {
