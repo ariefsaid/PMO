@@ -15,12 +15,12 @@
  * (contained within the board div — no page overflow). DESIGN.md tokens only;
  * no raw hex. Status identity via shape/style + legend, not color-only (One Blue Rule).
  *
- * AC coverage: AC-PK-001 (columns in order), AC-PK-002 (correct grouping),
- * AC-PK-003 (click navigates), AC-PK-004 (empty column header renders),
- * AC-PK-006 (card shows name/customer/PM).
+ * AC coverage: AC-PK-001 (columns in lifecycle DOM order), AC-PK-002 (a project
+ * lands ONLY in its status column — exclusivity), AC-PK-003 (card click → onOpen
+ * → navigate), AC-PK-004 (empty column header renders), AC-PK-006 (keyboard:
+ * focus card + Enter → onOpen), AC-PK-009 (card shows name/customer/PM).
  */
-import React, { useCallback, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import {
   Kanban,
   KanbanColumn,
@@ -29,6 +29,7 @@ import {
   StatusPill,
   type KanbanStageItem,
 } from '@/src/components/ui';
+import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus, projectIconColor } from './projects';
@@ -115,17 +116,14 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
           {initial}
         </span>
         <div className="min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate();
-            }}
-            className="block max-w-full truncate text-left text-[13px] font-semibold text-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          {/* No inner button — the KanbanCard (role="button") is the single
+              activation target (a11y: avoids a button nested in role=button). */}
+          <div
+            className="block max-w-full truncate text-[13px] font-semibold text-foreground"
             title={project.name}
           >
             {project.name}
-          </button>
+          </div>
           <div className="truncate text-[12px] text-muted-foreground">
             {project.client?.name ?? '—'}
           </div>
@@ -161,6 +159,8 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
 export interface ProjectKanbanBoardProps {
   /** Role-scoped, pre-filtered projects from useProjects() — the board just groups them. */
   projects: ProjectWithRefs[];
+  /** Drill into a project's detail (mirrors SalesKanbanBoard's contract). */
+  onOpen: (project: ProjectWithRefs) => void;
 }
 
 /**
@@ -168,44 +168,15 @@ export interface ProjectKanbanBoardProps {
  * horizontally-scrollable kanban board. Read-only v1 — no drag-to-change-status.
  *
  * Mobile UX: scroll-snap columns + KanbanStageIndicator strip (md:hidden) so a
- * phone user can see which column is in view and jump to another. The scroll
- * listener is attached directly to <Kanban> (= the .kanban-scroll element) —
- * scroll events do NOT bubble, so a parent wrapper's onScroll would never fire
- * on a swipe gesture (SalesKanbanBoard comment / Defect-1 precedent).
+ * phone user can see which column is in view and jump to another — provided by
+ * the shared `useKanbanMobileScroll` hook (also used by SalesKanbanBoard). The
+ * scroll listener is attached directly to <Kanban> (= the .kanban-scroll element)
+ * — scroll events do NOT bubble, so a parent wrapper's onScroll would never fire
+ * on a swipe gesture (Defect-1 precedent).
  */
-const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects }) => {
-  const navigate = useNavigate();
-  const [activeStageIndex, setActiveStageIndex] = useState(0);
-  const scrollWrapRef = useRef<HTMLDivElement>(null);
-  const colRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  // Track which column is nearest the left edge of the scroll container.
-  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollLeft = e.currentTarget.scrollLeft;
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    colRefs.current.forEach((col, i) => {
-      if (!col) return;
-      const dist = Math.abs(col.offsetLeft - scrollLeft);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
-      }
-    });
-    setActiveStageIndex(bestIdx);
-  }, []);
-
-  // Programmatic scroll when the user taps a stage in the mobile indicator strip.
-  const handleStageClick = useCallback((index: number) => {
-    const wrap = scrollWrapRef.current;
-    if (!wrap) return;
-    const scrollEl = wrap.querySelector('.kanban-scroll') as HTMLElement | null;
-    const col = colRefs.current[index];
-    if (!scrollEl || !col) return;
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scrollEl.scrollTo({ left: col.offsetLeft, behavior: prefersReduced ? 'instant' : 'smooth' });
-    setActiveStageIndex(index);
-  }, []);
+const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpen }) => {
+  const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
+    useKanbanMobileScroll();
 
   return (
     <div ref={scrollWrapRef} data-testid="project-kanban-board">
@@ -237,7 +208,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects }) => 
                   <ProjectKanbanCard
                     key={p.id}
                     project={p}
-                    onActivate={() => navigate(`/projects/${p.id}`)}
+                    onActivate={() => onOpen(p)}
                   />
                 ))}
               </KanbanColumn>

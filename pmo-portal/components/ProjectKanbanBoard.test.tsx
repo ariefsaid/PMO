@@ -1,11 +1,20 @@
 /**
- * ProjectKanbanBoard unit tests (AC-PK-001 through AC-PK-006).
- * ADR-0010: unit layer owns these — lowest sufficient layer for component/render/grouping behavior.
+ * ProjectKanbanBoard unit tests.
+ * ADR-0010: the unit layer owns these — lowest sufficient layer for
+ * component/render/grouping/keyboard behavior.
+ *
+ * Owning ACs (traceability — see PR #96 table):
+ *   AC-PK-001  five lifecycle columns render in DOM order (Won → Ongoing → On Hold → Close Out → Internal)
+ *   AC-PK-002  a project lands ONLY in its status column (present here, absent from the others)
+ *   AC-PK-003  clicking a card calls onOpen → navigates to /projects/:id
+ *   AC-PK-004  a zero-project column still renders (empty header + empty message)
+ *   AC-PK-006  keyboard: focus a card + press Enter → onOpen → navigates to /projects/:id
+ *   AC-PK-009  each card shows the project name, customer, and PM
+ * (AC-PK-005 is the e2e journey; AC-PK-007 useProjectView round-trip; AC-PK-008 ViewToggle.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import ProjectKanbanBoard from './ProjectKanbanBoard';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -23,12 +32,6 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
-});
-
-const navigate = vi.fn();
-vi.mock('react-router-dom', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => navigate };
 });
 
 /** Minimal ProjectWithRefs factory. */
@@ -61,69 +64,97 @@ const projects: ProjectWithRefs[] = [
   mkProject({ id: 'p5', name: 'Internal Labs', status: 'Internal Project', pm: { full_name: 'Alice PM' }, contract_value: 0 }),
 ];
 
-const renderBoard = (ps: ProjectWithRefs[] = projects) =>
-  render(
-    <MemoryRouter>
-      <ProjectKanbanBoard projects={ps} />
-    </MemoryRouter>,
-  );
+/** Lifecycle column order + the project that belongs in each. */
+const COLUMN_ORDER = ['kanban-col-won', 'kanban-col-ongoing', 'kanban-col-onhold', 'kanban-col-closeout', 'kanban-col-internal'];
+const PROJECT_BY_COLUMN: Record<string, string> = {
+  'kanban-col-won': 'Alpha Build',
+  'kanban-col-ongoing': 'Beta Deploy',
+  'kanban-col-onhold': 'Gamma Maintain',
+  'kanban-col-closeout': 'Delta Close',
+  'kanban-col-internal': 'Internal Labs',
+};
+
+const renderBoard = (
+  ps: ProjectWithRefs[] = projects,
+  onOpen: (project: ProjectWithRefs) => void = vi.fn(),
+) => {
+  render(<ProjectKanbanBoard projects={ps} onOpen={onOpen} />);
+  return onOpen;
+};
 
 describe('ProjectKanbanBoard', () => {
-  beforeEach(() => navigate.mockClear());
+  beforeEach(() => vi.clearAllMocks());
 
-  it('AC-PK-001: renders all five lifecycle columns by name in order', () => {
+  it('AC-PK-001: renders the five lifecycle columns in DOM order (Won → Ongoing → On Hold → Close Out → Internal)', () => {
     renderBoard();
-    // All five columns must appear in lifecycle order, identified by data-testid
-    const colIds = ['kanban-col-won', 'kanban-col-ongoing', 'kanban-col-onhold', 'kanban-col-closeout', 'kanban-col-internal'];
-    for (const id of colIds) {
-      expect(screen.getByTestId(id)).toBeInTheDocument();
-    }
-    // Board root is present
+    // Query ALL column wrappers and assert the DOM order matches the lifecycle order —
+    // presence alone is a tautology; order is the real requirement.
+    const renderedOrder = screen
+      .getAllByTestId(/^kanban-col-/)
+      .map((el) => el.getAttribute('data-testid'));
+    expect(renderedOrder).toEqual(COLUMN_ORDER);
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
   });
 
-  it('AC-PK-002: groups projects into the correct status columns', () => {
+  it('AC-PK-002: a project lands ONLY in its status column (present in its column, absent from every other)', () => {
     renderBoard();
-    // Won column: contains Alpha Build (Won, Pending KoM)
-    const wonCol = screen.getByTestId('kanban-col-won');
-    expect(within(wonCol).getByText('Alpha Build')).toBeInTheDocument();
-    // Ongoing column: contains Beta Deploy
-    const ongoingCol = screen.getByTestId('kanban-col-ongoing');
-    expect(within(ongoingCol).getByText('Beta Deploy')).toBeInTheDocument();
-    // On Hold column: contains Gamma Maintain
-    const holdCol = screen.getByTestId('kanban-col-onhold');
-    expect(within(holdCol).getByText('Gamma Maintain')).toBeInTheDocument();
-    // Close Out column: contains Delta Close
-    const closeCol = screen.getByTestId('kanban-col-closeout');
-    expect(within(closeCol).getByText('Delta Close')).toBeInTheDocument();
-    // Internal column: contains Internal Labs
-    const internalCol = screen.getByTestId('kanban-col-internal');
-    expect(within(internalCol).getByText('Internal Labs')).toBeInTheDocument();
+    for (const colId of COLUMN_ORDER) {
+      const projectName = PROJECT_BY_COLUMN[colId];
+      // Present in its own column…
+      const col = screen.getByTestId(colId);
+      expect(within(col).getByText(projectName)).toBeInTheDocument();
+      // …and absent from every OTHER column (exclusivity).
+      for (const otherId of COLUMN_ORDER) {
+        if (otherId === colId) continue;
+        const other = screen.getByTestId(otherId);
+        expect(within(other).queryByText(projectName)).not.toBeInTheDocument();
+      }
+    }
   });
 
-  it('AC-PK-003: clicking a card navigates to /projects/:id', async () => {
-    renderBoard();
-    // The KanbanCard outer div (role=button, aria-label) is the primary activation target
-    const cards = screen.getAllByRole('button', { name: /Alpha Build/i });
-    // Click the first match (the KanbanCard outer role=button)
-    await userEvent.click(cards[0]);
+  it('AC-PK-003: clicking a card calls onOpen → navigates to /projects/:id', async () => {
+    const navigate = vi.fn();
+    renderBoard(projects, (p) => navigate(`/projects/${p.id}`));
+    // The KanbanCard outer div (role=button, aria-label) is the single activation target.
+    const card = screen.getByRole('button', { name: /Alpha Build/i });
+    await userEvent.click(card);
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
 
-  it('AC-PK-004: a column with zero projects still renders (empty column visible)', () => {
-    // Only pass projects that leave "On Hold" empty
+  it('AC-PK-004: a column with zero projects still renders (empty header + empty message)', () => {
+    // Pass projects that leave "On Hold" empty.
     const noHold = projects.filter((p) => p.status !== 'On Hold');
     renderBoard(noHold);
-    // The "On Hold" column must still render with its title
     const holdCol = screen.getByTestId('kanban-col-onhold');
     expect(holdCol).toBeInTheDocument();
-    // Column title text "On Hold" must appear within the column wrapper
     expect(within(holdCol).getByText('On Hold')).toBeInTheDocument();
-    // No Gamma Maintain card in the column
+    expect(within(holdCol).getByText('No projects in On Hold')).toBeInTheDocument();
     expect(within(holdCol).queryByText('Gamma Maintain')).not.toBeInTheDocument();
   });
 
-  it('AC-PK-006: each card shows the project name, customer name, and PM name', () => {
+  it('AC-PK-006: focusing a card and pressing Enter activates onOpen → navigates to /projects/:id', async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+    renderBoard(projects, (p) => navigate(`/projects/${p.id}`));
+    const card = screen.getByRole('button', { name: /Alpha Build/i });
+    // Keyboard journey: focus the card, then activate with Enter (NFR-PK-003 a11y).
+    card.focus();
+    expect(card).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(navigate).toHaveBeenCalledWith('/projects/p1');
+  });
+
+  it('AC-PK-006: pressing Space on a focused card also activates onOpen', async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+    renderBoard(projects, (p) => navigate(`/projects/${p.id}`));
+    const card = screen.getByRole('button', { name: /Beta Deploy/i });
+    card.focus();
+    await user.keyboard(' ');
+    expect(navigate).toHaveBeenCalledWith('/projects/p2');
+  });
+
+  it('AC-PK-009: each card shows the project name, customer name, and PM name', () => {
     renderBoard();
     const ongoingCol = screen.getByTestId('kanban-col-ongoing');
     expect(within(ongoingCol).getByText('Beta Deploy')).toBeInTheDocument();
@@ -131,41 +162,39 @@ describe('ProjectKanbanBoard', () => {
     expect(within(ongoingCol).getByText('Bob PM')).toBeInTheDocument();
   });
 
-  it('AC-PK-006b: empty list renders all five columns with no cards', () => {
+  it('AC-PK-004: empty list renders all five columns with no cards', () => {
     renderBoard([]);
-    // All five columns present
-    expect(screen.getByTestId('kanban-col-won')).toBeInTheDocument();
-    expect(screen.getByTestId('kanban-col-ongoing')).toBeInTheDocument();
-    expect(screen.getByTestId('kanban-col-onhold')).toBeInTheDocument();
-    expect(screen.getByTestId('kanban-col-closeout')).toBeInTheDocument();
-    expect(screen.getByTestId('kanban-col-internal')).toBeInTheDocument();
-    // No project names anywhere
+    for (const colId of COLUMN_ORDER) {
+      expect(screen.getByTestId(colId)).toBeInTheDocument();
+    }
     expect(screen.queryByText('Alpha Build')).not.toBeInTheDocument();
   });
 
   it('shows per-column empty message when a column has no projects', () => {
     renderBoard([]);
-    // KanbanColumn renders "No projects in <title>" when empty
     expect(screen.getByText('No projects in Won')).toBeInTheDocument();
     expect(screen.getByText('No projects in Ongoing')).toBeInTheDocument();
   });
 
+  it('the card is the single activation target — no nested inner button (a11y)', () => {
+    renderBoard();
+    // Exactly one role=button per project card (the KanbanCard). The project name is
+    // plain text, NOT a nested <button> (which would be a button-in-role=button).
+    const card = screen.getByRole('button', { name: /Alpha Build/i });
+    expect(within(card).queryByRole('button')).toBeNull();
+  });
+
   it('fires the onScroll handler without throwing (scroll tracking path)', () => {
-    const { container } = renderBoard();
-    const scrollEl = container.querySelector('.kanban-scroll');
+    renderBoard();
+    const scrollEl = document.querySelector('.kanban-scroll');
     if (scrollEl) {
-      // fireEvent.scroll exercises the onScroll callback (scroll events don't bubble,
-      // but fireEvent dispatches directly on the element).
       expect(() => fireEvent.scroll(scrollEl, { target: { scrollLeft: 0 } })).not.toThrow();
     }
-    // Board is still present after scroll
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
   });
 
   it('stage indicator renders stage names for mobile navigation', () => {
     renderBoard();
-    // The KanbanStageIndicator renders a nav with stage names as button aria-labels.
-    // All five stages must have buttons in the stage strip.
     const stageNav = screen.getByRole('navigation', { name: /pipeline stage navigation/i });
     expect(stageNav).toBeInTheDocument();
     expect(within(stageNav).getByRole('button', { name: /Won/i })).toBeInTheDocument();
@@ -181,30 +210,22 @@ describe('ProjectKanbanBoard', () => {
     renderBoard();
     const stageNav = screen.getByRole('navigation', { name: /pipeline stage navigation/i });
     const ongoingBtn = within(stageNav).getByRole('button', { name: 'Ongoing' });
-    // Clicking a stage button exercises handleStageClick. The .kanban-scroll element
-    // exists in the DOM (Kanban renders it); scrollTo is stubbed above.
     await userEvent.click(ongoingBtn);
-    // Board is still present; no unhandled error was thrown
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
 
-    // Restore original
     Element.prototype.scrollTo = origScrollTo;
   });
 
   it('each card renders a StatusPill with the project status text', () => {
     renderBoard();
-    // Alpha Build is "Won, Pending KoM" — the StatusPill renders the status text.
-    // There may be multiple "Won, Pending KoM" elements (column header + pill); getAllByText is safe here.
     const wonCol = screen.getByTestId('kanban-col-won');
     expect(within(wonCol).getAllByText('Won, Pending KoM').length).toBeGreaterThanOrEqual(1);
-    // On Hold column has the status pill with "On Hold" text (column header + pill = multiple matches)
     const holdCol = screen.getByTestId('kanban-col-onhold');
     expect(within(holdCol).getAllByText('On Hold').length).toBeGreaterThanOrEqual(2);
   });
 
   it('contract value appears on each card', () => {
     renderBoard();
-    // Alpha Build has contract_value = 1_000_000 → formatCurrency renders "$1,000,000"
     const wonCol = screen.getByTestId('kanban-col-won');
     expect(within(wonCol).getByText('$1,000,000')).toBeInTheDocument();
   });

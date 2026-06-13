@@ -480,7 +480,7 @@ const Projects: React.FC = () => {
 
       {/* Body */}
       {view === 'kanban' ? (
-        <ProjectKanbanBoard projects={filtered} />
+        <ProjectKanbanBoard projects={filtered} onOpen={onOpen} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
           projects={filtered}
