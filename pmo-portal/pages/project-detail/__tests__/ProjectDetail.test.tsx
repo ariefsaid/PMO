@@ -225,4 +225,34 @@ describe('ProjectDetail shell (decomposition)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
     expect(navigate).toHaveBeenCalledWith('/projects');
   });
+
+  it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {
+    // Override matchMedia to simulate a mobile viewport (below the md breakpoint).
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (query: string): MediaQueryList =>
+      ({
+        matches: false, // mobile: never matches min-width: 768px
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as MediaQueryList;
+
+    try {
+      renderAt('/projects/p1');
+      // On mobile, the success render must include the in-content back affordance.
+      expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('C-IMP-1: BackBar is absent on the success render on desktop (>= 768px viewport)', () => {
+    // Desktop: matchMedia matches (default from setup.ts), BackBar should be hidden.
+    renderAt('/projects/p1');
+    expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
+  });
 });
