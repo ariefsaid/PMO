@@ -34,17 +34,24 @@ never write app code yourself — you delegate and **verify**.
 4. **Build (TDD)** — `implementer` (sonnet; **opus for hard/security slices** — schema, RLS, auth,
    RPC). RED→GREEN→REFACTOR; no prod code without a failing test. Works on a branch; commits; does
    **not** push/PR.
-5. **Review** — `spec-reviewer` (does it match spec/ACs? **don't trust the implementer — read code +
-   run tests**), then `code-quality-reviewer` (decomposition, naming, maintainability, the render
-   seam). Run them **in parallel** when independent.
-6. **Secure (when relevant)** — `security-auditor` (opus) for ANY change to auth, RLS, tenancy, a new
-   RPC/view, or a public surface. It must attempt live cross-org/escalation exploits, not just read.
-7. **Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. The curated e2e
+5. **Review — the 3-reviewer battery (always; the code-side analog of the design 3-lens):**
+   `spec-reviewer` (does it match spec/ACs? **don't trust the implementer — read code + run tests**),
+   `code-quality-reviewer` (decomposition, naming, maintainability, the render seam), **and**
+   `security-auditor` (opus) — which must attempt live cross-org/escalation exploits, not just read.
+   **All three run on every code issue.** Security spends its depth on auth / RLS / tenancy / new RPC or
+   view / public surfaces, and confirms quickly when a change touches none of those. Run them **in
+   parallel** when independent.
+6. **Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. The curated e2e
    journeys must pass live. **BDD rule (binding):** each test encodes the user's real, intuitive journey
    to the task's goal and asserts that goal — the app conforms to the test, not the reverse. When a test
    fails, fix the **app**; only for a *deliberate* UX change (e.g. a new confirm step, back-nav moving to
    the breadcrumb) do you update the journey *steps*, and even then the goal-oracle stays intact. Never
    reshape a test to match the app's current state to go green (see qa-acceptance "Authoring principle").
+7. **Design re-review (FE/UI issues only — round 2 of 2)** — `design-reviewer` re-runs the full
+   three-lens battery (`docs/design-workflow.md` §2.3) on the **rendered, implemented** UI, explicitly
+   checking for **drift from the owner-approved mockup** (round 1 was the §1c mockup gate) on top of
+   `DESIGN.md` + the design-plan. Findings route back to `ui-implementer`; repeat until ship-clean. (Code
+   issues with no UI surface skip this step.)
 8. **Ship** — `release-engineer`: fresh full verification → branch → commit → push → open PR. **It
    never merges.** Then the **Director merges** (see §6) and syncs.
 

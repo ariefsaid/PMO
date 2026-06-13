@@ -16,20 +16,23 @@ Establish the design system before any UI issue builds on it.
 2. **Owner sign-off** — the owner approves `DESIGN.md` (taste is the owner's gate, like spec
    sign-off). Until signed, no UI issue proceeds.
 
-## 1a. Pre-spec HTML mockup gate (every UI issue — before Spec)
+## 1a. Pre-spec HTML mockup gate (every UI issue — before Spec) — design-review **ROUND 1 of 2**
 Runs at **intake**, right after the `grill-with-docs` alignment grill (`docs/director-playbook.md`
 §2 step 1b/1c) and **before any spec/plan/build effort is committed**. The mockup is the cheap
 artifact that absorbs taste/IxD/IA iteration so the per-issue loop (§2) doesn't re-litigate it
-post-build.
+post-build. **Every FE issue gets the three-lens review twice:** here on the *mockup* (round 1, vets
+the design before code exists) and again in §2.3 on the *built* UI (round 2, catches drift from this
+approved mockup).
 
 1. **Artifact** — a static HTML+CSS mockup (no build step, no React) under
    `docs/design-mockups/<issue-slug>/`, styled strictly with `DESIGN.md` tokens. It must show the
    key states (default / empty / error at minimum) and the mobile breakpoint, not just the happy
    desktop frame.
-2. **Full design round on the mockup** — same discipline as a real UI build:
+2. **Full design round on the mockup (review round 1 of 2)** — same discipline as a real UI build:
    design-plan (`design-architect`) → mockup build (`ui-implementer`) → the **three-lens review
    battery** of §2.3 (visual/correctness, IxD task-flow, IA structure) rendered in a browser →
-   fix rounds until ship-clean.
+   fix rounds until ship-clean. The approved mockup is the **drift baseline** that round 2 (§2.3,
+   post-implementation) audits the built UI against.
 3. **Owner approval** — the owner approves the mockup the way they sign off a spec. The approved
    mockup then becomes a **binding input** to the spec and the per-issue design-plan (§2.1).
 4. **Status: design-binding, code-throwaway** — the later React implementation builds to
@@ -48,7 +51,7 @@ update the e2e *steps*, never weaken the goal-oracle to match the rendered app (
 2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
    `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
    design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
-3. **Design-review — the standing THREE-LENS battery** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the other two (this gap let real IxD/IA defects ship). Findings write to `review/*.md`.
+3. **Design-review — the standing THREE-LENS battery (review ROUND 2 of 2 — post-build drift pass)** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the other two (this gap let real IxD/IA defects ship). This is the **second** of the two mandatory FE reviews: beyond `DESIGN.md` + the design-plan, it **explicitly diffs the rendered build against the owner-approved mockup (§1a) to catch mockup→implementation drift** (spacing/scale/state/interaction that slipped between the approved design and the built result). Findings write to `review/*.md`.
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste` AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA, interaction perf, vs `DESIGN.md` + the design-plan.
    - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough; `ui-ux-pro-max` `primary-action`/`progressive-disclosure`/`success-feedback`)* — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* (e.g. timesheet Save↔Submit split across a view change.)
    - **(c) IA / structure & navigation** *(Nielsen #4 Consistency + IA first-principles + ERP/CRM/PSA domain conventions)* — **one canonical home/URL per entity**, no list/route overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent breadcrumb/back. *Structure, not flow.* (e.g. one record → two lists → two detail pages.)
@@ -85,7 +88,7 @@ variants) + a11y checks in isolation. Not before — premature Storybook is over
 |---|---|---|
 | spec-miner / eng-planner | **design-architect** | reverse-engineer `DESIGN.md`; per-issue design-plan (read-only on code, writes DESIGN.md + docs/) |
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
-| spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; audit vs `DESIGN.md` + plan; AI-slop / a11y / perf; read-only |
+| spec-reviewer + code-quality-reviewer + security-auditor (the **3-reviewer** code battery) | **design-reviewer** (the **3-lens** battery, run **twice** — mockup §1a + built UI §2.3 for drift) | render + screenshot; audit vs `DESIGN.md` + plan + the approved mockup; AI-slop / a11y / perf; read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** (owner sign-off) |
 
 ### Skills → exact commands per agent (one owner per command — no overlap)

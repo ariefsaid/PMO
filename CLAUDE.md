@@ -29,13 +29,18 @@ Per-issue loop:
 
 1. **Intake** — Director clarifies the issue with the owner, then runs the **`grill-with-docs` alignment
    grill**; UI issues additionally require an **owner-approved static HTML mockup** (full 3-lens design
-   round, `docs/design-workflow.md` §1a) before Spec.
+   review — **round 1 of 2**, `docs/design-workflow.md` §1a) before Spec.
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
 4. **Build (TDD)** — `implementer` (red-green-refactor; no prod code without a failing test).
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`.
+5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
+   (OWASP/STRIDE on auth + RLS + `org_id` tenancy). All three run on every code issue — the code-side
+   analog of the design 3-lens. (Security focuses its depth on auth/RLS/RPC/public surfaces; on a change
+   that touches none it confirms that quickly.)
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
-7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + tenancy).
+7. **Design re-review (FE/UI only — round 2 of 2)** — `design-reviewer` re-runs the full 3-lens battery on
+   the *rendered, implemented* UI to capture **mockup→build drift** (round 1 was the §1a mockup gate). Fixes
+   route back to `ui-implementer` until ship-clean.
 8. **Ship** — `release-engineer` (branch → commit → push → PR).
 
 ## Director posture (main session)
