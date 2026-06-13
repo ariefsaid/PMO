@@ -274,12 +274,18 @@ const Incidents: React.FC = () => {
       {/* Toolbar */}
       {state !== 'loading' && (
         <Toolbar standalone>
-          <ViewToggle<StatusFilter>
-            options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
-            value={filter}
-            onChange={setFilter}
-            ariaLabel="Filter by status"
-          />
+          {/* AC-2: scrollable so all status segments are reachable at 390px. */}
+          <div
+            data-testid="status-filter-scroll"
+            className="overflow-x-auto scroll-fade-x"
+          >
+            <ViewToggle<StatusFilter>
+              options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
+              value={filter}
+              onChange={setFilter}
+              ariaLabel="Filter by status"
+            />
+          </div>
           <SearchMini
             placeholder="Search incidents…"
             aria-label="Search incidents"

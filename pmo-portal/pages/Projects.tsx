@@ -409,21 +409,34 @@ const Projects: React.FC = () => {
         the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
       */}
       <Toolbar standalone>
-        <ViewToggle<'table' | 'cards'>
-          options={[
-            { value: 'table', label: 'Table', icon: 'table' },
-            { value: 'cards', label: 'Cards', icon: 'cards' },
-          ]}
-          value={view}
-          onChange={setView}
-          ariaLabel="Projects view"
-        />
-        <ViewToggle<StatusFilter>
-          options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
-          value={filter}
-          onChange={setFilter}
-          ariaLabel="Status filter"
-        />
+        {/* A-MIN-1: below md DataTable force-renders cards (no table possible), so the Table/Cards
+            toggle is a state-lie on mobile — wrap in hidden/md:block so it disappears below md.
+            Status filter stays always visible. */}
+        <div className="hidden md:block">
+          <ViewToggle<'table' | 'cards'>
+            options={[
+              { value: 'table', label: 'Table', icon: 'table' },
+              { value: 'cards', label: 'Cards', icon: 'cards' },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel="Projects view"
+          />
+        </div>
+        {/* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
+            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
+            affordance (the project tab strip pattern). */}
+        <div
+          data-testid="status-filter-scroll"
+          className="overflow-x-auto scroll-fade-x"
+        >
+          <ViewToggle<StatusFilter>
+            options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
+            value={filter}
+            onChange={setFilter}
+            ariaLabel="Status filter"
+          />
+        </div>
         {!isEngineer && (
           <SelectField
             hideLabel
