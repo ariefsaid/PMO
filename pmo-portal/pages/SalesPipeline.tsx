@@ -10,7 +10,6 @@ import {
   StatusPill,
   ProgressBar,
   Icon,
-  Tooltip,
   AccessDenied,
   useToast,
   type FunnelStage,
@@ -35,6 +34,7 @@ import {
 } from '../components/salesPipeline';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { ExportButton } from '@/src/components/export';
 import ProjectFormModal from '../components/ProjectFormModal';
 
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
@@ -157,14 +157,27 @@ const SalesPipeline: React.FC = () => {
           </div>
         </div>
       ),
+      exportValue: (r) => r.name,
     },
-    { key: 'customer', header: 'Customer', cell: (r) => r.client_name ?? '—' },
+    {
+      key: 'customer',
+      header: 'Customer',
+      cell: (r) => r.client_name ?? '—',
+      exportValue: (r) => r.client_name ?? '',
+    },
     {
       key: 'stage',
       header: 'Stage',
       cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{r.status}</StatusPill>,
+      exportValue: (r) => r.status,
     },
-    { key: 'value', header: 'Value', align: 'num', cell: (r) => formatCurrency(r.contract_value) },
+    {
+      key: 'value',
+      header: 'Value',
+      align: 'num',
+      cell: (r) => formatCurrency(r.contract_value),
+      exportValue: (r) => r.contract_value,
+    },
     {
       key: 'weighted',
       header: 'Weighted',
@@ -172,6 +185,7 @@ const SalesPipeline: React.FC = () => {
       cell: (r) => (
         <span className="text-muted-foreground">{formatCurrency(weightedValue(r))}</span>
       ),
+      exportValue: (r) => weightedValue(r),
     },
     {
       key: 'win',
@@ -189,6 +203,7 @@ const SalesPipeline: React.FC = () => {
           />
         );
       },
+      exportValue: (r) => Math.round(r.win_probability * 100),
     },
     {
       /**
@@ -215,6 +230,7 @@ const SalesPipeline: React.FC = () => {
           </span>
         );
       },
+      exportValue: (r) => r.pm_name ?? '',
     },
     {
       /**
@@ -243,6 +259,11 @@ const SalesPipeline: React.FC = () => {
             {label}
           </span>
         );
+      },
+      exportValue: (r) => {
+        const days = daysSince(r.last_update);
+        if (days === null) return '';
+        return days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
       },
     },
   ];
@@ -290,21 +311,10 @@ const SalesPipeline: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* B-5 (AC-W2-IXD-008 / OD-W2-5): Export is demoted to an honest-disabled
-              "coming soon" affordance. It has a known future destination (Reports will
-              own it) so it follows the OD-UX-3 precedent: visibly-disabled + focusable
-              tooltip explanation rather than removed (which is reserved for truly-dead
-              controls like the notification bell). A disabled <button> doesn't fire
-              hover/focus events, so the tooltip wraps a focusable <span> per the G5
-              a11y coupler — keyboard users still reach the explanation. */}
-          <Tooltip content="Export arrives with the Reports module">
-            <span className="inline-flex">
-              <Button variant="outline" disabled aria-label="Export — arrives with Reports">
-                <Icon name="export" />
-                Export
-              </Button>
-            </span>
-          </Tooltip>
+          {/* B-5 (AC-W2-IXD-008 / W1-E): Export is now a live xlsx download of the
+              current table view. The disabled "arrives with Reports" stub is replaced
+              now that the client-side export layer is shipped (KANNA W1-E). */}
+          <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
           {/* B-3 (AC-W2-IXD-005): the natural place to start a deal is the pipeline you
               manage deals on — not the Projects list. Reuses the same create modal +
               mutation as Projects.tsx (no new create path). Gated on can('create','project')

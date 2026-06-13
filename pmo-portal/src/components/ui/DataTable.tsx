@@ -19,6 +19,13 @@ export interface Column<Row> {
    * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
    */
   colClassName?: string;
+  /**
+   * Optional value used by the `.xlsx` export seam (`src/lib/export`). Returns the
+   * column's DISPLAY value as a plain scalar — never a React node. Numbers stay
+   * numbers (tabular), dates as ISO `YYYY-MM-DD`, status as its label. Columns
+   * without `exportValue` are serialized as an empty string in the export.
+   */
+  exportValue?: (row: Row) => string | number | boolean;
 }
 
 export interface SortState {

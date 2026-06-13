@@ -6,27 +6,28 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
- * B-5 (AC-W2-IXD-008): Sales Pipeline Export is demoted to an honest
- * disabled "Export (arrives with Reports)" control with a keyboard-reachable
- * tooltip explanation — not a live-looking button with no handler (OD-W2-5).
+ * AC-EXP-008 (W1-E / B-5): Sales Pipeline Export is now a LIVE xlsx download of the
+ * current table view. The dishonest disabled "arrives with Reports" stub has been
+ * replaced with the shared <ExportButton>.
  *
- * OD-UX-3 precedent: a "coming soon" with a known future destination = visibly
- * disabled + tooltip; a truly-dead control = removed. Export is "coming soon"
- * (Reports will own it), so it is disabled-with-tooltip, not removed.
+ * Per the CLAUDE.md authoring rule this is a deliberate UX change: the goal (Export is
+ * reachable and honest) is unchanged; the journey step changed (live button, not a
+ * disabled-with-tooltip stub). The stub text must be PROVABLY GONE, not merely
+ * superseded.
  */
+
+// useExport is the only seam the button calls; stub it so no real download fires.
+const exportXlsx = vi.fn();
+vi.mock('@/src/components/export/useExport', () => ({
+  useExport: () => ({ exportXlsx, busy: false }),
+}));
 
 vi.mock('react-router-dom', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
-vi.mock('@/src/hooks/useDashboard', () => ({
-  useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
-  useLostDeals: () => ({ data: [] }),
-}));
 vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['table', vi.fn()] }));
-// B-3: SalesPipeline now renders a "+ New opportunity" CTA (useProjectMutations / usePermission);
-// stub to avoid the QueryClientProvider requirement.
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
   useClientCompanies: () => ({ data: [] }),
@@ -34,6 +35,29 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
+
+// A populated pipeline so the live Export button is enabled.
+vi.mock('@/src/hooks/useDashboard', () => ({
+  useSalesPipeline: () => ({
+    data: {
+      stages: [],
+      projects: [
+        {
+          id: 'sp1',
+          name: 'Deal 1',
+          client_name: 'Client A',
+          status: 'Qualified',
+          contract_value: 10000,
+          win_probability: 0.5,
+        },
+      ],
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useLostDeals: () => ({ data: [] }),
 }));
 
 import SalesPipeline from '../SalesPipeline';
@@ -49,28 +73,18 @@ const renderAs = (role: 'Project Manager' | 'Finance') =>
     </ImpersonationProvider>,
   );
 
-describe('SalesPipeline — Export dead-affordance honesty (B-5, AC-W2-IXD-008)', () => {
-  it('AC-W2-IXD-008: Export is disabled — not a live button with no handler (OD-W2-5)', () => {
+describe('SalesPipeline — live Export (AC-EXP-008)', () => {
+  it('AC-EXP-008: shows a live (enabled) Export and the "arrives with Reports" stub is gone', () => {
     renderAs('Project Manager');
-    // The Export control must be present but disabled.
-    const exportBtn = screen.getByRole('button', { name: /export/i });
-    expect(exportBtn).toBeInTheDocument();
-    expect(exportBtn).toBeDisabled();
+    const btn = screen.getByRole('button', { name: /export/i });
+    expect(btn).toBeEnabled();
+    // The dishonest dead-affordance copy must be PROVABLY absent.
+    expect(screen.queryByText(/arrives with the reports module/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/arrives with reports/i)).not.toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-008: the Export label/aria-label indicates it arrives with Reports (honest reason)', () => {
-    renderAs('Project Manager');
-    // The aria-label must name the "Reports" destination so keyboard users understand why.
-    const exportBtn = screen.getByRole('button', { name: /export.*reports/i });
-    expect(exportBtn).toBeInTheDocument();
-  });
-
-  it('AC-W2-IXD-008: the Export button is wrapped in a focusable span so the tooltip is keyboard-reachable (G5 a11y)', () => {
-    renderAs('Project Manager');
-    // The disabled button is inside a <span> wrapper (per the Tooltip/disabled-button a11y pattern).
-    const exportBtn = screen.getByRole('button', { name: /export/i });
-    expect(exportBtn.parentElement?.tagName).toBe('SPAN');
-    // The span itself is focusable-by-proximity (mouse/pointer enters the span → tooltip opens).
-    // Keyboard: Tab reaches the focusable span; the tooltip wires onFocus via React.cloneElement.
+  it('AC-EXP-008: Export remains reachable for the Finance role', () => {
+    renderAs('Finance');
+    expect(screen.getByRole('button', { name: /export/i })).toBeEnabled();
   });
 });

@@ -12,6 +12,7 @@ import {
   useToast,
   type Column,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -163,11 +164,13 @@ const ProcurementPage: React.FC = () => {
           </div>
         </div>
       ),
+      exportValue: (r) => r.title,
     },
     {
       key: 'project',
       header: 'Project',
       cell: (r) => <span className="text-muted-foreground">{r.project?.name ?? '—'}</span>,
+      exportValue: (r) => r.project?.name ?? '',
     },
     {
       key: 'requester',
@@ -183,12 +186,14 @@ const ProcurementPage: React.FC = () => {
           <span className="truncate">{r.requested_by?.full_name ?? 'Unknown'}</span>
         </span>
       ),
+      exportValue: (r) => r.requested_by?.full_name ?? '',
     },
     {
       key: 'value',
       header: 'Value',
       align: 'num',
       cell: (r) => formatCurrency(r.total_value),
+      exportValue: (r) => r.total_value,
     },
     {
       key: 'lifecycle',
@@ -200,6 +205,8 @@ const ProcurementPage: React.FC = () => {
           aria-label={`Lifecycle: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
         />
       ),
+      // Export the human-readable stage label (the stepper component can't be serialized)
+      exportValue: (r) => stageLabelForStatus(r.status as ProcurementStatus),
     },
     {
       key: 'status',
@@ -209,6 +216,7 @@ const ProcurementPage: React.FC = () => {
           {stageLabelForStatus(r.status as ProcurementStatus)}
         </StatusPill>
       ),
+      exportValue: (r) => stageLabelForStatus(r.status as ProcurementStatus),
     },
   ];
 
@@ -277,6 +285,7 @@ const ProcurementPage: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="ml-auto"
           />
+          <ExportButton rows={filtered} columns={columns} entity="Procurement" />
         </Toolbar>
       )}
 
