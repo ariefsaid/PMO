@@ -11,6 +11,12 @@ export interface ViewOption<V extends string = string> {
   count?: number;
   /** Optional test id on the option's button (for AC-tagged assertions). */
   testId?: string;
+  /**
+   * Optional Tailwind classes applied to the individual option button.
+   * Use this for per-option responsive visibility (e.g. `"hidden md:inline-flex"`
+   * to hide an option below the `md` breakpoint while keeping it in the DOM).
+   */
+  optionClassName?: string;
 }
 
 export interface ViewToggleProps<V extends string = string> {
@@ -68,7 +74,8 @@ export function ViewToggle<V extends string = string>({
               '[&_svg]:size-[14px]',
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+              opt.optionClassName,
             )}
           >
             {opt.icon && <Icon name={opt.icon} />}

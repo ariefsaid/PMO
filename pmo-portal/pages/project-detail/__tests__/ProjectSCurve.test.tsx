@@ -15,7 +15,11 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestones: () => milestoneState,
 }));
 
+// Captured LineChart margin prop — set by the LineChart mock below.
+let capturedLineChartMargin: { top?: number; right?: number; bottom?: number; left?: number } | undefined;
+
 // recharts' ResponsiveContainer needs a non-zero parent size under jsdom; force it.
+// Also intercept LineChart to capture its margin prop for AC-SC-009.
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
@@ -23,6 +27,11 @@ vi.mock('recharts', async () => {
     ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
       <div style={{ width: 600, height: 240 }}>{children}</div>
     ),
+    LineChart: ({ children, margin, ...rest }: React.ComponentProps<typeof actual.LineChart>) => {
+      capturedLineChartMargin = margin as typeof capturedLineChartMargin;
+      const ActualLineChart = actual.LineChart;
+      return <ActualLineChart margin={margin} {...rest}>{children}</ActualLineChart>;
+    },
   };
 });
 
@@ -52,6 +61,7 @@ describe('ProjectSCurve', () => {
     milestoneState.isPending = false;
     milestoneState.isError = false;
     milestoneState.refetch = vi.fn();
+    capturedLineChartMargin = undefined;
   });
 
   it('AC-SC-005: ready with dated milestones renders the chart figure with a Planned/Actual two-item text legend', () => {
@@ -108,5 +118,17 @@ describe('ProjectSCurve', () => {
       expect(bg).toContain('hsl(var(--primary))');
       expect(bg).not.toMatch(/#[0-9a-f]{3,6}/i);
     }
+  });
+
+  it('AC-SC-009: the LineChart left margin is ≥ 0 so Y-axis tick labels (0/25/50/75/100%) are not clipped (round-2 drift fix)', () => {
+    // A negative `margin.left` in recharts pulls the YAxis outside the container
+    // edge — the % tick labels render off-screen. The fix sets margin.left = 0.
+    // This regression guard ensures it stays non-negative.
+    capturedLineChartMargin = undefined;
+    milestoneState.data = dated;
+    render$();
+    // capturedLineChartMargin is set by the LineChart mock above on every render.
+    expect(capturedLineChartMargin).toBeDefined();
+    expect(capturedLineChartMargin!.left ?? 0).toBeGreaterThanOrEqual(0);
   });
 });

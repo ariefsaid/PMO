@@ -167,15 +167,24 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
 describe('A-MIN-1: Table/Cards view toggle is hidden below md (desktop-only)', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('Projects: the "Projects view" tablist is inside a hidden/md:block wrapper (A-MIN-1)', () => {
+  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table option button carries hidden+md:inline-flex; tablist is no longer wrapped in a hidden container', () => {
     renderProjects();
     const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
-    // The tablist sits inside a wrapper div that carries "hidden" (display:none on mobile)
-    // and "md:block" (visible at ≥768px). This is the responsive single-render pattern.
+    // After the AC-MOB-VT round-2 fix, the *entire* toggle is always visible (Calendar +
+    // Kanban need to be reachable on mobile). Only the Table option button is hidden below md.
+    // The tablist wrapper no longer carries 'hidden' — that was the old A-MIN-1 approach when
+    // only Table+Cards existed. The new approach is per-option visibility.
+    // The tablist itself is NOT wrapped in a hidden container.
     const wrapper = viewToggle.parentElement;
     expect(wrapper).not.toBeNull();
-    expect(wrapper!.className).toContain('hidden');
-    expect(wrapper!.className).toMatch(/md:block|md:contents/);
+    expect(wrapper!.className).not.toContain('hidden');
+    // The Table tab button carries 'hidden' + 'md:inline-flex' (per-option hide below md).
+    const tableTab = Array.from(viewToggle.querySelectorAll('[role="tab"]')).find(
+      (el) => el.textContent?.trim() === 'Table',
+    ) as HTMLElement | undefined;
+    expect(tableTab).toBeDefined();
+    expect(tableTab!.className).toContain('hidden');
+    expect(tableTab!.className).toContain('md:inline-flex');
   });
 
   it('Projects: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {

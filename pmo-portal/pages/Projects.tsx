@@ -419,22 +419,25 @@ const Projects: React.FC = () => {
         the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
       */}
       <Toolbar standalone>
-        {/* A-MIN-1: below md DataTable force-renders cards (no table possible), so the Table/Cards
-            toggle is a state-lie on mobile — wrap in hidden/md:block so it disappears below md.
-            Status filter stays always visible. */}
-        <div className="hidden md:block">
-          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-            options={[
-              { value: 'table', label: 'Table', icon: 'table' },
-              { value: 'cards', label: 'Cards', icon: 'cards' },
-              { value: 'calendar', label: 'Calendar', icon: 'cal' },
-              { value: 'kanban', label: 'Kanban', icon: 'cols' },
-            ]}
-            value={view}
-            onChange={setView}
-            ariaLabel="Projects view"
-          />
-        </div>
+        {/*
+          A-MIN-1 (updated, AC-MOB-VT): Wave-0 hid the entire toggle below md because Table+Cards
+          were the only options and DataTable auto-renders cards on mobile (toggle was a no-op).
+          Now that Calendar (day-agenda) and Kanban (horizontal-scroll) have real mobile renders,
+          those views need to be reachable on phones. Fix: hide only the Table option below md via
+          `optionClassName="hidden md:inline-flex"`. Cards / Calendar / Kanban are always visible.
+          Desktop (≥md) shows all four unchanged.
+        */}
+        <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+          options={[
+            { value: 'table', label: 'Table', icon: 'table', optionClassName: 'hidden md:inline-flex' },
+            { value: 'cards', label: 'Cards', icon: 'cards' },
+            { value: 'calendar', label: 'Calendar', icon: 'cal' },
+            { value: 'kanban', label: 'Kanban', icon: 'cols' },
+          ]}
+          value={view}
+          onChange={setView}
+          ariaLabel="Projects view"
+        />
         {/* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
             reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
             affordance (the project tab strip pattern). */}
