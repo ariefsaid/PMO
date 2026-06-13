@@ -29,22 +29,16 @@ to the Supabase Cloud project; `production` branch promoted to `main`@094406c �
 The migration-0023 immutability bug behind this was fixed in PR #80; 0023 is byte-identical to its #74 prod content.)
 
 ## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
-Competitor gap analysis vs KANNA/Aldagram: `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Issues run
-**in series, one worktree per issue**, under the binding pre-spec gates (grill-with-docs + owner-approved
-HTML mockup for UI — playbook §2 1b/1c). Role work dispatched via the **pi CLI** (`docs/pi-delegation.md`).
-- **✅ Issue #1 — Storage re-enable + document file upload — DONE & MERGED (PR #78, `main`@5a8314e).**
-  Decisions OD-DOC-1..5; migrations 0024 (Superseded enum) + 0025 (bucket + `storage.objects` RLS +
-  auto-Superseded RPC). Private org-scoped bucket; Draft-only upload/replace; download (forced attachment,
-  all types) + preview; New-revision → auto-Supersede parent (server-side, SoD); 5 MB bumpable knob +
-  allowlist + zip/exe denylist. Security audit PASS.
-
-**⚠ BEFORE starting Issue #2:** run the prod migration push (0024 + 0025 + 0026 as a unit) — the 0023 bug
-is fixed (PR #80) and the push is unblocked. That prod push is the gate for any further live demo use.
-
-**Recommended next (owner confirmation needed):** The forward roadmap is `docs/roadmap-spines.md`. Spine 4
-(Revenue/AR — progress billing, retention, change orders) is sequenced as the logical next spine after
-delivery. Within the KANNA series, candidate gap-closers include S-curve, Gantt/task-dependencies (seeded,
-unconsumed), and procurement attachments — owner to confirm sequencing at next intake.
+**Execution plan + wave sequencing: [`docs/kanna-program.md`](kanna-program.md)** — read it before any fan-out.
+Gap analysis (what's missing): `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Model: **parallel waves of ≤3–4
+independent issues** (worktree + PR each; CI verifies in parallel on the public repo), with all owner-interactive
+gates (grill-with-docs + owner-approved mockup) **front-loaded & serialized through the Director** per wave.
+Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
+- **✅ Issue #1 — document file upload — DONE & MERGED (PR #78).** Decisions OD-DOC-1..5; migrations 0024+0025;
+  private org-scoped bucket; Draft-only upload/replace; download + preview; New-revision auto-Supersede (SoD);
+  5 MB bumpable + allowlist. Security PASS. **Live on prod** (pushed 2026-06-13).
+- **▶ Wave 1 (next) — NOT yet grilled/locked:** proposed = procurement attachments · bulk import/export · project
+  calendar (kanna-program.md §4). S-Curve leads Wave 2. Phase-A owner grill is the gate before fan-out.
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)
 - **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct

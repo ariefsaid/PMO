@@ -7,6 +7,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | File | Holds |
 |---|---|
 | **`backlog.md`** | **The living status** — current state, the active program, open/deferred items. Start here. (Lean by design; shipped-program *history* is in `history.md`.) |
+| **`kanna-program.md`** | The KANNA gap-closing **execution plan** — wave sequencing, the parallel-build/serialized-owner operating model, per-wave cadence. The active program's playbook (backlog tracks its status). |
 | **`decisions.md`** | Every locked owner decision (`OD-*`) — the binding product/scope calls. Grep by id. |
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
 | **`pi-delegation.md`** | **How role-agent work is currently dispatched** — the pi CLI (GLM/codex) trial: model routing, invocation, dispatch mechanics, resource isolation, rendered-UI verification. |
