@@ -16,6 +16,27 @@ export function useProjects() {
   });
 }
 
+/**
+ * Dated milestones for a set of visible projects — the read-only Project Calendar view.
+ * One batched read (NFR-CAL-PERF-001); short-circuits (no query) on an empty id set so an
+ * empty/filtered-out list never issues an RPC. queryKey is org-scoped + keyed on the sorted
+ * id set so the cache is tenant-scoped and stable across re-renders.
+ *
+ * @param ids     Project IDs to fetch milestone dates for.
+ * @param active  Pass `false` (e.g. when the calendar view is not shown) to skip the RPC entirely
+ *                and avoid a wasted round-trip on every Projects page load. Defaults to `true` for
+ *                backwards compatibility, but callers SHOULD pass `view === 'calendar'`.
+ */
+export function useProjectsMilestoneDates(ids: string[], active = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['milestone-dates', orgId, [...ids].sort()],
+    queryFn: () => repositories.milestone.milestoneDatesForProjects(ids),
+    enabled: active && Boolean(orgId) && ids.length > 0,
+  });
+}
+
 export function useClientCompanies() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;

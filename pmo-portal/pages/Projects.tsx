@@ -21,6 +21,7 @@ import {
   useClientCompanies,
   useProjectManagers,
   useProjectMutations,
+  useProjectsMilestoneDates,
 } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
@@ -35,6 +36,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
+import ProjectCalendarView from '../components/ProjectCalendarView';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 
 /**
@@ -155,6 +157,13 @@ const Projects: React.FC = () => {
     // Applied to all views so the ordering is consistent regardless of the active segment.
     return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
   }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+
+  // Dated milestones for the calendar view — one batched read for the visible set
+  // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
+  const { data: milestoneDates } = useProjectsMilestoneDates(
+    filtered.map((p) => p.id),
+    view === 'calendar',
+  );
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
@@ -413,10 +422,11 @@ const Projects: React.FC = () => {
             toggle is a state-lie on mobile — wrap in hidden/md:block so it disappears below md.
             Status filter stays always visible. */}
         <div className="hidden md:block">
-          <ViewToggle<'table' | 'cards'>
+          <ViewToggle<'table' | 'cards' | 'calendar'>
             options={[
               { value: 'table', label: 'Table', icon: 'table' },
               { value: 'cards', label: 'Cards', icon: 'cards' },
+              { value: 'calendar', label: 'Calendar', icon: 'cal' },
             ]}
             value={view}
             onChange={setView}
@@ -467,7 +477,13 @@ const Projects: React.FC = () => {
       </Toolbar>
 
       {/* Body */}
-      {view === 'table' ? (
+      {view === 'calendar' ? (
+        <ProjectCalendarView
+          projects={filtered}
+          milestoneDates={milestoneDates}
+          onOpenProject={(id) => navigate(`/projects/${id}`)}
+        />
+      ) : view === 'table' ? (
         <DataTable<ProjectWithRefs>
           rows={filtered}
           columns={columns}

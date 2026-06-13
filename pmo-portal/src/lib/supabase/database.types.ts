@@ -1242,6 +1242,15 @@ export type Database = {
           project_id: string
         }[]
       }
+      get_projects_milestone_dates: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+          name: string
+          project_id: string
+          target_date: string
+        }[]
+      }
       get_sales_pipeline: { Args: never; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       next_procurement_doc_number: {

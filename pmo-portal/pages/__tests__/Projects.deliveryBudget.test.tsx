@@ -29,6 +29,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
   }),
+  useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 
 vi.mock('@/src/hooks/useProjectView', () => ({
