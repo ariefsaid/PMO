@@ -9,7 +9,7 @@ import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summ
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import { ACTIVE_PROJECT_STATUSES, AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -65,10 +65,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   const activeBudget = project.budget ?? 0;
   const committed = committedSpend ?? 0;
   const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
-  // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk.
-  const budgetUtil = ACTIVE_PROJECT_STATUSES.has(project.status as string) &&
-    activeBudget > 0 &&
-    committed / activeBudget >= AT_RISK_THRESHOLD
+  // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk. Routes through the
+  // shared canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
+  const budgetUtil = isAtRiskByCommitted({
+    status: project.status as string,
+    budget: activeBudget,
+    committedSpend: committed,
+  })
     ? budgetUtilPctValue
     : null;
 

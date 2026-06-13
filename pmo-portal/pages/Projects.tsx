@@ -35,7 +35,7 @@ import { pillVariantForProjectStatus, projectIconColor } from '../components/pro
 import ProjectCard from '../components/ProjectCard';
 import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -105,14 +105,18 @@ const Projects: React.FC = () => {
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
   const { data: deliverySummary, isPending: deliveryPending } = useProjectsDeliverySummary(all.map((p) => p.id));
 
-  // I6: committed-spend-based at-risk (not stale p.spent/p.budget).
-  // Derives from the SAME committed-spend summary used in the Budget used column.
+  // I6: committed-spend-based at-risk (not stale p.spent/p.budget). Derives from the SAME
+  // committed-spend summary used in the Budget used column, and routes through the shared
+  // canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
   const isAtRiskCommitted = React.useCallback(
     (p: ProjectWithRefs) => {
-      if (!ONGOING.includes(p.status as string)) return false;
       const summary = deliverySummary?.[p.id];
-      if (!summary || summary.budget <= 0) return false;
-      return summary.committedSpend / summary.budget >= AT_RISK_THRESHOLD;
+      if (!summary) return false;
+      return isAtRiskByCommitted({
+        status: p.status as string,
+        budget: summary.budget,
+        committedSpend: summary.committedSpend,
+      });
     },
     [deliverySummary],
   );
