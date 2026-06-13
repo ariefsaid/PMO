@@ -108,6 +108,11 @@ unconsumed), and procurement attachments — owner to confirm sequencing at next
   list filters consistently. Minor.
 - **Admin user disable/invite** — needs a `profiles` status column + server-side Supabase auth-admin API.
 - **Monitoring** (Sentry/uptime) — deferred. Optional CF API token in op vault `AS` for non-interactive CI.
+- **Automated a11y gate (charter Gap 4)** [Medium] — WCAG-AA is a charter DoD but enforced only by the
+  manual design-review 3-lens battery (review-time). No `axe-core` in CI/e2e, so a11y regressions between
+  reviews can slip. Add axe assertions at the e2e/component layer as a regression net. (Charter Gaps 1–3
+  closed: coverage gate now CI-enforced via `scripts/changed-lines-coverage.mjs`; Part B synced to
+  3-reviewer + twice-design-review; DB-index review assigned to code-quality.)
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project`;
