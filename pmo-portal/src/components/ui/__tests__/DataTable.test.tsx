@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
@@ -287,5 +287,97 @@ describe('DataTable', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit Alpha' }));
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(rows[0]);
+  });
+});
+
+// ── A-C-1 regression: mobile card <dd> value clipping at 390px ────────────────
+// When the DataTable renders the card branch (<768px), long unbroken string values
+// in <dd> elements must carry `min-w-0` and `break-words` so they wrap within the
+// grid column and are never clipped off the card edge.
+// jsdom has no real layout so we assert the applied classes + DOM presence (class
+// presence = the correct flexbox/grid overflow prevention; DOM presence = text is
+// in the document regardless of viewport width).
+// No `truncate` without an associated `title` attribute is permitted — silent
+// truncation is a content-loss defect.
+describe('DataTable — A-C-1: mobile card <dd> wrapping (no value clipping at 390px)', () => {
+  function mockMobile() {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false, // <768px → card branch
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('A-C-1: <dd> carries min-w-0 and break-words so long values wrap instead of clipping', () => {
+    mockMobile();
+
+    const LONG_VALUE = 'REMOTE_PLATFORM_ALPHA_BRAVO_CHARLIE_DELTA_ECHO_FOXTROT_123456789_LOCATION';
+
+    interface LongRow { id: string; label: string; location: string }
+    const longCols: Column<LongRow>[] = [
+      { key: 'label', header: 'Name', cell: (r) => r.label },
+      { key: 'location', header: 'Location', cell: (r) => r.location },
+    ];
+    const longRows: LongRow[] = [{ id: 'INC-1', label: 'Incident 1', location: LONG_VALUE }];
+
+    render(
+      <DataTable
+        rows={longRows}
+        columns={longCols}
+        rowKey={(r) => r.id}
+      />,
+    );
+
+    // The long value text must be in the DOM — never silently dropped.
+    expect(screen.getByText(LONG_VALUE)).toBeInTheDocument();
+
+    // The <dd> must carry the wrapping classes that prevent overflow-clipping.
+    const cardBranch = document.querySelector('[data-testid="dt-card-branch"]')!;
+    const locationDt = Array.from(cardBranch.querySelectorAll('dt')).find(
+      (dt) => dt.textContent === 'Location',
+    );
+    expect(locationDt).toBeTruthy();
+    const locationDd = locationDt!.nextElementSibling as HTMLElement;
+    expect(locationDd.tagName).toBe('DD');
+
+    // min-w-0 prevents the grid child from overflowing its 1fr column.
+    expect(locationDd.className).toContain('min-w-0');
+    // break-words forces the long unbroken string to wrap.
+    expect(locationDd.className).toContain('break-words');
+  });
+
+  it('A-C-1: the <dl> grid parent does not have overflow-hidden that would clip <dd> content', () => {
+    mockMobile();
+
+    interface SimpleRow { id: string; name: string; val: string }
+    const simpleCols: Column<SimpleRow>[] = [
+      { key: 'name', header: 'Name', cell: (r) => r.name },
+      { key: 'val', header: 'Val', cell: (r) => r.val },
+    ];
+    const simpleRows: SimpleRow[] = [{ id: 'R-1', name: 'Row 1', val: 'some value' }];
+
+    render(
+      <DataTable
+        rows={simpleRows}
+        columns={simpleCols}
+        rowKey={(r) => r.id}
+      />,
+    );
+
+    const cardBranch = document.querySelector('[data-testid="dt-card-branch"]')!;
+    // The <dl> grid parent (direct parent of dt/dd) must not apply overflow-hidden.
+    const dl = cardBranch.querySelector('dl');
+    expect(dl).toBeTruthy();
+    expect(dl!.className).not.toContain('overflow-hidden');
   });
 });
