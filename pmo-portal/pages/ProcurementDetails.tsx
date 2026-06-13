@@ -31,6 +31,7 @@ import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { QuotationsSection } from './procurement/QuotationsSection';
 import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
+import { ProcurementFilesSubsection } from './procurement/ProcurementFilesSubsection';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import {
   isLegalTransition,
@@ -326,6 +327,10 @@ const ProcurementDetails: React.FC = () => {
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
   // Documents: Admin·Exec·PM·Finance manage; everyone else read-only.
   const canManageDocs = may('create', 'procDoc');
+  // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
+  const canManageFiles = may('create', 'procFile');
+  const fileOrgId = currentUser?.org_id ?? '';
+  const currentUserId = currentUser?.id ?? null;
 
   // Shared classified-toast helper for the CRUD section mutations.
   const onMutationError = (err: unknown) => {
@@ -643,6 +648,10 @@ const ProcurementDetails: React.FC = () => {
           canSelect={canSelectQuote}
           addBusy={mutations.createQuotation.isPending}
           selectBusy={crud.selectQuote.isPending}
+          procurementId={p.id}
+          orgId={fileOrgId}
+          canManageFiles={canManageFiles}
+          currentUserId={currentUserId}
           onError={onMutationError}
           onAdd={async (input) => {
             await mutations.createQuotation.mutateAsync(input);
@@ -661,10 +670,30 @@ const ProcurementDetails: React.FC = () => {
             {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
             <DocRow label="PO#" value={p.po_number} />
             {p.receipts.map((r) => (
-              <DocRow key={r.id} label="GR#" value={r.gr_number} sub={r.status} />
+              <div key={r.id}>
+                <DocRow label="GR#" value={r.gr_number} sub={r.status} />
+                <ProcurementFilesSubsection
+                  phase="receipt"
+                  parentId={r.id}
+                  procurementId={p.id}
+                  orgId={fileOrgId}
+                  canWrite={canManageFiles}
+                  uploadedById={currentUserId}
+                />
+              </div>
             ))}
             {p.invoices.map((inv) => (
-              <DocRow key={inv.id} label="VI#" value={inv.vi_number} sub={inv.status} />
+              <div key={inv.id}>
+                <DocRow label="VI#" value={inv.vi_number} sub={inv.status} />
+                <ProcurementFilesSubsection
+                  phase="invoice"
+                  parentId={inv.id}
+                  procurementId={p.id}
+                  orgId={fileOrgId}
+                  canWrite={canManageFiles}
+                  uploadedById={currentUserId}
+                />
+              </div>
             ))}
           </CardPad>
         </Card>

@@ -35,6 +35,7 @@ export type Entity =
   | 'procItem'
   | 'quotation'
   | 'procDoc'
+  | 'procFile'
   | 'task'
   | 'taskStatus'
   | 'incident'
@@ -136,6 +137,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   procDoc: {
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
+  },
+  procFile: {
+    // Procurement phase-file attachments (quotation/GR/VI). Writer set = the procurement
+    // master-data roles (Admin·Exec·PM·Finance), mirroring procDoc. UX-only — the
+    // procurement-files RLS (migration 0028) is the enforcement authority.
+    create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    delete: allow(MASTER_DATA),
   },
   task: {
     create: allow(DELIVERY),

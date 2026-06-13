@@ -23,6 +23,15 @@ import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 // ---------------------------------------------------------------------------
+// Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
+// Page-level tests focus on lifecycle/UX behavior; the subsection has its own
+// unit tests. This matches the pattern in all sibling ProcurementDetails test files.
+// ---------------------------------------------------------------------------
+vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+
+// ---------------------------------------------------------------------------
 // Hook mocks (same pattern as the main test file)
 // ---------------------------------------------------------------------------
 const detailState = {

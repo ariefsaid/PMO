@@ -14,6 +14,7 @@ import {
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
 
 // ---------------------------------------------------------------------------
 // QuotationsSection — the supplier-quotations register + inline-add entry +
@@ -46,6 +47,14 @@ export interface QuotationsSectionProps {
   onError: (err: unknown) => void;
   addBusy?: boolean;
   selectBusy?: boolean;
+  /** The owning procurement id — threaded to each quotation's file sub-section. */
+  procurementId: string;
+  /** The caller's org id — file storage path segment 1 (RLS re-verifies). */
+  orgId: string;
+  /** Whether file upload/archive affordances show on each quotation row (UX gate). */
+  canManageFiles: boolean;
+  /** Current user id stamped onto new file rows. */
+  currentUserId: string | null;
 }
 
 export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
@@ -58,6 +67,10 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
   onError,
   addBusy,
   selectBusy,
+  procurementId,
+  orgId,
+  canManageFiles,
+  currentUserId,
 }) => {
   // The chosen quote, resolved by the page (PROC-004); fall back to the row flag when not passed.
   const isSelected = (q: QuotationRow) =>
@@ -135,31 +148,42 @@ export const QuotationsSection: React.FC<QuotationsSectionProps> = ({
           quotations.map((q) => (
             <div
               key={q.id}
-              className="flex items-center gap-2.5 border-b border-dashed border-border py-2.5 last:border-b-0"
+              className="border-b border-dashed border-border py-2.5 last:border-b-0"
             >
-              <span
-                aria-hidden
-                className={`size-[9px] shrink-0 rounded-full ${isSelected(q) ? 'bg-success' : 'bg-secondary'}`}
-              />
-              {q.vq_number && (
-                <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>
-              )}
-              {isSelected(q) && <StatusPill variant="won">Selected</StatusPill>}
-              <span className="ml-auto flex items-center gap-2.5">
-                <span className="text-[13.5px] font-semibold tabular">
-                  {formatCurrency(Number(q.total_amount))}
-                </span>
-                {canSelect && !isSelected(q) && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSelectTarget(q)}
-                    aria-label={`Select quote ${q.vq_number ?? ''}`.trim()}
-                  >
-                    Select quote
-                  </Button>
+              <div className="flex items-center gap-2.5">
+                <span
+                  aria-hidden
+                  className={`size-[9px] shrink-0 rounded-full ${isSelected(q) ? 'bg-success' : 'bg-secondary'}`}
+                />
+                {q.vq_number && (
+                  <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>
                 )}
-              </span>
+                {isSelected(q) && <StatusPill variant="won">Selected</StatusPill>}
+                <span className="ml-auto flex items-center gap-2.5">
+                  <span className="text-[13.5px] font-semibold tabular">
+                    {formatCurrency(Number(q.total_amount))}
+                  </span>
+                  {canSelect && !isSelected(q) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectTarget(q)}
+                      aria-label={`Select quote ${q.vq_number ?? ''}`.trim()}
+                    >
+                      Select quote
+                    </Button>
+                  )}
+                </span>
+              </div>
+              {/* Per-quotation file attachments (ADR-0023) — quotation phase. */}
+              <ProcurementFilesSubsection
+                phase="quotation"
+                parentId={q.id}
+                procurementId={procurementId}
+                orgId={orgId}
+                canWrite={canManageFiles}
+                uploadedById={currentUserId}
+              />
             </div>
           ))
         )}

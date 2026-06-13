@@ -70,6 +70,7 @@ import type {
   ProjectDeliverySummary,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
+import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -268,6 +269,33 @@ export interface MilestoneRepository {
   setTaskMilestone: (taskId: string, milestoneId: string | null) => Promise<void>;
 }
 
+export interface ProcurementFileRepository {
+  /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
+  list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
+  /** Prepare a signed upload URL + a minted file path (DAL validates the extension). */
+  prepareUpload(
+    phase: ProcPhase,
+    parentId: string,
+    procurementId: string,
+    orgId: string,
+    fileName: string,
+  ): Promise<{ signedUrl: string; path: string; fileId: string }>;
+  /** Confirm an upload by inserting the child file row (org_id stamped by RLS). */
+  confirmUpload(
+    phase: ProcPhase,
+    parentId: string,
+    path: string,
+    title: string | null,
+    uploadedById: string | null,
+  ): Promise<ProcurementFileRow>;
+  /** Soft-archive a file (stamps archived_at; ADR-0018). */
+  archive(phase: ProcPhase, id: string): Promise<void>;
+  /** Generate a signed download URL for a file. `opts.download` forces attachment. */
+  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  /** Delete a storage object (non-fatal orphan cleanup). */
+  cleanupObject(filePath: string): Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -280,4 +308,5 @@ export interface Repositories {
   task: TaskRepository;
   incident: IncidentRepository;
   milestone: MilestoneRepository;
+  procurementFiles: ProcurementFileRepository;
 }
