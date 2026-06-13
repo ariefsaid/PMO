@@ -31,7 +31,7 @@ export function parseLocalDate(iso: string): Date {
 }
 
 /** Format a Date as a local `YYYY-MM-DD` string (matches `parseLocalDate`). */
-function toIso(d: Date): string {
+export function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')}`;
