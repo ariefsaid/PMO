@@ -4,8 +4,11 @@
 --   AC-PF-003  Engineer (non-writer) insert → 42501 (4-role write gate)
 --   AC-PF-004  PM inserting a file whose parent quotation is in another org → denied (parent-org guard)
 --   AC-PF-005  deleting the parent quotation cascades — its file rows are gone
+--   AC-PF-011  in-org NON-WRITER (Engineer) CAN list file rows — deliberate org-wide SELECT
+--              parity with the parent `procurements_select` (file metadata is no more sensitive
+--              than the procurement rows in-org users already read)
 begin;
-select plan(5);
+select plan(6);
 
 -- Fixtures (two orgs, inserted as table owner — bypasses RLS).
 insert into organizations (id, name) values
@@ -22,19 +25,24 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('00700000-0000-0000-0000-0000000000a2','00700000-0000-0000-0000-000000000001','PF Eng A','pf-eng-a@example.com','Engineer'),
   ('00700000-0000-0000-0000-0000000000b1','00700000-0000-0000-0000-000000000002','PF PM B','pf-pm-b@example.com','Project Manager');
 
+-- Vendor companies (procurement_quotations.vendor_id is NOT NULL).
+insert into companies (id, org_id, name, type) values
+  ('00700000-0000-0000-0000-000000000050','00700000-0000-0000-0000-000000000001','PF Vendor A','Vendor'),
+  ('00700000-0000-0000-0000-000000000051','00700000-0000-0000-0000-000000000002','PF Vendor B','Vendor');
+
 -- Org-A procurement + quotation (the valid in-org parent).
 insert into procurements (id, org_id, title, status) values
   ('00700000-0000-0000-0000-000000000010','00700000-0000-0000-0000-000000000001','PF Proc A','Vendor Quoted');
-insert into procurement_quotations (id, org_id, procurement_id, total_amount, received_date) values
+insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date) values
   ('00700000-0000-0000-0000-000000000020','00700000-0000-0000-0000-000000000001',
-   '00700000-0000-0000-0000-000000000010', 1000, '2026-01-01');
+   '00700000-0000-0000-0000-000000000010','00700000-0000-0000-0000-000000000050', 1000, '2026-01-01');
 
 -- Org-B procurement + quotation (the cross-org parent for the parent-org guard test).
 insert into procurements (id, org_id, title, status) values
   ('00700000-0000-0000-0000-000000000011','00700000-0000-0000-0000-000000000002','PF Proc B','Vendor Quoted');
-insert into procurement_quotations (id, org_id, procurement_id, total_amount, received_date) values
+insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date) values
   ('00700000-0000-0000-0000-000000000021','00700000-0000-0000-0000-000000000002',
-   '00700000-0000-0000-0000-000000000011', 2000, '2026-01-01');
+   '00700000-0000-0000-0000-000000000011','00700000-0000-0000-0000-000000000051', 2000, '2026-01-01');
 
 -- ── AC-PF-001: in-org PM can insert a quotation-file row ─────────────────────
 set local role authenticated;
@@ -73,6 +81,16 @@ select throws_ok(
      values ('00700000-0000-0000-0000-000000000020', 'Eng attempt') $$,
   '42501', null,
   'AC-PF-003: Engineer direct INSERT into procurement_quotation_files blocked (4-role write gate 42501)');
+
+-- ── AC-PF-011: in-org NON-WRITER (Engineer A) CAN list the file row ─────────
+-- Same JWT (Engineer A, org A). The SELECT policy is org-wide (org_id = auth_org_id()) in
+-- DELIBERATE parity with the parent procurements_select — a non-writer who can see the
+-- procurement can list its files. The AC-PF-001 insert left exactly one row.
+select results_eq(
+  $$ select count(*)::int from procurement_quotation_files
+     where quotation_id = '00700000-0000-0000-0000-000000000020' $$,
+  $$ values (1) $$,
+  'AC-PF-011: in-org Engineer (non-writer) CAN list procurement_quotation_files rows (org-wide SELECT parity with parent procurement)');
 reset role;
 
 -- ── AC-PF-005: deleting the parent quotation cascades to its file rows ───────

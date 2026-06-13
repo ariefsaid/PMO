@@ -69,16 +69,22 @@ export function useProcurementFiles(
         onProgress: (p) => setProgress(p),
         signal: controller.signal,
       });
-      const row = await repositories.procurementFiles.confirmUpload(
-        phase,
-        parentId,
-        path,
-        title ?? null,
-        uploadedById,
-      );
-      // Best-effort: an orphan storage object on a failed confirm is acceptable; here confirm
-      // succeeded so nothing to clean up.
-      return row;
+      // Transport succeeded → the object is now in the bucket. If the confirm INSERT fails
+      // (e.g. RLS reject), the object would orphan, so clean it up best-effort before
+      // re-throwing (matches the shipped useFileUpload pattern, #78).
+      try {
+        const row = await repositories.procurementFiles.confirmUpload(
+          phase,
+          parentId,
+          path,
+          title ?? null,
+          uploadedById,
+        );
+        return row;
+      } catch (confirmError) {
+        repositories.procurementFiles.cleanupObject(path).catch(() => {});
+        throw confirmError;
+      }
     } finally {
       abortRef.current = null;
     }

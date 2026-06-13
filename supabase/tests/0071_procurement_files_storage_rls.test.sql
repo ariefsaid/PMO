@@ -2,8 +2,11 @@
 -- Path shape: {org}/{proc}/{phase}/{file_id}/{filename} = 5 slash-separated segments.
 --   AC-PF-006  in-org PM can write an object at the 5-seg procurement path; cross-org path → 42501
 --   AC-PF-007  anon cannot read procurement-files objects (0 rows); in-org PM reads the seeded object (1)
+--   AC-PF-012  storage READ is DELIBERATELY segment-1 (org) only, NOT segment-2 (in-org procurement):
+--              an in-org non-writer (Engineer) reads an in-org object regardless of segment-2 —
+--              parity with the org-wide file-metadata SELECT (write still re-checks segment-2).
 begin;
-select plan(4);
+select plan(5);
 
 -- Fixtures (two orgs).
 insert into organizations (id, name) values
@@ -11,10 +14,12 @@ insert into organizations (id, name) values
   ('00710000-0000-0000-0000-000000000002','Proc-Stor Org B');
 
 insert into auth.users (id, email) values
-  ('00710000-0000-0000-0000-0000000000a1','ps-pm-a@example.com');
+  ('00710000-0000-0000-0000-0000000000a1','ps-pm-a@example.com'),
+  ('00710000-0000-0000-0000-0000000000a2','ps-eng-a@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
-  ('00710000-0000-0000-0000-0000000000a1','00710000-0000-0000-0000-000000000001','PS PM A','ps-pm-a@example.com','Project Manager');
+  ('00710000-0000-0000-0000-0000000000a1','00710000-0000-0000-0000-000000000001','PS PM A','ps-pm-a@example.com','Project Manager'),
+  ('00710000-0000-0000-0000-0000000000a2','00710000-0000-0000-0000-000000000001','PS Eng A','ps-eng-a@example.com','Engineer');
 
 -- Org-A procurement (the in-org parent referenced by path segment 2).
 insert into procurements (id, org_id, title, status) values
@@ -24,6 +29,14 @@ insert into procurements (id, org_id, title, status) values
 insert into storage.objects (id, bucket_id, name, owner)
   values (gen_random_uuid(), 'procurement-files',
     '00710000-0000-0000-0000-000000000001/00710000-0000-0000-0000-000000000010/quotation/00710000-0000-0000-0000-000000000099/seed.pdf',
+    '00710000-0000-0000-0000-0000000000a1');
+
+-- Seed an in-org (segment-1 = org A) object whose segment-2 references a procurement id that
+-- does NOT exist. Read is segment-1-gated only, so an in-org user still sees this object —
+-- proving the deliberate parity (AC-PF-012). (Write WOULD reject it via the segment-2 guard.)
+insert into storage.objects (id, bucket_id, name, owner)
+  values (gen_random_uuid(), 'procurement-files',
+    '00710000-0000-0000-0000-000000000001/00710000-0000-0000-0000-0000000000ff/quotation/00710000-0000-0000-0000-00000000beef/orphan.pdf',
     '00710000-0000-0000-0000-0000000000a1');
 
 -- ── AC-PF-006: in-org PM can write at the 5-seg procurement path ─────────────
@@ -45,12 +58,26 @@ select throws_ok(
   '42501', null,
   'AC-PF-006: PM writing to a cross-org procurement-files path denied (42501)');
 
--- ── AC-PF-007: in-org PM reads the seeded object (1 row) ─────────────────────
+-- ── AC-PF-007: in-org PM reads the org-A objects (2 seeds + 1 write = 3) ─────
 select results_eq(
   $$ select count(*)::int from storage.objects where bucket_id = 'procurement-files' and name like '00710000-0000-0000-0000-000000000001/%' $$,
-  $$ values (2) $$,
-  'AC-PF-007: in-org PM reads the org-A procurement-files objects (seed + write = 2)');
+  $$ values (3) $$,
+  'AC-PF-007: in-org PM reads the org-A procurement-files objects (2 seeds + write = 3)');
 
+reset role;
+
+-- ── AC-PF-012: in-org NON-WRITER (Engineer A) reads the orphan-segment-2 object ─
+-- Storage READ is DELIBERATELY segment-1 (org) only, NOT segment-2-gated, in parity with the
+-- org-wide file-metadata SELECT. The Engineer (a non-writer) still reads the in-org object
+-- whose segment-2 points at a non-existent procurement → read is not per-procurement scoped.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select results_eq(
+  $$ select count(*)::int from storage.objects
+     where bucket_id = 'procurement-files'
+       and name like '00710000-0000-0000-0000-000000000001/00710000-0000-0000-0000-0000000000ff/%' $$,
+  $$ values (1) $$,
+  'AC-PF-012: in-org Engineer (non-writer) reads an in-org object regardless of segment-2 (storage read = org-segment-1 only, deliberate parity)');
 reset role;
 
 -- ── AC-PF-007: anon cannot read procurement-files objects ────────────────────

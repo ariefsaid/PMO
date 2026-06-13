@@ -170,6 +170,40 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
     expect(repo.confirmUpload).not.toHaveBeenCalled();
   });
 
+  it('AC-PF-009: a failed confirmUpload (object already landed) cleans up the orphan storage object', async () => {
+    repo.confirmUpload.mockRejectedValue({ code: '42501', message: 'denied' });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      { wrapper: Wrapper },
+    );
+    await act(async () => {
+      await result.current.upload.mutateAsync({ file }).catch(() => {});
+    });
+    // transport succeeded → the object is in the bucket → confirm rejected → orphan must be removed.
+    expect(uploadTransport.uploadWithProgress).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(repo.cleanupObject).toHaveBeenCalledWith('org-1/proc-1/quotation/file-1/q.pdf'),
+    );
+    await waitFor(() => expect(result.current.uploadError).not.toBeNull());
+  });
+
+  it('AC-PF-009: a transport failure (object never landed) does NOT call cleanup', async () => {
+    (uploadTransport.uploadWithProgress as ReturnType<typeof vi.fn>).mockRejectedValue({
+      status: 500,
+    });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      { wrapper: Wrapper },
+    );
+    await act(async () => {
+      await result.current.upload.mutateAsync({ file }).catch(() => {});
+    });
+    await waitFor(() => expect(result.current.uploadError).not.toBeNull());
+    expect(repo.cleanupObject).not.toHaveBeenCalled();
+  });
+
   it('AC-PF-009: a cancelled upload does NOT set an error (cancel is silent)', async () => {
     (uploadTransport.uploadWithProgress as ReturnType<typeof vi.fn>).mockRejectedValue({
       name: 'AbortError',
