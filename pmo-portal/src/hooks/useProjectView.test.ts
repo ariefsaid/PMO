@@ -31,4 +31,9 @@ describe('useProjectView persistence (VIEW.project)', () => {
     sessionStorage.setItem(VIEWS_STORAGE_KEY, '{not json');
     expect(readProjectView()).toBe('table');
   });
+
+  it('persists and reads back the calendar view', () => {
+    writeProjectView('calendar');
+    expect(readProjectView()).toBe('calendar');
+  });
 });

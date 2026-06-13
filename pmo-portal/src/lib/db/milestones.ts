@@ -125,6 +125,42 @@ export async function getProjectsDelivery(ids: string[]): Promise<Record<string,
 }
 
 /**
+ * A dated milestone for the read-only Project Calendar view (FR-CAL-002). Only
+ * milestones with a non-null target_date are returned (the RPC filters server-side).
+ */
+export interface MilestoneDate {
+  id: string;
+  projectId: string;
+  name: string;
+  targetDate: string; // YYYY-MM-DD
+}
+
+/**
+ * Batch read of dated milestones across a set of projects for the calendar view
+ * (NFR-CAL-PERF-001 — one call, no per-project N+1). security-invoker RPC; RLS on
+ * project_milestones (migration 0023, org_id = auth_org_id()) scopes rows — org_id is
+ * NEVER sent from the client. Empty ids short-circuit to [] (no round-trip). Milestones
+ * with a null target_date are excluded server-side (OBS-CAL-001).
+ */
+export async function getProjectsMilestoneDates(ids: string[]): Promise<MilestoneDate[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.rpc('get_projects_milestone_dates', { p_ids: ids });
+  if (error) throwWrite(error);
+  const rows = (data ?? []) as Array<{
+    id: string;
+    project_id: string;
+    name: string;
+    target_date: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id,
+    projectId: r.project_id,
+    name: r.name,
+    targetDate: r.target_date,
+  }));
+}
+
+/**
  * Create a milestone (FR-DEL-008). org_id is NEVER sent — the column default + RLS stamps it.
  * input_pct defaults to null. Throws AppError (code preserved) on failure.
  */

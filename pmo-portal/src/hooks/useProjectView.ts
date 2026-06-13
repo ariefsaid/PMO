@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
-/** The two Projects index body layouts (ViewToggle options). */
-export type ProjectView = 'table' | 'cards';
+/** The Projects index body layouts (ViewToggle options): table, cards, or the read-only calendar. */
+export type ProjectView = 'table' | 'cards' | 'calendar';
 
 const DEFAULT_VIEW: ProjectView = 'table';
 
 function isProjectView(v: unknown): v is ProjectView {
-  return v === 'table' || v === 'cards';
+  return v === 'table' || v === 'cards' || v === 'calendar';
 }
 
 /**

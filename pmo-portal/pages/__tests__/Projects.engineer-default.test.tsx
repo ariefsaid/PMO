@@ -36,6 +36,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
+  useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
