@@ -3,6 +3,7 @@ import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
 import { computeTotals, type EditRow } from '@/src/lib/timesheet-edit';
+import { useIsDesktop } from './useIsDesktop';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -63,6 +64,12 @@ function fmt(n: number): string {
  * per-cell `aria-label`s. In editable mode each cell is a labelled numeric input
  * (NFR-TSE-A11Y-001), a per-row note input and a delete control appear, and totals
  * track the edited values live via `computeTotals` (FR-TSE-012/013).
+ *
+ * S7 — mobile single-render seam: below 768px (`useIsDesktop()` = false) the
+ * component renders a day-stacked, per-project card layout so all 7 days are
+ * reachable and editable with no horizontal clipping at 390px. Desktop (≥768px)
+ * keeps the existing `<table>` branch exactly. Only ONE branch is in the DOM at
+ * a time — same OD-W4-4 pattern as DataTable.
  */
 export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   days,
@@ -76,6 +83,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   onNoteChange,
   onDeleteRow,
 }) => {
+  const isDesktop = useIsDesktop();
+
   // Read-only totals: the shipped numeric reduce. Editable totals: derive from
   // the (string) edited state via the pure, memo-friendly computeTotals selector.
   const editTotals = React.useMemo(() => {
@@ -97,13 +106,33 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ? editTotals.weekly
     : dailyTotals.reduce((a, b) => a + b, 0);
 
+  // S7: single-render seam — mobile day-stacked layout below 768px.
+  if (!isDesktop) {
+    return (
+      <MobileTimesheetStack
+        days={days}
+        rows={rows}
+        className={className}
+        editable={editable}
+        notes={notes}
+        rawHours={rawHours}
+        invalidCells={invalidCells}
+        editTotals={editTotals}
+        grandTotal={grandTotal}
+        onCellChange={onCellChange}
+        onNoteChange={onNoteChange}
+        onDeleteRow={onDeleteRow}
+      />
+    );
+  }
+
   return (
     // Scroll container: overflow-x-auto (contained scroll, not page scroll).
     // scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
     // signals "more to scroll" so it's clear the grid extends beyond the viewport.
     // The fade is CSS-only (mask-image, compositor), no extra DOM node needed here.
     // A sibling fade overlay element is added for the testid + aria-hidden signal.
-    <div className={cn('relative', className)}>
+    <div className={cn('relative', className)} data-testid="tsgrid-table">
       <div
         data-testid="tsgrid-scroll"
         className={cn(
@@ -311,6 +340,212 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         aria-hidden="true"
         className="pointer-events-none absolute right-0 top-0 h-full w-7"
       />
+    </div>
+  );
+};
+
+// ─── Mobile day-stacked layout (S7) ──────────────────────────────────────────
+//
+// Below 768px: one card per project row, stacked vertically. Within each card,
+// the 7 day rows are listed vertically with a day-label column + hour input
+// (or static cell) so all days are always visible with no horizontal scroll.
+// The delete button sits in the card header, always reachable.
+// This is the only branch in the DOM at mobile — no aria-hidden needed.
+
+interface MobileTimesheetStackProps {
+  days: TimesheetDay[];
+  rows: TimesheetGridRow[];
+  className?: string;
+  editable: boolean;
+  notes?: Record<string, string>;
+  rawHours?: Record<string, string[]>;
+  invalidCells?: Set<string>;
+  editTotals: ReturnType<typeof computeTotals> | null;
+  grandTotal: number;
+  onCellChange?: (rowId: string, dayIndex: number, raw: string) => void;
+  onNoteChange?: (rowId: string, note: string) => void;
+  onDeleteRow?: (rowId: string) => void;
+}
+
+const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
+  days,
+  rows,
+  className,
+  editable,
+  notes,
+  rawHours,
+  invalidCells,
+  editTotals,
+  grandTotal,
+  onCellChange,
+  onNoteChange,
+  onDeleteRow,
+}) => {
+  return (
+    <div data-testid="tsgrid-mobile" className={cn('divide-y divide-border', className)}>
+      {rows.map((r, rowIdx) => {
+        const rowTotal = editTotals
+          ? editTotals.perRow[rowIdx]
+          : r.hours.reduce((a, b) => a + b, 0);
+
+        return (
+          <div key={r.id} className="px-3.5 py-3">
+            {/* Card header: project name + code + delete */}
+            <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground" title={r.project}>
+                  {r.project}
+                </div>
+                {r.code && (
+                  <div className="truncate font-mono text-[11px] text-muted-foreground">
+                    {r.code}
+                  </div>
+                )}
+              </div>
+              {editable && (
+                <Button
+                  className="touch-target -mt-0.5 shrink-0"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete ${r.project} row`}
+                  onClick={() => onDeleteRow?.(r.id)}
+                >
+                  <Icon name="x" />
+                </Button>
+              )}
+            </div>
+
+            {/* Day rows: label + date + input/cell stacked vertically */}
+            <div className="space-y-1">
+              {days.map((day, i) => {
+                const h = r.hours[i] ?? 0;
+                const weekend = day.weekend;
+                const invalid = editable && (invalidCells?.has(`${r.id}:${i}`) ?? false);
+
+                if (editable) {
+                  const raw = rawHours?.[r.id]?.[i];
+                  const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        'flex items-center gap-3 rounded-md px-2 py-1',
+                        weekend && 'bg-secondary/60'
+                      )}
+                    >
+                      {/* Day label — occupies fixed width so inputs align */}
+                      <span
+                        className={cn(
+                          'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                          weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                        )}
+                        aria-hidden="true"
+                      >
+                        {day.label}
+                        <span className="ml-1 font-normal tabular">{day.dateNum}</span>
+                      </span>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          autoComplete="off"
+                          aria-label={`${r.project}, ${day.label} hours`}
+                          aria-invalid={invalid || undefined}
+                          value={value}
+                          onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
+                          className={cn(
+                            'touch-target block h-9 w-full rounded-md border bg-card px-3 text-[13.5px] tabular text-foreground',
+                            invalid ? 'border-destructive' : 'border-border'
+                          )}
+                        />
+                        {invalid && (
+                          <span
+                            role="alert"
+                            style={{ color: 'hsl(0 72% 42%)' }}
+                            className="mt-0.5 block text-[11px] leading-tight"
+                          >
+                            0–24 only
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Read-only mobile cell
+                const filled = h > 0;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md px-2 py-1',
+                      weekend && 'bg-secondary/60'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                        weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                      )}
+                      aria-hidden="true"
+                    >
+                      {day.label}
+                      <span className="ml-1 font-normal tabular">{day.dateNum}</span>
+                    </span>
+                    <div
+                      aria-label={`${r.project}, ${day.label} hours`}
+                      className={cn(
+                        'flex h-9 flex-1 items-center rounded-md px-3 text-[13.5px] tabular',
+                        filled
+                          ? 'bg-primary/[0.07] font-semibold text-foreground'
+                          : 'text-muted-foreground/45'
+                      )}
+                    >
+                      {filled ? fmt(h) : '·'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Row note (editable only) */}
+            {editable && (
+              <div className="mt-2">
+                <NoteCell
+                  rowId={r.id}
+                  project={r.project}
+                  value={notes?.[r.id] ?? ''}
+                  onNoteChange={onNoteChange}
+                />
+              </div>
+            )}
+
+            {/* Row total */}
+            <div
+              data-testid={`tsgrid-row-total-${r.id}`}
+              className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-semibold tabular text-muted-foreground"
+            >
+              <span className="text-[11px] uppercase tracking-[0.03em]">Row total</span>
+              <span className="text-sm text-foreground">
+                {rowTotal > 0 ? fmt(rowTotal) : '·'}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Grand total footer */}
+      <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
+        <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+          Week total
+        </span>
+        <span
+          data-testid="tsgrid-grand-total"
+          className="text-sm font-bold tabular text-foreground"
+        >
+          {fmt(grandTotal)}
+        </span>
+      </div>
     </div>
   );
 };
