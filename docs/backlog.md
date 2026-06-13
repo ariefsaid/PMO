@@ -4,10 +4,10 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-06-12)
+## ▶ Current state (2026-06-13)
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
-  merge `main → production`. Migrations through **0025** (local); PRs through **#79**.
+  merge `main → production`. Migrations through **0026** (local); PRs through **#80**.
   (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
 - **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
   Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),
@@ -15,26 +15,23 @@
   stepper + 'Project delivery %' rollup + 'Budget used' committed-spend column), **document file upload
   (storage)**, PostHog analytics, Solar EPC demo seed (4-phase milestones). The CRUD/RBAC foundation
   (ADR-0015–0021) is the pattern all new work follows.
-- **Most recently shipped:** PR #79 delivery-UI redesign (even-bar milestone stepper, project-level
-  delivery % + budget-used rollup on Projects list; 2-gate design review). KANNA Issue #1 document
-  file upload (PR #78). See history.md for the full program timeline.
+- **Most recently shipped:** PR #80 delivery migration-chain fix (restored 0023, new 0026 committed-spend
+  RPC) + committed-spend budget basis — ran the full 4-agent review loop (security/spec/quality/qa) on the
+  pi-trial; e2e gate caught a redesign-locator regression + an ambient esbuild CI-audit breakage, both
+  fixed. PR #79 delivery-UI redesign; KANNA Issue #1 document file upload (PR #78). Full timeline: history.md.
 
 ## ▶ KNOWN ISSUES (action required before next prod push)
 
-### ⚠ Migration 0023 immutability bug — live 'Budget used' broken against prod (HIGH)
-PR #79 (delivery UI redesign) added `committed_spend` to the `get_projects_delivery` RPC by **editing
-migration 0023**, which was already pushed to prod in PR #74. Supabase `db push` is migration-id-based
-and will not re-apply 0023 — so the `committed_spend` column (and the Projects list 'Budget used'
-column that depends on it) will remain broken against prod until this is corrected.
+### ⚠ Prod migration push pending — 'Budget used' + doc storage not yet live on prod (HIGH)
+Local migrations are ahead of prod. The next `scripts/db-push-prod.sh` must land **0024** (Superseded
+enum) + **0025** (doc storage bucket + RLS) + **0026** (delivery RPC v2 with `committed_spend`) together
+as one unit. Until pushed, the Projects-list 'Budget used' column and document file upload are **not live
+on prod**.
 
-**Fix (before next prod push):**
-1. Restore `supabase/migrations/0023_*.sql` to its PR #74 content (the RPC without `committed_spend`).
-2. Add a new migration **0026** that `CREATE OR REPLACE FUNCTION get_projects_delivery(...)` with the
-   committed-spend version (the change currently embedded in 0023).
-3. Then `db-push-prod.sh` will apply 0024 (Superseded enum) + 0025 (doc storage) + 0026 (delivery RPC
-   v2) together — in one safe run.
-
-Until fixed, 'Budget used' on the Projects list is broken in prod (column missing from RPC response).
+> The migration-0023 immutability bug that caused this (0023 was edited in place in PR #79 *after* it had
+> already been pushed to prod in PR #74, and id-based `db push` won't re-apply it) was **fixed in PR #80**:
+> 0023 restored byte-identical to its #74 content, the committed-spend RPC moved into new 0026. Verified by
+> the full review loop + a clean local `db reset` (0001→0026 apply) + pgTAP 0066. Prod push is now unblocked.
 
 ## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
 Competitor gap analysis vs KANNA/Aldagram: `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Issues run
@@ -46,8 +43,8 @@ HTML mockup for UI — playbook §2 1b/1c). Role work dispatched via the **pi CL
   all types) + preview; New-revision → auto-Supersede parent (server-side, SoD); 5 MB bumpable knob +
   allowlist + zip/exe denylist. Security audit PASS.
 
-**⚠ BEFORE starting Issue #2:** resolve the migration 0023 bug above (prod push will land 0024 + 0025 +
-new 0026 as a unit). That prod push is the gate for any further live demo use.
+**⚠ BEFORE starting Issue #2:** run the prod migration push (0024 + 0025 + 0026 as a unit) — the 0023 bug
+is fixed (PR #80) and the push is unblocked. That prod push is the gate for any further live demo use.
 
 **Recommended next (owner confirmation needed):** The forward roadmap is `docs/roadmap-spines.md`. Spine 4
 (Revenue/AR — progress billing, retention, change orders) is sequenced as the logical next spine after
@@ -72,9 +69,26 @@ unconsumed), and procurement attachments — owner to confirm sequencing at next
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
-- **Prod migration push (blocked on 0023 fix)** — migrations 0024 (Superseded enum) + 0025 (doc storage
-  bucket + RLS) + new 0026 (delivery RPC v2 with committed_spend) must be pushed together as a unit once
-  0023 is restored and 0026 is added. See KNOWN ISSUES above. Do before any prod file/delivery-% use.
+- **Prod migration push (unblocked — ready)** — 0024 (Superseded enum) + 0025 (doc storage bucket + RLS) +
+  0026 (delivery RPC v2 with committed_spend) push together as a unit via `scripts/db-push-prod.sh`. The
+  0023 fix landed (PR #80). See KNOWN ISSUES. Do before any prod file/delivery-% use. **This is the next action.**
+- **At-risk classification consolidation** [Important, from PR #80 quality review] — committed-spend is now
+  computed three ways (0009 `spent` view / 0026 RPC `committed_spend` / client `getProjectCommittedSpend`
+  reduce) and at-risk is classified inconsistently: PMDashboard on `project.spent/budget` (`>0.9`, via
+  `dashboardConstants.isAtRisk`) vs Projects-list + OverviewTab on `committedSpend/budget` (`>=0.9`, inlined).
+  Same *value* (spent IS the committed basis per OD-BUDGET-2) but a real `>`-vs-`>=` boundary mismatch at
+  exactly 90%. Fix: one shared committed-basis helper in `dashboardConstants`; decide if PMDashboard moves to
+  the committed basis. Also remove the now-dead `calculatedPct` prop on `MilestonePhaseHeader`.
+- **Vite 8 upgrade (real esbuild remediation)** [Medium, from PR #80] — esbuild GHSA-gv7w-rqvm-qjhr (build-time
+  devDep, not shipped) has no in-range fix; the blocking CI audit was scoped to prod deps (`--omit=dev`, clean)
+  with a non-blocking full audit (`.github/workflows/ci.yml`). The actual patch is the Vite 6→8 major (moves to
+  patched esbuild); requires the legacy-browser-target check (esbuild 0.28 dropped destructuring downlevel for
+  chrome87/safari14). Own track.
+- **e2e mutation-spec isolation** [Minor→Medium, recurring] — mutation specs (AC-PROC-001 just flaked in CI with
+  a strict-mode duplicate; AC-DEL-022 hit it too; prior AC-1011/AC-816/AC-911) create rows that persist across
+  Playwright *retries* on the shared DB → duplicate-element / dirty-precondition failures on retry. Harden with
+  dedicated per-spec seed rows / unique-named fixtures (the P011/P013 pattern) so a flaked attempt-1 doesn't
+  poison the retry.
 - **Document query-key consistency** [Minor] — document React-Query keys are project-only (pre-existing
   across all document hooks); align to the org-scoped key convention in a consistency pass.
 - **Per-role sub-dashboards real data (OD-D3)** — Engineer/PM/Finance views still carry some hard-coded
