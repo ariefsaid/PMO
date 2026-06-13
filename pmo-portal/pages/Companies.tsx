@@ -19,6 +19,7 @@ import {
   useToast,
   Button,
   Icon,
+  ExportButton,
   type Column,
   type RowMenuItem,
   type StatusVariant,
@@ -137,11 +138,13 @@ const Companies: React.FC = () => {
           {c.name}
         </span>
       ),
+      exportValue: (c) => c.name,
     },
     {
       key: 'type',
       header: 'Type',
       cell: (c) => <StatusPill variant={TYPE_PILL[c.type]}>{c.type}</StatusPill>,
+      exportValue: (c) => c.type,
     },
   ];
 
@@ -258,6 +261,11 @@ const Companies: React.FC = () => {
             // clip, so it shrinks to the viewport and stays reachable at 375px. At
             // `sm`+ it right-aligns at its natural width (ml-auto).
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          />
+          <ExportButton
+            rows={filtered}
+            columns={columns}
+            filename="companies"
           />
         </Toolbar>
       )}

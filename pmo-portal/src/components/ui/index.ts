@@ -95,3 +95,5 @@ export {
   type ValidateFn,
   type FieldProps,
 } from './useEntityForm';
+
+export { ExportButton, type ExportButtonProps } from './ExportButton';

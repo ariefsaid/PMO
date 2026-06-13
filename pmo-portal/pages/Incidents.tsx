@@ -17,6 +17,7 @@ import {
   useToast,
   Button,
   Icon,
+  ExportButton,
   type Column,
   type RowMenuItem,
   type StatusVariant,
@@ -170,21 +171,25 @@ const Incidents: React.FC = () => {
           {i.type}
         </span>
       ),
+      exportValue: (i) => i.type,
     },
     {
       key: 'severity',
       header: 'Severity',
       cell: (i) => <StatusPill variant={SEVERITY_PILL[i.severity]}>{i.severity}</StatusPill>,
+      exportValue: (i) => i.severity,
     },
     {
       key: 'status',
       header: 'Status',
       cell: (i) => <StatusPill variant={STATUS_PILL[i.status]}>{i.status}</StatusPill>,
+      exportValue: (i) => i.status,
     },
     {
       key: 'incident_date',
       header: 'Date',
       cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
+      exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',
     },
     {
@@ -195,6 +200,7 @@ const Incidents: React.FC = () => {
           {i.location || '—'}
         </span>
       ),
+      exportValue: (i) => i.location ?? '',
       colClassName: 'hidden lg:table-cell',
     },
   ];
@@ -292,6 +298,11 @@ const Incidents: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          />
+          <ExportButton
+            rows={filtered}
+            columns={columns}
+            filename="incidents"
           />
         </Toolbar>
       )}

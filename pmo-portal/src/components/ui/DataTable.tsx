@@ -19,6 +19,15 @@ export interface Column<Row> {
    * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
    */
   colClassName?: string;
+  /**
+   * Optional export projection. When present, `exportToXlsx` calls this instead
+   * of `cell()` to get a plain string | number | boolean for the spreadsheet cell.
+   * Use this whenever `cell()` returns a React element (badge, icon, formatted node)
+   * that would stringify as "[object Object]".
+   *
+   * If absent, `cell()` is used directly — safe only when it returns a primitive.
+   */
+  exportValue?: (row: Row) => string | number | boolean;
 }
 
 export interface SortState {
