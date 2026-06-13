@@ -30,8 +30,6 @@ export interface ProjectCalendarViewProps {
   projects: ProjectWithRefs[];
   /** From useProjectsMilestoneDates (undefined while loading). */
   milestoneDates: MilestoneDate[] | undefined;
-  /** True while the milestone-dates query is pending (chips fill in once loaded). */
-  milestonesPending?: boolean;
   onOpenProject: (id: string) => void;
   /** Test seam: force the initial displayed month (defaults to todayCursor()). */
   initialCursor?: MonthCursor;

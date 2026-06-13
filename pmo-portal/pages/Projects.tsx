@@ -159,9 +159,10 @@ const Projects: React.FC = () => {
   }, [all, filter, filterClient, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
-  // (NFR-CAL-PERF-001). enabled only when ids are non-empty (the hook short-circuits).
-  const { data: milestoneDates, isPending: milestonesPending } = useProjectsMilestoneDates(
+  // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
+  const { data: milestoneDates } = useProjectsMilestoneDates(
     filtered.map((p) => p.id),
+    view === 'calendar',
   );
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
@@ -480,7 +481,6 @@ const Projects: React.FC = () => {
         <ProjectCalendarView
           projects={filtered}
           milestoneDates={milestoneDates}
-          milestonesPending={milestonesPending}
           onOpenProject={(id) => navigate(`/projects/${id}`)}
         />
       ) : view === 'table' ? (
