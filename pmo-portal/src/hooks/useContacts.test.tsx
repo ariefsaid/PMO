@@ -24,6 +24,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import {
   useContacts,
+  useContact,
   useContactsByCompany,
   useContactActivities,
   useContactMutations,
@@ -58,6 +59,7 @@ const activityInput = {
 beforeEach(() => {
   Object.values(contact).forEach((fn) => fn.mockReset());
   contact.list.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
+  contact.get.mockResolvedValue({ id: 'ct1', full_name: 'Jane Doe', company_id: 'co1' });
   contact.listByCompany.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
   contact.listActivities.mockResolvedValue([{ id: 'a1', kind: 'Call' }]);
   contact.create.mockResolvedValue({ id: 'ct2', full_name: 'Jane Doe' });
@@ -73,6 +75,21 @@ describe('useContacts', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].full_name).toBe('Jane Doe');
     expect(contact.list).toHaveBeenCalled();
+  });
+});
+
+describe('useContact (single record — CW-4b /contacts/:id)', () => {
+  it("CW-4b: keys by ['contact', orgId, id] and returns the single contact via repository.get", async () => {
+    const { result } = renderHook(() => useContact('ct1'), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.full_name).toBe('Jane Doe');
+    expect(contact.get).toHaveBeenCalledWith('ct1');
+  });
+
+  it('CW-4b: stays disabled (no fetch) when the id is undefined', () => {
+    const { result } = renderHook(() => useContact(undefined), { wrapper: wrap(freshClient()) });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(contact.get).not.toHaveBeenCalled();
   });
 });
 

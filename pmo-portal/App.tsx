@@ -25,6 +25,8 @@ import type { BreadcrumbPart } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useIncidents } from '@/src/hooks/useIncidents';
+import { useCompanies } from '@/src/hooks/useCompanies';
+import { useContacts } from '@/src/hooks/useContacts';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
@@ -42,7 +44,9 @@ const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails')
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
+const CompanyDetailPage = React.lazy(() => import('./pages/CompanyDetail'));
 const ContactsPage = React.lazy(() => import('./pages/Contacts'));
+const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
@@ -81,7 +85,11 @@ const AppRoutes: React.FC = () => (
       <Route path="/timesheets" element={<TimesheetsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/companies" element={<CompaniesPage />} />
+      {/* CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record). */}
+      <Route path="/companies/:companyId" element={<CompanyDetailPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
+      {/* CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record). */}
+      <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
       <Route path="/incidents" element={<IncidentsPage />} />
       {/* CW-4a: /incidents/:id — the routable Incident detail page (fixes the dead-end: rows
           now open here to track/investigate/close). */}
@@ -123,6 +131,11 @@ const ShellChrome: React.FC = () => {
   // CW-4a: the incident register backs the /incidents/:id breadcrumb's record name (its `type`).
   // Already fetched by the Incidents index; read here only to resolve the crumb (no new query).
   const { data: incidents, isPending: incidentsPending } = useIncidents();
+  // CW-4b: the companies + contacts directories back the /companies/:id and /contacts/:id
+  // breadcrumbs' record names. Already fetched by their index pages (and the ⌘K record search);
+  // read here only to resolve the crumb (no new query).
+  const { data: companies, isPending: companiesPending } = useCompanies();
+  const { data: contacts, isPending: contactsPending } = useContacts();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -161,6 +174,8 @@ const ShellChrome: React.FC = () => {
       opportunities,
       procurements,
       incidents,
+      companies,
+      contacts,
     });
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
     // STAGE — resolve its status group from the cached lists (the pipeline list carries pre-win
@@ -182,6 +197,8 @@ const ShellChrome: React.FC = () => {
         !lostDealsPending) ||
       (pathname.startsWith('/procurement/') && !procurementsPending) ||
       (pathname.startsWith('/incidents/') && !incidentsPending) ||
+      (pathname.startsWith('/companies/') && !companiesPending) ||
+      (pathname.startsWith('/contacts/') && !contactsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending);
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
@@ -192,11 +209,15 @@ const ShellChrome: React.FC = () => {
     pipeline,
     lostDeals,
     incidents,
+    companies,
+    contacts,
     projectsPending,
     procurementsPending,
     pipelinePending,
     lostDealsPending,
     incidentsPending,
+    companiesPending,
+    contactsPending,
   ]);
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.

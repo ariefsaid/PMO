@@ -8,7 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, contactsByCompanyState } = vi.hoisted(() => ({
+const { listState, mutations, navigateMock } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -21,11 +21,7 @@ const { listState, mutations, contactsByCompanyState } = vi.hoisted(() => ({
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
-  contactsByCompanyState: {
-    data: [] as unknown[],
-    isPending: false,
-    isError: false,
-  },
+  navigateMock: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
@@ -33,9 +29,11 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanyMutations: () => mutations,
 }));
 
-vi.mock('@/src/hooks/useContacts', () => ({
-  useContactsByCompany: () => contactsByCompanyState,
-}));
+// CW-4b: rows navigate to /companies/:id — capture the navigate call.
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => navigateMock };
+});
 
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';
@@ -72,9 +70,7 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
-  contactsByCompanyState.data = [];
-  contactsByCompanyState.isPending = false;
-  contactsByCompanyState.isError = false;
+  navigateMock.mockClear();
   realRole = 'Admin';
 });
 
@@ -286,148 +282,22 @@ describe('Companies delete (AC-CO-006)', () => {
   });
 });
 
-describe('Companies — ⌘K deep-link (CW-7)', () => {
-  const renderAt = (path: string) =>
-    render(
-      <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <Companies />
-        </MemoryRouter>
-      </ToastProvider>,
-    );
-
-  it('CW-7: a ?focus=<id> deep-link (from ⌘K) opens that company\'s quick-view drawer', async () => {
-    renderAt('/companies?focus=c2');
-    const drawer = await screen.findByRole('dialog');
-    const labelId = drawer.getAttribute('aria-labelledby');
-    expect(document.getElementById(labelId!)?.textContent).toContain('Steelforge Fabrication');
-  });
-});
-
-describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
-  const openDrawer = async (name: string) => {
-    // Row activation = the first-cell <button> (rowLabel "View <name>").
-    await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));
-    return screen.getByRole('dialog');
-  };
-
-  it('AC-W5-C6-D11: activating a row opens a read-first drawer titled with the company name', async () => {
+// CW-4b: the drawer-as-record is retired — a row now NAVIGATES to the routable
+// `/companies/:id` record page (the page's own anatomy + the Contacts section are covered by
+// CompanyDetail.test.tsx). The journey's goal — "open this company's record" — is intact; the
+// destination changed from an in-page overlay to a URL.
+describe('Companies index — row → detail navigation (CW-4b)', () => {
+  it('CW-4b: activating a row navigates to the routable /companies/:id page', async () => {
     renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    expect(drawer).toHaveAttribute('aria-modal', 'true');
-    const labelId = drawer.getAttribute('aria-labelledby');
-    expect(document.getElementById(labelId!)?.textContent).toContain('Cascade Port Authority');
-    // Identity definition-list shows Name + Type (the <dt> overlines).
-    const terms = within(drawer)
-      .getAllByText(/^(Name|Type)$/)
-      .filter((el) => el.tagName === 'DT')
-      .map((el) => el.textContent);
-    expect(terms).toContain('Name');
-    expect(terms).toContain('Type');
+    // Row activation = the first-cell <button> (rowLabel "Open <name>").
+    expect(screen.getByRole('button', { name: 'Open Steelforge Fabrication' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/companies/c2'));
   });
 
-  it('AC-W5-C6-D11: an editor sees an inline Type select bound to the company type', async () => {
+  it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    const select = within(drawer).getByLabelText(/^Type$/i) as HTMLSelectElement;
-    expect(select.value).toBe('Client');
-  });
-
-  it('AC-W5-C6-D11: changing the inline Type submits an update + toast (OD-UX-1: no confirm dialog)', async () => {
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    await userEvent.selectOptions(within(drawer).getByLabelText(/^Type$/i), 'Vendor');
-    // Single-click reversible write — NO ConfirmDialog (no "Delete company?"/confirm appears).
-    await waitFor(() =>
-      expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
-        id: 'c1',
-        input: { name: 'Cascade Port Authority', type: 'Vendor' },
-      }),
-    );
-    const toast = await screen.findByRole('status');
-    expect(toast).toHaveTextContent(/Company updated/i);
-  });
-
-  it('CW-3a: the company drawer opens with the shared RecordHeader; actions are in the header, not a footer', async () => {
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    const header = within(drawer).getByTestId('record-header');
-    expect(header).toBeInTheDocument();
-    // status pill (company type) is part of the one shared header anatomy
-    expect(within(header).getByText('Client')).toBeInTheDocument();
-    // the record actions (Edit/Archive/Delete) are surfaced IN the header action zone
-    const actionZone = within(header).getByTestId('record-header-actions');
-    expect(within(actionZone).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
-  });
-
-  it('AC-W5-C6-D11: header Edit closes the drawer then opens the edit form (never two focus-traps)', async () => {
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    await userEvent.click(within(drawer).getByRole('button', { name: /^Edit$/i }));
-    // The form modal is now the only dialog, pre-filled with the row.
-    const nameInput = (await screen.findByLabelText(/Company name/i)) as HTMLInputElement;
-    expect(nameInput.value).toBe('Cascade Port Authority');
-    expect(screen.getByRole('button', { name: /^Save company$/i })).toBeInTheDocument();
-  });
-
-  it('AC-W5-C6-D11: header Delete closes the drawer then opens the destructive confirm', async () => {
-    renderPage('Admin');
-    const drawer = await openDrawer('Steelforge Fabrication');
-    await userEvent.click(within(drawer).getByRole('button', { name: /^Delete$/i }));
-    expect(await screen.findByText(/Delete Steelforge Fabrication\?/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
-    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('c2'));
-  });
-
-  it('AC-W5-C6-D11: a PM (no delete) sees Edit + Archive in the drawer header but no Delete', async () => {
-    renderPage('Project Manager');
-    const drawer = await openDrawer('Cascade Port Authority');
-    expect(within(drawer).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
-    expect(within(drawer).queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
-  });
-});
-
-describe('Company drawer — Contacts section (AC-CRM-008)', () => {
-  const openDrawer = async (name: string) => {
-    await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));
-    return screen.getByRole('dialog');
-  };
-
-  it('AC-CRM-008: drawer shows a "Contacts" heading with contact names and titles when contacts are present', async () => {
-    contactsByCompanyState.data = [
-      {
-        id: 'ct1', company_id: 'c1', full_name: 'Alice Johnson', title: 'VP Engineering',
-        email: null, phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z',
-      },
-      {
-        id: 'ct2', company_id: 'c1', full_name: 'Bob Smith', title: 'Project Lead',
-        email: null, phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-02T00:00:00Z',
-      },
-    ];
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    // Section label present
-    expect(within(drawer).getByText(/^Contacts$/i)).toBeInTheDocument();
-    // Both contact names rendered
-    expect(within(drawer).getByText('Alice Johnson')).toBeInTheDocument();
-    expect(within(drawer).getByText('Bob Smith')).toBeInTheDocument();
-    // Title rendered
-    expect(within(drawer).getByText('VP Engineering')).toBeInTheDocument();
-  });
-
-  it('AC-CRM-008: drawer shows "No contacts yet" empty state when company has no contacts', async () => {
-    contactsByCompanyState.data = [];
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    expect(within(drawer).getByText(/No contacts yet/i)).toBeInTheDocument();
-  });
-
-  it('AC-CRM-008: drawer shows a loading indicator while contacts are being fetched', async () => {
-    contactsByCompanyState.isPending = true;
-    contactsByCompanyState.data = [];
-    renderPage('Admin');
-    const drawer = await openDrawer('Cascade Port Authority');
-    // A loading indicator with accessible label is present in the contacts section
-    expect(within(drawer).getByRole('status', { name: /loading contacts/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open Cascade Port Authority' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

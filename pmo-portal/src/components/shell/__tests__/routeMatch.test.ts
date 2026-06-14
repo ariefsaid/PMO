@@ -87,3 +87,58 @@ describe('breadcrumbForPath / recordLabelForPath — incident detail (CW-4a)', (
     expect(recordLabelForPath('/incidents/zzz', { incidents: [{ id: 'i1', type: 'Near Miss' }] })).toBeUndefined();
   });
 });
+
+// CW-4b: /companies/:id and /contacts/:id are now routable detail pages (retiring the
+// drawer-as-record) — the breadcrumb drills [Module (link) > <record>] and the record name
+// resolves from the cached list.
+describe('breadcrumbForPath / recordLabelForPath — company + contact detail (CW-4b)', () => {
+  it('CW-4b: /companies/:id breadcrumb reads [Companies > <record>]', () => {
+    const crumbs = breadcrumbForPath('/companies/co1', 'Cascade Port Authority');
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Companies');
+    expect(crumbs[0].onClick).toBeTypeOf('function');
+    expect(crumbs[1].label).toBe('Cascade Port Authority');
+    expect(crumbs[1].onClick).toBeUndefined();
+  });
+
+  it('CW-4b: /contacts/:id breadcrumb reads [Contacts > <record>]', () => {
+    const crumbs = breadcrumbForPath('/contacts/ct1', 'Jane Doe');
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Contacts');
+    expect(crumbs[1].label).toBe('Jane Doe');
+  });
+
+  it('CW-4b: an unresolved company crumb reads "Loading…" then "Not found" once settled', () => {
+    expect(breadcrumbForPath('/companies/co1')[1].label).toBe('Loading…');
+    expect(breadcrumbForPath('/companies/co1', undefined, undefined, true)[1].label).toBe('Not found');
+  });
+
+  it('CW-4b: companies + contacts MODULES carry a detail pattern so the drill resolves', () => {
+    expect(MODULES.find((m) => m.path === '/companies')?.detail).toEqual({
+      pattern: '/companies/:companyId',
+      param: 'companyId',
+    });
+    expect(MODULES.find((m) => m.path === '/contacts')?.detail).toEqual({
+      pattern: '/contacts/:contactId',
+      param: 'contactId',
+    });
+  });
+
+  it('CW-4b: recordLabelForPath resolves a company name + a contact full_name from the cached lists', () => {
+    expect(
+      recordLabelForPath('/companies/co1', { companies: [{ id: 'co1', name: 'Cascade Port Authority' }] }),
+    ).toBe('Cascade Port Authority');
+    expect(
+      recordLabelForPath('/contacts/ct1', { contacts: [{ id: 'ct1', full_name: 'Jane Doe' }] }),
+    ).toBe('Jane Doe');
+  });
+
+  it('CW-4b: recordLabelForPath returns undefined for an uncached company/contact id', () => {
+    expect(
+      recordLabelForPath('/companies/zzz', { companies: [{ id: 'co1', name: 'Cascade Port Authority' }] }),
+    ).toBeUndefined();
+    expect(
+      recordLabelForPath('/contacts/zzz', { contacts: [{ id: 'ct1', full_name: 'Jane Doe' }] }),
+    ).toBeUndefined();
+  });
+});

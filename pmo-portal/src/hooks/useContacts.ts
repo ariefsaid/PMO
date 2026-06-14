@@ -18,6 +18,22 @@ export function useContacts() {
   });
 }
 
+/**
+ * A single contact by id over the repository seam (ADR-0017) — backs the routable
+ * `/contacts/:id` record page (CW-4b). queryKey includes org_id so the cache is
+ * tenant-scoped; disabled until both an org and an id are present. Returns `null`
+ * when the record is absent or RLS-scoped out (the page renders a calm not-found).
+ */
+export function useContact(id: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ContactRow | null>({
+    queryKey: ['contact', orgId, id],
+    queryFn: () => repositories.contact.get(id!),
+    enabled: Boolean(orgId && id),
+  });
+}
+
 /** A single company's non-archived contacts — the Companies-drawer fast-follow read. */
 export function useContactsByCompany(companyId: string | null | undefined) {
   const { currentUser } = useAuth();
@@ -54,7 +70,11 @@ export interface UpdateContactArgs {
 export function useContactMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
-  const invalidateContacts = () => qc.invalidateQueries({ queryKey: ['contacts'] });
+  const invalidateContacts = () => {
+    qc.invalidateQueries({ queryKey: ['contacts'] });
+    // CW-4b: also bust the single-record family so an open `/contacts/:id` detail page refetches.
+    qc.invalidateQueries({ queryKey: ['contact'] });
+  };
 
   const create = useMutation({
     mutationFn: (input: ContactInput) => repositories.contact.create(input),

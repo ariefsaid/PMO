@@ -7,6 +7,7 @@ import React from 'react';
 const { company } = vi.hoisted(() => ({
   company: {
     list: vi.fn(),
+    get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     archive: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useCompanies, useCompanyMutations } from './useCompanies';
+import { useCompanies, useCompany, useCompanyMutations } from './useCompanies';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ const seed = [
 
 beforeEach(() => {
   company.list.mockResolvedValue(seed);
+  company.get.mockResolvedValue(seed[0]);
   company.create.mockResolvedValue({ ...seed[0], id: 'c2', name: 'New Co' });
   company.update.mockResolvedValue(undefined);
   company.archive.mockResolvedValue(undefined);
@@ -52,6 +54,22 @@ describe('useCompanies', () => {
     const { result } = renderHook(() => useCompanies('Vendor'), { wrapper: wrap(freshClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(company.list).toHaveBeenCalledWith({ type: 'Vendor' });
+  });
+});
+
+describe('useCompany (single record — CW-4b /companies/:id)', () => {
+  it("CW-4b: keys by ['company', orgId, id] and returns the single company via repository.get", async () => {
+    const { result } = renderHook(() => useCompany('c1'), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.name).toBe('Cascade Port Authority');
+    expect(company.get).toHaveBeenCalledWith('c1');
+  });
+
+  it('CW-4b: stays disabled (no fetch) when the id is undefined', () => {
+    company.get.mockClear();
+    const { result } = renderHook(() => useCompany(undefined), { wrapper: wrap(freshClient()) });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(company.get).not.toHaveBeenCalled();
   });
 });
 

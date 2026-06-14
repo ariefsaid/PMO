@@ -122,9 +122,9 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
           title: c.name,
           sub: 'Company',
           icon: 'doc' as IconName,
-          // Interim deep-link until the `/companies/:id` page lands (plan §4, Phase 3): the
-          // Companies index reads `?focus=<id>` on mount and opens that record's quick-view.
-          run: () => navigate(`/companies?focus=${c.id}`),
+          // CW-4b: open the routable `/companies/:id` record page (was an interim `?focus=<id>`
+          // drawer-open until the page landed — now retired).
+          run: () => navigate(`/companies/${c.id}`),
         });
       }
     }
@@ -137,9 +137,9 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
           title: ct.full_name,
           sub: 'Contact',
           icon: 'doc' as IconName,
-          // Interim deep-link until `/contacts/:id` lands (plan §4, Phase 3): the Contacts index
-          // reads `?focus=<id>` on mount and opens that record's quick-view.
-          run: () => navigate(`/contacts?focus=${ct.id}`),
+          // CW-4b: open the routable `/contacts/:id` record page (was an interim `?focus=<id>`
+          // drawer-open until the page landed — now retired).
+          run: () => navigate(`/contacts/${ct.id}`),
         });
       }
     }
