@@ -14,6 +14,7 @@ import { ProcurementHeaderEdit } from './ProcurementHeaderEdit';
 function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeaderEdit>> = {}) {
   const onSave = props.onSave ?? vi.fn().mockResolvedValue(undefined);
   const onError = props.onError ?? vi.fn();
+  const onClose = props.onClose ?? vi.fn();
   render(
     <ToastProvider>
       <ProcurementHeaderEdit
@@ -24,24 +25,28 @@ function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeader
         vendorName={props.vendorName ?? null}
         onSave={onSave}
         onError={onError}
+        onClose={onClose}
       />
     </ToastProvider>,
   );
-  return { onSave, onError };
+  return { onSave, onError, onClose };
 }
 
 beforeEach(() => vi.clearAllMocks());
 
+// CW-3a: the Edit affordance moved to the canonical RecordHeader action zone (it is owned
+// by ProcurementDetails now); this panel is CONTROLLED — when mounted it renders the edit
+// form directly. The goal-oracle (Save delegates the right patch; Save disabled on empty
+// title; Save closes the panel) is unchanged.
 describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
-  it('AC-PROC-002: shows an Edit affordance at rest (not a form)', () => {
+  it('AC-PROC-002: renders the edit form directly when mounted (opened from the header Edit action)', () => {
     renderEdit();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /save request/i })).toBeNull();
+    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save request/i })).toBeInTheDocument();
   });
 
-  it('AC-PROC-002: Edit flips to a form, edit + Save delegates the patch', async () => {
-    const { onSave } = renderEdit();
-    await userEvent.click(screen.getByTestId('edit-header'));
+  it('AC-PROC-002: edit + Save delegates the patch and closes the panel', async () => {
+    const { onSave, onClose } = renderEdit();
     const title = screen.getByLabelText(/title/i);
     await userEvent.clear(title);
     await userEvent.type(title, 'Welding consumables Q3');
@@ -51,12 +56,18 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
       projectId: 'proj-1',
       vendorId: null,
     });
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('AC-PROC-002: Save is disabled when the title is cleared', async () => {
     renderEdit();
-    await userEvent.click(screen.getByTestId('edit-header'));
     await userEvent.clear(screen.getByLabelText(/title/i));
     expect(screen.getByRole('button', { name: /save request/i })).toBeDisabled();
+  });
+
+  it('AC-PROC-002: Cancel closes the panel', async () => {
+    const { onClose } = renderEdit();
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

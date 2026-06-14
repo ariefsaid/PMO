@@ -76,6 +76,39 @@ describe('Drawer: render gating + a11y (AC-W5-C6-DRAWER)', () => {
   });
 });
 
+describe('Drawer: RecordHeader anatomy in the header (CW-3a)', () => {
+  it('renders the shared RecordHeader (icon + name + status + top-right actions) when record props are given', () => {
+    render(
+      <Drawer
+        {...baseProps}
+        icon="C"
+        status={<span>Vendor</span>}
+        headerActions={<button type="button">Edit</button>}
+      >
+        <p>body</p>
+      </Drawer>,
+    );
+    // The drawer header hosts the shared RecordHeader, not the plain title/subtitle row.
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+    // status surfaces in the header
+    expect(screen.getByText('Vendor')).toBeInTheDocument();
+    // the action zone (Edit) is surfaced IN THE HEADER, not the footer
+    const actionZone = screen.getByTestId('record-header-actions');
+    expect(actionZone).toContainElement(screen.getByRole('button', { name: 'Edit' }));
+  });
+
+  it('still wires the dialog accessible name to the record name', () => {
+    render(
+      <Drawer {...baseProps} icon="C" status={<span>Client</span>}>
+        <p>body</p>
+      </Drawer>,
+    );
+    const dialog = screen.getByRole('dialog');
+    const labelId = dialog.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelId!)?.textContent).toContain('Cascade Port Authority');
+  });
+});
+
 describe('Drawer: close paths (AC-W5-C6-DRAWER)', () => {
   it('the close button fires onClose', async () => {
     const onClose = vi.fn();

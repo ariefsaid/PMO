@@ -173,6 +173,17 @@ describe('Contacts drawer — activity timeline (AC-CRM-031)', () => {
     return screen.getByRole('dialog');
   };
 
+  it('CW-3a: the contact drawer opens with the shared RecordHeader; actions are in the header, not a footer', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Jane Doe');
+    const header = within(drawer).getByTestId('record-header');
+    expect(header).toBeInTheDocument();
+    expect(within(header).getByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
+    // the record actions (Edit/Archive/Delete by permission) are in the header action zone
+    const actionZone = within(header).getByTestId('record-header-actions');
+    expect(within(actionZone).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+  });
+
   it('AC-CRM-031: an empty timeline shows "No activity logged yet"', async () => {
     activitiesState.data = [];
     renderPage('Admin');

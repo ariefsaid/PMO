@@ -44,10 +44,10 @@ describe('Kanban', () => {
 });
 
 describe('LifecycleStepper', () => {
-  it('node variant shows a check on done steps and current/upcoming classes', () => {
+  it('bar variant fills done/current bars and de-emphasizes upcoming labels (the ONE stepper)', () => {
     render(
       <LifecycleStepper
-        variant="node"
+        variant="bar"
         steps={[
           { label: 'PR', state: 'done' },
           { label: 'RFQ', state: 'current' },
@@ -55,13 +55,30 @@ describe('LifecycleStepper', () => {
         ]}
       />
     );
-    // done step renders a check icon (not a number)
-    const prStep = screen.getByText('PR').closest('.pstep')!;
-    expect(prStep.querySelector('svg')).toBeInTheDocument();
-    // current step carries the `current` state class
-    expect(screen.getByText('RFQ').closest('.pstep')!.className).toContain('current');
+    // done bar carries the success fill
+    const prStep = screen.getByText('PR').closest('.jstep')!;
+    expect(prStep.querySelector('.bg-success')).toBeInTheDocument();
+    // current bar carries the primary fill + the `current` state class
+    const rfqStep = screen.getByText('RFQ').closest('.jstep')!;
+    expect(rfqStep.className).toContain('current');
+    expect(rfqStep.querySelector('.bg-primary')).toBeInTheDocument();
     // upcoming step is de-emphasized
     expect(screen.getByText('PO').className).toContain('text-muted-foreground');
+  });
+
+  it('bar variant is NOT the retired numbered-circle node stepper (no .pstep nodes)', () => {
+    render(
+      <LifecycleStepper
+        variant="bar"
+        steps={[
+          { label: 'PR', state: 'done' },
+          { label: 'RFQ', state: 'current' },
+        ]}
+      />
+    );
+    // The retired node stepper rendered numbered `.pstep` circles — they must be gone.
+    expect(document.querySelector('.pstep')).toBeNull();
+    expect(screen.getByText('PR').closest('.jstep')).toBeInTheDocument();
   });
 
   it('inline variant renders pips with done/current/upcoming + links', () => {
@@ -80,40 +97,36 @@ describe('LifecycleStepper', () => {
     expect(items[0]).toHaveAttribute('aria-label', expect.stringContaining('done'));
   });
 
-  it('node variant renders a doc ref slot', () => {
+  it('bar variant renders a doc ref slot', () => {
     render(
       <LifecycleStepper
-        variant="node"
+        variant="bar"
         steps={[{ label: 'PO', state: 'done', ref: 'PO-0042' }]}
       />
     );
     expect(screen.getByText('PO-0042')).toBeInTheDocument();
   });
 
-  it('node variant paid step renders success treatment (not upcoming grey)', () => {
+  it('bar variant paid step renders success treatment (not upcoming grey)', () => {
     render(
       <LifecycleStepper
-        variant="node"
+        variant="bar"
         steps={[
           { label: 'PR', state: 'done' },
           { label: 'Payment', state: 'paid' },
         ]}
       />
     );
-    const paymentStep = screen.getByText('Payment').closest('.pstep')!;
-    const circle = paymentStep.querySelector('span')!;
-    // Must carry success classes — not the grey upcoming treatment
-    expect(circle.className).toContain('border-success');
-    expect(circle.className).toContain('bg-success');
-    expect(circle.className).not.toContain('border-border');
-    // Paid node renders a check icon (like done), not a number
-    expect(paymentStep.querySelector('svg')).toBeInTheDocument();
+    const paymentStep = screen.getByText('Payment').closest('.jstep')!;
+    // The paid bar must carry the success fill — not the bare/upcoming track
+    expect(paymentStep.querySelector('.bg-success')).toBeInTheDocument();
+    expect(paymentStep.querySelector('.bg-transparent')).toBeNull();
   });
 
-  it('AC-A11Y-03: node variant each step has aria-label conveying "{label}: {state}"', () => {
+  it('AC-A11Y-03: bar variant each step has aria-label conveying "{label}: {state}"', () => {
     render(
       <LifecycleStepper
-        variant="node"
+        variant="bar"
         steps={[
           { label: 'PR', state: 'done' },
           { label: 'RFQ', state: 'current' },

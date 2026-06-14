@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  PageHeader,
+  RecordHeader,
   Card,
   CardHead,
   CardPad,
@@ -231,6 +231,10 @@ const ProcurementDetails: React.FC = () => {
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
+  // CW-3a: the header Edit affordance (RecordHeader action zone) toggles the inline
+  // header-edit panel. Procurement's role-allowed header action set is Edit only —
+  // there is no archive/delete (Cancel is a lifecycle transition, in the action zone).
+  const [headerEditOpen, setHeaderEditOpen] = useState(false);
   // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
   // clicks the action so invoice details are captured BEFORE the transition fires.
   const [showVICapture, setShowVICapture] = useState(false);
@@ -553,7 +557,11 @@ const ProcurementDetails: React.FC = () => {
         <BackBar label="Procurement" onBack={goBack} />
       </div>
 
-      <PageHeader
+      {/* CW-3a: the ONE RecordHeader anatomy — icon + name + status pill + top-right
+          action zone (DESIGN.md §7). Procurement's role-allowed header action is Edit
+          (requester/Admin while Draft/Rejected); it has no archive/delete (Cancel is a
+          lifecycle transition, surfaced in the decision/action zone below). */}
+      <RecordHeader
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
         icon={<Icon name="cart" />}
@@ -565,13 +573,27 @@ const ProcurementDetails: React.FC = () => {
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
+        actions={
+          canEditHeader ? (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="edit-header"
+              onClick={() => setHeaderEditOpen((open) => !open)}
+              aria-expanded={headerEditOpen}
+            >
+              Edit
+            </Button>
+          ) : undefined
+        }
       />
 
-      {/* Full lifecycle node stepper (PR → VQ → PO → GR → VI → Paid) */}
+      {/* Full lifecycle bar stepper (PR → VQ → PO → GR → VI → Paid) — the ONE stepper
+          (DESIGN.md §5; the numbered-circle node variant was retired in the Coherence Wave). */}
       <Card className="mb-4">
         <CardPad>
           <LifecycleStepper
-            variant="node"
+            variant="bar"
             steps={lifecycleSteps(p.status, {
               pr_number: p.pr_number,
               vq_number: selectedQuote?.vq_number,
@@ -584,8 +606,8 @@ const ProcurementDetails: React.FC = () => {
         </CardPad>
       </Card>
 
-      {/* Draft-header edit (requester while Draft/Rejected) */}
-      {canEditHeader && (
+      {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
+      {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit
           title={p.title}
           projectId={p.project_id}
@@ -594,6 +616,7 @@ const ProcurementDetails: React.FC = () => {
           vendorName={p.vendor?.name ?? null}
           busy={crud.updateHeader.isPending}
           onError={onMutationError}
+          onClose={() => setHeaderEditOpen(false)}
           onSave={async (patch) => {
             await crud.updateHeader.mutateAsync(patch);
             toast('Request updated', 'Header saved', 'success');

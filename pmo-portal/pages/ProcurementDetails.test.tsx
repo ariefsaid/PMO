@@ -337,9 +337,26 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     mockEffectiveRole = 'Finance';
   });
 
+  it('CW-3a: the Procurement detail opens with the shared RecordHeader (icon + name + status)', () => {
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(header).toBeInTheDocument();
+    expect(within(header).getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
+    // the status pill is part of the one shared header anatomy
+    expect(within(header).getByTestId('procurement-status-badge')).toBeInTheDocument();
+  });
+
+  it('CW-3a: the procurement lifecycle renders the bar stepper, NOT the retired circle-node stepper', () => {
+    renderPage();
+    // The lifecycle is rendered as the canonical even-flex BAR stepper (.jstep steps)…
+    expect(document.querySelector('.jstep')).toBeInTheDocument();
+    // …and the retired numbered-circle node stepper (.pstep) is gone.
+    expect(document.querySelector('.pstep')).toBeNull();
+  });
+
   it('H2: the success render has no ALWAYS-VISIBLE BackBar; the mobile BackBar (≤920px) is CSS-hidden on desktop', () => {
     renderPage();
-    // The record is loaded; the PageHeader heading is present.
+    // The record is loaded; the RecordHeader heading is present.
     expect(screen.getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
     // C-IMP-1 (AC-S6-3): a mobile BackBar IS in the DOM for mobile back-nav (≤920px),
     // but it is wrapped in `hidden max-[920px]:block` — CSS-only, single render.
@@ -573,7 +590,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
   it('renders PR number from procurement header', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', pr_number: 'PR-2606040001' };
     renderPage();
-    // PR# now appears in both the lifecycle stepper node and the doc-trail row.
+    // PR# now appears in both the lifecycle bar stepper and the doc-trail row.
     expect(screen.getAllByText('PR-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 

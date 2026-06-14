@@ -97,6 +97,17 @@ describe('ProjectDetailHeader — content', () => {
     renderHeader();
     expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
   });
+
+  it('CW-3a: the Project detail opens with the shared RecordHeader (icon + name + status + action zone)', () => {
+    renderHeader();
+    const header = screen.getByTestId('record-header');
+    expect(header).toBeInTheDocument();
+    // identity + status live in the one shared header
+    expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    // the standardized top-right action zone holds the record actions (Edit, etc.)
+    expect(within(header).getByTestId('record-header-actions')).toBeInTheDocument();
+  });
 });
 
 // ── AC-PRJ-004 edit-header / AC-PRJ-005 archive gating ───────────────────────
