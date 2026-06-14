@@ -4,7 +4,6 @@ import {
   SearchMini,
   ViewToggle,
   ListState,
-  DataTable,
   StatusPill,
   LifecycleStepper,
   Button,
@@ -21,6 +20,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { NewProcurementModal } from './procurement/NewProcurementModal';
+import { ProcurementListRow } from './procurement/ProcurementListRow';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -339,16 +339,22 @@ const ProcurementPage: React.FC = () => {
       )}
 
       {state === undefined && view === 'table' && (
-        <DataTable<ProcurementWithRefs>
-          rows={filtered}
-          columns={columns}
-          rowKey={(r) => r.id}
-          onActivate={onOpen}
-          rowLabel={(r) => `Open ${r.title}`}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No requests match your filters"
-          emptySub="Try a different status, search term, or clear the filters."
-        />
+        /* Fix #5 (AC-FIX5-PREVIEW-*): inline expand/preview rows replace the opaque
+           DataTable so each row can expand in-place (the DecisionSupportPanel pattern
+           from ProcurementApprovalRow). Empty state mirrors the DataTable variant. */
+        filtered.length === 0 ? (
+          <ListState
+            variant="empty"
+            title="No requests match your filters"
+            sub="Try a different status, search term, or clear the filters."
+          />
+        ) : (
+          <div className="rounded-lg border border-border bg-card" aria-label="Procurement requests">
+            {filtered.map((r) => (
+              <ProcurementListRow key={r.id} row={r} />
+            ))}
+          </div>
+        )
       )}
 
       {/* Raise a new PR → on success, land on its detail page to add line items. */}

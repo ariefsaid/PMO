@@ -76,8 +76,9 @@ test(
     await openPipelineCard(page, dealName);
     await expect(page).not.toHaveURL(/\/sales\//);
     await expect(page.getByRole('heading', { name: dealName })).toBeVisible({ timeout: 15_000 });
-    // deal-progression banner markers: the deal-stage journey + the Advance affordance
-    await expect(page.getByLabel('Deal stage journey')).toBeVisible();
+    // project-progression banner markers: the project-stage journey + the Advance affordance
+    // CW-1 r2fix-enforce: aria-label "Deal stage journey" → "Project stage journey"
+    await expect(page.getByLabel('Project stage journey')).toBeVisible();
     await expect(page.getByRole('button', { name: /Advance to/i })).toBeVisible();
     // ADR-0021 (owner override of ADR-0020 §1): the delivery tabs ARE shown pre-win — a PM must be
     // able to plan budget/tasks/procurement while pursuing the deal. The banner sits ABOVE them.
@@ -101,7 +102,7 @@ test(
     await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
     await expect(page.getByTestId('contract-value-sod')).toBeVisible();
     // and NOT the pipeline lens
-    await expect(page.getByLabel('Deal stage journey')).toHaveCount(0);
+    await expect(page.getByLabel('Project stage journey')).toHaveCount(0);
 
     // ── one-URL invariant: both lenses live under the same /projects/:id pattern ──
     expect(pipelineUrl).toMatch(/\/projects\/[0-9a-f-]+$/);
@@ -130,6 +131,7 @@ test(
     await page.goto(`/sales/${id}`);
     await page.waitForURL(`**/projects/${id}`, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: /Northwind ERP Rollout/i })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByLabel('Deal stage journey')).toBeVisible();
+    // CW-1 r2fix-enforce: "Deal stage journey" → "Project stage journey"
+    await expect(page.getByLabel('Project stage journey')).toBeVisible();
   },
 );

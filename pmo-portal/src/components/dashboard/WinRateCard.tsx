@@ -95,7 +95,7 @@ export const WinRateCard: React.FC = () => {
         <ListState
           variant="empty"
           icon="pipe"
-          title="No closed deals in this window"
+          title="No closed projects in this window"
           sub="Try a wider time frame to see your win rate."
         />
       ) : (

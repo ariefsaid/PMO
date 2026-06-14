@@ -61,7 +61,6 @@ const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
   const navigate = useNavigate();
   const contract = project.contract_value ?? 0;
-  const spent = project.spent ?? 0;
   const activeBudget = project.budget ?? 0;
   const committed = committedSpend ?? 0;
   const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
@@ -82,7 +81,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
     ? [
         { label: 'Contract', value: formatCurrency(contract) },
         { label: 'Committed', value: formatCurrency(committed) },
-        { label: 'Actual', value: formatCurrency(spent) },
+        // AC-MONEY-01: "Actual" = committed-PO basis, not dead projects.spent column.
+        { label: 'Actual', value: formatCurrency(committed) },
         { label: 'On-hand margin', value: signedCurrency(margin), tone: margin < 0 ? 'neg' : 'pos' },
         { label: 'Spend', value: `${spendPctTile}%` },
       ]
@@ -105,8 +105,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   // T16/T17 — Budget snapshot
   const { data: budgetVersions, isPending: budgetPending, isError: budgetError, refetch: budgetRefetch } = useBudgetVersions(project.id);
   const snapshot = useMemo(
-    () => activeSnapshot(budgetVersions ?? [], spent),
-    [budgetVersions, spent],
+    // AC-MONEY-01: "Actual spent" uses the committed-PO basis (same as the D15 "Actual" tile +
+    // the header), not the dead stored projects.spent column.
+    () => activeSnapshot(budgetVersions ?? [], committed),
+    [budgetVersions, committed],
   );
 
   return (

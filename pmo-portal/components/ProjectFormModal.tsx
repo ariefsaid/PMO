@@ -296,7 +296,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
                 options={ORIGINATION_OPTIONS}
-                helper="On-hand is reached only by winning a deal, never created directly."
+                helper="On-hand is reached only by winning a project in the pipeline, never created directly."
               />
               <NumberField
                 id={valueField.id}

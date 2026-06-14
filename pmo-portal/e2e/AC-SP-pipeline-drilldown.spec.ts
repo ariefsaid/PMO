@@ -33,9 +33,10 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
   // card's click→navigate can be swallowed if fired pre-hydration under parallel-suite load).
   await openPipelineCard(page, 'Highfield Bridge Survey');
 
-  // Detail page: header name + Deal stage journey stepper (the pipeline lens).
+  // Detail page: header name + Project stage journey stepper (the pipeline lens).
+  // CW-1 r2fix-enforce: aria-label updated from "Deal stage journey" → "Project stage journey".
   await expect(page.getByRole('heading', { name: /Highfield Bridge Survey/i })).toBeVisible();
-  await expect(page.getByLabel('Deal stage journey')).toBeVisible();
+  await expect(page.getByLabel('Project stage journey')).toBeVisible();
 
   // I7: the in-page BackBar ("Back to Sales Pipeline" button) was removed.
   // The breadcrumb (rendered in the top ContextBar, inside nav[aria-label="Breadcrumb"])

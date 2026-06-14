@@ -196,10 +196,12 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('T16: shows spent value', () => {
-    renderTab();
-    // project.spent = 400k — actual spent remains in the budget snapshot.
-    expect(screen.getAllByText(/\$400,000/i).length).toBeGreaterThanOrEqual(1);
+  it('T16: shows actual spent on the committed-PO basis (AC-MONEY-01)', () => {
+    // The Budget-snapshot "Actual spent" now reads committed-PO spend (the live basis used by
+    // the D15 tile + header), NOT the dead projects.spent column. Use a distinct committedSpend
+    // (320k) so it doesn't collide with the $150k activeTotal.
+    renderTab(project, vi.fn(), 320_000);
+    expect(screen.getAllByText(/\$320,000/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('T16: budget utilization uses committed spend over active budget, not actual spent over contract', () => {
@@ -209,9 +211,9 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
   });
 
-  it('T16: shows negative variance in destructive color when spent > activeTotal', () => {
-    // spent(400k) > active(150k) → variance = -250k
-    const { container } = renderTab();
+  it('T16: shows negative variance in destructive color when committed spend > activeTotal', () => {
+    // committed(400k) > active(150k) → variance = -250k (committed-PO basis, AC-MONEY-01)
+    const { container } = renderTab(project, vi.fn(), 400_000);
     // Check for the destructive text utility class on the variance element
     // (item J: token utility class, not an inline hsl(var(--destructive)) style).
     const negativeEl = container.querySelector('[data-testid="budget-variance"]');
@@ -276,5 +278,42 @@ describe('OverviewTab T18: Row 2 layout + footer links', () => {
     const btn = screen.getByRole('button', { name: /Open Budget tab/i });
     await userEvent.click(btn);
     expect(setTab).toHaveBeenCalledWith('budget');
+  });
+});
+
+// ── AC-MONEY-01: OverviewTab D15 financial summary Actual tile ────────────────
+describe('OverviewTab D15 financial summary — Actual tile derives from committedSpend (AC-MONEY-01)', () => {
+  // The D15 financial-summary aside (Engineer view) has its own StatTiles strip
+  // with an "Actual" tile. It must show committedSpend (live basis), not project.spent
+  // (dead stored column, always 0 in production).
+  const deadSpentProject: ProjectWithRefs = {
+    ...project,
+    spent: 0, // as in production
+  } as unknown as ProjectWithRefs;
+
+  const renderFinanceSummary = (committedSpend: number) =>
+    render(
+      <MemoryRouter>
+        <OverviewTab
+          project={deadSpentProject}
+          committedSpend={committedSpend}
+          setTab={vi.fn()}
+          showFinanceSummary={true}
+        />
+      </MemoryRouter>,
+    );
+
+  it('AC-MONEY-01: D15 Actual tile shows committedSpend when project.spent is 0', () => {
+    renderFinanceSummary(3_700_000);
+    // The financial-summary aside is rendered (Engineer view, on-hand project)
+    const aside = screen.getByTestId('financial-summary');
+    expect(aside).toBeInTheDocument();
+    // Find the Actual stat-tile within the financial-summary
+    const tiles = aside.querySelectorAll('[data-testid="stat-tile"]');
+    const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile).toBeTruthy();
+    // Must show the live committed-basis spend, not the dead stored $0
+    expect(actualTile!.textContent).toContain('$3,700,000');
+    expect(actualTile!.textContent).not.toContain('$0');
   });
 });

@@ -103,7 +103,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
 
   const contract = project.contract_value ?? 0;
   const committed = committedSpend ?? 0;
-  const spent = project.spent ?? 0;
+  // AC-MONEY-01: "Actual" is the committed-PO basis (Ordered..Paid), not the dead stored
+  // projects.spent column which is never populated (0001_init_schema.sql:79 DEFERRED).
+  // committed == actual (Ordered..Paid sum) — both reflect realized procurement spend.
   const activeBudget = project.budget ?? 0;
   const margin = contract - committed;
   const spendPct = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
@@ -140,7 +142,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
   const tiles: StatTile[] = [
     { label: 'Contract', value: formatCurrency(contract) },
     { label: 'Committed', value: formatCurrency(committed) },
-    { label: 'Actual', value: formatCurrency(spent) },
+    // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
+    // Both tiles intentionally show the same number — they are the same realized-spend
+    // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
+    // "Actual" is the human label per the original finance-strip design. The dead
+    // projects.spent column (always 0) is NOT used here.
+    { label: 'Actual', value: formatCurrency(committed) },
     {
       label: 'On-hand margin',
       value: signedCurrency(margin),

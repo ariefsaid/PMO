@@ -264,3 +264,26 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     expect(toast).toHaveTextContent(/don't have permission/i);
   });
 });
+
+// ── AC-MONEY-01: Actual tile derives from committedSpend, not project.spent ──
+describe('ProjectDetailHeader — Actual tile derives from committedSpend (AC-MONEY-01)', () => {
+  // The bug: project.spent is a dead stored column (always 0 in production).
+  // committedSpend is the live Ordered..Paid procurement sum. The Actual tile
+  // must display committedSpend so it shows real realized spend, not $0.
+  const deadSpentProject = {
+    ...onHand,
+    spent: 0, // as in production — the dead stored column
+  } as unknown as ProjectWithRefs;
+
+  it('AC-MONEY-01: Actual tile shows committedSpend when project.spent is 0 (dead column)', () => {
+    // Cascade Foods case: stored spent=0, but there is a $3.7M Paid PO → committedSpend=3_700_000
+    renderHeader('Project Manager', deadSpentProject, 3_700_000);
+    // Locate the "Actual" stat-tile and verify its value is $3,700,000 (the live basis)
+    const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
+    const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile).toBeTruthy();
+    // The tile must show the committed-basis spend ($3,700,000), not the dead stored $0
+    expect(actualTile!.textContent).toContain('$3,700,000');
+    expect(actualTile!.textContent).not.toContain('$0');
+  });
+});

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ListState, StatusPill } from '@/src/components/ui';
+import { ListState, StatusPill, SelectField } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { formatDate } from '@/src/lib/format';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -132,9 +132,16 @@ const MyTasks: React.FC = () => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="block truncate text-[13.5px] font-medium" title={task.name}>
+                        {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
+                            No /tasks/:id route exists; navigating to /projects/:id/tasks is the
+                            lower-risk option — the tab is already deep-linkable (App.tsx). */}
+                        <Link
+                          to={`/projects/${task.project_id}/tasks`}
+                          className="block truncate text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          title={task.name}
+                        >
                           {task.name}
-                        </span>
+                        </Link>
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
                         {isOverdueTask(task) && (
                           <StatusPill variant="warn">Overdue</StatusPill>
@@ -157,23 +164,19 @@ const MyTasks: React.FC = () => {
                       >
                         Log time
                       </Link>
-                      {/* Inline status control — the select IS the status display (its selected
-                          value), so no separate pill. Engineer may set own task status per the
-                          `taskStatus` policy predicate (assignee_id = self). */}
-                      <select
-                        aria-label={`Change status of ${task.name}`}
+                      {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
+                          control, matching the TasksTab pattern) instead of a raw OS <select>.
+                          Engineer may set own task status per the `taskStatus` policy. */}
+                      <SelectField
+                        hideLabel
+                        label={`Change status of ${task.name}`}
                         value={task.status}
-                        onChange={(e) =>
-                          updateStatus.mutate({ id: task.id, status: e.target.value as TaskStatus })
+                        onChange={(v) =>
+                          updateStatus.mutate({ id: task.id, status: v as TaskStatus })
                         }
-                        className="h-7 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        {TASK_STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
+                        className="w-auto min-w-[120px]"
+                      />
                     </div>
                   </div>
                 ))}

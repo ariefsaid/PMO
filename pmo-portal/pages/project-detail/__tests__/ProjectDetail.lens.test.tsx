@@ -155,11 +155,11 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     // the contract-value SoD editor row is mounted on a won/on-hand project
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     // the pipeline lens is NOT mounted
-    expect(screen.queryByLabelText('Deal stage journey')).toBeNull();
+    expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the deal banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -170,8 +170,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
 
     // shared header
     expect(screen.getByRole('heading', { name: 'Acme Tender Bid' })).toBeInTheDocument();
-    // deal banner: deal journey stepper + the Advance/Mark won/Mark lost affordances
-    expect(screen.getByLabelText('Deal stage journey')).toBeInTheDocument();
+    // project journey banner: project stage stepper + the Advance/Mark won/Mark lost affordances
+    expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();

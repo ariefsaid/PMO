@@ -13,6 +13,7 @@ import {
   ListState,
   Icon,
   ConfirmDialog,
+  RecordActionZone,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
@@ -738,10 +739,7 @@ const ProcurementDetails: React.FC = () => {
           advance/approve action is never below the fold (DESIGN.md §RecordActionZone:
           "sticky on desktop"). On mobile the existing mobile-sticky-action bar handles
           the reach affordance; the card stays in normal flow for mobile. */}
-      <div
-        data-testid="decision-zone"
-        className="min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10 min-[920px]:bg-background/95 min-[920px]:backdrop-blur-sm"
-      >
+      <RecordActionZone>
       <Card className="mb-4" data-testid="decision-card">
         <CardPad className="flex flex-col gap-3">
           {/* D6: SoD / readiness gate inside the DecisionCard — co-located with the
@@ -988,7 +986,7 @@ const ProcurementDetails: React.FC = () => {
           )}
         </CardPad>
       </Card>
-      </div>
+      </RecordActionZone>
 
       {/* Documents metadata register (over the previously-dead procurement_documents) */}
       <ProcurementDocumentsSection

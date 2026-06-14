@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -418,5 +418,43 @@ describe('Projects index — New project create + gating', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/don't have permission/i);
+  });
+});
+
+// ── AC-MONEY-01: Projects table "Actual" column uses delivery committedSpend ──
+describe('Projects table — Actual column uses live committed spend (AC-MONEY-01)', () => {
+  // The bug: the "Actual" column in the table reads p.spent (dead stored column, always 0
+  // in production). deliverySummary already contains committedSpend per project, which is
+  // the live Ordered..Paid procurement sum. The column must read deliverySummary[p.id].committedSpend.
+  beforeEach(() => {
+    sessionStorage.clear();
+    // Seed with project.spent=0 (as in production) but deliverySummary has non-zero committedSpend
+    projectsState.data = [
+      { ...seed[0], spent: 0 }, // stored column dead
+    ] as unknown as ProjectWithRefs[];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+  });
+
+  afterEach(() => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+  });
+
+  it('AC-MONEY-01: Actual column shows committedSpend from delivery summary, not dead project.spent', () => {
+    // deliverySummaryState.p1.committedSpend = 2_100_000 (from the hoisted mock above)
+    // project.spent = 0 (dead column)
+    renderPage();
+    // The "Actual" column header should be in the table
+    expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
+    // $2,100,000 must appear — from deliverySummary.p1.committedSpend
+    expect(screen.getByText('$2,100,000')).toBeInTheDocument();
+    // $0 must NOT appear as the actual value (that would be the dead stored column)
+    // Note: $0 may appear as "—" for budget columns, but the Actual cell itself must not be $0
+    const tbody = document.querySelector('tbody');
+    const actualCells = Array.from(tbody?.querySelectorAll('td') ?? [])
+      .filter(td => td.textContent === '$0');
+    // No cell in the table body should show bare $0 for the Actual column
+    // when committedSpend is non-zero
+    expect(actualCells.length).toBe(0);
   });
 });
