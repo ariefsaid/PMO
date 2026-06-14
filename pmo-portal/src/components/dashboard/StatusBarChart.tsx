@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -20,6 +21,13 @@ export interface StatusBarChartProps<S extends string> {
   /** Plural noun for the summary ("requests" / "projects"). */
   noun: string;
   height?: number;
+  /**
+   * Optional: when provided, each legend entry becomes a `<Link>` to the
+   * returned href, enabling drill-down from the chart legend to a filtered
+   * list view. When omitted, legend entries remain plain `<span>` elements —
+   * no behavior change for other callers (AC-JR-W1-10).
+   */
+  hrefFor?: (status: S) => string;
 }
 
 /**
@@ -35,6 +43,7 @@ export function StatusBarChart<S extends string>({
   label,
   noun,
   height = 260,
+  hrefFor,
 }: StatusBarChartProps<S>) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -87,18 +96,33 @@ export function StatusBarChart<S extends string>({
       </ResponsiveContainer>
 
       <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
-        {data.map((d) => (
-          <span key={d.status} className="inline-flex items-center gap-1.5">
-            <span
-              data-testid="legend-dot"
-              aria-hidden="true"
-              className="size-1.5 shrink-0 rounded-full"
-              style={{ background: toneFor(d.status) }}
-            />
-            {d.status}
-            <span className="tabular font-semibold text-foreground">{d.count}</span>
-          </span>
-        ))}
+        {data.map((d) => {
+          const inner = (
+            <>
+              <span
+                data-testid="legend-dot"
+                aria-hidden="true"
+                className="size-1.5 shrink-0 rounded-full"
+                style={{ background: toneFor(d.status) }}
+              />
+              {d.status}
+              <span className="tabular font-semibold text-foreground">{d.count}</span>
+            </>
+          );
+          return hrefFor ? (
+            <Link
+              key={d.status}
+              to={hrefFor(d.status)}
+              className="inline-flex items-center gap-1.5 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              {inner}
+            </Link>
+          ) : (
+            <span key={d.status} className="inline-flex items-center gap-1.5">
+              {inner}
+            </span>
+          );
+        })}
       </figcaption>
     </figure>
   );

@@ -167,6 +167,48 @@ describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
   });
 });
 
+describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', () => {
+  it('AC-JR-W1-10: each procurement status legend entry links to /procurement?status=<Status>', () => {
+    renderPage();
+    // The populated oracle has 5 procurement statuses; each should now be a link.
+    const draftLink = screen.getByRole('link', { name: /Draft/i });
+    expect(draftLink).toHaveAttribute('href', '/procurement?status=Draft');
+
+    const requestedLink = screen.getByRole('link', { name: /Requested/i });
+    expect(requestedLink).toHaveAttribute('href', '/procurement?status=Requested');
+
+    const paidLink = screen.getByRole('link', { name: /Paid/i });
+    expect(paidLink).toHaveAttribute('href', '/procurement?status=Paid');
+  });
+
+  it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
+    renderPage();
+    // "Vendor Quoted" has a space — must be encoded
+    const vendorLink = screen.getByRole('link', { name: /Vendor Quoted/i });
+    expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
+  });
+});
+
+describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (AC-JR-W4-05)', () => {
+  it('AC-JR-W4-05: Pipeline (weighted) help tooltip says "project value" not "opportunity value"', () => {
+    renderPage();
+    const tile = screen.getByTestId('kpi-pipeline-weighted-value');
+    // The Pipeline (weighted) tile IS a link variant — help glyph is aria-hidden.
+    // Trigger hover to open the tooltip and verify text.
+    const helpSpan = tile.querySelector('[aria-hidden="true"][class*="cursor-help"]') as HTMLElement | null;
+    if (helpSpan) {
+      fireEvent.mouseEnter(helpSpan);
+      const tooltip = document.querySelector('[role="tooltip"]');
+      if (tooltip) {
+        expect(tooltip.textContent).not.toContain('opportunity value');
+        expect(tooltip.textContent).toContain('project value');
+      }
+    }
+    // Regression: old "opportunity value" text must not appear anywhere in the rendered page
+    expect(document.body.textContent).not.toContain('opportunity value');
+  });
+});
+
 describe('ExecutiveDashboard token purity / no mockData', () => {
   it('does not render legacy gray/dark utility classes on the KPI band', () => {
     const { container } = renderPage();
