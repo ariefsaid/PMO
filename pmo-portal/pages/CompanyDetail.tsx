@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
   Card,
@@ -20,7 +20,12 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
-import { useCompany, useCompanyMutations } from '@/src/hooks/useCompanies';
+import {
+  useCompany,
+  useCompanyMutations,
+  useProjectsByClient,
+  useProcurementsByVendor,
+} from '@/src/hooks/useCompanies';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
@@ -184,6 +189,13 @@ const CompanyDetail: React.FC = () => {
         </CardPad>
       </Card>
 
+      {/* AC-IFW-COMPANY-01: related projects (always) and procurement (Vendor-only). */}
+      <RelatedProjects companyId={company.id} />
+
+      {company.type === 'Vendor' && (
+        <RelatedProcurement companyId={company.id} />
+      )}
+
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer. */}
       <Card>
         <CardHead>Contacts</CardHead>
@@ -230,6 +242,94 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dd className="text-[13.5px] text-foreground">{value}</dd>
   </div>
 );
+
+/**
+ * AC-IFW-COMPANY-01: Related projects list (client view). Shows all projects where the
+ * company is the client — clickable rows that navigate to /projects/:id. Always rendered.
+ */
+const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending, isError } = useProjectsByClient(companyId);
+
+  return (
+    <Card className="mb-4">
+      <CardHead>Related projects</CardHead>
+      <CardPad>
+        {isPending && (
+          <p role="status" aria-label="Loading related projects" className="text-[13px] text-muted-foreground">
+            Loading…
+          </p>
+        )}
+        {isError && (
+          <p className="text-[13px] text-destructive">Couldn't load related projects.</p>
+        )}
+        {!isPending && !isError && (data ?? []).length === 0 && (
+          <p className="text-[13px] text-muted-foreground">No related projects yet</p>
+        )}
+        {!isPending && !isError && (data ?? []).length > 0 && (
+          <ul className="flex flex-col gap-1" aria-label="Related projects">
+            {(data ?? []).map((p) => (
+              <li key={p.id}>
+                <Link
+                  to={`/projects/${p.id}`}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  <span className="text-[14px] font-medium text-foreground">{p.name}</span>
+                  {p.status && (
+                    <span className="text-[12px] text-muted-foreground">{p.status}</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardPad>
+    </Card>
+  );
+};
+
+/**
+ * AC-IFW-COMPANY-01: Related procurement list (vendor view). Shows all PRs where the company
+ * is the vendor — clickable rows that navigate to /procurement/:id. Vendor-only.
+ */
+const RelatedProcurement: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending, isError } = useProcurementsByVendor(companyId);
+
+  return (
+    <Card className="mb-4">
+      <CardHead>Procurement</CardHead>
+      <CardPad>
+        {isPending && (
+          <p role="status" aria-label="Loading procurement" className="text-[13px] text-muted-foreground">
+            Loading…
+          </p>
+        )}
+        {isError && (
+          <p className="text-[13px] text-destructive">Couldn't load procurement.</p>
+        )}
+        {!isPending && !isError && (data ?? []).length === 0 && (
+          <p className="text-[13px] text-muted-foreground">No procurement yet</p>
+        )}
+        {!isPending && !isError && (data ?? []).length > 0 && (
+          <ul className="flex flex-col gap-1" aria-label="Procurement list">
+            {(data ?? []).map((pr) => (
+              <li key={pr.id}>
+                <Link
+                  to={`/procurement/${pr.id}`}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  <span className="text-[14px] font-medium text-foreground">{pr.title}</span>
+                  {pr.status && (
+                    <span className="text-[12px] text-muted-foreground">{pr.status}</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardPad>
+    </Card>
+  );
+};
 
 /**
  * FR-CRM-008: read-only contacts list for the company record page. Consumes the pre-wired

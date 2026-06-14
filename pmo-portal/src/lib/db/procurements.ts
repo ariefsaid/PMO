@@ -53,3 +53,17 @@ export async function listProcurements(): Promise<ProcurementWithRefs[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProcurementWithRefs[];
 }
+
+/**
+ * List procurements for a given vendor company (AC-IFW-COMPANY-01). Returns all PRs where
+ * `vendor_id = vendorId` so the company record shows the full procurement history. org_id is
+ * NEVER sent — RLS (procurements select: org_id = auth_org_id()) scopes rows. No new RLS.
+ */
+export async function listProcurementsByVendor(vendorId: string): Promise<ProcurementWithRefs[]> {
+  const { data, error } = await supabase
+    .from('procurements')
+    .select(SELECT)
+    .eq('vendor_id', vendorId);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as ProcurementWithRefs[];
+}

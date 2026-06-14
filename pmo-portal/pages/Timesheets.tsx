@@ -14,7 +14,7 @@ import {
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
@@ -281,6 +281,28 @@ const TimesheetsPage: React.FC = () => {
       },
     ]);
   };
+
+  // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link)
+  // and pre-add that project as a timesheet row. Runs once per param value after allProjects
+  // is loaded. Guard: only Ongoing Project rows are valid timesheet projects (matches picker
+  // filter); unknown / already-present / non-active ids are silently ignored by addProject.
+  const [searchParams] = useSearchParams();
+  const prefillProjectId = searchParams.get('project');
+  const prefillApplied = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (
+      !prefillProjectId ||
+      !allProjects ||
+      allProjects.length === 0 ||
+      prefillApplied.current === prefillProjectId
+    ) {
+      return;
+    }
+    prefillApplied.current = prefillProjectId;
+    addProject(prefillProjectId);
+  // addProject is stable (no deps that change); allProjects loading is the trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillProjectId, allProjects]);
 
   // Delete-row confirm (mandatory destructive ConfirmDialog — FR-TSE-008/009).
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);

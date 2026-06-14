@@ -29,6 +29,9 @@ const { detailState, mutations, contactsState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompany: () => detailState,
   useCompanyMutations: () => mutations,
+  // AC-IFW-COMPANY-01 hooks — default to empty/idle so existing tests are unaffected.
+  useProjectsByClient: () => ({ data: [], isPending: false, isError: false }),
+  useProcurementsByVendor: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useContacts', () => ({
   useContactsByCompany: () => contactsState,

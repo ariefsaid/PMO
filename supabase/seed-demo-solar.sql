@@ -1109,4 +1109,129 @@ update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000012'
     'd3000000-0000-0000-0000-000000000039'   -- COMM — Grid interconnection witness test & handover
   );
 
+-- ============================================================
+-- §K CRM contacts + activity (AC-IFW-SEED-01, LOCAL-ONLY)
+-- UUID namespace: ct000000-0000-0000-0000-0000000000XX (contacts)
+--                 ca000000-0000-0000-0000-0000000000XX (crm_activities)
+-- org_id defaults to 00000000-…-0001 (column default, no explicit send).
+-- Idempotent via ON CONFLICT (id) DO NOTHING.
+-- ============================================================
+
+-- §K1 Contacts attached to Meridian Steelworks (Client, cd…01)
+insert into contacts (id, company_id, full_name, title, email, phone) values
+  ('ce000000-0000-0000-0000-000000000001',
+   'cd000000-0000-0000-0000-000000000001',
+   'Priya Mehta',
+   'Head of Engineering',
+   'priya.mehta@meridian-steel.example',
+   '+44 7700 900001'),
+  ('ce000000-0000-0000-0000-000000000002',
+   'cd000000-0000-0000-0000-000000000001',
+   'James Harlow',
+   'Procurement Director',
+   'j.harlow@meridian-steel.example',
+   '+44 7700 900002')
+on conflict (id) do nothing;
+
+-- §K2 Contacts attached to SunVolt Modules Co. (Vendor, cd…05)
+insert into contacts (id, company_id, full_name, title, email, phone) values
+  ('ce000000-0000-0000-0000-000000000003',
+   'cd000000-0000-0000-0000-000000000005',
+   'Lena Bauer',
+   'Key Account Manager',
+   'lena.bauer@sunvolt.example',
+   '+49 30 90003'),
+  ('ce000000-0000-0000-0000-000000000004',
+   'cd000000-0000-0000-0000-000000000005',
+   'Tariq Al-Rashid',
+   'Technical Sales Engineer',
+   'tariq@sunvolt.example',
+   '+49 30 90004')
+on conflict (id) do nothing;
+
+-- §K3 CRM activities — Meridian contacts (logged_by=a2 Diego PM)
+-- Attach to project d0…01 (Meridian Solar Phase 1) for cross-link richness.
+insert into crm_activities (id, contact_id, company_id, project_id, kind, subject, body, occurred_at, logged_by_id) values
+  -- Priya Mehta (ct…01) — two activities
+  ('ca000000-0000-0000-0000-000000000001',
+   'ce000000-0000-0000-0000-000000000001',
+   'cd000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-000000000001',
+   'Meeting',
+   'Kick-off alignment — PV layout approval',
+   'Reviewed the single-line diagram and agreed panel orientation. Priya confirmed procurement schedule aligns with civil works by end of Q2.',
+   now() - interval '45 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  ('ca000000-0000-0000-0000-000000000002',
+   'ce000000-0000-0000-0000-000000000001',
+   'cd000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-000000000001',
+   'Email',
+   'RE: IEC 61215 compliance certificates',
+   'Priya requested documentary proof for the panels before milestone sign-off. Forwarded SunVolt''s IEC certificates and DNV test reports.',
+   now() - interval '20 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  -- James Harlow (ct…02) — two activities
+  ('ca000000-0000-0000-0000-000000000003',
+   'ce000000-0000-0000-0000-000000000002',
+   'cd000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-000000000001',
+   'Call',
+   'Change order discussion — roof access scaffold',
+   'James raised a site-access restriction that may require a scaffold variation. Agreed to submit a CO by Friday.',
+   now() - interval '30 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  ('ca000000-0000-0000-0000-000000000004',
+   'ce000000-0000-0000-0000-000000000002',
+   'cd000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-000000000001',
+   'Note',
+   'ATTN: budget approval gate Q3',
+   'James confirmed their internal capex committee meets 15th of next month. All POs must land before that date to secure FY budget allocation.',
+   now() - interval '5 days',
+   '00000000-0000-0000-0000-0000000000a2')
+on conflict (id) do nothing;
+
+-- §K4 CRM activities — SunVolt contacts (logged_by=a2 Diego PM)
+insert into crm_activities (id, contact_id, company_id, project_id, kind, subject, body, occurred_at, logged_by_id) values
+  -- Lena Bauer (ct…03) — two activities
+  ('ca000000-0000-0000-0000-000000000005',
+   'ce000000-0000-0000-0000-000000000003',
+   'cd000000-0000-0000-0000-000000000005',
+   'd0000000-0000-0000-0000-000000000001',
+   'Call',
+   'Lead time confirmation — Q2 module delivery',
+   'Lena confirmed 10-week lead time from PO placement. Agreed on Incoterms DAP and packing standard IEC 61215 + insurance certificate.',
+   now() - interval '60 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  ('ca000000-0000-0000-0000-000000000006',
+   'ce000000-0000-0000-0000-000000000003',
+   'cd000000-0000-0000-0000-000000000005',
+   null,
+   'Email',
+   'Revised datasheet — SV-410M bifacial module',
+   'Lena sent the updated datasheet for the SV-410M series with higher bifacial gain. Forwarded to Priya for spec sign-off.',
+   now() - interval '35 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  -- Tariq Al-Rashid (ct…04) — two activities
+  ('ca000000-0000-0000-0000-000000000007',
+   'ce000000-0000-0000-0000-000000000004',
+   'cd000000-0000-0000-0000-000000000005',
+   'd0000000-0000-0000-0000-000000000001',
+   'Meeting',
+   'String inverter sizing review',
+   'Tariq walked through the string configuration for the 1.2 MWp array. He recommended upgrading to the SV-50k model to handle clipping at peak irradiance.',
+   now() - interval '25 days',
+   '00000000-0000-0000-0000-0000000000a2'),
+  ('ca000000-0000-0000-0000-000000000008',
+   'ce000000-0000-0000-0000-000000000004',
+   'cd000000-0000-0000-0000-000000000005',
+   null,
+   'Note',
+   'Follow-up: MPPT warranty terms',
+   'Tariq to provide extended warranty terms (10-year parts + labour) for the SV-50k by end of week. Will attach to the PO as a schedule.',
+   now() - interval '10 days',
+   '00000000-0000-0000-0000-0000000000a2')
+on conflict (id) do nothing;
+
 commit;

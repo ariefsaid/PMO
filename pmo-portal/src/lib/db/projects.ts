@@ -137,6 +137,21 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
 }
 
 /**
+ * List projects for a given client company (AC-IFW-COMPANY-01). Returns all projects where
+ * `client_id = clientId`, across all statuses (pipeline + delivery), so the company record
+ * shows the full work history. org_id is NEVER sent — RLS (projects_select: org_id =
+ * auth_org_id()) scopes rows. No new RLS or migration — the existing select policy covers this.
+ */
+export async function listProjectsByClient(clientId: string): Promise<ProjectWithRefs[]> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select(SELECT)
+    .eq('client_id', clientId);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as ProjectWithRefs[];
+}
+
+/**
  * Update a project's HEADER fields (name/code/client/PM/dates) by id (AC-PRJ-004). org_id
  * is NEVER sent — `projects_write` scopes the update to the caller's org and gates the role.
  * Deliberately excludes `contract_value` (SoD-gated → `setProjectContractValue` RPC) and the
