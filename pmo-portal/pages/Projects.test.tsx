@@ -103,9 +103,15 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
     expect(within(toggle).getByRole('tab', { name: /^Board$/i })).toBeInTheDocument();
     await userEvent.click(within(toggle).getByRole('tab', { name: /^Board$/i }));
-    // Board root appears; no project-card elements (kanban uses its own card format)
-    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
-    expect(screen.queryAllByTestId('project-card').length).toBe(0);
+    // Board root appears — the kanban layout, distinct from the table/cards view.
+    const board = screen.getByTestId('project-kanban-board');
+    expect(board).toBeInTheDocument();
+    // CW-3b: the board's cards ARE the shared canonical ProjectCardShell (one project-card
+    // vocabulary everywhere) — every rendered project-card lives inside the board, not in a
+    // separate cards-view grid.
+    const cards = screen.getAllByTestId('project-card');
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) expect(board).toContainElement(card);
   });
 });
 

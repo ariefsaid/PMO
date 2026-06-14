@@ -22,6 +22,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { KPITile } from '@/src/components/ui/KPITile';
 import { formatCurrency } from '@/src/lib/format';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
@@ -214,63 +215,31 @@ const ContractBook: React.FC<{
   const marginPct = `${(onHandMargin * 100).toFixed(1)}%`;
 
   return (
-    <div data-testid="mobile-contract-book" aria-label="Contract book">
-      {/* Tile 1: Revenue on hand */}
-      <div
-        data-testid="mobile-kpi-on-hand"
-        aria-label="Revenue on hand"
-        className="rounded-lg border border-border bg-card p-[14px]"
-      >
-        <div className="flex items-center gap-[9px]">
-          <span
-            aria-hidden="true"
-            style={{ color: 'hsl(var(--status-won-text))' }}
-            className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-success/[0.12] [&_svg]:size-4"
-          >
-            <Icon name="dollar" />
-          </span>
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            Revenue on hand
-          </span>
-        </div>
-        <div className="tabular mt-[9px] text-[23px] font-bold leading-tight">
-          {formatCurrency(onHandValue)}
-        </div>
-        <div className="mt-[5px] flex items-center gap-[5px] text-[11px] font-semibold text-muted-foreground">
-          <span aria-hidden="true" className="size-[6px] shrink-0 rounded-full bg-muted-foreground" />
-          Booked across active + closed-out contracts · {marginPct} margin realized
-        </div>
-      </div>
+    <div data-testid="mobile-contract-book" aria-label="Contract book" className="space-y-[10px]">
+      {/* Tile 1: Revenue on hand — CW-3b: the canonical KPITile, not one-off tile markup.
+          The B-MIN-3 scope micro-line rides as the tile's `vs` sub. */}
+      <KPITile
+        testId="mobile-kpi-on-hand"
+        tone="green"
+        icon="dollar"
+        label="Revenue on hand"
+        value={formatCurrency(onHandValue)}
+        vs={`Booked across active + closed-out contracts · ${marginPct} margin realized`}
+      />
 
-      {/* Tile 2: Total contract value.
+      {/* Tile 2: Total contract value — same canonical KPITile.
           CW-7 (coherence wave §4): mobile reads the SAME metric LABEL as desktop ("Total contract
           value", ExecutiveDashboard kpi-total-contract-value) — both render the same active-only
-          `total_contract_value` figure. The B-MIN-3 source micro-line below keeps the scope honest
-          (signed value of the projects still in delivery) without forking the headline term. */}
-      <div
-        data-testid="mobile-kpi-total-contract-value"
-        aria-label="Total contract value"
-        className="mt-[10px] rounded-lg border border-border bg-card p-[14px]"
-      >
-        <div className="flex items-center gap-[9px]">
-          <span
-            aria-hidden="true"
-            className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-warning/[0.16] text-warning-foreground [&_svg]:size-4"
-          >
-            <Icon name="grid" />
-          </span>
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            Total contract value
-          </span>
-        </div>
-        <div className="tabular mt-[9px] text-[23px] font-bold leading-tight">
-          {formatCurrency(activeContractValue)}
-        </div>
-        <div className="mt-[5px] flex items-center gap-[5px] text-[11px] font-semibold text-muted-foreground">
-          <span aria-hidden="true" className="size-[6px] shrink-0 rounded-full bg-muted-foreground" />
-          Signed value of the {activeProjects} projects still in delivery
-        </div>
-      </div>
+          `total_contract_value` figure. The B-MIN-3 source micro-line (the `vs` sub) keeps the scope
+          honest without forking the headline term. */}
+      <KPITile
+        testId="mobile-kpi-total-contract-value"
+        tone="amber"
+        icon="grid"
+        label="Total contract value"
+        value={formatCurrency(activeContractValue)}
+        vs={`Signed value of the ${activeProjects} projects still in delivery`}
+      />
     </div>
   );
 };

@@ -24,7 +24,6 @@ import React from 'react';
 import {
   Kanban,
   KanbanColumn,
-  KanbanCard,
   KanbanStageIndicator,
   StatusPill,
   type KanbanStageItem,
@@ -32,7 +31,8 @@ import {
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { pillVariantForProjectStatus, projectIconColor } from './projects';
+import { pillVariantForProjectStatus } from './projects';
+import ProjectCardShell from './ProjectCardShell';
 
 // ---------------------------------------------------------------------------
 // Column definitions — lifecycle order, DESIGN.md tokens for dot colors.
@@ -95,7 +95,9 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
 
 // ---------------------------------------------------------------------------
 // ProjectKanbanCard — a single project card in the kanban view.
-// Mirrors ProjectCard fields: name, customer, PM, contract value, status pill.
+// Renders the canonical ProjectCardShell (CW-3b, `kanban` variant) — the SAME
+// visual vocabulary as the cards-view and Sales board. Delivery-lens content:
+// contract value + status pill + PM, with the column status as the head slot.
 // ---------------------------------------------------------------------------
 
 interface ProjectKanbanCardProps {
@@ -106,38 +108,24 @@ interface ProjectKanbanCardProps {
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const initial = (project.name.trim().charAt(0) || '•').toUpperCase();
   return (
-    <KanbanCard onActivate={onActivate} aria-label={project.name}>
-      <div className="mb-2 flex items-start gap-2">
-        <span
-          aria-hidden
-          className="grid size-[26px] shrink-0 place-items-center rounded-md text-[12px] font-bold text-white"
-          style={{ background: projectIconColor() }}
-        >
-          {initial}
-        </span>
-        <div className="min-w-0 flex-1">
-          {/* No inner button — the KanbanCard (role="button") is the single
-              activation target (a11y: avoids a button nested in role=button). */}
-          <div
-            className="block max-w-full truncate text-[13px] font-semibold text-foreground"
-            title={project.name}
-          >
-            {project.name}
-          </div>
-          <div className="truncate text-[12px] text-muted-foreground">
-            {project.client?.name ?? '—'}
-          </div>
-        </div>
-      </div>
-
-      <div className="text-[12px] font-bold tabular">{formatCurrency(project.contract_value)}</div>
-
-      <div className="mt-2 flex items-center justify-between border-t border-border/70 pt-2">
+    <ProjectCardShell
+      variant="kanban"
+      initial={initial}
+      name={project.name}
+      client={project.client?.name ?? null}
+      status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
           {project.status}
         </StatusPill>
-        {project.pm?.full_name && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+      }
+      body={
+        <div className="text-[12px] font-bold tabular">
+          {formatCurrency(project.contract_value)}
+        </div>
+      }
+      foot={
+        project.pm?.full_name ? (
+          <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
             <span
               aria-hidden
               className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
@@ -146,9 +134,10 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
             </span>
             <span className="max-w-[14ch] truncate">{project.pm.full_name}</span>
           </span>
-        )}
-      </div>
-    </KanbanCard>
+        ) : undefined
+      }
+      onOpen={onActivate}
+    />
   );
 };
 

@@ -2,7 +2,8 @@ import React from 'react';
 import { StatusPill, ProgressBar } from '@/src/components/ui';
 import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { pillVariantForProjectStatus, projectIconColor } from './projects';
+import { pillVariantForProjectStatus } from './projects';
+import ProjectCardShell from './ProjectCardShell';
 import ProjectStatusControl from './ProjectStatusControl';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 
@@ -15,12 +16,13 @@ export interface ProjectCardProps {
 }
 
 /**
- * Index Cards-view card (IA-3). The Flat-By-Default Rule: a 1px border defines
- * the card at rest; a `state-lift` shadow appears only on interactive hover (no
- * static shadow, no legacy top colored-border strip — status lives in the
- * StatusPill: dot + text, color-not-only). The project name is the real
- * focusable activation target; the inline ProjectStatusControl (AC-1011's
- * win-transition RPC) is preserved and stops propagation so it never drills.
+ * Index Cards-view card (IA-3). Renders the canonical ProjectCardShell (CW-3b) in
+ * the `grid` variant — the SAME visual vocabulary used by the Projects kanban and
+ * Sales pipeline boards. The Flat-By-Default Rule (1px border at rest, hover-lift
+ * only on interaction), the icon/name/status head, and the PM foot all live in the
+ * shell; this card supplies the DELIVERY-lens body (Contract/Committed/Actual +
+ * utilization bars) and the inline ProjectStatusControl (AC-1011's win-transition
+ * RPC), which stops propagation so it never drills.
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary }) => {
   const contract = project.contract_value ?? 0;
@@ -30,41 +32,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const actualPct = contract > 0 ? (actual / contract) * 100 : 0;
   const initial = (project.pm?.full_name?.trim().charAt(0) ?? '?').toUpperCase();
 
-  return (
-    <div
-      data-testid="project-card"
-      className="flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]"
-    >
-      {/* Head: icon + name/customer + status */}
-      <div className="flex items-start gap-2.5">
-        <span
-          aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
-          style={{ background: projectIconColor() }}
-        >
-          {(project.name.trim().charAt(0) || '•').toUpperCase()}
-        </span>
-        <div className="min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={() => onOpen(project)}
-            className="block max-w-full truncate text-left text-sm font-semibold text-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title={project.name}
-          >
-            {project.name}
-          </button>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <span className="truncate">{project.client?.name ?? '—'}</span>
-            {project.code && (
-              <span className="shrink-0 font-mono text-[11px]">· {project.code}</span>
-            )}
-          </div>
-        </div>
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
-        </StatusPill>
-      </div>
-
+  const body = (
+    <>
       {/* Body: money rows */}
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
@@ -127,36 +96,57 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         </div>
       )}
 
-      {/* Foot: PM + inline status control */}
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-3">
-        <span className="flex min-w-0 items-center gap-2 text-[12px]">
-          <span
-            aria-hidden
-            className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
-          >
-            {initial}
-          </span>
-          <span className="truncate text-muted-foreground">
-            {project.pm?.full_name ?? 'Unassigned'}
-          </span>
-        </span>
-        <div onClick={(e) => e.stopPropagation()}>
-          <ProjectStatusControl
-            project={{
-              id: project.id,
-              status: project.status as ProjectStatus,
-              customer_contract_ref: project.customer_contract_ref,
-            }}
-          />
-        </div>
-      </div>
-
       {project.customer_contract_ref && (
         <div className="truncate font-mono text-[11px] text-muted-foreground" title={project.customer_contract_ref}>
           {project.customer_contract_ref}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  // Foot: PM + inline status control. The control stops propagation so the inline
+  // win-transition RPC never drills into the record.
+  const foot = (
+    <>
+      <span className="flex min-w-0 items-center gap-2 text-[12px]">
+        <span
+          aria-hidden
+          className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
+        >
+          {initial}
+        </span>
+        <span className="truncate text-muted-foreground">
+          {project.pm?.full_name ?? 'Unassigned'}
+        </span>
+      </span>
+      <div onClick={(e) => e.stopPropagation()}>
+        <ProjectStatusControl
+          project={{
+            id: project.id,
+            status: project.status as ProjectStatus,
+            customer_contract_ref: project.customer_contract_ref,
+          }}
+        />
+      </div>
+    </>
+  );
+
+  return (
+    <ProjectCardShell
+      variant="grid"
+      initial={(project.name.trim().charAt(0) || '•').toUpperCase()}
+      name={project.name}
+      client={project.client?.name ?? null}
+      code={project.code}
+      status={
+        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
+          {project.status}
+        </StatusPill>
+      }
+      body={body}
+      foot={foot}
+      onOpen={() => onOpen(project)}
+    />
   );
 };
 
