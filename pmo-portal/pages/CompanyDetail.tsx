@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
@@ -6,12 +6,14 @@ import {
   CardHead,
   CardPad,
   Button,
+  Icon,
   StatusPill,
   ListState,
   ConfirmDialog,
   AccessDenied,
   EntityFormModal,
   TextField,
+  TextArea,
   SelectField,
   FormSection,
   FormGrid,
@@ -26,10 +28,16 @@ import {
   useProjectsByClient,
   useProcurementsByVendor,
 } from '@/src/hooks/useCompanies';
-import { useContactsByCompany } from '@/src/hooks/useContacts';
+import {
+  useContactsByCompany,
+  useCompanyActivities,
+  useContactMutations,
+} from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { companyTypeVariant, workflowVariant } from '@/src/lib/status/statusVariants';
+import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type { CrmActivityKind, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import type { ContactInput } from '@/src/lib/db/contacts';
 
 /**
  * CompanyDetail — the routable `/companies/:id` master-data record page (CW-4b).
@@ -41,11 +49,24 @@ import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
  * Edit/Archive action zone), a `BackBar` "Back to Companies", read-only field sections with
  * edit-in-modal, and the FR-CRM-008 Contacts list moved off the retired drawer onto the page.
  * RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for clarity.
+ *
+ * JTBD T14: in-context "Add contact" in the Contacts card head — opens the contact create modal
+ * with company_id pre-filled + locked (the user is already on a company page).
+ * JTBD T15/T16w3: Contacts section shows a proper error state (not "No contacts yet") on fetch error.
+ * JTBD T17: Account activity timeline — aggregates crm_activities across all company contacts.
+ * JTBD T18: Primary-contact link on the account card + related projects (RelatedList already renders).
  */
 const TYPE_OPTIONS = [
   { value: 'Client', label: 'Client' },
   { value: 'Vendor', label: 'Vendor' },
   { value: 'Internal', label: 'Internal' },
+];
+
+const KIND_OPTIONS = [
+  { value: 'Call', label: 'Call' },
+  { value: 'Email', label: 'Email' },
+  { value: 'Meeting', label: 'Meeting' },
+  { value: 'Note', label: 'Note' },
 ];
 
 const CompanyDetail: React.FC = () => {
@@ -59,6 +80,8 @@ const CompanyDetail: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // T14: "Add contact" modal state
+  const [addContactOpen, setAddContactOpen] = useState(false);
 
   // Master-data directory access = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○.
   // The rail hides Companies for an Engineer but the ROUTE does not — so an Engineer reaching
@@ -67,6 +90,7 @@ const CompanyDetail: React.FC = () => {
   const canView = may('view', 'company');
   const canEdit = may('edit', 'company');
   const canArchive = may('archive', 'company');
+  const canCreateContact = may('create', 'contact');
 
   const goBack = () => navigate('/companies');
 
@@ -185,6 +209,8 @@ const CompanyDetail: React.FC = () => {
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field label="Name" value={company.name} />
             <Field label="Type" value={company.type} />
+            {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
+            <PrimaryContactField companyId={company.id} />
           </dl>
         </CardPad>
       </Card>
@@ -196,13 +222,43 @@ const CompanyDetail: React.FC = () => {
         <RelatedProcurement companyId={company.id} />
       )}
 
-      {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer. */}
+      {/* T17: Account-level activity timeline — aggregated across all company contacts. */}
+      <AccountActivityCard companyId={company.id} />
+
+      {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
+          T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
       <Card>
-        <CardHead>Contacts</CardHead>
+        <CardHead className="flex items-center justify-between">
+          <span>Contacts</span>
+          {canCreateContact && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddContactOpen(true)}
+            >
+              <Icon name="plus" />
+              Add contact
+            </Button>
+          )}
+        </CardHead>
         <CardPad>
           <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
+
+      {/* T14: Add contact modal — company_id pre-filled and locked. */}
+      {addContactOpen && (
+        <AddContactForCompanyModal
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setAddContactOpen(false)}
+          onSuccess={() => {
+            setAddContactOpen(false);
+            toast('Contact created', '', 'success');
+          }}
+          onError={onMutationError}
+        />
+      )}
 
       {/* Edit modal — reuses the shared create/edit form. */}
       {editOpen && (
@@ -242,6 +298,34 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dd className="text-[13.5px] text-foreground">{value}</dd>
   </div>
 );
+
+// ── T18: Primary contact field ─────────────────────────────────────────────────
+
+/**
+ * AC-CRM-CD-08: renders a "Primary contact" link in the account card when the company
+ * has at least one contact. Uses the first contact from useContactsByCompany (sorted
+ * alphabetically by the DAL). Absent when there are no contacts.
+ */
+const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending } = useContactsByCompany(companyId);
+  if (isPending || !data || data.length === 0) return null;
+  const primary = data[0];
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        Primary contact
+      </dt>
+      <dd className="text-[13.5px] text-foreground">
+        <Link
+          to={`/contacts/${primary.id}`}
+          className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {primary.full_name}
+        </Link>
+      </dd>
+    </div>
+  );
+};
 
 // ── RelatedList — shared presentational component for related-object lists ───
 //
@@ -367,20 +451,34 @@ const RelatedProcurement: React.FC<{ companyId: string }> = ({ companyId }) => {
 };
 
 /**
- * FR-CRM-008: read-only contacts list for the company record page. Consumes the pre-wired
- * `useContactsByCompany` hook (AC-CRM-021) — handles loading, empty, and populated states.
- * No write affordances here (YAGNI; the Contacts page owns create/edit/archive). Each row
- * links to the routable `/contacts/:id` page (CW-4b — the master-data graph is now navigable).
+ * FR-CRM-008: read-only contacts list for the company record page.
+ *
+ * T15/T16w3: Shows an error state (not the misleading "No contacts yet") when the
+ * fetch fails, with a Retry action. Consumes the pre-wired `useContactsByCompany` hook
+ * (AC-CRM-021) — handles loading, empty, error, and populated states. Each row links
+ * to the routable `/contacts/:id` page (CW-4b — the master-data graph is navigable).
  */
 const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => {
   const navigate = useNavigate();
-  const { data, isPending } = useContactsByCompany(companyId);
+  const { data, isPending, isError, refetch } = useContactsByCompany(companyId);
 
   if (isPending) {
     return (
       <p role="status" aria-label="Loading contacts" className="text-[13px] text-muted-foreground">
         Loading…
       </p>
+    );
+  }
+
+  // T15/T16w3: on fetch error, show the error state (not "No contacts yet").
+  if (isError) {
+    return (
+      <ListState
+        variant="error"
+        title="Couldn't load contacts"
+        sub="Something went wrong. Try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 
@@ -406,6 +504,345 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
         </li>
       ))}
     </ul>
+  );
+};
+
+// ── T17: Account activity timeline ────────────────────────────────────────────
+
+const formatOccurred = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+/**
+ * T17: Account-level activity timeline card. Aggregates crm_activities across ALL of
+ * this company's contacts client-side (fan-in via useCompanyActivities). Includes a
+ * gated "Log activity" form — since crm_activities.contact_id is NOT NULL, the form
+ * requires/defaults to a contact of this company.
+ */
+const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const may = usePermission();
+  const { toast } = useToast();
+  const { data: contacts, isPending: contactsPending } = useContactsByCompany(companyId);
+  const contactList = useMemo(() => contacts ?? [], [contacts]);
+  const contactIds = useMemo(() => contactList.map((c) => c.id), [contactList]);
+
+  const { data, isPending, isError, refetch } = useCompanyActivities(contactIds);
+  const { logActivity } = useContactMutations();
+  const canLog = may('create', 'contactActivity');
+
+  const activities = data ?? [];
+
+  // Log-activity form state
+  const [kind, setKind] = useState<CrmActivityKind>('Call');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  // When there's more than one contact the user must pick; with a single contact we
+  // pre-populate and hide the selector.
+  const [selectedContactId, setSelectedContactId] = useState<string>('');
+
+  // When contactList changes, auto-select the first contact if there's only one.
+  const effectiveContactId = contactList.length === 1 ? contactList[0].id : selectedContactId;
+
+  const contactOptions = useMemo(
+    () => contactList.map((c) => ({ value: c.id, label: c.full_name })),
+    [contactList],
+  );
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if ((!subject.trim() && !body.trim()) || !effectiveContactId) return;
+    const input: CrmActivityInput = {
+      contact_id: effectiveContactId,
+      kind,
+      subject: subject.trim() || null,
+      body: body.trim() || null,
+      occurred_at: new Date().toISOString(),
+      company_id: companyId,
+      project_id: null,
+    };
+    try {
+      await logActivity.mutateAsync(input);
+      toast('Activity logged', subject.trim() || kind, 'success');
+      setSubject('');
+      setBody('');
+      setKind('Call');
+      setSelectedContactId('');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  // Don't render the card until we know if there are any contacts (to avoid a flash).
+  if (contactsPending) return null;
+
+  // If the company has no contacts yet, skip the activity section entirely — there's
+  // nobody to log activity against.
+  if (contactList.length === 0 && activities.length === 0) return null;
+
+  return (
+    <Card className="mb-4">
+      <CardHead>Activity</CardHead>
+      <CardPad>
+        {/* Log-activity form (gated by contactActivity create permission) */}
+        {canLog && contactList.length > 0 && (
+          <form
+            onSubmit={onSubmit}
+            className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3"
+          >
+            <FormGrid>
+              <SelectField
+                label="Activity type"
+                value={kind}
+                onChange={(v) => setKind(v as CrmActivityKind)}
+                options={KIND_OPTIONS}
+              />
+              {/* Contact selector: shown only when there are multiple contacts */}
+              {contactList.length > 1 && (
+                <SelectField
+                  label="Contact"
+                  value={selectedContactId}
+                  onChange={setSelectedContactId}
+                  options={[{ value: '', label: 'Select a contact…' }, ...contactOptions]}
+                />
+              )}
+              <TextField
+                label="Subject"
+                value={subject}
+                onChange={setSubject}
+                placeholder="e.g. Kickoff call"
+              />
+            </FormGrid>
+            <TextArea
+              label="Notes"
+              value={body}
+              onChange={setBody}
+              rows={2}
+              fullWidth
+              placeholder="What was discussed?"
+            />
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={logActivity.isPending}
+                disabled={(!subject.trim() && !body.trim()) || !effectiveContactId}
+              >
+                Log activity
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {isPending && <ListState variant="loading" rows={3} />}
+
+        {!isPending && isError && (
+          <ListState
+            variant="error"
+            title="Couldn't load activity"
+            sub="The request failed. Try again."
+            onRetry={() => refetch()}
+          />
+        )}
+
+        {!isPending && !isError && activities.length === 0 && (
+          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+            No activity logged yet.
+          </p>
+        )}
+
+        {!isPending && !isError && activities.length > 0 && (
+          <ol data-testid="account-activity-timeline" className="flex flex-col gap-3">
+            {activities.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
+                  <span className="text-[11px] text-muted-foreground">
+                    {formatOccurred(a.occurred_at)}
+                  </span>
+                </div>
+                {a.subject && (
+                  <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                )}
+                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardPad>
+    </Card>
+  );
+};
+
+// ── T14: Add contact from CompanyDetail ───────────────────────────────────────
+
+interface AddContactFormValues {
+  full_name: string;
+  title: string;
+  email: string;
+  phone: string;
+  notes: string;
+}
+
+const addContactValidate = (v: AddContactFormValues): Partial<Record<keyof AddContactFormValues, string>> => {
+  const errors: Partial<Record<keyof AddContactFormValues, string>> = {};
+  if (!v.full_name.trim()) errors.full_name = 'Contact name is required.';
+  return errors;
+};
+
+interface AddContactForCompanyModalProps {
+  companyId: string;
+  companyName: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  onError: (err: unknown) => void;
+}
+
+/**
+ * T14: Contact create modal launched from CompanyDetail. The company_id is pre-filled
+ * from the current company and the field is disabled so the user cannot change it.
+ * The company name is shown as a locked read-only display.
+ */
+const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
+  companyId,
+  companyName,
+  onClose,
+  onSuccess,
+  onError,
+}) => {
+  const { create } = useContactMutations();
+  const form = useEntityForm<AddContactFormValues>({
+    initialValues: {
+      full_name: '',
+      title: '',
+      email: '',
+      phone: '',
+      notes: '',
+    },
+    validate: addContactValidate,
+    idPrefix: 'add-contact-form',
+    requiredFields: ['full_name'],
+  });
+
+  const nameField = form.fieldProps('full_name');
+  const titleField = form.fieldProps('title');
+  const emailField = form.fieldProps('email');
+  const phoneField = form.fieldProps('phone');
+  const notesField = form.fieldProps('notes');
+
+  const errorSummary = form.errors.full_name
+    ? [{ fieldId: nameField.id, message: form.errors.full_name }]
+    : undefined;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void form.handleSubmit(async (values) => {
+      const input: ContactInput = {
+        company_id: companyId,
+        full_name: values.full_name.trim(),
+        title: values.title.trim() || null,
+        email: values.email.trim() || null,
+        phone: values.phone.trim() || null,
+        notes: values.notes.trim() || null,
+      };
+      try {
+        await create.mutateAsync(input);
+        onSuccess();
+      } catch (err) {
+        onError(err);
+      }
+    });
+  };
+
+  return (
+    <EntityFormModal
+      open
+      title="New contact"
+      subtitle="Add a person at this company"
+      submitLabel="Create contact"
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      loading={form.isSubmitting}
+      dirty={form.isDirty}
+      submitDisabled={!form.isComplete}
+      errorSummary={errorSummary}
+    >
+      <FormSection legend="Identity">
+        <FormGrid>
+          <TextField
+            id={nameField.id}
+            label="Full name"
+            required
+            value={nameField.value}
+            onChange={nameField.onChange}
+            onBlur={nameField.onBlur}
+            error={nameField.error}
+            placeholder="e.g. Jane Doe"
+            autoComplete="name"
+            fullWidth
+          />
+          {/* Company is locked — display as a read-only select so the accessible name "Company"
+              is present and the value is visually clear. The select is disabled so the user
+              cannot change it. A hidden option carries the companyId for the form value. */}
+          <SelectField
+            id="add-contact-form-company"
+            label="Company"
+            required
+            value={companyId}
+            onChange={() => { /* locked */ }}
+            options={[{ value: companyId, label: companyName }]}
+            disabled
+          />
+          <TextField
+            id={titleField.id}
+            label="Title"
+            value={titleField.value}
+            onChange={titleField.onChange}
+            onBlur={titleField.onBlur}
+            placeholder="e.g. Procurement Lead"
+          />
+        </FormGrid>
+      </FormSection>
+      <FormSection legend="Contact details">
+        <FormGrid>
+          <TextField
+            id={emailField.id}
+            label="Email"
+            type="email"
+            value={emailField.value}
+            onChange={emailField.onChange}
+            onBlur={emailField.onBlur}
+            placeholder="name@example.com"
+            autoComplete="email"
+          />
+          <TextField
+            id={phoneField.id}
+            label="Phone"
+            value={phoneField.value}
+            onChange={phoneField.onChange}
+            onBlur={phoneField.onBlur}
+            placeholder="e.g. +1 555 010 0000"
+            autoComplete="tel"
+          />
+          <TextArea
+            id={notesField.id}
+            label="Notes"
+            value={notesField.value}
+            onChange={notesField.onChange}
+            onBlur={notesField.onBlur}
+            rows={3}
+            fullWidth
+            placeholder="Anything worth remembering about this contact"
+          />
+        </FormGrid>
+      </FormSection>
+    </EntityFormModal>
   );
 };
 
