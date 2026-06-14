@@ -23,9 +23,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-000000000001','Boundary Client','Client');
 
--- p-edge: EXACTLY 90% committed/budget (spent 900000 of 1000000) — must count under `>=`.
--- p-below: 89.99% (spent 899900 of 1000000) — must NOT count.
+-- p-edge: EXACTLY 90% committed/budget — must count under `>=`.
+--   budget=1,000,000; committed POs sum to 900,000 (an Ordered PO of 900k).
+-- p-below: 89.99% — must NOT count.
+--   budget=1,000,000; committed POs sum to 899,900 (a Paid PO of 899,900).
 -- Both Ongoing Project with positive budget (the active + budget>0 gate).
+-- AC-MONEY-01: now uses committed_spend (Ordered..Paid) not the dead projects.spent column.
 insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, spent, contract_value) values
   ('00690000-0000-0000-0000-000000000020','00690000-0000-0000-0000-000000000001',
    'BND-EDGE','At Exactly 90','Ongoing Project',
@@ -33,6 +36,16 @@ insert into projects (id, org_id, code, name, status, client_id, project_manager
   ('00690000-0000-0000-0000-000000000021','00690000-0000-0000-0000-000000000001',
    'BND-BELOW','Just Below 90','Ongoing Project',
    '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,899900,1500000);
+
+-- AC-MONEY-01: add committed POs so committed_spend matches the old projects.spent oracle.
+-- The stored projects.spent column is no longer read; these POs set the committed basis.
+insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
+  ('00690000-0000-0000-0000-000000000110','00690000-0000-0000-0000-000000000001',
+   'Edge Ordered PO','Ordered',900000,
+   '00690000-0000-0000-0000-000000000020','00690000-0000-0000-0000-0000000000a1'),
+  ('00690000-0000-0000-0000-000000000111','00690000-0000-0000-0000-000000000001',
+   'Below Paid PO','Paid',899900,
+   '00690000-0000-0000-0000-000000000021','00690000-0000-0000-0000-0000000000a1');
 
 -- (D) Drift-guard project: committed POs (Ordered..Paid) sum to 250000, stored projects.spent
 -- set to the same OD-BUDGET-2 committed basis. A Draft PO is excluded from the committed basis.
@@ -52,7 +65,9 @@ set local request.jwt.claims = '{"sub":"00690000-0000-0000-0000-0000000000a1","r
 set local request.jwt.claim.sub = '00690000-0000-0000-0000-0000000000a1';
 
 -- (C) AC-ATRISK-BOUNDARY: a project at EXACTLY 90% committed/budget IS counted (>= boundary).
--- p-edge (90%) counts; p-below (89.99%) does not; the drift-guard project (25%) does not → count = 1.
+-- p-edge (committed 900k/budget 1M = 90%) counts; p-below (committed 899900/budget 1M = 89.99%)
+-- does not; the drift-guard project (committed 250k/budget 1M = 25%) does not → count = 1.
+-- AC-MONEY-01: committed_spend comes from procurements (Ordered..Paid), not projects.spent.
 select is(
   (get_executive_dashboard() ->> 'projects_at_risk')::int,
   1,

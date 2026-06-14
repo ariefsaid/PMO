@@ -278,3 +278,40 @@ describe('OverviewTab T18: Row 2 layout + footer links', () => {
     expect(setTab).toHaveBeenCalledWith('budget');
   });
 });
+
+// ── AC-MONEY-01: OverviewTab D15 financial summary Actual tile ────────────────
+describe('OverviewTab D15 financial summary — Actual tile derives from committedSpend (AC-MONEY-01)', () => {
+  // The D15 financial-summary aside (Engineer view) has its own StatTiles strip
+  // with an "Actual" tile. It must show committedSpend (live basis), not project.spent
+  // (dead stored column, always 0 in production).
+  const deadSpentProject: ProjectWithRefs = {
+    ...project,
+    spent: 0, // as in production
+  } as unknown as ProjectWithRefs;
+
+  const renderFinanceSummary = (committedSpend: number) =>
+    render(
+      <MemoryRouter>
+        <OverviewTab
+          project={deadSpentProject}
+          committedSpend={committedSpend}
+          setTab={vi.fn()}
+          showFinanceSummary={true}
+        />
+      </MemoryRouter>,
+    );
+
+  it('AC-MONEY-01: D15 Actual tile shows committedSpend when project.spent is 0', () => {
+    renderFinanceSummary(3_700_000);
+    // The financial-summary aside is rendered (Engineer view, on-hand project)
+    const aside = screen.getByTestId('financial-summary');
+    expect(aside).toBeInTheDocument();
+    // Find the Actual stat-tile within the financial-summary
+    const tiles = aside.querySelectorAll('[data-testid="stat-tile"]');
+    const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile).toBeTruthy();
+    // Must show the live committed-basis spend, not the dead stored $0
+    expect(actualTile!.textContent).toContain('$3,700,000');
+    expect(actualTile!.textContent).not.toContain('$0');
+  });
+});

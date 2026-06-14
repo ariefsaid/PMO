@@ -298,7 +298,15 @@ const Projects: React.FC = () => {
       key: 'actual',
       header: 'Actual',
       align: 'num',
-      cell: (p) => <span className="text-muted-foreground">{formatCurrency(p.spent)}</span>,
+      // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
+      // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
+      cell: (p) => {
+        const actualSpend = deliverySummary?.[p.id]?.committedSpend;
+        if (deliveryPending || actualSpend == null) {
+          return <span className="text-[12px] text-muted-foreground">…</span>;
+        }
+        return <span className="text-muted-foreground">{formatCurrency(actualSpend)}</span>;
+      },
     },
     {
       key: 'progress',

@@ -61,9 +61,13 @@ const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
   const navigate = useNavigate();
   const contract = project.contract_value ?? 0;
-  const spent = project.spent ?? 0;
   const activeBudget = project.budget ?? 0;
   const committed = committedSpend ?? 0;
+  // AC-MONEY-01: project.spent is a dead stored column (never populated — 0001_init_schema.sql:79).
+  // The "Actual spent" Budget snapshot card uses this value; it will still show $0 until the
+  // Budget snapshot card is separately updated to use committedSpend. The D15 "Actual" StatTile
+  // is fixed here to use the committed-PO basis (same as the header).
+  const spent = project.spent ?? 0;
   const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk. Routes through the
   // shared canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
@@ -82,7 +86,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
     ? [
         { label: 'Contract', value: formatCurrency(contract) },
         { label: 'Committed', value: formatCurrency(committed) },
-        { label: 'Actual', value: formatCurrency(spent) },
+        // AC-MONEY-01: "Actual" = committed-PO basis, not dead projects.spent column.
+        { label: 'Actual', value: formatCurrency(committed) },
         { label: 'On-hand margin', value: signedCurrency(margin), tone: margin < 0 ? 'neg' : 'pos' },
         { label: 'Spend', value: `${spendPctTile}%` },
       ]
