@@ -286,6 +286,24 @@ describe('Companies delete (AC-CO-006)', () => {
   });
 });
 
+describe('Companies — ⌘K deep-link (CW-7)', () => {
+  const renderAt = (path: string) =>
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Companies />
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+
+  it('CW-7: a ?focus=<id> deep-link (from ⌘K) opens that company\'s quick-view drawer', async () => {
+    renderAt('/companies?focus=c2');
+    const drawer = await screen.findByRole('dialog');
+    const labelId = drawer.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelId!)?.textContent).toContain('Steelforge Fabrication');
+  });
+});
+
 describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
   const openDrawer = async (name: string) => {
     // Row activation = the first-cell <button> (rowLabel "View <name>").

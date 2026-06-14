@@ -98,4 +98,38 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     const statusSelect = screen.getByRole('combobox', { name: /change status of review design specs/i });
     expect(statusSelect).toHaveValue('In Progress');
   });
+
+  it('CW-7: the project header deep-links to the project Tasks tab (role-invariant default is Overview)', () => {
+    tasksState.isPending = false;
+    tasksState.isError = false;
+    tasksState.data = [
+      {
+        id: 't1', name: 'Review design specs', status: 'In Progress', assignee_id: 'u-self',
+        project_id: 'p1', project_name: 'Northwind ERP', start_date: null, end_date: null,
+      },
+    ];
+    renderMyTasks();
+    // The Engineer's task entry point carries the deep-link intent, not a role-variant URL.
+    expect(screen.getByRole('link', { name: 'Northwind ERP' })).toHaveAttribute(
+      'href',
+      '/projects/p1/tasks',
+    );
+  });
+
+  it('CW-7: task dates render human-formatted, never raw ISO', () => {
+    tasksState.isPending = false;
+    tasksState.isError = false;
+    tasksState.data = [
+      {
+        id: 't1', name: 'Review design specs', status: 'In Progress', assignee_id: 'u-self',
+        project_id: 'p1', project_name: 'Northwind ERP',
+        start_date: '2026-06-14', end_date: '2026-07-01',
+      },
+    ];
+    renderMyTasks();
+    // Human-formatted (formatDate), and no raw ISO string leaks.
+    expect(screen.getByText(/Start Jun 14, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Due Jul 1, 2026/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/2026-06-14|2026-07-01/);
+  });
 });

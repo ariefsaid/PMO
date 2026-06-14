@@ -4,16 +4,19 @@
  * Wave-0 S1. Answers the exec's three questions in order:
  *   (a) What's on fire? → at-risk block
  *   (b) What's waiting on me? → approvals action band
- *   (c) Is the book healthy? → Contract book (Revenue on hand + Active contract value)
+ *   (c) Is the book healthy? → Contract book (Revenue on hand + Total contract value)
  *
  * Then defers: pipeline below fold, charts single-column.
  *
  * Design tokens: DESIGN.md only. No raw hex / px. Single-render (rendered only
  * when useIsDesktop()=false, so exactly one DOM branch exists).
  *
- * B-MIN-3 fix: the two money tiles are grouped under a "Contract book" overline,
- * each with an explicit source micro-label. "Total contract value" is relabeled
- * "Active contract value" with a source-line explaining the scope.
+ * CW-7 (coherence wave §4): mobile presents the SAME metrics with the SAME LABELS/TERMS as the
+ * desktop ExecutiveDashboard — it is a condensed/reordered REFLOW of the same content, never a
+ * different page. Shared metric labels: "Revenue on hand", "Total contract value", "Active
+ * projects", "Total project spend". The B-MIN-3 grouping (a "Contract book" overline + per-tile
+ * source micro-lines explaining each figure's scope) is retained, but the headline metric terms no
+ * longer fork from desktop.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -134,7 +137,7 @@ const AtRiskBlock: React.FC<{
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-            Spent to date
+            Total project spend
           </span>
           <span className="tabular mt-[3px] block text-[17px] font-bold">
             {formatCurrency(totalSpend)}
@@ -199,7 +202,8 @@ const MobileApprovalsBand: React.FC<{ count: number }> = ({ count }) => {
  * Each has an explicit source micro-label so the asymmetry (revenue includes
  * closed-out work; contract value is active-only) is self-explanatory.
  *
- * Relabels "Total contract value" → "Active contract value" (Director-locked).
+ * CW-7: headline labels match desktop ("Revenue on hand", "Total contract value"); the scope
+ * asymmetry is carried by the source micro-lines, not by forking the term.
  */
 const ContractBook: React.FC<{
   onHandValue: number;
@@ -238,10 +242,14 @@ const ContractBook: React.FC<{
         </div>
       </div>
 
-      {/* Tile 2: Active contract value (B-MIN-3 relabel) */}
+      {/* Tile 2: Total contract value.
+          CW-7 (coherence wave §4): mobile reads the SAME metric LABEL as desktop ("Total contract
+          value", ExecutiveDashboard kpi-total-contract-value) — both render the same active-only
+          `total_contract_value` figure. The B-MIN-3 source micro-line below keeps the scope honest
+          (signed value of the projects still in delivery) without forking the headline term. */}
       <div
-        data-testid="mobile-kpi-active-contract-value"
-        aria-label="Active contract value"
+        data-testid="mobile-kpi-total-contract-value"
+        aria-label="Total contract value"
         className="mt-[10px] rounded-lg border border-border bg-card p-[14px]"
       >
         <div className="flex items-center gap-[9px]">
@@ -252,7 +260,7 @@ const ContractBook: React.FC<{
             <Icon name="grid" />
           </span>
           <span className="text-[12px] font-semibold text-muted-foreground">
-            Active contract value
+            Total contract value
           </span>
         </div>
         <div className="tabular mt-[9px] text-[23px] font-bold leading-tight">

@@ -352,9 +352,13 @@ const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => (
       // An honest disabled affordance with a reason, never a button that opens a dead-end
       // "coming soon" modal (matches the Documents "Attach file" deferred pattern). A disabled
       // button doesn't fire hover/focus, so the tooltip wraps a span that does.
-      <Tooltip content="Inviting users arrives with server-side auth">
-        <span className="inline-flex">
-          <Button variant="primary" disabled aria-label="New user (coming soon)">
+      <Tooltip content="User invites arrive soon">
+        {/* CW-7: an honest disabled affordance. A disabled <button> fires no hover/focus, so the
+            hover tooltip alone leaves keyboard/AT/no-hover users with no reason. A static `title`
+            on the wrapping span makes the "why" always discoverable (native hint + AT), so the
+            control is never silently dead. Mirrors the app's honest-disabled pattern. */}
+        <span className="inline-flex" title="User invites arrive soon">
+          <Button variant="primary" disabled aria-label="New user (user invites arrive soon)">
             <Icon name="plus" />
             New user
           </Button>

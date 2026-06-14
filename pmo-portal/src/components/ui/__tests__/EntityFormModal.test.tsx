@@ -142,6 +142,19 @@ describe('EntityFormModal: error summary with focus-move', () => {
     );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('CW-7: a freshly-opened create modal (no errorSummary) shows no "Fix … field" banner and a disabled submit', () => {
+    // Standard: a pristine modal never shows the red error banner; its submit reflects the
+    // completeness gate (here required-but-blank → disabled). No eager validation on open.
+    render(
+      <EntityFormModal {...baseProps} submitDisabled>
+        <TextField id="cw7-name" label="Name" value="" onChange={() => {}} />
+      </EntityFormModal>,
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create deal/i })).toBeDisabled();
+  });
 });
 
 describe('EntityFormModal: dirty-discard confirm', () => {

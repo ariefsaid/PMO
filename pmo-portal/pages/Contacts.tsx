@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
@@ -21,7 +21,7 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useContacts, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
@@ -95,6 +95,25 @@ const Contacts: React.FC = () => {
   );
 
   const all = useMemo(() => data ?? [], [data]);
+
+  // CW-7: ⌘K deep-link interim. A `?focus=<id>` param (set by the command palette until the
+  // `/contacts/:id` page lands, plan §4) opens that record's quick-view drawer once the list is
+  // loaded, then clears the param. RLS already scoped the cache; an unseeable id finds no row.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = searchParams.get('focus');
+  useEffect(() => {
+    if (!focusId || !canView) return;
+    const match = all.find((c) => c.id === focusId);
+    if (match) setDrawerContact(match);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('focus');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [focusId, all, canView, setSearchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

@@ -142,6 +142,15 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
   });
 
+  it('CW-7: a zero/missing-budget project renders an em-dash, never literal NaN% or $NaN', () => {
+    // Seed p2/p3 carry budget 0 (zero-divide) — the budget-used cell must guard the math.
+    renderPage();
+    // No NaN leaks anywhere on the rendered index.
+    expect(document.body.textContent).not.toMatch(/NaN/);
+    // The zero-budget rows fall back to a muted em-dash in the Budget used column.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+
   it('AC-NAV-006: navigates to the project detail route when a row is activated (no tab)', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Innovate Corp HQ Fit-Out'));

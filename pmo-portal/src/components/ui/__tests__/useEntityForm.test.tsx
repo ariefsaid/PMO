@@ -46,6 +46,31 @@ describe('useEntityForm: value + dirty tracking', () => {
   });
 });
 
+describe('CW-7: pristine-form contract (no eager validation; consistent submit gate)', () => {
+  it('CW-7: a freshly-opened form surfaces NO errors on a pristine, untouched form', () => {
+    // The standard: validation errors appear only after a field is touched OR submit is
+    // attempted — never eagerly on a pristine form (no "Fix 1 field" banner on open).
+    const { result } = renderHook(() =>
+      useEntityForm({ initialValues: init, validate, requiredFields: ['name'] }),
+    );
+    expect(result.current.errors).toEqual({});
+    expect(result.current.touched).toEqual({});
+  });
+
+  it('CW-7: submit gate is consistent — disabled (isComplete=false) while a required field is blank', () => {
+    // Every EntityFormModal form wires submitDisabled={!isComplete}; on a pristine create form
+    // with a blank required field that gate is consistently CLOSED (submit disabled).
+    const { result } = renderHook(() =>
+      useEntityForm({ initialValues: init, validate, requiredFields: ['name'] }),
+    );
+    expect(result.current.isComplete).toBe(false);
+    // Filling the required field opens the gate (submit enabled) — still no eager error before blur.
+    act(() => result.current.setValue('name', 'Harborside'));
+    expect(result.current.isComplete).toBe(true);
+    expect(result.current.errors).toEqual({});
+  });
+});
+
 describe('useEntityForm: validate-on-blur (not per keystroke)', () => {
   it('does NOT surface an error on setValue alone', () => {
     const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));

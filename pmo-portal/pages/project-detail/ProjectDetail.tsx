@@ -41,15 +41,17 @@ const TABS: TabItem<PTab>[] = [
  * error with a Back action.
  */
 /** Resolve the active tab from the URL :tab param (B-9, AC-W2-IA-004). All five
- *  tabs are now deep-linkable symmetrically; unknown values default to the role-aware default.
+ *  tabs are now deep-linkable symmetrically; an absent/unknown value defaults to Overview.
  *
- *  OD-W5-C3-A: when no explicit :tab param is present, delivery-forward roles (Engineer,
- *  i.e. !hasFinanceView) default to 'tasks' — the surface they primarily use. Finance-forward
- *  roles (Admin·Exec·Finance·PM) keep the 'overview' default. An explicit :tab always wins. */
+ *  CW-7 (coherence wave §3): `/projects/:id` ALWAYS defaults to Overview for EVERY role — the URL
+ *  is role-invariant (a role-variant default was a wayfinding bug: the same link landed PM/Admin on
+ *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
+ *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
+ *  :tab param always wins (every tab stays deep-linkable). */
 const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'documents'];
-function tabFromParam(param: string | undefined, isDeliveryForward: boolean): PTab {
+function tabFromParam(param: string | undefined): PTab {
   if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
-  return isDeliveryForward ? 'tasks' : 'overview';
+  return 'overview';
 }
 
 const ProjectDetail: React.FC = () => {
@@ -87,11 +89,13 @@ const ProjectDetail: React.FC = () => {
     } as ProjectWithRefs;
   }, [cached, opp]);
 
-  // B-9 (AC-W2-IA-004): tab derived from URL param; defaults to the role-aware default for
-  // unknown/absent values. OD-W5-C3-A: delivery-forward roles (Engineer) default to 'tasks';
-  // finance-forward roles keep 'overview'. An explicit :tab param always wins (deep-link).
+  // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
+  // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
+  const tab = tabFromParam(tabParam);
+  // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
+  // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
+  // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
   const isDeliveryForward = !hasFinanceView(realRole);
-  const tab = tabFromParam(tabParam, isDeliveryForward);
   const setTab = (next: PTab) => navigate(`/projects/${projectId}/${next}`, { replace: true });
 
   // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The

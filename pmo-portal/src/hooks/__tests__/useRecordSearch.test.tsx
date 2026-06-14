@@ -33,9 +33,27 @@ const { state } = vi.hoisted(() => ({
   },
 }));
 
+// Companies + Contacts cached-list holders (added so ⌘K indexes master data — CW-7).
+const { stateCC } = vi.hoisted(() => ({
+  stateCC: {
+    companies: { data: undefined, isPending: false, isError: false } as {
+      data: unknown;
+      isPending: boolean;
+      isError: boolean;
+    },
+    contacts: { data: undefined, isPending: false, isError: false } as {
+      data: unknown;
+      isPending: boolean;
+      isError: boolean;
+    },
+  },
+}));
+
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => stateCC.companies }));
+vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => stateCC.contacts }));
 
 import { useRecordSearch, rankRecords } from '../useRecordSearch';
 
@@ -46,6 +64,8 @@ beforeEach(() => {
   state.projects = { data: undefined, isPending: false, isError: false };
   state.procurements = { data: undefined, isPending: false, isError: false };
   state.pipeline = { data: undefined, isPending: false, isError: false };
+  stateCC.companies = { data: undefined, isPending: false, isError: false };
+  stateCC.contacts = { data: undefined, isPending: false, isError: false };
 });
 
 describe('useRecordSearch — index of the 3 cached lists', () => {
@@ -109,10 +129,43 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(result.current.isError).toBe(true);
   });
 
+  // CW-7: ⌘K must index master data (Companies + Contacts), not just projects/procurement —
+  // searching a company/contact name returned nothing before this fix.
+  it('CW-7: indexes companies → /companies (deep-link to the record) with the right sub-label', () => {
+    stateCC.companies = {
+      data: [{ id: 'co1', name: 'Innovate Corp', type: 'Client' }],
+      isPending: false,
+      isError: false,
+    };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const co = result.current.records.find((r) => r.title === 'Innovate Corp');
+    expect(co).toBeDefined();
+    expect(co!.group).toBe('Records');
+    expect(co!.sub).toBe('Company');
+    co!.run();
+    expect(navigate).toHaveBeenCalledWith('/companies?focus=co1');
+  });
+
+  it('CW-7: indexes contacts → /contacts (deep-link to the record) with the right sub-label', () => {
+    stateCC.contacts = {
+      data: [{ id: 'ct1', full_name: 'Dana Buyer', company_id: 'co1' }],
+      isPending: false,
+      isError: false,
+    };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const ct = result.current.records.find((r) => r.title === 'Dana Buyer');
+    expect(ct).toBeDefined();
+    expect(ct!.sub).toBe('Contact');
+    ct!.run();
+    expect(navigate).toHaveBeenCalledWith('/contacts?focus=ct1');
+  });
+
   it('returns no records (empty index) when all lists are empty', () => {
     state.projects = { data: [], isPending: false, isError: false };
     state.procurements = { data: [], isPending: false, isError: false };
     state.pipeline = { data: { stages: [], projects: [] }, isPending: false, isError: false };
+    stateCC.companies = { data: [], isPending: false, isError: false };
+    stateCC.contacts = { data: [], isPending: false, isError: false };
     const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.records).toHaveLength(0);
   });

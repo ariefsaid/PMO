@@ -1,9 +1,11 @@
 /**
- * AC-IXD-PROJ-W5-C3-A — Default-tab wiring (OD-W5-C3-A).
+ * AC-IXD-PROJ-W5-C3-A — Default-tab wiring.
  *
- * Delivery-forward roles (Engineer) open /projects/:id (no tab param) on the Tasks tab — the
- * surface they actually use. Finance-forward roles (Admin, Executive, Finance, Project Manager)
- * default to Overview. An explicit :tab URL param (deep-link) always wins for every role.
+ * CW-7 (coherence wave §3, supersedes OD-W5-C3-A's role-adaptive default): `/projects/:id` (no tab
+ * param) ALWAYS defaults to **Overview** for EVERY role — the URL is role-invariant (a role-variant
+ * default was a wayfinding bug). The Engineer's task entry points deep-link to `/projects/:id/tasks`
+ * explicitly (see MyTasks) rather than mutating the default. An explicit :tab URL param (deep-link)
+ * always wins for every role.
  *
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
@@ -109,26 +111,26 @@ const renderAs = (realRole: Role, path: string) =>
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('AC-IXD-PROJ-W5-C3-A: role-adaptive default tab (OD-W5-C3-A)', () => {
-  // ── Engineer defaults to Tasks (the delivery-forward role's primary surface) ──
+describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W5-C3-A)', () => {
+  // ── CW-7: Engineer now ALSO defaults to Overview — the URL is role-invariant ──
 
-  it('AC-IXD-PROJ-W5-C3-A-01: Engineer opening /projects/:id (no tab) lands on the Tasks tab', () => {
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-01): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', () => {
     renderAs('Engineer', '/projects/p1');
-    expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-02: the Tasks tab item is aria-selected=true for Engineer (no tab param)', () => {
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview tab item is aria-selected=true for Engineer (no tab param)', () => {
     renderAs('Engineer', '/projects/p1');
     const tablist = screen.getByRole('tablist', { name: /project sections/i });
-    const tasksTab = Array.from(tablist.querySelectorAll('[role="tab"]')).find(
-      (t) => t.textContent === 'Tasks',
+    const overviewTab = Array.from(tablist.querySelectorAll('[role="tab"]')).find(
+      (t) => t.textContent === 'Overview',
     );
-    expect(tasksTab).not.toBeUndefined();
-    expect(tasksTab!.getAttribute('aria-selected')).toBe('true');
+    expect(overviewTab).not.toBeUndefined();
+    expect(overviewTab!.getAttribute('aria-selected')).toBe('true');
   });
 
-  // ── Finance-forward roles default to Overview ──────────────────────────────
+  // ── All other roles ALSO default to Overview (unchanged) ───────────────────
 
   it('AC-IXD-PROJ-W5-C3-A-03: Project Manager opening /projects/:id (no tab) lands on Overview', () => {
     renderAs('Project Manager', '/projects/p1');

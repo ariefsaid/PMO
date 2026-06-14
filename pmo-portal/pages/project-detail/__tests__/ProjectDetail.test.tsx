@@ -17,6 +17,9 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 const committedSpendState = { data: 2_350_000 };
+// CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
+// different role (e.g. Engineer) and assert the role-INVARIANT default tab.
+const { roleBox } = vi.hoisted(() => ({ roleBox: { value: 'Project Manager' as string } }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
@@ -31,11 +34,11 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
 }));
 // ADR-0016: the Budget tab (ProjectBudget) + ProjectStatusControl gate write on the REAL
 // role via usePermission, so the mock supplies realRole (equal to effectiveRole here).
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }) }));
 // Budget tab mounts the real ProjectBudget — stub its data hooks to avoid network.
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -124,6 +127,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.isPending = false;
     projectsState.isError = false;
     committedSpendState.data = 2_350_000;
+    roleBox.value = 'Project Manager';
     navigate.mockClear();
   });
 
@@ -134,6 +138,16 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     // Overview content (real): project information card
     expect(screen.getByText('Project information')).toBeInTheDocument();
+  });
+
+  it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', () => {
+    // Wayfinding bug fix: the same URL must resolve to the same default tab for every role.
+    // Previously delivery-forward roles (Engineer) landed on Tasks → a role-variant URL.
+    roleBox.value = 'Engineer';
+    renderAt('/projects/p1');
+    const tabs = screen.getByRole('tablist', { name: /project sections/i });
+    expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('passes committed PO spend through to the header and Overview budget utilization', () => {

@@ -123,6 +123,13 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     expect(t2Status.value).toBe('In Progress');
   });
 
+  it('CW-7: the Due column renders the date human-formatted, never raw ISO', () => {
+    renderTab();
+    // t1 carries end_date '2026-06-20' → routed through formatDate (no raw ISO leak).
+    expect(screen.getByText('Jun 20, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('2026-06-20')).not.toBeInTheDocument();
+  });
+
   it('AC-TASK-001: loading state renders the skeleton (no rows)', () => {
     listState.isPending = true;
     listState.data = [];
