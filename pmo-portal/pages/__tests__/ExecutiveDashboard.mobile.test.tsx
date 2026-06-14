@@ -148,6 +148,24 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(within(contractBook).getByTestId('mobile-kpi-total-contract-value')).toBeInTheDocument();
   });
 
+  it('CW-3b: contract-book metrics render the shared KPITile (one tile vocabulary everywhere)', () => {
+    // CW-3b unification: the mobile contract-book money tiles are NOT one-off markup — they render
+    // the canonical KPITile. The shared tile's structure (the 30px tinted icon-tile + the 23px
+    // bold value) is the same molecule the desktop KPI band uses. We assert the canonical tile
+    // chrome: each metric carries the KPITile icon-tile (rounded-lg, size-[30px]) and its testId.
+    mockIsDesktop = false;
+    renderPage();
+    for (const testId of ['mobile-kpi-on-hand', 'mobile-kpi-total-contract-value']) {
+      const tile = screen.getByTestId(testId);
+      // The canonical KPITile head: a size-[30px] tinted icon-tile (grid place-items-center).
+      const iconTile = tile.querySelector('span.size-\\[30px\\]');
+      expect(iconTile, `${testId} should render the shared KPITile icon-tile`).not.toBeNull();
+      // The canonical KPITile value type-scale (23px bold) — the shared tile, not a forked size.
+      const value = tile.querySelector('.text-\\[23px\\]');
+      expect(value, `${testId} should render the shared KPITile value`).not.toBeNull();
+    }
+  });
+
   it('AC-MOBILE-4: B-MIN-3 source-lines are present in the contract book', () => {
     mockIsDesktop = false;
     renderPage();

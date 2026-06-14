@@ -25,6 +25,15 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     }
   });
 
+  it('CW-3b: each deal renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    // The shared shell stamps every card with the canonical `project-card` testid — the SAME
+    // molecule the Projects cards-view and Projects kanban use, so a project looks identical
+    // wherever it appears.
+    const cards = screen.getAllByTestId('project-card');
+    expect(cards).toHaveLength(projects.length);
+  });
+
   it('AC-IXD-PROJ-007: a lost deal lands in the terminal "Lost" column, not the "Won" column', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const lostCol = screen.getByTestId('stage-Lost');

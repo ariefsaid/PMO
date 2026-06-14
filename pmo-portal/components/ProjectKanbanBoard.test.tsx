@@ -85,6 +85,14 @@ const renderBoard = (
 describe('ProjectKanbanBoard', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('CW-3b: each project renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
+    renderBoard();
+    // The shared shell stamps every card with the canonical `project-card` testid — the SAME
+    // molecule the Projects cards-view and Sales pipeline board use.
+    const cards = screen.getAllByTestId('project-card');
+    expect(cards).toHaveLength(projects.length);
+  });
+
   it('AC-PK-001: renders the five lifecycle columns in DOM order (Won → Ongoing → On Hold → Close Out → Internal)', () => {
     renderBoard();
     // Query ALL column wrappers and assert the DOM order matches the lifecycle order —

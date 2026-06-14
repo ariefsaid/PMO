@@ -1,8 +1,9 @@
 import React from 'react';
-import { Kanban, KanbanColumn, KanbanCard, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
+import ProjectCardShell from './ProjectCardShell';
 import {
   SALES_COLUMNS,
   weightedValue,
@@ -19,42 +20,43 @@ interface SalesKanbanBoardProps {
   selectedId?: string;
 }
 
-/** A single deal card (DESIGN.md "Kanban Card" signature). */
+/**
+ * A single deal card — renders the canonical ProjectCardShell (CW-3b, `kanban`
+ * variant), the SAME visual vocabulary as the Projects cards-view and kanban. A
+ * deal IS a project, so it shares ONE card; the PIPELINE-lens content (win
+ * probability + gross/weighted value) rides in the body slot, status in the head.
+ */
 const DealCard: React.FC<{
   project: PipelineProject;
-  dotColor: string;
   selected: boolean;
   onActivate: () => void;
-}> = ({ project, dotColor, selected, onActivate }) => {
+}> = ({ project, selected, onActivate }) => {
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
-    <KanbanCard selected={selected} onActivate={onActivate} aria-label={`Open ${project.name}`}>
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <span
-          aria-hidden
-          className="grid size-[26px] shrink-0 place-items-center rounded-md text-[12px] font-bold text-white"
-          style={{ background: dotColor }}
-        >
-          {initial}
-        </span>
-        <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
-      </div>
-      <div className="line-clamp-2 text-[13px] font-semibold leading-snug" title={project.name}>
-        {project.name}
-      </div>
-      <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
-        {project.client_name ?? '—'}
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-[15px] font-bold tabular">{formatCurrency(project.contract_value)}</span>
-        <span className="text-[11px] text-muted-foreground tabular">
-          {formatCurrency(weightedValue(project))} wtd
-        </span>
-      </div>
-      <div className="mt-2.5 flex items-center justify-between border-t border-border/70 pt-2">
+    <ProjectCardShell
+      variant="kanban"
+      selected={selected}
+      initial={initial}
+      name={project.name}
+      client={project.client_name}
+      status={
         <StatusPill variant={pillVariantForStatus(project.status)}>{project.status}</StatusPill>
-      </div>
-    </KanbanCard>
+      }
+      body={
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[15px] font-bold tabular">
+              {formatCurrency(project.contract_value)}
+            </span>
+            <span className="text-[11px] text-muted-foreground tabular">
+              {formatCurrency(weightedValue(project))} wtd
+            </span>
+          </div>
+          <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+        </div>
+      }
+      onOpen={onActivate}
+    />
   );
 };
 
@@ -132,7 +134,6 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                   <DealCard
                     key={p.id}
                     project={p}
-                    dotColor={col.dotColor}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
                   />
