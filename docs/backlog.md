@@ -141,13 +141,25 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   (Opus + gpt-5.4) JTBD walkthrough on `dev` → [`docs/reviews/2026-06-14-jtbd-walkthrough.md`](reviews/2026-06-14-jtbd-walkthrough.md):
   3 anchors re-confirmed (a HOLDS·Critical, b HOLDS, c PARTIALLY-RESOLVED+re-appears-pre-win), **9
   confirmed intent gaps** (1 Crit / 6 Imp / 2 Min) clustering in 2 classes (dead-display, preview-asymmetry).
-- **▶ NEXT candidate — "intent-fix wave"** (from the JTBD pass §6, owner-triage): (1) procurement
-  **preview-in-place** in `/approvals` (the Critical, anchor a); (2) **dead-display sweep** — make
-  record-naming/exception elements open the record / carry the recovery lever (exec Budget-vs-Actual rows,
-  calendar entries, S-curve lever, incident location, "1 at-risk"); (3) **pre-win record layout**
-  (sales levers first, demote delivery/S-curve until won); (4) company-detail related objects + My-Tasks
-  urgency/log-time; (5) **seed enrichment** — contacts+activity in `seed-demo-solar.sql`. Each is a Lens-D
-  regression candidate (leave a component/e2e invariant).
+- **✅ intent-fix wave — DELIVERED** (branch `intent-fix-wave` → PR to `main`, 2026-06-14; plan
+  `docs/plans/2026-06-14-intent-fix-wave.md`). Closed **all 9 JTBD gaps + all 3 anchors** (render-verified):
+  (1) procurement **preview-in-place** in `/approvals` (the Critical — inline budget preview + Approve/Reject,
+  no drill-in); (2) **dead-display sweep** (exec BvA rows + at-risk link, calendar milestone chips,
+  S-curve→tabs + overdue lever); (3) **pre-win record layout** (sales levers first, S-curve hidden pre-win);
+  (4) company-detail related objects + My-Tasks urgency/log-time; (5) **seed** contacts+activity.
+  Gap #8 (incident→project link) deferred — needs a `project_id` FK (schema), tracked below.
+  Full battery: spec ✅ · security ✅ (RPC+RLS authority intact) · code-quality ✅ (incl. new
+  `procurements_vendor_idx`, **migration 0031**) · rendered Lens-D ✅. **All review Minors fixed (none backlogged)**
+  per owner directive. 10 commits, gates green (2721 tests).
+- **✅ Wave-0 mobile audit (`review/mobile-audit/`) — RECONCILED + CLOSED, 2026-06-14.** 13/18 findings FIXED
+  (render-verified @390), 2 SUPERSEDED by the coherence wave (noun-soup, approvals-duplication), 2 adjudicated
+  non-defects (A-MIN-3, B-MIN-2). The 3 that were "outstanding": **A-MIN-1** (Projects no-op view-toggle
+  visible @390 — a cw5 regression masked by a class-string-only test) **FIXED** in the intent-fix wave
+  (wrapperClassName + test hardened to computed-visibility); **A-MIN-2** (kanban first-scroll affordance)
+  **ADDED** (owner ruling); **B-IMP-3** (timesheet approve confirm on mobile) **kept by design** (owner
+  ruling — consistent with procurement approvals + SoD gravity; thumb-zone already fixed by S5). Ledger now zero-open.
+- **▶ Deferred (small, tracked):** gap #8 — link an incident's `location`/project to `/projects/:id` needs an
+  `incident_reports.project_id` FK + migration; do as a tiny schema issue when convenient.
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project`;
