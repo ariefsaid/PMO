@@ -51,4 +51,32 @@ describe('ViewToggle (segmented control)', () => {
     );
     expect(screen.getByText('4')).toBeInTheDocument();
   });
+
+  it('wrapperClassName wraps the option button without adding display to the button (A-MIN-1 clsx-safe hide)', () => {
+    // This is the fix for A-MIN-1 / AC-MOB-VT-002: optionClassName cannot safely hide an
+    // option because cn() is clsx-only and the base `inline-flex` on the button wins over
+    // `hidden`. wrapperClassName puts the hide on a <span> that has no competing display class.
+    render(
+      <ViewToggle
+        options={[
+          { value: 'table', label: 'Table', wrapperClassName: 'hidden md:block' },
+          { value: 'cards', label: 'Cards' },
+        ]}
+        value="cards"
+        onChange={() => {}}
+        ariaLabel="View"
+      />
+    );
+    const tableBtn = screen.getByRole('tab', { name: 'Table' });
+    // The button itself must NOT carry 'hidden' — that would conflict with its base inline-flex.
+    expect(tableBtn.className).not.toContain('hidden');
+    // The wrapper element (parentElement) must carry 'hidden' + the md: restore.
+    const wrapper = tableBtn.parentElement;
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.className).toContain('hidden');
+    expect(wrapper!.className).toContain('md:block');
+    // The button's parent must not be the tablist itself.
+    const tablist = screen.getByRole('tablist', { name: 'View' });
+    expect(wrapper).not.toBe(tablist);
+  });
 });

@@ -468,12 +468,16 @@ const Projects: React.FC = () => {
           were the only options and DataTable auto-renders cards on mobile (toggle was a no-op).
           Now that Calendar (day-agenda) and Kanban (horizontal-scroll) have real mobile renders,
           those views need to be reachable on phones. Fix: hide only the Table option below md via
-          `optionClassName="hidden md:inline-flex"`. Cards / Calendar / Kanban are always visible.
-          Desktop (≥md) shows all four unchanged.
+          `wrapperClassName="hidden md:block"` on the Table ViewOption. Cards / Calendar / Kanban
+          are always visible. Desktop (≥md) shows all four unchanged.
+          NOTE: Must use wrapperClassName, NOT optionClassName. cn() is clsx-only (no tailwind-
+          merge), so `hidden` on the button itself conflicts with the button's base `inline-flex`
+          class — both land in the class string and `inline-flex` wins, leaving the option visible.
+          A wrapper <span> has no competing display value, so `hidden` takes effect correctly.
         */
         <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
           options={[
-            { value: 'table', label: 'Table', icon: 'table', optionClassName: 'hidden md:inline-flex' },
+            { value: 'table', label: 'Table', icon: 'table', wrapperClassName: 'hidden md:block' },
             { value: 'cards', label: 'Cards', icon: 'cards' },
             { value: 'calendar', label: 'Calendar', icon: 'cal' },
             { value: 'kanban', label: 'Board', icon: 'cols' },
