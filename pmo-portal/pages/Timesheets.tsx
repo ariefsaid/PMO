@@ -559,17 +559,15 @@ const TimesheetsPage: React.FC = () => {
             there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
             competes as a second approvals surface. Non-approvers (Engineer) see no link at all. */}
         {isApprover && (
+          /* Fix #8 (AC-FIX8-PM-*): when there are timesheets awaiting review, surface a
+             clear "Review N awaiting" affordance so the PM's review job is not demoted to
+             a generic "Approvals" label. Zero-pending keeps the neutral "Approvals" label. */
           <Link
             to="/approvals?scope=timesheets"
             className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             <Icon name="check" aria-hidden />
-            Approvals
-            {pendingCount > 0 && (
-              <span className="grid min-w-[18px] place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground tabular">
-                {pendingCount}
-              </span>
-            )}
+            {pendingCount > 0 ? `Review ${pendingCount} awaiting` : 'Approvals'}
             <Icon name="chev" aria-hidden />
           </Link>
         )}
