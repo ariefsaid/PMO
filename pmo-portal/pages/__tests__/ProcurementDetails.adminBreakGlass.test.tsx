@@ -148,6 +148,8 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
   });
 
   it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) does NOT see Edit-header on a Draft PR', () => {
+    // Record-scoped gate: Edit visible only to requester or Admin while Draft/Rejected.
+    // Finance is neither the requester nor an Admin, so Edit must be hidden.
     auth.realRole = 'Finance';
     auth.currentUserId = 'u-finance';
     detailState.data = { ...base, status: 'Draft' };

@@ -320,8 +320,12 @@ const ProcurementDetails: React.FC = () => {
   // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
   const isDraft = p.status === 'Draft';
   const isRejected = p.status === 'Rejected';
-  // Header edit: requester may edit while Draft/Rejected (entity edit + record-scope).
+  // Header edit: requester may edit while Draft/Rejected (record-scoped entity edit).
   // A8: Admin break-glass header edit while Draft/Rejected (RLS 0010 permits; edit is not an SoD axis).
+  // CW-EDIT-1: the Edit affordance is surfaced inside the RecordHeader action zone (not buried
+  // elsewhere), but its visibility remains record-scoped — Edit only appears on Draft/Rejected
+  // procurements and only to the requester or an Admin. No archive/delete — Cancel is a lifecycle
+  // transition in the action zone. RLS remains the enforcement authority.
   const canEditHeader =
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
@@ -729,7 +733,15 @@ const ProcurementDetails: React.FC = () => {
             • "Ready to advance" GateNotice — when actions exist
             • Notes textarea (approve/reject only)
             • Action row: ONE primary → outline secondaries → destructive LAST (D7/D8)
-            • Inline mutation error (role=alert) */}
+            • Inline mutation error (role=alert)
+          CW-STICKY: On desktop (≥920px) the decision zone is sticky-bottom so the
+          advance/approve action is never below the fold (DESIGN.md §RecordActionZone:
+          "sticky on desktop"). On mobile the existing mobile-sticky-action bar handles
+          the reach affordance; the card stays in normal flow for mobile. */}
+      <div
+        data-testid="decision-zone"
+        className="min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10 min-[920px]:bg-background/95 min-[920px]:backdrop-blur-sm"
+      >
       <Card className="mb-4" data-testid="decision-card">
         <CardPad className="flex flex-col gap-3">
           {/* D6: SoD / readiness gate inside the DecisionCard — co-located with the
@@ -976,6 +988,7 @@ const ProcurementDetails: React.FC = () => {
           )}
         </CardPad>
       </Card>
+      </div>
 
       {/* Documents metadata register (over the previously-dead procurement_documents) */}
       <ProcurementDocumentsSection

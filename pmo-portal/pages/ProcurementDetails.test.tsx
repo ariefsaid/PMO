@@ -985,7 +985,8 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('AC-PROC-002: header-edit is HIDDEN for a non-requester', () => {
+  it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {
+    // Edit is scoped to Draft/Rejected AND requester/Admin — a non-requester PM must not see it.
     detailState.data = { ...draftByAlice, requested_by_id: 'u-someone-else' };
     renderPage();
     expect(screen.queryByTestId('edit-header')).toBeNull();
