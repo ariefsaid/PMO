@@ -213,16 +213,17 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
   });
 
-  it('T16: shows negative variance in destructive color when committed spend > activeTotal', () => {
-    // committed(400k) > active(150k) → variance = -250k (committed-PO basis, AC-MONEY-01)
+  it('T16: shows over-budget variance in destructive color when committed spend > activeTotal (AC-W2-9-02)', () => {
+    // committed(400k) > active(150k) → variance = spent - budget = +250k (over-budget, AC-W2-9-02)
     const { container } = renderTab(project, vi.fn(), 400_000);
     // Check for the destructive text utility class on the variance element
     // (item J: token utility class, not an inline hsl(var(--destructive)) style).
-    const negativeEl = container.querySelector('[data-testid="budget-variance"]');
-    expect(negativeEl).not.toBeNull();
-    expect(negativeEl!.textContent).toContain('-');
-    expect(negativeEl!.className).toContain('text-destructive');
-    expect(negativeEl!.getAttribute('style')).toBeNull();
+    const overEl = container.querySelector('[data-testid="budget-variance"]');
+    expect(overEl).not.toBeNull();
+    // Over-budget shows +$X (positive sign prefix, matches FinanceDashboard VarianceCell).
+    expect(overEl!.textContent).toContain('+');
+    expect(overEl!.className).toContain('text-destructive');
+    expect(overEl!.getAttribute('style')).toBeNull();
   });
 
   it('T16: shows category breakdown bars', () => {

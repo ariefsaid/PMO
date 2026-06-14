@@ -16,7 +16,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -39,10 +39,6 @@ export function hasFinanceView(role: Role | null): boolean {
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
-}
-
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString() : '—';
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (number rigor). */
@@ -133,7 +129,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
     project.client?.name ?? null,
     project.code ? `· ${project.code}` : null,
     project.customer_contract_ref
-      ? `· PO ${project.customer_contract_ref}${project.contract_date ? ` (${fmtDate(project.contract_date)})` : ''}`
+      ? `· PO ${project.customer_contract_ref}${project.contract_date ? ` (${formatDate(project.contract_date)})` : ''}`
       : null,
   ]
     .filter(Boolean)

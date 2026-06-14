@@ -57,9 +57,13 @@ export function formatDate(iso: string | null | undefined): string {
   return dateFormatter.format(parsed);
 }
 
-/** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces. */
+/** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces.
+ *  AC-W2-9-01: compact on magnitude (Math.abs) then re-apply sign so negatives
+ *  compact too: -$2.5M not -$2,500,000. */
 export function formatCompactCurrency(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
   return formatCurrency(value);
 }

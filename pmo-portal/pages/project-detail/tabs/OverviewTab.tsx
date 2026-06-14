@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, type StatTile } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
@@ -25,10 +25,6 @@ export interface OverviewTabProps {
    * finance-forward roles; the Engineer never gets a contract-value edit control.
    */
   showFinanceSummary?: boolean;
-}
-
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString() : 'Not set';
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (matches header treatment). */
@@ -125,8 +121,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <InfoRow label="Customer" value={project.client?.name ?? 'Not set'} />
               <InfoRow label="Project manager" value={project.pm?.full_name ?? 'Unassigned'} />
-              <InfoRow label="Start date" value={fmtDate(project.start_date)} />
-              <InfoRow label="End date" value={fmtDate(project.end_date)} />
+              <InfoRow label="Start date" value={formatDate(project.start_date)} />
+              <InfoRow label="End date" value={formatDate(project.end_date)} />
               <InfoRow
                 label="Project code"
                 value={
@@ -347,9 +343,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Variance</dt>
                   <dd
                     data-testid="budget-variance"
-                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance < 0 ? ' text-destructive' : ''}`}
+                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance > 0 ? ' text-destructive' : ''}`}
                   >
-                    {snapshot.variance < 0 ? '' : '+'}{formatCurrency(snapshot.variance)}
+                    {/* AC-W2-9-02: variance = spent - budget (positive = over-budget, destructive).
+                        Mirror FinanceDashboard VarianceCell: +$X when over, show abs when under. */}
+                    {snapshot.variance > 0 ? '+' : ''}{formatCurrency(snapshot.variance)}
                   </dd>
                 </div>
               </dl>

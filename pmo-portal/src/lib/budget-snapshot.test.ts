@@ -53,14 +53,16 @@ describe('T4 — activeSnapshot', () => {
     expect(snap!.spent).toBe(95_000);
   });
 
-  it('computes positive variance correctly (T4)', () => {
+  it('computes under-budget variance correctly (T4 — AC-W2-9-02: spent - budget, negative = under)', () => {
+    // spent 90k, activeTotal 170k → variance = 90k - 170k = -80k (under-budget)
     const snap = activeSnapshot([activeVersion], 90_000)!;
-    expect(snap.variance).toBe(80_000); // 170k - 90k
+    expect(snap.variance).toBe(-80_000); // spent - budget: negative = under-budget (healthy)
   });
 
-  it('computes negative variance (overspend) correctly (T4)', () => {
+  it('computes over-budget variance (overspend) correctly (T4 — AC-W2-9-02)', () => {
+    // spent 200k, activeTotal 170k → variance = 200k - 170k = +30k (over-budget)
     const snap = activeSnapshot([activeVersion], 200_000)!;
-    expect(snap.variance).toBe(-30_000); // 170k - 200k
+    expect(snap.variance).toBe(30_000); // positive = over-budget (destructive)
   });
 
   it('groups line items by category and sums budgeted amounts (T4)', () => {

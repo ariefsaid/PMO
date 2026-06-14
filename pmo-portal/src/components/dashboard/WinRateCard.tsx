@@ -3,14 +3,16 @@ import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
+import { toIso } from '@/src/lib/calendar/monthMatrix';
 
 // ── Win-rate period options (PRESERVED VERBATIM from the legacy file — AC-1117) ──
 
 type PeriodKey = 'all' | 'ytd' | 'q' | 't12';
 
-/** ISO YYYY-MM-DD string for a Date, or '' if absent. */
+/** Local YYYY-MM-DD string for a Date (cache key + RPC param), or '' if absent.
+ *  AC-W2-3-04: uses LOCAL date parts so cache key matches the RPC param without UTC shift. */
 function toDateKey(d?: Date): string {
-  return d ? d.toISOString().slice(0, 10) : '';
+  return d ? toIso(d) : '';
 }
 
 /**

@@ -13,7 +13,11 @@ export interface CategoryAmount {
 export interface BudgetSnapshot {
   activeTotal: number;
   spent: number;
-  /** positive = under-budget; negative = over-budget (destructive color). */
+  /**
+   * AC-W2-9-02: canonical variance = spent - budget.
+   * positive = over-budget (destructive); negative = under-budget (healthy).
+   * Matches the convention in dashboard.ts / BudgetReviewRow / FinanceDashboard.
+   */
   variance: number;
   byCategory: CategoryAmount[];
 }
@@ -31,7 +35,8 @@ export function activeSnapshot(
   if (!active) return null;
 
   const activeTotal = active.total;
-  const variance = activeTotal - spent;
+  // AC-W2-9-02: spent - budget so positive = over-budget (destructive), negative = under-budget.
+  const variance = spent - activeTotal;
 
   // Group line-items by category, summing budgeted_amount
   const catMap = new Map<string, number>();

@@ -11,6 +11,7 @@
 
 import { cellType } from './cellType';
 import type { ExportTable } from './buildExportRows';
+import { parseLocalDate } from '@/src/lib/calendar/monthMatrix';
 
 export interface WorkbookInput extends ExportTable {
   /** Worksheet/sheet name (Excel caps sheet names at 31 chars). */
@@ -39,7 +40,9 @@ export async function toWorkbookBuffer({
       if (t === 'number') {
         cell.numFmt = NUMBER_FMT;
       } else if (t === 'date') {
-        cell.value = new Date(v as string);
+        // AC-W2-3-03: parse YYYY-MM-DD at LOCAL midnight (not UTC midnight) so the
+        // exported date cell shows the same calendar day in all timezones.
+        cell.value = parseLocalDate(v as string);
         cell.numFmt = DATE_FMT;
       }
     });
