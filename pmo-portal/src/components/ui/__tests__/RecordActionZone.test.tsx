@@ -8,7 +8,7 @@
  *   (d) Each record page that has an advance/decide verb renders it THROUGH
  *       a data-testid="record-action-zone" so a future record cannot re-fork the verb.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 

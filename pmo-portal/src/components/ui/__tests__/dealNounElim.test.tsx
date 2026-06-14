@@ -15,7 +15,7 @@
  *   - Lifecycle action labels like "Advance to Tender", "Mark won", "Mark lost" — fine.
  *   - "Back to Sales Pipeline" wayfinding link — fine (it names the view, not the record).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ImpersonationProvider } from '../../../auth/impersonation';

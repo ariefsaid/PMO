@@ -4,7 +4,6 @@ import {
   SearchMini,
   ViewToggle,
   ListState,
-  DataTable,
   StatusPill,
   LifecycleStepper,
   Button,
