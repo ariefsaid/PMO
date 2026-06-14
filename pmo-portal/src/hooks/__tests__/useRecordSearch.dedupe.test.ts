@@ -35,6 +35,9 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 vi.mock('@/src/hooks/useContacts', () => ({
   useContacts: () => ({ data: [], isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useIncidents', () => ({
+  useIncidents: () => ({ data: [], isPending: false, isError: false }),
+}));
 
 import { useRecordSearch } from '../useRecordSearch';
 

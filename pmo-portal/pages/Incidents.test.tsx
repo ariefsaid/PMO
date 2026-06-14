@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -110,6 +110,21 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     // status badge
     expect(screen.getAllByText('Open').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Investigating').length).toBeGreaterThan(0);
+  });
+
+  it('AC-INC-001: activating an incident row navigates to its /incidents/:id detail page', async () => {
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/incidents']}>
+          <Routes>
+            <Route path="/incidents" element={<Incidents />} />
+            <Route path="/incidents/:incidentId" element={<div>Detail for incident</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /open near miss/i }));
+    expect(screen.getByText('Detail for incident')).toBeInTheDocument();
   });
 
   it('AC-IN-001: the status filter narrows the visible rows', async () => {

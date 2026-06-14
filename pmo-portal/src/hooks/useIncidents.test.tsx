@@ -19,7 +19,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useIncidents, useIncidentMutations } from './useIncidents';
+import { useIncidents, useIncident, useIncidentMutations } from './useIncidents';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -64,6 +64,26 @@ describe('useIncidents', () => {
     const { result } = renderHook(() => useIncidents('Investigating'), { wrapper: wrap(freshClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(incident.list).toHaveBeenCalledWith({ status: 'Investigating' });
+  });
+});
+
+describe('useIncident', () => {
+  beforeEach(() => {
+    incident.get.mockResolvedValue(seed[0]);
+  });
+
+  it("AC-IN-002: keys by ['incident', orgId, id] and returns the single record", async () => {
+    const { result } = renderHook(() => useIncident('i1'), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.type).toBe('Near Miss');
+    expect(incident.get).toHaveBeenCalledWith('i1');
+  });
+
+  it('AC-IN-002: stays disabled (never fetches) when no id is supplied', () => {
+    incident.get.mockClear();
+    const { result } = renderHook(() => useIncident(undefined), { wrapper: wrap(freshClient()) });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(incident.get).not.toHaveBeenCalled();
   });
 });
 

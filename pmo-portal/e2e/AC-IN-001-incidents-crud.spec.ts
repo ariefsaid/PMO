@@ -30,10 +30,14 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
-/** Locate the DataTable row whose Incident (type) cell exactly matches `type`. */
+/**
+ * Locate the DataTable row for incident `type`. CW-4a made rows activatable (they open the
+ * routable `/incidents/:id` detail page), so the first cell now carries an "Open <type>"
+ * activation button — match on that control rather than a bare exact-text cell.
+ */
 function incidentRow(page: Page, type: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('cell', { name: type, exact: true }),
+    has: page.getByRole('button', { name: new RegExp(`open ${type}`, 'i') }),
   });
 }
 

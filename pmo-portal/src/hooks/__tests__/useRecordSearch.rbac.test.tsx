@@ -23,6 +23,7 @@ const { state } = vi.hoisted(() => ({
     pipeline: { data: undefined as unknown, isPending: false, isError: false },
     companies: { data: undefined as unknown, isPending: false, isError: false },
     contacts: { data: undefined as unknown, isPending: false, isError: false },
+    incidents: { data: undefined as unknown, isPending: false, isError: false },
   },
 }));
 
@@ -31,6 +32,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.pro
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => state.companies }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => state.contacts }));
+vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => state.incidents }));
 
 import { useRecordSearch } from '../useRecordSearch';
 
@@ -69,6 +71,11 @@ beforeEach(() => {
     isPending: false,
     isError: false,
   };
+  state.incidents = {
+    data: [{ id: 'in1', type: 'Near Miss', severity: 'Low', status: 'Open' }],
+    isPending: false,
+    isError: false,
+  };
 });
 
 describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
@@ -92,6 +99,8 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     const subs = result.current.records.map((r) => r.sub);
     // Projects are visible to every role → still indexed.
     expect(subs).toContain('Project');
+    // CW-4a: incidents are visible to every role (any member may file) → indexed for Engineer too.
+    expect(subs).toContain('Incident');
     // Procurement + Sales Pipeline have no Engineer nav → never surfaced via ⌘K.
     expect(subs).not.toContain('Procurement');
     expect(subs).not.toContain('Project · Pipeline');
