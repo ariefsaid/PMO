@@ -33,7 +33,8 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // openPipelineCard retries the click until that route is reached — the board re-renders as the
   // pipeline query resolves, so a click→navigate fired pre-hydration can be swallowed under load.
   await openPipelineCard(page, DEAL_NAME);
-  await expect(page.getByLabel('Deal stage journey')).toBeVisible({ timeout: 15_000 });
+  // CW-1 r2fix-enforce: "Deal stage journey" → "Project stage journey"
+  await expect(page.getByLabel('Project stage journey')).toBeVisible({ timeout: 15_000 });
 
   // Mark won → the inline SoD capture (no modal) reveals contract ref + date.
   await page.getByRole('button', { name: /Mark won/i }).click();

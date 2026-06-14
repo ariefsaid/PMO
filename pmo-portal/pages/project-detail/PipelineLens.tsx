@@ -8,6 +8,7 @@ import {
   StatTiles,
   LifecycleStepper,
   GateNotice,
+  RecordActionZone,
   Icon,
   ConfirmDialog,
   useToast,
@@ -119,7 +120,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       setContractRef('');
       setContractDate('');
       setConfirmAction(null);
-      toast('Deal updated', `Moved to ${to}`, 'success');
+      toast('Project updated', `Moved to ${to}`, 'success');
       // N10 (OD-W5-C3-B): post-transition focus management. On Won the page re-renders
       // into the delivery layout; move focus to the page h1. On Advance/Lost move focus
       // to the Next-actions card heading so a keyboard/SR user is told what changed.
@@ -172,17 +173,19 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
         <Card>
-          <CardHead>Opportunity journey</CardHead>
+          <CardHead>Project journey</CardHead>
           <CardPad>
             <LifecycleStepper
               variant="bar"
               steps={dealJourneySteps(liveStatus as never)}
-              aria-label="Deal stage journey"
+              aria-label="Project stage journey"
             />
           </CardPad>
         </Card>
 
-        {/* Next actions */}
+        {/* Next actions — wrapped in RecordActionZone so the advance/decide verb is sticky
+            on desktop (never below the fold per DESIGN.md §7 RecordActionZone molecule). */}
+        <RecordActionZone>
         <Card>
           {/* N10 (OD-W5-C3-B): wrap CardHead in a focusable div; the focus moves here
               programmatically after an Advance/Lost transition so a keyboard/SR user is
@@ -195,7 +198,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
               // Denied (Finance·Engineer, §C): a clean read-only note in place of the action
               // cluster — never a wall of disabled buttons (rbac-visibility reading-rule 5).
               <GateNotice variant="ready">
-                Pipeline managed by the deal owner. You can review this deal&rsquo;s stage and
+                Pipeline managed by the project owner. You can review this project&rsquo;s stage and
                 journey here; lifecycle changes are made by the project manager.
               </GateNotice>
             ) : (
@@ -203,11 +206,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             {isTerminal ? (
               projectStatusGroup(liveStatus as never) === 'lost' ? (
                 <GateNotice variant="ready">
-                  This deal is marked lost. It has left the active pipeline.
+                  This project is marked lost. It has left the active pipeline.
                 </GateNotice>
               ) : (
                 <GateNotice variant="ready">
-                  This deal has reached a terminal stage. No further pipeline actions.
+                  This project has reached a terminal stage. No further pipeline actions.
                 </GateNotice>
               )
             ) : (
@@ -334,6 +337,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             </a>
           </CardPad>
         </Card>
+        </RecordActionZone>
       </div>
 
       {/* Forward Advance has no confirm (OD-UX-1): it commits on a single click + a toast
@@ -343,7 +347,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
       <ConfirmDialog
         open={canTransition && confirmAction === 'lost'}
         tone="destructive"
-        title="Mark deal as lost"
+        title="Mark project as lost"
         description={`This moves ${project.name} to a terminal lost stage. You can still review it, but it will leave the active pipeline.`}
         confirmLabel="Mark lost"
         loading={pending}

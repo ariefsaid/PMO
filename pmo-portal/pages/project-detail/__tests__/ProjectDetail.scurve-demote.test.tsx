@@ -197,7 +197,7 @@ describe('AC-IFW-RECORD-02: delivery project — tab bar renders before the S-cu
   it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', () => {
     renderAt('/projects/del1');
 
-    expect(screen.queryByLabelText('Deal stage journey')).toBeNull();
+    expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 });

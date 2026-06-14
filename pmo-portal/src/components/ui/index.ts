@@ -59,6 +59,7 @@ export {
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { HoursBar, type HoursBarProps } from './HoursBar';
+export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { EntryList, type EntryListProps } from './EntryList';
 
 // --- CRUD form primitives (Phase 1, crud-components §2) ---

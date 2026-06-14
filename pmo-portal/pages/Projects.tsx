@@ -203,7 +203,7 @@ const Projects: React.FC = () => {
       onClose={() => setCreateOpen(false)}
       onSubmit={async (input) => {
         await create.mutateAsync(input);
-        toast('Deal created', input.name, 'success');
+        toast('Project created', input.name, 'success');
         setCreateOpen(false);
       }}
       onError={(err) => {
