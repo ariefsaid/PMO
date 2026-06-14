@@ -11,8 +11,8 @@ test('AC-PK-005: Projects kanban view renders status columns and a card click na
   await login(page, 'pm@acme.test');
   await page.goto('/projects');
 
-  // Switch to the Kanban view.
-  await page.getByRole('tab', { name: /kanban/i }).click();
+  // Switch to the Board (kanban) view — the toggle is labelled "Board" after the terminology pass.
+  await page.getByRole('tab', { name: /board/i }).click();
 
   // The board root must appear.
   const board = page.getByTestId('project-kanban-board');
