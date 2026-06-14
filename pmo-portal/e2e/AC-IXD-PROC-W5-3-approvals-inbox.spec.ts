@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-W5-3 — /approvals inbox: procurement row → decision screen
+// AC-IXD-PROC-W5-3 — /approvals inbox: procurement row → inline preview + approve
 // AC-IXD-TS-W5-3  — /approvals inbox: timesheet bulk-approve persists
 // AC-IXD-PROC-W5-3-role — role gating: Finance=procurement-only; Engineer=denied
 //
@@ -27,14 +27,21 @@ import { login } from './helpers';
 
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
 // Given: a PM opens /approvals.
-// When:  they see the procurement section and click the PROC-2026-002 row.
-// Then:  the URL is /procurement/<id> and the Approve affordance is present on that
-//        screen — the inbox row itself MUST NOT approve inline.
+// When:  they expand the PROC-2026-002 row's budget-impact disclosure.
+// Then:  the row reveals the budget impact + an adjacent Approve/Reject IN PLACE and
+//        the URL STAYS on /approvals — the approve decision is made from the inbox, NOT
+//        on a separate detail screen.
+//
+// Journey updated (deliberate UX change, per the BDD authoring rule): intent-fix-wave
+// IF-A (AC-IFW-PROC-01) replaced the CW-6 route-away with preview-in-place, so the
+// procurement row now mirrors the timesheet row's expand-and-approve paradigm. The
+// goal-oracle is unchanged — "a PM can act on a procurement approval from the inbox" —
+// only the journey (expand in place vs drill in) moved.
 test(
-  'AC-IXD-PROC-W5-3: PM inbox → procurement row opens decision screen where Approve lives',
+  'AC-IXD-PROC-W5-3: PM inbox → procurement row previews + approves in place (no navigation)',
   async ({ page }) => {
     await login(page, 'pm@acme.test');
-    await page.goto('/approvals');
+    await page.goto('/approvals?scope=procurement');
 
     // Procurement section is visible (PM role can approve procurement).
     const procSection = page.getByRole('region', { name: /purchase requests awaiting you/i });
@@ -44,28 +51,29 @@ test(
     await expect(procSection.getByText('Safety Equipment & PPE')).toBeVisible({ timeout: 15_000 });
     await expect(procSection.getByText('PROC-2026-002')).toBeVisible({ timeout: 10_000 });
 
-    // The row itself has NO inline Approve button — approve lives on the detail screen.
+    // Collapsed: the Approve affordance is NOT yet shown — it lives behind the row's
+    // budget-impact disclosure (preview-before-decide), not on a separate screen.
     await expect(procSection.getByRole('button', { name: /^approve$/i })).not.toBeVisible();
 
-    // Click the row → navigate to the PR detail screen (Model B row-activation).
-    await procSection.getByText('Safety Equipment & PPE').click();
+    // When: expand the row in place via its budget-impact disclosure.
+    await procSection
+      .getByRole('button', { name: /show budget impact for Safety Equipment & PPE/i })
+      .click();
 
-    // Goal oracle 1: URL is the procurement detail page for this PR.
-    await expect(page).toHaveURL(/\/procurement\/60000000-0000-0000-0000-000000000003/, { timeout: 10_000 });
+    // Goal oracle 1: NO navigation — the decision is made in the inbox, URL unchanged.
+    await expect(page).toHaveURL(/\/approvals/, { timeout: 5_000 });
+    await expect(page).not.toHaveURL(/\/procurement\//);
 
-    // Wait for the detail page to finish loading.
-    await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute(
-      'data-status',
-      'Requested',
-      { timeout: 10_000 },
-    );
+    // Goal oracle 2: Approve/Reject are now adjacent IN the expanded row (real cross-stack
+    // detail fetch resolved), reachable without drilling in.
+    await expect(procSection.getByRole('button', { name: /^approve$/i })).toBeVisible({ timeout: 15_000 });
+    await expect(procSection.getByRole('button', { name: /^reject$/i })).toBeVisible();
 
-    // Goal oracle 2: Approve affordance is present on the decision screen (not on the inbox row).
-    // It lives inside the decision-card section.
-    const decisionCard = page.getByTestId('decision-card');
-    await expect(decisionCard).toBeVisible({ timeout: 10_000 });
-    await expect(decisionCard.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+    // Goal oracle 3: clicking Approve stages the confirm dialog IN the inbox (still no nav) —
+    // the approval is wired through the same confirm path, from the inbox.
+    await procSection.getByRole('button', { name: /^approve$/i }).click();
+    await expect(page.getByText(/Approve Safety Equipment & PPE\?/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/approvals/);
   },
 );
 
