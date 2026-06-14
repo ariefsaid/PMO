@@ -6,7 +6,6 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
-import type { TimesheetsView } from '@/src/hooks/useTimesheetsView';
 
 /**
  * A-6 Finance timesheet FE-gate (AC-W2-RBAC-011/012, rbac-visibility §I + policy
@@ -41,12 +40,6 @@ vi.mock('@/src/hooks/useTimesheetEntries', () => ({
     deleteRow: { mutate: vi.fn(), isPending: false },
   }),
 }));
-const { viewState } = vi.hoisted(() => ({
-  viewState: { value: 'grid' as TimesheetsView, setter: vi.fn() },
-}));
-vi.mock('@/src/hooks/useTimesheetsView', () => ({
-  useTimesheetsView: () => [viewState.value, viewState.setter],
-}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [], isPending: false, isError: false }),
 }));
@@ -60,8 +53,6 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-06-03T12:00:00'));
   tsState.isPending = false;
   tsState.isError = false;
-  viewState.value = 'grid';
-  viewState.setter.mockClear();
   sessionStorage.clear();
 });
 
@@ -91,38 +82,37 @@ const renderAs = (realRole: Role) =>
  *   back to the grid (the approvals branch never renders).
  * - PM (approver): "Approvals queue" tab present.
  */
-describe('Timesheets — Approvals toggle gate (AC-W3-N2)', () => {
-  it('AC-W3-N2: an Engineer does NOT see the "Approvals queue" tab (RBAC leak)', () => {
+describe('CW-6: Timesheets approvals cross-link gate (was AC-W3-N2)', () => {
+  it('CW-6: an Engineer (non-approver) sees NO approvals cross-link (RBAC leak)', () => {
     tsState.data = [
       { id: 'ts-d', user_id: 'u-self', week_start_date: weekStr, status: 'Draft', entries: [] },
     ] as unknown as TimesheetWithEntries[];
-    viewState.value = 'grid';
     renderAs('Engineer');
-    // The tab must not exist for a non-approver — exposure to a surface they can never use.
+    // No in-page queue tab AND no cross-link to /approvals for a role that can't approve.
     expect(screen.queryByRole('tab', { name: /approvals queue/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /approvals/i })).not.toBeInTheDocument();
   });
 
-  it('AC-W3-N2: a stale view="approvals" for an Engineer falls back to the grid (never shows the queue)', () => {
+  it('CW-6: an Engineer never sees the in-page approvals queue body', () => {
     tsState.data = [
       { id: 'ts-d', user_id: 'u-self', week_start_date: weekStr, status: 'Draft', entries: [] },
     ] as unknown as TimesheetWithEntries[];
-    // Simulate stale persisted state: the session stored 'approvals' but the role can't use it.
-    viewState.value = 'approvals';
     renderAs('Engineer');
-    // The approvals queue MUST NOT render (the ApprovalsQueue component renders unique content).
-    // The editable grid still renders (the grid's empty state / the footer with Save).
+    // The approvals queue MUST NOT render here (it lives only at /approvals now).
     expect(screen.queryByTestId('approvals-queue')).not.toBeInTheDocument();
-    // The editable grid footer IS present (we fell back to grid).
+    // The editable grid footer IS present (the Engineer's own entry surface).
     expect(screen.getByTestId('timesheets-footer')).toBeInTheDocument();
   });
 
-  it('AC-W3-N2: a PM (approver) DOES see the "Approvals queue" tab', () => {
+  it('CW-6: a PM (approver) sees the cross-link to /approvals?scope=timesheets', () => {
     tsState.data = [
       { id: 'ts-d', user_id: 'u-self', week_start_date: weekStr, status: 'Draft', entries: [] },
     ] as unknown as TimesheetWithEntries[];
-    viewState.value = 'grid';
     renderAs('Project Manager');
-    expect(screen.getByRole('tab', { name: /approvals queue/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute(
+      'href',
+      '/approvals?scope=timesheets',
+    );
   });
 });
 

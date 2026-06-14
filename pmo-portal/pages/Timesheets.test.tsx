@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
@@ -47,13 +47,16 @@ vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => tsState }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+const { awaitingState } = vi.hoisted(() => ({
+  awaitingState: { data: [] as unknown[] },
+}));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetMutations: () => ({
     submit: { mutate: submitMutate, isPending: false },
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
   }),
-  useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false }),
+  useTimesheetsAwaitingApproval: () => ({ data: awaitingState.data, isPending: false, isError: false }),
 }));
 
 // ── timesheet-entry write path mocks (Tasks 14–20 + O1) ─────────────────────
@@ -155,27 +158,47 @@ describe('Timesheets states', () => {
   });
 });
 
-describe('Timesheets view toggle (Grid default + Approvals queue)', () => {
-  it('defaults to the weekly grid and offers an Approvals queue toggle', () => {
+describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
+  it('CW-6: there is NO in-page "Approvals queue" tab (the queue moved to /approvals)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    expect(screen.getByRole('tab', { name: /weekly grid/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /approvals queue/i })).toBeInTheDocument();
+    // The weekly grid renders directly; no view-toggle tabs at all.
+    expect(screen.queryByRole('tab', { name: /approvals queue/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /weekly grid/i })).not.toBeInTheDocument();
     // Grid body renders the joined project name (one row per project+notes).
     expect(screen.getAllByText('Innovate Corp HQ Fit-Out').length).toBeGreaterThan(0);
   });
 
-  it('switching to the Approvals queue shows the SoD GateNotice (edge: self-approval blocked)', () => {
+  it('CW-6: an approver gets a cross-link routing to /approvals?scope=timesheets (single canonical home)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: /approvals queue/i }));
-    expect(screen.getByText(/Separation of duties/i)).toBeInTheDocument();
-    // Empty queue → "Nothing awaiting you" (AC-604-style finance/manager empty queue).
-    expect(screen.getByTestId('approvals-empty')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /approvals/i });
+    expect(link).toHaveAttribute('href', '/approvals?scope=timesheets');
+  });
+
+  it('CW-6: the cross-link shows the pending count when sheets are awaiting', () => {
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    awaitingState.data = [{ id: 'a1' }, { id: 'a2' }] as unknown[];
+    renderPage();
+    const link = screen.getByRole('link', { name: /approvals/i });
+    expect(link.textContent).toContain('2');
+    awaitingState.data = [];
+  });
+
+  it('CW-6: the in-page SoD queue body is gone (no ApprovalsQueue rendered on Timesheets)', () => {
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+    // The queue's unique surfaces (SoD GateNotice / empty body) no longer live here.
+    expect(screen.queryByText(/Separation of duties/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-queue')).not.toBeInTheDocument();
   });
 });
 
@@ -209,17 +232,16 @@ describe('Timesheets returned-for-changes edge state', () => {
 // #4 — Zero badge hidden in ViewToggle
 // ---------------------------------------------------------------------------
 
-describe('Timesheets #4: ViewToggle count badge', () => {
-  it('#4: the Approvals queue tab has no visible badge when pendingCount === 0', () => {
+describe('CW-6: Timesheets approvals cross-link badge', () => {
+  it('CW-6: the approvals cross-link shows no "0" badge when nothing is pending', () => {
     // useTimesheetsAwaitingApproval returns [] (empty) by default in this file's mock
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    // The Badge inside the approvals tab should NOT render "0"
-    const approvalsTab = screen.getByRole('tab', { name: /approvals queue/i });
-    // No "0" text should appear inside the tab
-    expect(approvalsTab.textContent).not.toContain('0');
+    const link = screen.getByRole('link', { name: /approvals/i });
+    // No "0" count should appear in the cross-link.
+    expect(link.textContent).not.toContain('0');
   });
 });
 
