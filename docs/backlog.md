@@ -5,7 +5,7 @@
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
 ## ▶ Current state (2026-06-14)
-- **⚑ `dev` branch — large autonomous burst awaiting owner review (2026-06-14).** `dev` is ~32 commits ahead of `main`; **prod is UNCHANGED at migration 0027 / PR #83**. Owner: review `dev` → promote `dev → main → production` when satisfied.
+- **⚑ `dev` branch — large autonomous burst awaiting owner review (2026-06-14).** `dev` is ~33 commits ahead of `main`; **prod is UNCHANGED at migration 0027 / PR #83**. Owner: review `dev` → promote `dev → main → production` when satisfied.
 - **KANNA Waves 0–3 (PRs #84–#101, on `dev`):** each ran TDD + 3-reviewer battery (spec+quality+security) + design-review round 2; grill+mockup skipped per owner directive (Director locked `[OWNER-DECISION]`s); CI green throughout.
   - **Wave 0** — 8 mobile/UX @390 fixes: exec dashboard glanceable · shell touch-targets+404/h1 · DataTable card-clip · scrollable status filter + Table-toggle hidden on mobile · bottom-sheet confirm · procurement-detail mobile actions/back/SoD · day-stacked timesheet · project-detail back-affordance.
   - **Wave 1** — Bulk **Export** xlsx (#92) · Project **Calendar** read-only (#93) · **Procurement attachments** per-phase child tables+RLS+storage (#94, migration **0028**).
@@ -46,7 +46,7 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **✅ Wave 1 — BUILT & on `dev` (PRs #92–#94):** Bulk **Export** (#92) · Project **Calendar** (#93) · **Procurement attachments** (#94, migration 0028). Grill + mockup skipped per owner directive; Director locked `[OWNER-DECISION]`s.
 - **✅ Wave 2 — BUILT & on `dev` (PRs #95–#97):** **S-Curve** (#95) · **Kanban** (#96) · drift fix (#97).
 - **✅ Wave 3 — BUILT & on `dev` (PRs #98–#101):** **Gantt** (#98) · **Import wizard** (#99) · **CRM** contacts+activity (#100, migration 0030) · CRM companies-drawer (#101).
-- **✅ Coherence wave — BUILT & on `dev` (PRs #103–#112 + #111):** whole-app pattern unification. Design verdict: **SHIP.** Minor follow-up pending (sticky action zone + procurement header Edit + copy leak).
+- **✅ Coherence wave — BUILT & on `dev` (PRs #103–#112 + #111 + #114):** whole-app pattern unification. Design verdict: **SHIP.** Follow-up residuals resolved in #114 (sticky record-action zone + procurement header Edit + "deal" copy leak).
 - **▶ Next after promote:** candidates per kanna-program.md §3 — Sub-projects · Append-only audit events · Commitment-governance spec · Spine-4 Revenue/AR. Default SOP = **series + pi** (the parallel burst consumed the Claude weekly-quota window and is now closed).
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)

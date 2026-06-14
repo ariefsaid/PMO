@@ -26,7 +26,7 @@ first for current state.
 | 2 | **Cost / AP** | Money OUT: budgets, procure-to-pay, timesheets | ✅ built & hardened |
 | 3 | **Delivery** | Do the work: execution phases (E→P→C), %-complete / schedule, field ops | ✅ built (#74/#79/#80 — milestones, delivery-%, committed-spend; no stage-gates per OD-DEL-6) |
 | 4 | **Revenue / AR** | Money IN: progress billing, retention, change orders, cashflow | ❌ missing (recommended next big spine) |
-| 5 | **CRM** | Contacts, activity log, follow-ups | 🟡 thin |
+| 5 | **CRM** | Contacts, activity log, follow-ups | 🟡 partial — contacts + activity log built (on `dev`, pending promote) |
 | 6 | **HSE / Quality** | Incidents ✓; inspections / NCRs / permits ✗ | 🟡 partial |
 | 7 | **Documents** | Register + approval ✓; **file upload ✓ (#78)**; transmittals / RFIs ✗ | 🟡 advancing |
 | 8 | **Resources / Assets** | Capacity planning, equipment, inventory | ❌ missing |
