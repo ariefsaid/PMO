@@ -29,6 +29,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
+import ProjectGantt from '../ProjectGantt';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
 // The four task_status enum values. Each maps to a distinct StatusPill variant
@@ -45,7 +46,7 @@ const STATUS_PILL: Record<TaskStatus, StatusVariant> = {
 };
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
-type ViewMode = 'list' | 'board';
+type ViewMode = 'list' | 'board' | 'timeline';
 
 interface FormValues {
   name: string;
@@ -227,6 +228,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             options={[
               { value: 'list', label: 'List' },
               { value: 'board', label: 'Board' },
+              { value: 'timeline', label: 'Timeline' },
             ]}
             value={view}
             onChange={setView}
@@ -295,6 +297,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           onStatusChange={onStatusChange}
           statusBusy={updateStatus.isPending}
         />
+      )}
+
+      {state === undefined && view === 'timeline' && (
+        <ProjectGantt tasks={all} milestones={milestoneList} />
       )}
 
       {/* Create / edit modal */}
