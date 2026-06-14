@@ -11,8 +11,11 @@ describe('pillVariantForProjectStatus', () => {
   it('maps Won, Pending KoM to won (green)', () => {
     expect(pillVariantForProjectStatus('Won, Pending KoM')).toBe('won');
   });
-  it('maps On Hold to overdue (amber)', () => {
-    expect(pillVariantForProjectStatus('On Hold')).toBe('overdue');
+  it('maps On Hold to warn (amber — ADR-0029: registry `warn`, not the old local `overdue`)', () => {
+    // ADR-0029 re-points this helper to the CW-2 registry. Registry uses `warn` for
+    // awaiting-action / at-risk states; the old local map used `overdue`. Both are
+    // amber — this is a token-name correction, not a visible-tint regression.
+    expect(pillVariantForProjectStatus('On Hold')).toBe('warn');
   });
   it('maps Loss Tender to lost (red)', () => {
     expect(pillVariantForProjectStatus('Loss Tender')).toBe('lost');

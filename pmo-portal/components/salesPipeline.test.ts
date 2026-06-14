@@ -81,10 +81,12 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(weightedValue(project({ win_probability: 0 }))).toBe(0);
   });
 
-  // Freed-Blue Status Rule (CW-2): the in-pipeline (pre-win) group is neutral grey
-  // `progress`, NOT the action-blue — no status pill may use `open`.
-  it('AC-SP-204: pillVariantForStatus maps groups → progress / won / lost (never blue)', () => {
-    expect(pillVariantForStatus('Tender Submitted')).toBe('progress');
+  // Freed-Blue Status Rule (CW-2) + ADR-0029: `pillVariantForStatus` now delegates
+  // to `workflowVariant` (the registry). Pre-win pipeline statuses map to `draft`
+  // (neutral grey, not the old group-derived `progress`). Won → `won`, Lost → `lost`.
+  // The distinct stage LABEL carries identity; no status uses the action-blue `open`.
+  it('AC-SP-204: pillVariantForStatus maps via registry — draft for pipeline / won / lost (never blue, ADR-0029)', () => {
+    expect(pillVariantForStatus('Tender Submitted')).toBe('draft'); // registry: pre-win → draft
     expect(pillVariantForStatus('Tender Submitted')).not.toBe('open');
     expect(pillVariantForStatus('Won, Pending KoM')).toBe('won');
     expect(pillVariantForStatus('Loss Tender')).toBe('lost');

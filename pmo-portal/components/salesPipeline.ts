@@ -7,6 +7,7 @@ import {
   ON_HAND_STATUSES,
   projectStatusGroup,
 } from '@/src/lib/db/projectTransitions';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 /**
  * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
@@ -120,15 +121,18 @@ export function weightedValue(p: Pick<PipelineProject, 'contract_value' | 'win_p
 }
 
 /**
- * StatusPill variant for a project status, via the OD-SP-1 group. Per the
- * Freed-Blue Status Rule the in-pipeline (pre-win) group is neutral grey
- * `progress` — NOT the action-blue (the distinct stage LABEL carries identity).
+ * StatusPill variant for a project status (ADR-0029).
+ *
+ * Delegates to the CW-2 registry `workflowVariant` — the single authority for
+ * every status tint. The previous group-based derivation was retired so this
+ * helper and `pillVariantForProjectStatus` can never drift from the registry.
+ *
+ * Per the Freed-Blue Status Rule, no status pill may use the action-blue (`open`);
+ * in-pipeline (pre-win) statuses are neutral grey `draft` — the distinct stage
+ * LABEL carries identity, not colour.
  */
 export function pillVariantForStatus(status: PipelineProject['status']): StatusVariant {
-  const group = projectStatusGroup(status);
-  if (group === 'onHand') return 'won';
-  if (group === 'lost') return 'lost';
-  return 'progress';
+  return workflowVariant(status);
 }
 
 /** Whole-number percent label from an RPC win_probability fraction. */

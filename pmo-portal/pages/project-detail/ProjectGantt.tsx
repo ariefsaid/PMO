@@ -1,5 +1,12 @@
 /**
- * Read-only Task Gantt timeline (FR-GANTT-001..008).
+ * Task Gantt timeline (FR-GANTT-001..008).
+ *
+ * SPEC OVERRIDE (owner directive, 2026-06-15): the prior spec marked this Gantt
+ * read-only by design. The owner explicitly directs making bars activatable so a
+ * click/keyboard-Enter/Space fires `onActivateTask(task)`. Bars WITHOUT
+ * `onActivateTask` remain inert (no button role, no cursor-pointer). This override
+ * is recorded in the build commit body and references
+ * docs/plans/2026-06-15-jtbd-remediation.md W5-T22.
  *
  * Pure presentational component — feeds buildGanttModel(tasks, milestones, today)
  * and maps fraction→% to paint bars. No hooks, no network calls, no writes.
@@ -9,6 +16,8 @@
  *   - Bar status is always a text label (never color-only).
  *   - Today line is aria-hidden (decorative) with a visible "Today" caption.
  *   - Respects prefers-reduced-motion (no bar-grow animation when set).
+ *   - When onActivateTask is provided, bars gain role=button + tabIndex=0 +
+ *     focus-visible ring + cursor-pointer (keyboard accessible).
  *
  * Mobile (NFR-GANTT-RESP-001):
  *   - Outer wrapper: max-w-full overflow-hidden (no page overflow).
@@ -37,6 +46,13 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 export interface ProjectGanttProps {
   tasks: TaskWithRefs[];
   milestones: MilestoneWithProgress[];
+  /**
+   * Optional activation callback (T22 — spec override per owner directive).
+   * When provided, each bar/diamond becomes a button (role=button, tabIndex=0,
+   * focus-visible ring, cursor-pointer) that fires this callback with the resolved
+   * TaskWithRefs on click/Enter/Space. When omitted, bars remain inert.
+   */
+  onActivateTask?: (task: TaskWithRefs) => void;
 }
 
 // ── Bar height / row height tokens ────────────────────────────────────────────
@@ -47,7 +63,7 @@ const AXIS_H = 32; // px — time axis height
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones }) => {
+const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask }) => {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -55,6 +71,12 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones }) => {
   const model = useMemo(
     () => buildGanttModel(tasks, milestones, today),
     [tasks, milestones, today],
+  );
+
+  // Build a lookup map for resolving bar.id → TaskWithRefs (used by onActivateTask).
+  const taskMap = useMemo(
+    () => new Map(tasks.map((t) => [t.id, t])),
+    [tasks],
   );
 
   // Empty state: no dated work at all
@@ -107,6 +129,10 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones }) => {
                   key={lane.milestoneId ?? '__ungrouped__'}
                   lane={lane}
                   prefersReducedMotion={prefersReducedMotion}
+                  onActivate={onActivateTask ? (bar) => {
+                    const task = taskMap.get(bar.id);
+                    if (task) onActivateTask(task);
+                  } : undefined}
                 />
               ))}
             </div>
@@ -164,9 +190,11 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, axisHeight }) =
 interface GanttLaneRowProps {
   lane: GanttLane;
   prefersReducedMotion: boolean;
+  /** When provided, each bar is activatable (see GanttBarRowProps.onActivate). */
+  onActivate?: (bar: GanttBar) => void;
 }
 
-const GanttLaneRow: React.FC<GanttLaneRowProps> = ({ lane, prefersReducedMotion }) => (
+const GanttLaneRow: React.FC<GanttLaneRowProps> = ({ lane, prefersReducedMotion, onActivate }) => (
   <section aria-label={lane.label} className="mb-1">
     {/* Lane header */}
     <div
@@ -195,7 +223,12 @@ const GanttLaneRow: React.FC<GanttLaneRowProps> = ({ lane, prefersReducedMotion 
     ) : (
       <div>
         {lane.bars.map((bar) => (
-          <GanttBarRow key={bar.id} bar={bar} prefersReducedMotion={prefersReducedMotion} />
+          <GanttBarRow
+            key={bar.id}
+            bar={bar}
+            prefersReducedMotion={prefersReducedMotion}
+            onActivate={onActivate ? () => onActivate(bar) : undefined}
+          />
         ))}
       </div>
     )}
@@ -207,10 +240,25 @@ const GanttLaneRow: React.FC<GanttLaneRowProps> = ({ lane, prefersReducedMotion 
 interface GanttBarRowProps {
   bar: GanttBar;
   prefersReducedMotion: boolean;
+  /**
+   * Optional activation callback (T22 — spec override per owner directive).
+   * When provided, bar/diamond gains role=button + tabIndex=0 + keyboard support
+   * (Enter/Space) + focus-visible ring + cursor-pointer. When omitted, inert.
+   */
+  onActivate?: () => void;
 }
 
-const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) => {
+const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion, onActivate }) => {
   const isPoint = bar.kind === 'point';
+
+  const handleKeyDown = onActivate
+    ? (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onActivate();
+        }
+      }
+    : undefined;
 
   return (
     <div
@@ -221,8 +269,12 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) 
       {isPoint ? (
         /* Diamond marker for one-sided date (D5) */
         <span
+          role={onActivate ? 'button' : undefined}
+          tabIndex={onActivate ? 0 : undefined}
           aria-label={`${bar.name}: ${bar.status} (${bar.startIso ? 'start only' : 'due only'})`}
-          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[14px] text-primary"
+          onClick={onActivate}
+          onKeyDown={handleKeyDown}
+          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[14px] text-primary${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
           style={{ left: `${bar.left * 100}%` }}
         >
           ◆
@@ -232,7 +284,12 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) 
       ) : (
         /* Bar block */
         <div
-          className="absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded px-2"
+          role={onActivate ? 'button' : undefined}
+          tabIndex={onActivate ? 0 : undefined}
+          aria-label={onActivate ? `${bar.name}` : undefined}
+          onClick={onActivate}
+          onKeyDown={handleKeyDown}
+          className={`absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded px-2${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
           style={{
             left: `${bar.left * 100}%`,
             width: `${bar.width * 100}%`,

@@ -10,21 +10,34 @@ export interface ApprovalRowProps {
   hours: number;
   /** Status pill node. */
   status?: React.ReactNode;
+  /**
+   * Optional leading-edge disclosure affordance (AC-JR-W4-01 — ADR-0028).
+   * Rendered at the very start of the row flex (before the avatar/name), so the
+   * consumer can place a chevron-toggle or expand button at the left edge,
+   * matching the ProcurementApprovalRow layout.
+   *
+   * When omitted (existing callers) the avatar remains the first child — no
+   * layout change for callers that don't pass this prop.
+   */
+  disclosure?: React.ReactNode;
   /** Action buttons (Approve / Return). */
   children?: React.ReactNode;
   className?: string;
 }
 
 /**
- * A single submitted-timesheet row in the manager approval queue: avatar +
- * owner + week·hours + status pill + actions. Avatar is decorative (the name is
- * the accessible label). Dashed bottom rule separates rows.
+ * A single submitted-timesheet row in the manager approval queue: optional
+ * leading disclosure affordance + avatar + owner + week·hours + status pill +
+ * actions. Avatar is decorative (the name is the accessible label). Solid bottom
+ * rule separates rows (consistent with ProcurementApprovalRow — census violation B
+ * fix: `border-dashed` replaced with `border-b border-border`).
  */
 export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   name,
   week,
   hours,
   status,
+  disclosure,
   children,
   className,
 }) => {
@@ -33,10 +46,11 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
     <div
       data-approval-row
       className={cn(
-        'flex flex-wrap items-center gap-3 border-b border-dashed border-border py-[11px] last:border-b-0',
+        'flex flex-wrap items-center gap-3 border-b border-border py-[11px] last:border-b-0',
         className
       )}
     >
+      {disclosure}
       <span
         aria-hidden="true"
         className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-[12px] font-bold text-muted-foreground"

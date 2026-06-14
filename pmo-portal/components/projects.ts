@@ -1,39 +1,20 @@
-import type { StatusVariant } from '@/src/components/ui';
-
 /**
- * Maps a `projects.status` enum value to a StatusPill variant (the Tinted-Status
- * Rule — dot + darkened text, never a solid fill). Mirrors the IA-3 status
- * grouping: on-hand execution → neutral grey `progress`; won/positive-terminal →
- * green `won`; on-hold/at-risk → amber `overdue`; lost → red `lost`; pipeline
- * leads → neutral `draft`. Presentation only — `LEGAL_PROJECT_TRANSITIONS` stays
- * the authority for what may actually move (never re-derived here).
+ * ADR-0029 — Single status→variant authority.
  *
- * Per the Freed-Blue Status Rule, no status pill may use the action-blue (`open`);
- * the most common state ("Ongoing Project") is neutral grey, its LABEL carrying
- * identity (never colour-only).
+ * `pillVariantForProjectStatus` re-exports `workflowVariant` from the CW-2
+ * registry (`src/lib/status/statusVariants.ts`), which is the SOLE authority
+ * for every status tint across all modules. The previous local `VARIANT_BY_STATUS`
+ * map was retired so the two project-status helpers (`components/projects.ts` and
+ * `components/salesPipeline.ts`) can never drift from each other.
+ *
+ * Visible tint change from the old local map:
+ *  • `On Hold`: local `overdue` (amber) → registry `warn` (amber) — same family,
+ *    corrected to the registry's canonical amber token.
+ *
+ * Presentation only — `LEGAL_PROJECT_TRANSITIONS` stays the authority for
+ * what may actually move (never re-derived here).
  */
-const VARIANT_BY_STATUS: Record<string, StatusVariant> = {
-  // On-hand execution (active work) → neutral grey (freed-blue; label carries identity).
-  'Ongoing Project': 'progress',
-  // Positive states → green.
-  'Won, Pending KoM': 'won',
-  'Close Out': 'won',
-  // At-risk / paused → amber.
-  'On Hold': 'overdue',
-  // Lost → red.
-  'Loss Tender': 'lost',
-  // Pipeline leads + internal → neutral grey (not yet won work).
-  Leads: 'draft',
-  'PQ Submitted': 'draft',
-  'Quotation Submitted': 'draft',
-  'Tender Submitted': 'draft',
-  Negotiation: 'draft',
-  'Internal Project': 'draft',
-};
-
-export function pillVariantForProjectStatus(status: string): StatusVariant {
-  return VARIANT_BY_STATUS[status] ?? 'neutral';
-}
+export { workflowVariant as pillVariantForProjectStatus } from '@/src/lib/status/statusVariants';
 
 /**
  * The project icon-tile / avatar accent color. DESIGN.md names exactly one
