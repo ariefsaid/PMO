@@ -71,10 +71,10 @@ test(
     await page.getByLabel(/subject/i).fill(subject);
     await page.getByRole('button', { name: /log activity/i }).click();
 
-    // GOAL ORACLE (the real goal): the logged activity appears in the timeline.
-    await expect(page.getByText(subject)).toBeVisible({ timeout: 15_000 });
-    // Scope to the rendered timeline list — avoids matching the invisible <option> in the log-activity <select>.
+    // GOAL ORACLE (the real goal): the logged activity appears in the TIMELINE
+    // (scope to the timeline — avoid matching the success toast or the <select> <option>).
     const timeline = page.getByTestId('activity-timeline');
+    await expect(timeline.getByText(subject)).toBeVisible({ timeout: 15_000 });
     await expect(timeline.getByText('Call').first()).toBeVisible();
   },
 );
