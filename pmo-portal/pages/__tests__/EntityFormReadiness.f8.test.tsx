@@ -101,7 +101,7 @@ describe('AC-IXD-FORM-F8: Companies create modal readiness', () => {
   });
 });
 
-describe('AC-IXD-FORM-F8: ProjectFormModal (new deal) readiness', () => {
+describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
   it('AC-IXD-FORM-F8: submit is DISABLED until both required fields (name + client) are present', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -110,10 +110,10 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new deal) readiness', () => {
         <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
       </ToastProvider>,
     );
-    const submit = screen.getByRole('button', { name: 'Create deal' });
+    const submit = screen.getByRole('button', { name: 'Create project' });
     expect(submit).toBeDisabled();
     // Name alone is not enough — client is also required.
-    await user.type(screen.getByLabelText(/^Opportunity name/), 'Harborside Terminal');
+    await user.type(screen.getByLabelText(/^Project name/), 'Harborside Terminal');
     expect(submit).toBeDisabled();
   });
 
@@ -126,14 +126,14 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new deal) readiness', () => {
       </ToastProvider>,
     );
     // Fill the required fields so submit is enabled.
-    await user.type(screen.getByLabelText(/^Opportunity name/), 'Harborside Terminal');
+    await user.type(screen.getByLabelText(/^Project name/), 'Harborside Terminal');
     // Select the (only) client via the Combobox (trigger has role="combobox").
     await user.click(screen.getByRole('combobox', { name: /Client company/i }));
     await user.click(await screen.findByRole('option', { name: /Cascade Port Authority/i }));
     // Now enter an INVALID estimated value (non-blank, bad format).
     const valueInput = screen.getByLabelText('Estimated value');
     await user.type(valueInput, 'abc');
-    const submit = screen.getByRole('button', { name: 'Create deal' });
+    const submit = screen.getByRole('button', { name: 'Create project' });
     expect(submit).toBeEnabled(); // required fields are present → not blocked by completeness
     await user.click(submit);
     // The mutation is blocked by the format error.

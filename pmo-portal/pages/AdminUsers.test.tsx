@@ -116,7 +116,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
 });
 
 describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
-  it('AC-AU-002: Admin sees row Edit role + Change manager (Add user is a deferred affordance)', async () => {
+  it('AC-AU-002: Admin sees row Edit role + Change manager (New user is a deferred affordance)', async () => {
     renderPage('Admin');
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
@@ -128,9 +128,9 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   // Polish #7 — invite/create is DEFERRED (needs server-side auth-admin). The FE is
   // honest: the affordance is a DISABLED control with a reason, never a button that
   // opens a "coming soon" dead-end modal, and never a hidden broken create path.
-  it('polish#7: the Add user affordance is DISABLED with a reason (no dead-end modal)', async () => {
+  it('polish#7: the New user affordance is DISABLED with a reason (no dead-end modal)', async () => {
     renderPage('Admin');
-    const addBtn = screen.getByRole('button', { name: /Add user/i });
+    const addBtn = screen.getByRole('button', { name: /New user/i });
     expect(addBtn).toBeDisabled();
     // Clicking a disabled control does nothing — no modal, no mutation.
     await userEvent.click(addBtn);
@@ -147,9 +147,9 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.queryByRole('menuitem', { name: /status/i })).toBeNull();
   });
 
-  it('AC-AU-002: Executive gets a read-only directory — no Add user, no row actions, a read-only notice', () => {
+  it('AC-AU-002: Executive gets a read-only directory — no New user, no row actions, a read-only notice', () => {
     renderPage('Executive');
-    expect(screen.queryByRole('button', { name: /Add user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
     // Exec can still SEE the directory
     expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
     // an Admin-only gate is shown
     expect(screen.getByText(/Admin-only area/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Add user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New user/i })).not.toBeInTheDocument();
   });
 });
 
@@ -239,9 +239,9 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
 });
 
 describe('Admin Users — invite deferred (AC-AU-005)', () => {
-  it('AC-AU-005: Add user is an honest deferred affordance — disabled with a reason, no create path', async () => {
+  it('AC-AU-005: New user is an honest deferred affordance — disabled with a reason, no create path', async () => {
     renderPage('Admin');
-    const addBtn = screen.getByRole('button', { name: /Add user/i });
+    const addBtn = screen.getByRole('button', { name: /New user/i });
     // Honest: discoverable but visibly not-yet-available (needs server-side auth-admin),
     // never a button that opens a "coming soon" modal dead-end.
     expect(addBtn).toBeDisabled();

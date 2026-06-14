@@ -58,8 +58,8 @@ const SalesPipeline: React.FC = () => {
   // `project.transition` is exactly the Sales-view role set (Admin·Exec·PM·Finance). RLS is the
   // authority for the rows; this is FE clarity.
   const canViewSales = may('transition', 'project');
-  // B-3 (AC-W2-IXD-005): the "+ New opportunity" CTA — same gate as Projects.tsx (DELIVERY:
-  // Admin·Exec·PM). Finance views the pipeline but cannot start deals (rbac-visibility §C).
+  // B-3 (AC-W2-IXD-005): the "+ New project" CTA — same gate as Projects.tsx (DELIVERY:
+  // Admin·Exec·PM). Finance views the pipeline but cannot start projects (rbac-visibility §C).
   const canCreate = may('create', 'project');
 
   const { data, isPending, isError, refetch } = useSalesPipeline();
@@ -305,9 +305,9 @@ const SalesPipeline: React.FC = () => {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Sales Pipeline</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Pipeline</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Track opportunities, manage leads, and forecast revenue.
+            Track projects in the sales pipeline, manage leads, and forecast revenue.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -315,14 +315,14 @@ const SalesPipeline: React.FC = () => {
               current table view. The disabled "arrives with Reports" stub is replaced
               now that the client-side export layer is shipped (KANNA W1-E). */}
           <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
-          {/* B-3 (AC-W2-IXD-005): the natural place to start a deal is the pipeline you
-              manage deals on — not the Projects list. Reuses the same create modal +
+          {/* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
+              pre-win projects live — not the Projects list. Reuses the same create modal +
               mutation as Projects.tsx (no new create path). Gated on can('create','project')
-              = DELIVERY (Admin·Exec·PM); Finance views but cannot start deals per §C. */}
+              = DELIVERY (Admin·Exec·PM); Finance views but cannot start projects per §C. */}
           {canCreate && (
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
               <Icon name="plus" />
-              New opportunity
+              New project
             </Button>
           )}
         </div>
@@ -332,7 +332,7 @@ const SalesPipeline: React.FC = () => {
             onClose={() => setCreateOpen(false)}
             onSubmit={async (input) => {
               await create.mutateAsync(input);
-              toast('Opportunity created', input.name, 'success');
+              toast('Project created', input.name, 'success');
               setCreateOpen(false);
             }}
             onError={(err) => {
@@ -369,7 +369,7 @@ const SalesPipeline: React.FC = () => {
         <Toolbar standalone>
           <ViewToggle
             options={[
-              { value: 'kanban', label: 'Kanban', icon: 'cards' },
+              { value: 'kanban', label: 'Board', icon: 'cards' },
               { value: 'table', label: 'Table', icon: 'table' },
             ]}
             value={view}
@@ -386,8 +386,8 @@ const SalesPipeline: React.FC = () => {
             />
           )}
           <SearchMini
-            placeholder="Search deals…"
-            aria-label="Search deals"
+            placeholder="Search projects…"
+            aria-label="Search projects"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="ml-auto"
@@ -414,8 +414,8 @@ const SalesPipeline: React.FC = () => {
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title="No opportunities yet"
-          sub="Add a lead to start tracking the pipeline."
+          title="No projects yet"
+          sub="Add a project to start tracking the pipeline."
         />
       )}
 

@@ -354,9 +354,9 @@ const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => (
       // button doesn't fire hover/focus, so the tooltip wraps a span that does.
       <Tooltip content="Inviting users arrives with server-side auth">
         <span className="inline-flex">
-          <Button variant="primary" disabled aria-label="Add user (coming soon)">
+          <Button variant="primary" disabled aria-label="New user (coming soon)">
             <Icon name="plus" />
-            Add user
+            New user
           </Button>
         </span>
       </Tooltip>

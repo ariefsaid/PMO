@@ -67,7 +67,7 @@ beforeEach(() => {
 describe('SalesPipeline — Engineer page view-gate (A-4)', () => {
   it('AC-W2-RBAC-008: a PM sees the pipeline board (authorized)', () => {
     renderAs('Project Manager');
-    expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pipeline' })).toBeInTheDocument();
     // The board content (the Acme deal) renders.
     expect(screen.getByText('Acme Tender')).toBeInTheDocument();
   });

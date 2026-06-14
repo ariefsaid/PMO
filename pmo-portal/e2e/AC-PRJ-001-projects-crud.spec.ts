@@ -2,15 +2,15 @@ import { test, expect, type Page } from '@playwright/test';
 import { login, pickComboboxOption, openPipelineCard } from './helpers';
 
 /**
- * AC-PRJ-001  Projects / Opportunities CRUD — real user journeys (binding BDD authoring principle).
+ * AC-PRJ-001  Projects CRUD — real user journeys (binding BDD authoring principle).
  *
  * Covers:
- *   AC-PRJ-003  PM creates a new deal (Leads opportunity) → the new row appears in the index
+ *   AC-PRJ-003  PM creates a new project (Leads) → the new row appears in the Pipeline
  *   AC-PRJ-004  PM edits the project header (name) on the detail page → the change persists
  *   AC-PRJ-005  Executive archives a project → it leaves the default index
  *   AC-PRJ-006  contract_value SoD: on a WON/on-hand project, Finance CAN edit the value (money
  *               authority) and PM sees it READ-ONLY (the segregation of duties)
- *   AC-PRJ-007  gating: Finance does NOT see "New deal" (FE stricter than RLS)
+ *   AC-PRJ-007  gating: Finance does NOT see "New project" (FE stricter than RLS)
  *
  * Roles (seed.sql): pm@acme.test, exec@acme.test, finance@acme.test.
  * On-hand seed project: P001 "Innovate Corp HQ Fit-Out" (status Ongoing Project), PM = pm@acme.test.
@@ -33,38 +33,38 @@ function projectRow(page: Page, name: string) {
 
 // ── AC-PRJ-003 / AC-PRJ-004 / AC-PRJ-005 — full delivery CRUD journey ──────────
 
-// Model B (ADR-0020): a created deal originates as a Leads opportunity → it lives in the Sales
-// Pipeline, NOT the active Projects list. The PM creates it (from the Projects "New deal" CTA),
+// Model B (ADR-0020): a created project originates as Leads → it lives in the
+// Pipeline, NOT the active Projects list. The PM creates it (from the Projects "New project" CTA),
 // finds it in the Pipeline, opens it at the canonical /projects/:id route (pipeline lens), edits
 // its header there, then an Exec archives it; goal-oracle: created → in the Pipeline, updated
 // after edit, gone from the Pipeline after archive.
 test(
-  'AC-PRJ-003 + AC-PRJ-004 + AC-PRJ-005: PM creates a deal (Leads → in the Pipeline), edits its header on the canonical detail page, then Exec archives it',
+  'AC-PRJ-003 + AC-PRJ-004 + AC-PRJ-005: PM creates a project (Leads → in the Pipeline), edits its header on the canonical detail page, then Exec archives it',
   async ({ page }) => {
     const runId = Date.now();
     const dealName = `E2E-Deal-${runId}`;
     const editedName = `${dealName}-EDITED`;
 
-    // ── Step 1: AC-PRJ-003 — PM creates a new deal ─────────────────────────────
+    // ── Step 1: AC-PRJ-003 — PM creates a new project ─────────────────────────────
     await login(page, 'pm@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
 
-    const newBtn = page.getByRole('button', { name: /new deal/i });
+    const newBtn = page.getByRole('button', { name: /new project/i });
     await expect(newBtn).toBeVisible({ timeout: 10_000 });
     await newBtn.click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
-    await dialog.getByLabel(/opportunity name/i).fill(dealName);
+    await dialog.getByLabel(/project name/i).fill(dealName);
     // Client company FK picker (Combobox): wait for the async option list to settle, then pick the
     // first option (the bare listbox.option.first().click() races the lazy load→ready re-render →
-    // a lost selection that blocks the Create-deal submit; see helpers.pickComboboxOption).
+    // a lost selection that blocks the Create-project submit; see helpers.pickComboboxOption).
     await pickComboboxOption(dialog, page, /client company/i, 'first');
-    await dialog.getByRole('button', { name: /^Create deal$/i }).click();
+    await dialog.getByRole('button', { name: /^Create project$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
-    // GOAL ORACLE: the new Leads deal is in the Sales Pipeline (not the active Projects list).
+    // GOAL ORACLE: the new Leads project is in the Pipeline (not the active Projects list).
     await page.goto('/sales');
     await expect(page.getByText(dealName).first()).toBeVisible({ timeout: 15_000 });
 
@@ -76,7 +76,7 @@ test(
 
     const editDialog = page.getByRole('dialog');
     await expect(editDialog).toBeVisible({ timeout: 8_000 });
-    const nameInput = editDialog.getByLabel(/opportunity name/i);
+    const nameInput = editDialog.getByLabel(/project name/i);
     await nameInput.clear();
     await nameInput.fill(editedName);
     await editDialog.getByRole('button', { name: /save project/i }).click();
@@ -146,15 +146,15 @@ test(
   },
 );
 
-// ── AC-PRJ-007 — gating: Finance does not see "New deal" ──────────────────────
+// ── AC-PRJ-007 — gating: Finance does not see "New project" ──────────────────────
 
 test(
-  'AC-PRJ-007 gating: Finance does not see the New deal button on /projects (FE stricter than RLS)',
+  'AC-PRJ-007 gating: Finance does not see the New project button on /projects (FE stricter than RLS)',
   async ({ page }) => {
     await login(page, 'finance@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
-    // GOAL ORACLE: "New deal" is HIDDEN for Finance (FE excludes Finance from project create).
-    await expect(page.getByRole('button', { name: /new deal/i })).not.toBeVisible({ timeout: 10_000 });
+    // GOAL ORACLE: "New project" is HIDDEN for Finance (FE excludes Finance from project create).
+    await expect(page.getByRole('button', { name: /new project/i })).not.toBeVisible({ timeout: 10_000 });
   },
 );

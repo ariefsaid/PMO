@@ -83,7 +83,7 @@ function moneyError(raw: string): string | undefined {
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Opportunity name is required.';
+  if (!v.name.trim()) errors.name = 'Project name is required.';
   if (!v.clientId) errors.clientId = 'Select a client company.';
   const valueErr = moneyError(v.value);
   if (valueErr) errors.value = valueErr;
@@ -91,7 +91,7 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
 };
 
 export interface ProjectFormModalProps {
-  /** Omit (or 'create') for a new deal; 'editHeader' to edit an existing project. */
+  /** Omit (or 'create') for a new project; 'editHeader' to edit an existing project. */
   mode?: 'create' | 'editHeader';
   /** The project being edited (required for mode="editHeader"). */
   initial?: ProjectFormInitial;
@@ -215,11 +215,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit project' : 'New deal'}
+      title={isEdit ? 'Edit project' : 'New project'}
       subtitle={
-        isEdit ? 'Update the project header details' : 'Create an opportunity in the sales pipeline'
+        isEdit ? 'Update the project header details' : 'Create a project'
       }
-      submitLabel={isEdit ? 'Save project' : 'Create deal'}
+      submitLabel={isEdit ? 'Save project' : 'Create project'}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -227,11 +227,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
-      <FormSection legend="Opportunity">
+      <FormSection legend="Project">
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Opportunity name"
+            label="Project name"
             required
             value={nameField.value}
             onChange={nameField.onChange}

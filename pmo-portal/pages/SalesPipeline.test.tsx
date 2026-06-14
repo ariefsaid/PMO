@@ -83,12 +83,13 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('AC-SP-202 / C3: renders the page title, sub, and the live Export action (no dead New deal CTA)', () => {
+  it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
     renderPage();
-    expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
-    // C3: the disabled "New deal" primary CTA is removed — a page is not
-    // anchored by a dead button.
+    expect(screen.getByRole('heading', { name: 'Pipeline' })).toBeInTheDocument();
+    // C3: the old disabled "New deal" stub is gone; the live "New project" CTA replaced it.
     expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
+    // PM can create → the live "New project" button is present.
+    expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
     // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
   });
@@ -130,7 +131,7 @@ describe('SalesPipeline states (AC-SP-203)', () => {
   it('AC-SP-203 / C3: empty renders the teaching empty state with NO dead CTA', () => {
     pipelineState.data = { stages: [], projects: [] };
     renderPage();
-    expect(screen.getByText(/No opportunities yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
     // C3: the empty state teaches via its sub copy — no disabled "New deal" CTA.
     expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
   });
@@ -143,11 +144,11 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     expect(within(tender).getAllByText((t) => t.includes(formatCurrency(600000))).length).toBeGreaterThan(0);
   });
 
-  it('AC-SP-206: the view toggle is a tablist with Kanban selected by default', () => {
+  it('AC-SP-206: the view toggle is a tablist with Board selected by default', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /Pipeline view/i });
-    const kanbanTab = within(toggle).getByRole('tab', { name: /Kanban/i });
-    expect(kanbanTab).toHaveAttribute('aria-selected', 'true');
+    const boardTab = within(toggle).getByRole('tab', { name: /^Board$/i });
+    expect(boardTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('AC-SP-206 / AC-SP-205: switching to Table renders the DataTable with the deal rows', async () => {
