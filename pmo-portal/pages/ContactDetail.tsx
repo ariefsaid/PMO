@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
   Card,
@@ -184,10 +184,52 @@ const ContactDetail: React.FC = () => {
         <CardHead>Contact detail</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label="Company" value={companyName} />
+            <Field
+              label="Company"
+              value={
+                contact.company_id ? (
+                  <Link
+                    to={`/companies/${contact.company_id}`}
+                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {companyName}
+                  </Link>
+                ) : (
+                  companyName
+                )
+              }
+            />
             <Field label="Title" value={contact.title || '—'} />
-            <Field label="Email" value={contact.email || '—'} />
-            <Field label="Phone" value={contact.phone || '—'} />
+            <Field
+              label="Email"
+              value={
+                contact.email ? (
+                  <a
+                    href={`mailto:${contact.email}`}
+                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {contact.email}
+                  </a>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <Field
+              label="Phone"
+              value={
+                contact.phone ? (
+                  <a
+                    href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
+                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {contact.phone}
+                  </a>
+                ) : (
+                  '—'
+                )
+              }
+            />
             {contact.notes && <Field label="Notes" value={contact.notes} />}
           </dl>
         </CardPad>
@@ -247,6 +289,14 @@ const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+/** Returns the route to the related object for an activity, or null when neither id is set.
+ *  project_id takes precedence over company_id (a project is more specific context). */
+const hrefForActivity = (a: { project_id: string | null; company_id: string | null }): string | null => {
+  if (a.project_id) return `/projects/${a.project_id}`;
+  if (a.company_id) return `/companies/${a.company_id}`;
+  return null;
 };
 
 const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
@@ -340,16 +390,30 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
 
       {!isPending && !isError && activities.length > 0 && (
         <ol data-testid="activity-timeline" className="flex flex-col gap-3">
-          {activities.map((a) => (
-            <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
-              <div className="flex items-center justify-between gap-2">
-                <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
-                <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
-              </div>
-              {a.subject && <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>}
-              {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
-            </li>
-          ))}
+          {activities.map((a) => {
+            const relatedHref = hrefForActivity(a);
+            return (
+              <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
+                  <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
+                </div>
+                {a.subject && (
+                  relatedHref ? (
+                    <Link
+                      to={relatedHref}
+                      className="text-[13.5px] font-medium text-foreground hover:text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                    >
+                      {a.subject}
+                    </Link>
+                  ) : (
+                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                  )
+                )}
+                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
