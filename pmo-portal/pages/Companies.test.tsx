@@ -8,7 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations } = vi.hoisted(() => ({
+const { listState, mutations, contactsByCompanyState } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -21,11 +21,20 @@ const { listState, mutations } = vi.hoisted(() => ({
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
   },
+  contactsByCompanyState: {
+    data: [] as unknown[],
+    isPending: false,
+    isError: false,
+  },
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => listState,
   useCompanyMutations: () => mutations,
+}));
+
+vi.mock('@/src/hooks/useContacts', () => ({
+  useContactsByCompany: () => contactsByCompanyState,
 }));
 
 // usePermission reads the REAL JWT role from the impersonation context.
@@ -63,6 +72,9 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
+  contactsByCompanyState.data = [];
+  contactsByCompanyState.isPending = false;
+  contactsByCompanyState.isError = false;
   realRole = 'Admin';
 });
 
@@ -338,5 +350,50 @@ describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
     const drawer = await openDrawer('Cascade Port Authority');
     expect(within(drawer).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('Company drawer — Contacts section (AC-CRM-008)', () => {
+  const openDrawer = async (name: string) => {
+    await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));
+    return screen.getByRole('dialog');
+  };
+
+  it('AC-CRM-008: drawer shows a "Contacts" heading with contact names and titles when contacts are present', async () => {
+    contactsByCompanyState.data = [
+      {
+        id: 'ct1', company_id: 'c1', full_name: 'Alice Johnson', title: 'VP Engineering',
+        email: null, phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 'ct2', company_id: 'c1', full_name: 'Bob Smith', title: 'Project Lead',
+        email: null, phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-02T00:00:00Z',
+      },
+    ];
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    // Section label present
+    expect(within(drawer).getByText(/^Contacts$/i)).toBeInTheDocument();
+    // Both contact names rendered
+    expect(within(drawer).getByText('Alice Johnson')).toBeInTheDocument();
+    expect(within(drawer).getByText('Bob Smith')).toBeInTheDocument();
+    // Title rendered
+    expect(within(drawer).getByText('VP Engineering')).toBeInTheDocument();
+  });
+
+  it('AC-CRM-008: drawer shows "No contacts yet" empty state when company has no contacts', async () => {
+    contactsByCompanyState.data = [];
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    expect(within(drawer).getByText(/No contacts yet/i)).toBeInTheDocument();
+  });
+
+  it('AC-CRM-008: drawer shows a loading indicator while contacts are being fetched', async () => {
+    contactsByCompanyState.isPending = true;
+    contactsByCompanyState.data = [];
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    // A loading indicator with accessible label is present in the contacts section
+    expect(within(drawer).getByRole('status', { name: /loading contacts/i })).toBeInTheDocument();
   });
 });

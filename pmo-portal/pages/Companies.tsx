@@ -29,6 +29,7 @@ import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
+import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 
@@ -410,6 +411,51 @@ const Companies: React.FC = () => {
   );
 };
 
+// ── FR-CRM-008: company's non-archived contacts list ─────────────────────────
+
+/**
+ * Read-only contacts list for the company quick-view Drawer. Consumes the
+ * pre-wired `useContactsByCompany` hook (AC-CRM-021). Handles loading,
+ * empty ("No contacts yet"), and populated states. No write affordances here
+ * — YAGNI; the Contacts page owns create/edit/archive.
+ */
+const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending } = useContactsByCompany(companyId);
+
+  if (isPending) {
+    return (
+      <p
+        role="status"
+        aria-label="Loading contacts"
+        className="text-[13px] text-muted-foreground"
+      >
+        Loading…
+      </p>
+    );
+  }
+
+  const contacts = data ?? [];
+
+  if (contacts.length === 0) {
+    return (
+      <p className="text-[13px] text-muted-foreground">No contacts yet</p>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-2" aria-label="Contacts list">
+      {contacts.map((c) => (
+        <li key={c.id} className="flex flex-col gap-0.5">
+          <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
+          {c.title && (
+            <span className="text-[12px] text-muted-foreground">{c.title}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 // ── D11: read-first quick-view drawer ────────────────────────────────────────
 
 interface CompanyDrawerProps {
@@ -502,6 +548,10 @@ const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
           ) : (
             <StatusPill variant={TYPE_PILL[company.type]}>{company.type}</StatusPill>
           )}
+        </DField>
+        {/* FR-CRM-008: read-only contacts section (non-archived, fed by useContactsByCompany). */}
+        <DField label="Contacts">
+          <CompanyContactsList companyId={company.id} />
         </DField>
       </dl>
     </Drawer>
