@@ -134,11 +134,20 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   reviews can slip. Add axe assertions at the e2e/component layer as a regression net. (Charter Gaps 1–3
   closed: coverage gate now CI-enforced via `scripts/changed-lines-coverage.mjs`; Part B synced to
   3-reviewer + twice-design-review; DB-index review assigned to code-quality.)
-- **Lens D — Product / Intent (JTBD) codified 2026-06-14** — `docs/jtbd.md` is the role × job-story
-  oracle (Lens D grades every FE screen against it); wired into `docs/design-workflow.md` §2.3(d),
-  `design-reviewer` agent, `docs/director-playbook.md` intake hook, `DESIGN.md` §7, and Part C of
-  `docs/product-expectations.md`. **Next:** run a dual-substrate JTBD cognitive-walkthrough pass on
-  `dev` (gap doc §6b, `docs/reviews/2026-06-14-intent-lens-gap.md`).
+- **Lens D — Product / Intent (JTBD) codified + first pass run, 2026-06-14** — `docs/jtbd.md` is the
+  role × job-story oracle (Lens D grades every FE screen against it); wired into
+  `docs/design-workflow.md` §2.3(d), `design-reviewer` agent, `docs/director-playbook.md` intake hook,
+  `DESIGN.md` §7, and Part C of `docs/product-expectations.md`. **(b) DONE:** the dual-substrate
+  (Opus + gpt-5.4) JTBD walkthrough on `dev` → [`docs/reviews/2026-06-14-jtbd-walkthrough.md`](reviews/2026-06-14-jtbd-walkthrough.md):
+  3 anchors re-confirmed (a HOLDS·Critical, b HOLDS, c PARTIALLY-RESOLVED+re-appears-pre-win), **9
+  confirmed intent gaps** (1 Crit / 6 Imp / 2 Min) clustering in 2 classes (dead-display, preview-asymmetry).
+- **▶ NEXT candidate — "intent-fix wave"** (from the JTBD pass §6, owner-triage): (1) procurement
+  **preview-in-place** in `/approvals` (the Critical, anchor a); (2) **dead-display sweep** — make
+  record-naming/exception elements open the record / carry the recovery lever (exec Budget-vs-Actual rows,
+  calendar entries, S-curve lever, incident location, "1 at-risk"); (3) **pre-win record layout**
+  (sales levers first, demote delivery/S-curve until won); (4) company-detail related objects + My-Tasks
+  urgency/log-time; (5) **seed enrichment** — contacts+activity in `seed-demo-solar.sql`. Each is a Lens-D
+  regression candidate (leave a component/e2e invariant).
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project`;
