@@ -68,7 +68,7 @@ const SalesPipeline: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
-  const { data: lostDeals } = useLostDeals();
+  const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
   const navigate = useNavigate();
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
@@ -441,7 +441,16 @@ const SalesPipeline: React.FC = () => {
         <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} />
       )}
 
-      {state === undefined && view === 'table' && (
+      {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
+        <ListState
+          variant="error"
+          title="Couldn't load lost deals"
+          sub="Something went wrong fetching lost projects."
+          onRetry={() => refetchLost()}
+        />
+      )}
+
+      {state === undefined && view === 'table' && !(lostError && (scope === 'Lost' || scope === 'Needs attention')) && (
         <DataTable<PipelineProject>
           rows={filtered}
           columns={tableColumns}

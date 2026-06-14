@@ -41,8 +41,8 @@ const ExecutiveDashboard: React.FC = () => {
   // component. The same predicate as AwaitingApprovalTile (H7 — single source).
   const { currentUser } = useAuth();
   const selfId = currentUser?.id;
-  const { data: procurements } = useProcurements();
-  const { data: timesheets } = useTimesheetsAwaitingApproval();
+  const { data: procurements, isError: procError } = useProcurements();
+  const { data: timesheets, isError: tsError } = useTimesheetsAwaitingApproval();
   const canApproveProc = can('transition', 'procurement', { realRole });
   const mobileApprovalCount = useMemo(() => {
     const procCount = canApproveProc
@@ -51,6 +51,9 @@ const ExecutiveDashboard: React.FC = () => {
     const tsCount = timesheets?.length ?? 0;
     return procCount + tsCount;
   }, [canApproveProc, procurements, selfId, timesheets]);
+
+  /** AC-W2-4-06: true when any contributing query errored (shows "—" on mobile band). */
+  const mobileApprovalError = Boolean(procError || tsError);
 
   const procByStatus = useMemo(
     () =>
@@ -171,6 +174,7 @@ const ExecutiveDashboard: React.FC = () => {
           <MobileExecutiveDashboard
             data={data}
             approvalCount={mobileApprovalCount}
+            approvalError={mobileApprovalError}
             belowFold={<div className="mt-3 space-y-4">{chartsSection}</div>}
           />
         </div>

@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ListState, StatusPill, SelectField } from '@/src/components/ui';
+import { ListState, StatusPill, SelectField, useToast } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { formatDate } from '@/src/lib/format';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
 /** AC-IFW-TASKS-01: Today's ISO date string (YYYY-MM-DD) for overdue comparison. */
@@ -48,6 +49,7 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
 const MyTasks: React.FC = () => {
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
+  const { toast } = useToast();
 
   // Group by project for a structured "what do I do today" view, then sort each group by urgency.
   // AC-IFW-TASKS-01: within each project group, overdue open tasks sort first (key=0), then
@@ -173,8 +175,17 @@ const MyTasks: React.FC = () => {
                         hideLabel
                         label={`Change status of ${task.name}`}
                         value={task.status}
+                        disabled={updateStatus.isPending}
                         onChange={(v) =>
-                          updateStatus.mutate({ id: task.id, status: v as TaskStatus })
+                          updateStatus.mutate(
+                            { id: task.id, status: v as TaskStatus },
+                            {
+                              onError: (err) => {
+                                const { headline, detail } = classifyMutationError(err);
+                                toast(headline, detail, 'warning');
+                              },
+                            },
+                          )
                         }
                         options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
                         className="w-auto min-w-[120px]"

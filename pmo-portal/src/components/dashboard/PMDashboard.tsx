@@ -58,19 +58,19 @@ export const PMDashboard: React.FC = () => {
       <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-projects" tone="violet" icon="folder" label="My projects"
-          value={String(mine.length)} loading={isPending}
+          value={String(mine.length)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel="Open my projects"
           help="Projects where you are the assigned project manager." />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label="My contract value"
-          value={formatCurrency(contractValue)} loading={isPending}
+          value={formatCurrency(contractValue)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel="Open my projects to see contract value"
           help="Total contract value across your projects." />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label="At risk"
-          value={String(atRiskCount)} loading={isPending} vs="budget usage > 90%"
+          value={String(atRiskCount)} loading={isPending} error={isError} vs="budget usage > 90%"
           to="/projects?filter=at-risk"
           linkLabel="Open my at-risk projects"
           help="Your projects whose actual spend exceeds 90% of budget." />

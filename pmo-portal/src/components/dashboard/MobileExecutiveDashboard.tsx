@@ -32,6 +32,11 @@ export interface MobileExecutiveDashboardProps {
   data: ExecutiveDashboard;
   /** Approval items waiting on this user (proc + timesheets). */
   approvalCount: number;
+  /**
+   * True when a contributing approval query (procurements or timesheets) errored.
+   * The band shows "—" instead of a fabricated 0 count (AC-W2-4-06).
+   */
+  approvalError?: boolean;
   /** Rendered below the above-fold section (charts, pipeline, etc.). */
   belowFold: React.ReactNode;
 }
@@ -159,8 +164,10 @@ const AtRiskBlock: React.FC<{
  * One Blue Rule: this is the only `primary`-colored affordance above the fold.
  * The whole row is a link (no nested button inside link — single focusable element).
  */
-const MobileApprovalsBand: React.FC<{ count: number }> = ({ count }) => {
-  const label = `Awaiting your approval: ${count} ${count === 1 ? 'item' : 'items'}. Open approvals inbox.`;
+const MobileApprovalsBand: React.FC<{ count: number; error?: boolean }> = ({ count, error }) => {
+  const label = error
+    ? 'Awaiting your approval. Open approvals inbox.'
+    : `Awaiting your approval: ${count} ${count === 1 ? 'item' : 'items'}. Open approvals inbox.`;
   return (
     <Link
       to="/approvals"
@@ -178,7 +185,9 @@ const MobileApprovalsBand: React.FC<{ count: number }> = ({ count }) => {
 
       {/* Count + label */}
       <div>
-        <div className="tabular text-[21px] font-bold leading-none">{count}</div>
+        <div className="tabular text-[21px] font-bold leading-none">
+          {error ? '—' : count}
+        </div>
         <div className="mt-[2px] text-[12.5px] text-muted-foreground">
           Awaiting your approval
         </div>
@@ -256,6 +265,7 @@ const ContractBook: React.FC<{
 export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> = ({
   data,
   approvalCount,
+  approvalError,
   belowFold,
 }) => {
   const totalSpend = data.top_projects.reduce((s, p) => s + (p.spent || 0), 0);
@@ -274,7 +284,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
 
       {/* Section 2: Awaiting approval — primary action band */}
       <section aria-label="Approvals">
-        <MobileApprovalsBand count={approvalCount} />
+        <MobileApprovalsBand count={approvalCount} error={approvalError} />
       </section>
 
       {/* Section 3: Contract book — B-MIN-3 grouped money pair */}

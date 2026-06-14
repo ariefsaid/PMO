@@ -115,7 +115,7 @@ const Projects: React.FC = () => {
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
-  const { data: deliverySummary, isPending: deliveryPending } = useProjectsDeliverySummary(all.map((p) => p.id));
+  const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
 
   // I6: committed-spend-based at-risk (not stale p.spent/p.budget). Derives from the SAME
   // committed-spend summary used in the Budget used column, and routes through the shared
@@ -334,6 +334,7 @@ const Projects: React.FC = () => {
       // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
       // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
       cell: (p) => {
+        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
         const actualSpend = deliverySummary?.[p.id]?.committedSpend;
         if (deliveryPending || actualSpend == null) {
           return <span className="text-[12px] text-muted-foreground">…</span>;
@@ -346,6 +347,7 @@ const Projects: React.FC = () => {
       header: 'Progress',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
+        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
         if (deliveryPending) {
           return <span className="text-[12px] text-muted-foreground">…</span>;
         }
@@ -366,6 +368,7 @@ const Projects: React.FC = () => {
       header: 'Budget used',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of $0/$0.
+        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
         if (deliveryPending) {
           return <span className="text-[12px] text-muted-foreground">…</span>;
         }

@@ -41,6 +41,8 @@ export interface KPITileProps<L extends string = string> {
   vs?: string;
   /** Skeleton while the metric query loads. */
   loading?: boolean;
+  /** When true, renders an em-dash "—" instead of the value (fetch error state). */
+  error?: boolean;
   /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
   dual?: KPIDualLens<L>;
   /**
@@ -73,6 +75,7 @@ export function KPITile<L extends string = string>({
   delta,
   vs,
   loading = false,
+  error = false,
   dual,
   to,
   linkLabel,
@@ -145,6 +148,10 @@ export function KPITile<L extends string = string>({
         {head}
         {loading ? (
           <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+        ) : error ? (
+          <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
+            —
+          </span>
         ) : (
           <div
             className={cn(
@@ -170,6 +177,10 @@ export function KPITile<L extends string = string>({
 
       {loading ? (
         <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+      ) : error ? (
+        <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
+          —
+        </span>
       ) : (
         <div
           className={cn(

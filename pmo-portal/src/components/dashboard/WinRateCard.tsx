@@ -65,7 +65,7 @@ export const WinRateCard: React.FC = () => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
-  const { data: wr } = useWinRate(range);
+  const { data: wr, isError, refetch } = useWinRate(range);
 
   const wins = wr ? (mode === 'count' ? wr.wins_count : wr.wins_value) : 0;
   const losses = wr ? (mode === 'count' ? wr.losses_count : wr.losses_value) : 0;
@@ -91,7 +91,14 @@ export const WinRateCard: React.FC = () => {
         className="mb-3.5 flex-wrap"
       />
 
-      {total === 0 ? (
+      {isError ? (
+        <ListState
+          variant="error"
+          title="Couldn't load win rate"
+          sub="Something went wrong. Try again."
+          onRetry={() => refetch()}
+        />
+      ) : total === 0 ? (
         <ListState
           variant="empty"
           icon="pipe"
