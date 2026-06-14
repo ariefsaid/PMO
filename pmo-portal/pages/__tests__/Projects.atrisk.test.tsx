@@ -124,16 +124,19 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
   it('AC-W6-IXD-ATRISK: an at-risk row renders the "% of budget" caption in the Budget used cell', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
-    const progressCell = row.children[row.children.length - 2] as HTMLElement;
-    expect(within(progressCell).getByRole('progressbar')).toHaveAttribute('aria-label', 'Budget used 95%');
-    expect(within(progressCell).getByText('$95.0K of $100.0K budget')).toBeInTheDocument();
+    // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
+    const budgetBar = within(row).getByRole('progressbar', { name: 'Budget used 95%' });
+    expect(budgetBar).toHaveAttribute('aria-label', 'Budget used 95%');
+    expect(within(row).getByText('$95.0K of $100.0K budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
     const nameCell = within(row).getByRole('button', { name: 'At Risk Project' }).closest('td')!;
-    const progressCell = row.children[row.children.length - 3] as HTMLElement;
+    // Find the progress cell (delivery %) by finding the progressbar whose label is Delivery
+    const deliveryBar = within(row).getByRole('progressbar', { name: 'Delivery 32%' });
+    const progressCell = deliveryBar.closest('td')!;
     expect(within(nameCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(progressCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(nameCell).getByText(/^At risk$/i)).toBeInTheDocument();
@@ -142,9 +145,10 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
     renderPage();
     const row = screen.getByText('Safe Project').closest('tr')!;
-    const budgetUsedCell = row.children[row.children.length - 2] as HTMLElement;
-    expect(within(budgetUsedCell).getByRole('progressbar')).toHaveAttribute('aria-label', 'Budget used 50%');
-    expect(within(budgetUsedCell).getByText('$40.0K of $80.0K budget')).toBeInTheDocument();
+    // Seek by aria-label — robust to column count (a rowMenu column was added)
+    const budgetBar = within(row).getByRole('progressbar', { name: 'Budget used 50%' });
+    expect(budgetBar).toHaveAttribute('aria-label', 'Budget used 50%');
+    expect(within(row).getByText('$40.0K of $80.0K budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {
@@ -152,7 +156,8 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('Zero Budget Project').closest('tr')!;
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
-    const budgetUsedCell = row.children[row.children.length - 2] as HTMLElement;
-    expect(within(budgetUsedCell).getByText('—')).toBeInTheDocument();
+    // Zero budget → muted dash; no budget progressbar label in this row
+    expect(within(row).queryByRole('progressbar', { name: /Budget used/i })).toBeNull();
+    expect(within(row).getByText('—')).toBeInTheDocument();
   });
 });

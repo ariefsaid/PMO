@@ -125,30 +125,21 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
   });
 
-  // Polish #7 — invite/create is DEFERRED (needs server-side auth-admin). The FE is
-  // honest: the affordance is a DISABLED control with a reason, never a button that
-  // opens a "coming soon" dead-end modal, and never a hidden broken create path.
-  it('polish#7: the New user affordance is DISABLED with a reason (no dead-end modal)', async () => {
+  // T26 (AC-PJ-ADMIN-001): the permanently-disabled dead-end "New user" button is replaced
+  // by a LIVE "Copy invite instructions" affordance. The Admin copies an onboarding message
+  // and emails it to the new user manually. NO edge function, NO service-role key.
+  it('AC-PJ-ADMIN-001: the permanently-disabled "New user" button is GONE — replaced by a live "Copy invite" affordance', () => {
     renderPage('Admin');
-    const addBtn = screen.getByRole('button', { name: /New user/i });
-    expect(addBtn).toBeDisabled();
-    // Clicking a disabled control does nothing — no modal, no mutation.
-    await userEvent.click(addBtn);
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
+    // The old disabled button with the "user invites arrive soon" label is gone.
+    expect(screen.queryByRole('button', { name: /New user \(user invites arrive soon\)/i })).not.toBeInTheDocument();
+    // A live (not disabled) affordance is present.
+    const affordance = screen.getByRole('button', { name: /Copy invite/i });
+    expect(affordance).not.toBeDisabled();
   });
 
-  it('CW-7: the disabled New-user control exposes an explanatory hint (honest-disabled, not silently dead)', () => {
-    renderPage('Admin');
-    const addBtn = screen.getByRole('button', { name: /New user/i });
-    expect(addBtn).toBeDisabled();
-    // The "why it's disabled" is always discoverable: a static title on the wrapping span (a
-    // disabled button fires no hover/focus, so a hover-only tooltip would leave AT/keyboard users
-    // with no reason) PLUS an accessible name that carries the same reason.
-    const hintHost = addBtn.closest('[title]');
-    expect(hintHost).not.toBeNull();
-    expect(hintHost).toHaveAttribute('title', expect.stringMatching(/invite/i));
-    expect(addBtn).toHaveAccessibleName(/invite/i);
+  it('AC-PJ-ADMIN-001: Copy invite instructions is only shown to Admin (not Exec read-only)', () => {
+    renderPage('Executive');
+    expect(screen.queryByRole('button', { name: /Copy invite/i })).not.toBeInTheDocument();
   });
 
   it('polish#7: there is NO disable/Status row affordance (deferred — needs a status column)', async () => {
@@ -251,16 +242,14 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   });
 });
 
-describe('Admin Users — invite deferred (AC-AU-005)', () => {
-  it('AC-AU-005: New user is an honest deferred affordance — disabled with a reason, no create path', async () => {
+describe('Admin Users — invite affordance (AC-AU-005 / AC-PJ-ADMIN-001)', () => {
+  it('AC-AU-005 (updated T26): "Copy invite instructions" is a LIVE affordance — not a disabled dead-end', async () => {
     renderPage('Admin');
-    const addBtn = screen.getByRole('button', { name: /New user/i });
-    // Honest: discoverable but visibly not-yet-available (needs server-side auth-admin),
-    // never a button that opens a "coming soon" modal dead-end. CW-7 unified the reason copy to
-    // "user invites arrive soon" (goal-oracle intact: the accessible name carries the reason).
-    expect(addBtn).toBeDisabled();
-    expect(addBtn).toHaveAccessibleName(/invite|arrive soon/i);
-    // It does not silently call a create mutation that cannot succeed client-side.
+    // T26: the permanently-disabled "New user" dead-end is replaced by a live button
+    // that copies an onboarding message to clipboard. No edge function needed.
+    const btn = screen.getByRole('button', { name: /Copy invite/i });
+    expect(btn).not.toBeDisabled();
+    // It does not call a role mutation (different concern entirely).
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(mutations.assignManager.mutateAsync).not.toHaveBeenCalled();
   });
