@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import ProjectGantt from '../ProjectGantt';
 
 function makeTask(
