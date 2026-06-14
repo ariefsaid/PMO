@@ -58,10 +58,10 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByText('Lost')).toBeInTheDocument();
   });
 
-  it('shows an empty message (not a fabricated 0%) when there are no closed deals', () => {
+  it('shows an empty message (not a fabricated 0%) when there are no closed projects', () => {
     oracle = zeroOracle;
     render(<WinRateCard />);
-    expect(screen.getByText(/No closed deals in this window/i)).toBeInTheDocument();
+    expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
   });
 });

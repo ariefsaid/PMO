@@ -196,10 +196,12 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('T16: shows spent value', () => {
-    renderTab();
-    // project.spent = 400k — actual spent remains in the budget snapshot.
-    expect(screen.getAllByText(/\$400,000/i).length).toBeGreaterThanOrEqual(1);
+  it('T16: shows actual spent on the committed-PO basis (AC-MONEY-01)', () => {
+    // The Budget-snapshot "Actual spent" now reads committed-PO spend (the live basis used by
+    // the D15 tile + header), NOT the dead projects.spent column. Use a distinct committedSpend
+    // (320k) so it doesn't collide with the $150k activeTotal.
+    renderTab(project, vi.fn(), 320_000);
+    expect(screen.getAllByText(/\$320,000/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('T16: budget utilization uses committed spend over active budget, not actual spent over contract', () => {
@@ -209,9 +211,9 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
   });
 
-  it('T16: shows negative variance in destructive color when spent > activeTotal', () => {
-    // spent(400k) > active(150k) → variance = -250k
-    const { container } = renderTab();
+  it('T16: shows negative variance in destructive color when committed spend > activeTotal', () => {
+    // committed(400k) > active(150k) → variance = -250k (committed-PO basis, AC-MONEY-01)
+    const { container } = renderTab(project, vi.fn(), 400_000);
     // Check for the destructive text utility class on the variance element
     // (item J: token utility class, not an inline hsl(var(--destructive)) style).
     const negativeEl = container.querySelector('[data-testid="budget-variance"]');

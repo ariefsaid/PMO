@@ -246,7 +246,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
             {showWonPanel && canWin && (
               <div className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 p-3">
                 <div className="text-[12px] font-semibold text-muted-foreground">
-                  Record the won deal
+                  Record the won project
                 </div>
                 {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
                     contract value on win, above the capture inputs. */}

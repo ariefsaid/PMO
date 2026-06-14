@@ -155,7 +155,10 @@ const IncidentDetail: React.FC = () => {
           AND a next state exists for this incident. */}
       {canTransition && next && (
         <RecordActionZone>
-          <div className="py-3">
+          <div className="flex flex-col gap-2 py-3">
+            {/* Consistent zone chrome: a "Next action" label leads the verb, matching the
+                procurement "Ready to advance" + pipeline "Next actions" record-action zones. */}
+            <div className="text-[12px] font-semibold text-muted-foreground">Next action</div>
             <Button
               variant="primary"
               size="sm"

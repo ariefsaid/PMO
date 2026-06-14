@@ -17,6 +17,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ImpersonationProvider } from '../../../auth/impersonation';
 import { ToastProvider } from '../../../components/ui';
@@ -100,6 +101,26 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     // CardHead must read "Project journey", not "Opportunity journey".
     expect(screen.getByText('Project journey')).toBeInTheDocument();
     expect(screen.queryByText('Opportunity journey')).not.toBeInTheDocument();
+  });
+
+  it('does not render "deal" in the won-capture panel either (Mark won → panel open)', async () => {
+    // Guard hole fix (code-review #1): the default-state scan missed the won-capture panel,
+    // which is unmounted until "Mark won" is clicked. Open it, then re-scan.
+    const user = userEvent.setup();
+    const winnable = { ...(project as Record<string, unknown>), name: 'Acme Project', status: 'Negotiation' } as never;
+    render(
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens project={winnable} />
+        </ToastProvider>
+      </ImpersonationProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: /mark won/i }));
+    // The inline SoD won-capture panel is now open ("Record the won project").
+    expect(screen.getByText(/Record the won project/i)).toBeInTheDocument();
+    const body = document.body.textContent ?? '';
+    const dealMatches = body.match(/\bdeal\b/gi) ?? [];
+    expect(dealMatches, `Found user-visible "deal" in won panel: ${JSON.stringify(dealMatches)}`).toHaveLength(0);
   });
 
   it('the journey stepper has aria-label "Project stage journey" (not "Deal stage journey")', () => {
