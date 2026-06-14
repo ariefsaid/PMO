@@ -6,21 +6,19 @@ import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
-import { StatusPill, type StatusVariant } from '@/src/components/ui/StatusPill';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { isAtRisk } from '@/src/lib/dashboardConstants';
+import { pillVariantForProjectStatus } from '@/components/projects';
 
-function statusVariant(status: string): StatusVariant {
-  if (status === 'Ongoing Project' || status === 'Internal Project') return 'open';
-  if (status.startsWith('Won')) return 'won';
-  if (status.startsWith('Loss')) return 'lost';
-  if (status === 'On Hold') return 'warn';
-  return 'neutral';
-}
+// Project-status pill comes from the canonical project-status map
+// (`pillVariantForProjectStatus`), which routes through the single status registry's
+// Freed-Blue Status Rule: on-hand execution ("Ongoing Project") is neutral grey
+// `progress` — NOT the action-blue (the distinct LABEL carries identity).
 
 /**
  * Project-Manager pane — real off `useProjects` (filtered to my projects). The
@@ -132,7 +130,7 @@ export const PMDashboard: React.FC = () => {
                       {projectAtRisk && <StatusPill variant="warn">At risk</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
                       <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
-                      <StatusPill variant={statusVariant(p.status)}>{p.status}</StatusPill>
+                      <StatusPill variant={pillVariantForProjectStatus(p.status)}>{p.status}</StatusPill>
                       <span
                         className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
                       >

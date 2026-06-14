@@ -24,17 +24,13 @@ import {
   type GanttBar,
   type GanttLane,
 } from '@/src/lib/gantt/ganttLayout';
-import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
-import type { StatusVariant } from '@/src/components/ui/StatusPill';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
-// ── Status → StatusPill variant mapping (same as TasksTab) ───────────────────
-const STATUS_PILL: Record<TaskStatus, StatusVariant> = {
-  'To Do': 'neutral',
-  'In Progress': 'open',
-  Done: 'won',
-  Blocked: 'lost',
-};
+// Task-status pill comes from the single status registry (`workflowVariant`): In
+// Progress = neutral grey `progress` (NOT the action-blue, per the Freed-Blue Status
+// Rule). Same mapping as the Tasks tab — one source of truth.
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -252,7 +248,7 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) 
             {bar.name}
           </span>
           <span className="ml-1.5 shrink-0">
-            <StatusPill variant={STATUS_PILL[bar.status]}>
+            <StatusPill variant={workflowVariant(bar.status)}>
               {bar.status}
             </StatusPill>
           </span>

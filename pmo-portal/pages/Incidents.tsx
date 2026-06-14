@@ -19,7 +19,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
@@ -31,35 +30,17 @@ import type {
   IncidentStatus,
   IncidentInput,
 } from '@/src/lib/db/incidents';
+import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 
 /** Status filter segments: All + the three incident_status enum values. */
 type StatusFilter = 'All' | IncidentStatus;
 const STATUS_FILTERS: StatusFilter[] = ['All', 'Open', 'Investigating', 'Closed'];
 
-/**
- * Severity → tinted pill. Four DISTINCT treatments that read apart by hue AND
- * label (never color-only): Low = quiet neutral; Medium = informational blue
- * (`open`); High = amber `warn`; Critical = the red `lost` tint. Each carries a
- * darkened-AA text + leading dot from the shared StatusPill tokens. Severity is
- * non-interactive categorization, so the warn/destructive tints are sanctioned
- * here (no solid fill behind body text).
- */
-const SEVERITY_PILL: Record<IncidentSeverity, StatusVariant> = {
-  Low: 'neutral',
-  Medium: 'open',
-  High: 'warn',
-  Critical: 'lost',
-};
-
-/**
- * Workflow status → tinted pill: Open = blue `open`; Investigating = quiet
- * in-flight `progress`; Closed = neutral (terminal, de-emphasised).
- */
-const STATUS_PILL: Record<IncidentStatus, StatusVariant> = {
-  Open: 'open',
-  Investigating: 'progress',
-  Closed: 'neutral',
-};
+// Severity (`severityVariant`) and workflow status (`workflowVariant`) tints come
+// from the single status registry (`src/lib/status/statusVariants.ts`). Per the
+// Freed-Blue Status Rule, Low = neutral, Medium/High = amber `warn`, Critical = red
+// `lost`; Open = neutral grey `progress` (NOT the action-blue), Investigating =
+// `progress`, Closed = neutral. The distinct LABEL carries identity (never colour-only).
 
 const SEVERITY_OPTIONS = [
   { value: 'Low', label: 'Low' },
@@ -176,13 +157,13 @@ const Incidents: React.FC = () => {
     {
       key: 'severity',
       header: 'Severity',
-      cell: (i) => <StatusPill variant={SEVERITY_PILL[i.severity]}>{i.severity}</StatusPill>,
+      cell: (i) => <StatusPill variant={severityVariant(i.severity)}>{i.severity}</StatusPill>,
       exportValue: (i) => i.severity,
     },
     {
       key: 'status',
       header: 'Status',
-      cell: (i) => <StatusPill variant={STATUS_PILL[i.status]}>{i.status}</StatusPill>,
+      cell: (i) => <StatusPill variant={workflowVariant(i.status)}>{i.status}</StatusPill>,
       exportValue: (i) => i.status,
     },
     {

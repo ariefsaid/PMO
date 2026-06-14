@@ -19,7 +19,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -38,6 +37,7 @@ import type {
   ProjectDocumentInput,
   DocStatus,
 } from '@/src/lib/db/documents';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 export interface DocumentsTabProps {
   projectId: string;
@@ -55,19 +55,10 @@ export interface DocumentsTabProps {
  * Gating reads the REAL JWT role + the current user id; RLS is the enforcement authority.
  */
 
-/**
- * Tinted-status pill per doc_status — DESIGN.md variants (dot + label, never color-only):
- * Draft = quiet neutral; Issued = blue (in review); Approved = green; Rejected = red;
- * Closed = neutral (terminal/archived).
- */
-const STATUS_PILL: Record<DocStatus, StatusVariant> = {
-  Draft: 'draft',
-  Issued: 'open',
-  Approved: 'won',
-  Rejected: 'lost',
-  Closed: 'neutral',
-  Superseded: 'superseded',
-};
+// Doc-status pill comes from the single status registry (`workflowVariant`):
+// Draft = `draft`; Issued = neutral grey `progress` (in-review — NOT the action-blue,
+// per the Freed-Blue Status Rule); Approved = green `won`; Rejected = red `lost`;
+// Closed = neutral; Superseded = `superseded`. The distinct LABEL carries identity.
 
 interface FormValues {
   title: string;
@@ -245,7 +236,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'status',
       header: 'Status',
-      cell: (d) => <StatusPill variant={STATUS_PILL[d.status]}>{d.status}</StatusPill>,
+      cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
     {
       key: 'revision_action',
@@ -764,7 +755,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
     <Drawer
       open
       title={doc.title}
-      subtitle={<StatusPill variant={STATUS_PILL[doc.status]}>{doc.status}</StatusPill>}
+      subtitle={<StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>}
       nestedOpen={nestedOpen}
       onClose={onClose}
       footer={
@@ -834,7 +825,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           </DocField>
         )}
         <DocField label="Status">
-          <StatusPill variant={STATUS_PILL[doc.status]}>{doc.status}</StatusPill>
+          <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>
         </DocField>
       </dl>
 

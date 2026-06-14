@@ -10,13 +10,13 @@ import {
   SelectField,
   ListState,
   ConfirmDialog,
-  type StatusVariant,
 } from '@/src/components/ui';
 import type {
   ProcurementDocumentRow,
   ProcurementDocStatus,
   ProcurementDocumentInput,
 } from '@/src/lib/db/procurementCrud';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 // ---------------------------------------------------------------------------
 // ProcurementDocumentsSection — the document-metadata register over the
@@ -35,17 +35,9 @@ const DOC_STATUS_OPTIONS: { value: ProcurementDocStatus; label: string }[] = [
   { value: 'Closed', label: 'Closed' },
 ];
 
-/** Tinted status pill per doc_status (color + label, never color-only). */
-const DOC_STATUS_PILL: Record<ProcurementDocStatus, StatusVariant> = {
-  Draft: 'neutral',
-  Issued: 'open',
-  Approved: 'won',
-  Rejected: 'lost',
-  Closed: 'neutral',
-  // Superseded is a project-document lifecycle state; procurement docs never reach it,
-  // but doc_status is shared so the map must stay exhaustive (added with migration 0024).
-  Superseded: 'neutral',
-};
+// Doc-status pill comes from the single status registry (`workflowVariant`):
+// Issued = neutral grey `progress` (NOT the action-blue, per the Freed-Blue Status
+// Rule); Approved = green; Rejected = red; Draft/Closed/Superseded = grey neutrals.
 
 export interface ProcurementDocumentsSectionProps {
   documents: ProcurementDocumentRow[];
@@ -150,7 +142,7 @@ export const ProcurementDocumentsSection: React.FC<ProcurementDocumentsSectionPr
                   </span>
                 )}
                 <span className="ml-auto flex items-center gap-2.5">
-                  <StatusPill variant={DOC_STATUS_PILL[d.status]}>{d.status}</StatusPill>
+                  <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>
                   {editable && (
                     <Button
                       size="sm"

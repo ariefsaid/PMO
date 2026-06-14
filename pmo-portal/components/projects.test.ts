@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { pillVariantForProjectStatus, projectIconColor } from './projects';
 
 describe('pillVariantForProjectStatus', () => {
-  it('maps Ongoing-style on-hand statuses to open (blue)', () => {
-    expect(pillVariantForProjectStatus('Ongoing Project')).toBe('open');
+  // Freed-Blue Status Rule (CW-2): on-hand execution is neutral grey `progress`,
+  // NOT the action-blue — the distinct LABEL carries identity.
+  it('maps Ongoing-style on-hand statuses to progress (neutral grey, never blue)', () => {
+    expect(pillVariantForProjectStatus('Ongoing Project')).toBe('progress');
+    expect(pillVariantForProjectStatus('Ongoing Project')).not.toBe('open');
   });
   it('maps Won, Pending KoM to won (green)', () => {
     expect(pillVariantForProjectStatus('Won, Pending KoM')).toBe('won');

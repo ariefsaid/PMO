@@ -18,7 +18,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -29,21 +28,16 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 import ProjectGantt from '../ProjectGantt';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
-// The four task_status enum values. Each maps to a distinct StatusPill variant
-// (tint + label + dot — never colour-only) from the sanctioned palette: To Do =
-// quiet neutral, In Progress = the single blue `open`, Done = `won` green,
-// Blocked = `lost` red. The label always rides alongside, so it is never
-// colour-only (DESIGN.md Tinted-Status / color-not-only).
+// The four task_status enum values. The pill variant comes from the single status
+// registry (`workflowVariant`): To Do = quiet neutral, In Progress = neutral grey
+// `progress` (NOT the action-blue, per the Freed-Blue Status Rule), Done = green
+// `won`, Blocked = red `lost`. The distinct LABEL always rides alongside (never
+// colour-only — DESIGN.md Tinted-Status / color-not-only).
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-const STATUS_PILL: Record<TaskStatus, StatusVariant> = {
-  'To Do': 'neutral',
-  'In Progress': 'open',
-  Done: 'won',
-  Blocked: 'lost',
-};
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
 type ViewMode = 'list' | 'board' | 'timeline';
@@ -154,7 +148,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         />
       );
     }
-    return <StatusPill variant={STATUS_PILL[task.status]}>{task.status}</StatusPill>;
+    return <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>;
   };
 
   const columns: Column<TaskWithRefs>[] = [
@@ -408,7 +402,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChan
                           fullWidth
                         />
                       ) : (
-                        <StatusPill variant={STATUS_PILL[t.status]}>{t.status}</StatusPill>
+                        <StatusPill variant={workflowVariant(t.status)}>{t.status}</StatusPill>
                       )}
                     </div>
                   </div>

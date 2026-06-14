@@ -20,7 +20,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
@@ -29,18 +28,13 @@ import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityKind, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 
-/**
- * Activity-kind pills — four DISTINCT hues, never color-only (each carries its label):
- * Call = blue (`open`), Email = categorical violet, Meeting = green (`won`), Note = neutral.
- * Mirrors the company-type-pill precedent (Companies.tsx).
- */
-const KIND_PILL: Record<CrmActivityKind, StatusVariant> = {
-  Call: 'open',
-  Email: 'violet',
-  Meeting: 'won',
-  Note: 'neutral',
-};
+// Activity-kind pill comes from the single status registry's CATEGORY family
+// (`crmActivityVariant`): Call = categorical `violet` (the highlighted kind),
+// Email / Meeting / Note = `neutral`. Per the Freed-Blue Status Rule, an activity
+// pill never uses the action-blue (`open`) and never borrows a workflow tint
+// (`won`); the distinct LABEL carries identity (never colour-only).
 
 const KIND_OPTIONS = [
   { value: 'Call', label: 'Call' },
@@ -536,7 +530,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
           {activities.map((a) => (
             <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <StatusPill variant={KIND_PILL[a.kind]}>{a.kind}</StatusPill>
+                <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
                 <span className="text-[11px] text-muted-foreground">
                   {formatOccurred(a.occurred_at)}
                 </span>

@@ -140,6 +140,14 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     expect(critical).toContain('bg-destructive/10');
     expect(low).not.toBe(high);
     expect(high).not.toBe(critical);
+    // Freed-Blue Status Rule (CW-2): neither severity NOR workflow status may render
+    // the action-blue. The "Open" status pill (the DOM-measured collision with Medium
+    // severity) is now the neutral grey `progress` pill, not `bg-primary/10`.
+    const openStatus = pillCls('Open', 'Near Miss');
+    expect(openStatus).not.toContain('bg-primary/10');
+    expect(low).not.toContain('bg-primary/10');
+    expect(high).not.toContain('bg-primary/10');
+    expect(critical).not.toContain('bg-primary/10');
   });
 });
 
