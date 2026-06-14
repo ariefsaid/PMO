@@ -67,11 +67,14 @@ beforeEach(() => {
 });
 
 describe('MyTasks — open-task navigation + shared status control (fix #6)', () => {
-  it('AC-FIX6-NAV-01: task name is a link to the project Tasks tab (/projects/:id/tasks)', () => {
+  it('AC-FIX6-NAV-01: task name is a link to the project Tasks tab with task anchor (T25)', () => {
+    // T25 (AC-JR-T25) upgrade: the task name now deep-links to the specific task row via
+    // a #task-<id> anchor so TasksTab can scroll-into-view and highlight that task.
+    // The GOAL (navigates to this task) is unchanged; the step (href) reflects T25.
     renderMyTasks();
     const link = screen.getByRole('link', { name: /Wire up the API endpoint/i });
     expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/projects/proj-alpha/tasks');
+    expect(link).toHaveAttribute('href', '/projects/proj-alpha/tasks#task-t-1');
   });
 
   it('AC-FIX6-NAV-02: status control has an accessible label (SelectField with hideLabel)', () => {

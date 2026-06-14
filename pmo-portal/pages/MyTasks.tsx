@@ -135,8 +135,10 @@ const MyTasks: React.FC = () => {
                         {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
                             No /tasks/:id route exists; navigating to /projects/:id/tasks is the
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
+                        {/* AC-JR-T25: task name deep-links to the specific task row via
+                            #task-<id> anchor — TasksTab scrolls to and highlights it. */}
                         <Link
-                          to={`/projects/${task.project_id}/tasks`}
+                          to={`/projects/${task.project_id}/tasks#task-${task.id}`}
                           className="block truncate text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                           title={task.name}
                         >

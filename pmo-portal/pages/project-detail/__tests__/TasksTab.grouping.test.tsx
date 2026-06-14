@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -58,9 +59,11 @@ import TasksTab from '../tabs/TasksTab';
 
 const render$ = () =>
   render(
-    <ToastProvider>
-      <TasksTab projectId="p1" />
-    </ToastProvider>,
+    <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+      <ToastProvider>
+        <TasksTab projectId="p1" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 
 describe('TasksTab grouping (AC-DEL-010)', () => {

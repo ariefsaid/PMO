@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   Toolbar,
   ViewToggle,
@@ -20,6 +20,7 @@ import {
   type RowMenuItem,
   type ComboboxOption,
 } from '@/src/components/ui';
+import { useLocation } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
@@ -79,11 +80,41 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const { create, update, updateStatus, remove, addDependency, removeDependency } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
+  const location = useLocation();
 
   const [view, setView] = useState<ViewMode>('list');
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
+
+  // T25 — hash-anchor scroll & transient highlight.
+  // When the URL contains #task-<id>, scroll that row into view and apply a
+  // brief highlight ring so the user immediately sees which task MyTasks linked to.
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const scrolledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const hash = location.hash; // e.g. "#task-abc-123"
+    if (!hash.startsWith('#task-')) return;
+    const taskId = hash.slice('#task-'.length);
+    // Only scroll once per hash (avoid infinite re-scroll on re-renders).
+    if (scrolledRef.current === taskId) return;
+    scrolledRef.current = taskId;
+
+    // Attempt to scroll — the element may not yet be rendered (data still loading).
+    // requestAnimationFrame gives the list one paint cycle.
+    const doScroll = () => {
+      const el = document.getElementById(`task-${taskId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedTaskId(taskId);
+        // Remove highlight after 2 s so it is genuinely transient.
+        setTimeout(() => setHighlightedTaskId(null), 2000);
+      }
+    };
+    requestAnimationFrame(doScroll);
+  // Re-run when data loads (in case the element wasn't mounted on initial render).
+  }, [location.hash, data]);
 
   // Structure write (title / assignee / dates / delete) = Admin·Exec·PM.
   const canCreate = may('create', 'task');
@@ -157,7 +188,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       key: 'name',
       header: 'Task',
       cell: (t) => (
-        <span className="truncate font-semibold" title={t.name}>
+        <span
+          id={`task-${t.id}`}
+          className={`truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+          title={t.name}
+        >
           {t.name}
         </span>
       ),
@@ -295,7 +330,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       )}
 
       {state === undefined && view === 'timeline' && (
-        <ProjectGantt tasks={all} milestones={milestoneList} />
+        <ProjectGantt
+          tasks={all}
+          milestones={milestoneList}
+          onActivateTask={
+            canEdit
+              ? (task) => setFormTarget({ task })
+              : undefined
+          }
+        />
       )}
 
       {/* Create / edit modal */}
