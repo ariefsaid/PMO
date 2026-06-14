@@ -296,7 +296,10 @@ function MappingRow<Input>({
   );
 }
 
-const CHIP_VARIANT: StatusVariant = 'open';
+// A "Valid" preview row is a positive/ready outcome → green `won` (its negative
+// counterpart "Skipped" is `lost`). Per the Freed-Blue Status Rule, this chip never
+// uses the action-blue `open` variant.
+const CHIP_VARIANT: StatusVariant = 'won';
 
 function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
   const rows = wiz.parsed?.rows ?? [];

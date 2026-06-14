@@ -21,7 +21,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
@@ -32,23 +31,17 @@ import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import { companyTypeVariant } from '@/src/lib/status/statusVariants';
 
 /** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor). */
 type TypeFilter = 'All' | CompanyType;
 const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 
-/**
- * Tinted-status pill per company_type — three DISTINCT hues (crud-companies.html):
- * Client = blue (`open`), Vendor = categorical violet, Internal = green (`won`). Each
- * carries a darkened-AA text + a leading dot + its own label, so the types read apart
- * by hue AND label (never color-only). Type pills are non-interactive categorization,
- * so violet is the sanctioned accent here.
- */
-const TYPE_PILL: Record<CompanyType, StatusVariant> = {
-  Client: 'open',
-  Vendor: 'violet',
-  Internal: 'won',
-};
+// Company-type pill comes from the single status registry's CATEGORY family
+// (`companyTypeVariant`): Client = categorical `violet` (the highlighted type),
+// Vendor / Internal = `neutral`. Per the Freed-Blue Status Rule, a type pill never
+// uses the action-blue (`open`) and never borrows a workflow tint (`won`/`lost`);
+// the distinct LABEL carries identity, so the types read apart by label + dot.
 
 const TYPE_OPTIONS = [
   { value: 'Client', label: 'Client' },
@@ -146,7 +139,7 @@ const Companies: React.FC = () => {
     {
       key: 'type',
       header: 'Type',
-      cell: (c) => <StatusPill variant={TYPE_PILL[c.type]}>{c.type}</StatusPill>,
+      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{c.type}</StatusPill>,
       exportValue: (c) => c.type,
     },
   ];
@@ -504,7 +497,7 @@ const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
     <Drawer
       open
       title={company.name}
-      subtitle={<StatusPill variant={TYPE_PILL[company.type]}>{company.type}</StatusPill>}
+      subtitle={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
       loading={typeChanging}
       onClose={onClose}
       footer={
@@ -546,7 +539,7 @@ const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
               disabled={typeChanging}
             />
           ) : (
-            <StatusPill variant={TYPE_PILL[company.type]}>{company.type}</StatusPill>
+            <StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>
           )}
         </DField>
         {/* FR-CRM-008: read-only contacts section (non-archived, fed by useContactsByCompany). */}

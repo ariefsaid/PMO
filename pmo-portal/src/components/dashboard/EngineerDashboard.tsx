@@ -3,24 +3,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
-import { StatusPill, type StatusVariant } from '@/src/components/ui/StatusPill';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { HoursBar } from '@/src/components/ui/HoursBar';
 import { EntryList } from '@/src/components/ui/EntryList';
 import { entriesByProject, recentEntries } from '@/src/lib/timesheet-derive';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { DashPageHead, DashGrid } from './layout';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const RECENT_ENTRIES_LIMIT = 8;
 
-function timesheetVariant(status: string): StatusVariant {
-  switch (status) {
-    case 'Approved': return 'won';
-    case 'Submitted': return 'open';
-    case 'Rejected': return 'lost';
-    default: return 'draft';
-  }
-}
+// Timesheet status pill comes from the single status registry (`workflowVariant`):
+// Submitted = neutral grey `progress` (NOT the action-blue, per the Freed-Blue Status Rule).
 
 /**
  * Engineer pane — the hours half is real off `useTimesheets` (own-user): the
@@ -101,7 +96,7 @@ export const EngineerDashboard: React.FC = () => {
         {/* AC-IXD-DASH-W5-C2A: Timesheet status → /timesheets */}
         <KPITile testId="kpi-timesheet-status" tone="violet" icon="doc" label="Timesheet status"
           value={current
-            ? <StatusPill variant={timesheetVariant(current.status)}>{current.status}</StatusPill>
+            ? <StatusPill variant={workflowVariant(current.status)}>{current.status}</StatusPill>
             : <span className="text-muted-foreground">None this period</span>}
           loading={isPending}
           to="/timesheets"

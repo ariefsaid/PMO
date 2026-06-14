@@ -180,12 +180,18 @@ The personality is **calm, dense, and data-first.** The surface is white-on-near
 - Inter everywhere; tabular-nums for all money and metrics; SF Mono for IDs/codes only.
 - Status is communicated by a small colored dot + tinted pill, not by loud fills.
 
+> **Coherence Wave (2026-06-14):** the app's *atoms* (above) are shared and disciplined — the
+> diagnosed "doesn't feel like the same app" problem is PATTERN/MOLECULE drift, not token drift. §7
+> ("Coherence-Wave canonical molecules") is the enforced standard for how records, lists, steppers,
+> status pills, and copy must behave so every module reads as one hand. Plan:
+> `docs/plans/2026-06-14-coherence-wave.md`; diagnosis: `docs/reviews/2026-06-14-whole-app-coherence-audit.md`.
+
 ## 2. Colors
 
 A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a cool neutral (`240`); the only saturated color in normal use is the primary blue. Status colors (destructive/warning/success) appear only on data state, and a single categorical violet is reserved for KPI/avatar/timeline accents — never as an action color. **Light scheme only** in the source; no dark `:root` block was present (see Open Questions).
 
 ### Primary
-- **Action Blue** (`hsl(221.2 83.2% 53.3%)`): The one interactive color. Primary buttons, active nav item (at 10% tint + full-color text), selected rows (7% tint), focus ring, checkbox fill, links-in-context, the "current" step in steppers, sticky-tab indicators, and the toast accent stripe. Its foreground (`hsl(0 0% 98%)`, near-white) sits on solid blue. **Used sparingly** — see The One Blue Rule.
+- **Action Blue** (`hsl(221.2 83.2% 53.3%)`): The one interactive color. Primary buttons, active nav item (at 10% tint + full-color text), selected rows (7% tint), focus ring, checkbox fill, links-in-context, the "current" step in steppers, sticky-tab indicators, and the toast accent stripe. Its foreground (`hsl(0 0% 98%)`, near-white) sits on solid blue. **Used sparingly** — see The One Blue Rule. **No status, severity, or category pill may use it** — see The Freed-Blue Status Rule.
 
 ### Secondary (categorical accent — not an action color)
 - **Categorical Violet** (`hsl(262 83% 58%)`): Reserved for non-interactive categorization only: a KPI icon tile (`violet` variant), the user avatar gradient (blue→violet), and select timeline/legend dots. Never use it for buttons, links, or anything clickable.
@@ -204,6 +210,8 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 
 ### Named Rules
 **The One Blue Rule.** The primary blue is the only saturated interactive color and should touch ≤10% of any screen. If two things on a screen are blue and only one is the main action, one of them is wrong. Categorical violet and status colors are NOT substitutes for it.
+
+**The Freed-Blue Status Rule (Coherence Wave).** The action-blue is reserved for the one interactive affordance — **no status, severity, or category pill may use it.** Three independent pill families, each a single source-of-truth map in `src/lib/status/statusVariants.ts`, never sharing tints: **(A) Workflow status** — open/active/in-progress → `progress` (neutral grey; the distinct LABEL carries identity, so it is never color-only); needs-you → `warn`; done/won/approved → `won`; lost/rejected/cancelled → `lost`; closed/terminal → `neutral`. **(B) Severity/risk** — Low `neutral` · Medium/High `warn` · Critical `lost`. **(C) Categorical/type/activity** — `violet` for the highlighted kind + `neutral` for the rest. The StatusPill `open` (blue-tint) variant is **frozen out of status use** (kept defined only for the migration window). This corrects the DOM-measured collisions where Incidents "Medium"==="Open"===action-blue and Companies "Client"===action-blue.
 
 **The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only.
 
@@ -260,7 +268,7 @@ All interactive controls are **32px tall** ("h-8") with `md` (8px) radius unless
 - **Disabled (gap — see Open Questions):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 
 ### Badges / Status Pills
-- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text.
+- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. **Per the Freed-Blue Status Rule (§2), no status/severity/category pill may use the `open` (blue) variant — it is frozen for status; map "open/active" to `progress` (neutral).**
 - **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
 
 #### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
@@ -279,26 +287,28 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Border:** always a 1px `border`. This is the primary depth cue.
 - **Shadow:** none at rest; `state lift` on hover for interactive cards (KPI, kanban).
 - **Internal Padding:** 16px standard (`{spacing.4}`); compact cards (kanban) use ~11px.
-- **The KPI Tile** (signature): white card, 16px padding, with a top row of [30px tinted icon tile] + [label, `muted-foreground` 12.5px] + [help `?`], a 23px/700 tabular value, and a foot row with a tinted delta chip (`up` green / `down` red / `neutral` grey) plus a `muted` "vs." comparison. Negative values turn `destructive`.
+- **The KPI Tile** (signature): white card, 16px padding, with a top row of [30px tinted icon tile] + [label, `muted-foreground` 12.5px] + [help `?`], a 23px/700 tabular value, and a foot row with a tinted delta chip (`up` green / `down` red / `neutral` grey) plus a `muted` "vs." comparison. Negative values turn `destructive`. **ONE treatment app-wide** (`KPITile`); per-role dashboards vary *which* tiles, never *how* a tile looks. The in-header metric strip is `StatTiles` — one chrome for every record header (no boxed-vs-borderless fork).
 
 ### Inputs / Fields
 - **Style:** `background` fill, 1px `input` border, 8px radius, 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font.
 - **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
 - **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
 - **Error / Disabled (gap — see Open Questions):** no error-state field styling in source. Proposed: error border = `destructive`, helper text = `destructive`; disabled = `secondary` bg + `muted-foreground` text + `not-allowed`.
+- **Validation contract (Coherence Wave):** `EntityFormModal`/`useEntityForm` validate **on blur / on submit**, never on mount — no eager "Fix N fields" banner on an untouched form. ONE submit-state rule across every modal (do not mix disabled-until-valid with allow-and-error).
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
 - **Body cells:** 54px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover.
 - **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
 - **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values; count in `muted`.
-- **Toolbar / Action bar:** `card` bg seamed to the table top (`… … 0 0`), 10–12px padding, holds `control` chips (32px, `input` border, `muted` icon, chevron), a `seg` segmented filter (`secondary` track, "on" = white pill + lift), a `search-mini`, and trailing icon controls. Selection mode swaps the default controls for a bulk-action cluster on a `primary/6%` wash with a count `pill`.
+- **Toolbar / Action bar:** `card` bg seamed to the table top (`… … 0 0`), 10–12px padding, holds `control` chips (32px, `input` border, `muted` icon, chevron), a `seg` segmented filter (`secondary` track, "on" = white pill + lift), a `search-mini`, and trailing icon controls. Selection mode swaps the default controls for a bulk-action cluster on a `primary/6%` wash with a count `pill`. **The list toolbar slot order is fixed by the `ListPage` shell (§7) — view-switcher · status filters · Search · Filter · Export · Import — identical on every list, empty slots held in place.**
 
 ### Kanban Card (signature)
-- White `card`, 8px radius, ~11px padding, faint `0 1px 2px` rest shadow. Hover → `0 4px 14px` lift + `muted-foreground/35%` border; active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill; a drag grip fades in on hover. Holds a 26px colored icon, name (13px/600) + customer (`muted`), a 15px/700 tabular value, a win-% chip, and a foot row (border-top `border/70%`) with age + owner avatar + mini status pill. Columns sit in a horizontal-scroll grid of `minmax(290px, 1fr)` tracks on a `secondary/50%` column body with a sticky blurred header.
+- White `card`, 8px radius, ~11px padding, faint `0 1px 2px` rest shadow. Hover → `0 4px 14px` lift + `muted-foreground/35%` border; active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill; a drag grip fades in on hover. Holds a 26px colored icon, name (13px/600) + customer (`muted`), a 15px/700 tabular value, a win-% chip, and a foot row (border-top `border/70%`) with age + owner avatar + mini status pill. Columns sit in a horizontal-scroll grid of `minmax(290px, 1fr)` tracks on a `secondary/50%` column body with a sticky blurred header. **ONE `ProjectCard` (size variants `kanban`/`grid`) + ONE `KanbanBoard` engine drive every board (Projects + Sales) — they are one entity, so they share one card.**
 
-### Lifecycle / Stage Stepper (signature)
-- A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600. Used for budget version lifecycle and the deal stage journey in detail panels. The funnel/stage-summary band is the macro analog: 4 connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule.
+### Lifecycle / Stage Stepper (signature) — ONE stepper only
+- **The canonical stepper is the even-flex BAR stepper.** A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600; `paid` → `success`. Used for the budget-version lifecycle, the project stage journey, AND the procurement PR→VQ→PO→GR→VI→Paid lifecycle. The macro funnel/stage-summary band is the list-level analog: connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule.
+- **Retired (Coherence Wave):** the numbered-circle `node` stepper variant (`LifecycleStepper variant="node"`) is **removed** — there is exactly ONE stepper appearance app-wide. The `inline` pip variant (9px dots in table rows) remains as the compact in-row form of the same stepper.
 
 ### Navigation
 - **Rail (sidebar):** 224px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, `sm`-derived radius (`calc(var(--radius) - 2px)`), 13.5px/500, 17px stroke-2 icon, optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Settings.
@@ -326,6 +336,8 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Do** use SF Mono only for machine IDs/codes and the `⌘K` chip; everything else is Inter.
 - **Do** expose the global `:focus-visible` ring (`2px solid {colors.ring}`, 2px offset) on every focusable element, and keep `role`/`aria-selected`/`aria-checked`/`aria-current` on tabs, checkboxes, and nav.
 - **Do** reserve categorical violet and the status hues for non-interactive meaning (KPI tiles, avatars, timeline dots, data state) — never as action colors.
+- **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts` (the three-family registry), never an inline per-module map (The Freed-Blue Status Rule).
+- **Do** open every primary entity as a routable `/x/:id` page with breadcrumb + Back + ⌘K indexing; drawers are previews only (The Record-Open Rule, §7).
 
 ### Don't:
 - **Don't** ship the "AI SaaS marketing" aesthetic: no dark-mode-with-purple-gradients, no neon accents, no glassmorphism panels, no oversized hero type, no shadow-heavy floating-card soup.
@@ -335,6 +347,61 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Don't** use mono or proportional figures for money in tables — money is Inter-`tabular`, IDs are mono.
 - **Don't** color body text with a fully saturated status hue, or fill a status pill solid — use the tint + darkened-text pattern.
 - **Don't** make interactive controls taller/shorter than 32px or invent radii outside the 4/6/8/10/999 scale.
+- **Don't** assign the action-blue (`open` variant) to any status, severity, or category pill (The Freed-Blue Status Rule).
+- **Don't** build a record as a URL-less drawer, leave a list row inert (a dead-end), or build a second stepper / KPI-tile / project-card / list-toolbar grammar — reuse the §7 molecule.
+- **Don't** invent a per-feature create verb. Use **"New &lt;Entity&gt;"**; keep a domain verb ("Raise request", "File incident") only where the domain uses it, and make button + modal title + submit all say the same phrase.
+
+---
+
+## 7. Coherence-Wave canonical molecules (enforced standard)
+
+The visual atoms (§2–§6) are shared; this section governs the **molecules** so every module behaves
+by one rulebook. Build plan + per-phase migration order: `docs/plans/2026-06-14-coherence-wave.md`.
+
+### Terminology + create-verb
+- **Canonical noun = "Project"** in all UI copy. "Deal" and "opportunity" are removed. "Pipeline" is a
+  valid *stage-group* label (breadcrumb, the Sales index page title) — a stage, not a second noun.
+- **Create-verb scheme = "New &lt;Entity&gt;"** (New project / New company / New contact / New user).
+  Domain verbs ("Raise request", "File incident") are kept only where the domain genuinely uses them,
+  and then the **button text, modal title, and submit label must all be identical**.
+
+### RecordHeader (the one record-page header)
+- Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/Delete by permission]**,
+  actions top-right. Optional `meta` row + `StatTiles` metric strip below. Implemented as a thin
+  wrapper over `PageHeader` (`src/components/ui/PageHeader.tsx`); the Project detail header is the
+  template. Every record page (Project, Procurement, Company, Contact, Incident) uses it — icon
+  presence, status presence, and top-right action placement are mandatory.
+
+### Record-open paradigm (The Record-Open Rule)
+- **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers
+  are demoted to optional *quick-peek previews* that carry a URL + an "Open full record" link — never
+  the only home. Company, Contact, and Incident move drawer/dead-end → real pages; ⌘K indexes them.
+- **Stage-aware project lens (ADR-0020 single record):** the one `/projects/:id` shows a **pipeline
+  lens** pre-win (Value / Win probability / Weighted; no S-curve or delivery stepper) and a **delivery
+  lens** post-win (Contract/Committed/Actual strip, S-curve, milestone stepper, delivery tabs). Tab/
+  body visibility is driven by `projectStatusGroup` — never render the wrong shell for the stage. The
+  URL is role-invariant (role tailors entry-point CTAs, not the default tab).
+
+### RecordActionZone (the record-action contract)
+- The advance/approve verbs (Advance / Mark won / Approve / Reject) live in ONE consistently-placed,
+  **never-below-the-fold** zone (sticky on desktop, fixed action bar on mobile), above the green
+  "Ready to advance" banner. Edit/Archive live in the header; advance verbs live here — one rule for
+  every record. No advance action buried at page-bottom.
+
+### ListPage shell
+- Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a toolbar in fixed slot
+  order **view-switcher · status filters · Search · Filter · Export · Import** (empty slots held in
+  place, no reflow). ONE named view-switcher (`ViewToggle`) with the shared label set **`Table /
+  Board / Calendar / Cards`** and a per-entity default. "By-stage Board" and "Kanban" both become
+  **Board**. The view-switcher renders right-aligned (icon segmented); status **filters** render left
+  as text chips — visually distinct so the two strips are never confused. Master-data lists get Export
+  **and** Import; the slot order is identical everywhere.
+
+### Approvals (one inbox)
+- `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs
+  (filtered views INTO the one inbox), one `ApprovalRow` pattern, and one decision affordance (inline
+  Approve/Return + an "Open" link). The Timesheets "Approvals queue" tab and the Procurement
+  "Needs approval" filter are deep-links, not parallel implementations. Rail label + page H1 = "Approvals".
 
 ---
 
@@ -357,3 +424,4 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 - **Focus:** single source of truth — global `:focus-visible` = `2px solid {colors.ring}` (the primary blue) at 2px offset. Every focusable element inherits it.
 - **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
 - **Keyboard:** tab order follows DOM (rail → header → main); custom checkboxes are `tabindex="0"`. Overlays (popover/toast/tooltip) are non-focus-trapping in the mockup — real implementations must add focus management and `Esc`-to-close (a build-time gap, not a token gap).
+- **Coherence-Wave a11y invariants:** every new record page (Company/Contact/Incident) carries a focus-managed page heading + breadcrumb + Back; the `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay dot+label (never color-only) so the freed-blue→neutral remap never relies on color alone.

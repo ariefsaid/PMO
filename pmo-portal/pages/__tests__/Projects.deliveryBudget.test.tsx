@@ -118,9 +118,11 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getByText('53%')).toBeInTheDocument();
     expect(screen.getByText('No phases yet')).toBeInTheDocument();
 
+    // Freed-Blue Status Rule (CW-2): on-hand "Ongoing Project" is the neutral grey
+    // `progress` pill — NOT the action-blue (the LABEL carries identity).
     const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
-    expect(ongoingStatus?.className).toContain('bg-primary/10');
-    expect(ongoingStatus?.className).not.toContain('bg-success/12');
+    expect(ongoingStatus?.className).not.toContain('bg-primary/10');
+    expect(ongoingStatus?.className).toContain('bg-secondary');
 
     const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();

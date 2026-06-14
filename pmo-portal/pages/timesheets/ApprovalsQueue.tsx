@@ -10,7 +10,6 @@ import {
   StatusPill,
   TimesheetGrid,
   useToast,
-  type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
@@ -19,19 +18,16 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useTimesheetsAwaitingApproval, useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
 }
 
-/** Map timesheet status → tinted StatusPill variant. */
-const PILL: Record<string, StatusVariant> = {
-  Draft: 'neutral',
-  Submitted: 'open',
-  Approved: 'won',
-  Rejected: 'lost',
-};
+// Timesheet status pill comes from the single status registry (`workflowVariant`):
+// Submitted resolves to neutral grey `progress` (NOT the action-blue), per the
+// Freed-Blue Status Rule.
 
 function weekLabel(weekStart: string): string {
   // weekStart is an ISO date (YYYY-MM-DD). Render "Week of Mon D" without TZ drift.
@@ -351,7 +347,7 @@ export const ApprovalsQueue: React.FC = () => {
                   week={weekLabel(sheet.week_start_date)}
                   hours={total}
                   status={
-                    <StatusPill variant={PILL[sheet.status] ?? 'neutral'}>{sheet.status}</StatusPill>
+                    <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
                   }
                 >
                   {/* N12: per-row checkbox in selection mode. Only approvable rows get one;

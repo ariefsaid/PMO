@@ -101,23 +101,27 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
-  it('AC-CO-001: each company_type renders a DISTINCT tinted pill (Client/Vendor/Internal differentiated)', () => {
+  it('AC-CO-001: company_type pills are the category family (Client violet; never the action-blue)', () => {
     renderPage();
     // The Type column pill is the closest pill ancestor of the type label inside its row.
     const pillBg = (label: string, rowName: string) => {
       const row = screen.getByText(rowName).closest('tr')!;
       return within(row).getByText(label).closest('span')!.className;
     };
-    const client = pillBg('Client', 'Cascade Port Authority'); // blue (open)
-    const vendor = pillBg('Vendor', 'Steelforge Fabrication'); // violet
-    const internal = pillBg('Internal', 'Internal Holdings'); // green (won)
-    expect(client).toContain('bg-primary/10');
-    expect(vendor).toContain('bg-violet/12');
-    expect(internal).toContain('bg-success/12');
-    // Vendor and Internal are no longer the same grey neutral fill.
-    expect(vendor).not.toContain('bg-secondary');
-    expect(internal).not.toContain('bg-secondary');
-    expect(vendor).not.toBe(internal);
+    const client = pillBg('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
+    const vendor = pillBg('Vendor', 'Steelforge Fabrication'); // neutral grey
+    const internal = pillBg('Internal', 'Internal Holdings'); // neutral grey
+    // Freed-Blue Status Rule (CW-2): a TYPE pill never uses the action-blue, and the
+    // category family is `violet` for the highlighted kind + `neutral` for the rest.
+    expect(client).toContain('bg-violet/12');
+    expect(client).not.toContain('bg-primary/10');
+    expect(vendor).not.toContain('bg-primary/10');
+    expect(internal).not.toContain('bg-primary/10');
+    // The label (Client / Vendor / Internal) carries identity — never colour-only:
+    // each type pill renders its name inside its own row.
+    expect(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByText('Client')).toBeInTheDocument();
+    expect(within(screen.getByText('Steelforge Fabrication').closest('tr')!).getByText('Vendor')).toBeInTheDocument();
+    expect(within(screen.getByText('Internal Holdings').closest('tr')!).getByText('Internal')).toBeInTheDocument();
   });
 });
 

@@ -242,7 +242,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               {/* Count strip — 3 plain buckets (not 6 same-hue dots) */}
               <div className="flex gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <StatusPill variant="open">{procSummary.open} Open</StatusPill>
+                  {/* Freed-Blue Status Rule: "Open" is neutral grey `progress`, not the action-blue. */}
+                  <StatusPill variant="progress">{procSummary.open} Open</StatusPill>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <StatusPill variant="won">{procSummary.completed} Completed</StatusPill>

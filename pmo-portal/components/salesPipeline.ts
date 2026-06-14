@@ -119,12 +119,16 @@ export function weightedValue(p: Pick<PipelineProject, 'contract_value' | 'win_p
   return p.contract_value * p.win_probability;
 }
 
-/** StatusPill variant for a project status, via the OD-SP-1 group. */
+/**
+ * StatusPill variant for a project status, via the OD-SP-1 group. Per the
+ * Freed-Blue Status Rule the in-pipeline (pre-win) group is neutral grey
+ * `progress` — NOT the action-blue (the distinct stage LABEL carries identity).
+ */
 export function pillVariantForStatus(status: PipelineProject['status']): StatusVariant {
   const group = projectStatusGroup(status);
   if (group === 'onHand') return 'won';
   if (group === 'lost') return 'lost';
-  return 'open';
+  return 'progress';
 }
 
 /** Whole-number percent label from an RPC win_probability fraction. */

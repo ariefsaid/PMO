@@ -12,7 +12,6 @@ import {
   ViewToggle,
   AccessDenied,
   useToast,
-  type StatusVariant,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
@@ -37,6 +36,7 @@ import {
   saveToastForChangeCount,
 } from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
@@ -54,13 +54,9 @@ const formatDate = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
-/** Map timesheet status → tinted StatusPill variant. */
-const PILL: Record<string, StatusVariant> = {
-  Draft: 'neutral',
-  Submitted: 'open',
-  Approved: 'won',
-  Rejected: 'lost',
-};
+// Timesheet status pill comes from the single status registry (`workflowVariant`):
+// Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
+// Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
 
 const TimesheetsPage: React.FC = () => {
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
@@ -607,7 +603,7 @@ const TimesheetsPage: React.FC = () => {
 
       <Card clip>
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
-          <StatusPill variant={status ? PILL[status] : 'neutral'}>
+          <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
             {status === TimesheetStatus.Draft || !status ? 'Draft — not submitted' : status}
           </StatusPill>
           {editable && (

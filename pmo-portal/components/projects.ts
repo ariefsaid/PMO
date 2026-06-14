@@ -3,14 +3,18 @@ import type { StatusVariant } from '@/src/components/ui';
 /**
  * Maps a `projects.status` enum value to a StatusPill variant (the Tinted-Status
  * Rule — dot + darkened text, never a solid fill). Mirrors the IA-3 status
- * grouping: on-hand execution → blue `open`; won/positive-terminal → green
- * `won`; on-hold/at-risk → amber `overdue`; lost → red `lost`; pipeline leads
- * → neutral `draft`. Presentation only — `LEGAL_PROJECT_TRANSITIONS` stays the
- * authority for what may actually move (never re-derived here).
+ * grouping: on-hand execution → neutral grey `progress`; won/positive-terminal →
+ * green `won`; on-hold/at-risk → amber `overdue`; lost → red `lost`; pipeline
+ * leads → neutral `draft`. Presentation only — `LEGAL_PROJECT_TRANSITIONS` stays
+ * the authority for what may actually move (never re-derived here).
+ *
+ * Per the Freed-Blue Status Rule, no status pill may use the action-blue (`open`);
+ * the most common state ("Ongoing Project") is neutral grey, its LABEL carrying
+ * identity (never colour-only).
  */
 const VARIANT_BY_STATUS: Record<string, StatusVariant> = {
-  // On-hand execution (active work) → the one interactive blue tint.
-  'Ongoing Project': 'open',
+  // On-hand execution (active work) → neutral grey (freed-blue; label carries identity).
+  'Ongoing Project': 'progress',
   // Positive states → green.
   'Won, Pending KoM': 'won',
   'Close Out': 'won',
