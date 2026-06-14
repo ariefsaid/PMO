@@ -127,8 +127,12 @@ describe('AC-GANTT-002: dated milestone yields a positioned marker', () => {
 });
 
 // ── AC-GANTT-003: today line ──────────────────────────────────────────────────
+//
+// Drift fix (round-2): when today falls OUTSIDE the data span, the today line was
+// clamped off-canvas and invisible. The fix extends spanStart/spanEnd to always
+// include today, so the line always renders at its true proportion.
 
-describe('AC-GANTT-003: today line is positioned in-span and null out-of-span', () => {
+describe('AC-GANTT-003: today line always renders — span is extended to include today', () => {
   const tasks: TaskWithRefs[] = [
     makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
   ];
@@ -140,14 +144,36 @@ describe('AC-GANTT-003: today line is positioned in-span and null out-of-span', 
     expect(model.todayLeft!).toBeCloseTo(0.5, 9);
   });
 
-  it('todayLeft is null when today is before the span', () => {
+  it('AC-GANTT-TODAY-BEFORE: todayLeft is not null when today is BEFORE the data span (span extends left)', () => {
+    // today = 2025-12-01, data span 2026-01-01..2026-01-11.
+    // After fix: spanStart = 2025-12-01, spanEnd = 2026-01-11.
+    // todayLeft = 0 (at left edge of the expanded axis).
     const model = buildGanttModel(tasks, [], '2025-12-01');
-    expect(model.todayLeft).toBeNull();
+    expect(model.todayLeft).not.toBeNull();
+    expect(model.todayLeft!).toBeCloseTo(0, 9);
+    // Data bars must still be positioned further right (not clamped off-canvas)
+    const bars = model.lanes.flatMap((l) => l.bars);
+    const barA = bars.find((b) => b.id === 'a')!;
+    expect(barA.left).toBeGreaterThan(0);
   });
 
-  it('todayLeft is null when today is after the span', () => {
+  it('AC-GANTT-TODAY-AFTER: todayLeft is not null when today is AFTER the data span (span extends right)', () => {
+    // today = 2026-02-01, data span 2026-01-01..2026-01-11.
+    // After fix: spanStart = 2026-01-01, spanEnd = 2026-02-01.
+    // todayLeft = 1 (at right edge of the expanded axis).
     const model = buildGanttModel(tasks, [], '2026-02-01');
-    expect(model.todayLeft).toBeNull();
+    expect(model.todayLeft).not.toBeNull();
+    expect(model.todayLeft!).toBeCloseTo(1, 9);
+    // Data bars must end before the right edge (Task A ends before today)
+    const bars = model.lanes.flatMap((l) => l.bars);
+    const barA = bars.find((b) => b.id === 'a')!;
+    expect(barA.left + barA.width).toBeLessThan(1);
+  });
+
+  it('AC-GANTT-TODAY-WITHIN: todayLeft is 0.5 when today is exactly mid-span', () => {
+    const model = buildGanttModel(tasks, [], '2026-01-06');
+    expect(model.todayLeft).not.toBeNull();
+    expect(model.todayLeft!).toBeCloseTo(0.5, 9);
   });
 });
 

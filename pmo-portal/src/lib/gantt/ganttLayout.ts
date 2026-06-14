@@ -54,7 +54,11 @@ export interface GanttModel {
   /** Inclusive ISO date span [min,max] that defines the 0..1 axis, or null if nothing dated. */
   span: { startIso: string; endIso: string } | null;
   lanes: GanttLane[];
-  /** Today's fraction (0..1) if within span, else null (don't draw the line). */
+  /**
+   * Today's fraction (0..1). Always non-null when data exists — the axis span is
+   * extended to include today so the line always renders at its true position
+   * (drift fix: previously clamped off-canvas when today was outside data dates).
+   */
   todayLeft: number | null;
   /** Month-boundary ticks for the axis. */
   ticks: GanttAxisTick[];
@@ -99,7 +103,7 @@ export function buildGanttModel(
     }
   }
 
-  // Collect all dates to determine the span
+  // Collect all dates to determine the data span
   const allDates: string[] = [];
   for (const t of datedTasks) {
     if (t.start_date) allDates.push(t.start_date);
@@ -121,11 +125,18 @@ export function buildGanttModel(
     };
   }
 
-  // Compute span
-  let spanStart = allDates.reduce((a, b) => (a < b ? a : b));
-  let spanEnd = allDates.reduce((a, b) => (a > b ? a : b));
+  // Compute data span from task/milestone dates, then extend to always include today.
+  // This ensures the today-line renders at its true position even when today falls
+  // outside the project's data window (drift fix: previously returned todayLeft=null).
+  const dataStart = allDates.reduce((a, b) => (a < b ? a : b));
+  const dataEnd = allDates.reduce((a, b) => (a > b ? a : b));
 
-  // Pad single-date spans by ±1 day so bars always have nonzero width
+  let spanStart = todayIso < dataStart ? todayIso : dataStart;
+  let spanEnd = todayIso > dataEnd ? todayIso : dataEnd;
+
+  // Pad single-date spans by ±1 day so bars always have nonzero width.
+  // (After today-extension the span may already differ; padding only fires if
+  //  the final window is still a single point — e.g. all data + today same date.)
   if (spanStart === spanEnd) {
     const d = parseLocalDate(spanStart);
     const dayBefore = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
@@ -136,11 +147,8 @@ export function buildGanttModel(
 
   const spanDays = daysBetween(spanStart, spanEnd);
 
-  // Today line
-  const todayLeft =
-    todayIso >= spanStart && todayIso <= spanEnd
-      ? fraction(spanStart, spanDays, todayIso)
-      : null;
+  // Today line — always at its true fraction within the extended span.
+  const todayLeft = fraction(spanStart, spanDays, todayIso);
 
   // Build a map: milestoneId → sorted index for grouping
   // Sort milestones by sort_order then name (mirrors MilestoneGroupedList)

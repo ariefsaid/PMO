@@ -86,7 +86,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 tick={axisTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
-                width={32}
+                width={44}
               />
               <Tooltip
                 contentStyle={tooltipContentStyle}
