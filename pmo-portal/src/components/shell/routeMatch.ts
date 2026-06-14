@@ -103,6 +103,16 @@ export const MODULES: ModuleDef[] = [
     path: '/my-tasks',
     roles: [UserRole.Engineer, UserRole.Admin],
   },
+  // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
+  // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
+  // Finance approves procurement; Exec·PM·Admin approve timesheets. Engineer stays OUT.
+  {
+    module: 'approvals',
+    icon: 'check',
+    label: 'Approvals',
+    path: '/approvals',
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+  },
   // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
     module: 'administration',
@@ -136,9 +146,7 @@ export function modulesForRole(role: UserRole): ModuleDef[] {
 export const PLACEHOLDER_TITLES: Record<string, string> = {
   // /tasks + /work-orders routes removed — see App.tsx (Tasks live in the project tab).
   // /companies + /incidents promoted to MODULES (B-7, AC-W2-IA-002) — no longer placeholders.
-  // B-6 (AC-W2-IA-001): /approvals is a real Workforce page (not in MODULES — no ⌘K target /
-  // no detail route), so register it here so its breadcrumb reads "Approvals" not "Dashboard".
-  '/approvals': 'Approvals',
+  // /approvals promoted to MODULES (fix #7) — breadcrumb now resolves via the module, not here.
   // B-10 (AC-W2-IA-005): /reports stays a route (deep-links resolve) but is not a rail item.
   '/reports': 'Reports',
   '/administration': 'Administration',

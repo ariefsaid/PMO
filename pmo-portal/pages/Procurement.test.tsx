@@ -97,9 +97,12 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
-  it('defaults to the Table view with the lifecycle column header', () => {
+  it('defaults to the Table view with list rows and a lifecycle stepper (AC-FIX5)', () => {
     renderPage();
-    expect(screen.getByRole('columnheader', { name: /Lifecycle/i })).toBeInTheDocument();
+    // The table view now renders ProcurementListRow (expandable rows) instead of a
+    // DataTable — each row shows the title + a disclosure toggle + lifecycle inline pips.
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
   });
 
   it('search filters real rows by title/code (AC-504)', async () => {
@@ -123,10 +126,12 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('prstage-vq')).getByText('Workstations & AV')).toBeInTheDocument();
   });
 
-  it('AC-NAV-006: activating a row navigates to the procurement detail route (no tab)', async () => {
+  it('AC-NAV-006: activating a row navigates to the procurement detail route (no tab)', () => {
     renderPage();
-    await userEvent.click(screen.getByText('Workstations & AV'));
-    expect(navigate).toHaveBeenCalledWith('/procurement/pc1');
+    // The title is now a <Link to="/procurement/:id"> so the row navigates via the
+    // router Link (not navigate()), which is compatible with MemoryRouter in tests.
+    const titleLink = screen.getByRole('link', { name: 'Workstations & AV' });
+    expect(titleLink).toHaveAttribute('href', '/procurement/pc1');
   });
 });
 

@@ -28,7 +28,7 @@ import {
 } from '@/src/hooks/useCompanies';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { companyTypeVariant } from '@/src/lib/status/statusVariants';
+import { companyTypeVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
 
 /**
@@ -308,7 +308,10 @@ const RelatedList: React.FC<RelatedListProps> = ({
               >
                 <span className="text-[14px] font-medium text-foreground">{item.title}</span>
                 {item.subtitle && (
-                  <span className="text-[12px] text-muted-foreground">{item.subtitle}</span>
+                  /* Fix #9 — Tinted-Status rule: status must be a dot+pill, never bare grey text. */
+                  <StatusPill variant={workflowVariant(item.subtitle)}>
+                    {item.subtitle}
+                  </StatusPill>
                 )}
               </Link>
             </li>

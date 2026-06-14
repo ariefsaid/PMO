@@ -36,12 +36,12 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve
-  // timesheets. Engineer approval stays OFF (OD-W2-2 decision). An Engineer landing on /approvals
-  // sees only "sheets from your reports" — misleading for ICs who have no reports. Removing the
-  // nav item is the honest choice; the route still resolves (a direct URL still works but the
-  // empty-queue copy explains "you don't have reports to approve").
-  { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Admin] },
+  // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
+  // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
+  // "sheets from your reports" which is misleading. Finance is now included: Finance approves
+  // *procurement* (policy.ts `transition: allow([...MASTER_DATA])`) and reaches /approvals
+  // only via a dashboard tile without the rail. Fix #7: add Finance to this list.
+  { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
