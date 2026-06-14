@@ -184,7 +184,8 @@ the backend so a deploy can never silently talk to the wrong one).
 ## Prod migration state
 
 **Prod is CURRENT at migration 0027** (0024–0027 pushed 2026-06-13 via `scripts/db-push-prod.sh`; the
-`production` branch was then promoted to `main` so the FE matches). No migrations pending.
+`production` branch was then promoted to `main` so the FE matches). No migrations pending for prod.
+> **Note (`dev` branch):** `dev` carries migrations **0028** (procurement-files), **0029** (calendar-milestone RPC), and **0030** (CRM contacts/activity) that are not yet in Cloud. These will need pushing to Cloud via `db-push-prod.sh` when `dev` is promoted to `main → production`.
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
