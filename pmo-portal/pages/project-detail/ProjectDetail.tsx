@@ -147,25 +147,41 @@ const ProjectDetail: React.FC = () => {
           at every stage so a record's wayfinding is identical regardless of stage. */}
       <ProjectDetailHeader project={project} committedSpend={committedSpend} />
 
-      {/* Milestone strip — renders at every lifecycle stage (FR-DEL-012, ADR-0021). */}
-      <div className="mb-4">
-        <MilestoneStrip projectId={project.id} />
-      </div>
+      {/* AC-IFW-RECORD-01 (Lens-D): pre-win layout — sales levers first so the deal
+          actions are above the fold; delivery planner is demoted below; S-curve is hidden
+          (buildSCurve([]) shows an empty chart for a pre-win record — cut the noise).
+          AC-IFW-RECORD-02 (Lens-D): delivery layout — stepper → tabs → S-curve, so the
+          actionable tab bar surfaces above the fold rather than buried beneath the S-curve. */}
+      {isPipeline ? (
+        <>
+          {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
+          <div className="mb-4">
+            <PipelineLens project={project} />
+          </div>
 
-      {/* S-curve — planned vs actual cumulative progress (FR-SC-001, below the stepper). */}
-      <div className="mb-4">
-        <ProjectSCurve projectId={project.id} />
-      </div>
+          {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal). */}
+          <div className="mb-4">
+            <MilestoneStrip projectId={project.id} />
+          </div>
 
-      {/* Deal-progression banner — pre-win/lost only, ABOVE the tabs (ADR-0021 owner placement). */}
-      {isPipeline && (
-        <div className="mb-4">
-          <PipelineLens project={project} />
-        </div>
+          {/* Pre-win: S-curve is hidden — no real progress data exists yet for an opportunity.
+              Guard: {!isPipeline && <ProjectSCurve …/>} per the design plan. */}
+
+          {/* Delivery tabs rendered for pre-win so budget/tasks/procurement are reachable (ADR-0021). */}
+          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+        </>
+      ) : (
+        <>
+          {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
+              so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
+          <div className="mb-4">
+            <MilestoneStrip projectId={project.id} />
+          </div>
+
+          {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
+          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+        </>
       )}
-
-      {/* Delivery tabs — rendered at EVERY stage (Overview/Budget/Procurement/Tasks/Documents). */}
-      <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
 
       <div
         role="tabpanel"
@@ -189,6 +205,15 @@ const ProjectDetail: React.FC = () => {
         {tab === 'tasks' && <TasksTab projectId={project.id} />}
         {tab === 'documents' && <DocumentsTab projectId={project.id} />}
       </div>
+
+      {/* S-curve — demoted below the tab panel for delivery projects (AC-IFW-RECORD-02:
+          tabs surface above the fold; the progress curve is still reachable by scrolling).
+          Hidden for pre-win records (no real progress data, would show an empty chart). */}
+      {!isPipeline && (
+        <div className="mt-4">
+          <ProjectSCurve projectId={project.id} />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ListState,
   Button,
@@ -186,6 +187,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
                       totalWeight={totalWeight}
                       canEdit={canEdit}
                       canDelete={canDelete}
+                      projectId={projectId}
                       onEditDetails={() => setFormTarget({ milestone })}
                       onDelete={() => setDeleteTarget(milestone)}
                       onUpdateInputPct={async (id, input_pct) => {
@@ -325,6 +327,8 @@ interface MilestonePhaseCardProps {
   totalWeight: number;
   canEdit: boolean;
   canDelete: boolean;
+  /** AC-IFW-RECORD-03: thread the project id so overdue cards can link to the Tasks tab. */
+  projectId: string;
   onEditDetails: () => void;
   onDelete: () => void;
   onUpdateInputPct: (id: string, input_pct: number | null) => Promise<void>;
@@ -336,6 +340,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   totalWeight,
   canEdit,
   canDelete,
+  projectId,
   onEditDetails,
   onDelete,
   onUpdateInputPct,
@@ -398,6 +403,17 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             canEditProgress={canEdit && !editing}
             onEditProgress={canEdit ? startEdit : undefined}
           />
+          {/* AC-IFW-RECORD-03 (Lens-D): overdue-phase recovery lever — links to the project's
+              Tasks tab so the PM can act on blocking work. One-Blue text link (not a solid button).
+              Only shown for overdue phases (started + past target + <100%). */}
+          {isOverdueMilestone(milestone) && (
+            <Link
+              to={`/projects/${projectId}/tasks`}
+              className="mt-1 inline-block text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+            >
+              View blocking tasks
+            </Link>
+          )}
         </div>
 
         {(canEdit || canDelete) && (
