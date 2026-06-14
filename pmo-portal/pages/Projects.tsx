@@ -8,10 +8,12 @@ import {
   StatusPill,
   ProgressBar,
   SelectField,
+  ConfirmDialog,
   Button,
   Icon,
   useToast,
   type Column,
+  type RowMenuItem,
 } from '@/src/components/ui';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -76,9 +78,12 @@ const Projects: React.FC = () => {
   const { data, isPending, isError, refetch } = useProjects();
   const { data: clientCompanies = [] } = useClientCompanies();
   const { data: projectManagers = [] } = useProjectManagers();
-  const { create } = useProjectMutations();
+  const { create, updateHeader, archive } = useProjectMutations();
 
   const canCreate = may('create', 'project');
+  const canEdit = may('edit', 'project');
+  const canArchive = may('archive', 'project');
+  const canRowWrite = canEdit || canArchive;
 
   const [view, setView] = useProjectView();
 
@@ -102,6 +107,10 @@ const Projects: React.FC = () => {
   const [search, setSearch] = useState('');
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
+  // null = closed; { project } = edit modal open.
+  const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
+  // null = closed; project = archive confirm open.
+  const [archiveTarget, setArchiveTarget] = useState<ProjectWithRefs | null>(null);
 
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
@@ -195,6 +204,30 @@ const Projects: React.FC = () => {
 
   // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
   const onOpen = (p: ProjectWithRefs) => navigate(`/projects/${p.id}`);
+
+  // ── rowMenu: Edit (→ editHeader modal) + Archive (→ confirm) ───────────────
+  // Mirrors Companies.tsx:141-147 pattern. Gated by the same can() checks the
+  // detail-header uses (edit | archive project). ARCHIVE_ROLES = Admin·Exec.
+  const rowMenu = (p: ProjectWithRefs): RowMenuItem[] => {
+    const items: RowMenuItem[] = [];
+    if (canEdit) items.push({ label: 'Edit', onClick: () => setEditTarget(p) });
+    if (canArchive) items.push({ label: 'Archive', onClick: () => setArchiveTarget(p) });
+    return items;
+  };
+
+  const onArchiveConfirm = async () => {
+    if (!archiveTarget) return;
+    const target = archiveTarget;
+    try {
+      await archive.mutateAsync(target.id);
+      toast('Project archived', target.name, 'success');
+      setArchiveTarget(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+      setArchiveTarget(null);
+    }
+  };
 
   // The create-deal modal — rendered in every page state (the gated CTA in Header
   // can open it from loading/error/empty/success alike). Hidden when createOpen is false.
@@ -511,6 +544,7 @@ const Projects: React.FC = () => {
           columns={columns}
           rowKey={(p) => p.id}
           onActivate={onOpen}
+          rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
             filter === 'at-risk'
@@ -558,11 +592,57 @@ const Projects: React.FC = () => {
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
           {filtered.map((p) => (
-            <ProjectCard key={p.id} project={p} onOpen={onOpen} deliverySummary={deliverySummary?.[p.id]} />
+            <ProjectCard
+              key={p.id}
+              project={p}
+              onOpen={onOpen}
+              deliverySummary={deliverySummary?.[p.id]}
+              onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
+            />
           ))}
         </div>
       )}
       {createModal}
+
+      {/* Edit-header modal (Admin·Exec·PM) — opened from the row menu */}
+      {editTarget && (
+        <ProjectFormModal
+          mode="editHeader"
+          initial={{
+            id: editTarget.id,
+            name: editTarget.name,
+            code: editTarget.code,
+            client_id: editTarget.client_id,
+            project_manager_id: editTarget.project_manager_id,
+            clientName: editTarget.client?.name ?? null,
+            pmName: editTarget.pm?.full_name ?? null,
+            start_date: editTarget.start_date,
+            end_date: editTarget.end_date,
+          }}
+          onClose={() => setEditTarget(null)}
+          onSave={async (id, input) => {
+            await updateHeader.mutateAsync({ id, input });
+            toast('Project updated', input.name, 'success');
+            setEditTarget(null);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {/* Archive confirm (default tone) */}
+      <ConfirmDialog
+        open={!!archiveTarget}
+        tone="default"
+        title={archiveTarget ? `Archive ${archiveTarget.name}?` : 'Archive project?'}
+        description="It will be hidden from the default project list. Existing references stay intact. You can restore it later."
+        confirmLabel="Archive project"
+        loading={archive?.isPending ?? false}
+        onConfirm={onArchiveConfirm}
+        onCancel={() => setArchiveTarget(null)}
+      />
     </ListPage>
   );
 };

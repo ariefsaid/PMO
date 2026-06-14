@@ -11,7 +11,6 @@ import {
   Combobox,
   FormSection,
   GateNotice,
-  Tooltip,
   useEntityForm,
   useToast,
   Button,
@@ -335,38 +334,62 @@ const AdminUsers: React.FC = () => {
 
 // ── Page header ──────────────────────────────────────────────────────────────
 
-const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => (
-  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      {/* B-8 (AC-W2-IA-003): <h1> is "Administration" — matches route /administration,
-          rail item, and breadcrumb. "Users" is the section described below (the page will
-          later hold more than just users, e.g. org settings). */}
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
-      <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Manage users&rsquo; role and reporting line. Administration is Admin-only; role
-        changes are high-impact and recorded. Inviting new users arrives with server-side auth.
-      </p>
+/**
+ * The short onboarding message copied to clipboard when the Admin clicks
+ * "Copy invite instructions". This is an interim affordance (T26) while the
+ * Supabase auth-admin invite API is not yet wired server-side.
+ */
+const INVITE_INSTRUCTIONS = `Hi,
+
+You've been invited to the PMO workspace. To get started:
+
+1. Visit the app URL your Admin provided.
+2. Sign up with this email address using the "Sign up" option.
+3. Your account will be set up automatically once you sign in for the first time.
+
+Reach out to your Admin if you need help with access or your role.`;
+
+const PageHead: React.FC<{ canManage: boolean }> = ({ canManage }) => {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(INVITE_INSTRUCTIONS);
+      setCopied(true);
+      toast('Invite instructions copied', 'Paste this into an email to the new user.', 'success');
+      // Reset "Copied" label after 2 s
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast('Copy failed', 'Select and copy the text manually.', 'warning');
+    }
+  };
+
+  return (
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        {/* B-8 (AC-W2-IA-003): <h1> is "Administration" — matches route /administration,
+            rail item, and breadcrumb. "Users" is the section described below (the page will
+            later hold more than just users, e.g. org settings). */}
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">Administration</h1>
+        <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
+          Manage users&rsquo; role and reporting line. Administration is Admin-only; role
+          changes are high-impact and recorded. To invite someone, copy the onboarding
+          message below and email it to them — they sign up themselves and you set their role.
+        </p>
+      </div>
+      {canManage && (
+        /* T26: an HONEST working affordance — copies an onboarding message to clipboard
+           so the Admin can email it to the new user. NO edge function, NO auth/service-role.
+           Replaces the permanently-disabled "New user" dead-end (AC-PJ-ADMIN-001). */
+        <Button variant="outline" onClick={() => void handleCopyInvite()}>
+          <Icon name={copied ? 'check' : 'doc'} />
+          {copied ? 'Copied!' : 'Copy invite instructions'}
+        </Button>
+      )}
     </div>
-    {canManage && (
-      // Inviting/creating a user needs the Supabase admin API (server-side) — DEFERRED.
-      // An honest disabled affordance with a reason, never a button that opens a dead-end
-      // "coming soon" modal (matches the Documents "Attach file" deferred pattern). A disabled
-      // button doesn't fire hover/focus, so the tooltip wraps a span that does.
-      <Tooltip content="User invites arrive soon">
-        {/* CW-7: an honest disabled affordance. A disabled <button> fires no hover/focus, so the
-            hover tooltip alone leaves keyboard/AT/no-hover users with no reason. A static `title`
-            on the wrapping span makes the "why" always discoverable (native hint + AT), so the
-            control is never silently dead. Mirrors the app's honest-disabled pattern. */}
-        <span className="inline-flex" title="User invites arrive soon">
-          <Button variant="primary" disabled aria-label="New user (user invites arrive soon)">
-            <Icon name="plus" />
-            New user
-          </Button>
-        </span>
-      </Tooltip>
-    )}
-  </div>
-);
+  );
+};
 
 // ── Edit-role modal ────────────────────────────────────────────────────────
 

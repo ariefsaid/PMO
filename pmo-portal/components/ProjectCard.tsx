@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusPill, ProgressBar } from '@/src/components/ui';
+import { StatusPill, ProgressBar, Button, Icon } from '@/src/components/ui';
 import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
@@ -13,6 +13,12 @@ export interface ProjectCardProps {
   onOpen: (project: ProjectWithRefs) => void;
   /** I5: delivery summary (from useProjectsDeliverySummary) for consistent card-view display. */
   deliverySummary?: { deliveryPct: number | null; committedSpend: number; budget: number } | undefined;
+  /**
+   * T15opt: optional Edit callback — when provided (can('edit','project') = true) renders
+   * a compact "Edit" button in the card foot. Gates on the caller, not the card itself
+   * (the card is presentational; RBAC lives in the Projects page).
+   */
+  onEdit?: (project: ProjectWithRefs) => void;
 }
 
 /**
@@ -24,7 +30,7 @@ export interface ProjectCardProps {
  * utilization bars) and the inline ProjectStatusControl (AC-1011's win-transition
  * RPC), which stops propagation so it never drills.
  */
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, onEdit }) => {
   const contract = project.contract_value ?? 0;
   const committed = project.budget ?? 0;
   const actual = project.spent ?? 0;
@@ -104,8 +110,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     </>
   );
 
-  // Foot: PM + inline status control. The control stops propagation so the inline
-  // win-transition RPC never drills into the record.
+  // Foot: PM + inline controls. Both the status control and the optional Edit button
+  // stop propagation so they never trigger the card-drill navigation.
   const foot = (
     <>
       <span className="flex min-w-0 items-center gap-2 text-[12px]">
@@ -119,7 +125,21 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           {project.pm?.full_name ?? 'Unassigned'}
         </span>
       </span>
-      <div onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {onEdit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(project);
+            }}
+            aria-label={`Edit ${project.name}`}
+          >
+            <Icon name="pencil" />
+            Edit
+          </Button>
+        )}
         <ProjectStatusControl
           project={{
             id: project.id,
