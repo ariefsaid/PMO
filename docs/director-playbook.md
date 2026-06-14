@@ -18,11 +18,17 @@ never write app code yourself — you delegate and **verify**.
    locked `OD-*` decisions in `docs/decisions.md`), sharpen terminology, and update glossary/ADRs
    inline as decisions crystallise. No spec work starts until the grill ends in owner alignment —
    this is where misframed issues die cheaply.
+   **Job-story capture hook (every FE feature — binding):** during the grill, before any spec effort,
+   capture the **job story** for each new feature ("When [situation], a [role] wants to [motivation],
+   so they can [outcome]"). Record it in `docs/jtbd.md` (the role × job-story oracle). This job story
+   becomes a binding input to the mockup (Lens D round 1) and the post-build review (Lens D round 2)
+   so the spec/plan are *intent-anchored*, not just behaviour-anchored. A feature without a captured
+   job story has no Lens D oracle and cannot pass the intent gate.
 1c. **HTML mockup (UI issues only — before any spec effort)** — when the issue includes frontend
    work, produce a static HTML mockup FIRST and take it through a **full design round** per
-   `docs/design-workflow.md` §1a (design-plan → mockup build → three-lens design review → fix
+   `docs/design-workflow.md` §1a (design-plan → mockup build → **four-lens** design review → fix
    rounds) before presenting it for **owner approval**. Only an approved mockup unlocks Spec.
-   Purpose: front-load taste/IxD/IA decisions onto a cheap artifact so they don't recur as
+   Purpose: front-load taste/IxD/IA/intent decisions onto a cheap artifact so they don't recur as
    post-build fix rounds.
 2. **Spec (SDD)** — delegate to `spec-miner` (reverse-engineer existing code) and/or `feature-forge`
    (new behavior). For mirror/refactor issues a single `eng-planner` call can produce both spec +
@@ -48,10 +54,11 @@ never write app code yourself — you delegate and **verify**.
    the breadcrumb) do you update the journey *steps*, and even then the goal-oracle stays intact. Never
    reshape a test to match the app's current state to go green (see qa-acceptance "Authoring principle").
 7. **Design re-review (FE/UI issues only — round 2 of 2)** — `design-reviewer` re-runs the full
-   three-lens battery (`docs/design-workflow.md` §2.3) on the **rendered, implemented** UI, explicitly
+   **four-lens** battery (`docs/design-workflow.md` §2.3) on the **rendered, implemented** UI, explicitly
    checking for **drift from the owner-approved mockup** (round 1 was the §1c mockup gate) on top of
-   `DESIGN.md` + the design-plan. Findings route back to `ui-implementer`; repeat until ship-clean. (Code
-   issues with no UI surface skip this step.)
+   `DESIGN.md` + the design-plan. **Lens D grades against `docs/jtbd.md`** — the job story captured
+   at intake (§2 step 1b) is the oracle. Findings route back to `ui-implementer`; repeat until ship-clean.
+   (Code issues with no UI surface skip this step.)
 8. **Ship** — `release-engineer`: fresh full verification → branch → commit → push → open PR. **It
    never merges.** Then the **Director merges** (see §6) and syncs.
 

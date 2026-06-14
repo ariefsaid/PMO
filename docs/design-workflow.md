@@ -20,7 +20,7 @@ Establish the design system before any UI issue builds on it.
 Runs at **intake**, right after the `grill-with-docs` alignment grill (`docs/director-playbook.md`
 §2 step 1b/1c) and **before any spec/plan/build effort is committed**. The mockup is the cheap
 artifact that absorbs taste/IxD/IA iteration so the per-issue loop (§2) doesn't re-litigate it
-post-build. **Every FE issue gets the three-lens review twice:** here on the *mockup* (round 1, vets
+post-build. **Every FE issue gets the four-lens review twice:** here on the *mockup* (round 1, vets
 the design before code exists) and again in §2.3 on the *built* UI (round 2, catches drift from this
 approved mockup).
 
@@ -29,10 +29,10 @@ approved mockup).
    key states (default / empty / error at minimum) and the mobile breakpoint, not just the happy
    desktop frame.
 2. **Full design round on the mockup (review round 1 of 2)** — same discipline as a real UI build:
-   design-plan (`design-architect`) → mockup build (`ui-implementer`) → the **three-lens review
-   battery** of §2.3 (visual/correctness, IxD task-flow, IA structure) rendered in a browser →
-   fix rounds until ship-clean. The approved mockup is the **drift baseline** that round 2 (§2.3,
-   post-implementation) audits the built UI against.
+   design-plan (`design-architect`) → mockup build (`ui-implementer`) → the **four-lens review
+   battery** of §2.3 (visual/correctness, IxD task-flow, IA structure, **product/intent**) rendered
+   in a browser → fix rounds until ship-clean. The approved mockup is the **drift baseline** that
+   round 2 (§2.3, post-implementation) audits the built UI against.
 3. **Owner approval** — the owner approves the mockup the way they sign off a spec. The approved
    mockup then becomes a **binding input** to the spec and the per-issue design-plan (§2.1).
 4. **Status: design-binding, code-throwaway** — the later React implementation builds to
@@ -51,11 +51,25 @@ update the e2e *steps*, never weaken the goal-oracle to match the rendered app (
 2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
    `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
    design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
-3. **Design-review — the standing THREE-LENS battery (review ROUND 2 of 2 — post-build drift pass)** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all three** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the other two (this gap let real IxD/IA defects ship). This is the **second** of the two mandatory FE reviews: beyond `DESIGN.md` + the design-plan, it **explicitly diffs the rendered build against the owner-approved mockup (§1a) to catch mockup→implementation drift** (spacing/scale/state/interaction that slipped between the approved design and the built result). Findings write to `review/*.md`.
+3. **Design-review — the standing FOUR-LENS battery (review ROUND 2 of 2 — post-build drift pass)** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the others (this gap let real IxD/IA/intent defects ship). This is the **second** of the two mandatory FE reviews: beyond `DESIGN.md` + the design-plan, it **explicitly diffs the rendered build against the owner-approved mockup (§1a) to catch mockup→implementation drift** (spacing/scale/state/interaction that slipped between the approved design and the built result). Findings write to `review/*.md`.
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste` AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA, interaction perf, vs `DESIGN.md` + the design-plan.
-   - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough; `ui-ux-pro-max` `primary-action`/`progressive-disclosure`/`success-feedback`)* — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* (e.g. timesheet Save↔Submit split across a view change.)
+   - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough; `ui-ux-pro-max` `primary-action`/`progressive-disclosure`/`success-feedback`)* — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* (e.g. timesheet Save↔Submit split across a view change.) **Scoped to flow-smoothness — not job-fit (that is Lens D).**
    - **(c) IA / structure & navigation** *(Nielsen #4 Consistency + IA first-principles + ERP/CRM/PSA domain conventions)* — **one canonical home/URL per entity**, no list/route overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent breadcrumb/back. *Structure, not flow.* (e.g. one record → two lists → two detail pages.)
-   Reusable: the IxD-audit and IA-audit **workflow scripts** are saved under the session's workflow scripts and re-run on demand; their directed prompts are the source of truth for what each lens hunts. Real owner-flagged defects become **calibration anchors** in the prompts.
+   - **(d) Lens D — Product / Intent (JTBD Cognitive Walkthrough)** — grades **intent-fit** against `docs/jtbd.md` (the role × job-story oracle). Owner: `design-reviewer` (same as A/B/C). For each screen × its primary role, interrogate the **5 questions**:
+     1. **Job** — what job did the user come here to do? State it as a job story ("When [situation], a [role] wants to [motivation], so they can [outcome]").
+     2. **Expectation** — does the user *expect* this feature/affordance HERE? Does placement + naming match their mental model and ERP/domain convention?
+     3. **Priority/placement** — is information/affordance ordered by decision-relevance to the job (most-decision-relevant above the fold)?
+     4. **Actionability** — *"so what / now what?"* — can the user ACT on what they see in one step? Is the next action ADJACENT to the insight?
+     5. **Mental-model consistency** — do analogous objects share one interaction paradigm (name / create / open / advance / get-back / preview-before-drill-in)?
+
+     **3 calibration anchors** (Lens D must always catch these — they pass code review + security + Lenses A/B/C but fail intent):
+     - Procurement has no preview; approvals/timesheets do → mental-model inconsistency (Q5).
+     - Calendar view on the project LIST, not clickable, not in task detail → view with no job/scent in the wrong place (Q2).
+     - S-curve above the fold with actionable tabs buried below → analytic with no adjacent lever (Q3/Q4).
+
+     Findings output + severity exactly like the other lenses. Fixes route back to `ui-implementer`. Charter + full oracle: `docs/reviews/2026-06-14-intent-lens-gap.md` + `docs/jtbd.md`.
+
+   Reusable: the IxD-audit, IA-audit, and Intent-audit **workflow scripts** are saved under the session's workflow scripts and re-run on demand; their directed prompts are the source of truth for what each lens hunts. Real owner-flagged defects become **calibration anchors** in the prompts.
 4. **Fix round (if needed)** — issues route back to `ui-implementer`; `design-reviewer` re-checks
    with before/after. Repeat until ship-clean.
 5. **Owner visual UX sign-off** — the owner approves the look on a real artifact.
@@ -88,7 +102,7 @@ variants) + a11y checks in isolation. Not before — premature Storybook is over
 |---|---|---|
 | spec-miner / eng-planner | **design-architect** | reverse-engineer `DESIGN.md`; per-issue design-plan (read-only on code, writes DESIGN.md + docs/) |
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
-| spec-reviewer + code-quality-reviewer + security-auditor (the **3-reviewer** code battery) | **design-reviewer** (the **3-lens** battery, run **twice** — mockup §1a + built UI §2.3 for drift) | render + screenshot; audit vs `DESIGN.md` + plan + the approved mockup; AI-slop / a11y / perf; read-only |
+| spec-reviewer + code-quality-reviewer + security-auditor (the **3-reviewer** code battery) | **design-reviewer** (the **4-lens** battery, run **twice** — mockup §1a + built UI §2.3 for drift) | render + screenshot; audit vs `DESIGN.md` + plan + the approved mockup + `docs/jtbd.md` (Lens D); AI-slop / a11y / perf; read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** (owner sign-off) |
 
 ### Skills → exact commands per agent (one owner per command — no overlap)

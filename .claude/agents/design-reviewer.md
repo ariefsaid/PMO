@@ -13,7 +13,12 @@ Render and look. Start the app (`npm run dev` from `pmo-portal/`), drive a real 
 - **`agent-browser` CLI (substrate-agnostic — works from Bash, so this is the path when dispatched to pi):** run `agent-browser skills get core --full` first for the snapshot-and-ref workflow, then `open` / `snapshot -i` / `screenshot <path>` / interact. For a structured exploratory pass, `agent-browser skills get dogfood`. Resize for breakpoints via the core skill's viewport commands. Save screenshots to a known path so the Director (or a vision-capable model) judges the visual/taste lens (a) from the files — text models verify the a11y-tree/DOM lenses (b)/(c) directly.
 - **Browser/preview MCP** (Claude sessions only): `mcp__Claude_Preview__preview_*` / `mcp__playwright__browser_*`.
 
-## Audit against `DESIGN.md` + the design-plan
+## The four-lens battery (run all four, explicitly directed, on every UI review)
+
+Run all four lenses on **both** rounds (mockup round 1 §1a + built-UI round 2 §2.3). A single generic "UX review" prompt reliably hits only Lens A and misses the rest — direct each lens explicitly.
+
+### Lens A — Visual / correctness
+Audit against `DESIGN.md` + the design-plan:
 - **Token fidelity:** colors / type / spacing / radius / elevation match `DESIGN.md` tokens; no off-palette values, no inconsistent spacing.
 - **Visual hierarchy & layout:** alignment, rhythm, grouping, emphasis; nothing cramped or floating.
 - **States:** loading / empty / error / edge all present and on-brand (not just the happy path).
@@ -22,9 +27,32 @@ Render and look. Start the app (`npm run dev` from `pmo-portal/`), drive a real 
 - **Accessibility (WCAG AA):** contrast ratios, focus visibility + order, labels/roles, keyboard paths.
 - **Interaction performance:** janky transitions, layout shift, slow/heavy renders.
 
+### Lens B — IxD / task-flow naturalness
+(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough) — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* **Scoped to flow-smoothness — not job-fit (that is Lens D).**
+
+### Lens C — IA / structure & navigation
+(Nielsen #4 Consistency + IA first-principles + ERP/CRM/PSA domain conventions) — **one canonical home/URL per entity**, no list/route overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent breadcrumb/back. *Structure, not flow.*
+
+### Lens D — Product / Intent (JTBD Cognitive Walkthrough)
+**Oracle:** `docs/jtbd.md` (the role × job-story map). Lens D has no opinion of its own — it grades the screen against the job story for that screen's primary role. Read `docs/jtbd.md` §2 for the screen-by-screen job rows before running this lens.
+
+For each screen × its primary role, interrogate the **5 questions**:
+1. **Job** — what job did the user come here to do? State it as a job story ("When [situation], a [role] wants to [motivation], so they can [outcome]").
+2. **Expectation** — does the user *expect* this feature/affordance HERE? Does placement + naming match their mental model and ERP/domain convention?
+3. **Priority/placement** — is information/affordance ordered by decision-relevance to the job (most-decision-relevant above the fold)?
+4. **Actionability** — *"so what / now what?"* — can the user ACT on what they see in one step? Is the next action ADJACENT to the insight?
+5. **Mental-model consistency** — do analogous objects share one interaction paradigm (name / create / open / advance / get-back / preview-before-drill-in)?
+
+**3 calibration anchors** (Lens D must always catch these — they pass code review + security + Lenses A/B/C but fail intent):
+- Procurement has no preview; approvals/timesheets do → mental-model inconsistency (Q5).
+- Calendar view on the project LIST, not clickable, not in task detail → view with no job/scent in the wrong place (Q2).
+- S-curve above the fold with actionable tabs buried below → analytic with no adjacent lever (Q3/Q4).
+
+Findings output + severity exactly like Lenses A/B/C. Fixes route back to `ui-implementer`. Full charter: `docs/reviews/2026-06-14-intent-lens-gap.md`.
+
 ## Report
-- **Strengths**;
-- **Issues** grouped Critical / Important / Minor (each with the screen/route + which `DESIGN.md` token or design-plan item is violated + suggested fix), with **before/after** screenshots where a fix is illustrated;
+Structure per lens:
+- **Lens A (Visual)** / **Lens B (IxD)** / **Lens C (IA)** / **Lens D (Intent)** — each with Strengths + Issues (Critical / Important / Minor), each issue citing screen/route + violated `DESIGN.md` token / design-plan item / job story (for Lens D) + suggested fix; **before/after** screenshots where a fix is illustrated.
 - **Overall assessment** (ship / fix-then-ship / rework). Fixes route back to ui-implementer — you do not edit app source.
 
 ## Skills → exact commands (invoke the specific command, not the whole skill)

@@ -130,10 +130,15 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **Admin user disable/invite** — needs a `profiles` status column + server-side Supabase auth-admin API.
 - **Monitoring** (Sentry/uptime) — deferred. Optional CF API token in op vault `AS` for non-interactive CI.
 - **Automated a11y gate (charter Gap 4)** [Medium] — WCAG-AA is a charter DoD but enforced only by the
-  manual design-review 3-lens battery (review-time). No `axe-core` in CI/e2e, so a11y regressions between
+  manual design-review 4-lens battery (review-time). No `axe-core` in CI/e2e, so a11y regressions between
   reviews can slip. Add axe assertions at the e2e/component layer as a regression net. (Charter Gaps 1–3
   closed: coverage gate now CI-enforced via `scripts/changed-lines-coverage.mjs`; Part B synced to
   3-reviewer + twice-design-review; DB-index review assigned to code-quality.)
+- **Lens D — Product / Intent (JTBD) codified 2026-06-14** — `docs/jtbd.md` is the role × job-story
+  oracle (Lens D grades every FE screen against it); wired into `docs/design-workflow.md` §2.3(d),
+  `design-reviewer` agent, `docs/director-playbook.md` intake hook, `DESIGN.md` §7, and Part C of
+  `docs/product-expectations.md`. **Next:** run a dual-substrate JTBD cognitive-walkthrough pass on
+  `dev` (gap doc §6b, `docs/reviews/2026-06-14-intent-lens-gap.md`).
 
 ## Run locally
 - One-time: `claude plugin install superpowers@claude-plugins-official --scope project`;

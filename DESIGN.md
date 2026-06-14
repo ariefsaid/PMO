@@ -412,6 +412,17 @@ by one rulebook. Build plan + per-phase migration order: `docs/plans/2026-06-14-
 
 ---
 
+### FE design battery — 4 lenses, run twice
+
+Every UI issue passes a **4-lens design battery** run twice (mockup round 1, built-UI round 2 per
+`docs/design-workflow.md`): **Lens A Visual / B Flow / C Structure / D Intent**. `design-reviewer`
+owns all four. Lens D grades against **`docs/jtbd.md`** (the role × job-story oracle) — it catches
+intent-fit failures that pass Lenses A/B/C. The job story for each feature is captured during intake
+(grill) and recorded in `docs/jtbd.md` before spec, so the mockup is already intent-anchored at
+round 1. Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`.
+
+---
+
 ## How to use these tokens (implementers)
 
 The source ships these as **shadcn-vue HSL custom properties on `:root`**, consumed via `hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Preserve that pipeline in the React/Tailwind app:
