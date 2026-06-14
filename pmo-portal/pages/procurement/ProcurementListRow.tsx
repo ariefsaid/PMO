@@ -40,12 +40,87 @@ function daysAgo(iso: string): string {
  *   • Line items list
  *   • "View full request" link → /procurement/:id (no force-drill required)
  */
+/**
+ * The expanded preview panel — rendered as a separate component so that
+ * `useProcurementDetail` is only called when the panel is actually mounted
+ * (expanded). This keeps the hook call unconditional within the component
+ * while avoiding a QueryClient dependency in the always-rendered row header.
+ */
+const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = ({ row, panelId }) => {
+  const detail = useProcurementDetail(row.id);
+
+  return (
+    <div
+      id={panelId}
+      role="region"
+      aria-label={`Preview for ${row.title}`}
+      className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3"
+    >
+      {detail.isPending ? (
+        <ListState variant="loading" rows={3} />
+      ) : detail.isError ? (
+        <ListState
+          variant="error"
+          title="Couldn't load request details"
+          sub="Something went wrong fetching the preview."
+          onRetry={() => detail.refetch()}
+        />
+      ) : detail.data ? (
+        <>
+          {/* Budget impact */}
+          <DecisionSupportPanel
+            projectId={detail.data.project_id}
+            totalValue={detail.data.total_value}
+            projectName={detail.data.project?.name}
+          />
+
+          {/* Line items */}
+          {detail.data.items.length > 0 && (
+            <div className="mb-3">
+              <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                Line items
+              </h4>
+              <ul className="space-y-1" aria-label="Line items">
+                {detail.data.items.map((item) => {
+                  const lineTotal = item.amount ?? item.quantity * item.rate;
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-baseline justify-between gap-2 text-[13px]"
+                    >
+                      <span className="truncate">{item.name}</span>
+                      <span className="tabular text-muted-foreground shrink-0">
+                        {item.quantity} × {formatCurrency(item.rate)} ={' '}
+                        <span className="font-medium text-foreground">
+                          {formatCurrency(lineTotal)}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Navigation footer (AC-FIX5-PREVIEW-03): View full request */}
+          <div className="mt-2 flex justify-end">
+            <Link
+              to={`/procurement/${row.id}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              View full request
+              <Icon name="chev" aria-hidden />
+            </Link>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
-
-  // Lazy fetch: only enabled when the row is expanded.
-  const detail = useProcurementDetail(expanded ? row.id : undefined);
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -97,74 +172,9 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
         </div>
       </div>
 
-      {/* Expanded preview panel (AC-FIX5-PREVIEW-02) */}
-      {expanded && (
-        <div
-          id={panelId}
-          role="region"
-          aria-label={`Preview for ${row.title}`}
-          className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3"
-        >
-          {detail.isPending ? (
-            <ListState variant="loading" rows={3} />
-          ) : detail.isError ? (
-            <ListState
-              variant="error"
-              title="Couldn't load request details"
-              sub="Something went wrong fetching the preview."
-              onRetry={() => detail.refetch()}
-            />
-          ) : detail.data ? (
-            <>
-              {/* Budget impact */}
-              <DecisionSupportPanel
-                projectId={detail.data.project_id}
-                totalValue={detail.data.total_value}
-                projectName={detail.data.project?.name}
-              />
-
-              {/* Line items */}
-              {detail.data.items.length > 0 && (
-                <div className="mb-3">
-                  <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Line items
-                  </h4>
-                  <ul className="space-y-1" aria-label="Line items">
-                    {detail.data.items.map((item) => {
-                      const lineTotal = item.amount ?? item.quantity * item.rate;
-                      return (
-                        <li
-                          key={item.id}
-                          className="flex items-baseline justify-between gap-2 text-[13px]"
-                        >
-                          <span className="truncate">{item.name}</span>
-                          <span className="tabular text-muted-foreground shrink-0">
-                            {item.quantity} × {formatCurrency(item.rate)} ={' '}
-                            <span className="font-medium text-foreground">
-                              {formatCurrency(lineTotal)}
-                            </span>
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {/* Navigation footer (AC-FIX5-PREVIEW-03): View full request */}
-              <div className="mt-2 flex justify-end">
-                <Link
-                  to={`/procurement/${row.id}`}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
-                >
-                  View full request
-                  <Icon name="chev" aria-hidden />
-                </Link>
-              </div>
-            </>
-          ) : null}
-        </div>
-      )}
+      {/* Expanded preview panel (AC-FIX5-PREVIEW-02): ExpandedPanel mounts only when
+          expanded so useProcurementDetail is not called on the collapsed row. */}
+      {expanded && <ExpandedPanel row={row} panelId={panelId} />}
     </div>
   );
 };
