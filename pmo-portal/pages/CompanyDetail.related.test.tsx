@@ -42,11 +42,13 @@ const {
     data: [] as Record<string, unknown>[],
     isPending: false,
     isError: false,
+    refetch: vi.fn(),
   },
   procurementsState: {
     data: [] as Record<string, unknown>[],
     isPending: false,
     isError: false,
+    refetch: vi.fn(),
   },
 }));
 
@@ -110,9 +112,11 @@ beforeEach(() => {
   projectsState.data = [];
   projectsState.isPending = false;
   projectsState.isError = false;
+  projectsState.refetch.mockClear();
   procurementsState.data = [];
   procurementsState.isPending = false;
   procurementsState.isError = false;
+  procurementsState.refetch.mockClear();
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.archive.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';

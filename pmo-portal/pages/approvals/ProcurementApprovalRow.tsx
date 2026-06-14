@@ -119,16 +119,16 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
 
         {/* Request info */}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-[13.5px]" title={row.title}>
+          <div className="truncate font-semibold text-[13px]" title={row.title}>
             {row.title}
           </div>
-          <div className="font-mono text-[11px] text-muted-foreground">
+          <div className="font-mono text-[12px] text-muted-foreground">
             {row.code ?? row.id.slice(0, 8)}
           </div>
         </div>
 
         {/* Meta */}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 text-[12.5px] text-muted-foreground">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 text-[12px] text-muted-foreground">
           {row.project?.name && <span>{row.project.name}</span>}
           {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
           <span className="tabular font-medium text-foreground">

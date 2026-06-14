@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import { BvACard } from '../BvACard';
@@ -58,5 +58,16 @@ describe('BvACard — AC-IFW-DASH-01: BvA row name links to /projects/:id', () =
     renderCard();
     // The ProgressBar keeps its own aria-label — not obscured by the link
     expect(screen.getByLabelText(/Meridian Steelworks: \d+% of contract/i)).toBeInTheDocument();
+  });
+
+  it('AC-IFW-DASH-01 (M5): at-risk exception rows show a trailing chevron affordance at rest (not hover-only)', () => {
+    renderCard();
+    // d2 (SunVolt Install) is at-risk (98% utilization). Its row must have a resting chevron.
+    const atRiskRow = screen.getByRole('link', { name: /SunVolt Install/i }).closest('[data-row]') as HTMLElement;
+    expect(within(atRiskRow).getByTestId('bva-row-open-chevron')).toBeInTheDocument();
+
+    // d1 (Meridian Steelworks, 44% utilization) is NOT at-risk — no chevron
+    const safeRow = screen.getByRole('link', { name: /Meridian Steelworks/i }).closest('[data-row]') as HTMLElement;
+    expect(within(safeRow).queryByTestId('bva-row-open-chevron')).not.toBeInTheDocument();
   });
 });

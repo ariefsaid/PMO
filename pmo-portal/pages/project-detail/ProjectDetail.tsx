@@ -159,9 +159,11 @@ const ProjectDetail: React.FC = () => {
             <PipelineLens project={project} />
           </div>
 
-          {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal). */}
+          {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
+              M2: when empty, collapse to a single-line affordance so the sales levers stay above
+              the fold — the full planning prompt is only surfaced on a won (delivery) record. */}
           <div className="mb-4">
-            <MilestoneStrip projectId={project.id} />
+            <MilestoneStrip projectId={project.id} compactWhenEmpty />
           </div>
 
           {/* Pre-win: S-curve is hidden — no real progress data exists yet for an opportunity.

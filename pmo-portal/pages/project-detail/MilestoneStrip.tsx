@@ -17,6 +17,12 @@ import MilestoneFormModal from './MilestoneFormModal';
 
 export interface MilestoneStripProps {
   projectId: string;
+  /**
+   * M2: When true and the planner is empty, render a single-line affordance
+   * instead of the full `EmptyPlanningPrompt` band. Intended for pre-win records
+   * where delivery planning is possible but secondary to the sales levers.
+   */
+  compactWhenEmpty?: boolean;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -45,7 +51,7 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
-const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
+const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false }) => {
   const may = usePermission();
   const { toast } = useToast();
   const isDesktop = useIsDesktop();
@@ -127,13 +133,34 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId }) => {
   return (
     <>
       {all.length === 0 ? (
-        <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
-          {canCreate ? (
-            <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
-          ) : (
-            <p className="text-[13px] text-muted-foreground">No delivery phases yet</p>
-          )}
-        </div>
+        compactWhenEmpty ? (
+          /* M2: pre-win compact affordance — one-liner so the sales levers stay above the fold. */
+          <div
+            data-testid="prewin-compact-planner"
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
+          >
+            <span className="flex-1 text-[13px] text-muted-foreground">
+              Delivery planning starts once this is won
+            </span>
+            {canCreate && (
+              <button
+                type="button"
+                className="shrink-0 text-[13px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                onClick={() => setFormTarget({ milestone: null })}
+              >
+                Plan delivery phases
+              </button>
+            )}
+          </div>
+        ) : (
+          <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
+            {canCreate ? (
+              <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
+            ) : (
+              <p className="text-[13px] text-muted-foreground">No delivery phases yet</p>
+            )}
+          </div>
+        )
       ) : (
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -349,6 +376,9 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+
+  // M3: hoist to avoid computing isOverdueMilestone(milestone) twice per render.
+  const isOverdue = isOverdueMilestone(milestone);
   // C1: guard refs to prevent double-save (blur+click) and to suppress blur-save on Cancel.
   const cancellingRef = React.useRef(false);
   const savedRef = React.useRef(false);
@@ -399,14 +429,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             weight={milestone.weight}
             totalWeight={totalWeight}
             isCurrent={isCurrent}
-            isOverdue={isOverdueMilestone(milestone)}
+            isOverdue={isOverdue}
             canEditProgress={canEdit && !editing}
             onEditProgress={canEdit ? startEdit : undefined}
           />
           {/* AC-IFW-RECORD-03 (Lens-D): overdue-phase recovery lever — links to the project's
               Tasks tab so the PM can act on blocking work. One-Blue text link (not a solid button).
               Only shown for overdue phases (started + past target + <100%). */}
-          {isOverdueMilestone(milestone) && (
+          {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
               className="mt-1 inline-block text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"

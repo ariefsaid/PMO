@@ -187,16 +187,16 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(dealJourney).toBeInTheDocument();
     expect(opportunityJourneyHeading).toBeInTheDocument();
 
-    // The MilestoneStrip "Delivery phases" heading — may have multiples if aria-label also matches;
-    // use the role-based query to get the visible h2 heading.
-    const deliveryHeadings = screen.queryAllByRole('heading', { name: /Delivery phases/i });
-    if (deliveryHeadings.length > 0) {
-      const deliveryHeading = deliveryHeadings[0];
-      // Deal journey must come BEFORE delivery phases in document order
-      const pos = opportunityJourneyHeading.compareDocumentPosition(deliveryHeading);
-      // DOCUMENT_POSITION_FOLLOWING (4): deliveryHeading comes AFTER opportunityJourneyHeading
-      expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    }
+    // T1: The prewin-compact-planner affordance is always present (M2 implementation — the compact
+    // one-liner always renders for a pre-win empty planner, making the ordering check unconditional).
+    // The compact div renders AFTER the PipelineLens in document order.
+    const compactPlanner = screen.getByTestId('prewin-compact-planner');
+    expect(compactPlanner).toBeInTheDocument();
+
+    // The compact planner must come AFTER the "Opportunity journey" heading in document order.
+    const pos = opportunityJourneyHeading.compareDocumentPosition(compactPlanner);
+    // DOCUMENT_POSITION_FOLLOWING (4): compactPlanner comes AFTER opportunityJourneyHeading
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', () => {
@@ -213,5 +213,16 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
+  });
+
+  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', () => {
+    // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
+    renderAt('/projects/opp1');
+
+    // The full EmptyPlanningPrompt heading must NOT be visible on pre-win
+    expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
+
+    // A compact affordance (one-liner) must be present instead
+    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
   });
 });
