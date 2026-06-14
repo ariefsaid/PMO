@@ -1,13 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   DataTable,
   ListState,
   StatusPill,
   LifecycleStepper,
+  Button,
+  Icon,
+  useToast,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
+import { usePermission } from '@/src/auth/usePermission';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -17,6 +23,7 @@ import {
   stageLabelForStatus,
   openPR,
 } from '../../../components/procurement';
+import { NewProcurementModal } from '../../procurement/NewProcurementModal';
 
 export interface ProcurementTabProps {
   projectId: string;
@@ -33,7 +40,12 @@ export interface ProcurementTabProps {
  */
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const navigate = useNavigate();
+  const may = usePermission();
   const { data, isPending, isError, refetch } = useProcurements();
+  const create = useCreateProcurement();
+  const { toast } = useToast();
+  const canCreate = may('create', 'procurement');
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const rows = useMemo(
     () =>
@@ -106,16 +118,56 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   }
 
   return (
-    <DataTable<ProcurementWithRefs>
-      rows={rows}
-      columns={columns}
-      rowKey={(r) => r.id}
-      onActivate={(r) => openPR(navigate, r)}
-      rowLabel={(r) => `Open ${r.title}`}
-      state={rows.length === 0 ? 'empty' : undefined}
-      emptyTitle="No purchase requests for this project yet"
-      emptySub="Requests raised against this project will appear here through their lifecycle."
-    />
+    <div>
+      {/* Header: title + gated "New request" button (T13 — in-context PR creation). */}
+      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">Purchase Requests</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            Requests raised against this project, tracked through their lifecycle.
+          </p>
+        </div>
+        {canCreate && (
+          <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+            <Icon name="plus" />
+            New request
+          </Button>
+        )}
+      </div>
+
+      <DataTable<ProcurementWithRefs>
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={(r) => openPR(navigate, r)}
+        rowLabel={(r) => `Open ${r.title}`}
+        state={rows.length === 0 ? 'empty' : undefined}
+        emptyTitle="No purchase requests for this project yet"
+        emptySub="Requests raised against this project will appear here through their lifecycle."
+        emptyAction={
+          canCreate
+            ? { label: 'New request', onClick: () => setShowNewModal(true) }
+            : undefined
+        }
+      />
+
+      {/* New request modal — pre-selects this project (T13). */}
+      {showNewModal && (
+        <NewProcurementModal
+          initialProjectId={projectId}
+          onClose={() => setShowNewModal(false)}
+          onCreate={(input) => create.mutateAsync(input)}
+          onCreated={(id) => {
+            setShowNewModal(false);
+            navigate(`/procurement/${id}`);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+    </div>
   );
 };
 

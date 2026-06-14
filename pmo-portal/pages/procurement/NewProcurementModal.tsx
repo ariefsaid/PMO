@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   EntityFormModal,
   TextField,
@@ -43,6 +43,12 @@ export interface NewProcurementModalProps {
   onError: (err: unknown) => void;
   /** Called with the new PR id after a successful create (caller navigates). */
   onCreated: (id: string) => void;
+  /**
+   * Optional project to pre-select (T13 — in-context PR creation from a project's
+   * Procurement tab). When provided, the project Combobox is pre-populated with this
+   * id; the user can still change it.
+   */
+  initialProjectId?: string | null;
 }
 
 export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
@@ -50,9 +56,10 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
   onCreate,
   onError,
   onCreated,
+  initialProjectId = null,
 }) => {
   const form = useEntityForm<FormValues>({
-    initialValues: { title: '', projectId: null, vendorId: null },
+    initialValues: { title: '', projectId: initialProjectId, vendorId: null },
     validate,
     idPrefix: 'new-pr',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title is present.
@@ -73,6 +80,17 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
   const loadVendors = useCallback(
     async (): Promise<ComboboxOption[]> => vendorOptions ?? [],
     [vendorOptions],
+  );
+
+  // Resolve the selectedOption for the Project combobox — needed when
+  // initialProjectId is provided so the display value renders immediately
+  // without waiting for loadOptions to resolve (T13 in-context PR creation).
+  const selectedProjectOption = useMemo(
+    () =>
+      form.values.projectId
+        ? (projectOptions ?? []).find((o) => o.value === form.values.projectId) ?? null
+        : null,
+    [form.values.projectId, projectOptions],
   );
 
   const errorSummary = form.errors.title
@@ -126,6 +144,7 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
             noun="project"
             placeholder="Select a project…"
             value={form.values.projectId}
+            selectedOption={selectedProjectOption}
             onChange={(v) => form.setValue('projectId', v)}
             loadOptions={loadProjects}
           />

@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -95,9 +96,11 @@ const seed = [
 
 const renderTab = () =>
   render(
-    <ToastProvider>
-      <TasksTab projectId="p1" />
-    </ToastProvider>,
+    <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+      <ToastProvider>
+        <TasksTab projectId="p1" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
