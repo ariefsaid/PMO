@@ -237,4 +237,55 @@ describe('ProjectKanbanBoard', () => {
     const wonCol = screen.getByTestId('kanban-col-won');
     expect(within(wonCol).getByText('$1,000,000')).toBeInTheDocument();
   });
+
+  // ─── A-MIN-2: first-scroll affordance ────────────────────────────────────
+  // The swipe-hint chip must:
+  //   - render (in DOM) at initial state so CSS md:hidden can hide it on desktop
+  //   - be aria-hidden (decorative, never part of the AT navigation)
+  //   - disappear (CSS class or hidden state) after the board has been scrolled
+  // jsdom has no layout engine, so "overflowing" is simulated by patching
+  // scrollLeft tracking via the onScroll handler the hook already wires up.
+
+  describe('A-MIN-2: swipe-hint affordance', () => {
+    it('renders the swipe-hint element on initial mount (before any scroll)', () => {
+      renderBoard();
+      // The hint must exist in the DOM so it is visible on mobile before first scroll.
+      const hint = screen.getByTestId('swipe-hint');
+      expect(hint).toBeInTheDocument();
+    });
+
+    it('swipe-hint is aria-hidden (decorative — real navigation is the scroll container)', () => {
+      renderBoard();
+      const hint = screen.getByTestId('swipe-hint');
+      expect(hint).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('swipe-hint disappears after the user scrolls (hasScrolled → hidden)', () => {
+      renderBoard();
+      // The hint starts visible — no opacity-0 class.
+      const hintBefore = screen.getByTestId('swipe-hint');
+      expect(hintBefore).toBeInTheDocument();
+      expect(hintBefore.className).not.toMatch(/opacity-0/);
+
+      // Simulate the user swiping: fire a synthetic scroll on the .kanban-scroll
+      // element.  jsdom has no layout so scrollLeft on the element is always 0;
+      // patch currentTarget.scrollLeft so the hook's onScroll sees a non-zero value.
+      const scrollEl = document.querySelector('.kanban-scroll')!;
+      // Define scrollLeft as a getter that returns 100 for this element.
+      Object.defineProperty(scrollEl, 'scrollLeft', { configurable: true, get: () => 100 });
+      fireEvent.scroll(scrollEl);
+
+      // After scrolling, hasScrolled becomes true and the hint must carry opacity-0
+      // (the CSS class that makes it invisible; it remains in the DOM for transition).
+      const hintAfter = screen.getByTestId('swipe-hint');
+      expect(hintAfter.className).toMatch(/opacity-0/);
+    });
+
+    it('swipe-hint contains meaningful text for sighted users', () => {
+      renderBoard();
+      const hint = screen.getByTestId('swipe-hint');
+      // Must surface a directional cue — some form of "swipe" or arrow/→.
+      expect(hint.textContent).toMatch(/swipe|→|more/i);
+    });
+  });
 });

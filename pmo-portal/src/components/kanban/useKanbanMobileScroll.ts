@@ -18,6 +18,12 @@ import { useCallback, useRef, useState } from 'react';
 export interface KanbanMobileScroll {
   /** Index of the column currently nearest the scroll-left edge. */
   activeStageIndex: number;
+  /**
+   * True once the user has scrolled the board any amount (scrollLeft > 0).
+   * Used to hide the first-scroll affordance (A-MIN-2) after the user discovers
+   * the board is scrollable.
+   */
+  hasScrolled: boolean;
   /** Outer-wrapper ref — handleStageClick reads `.kanban-scroll` from inside it. */
   scrollWrapRef: React.RefObject<HTMLDivElement | null>;
   /** Per-column refs, indexed by column order. */
@@ -30,6 +36,7 @@ export interface KanbanMobileScroll {
 
 export function useKanbanMobileScroll(): KanbanMobileScroll {
   const [activeStageIndex, setActiveStageIndex] = useState(0);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const scrollWrapRef = useRef<HTMLDivElement>(null);
   const colRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -38,6 +45,11 @@ export function useKanbanMobileScroll(): KanbanMobileScroll {
   // scroll events do not bubble, so a parent wrapper's onScroll never fires.
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollLeft = e.currentTarget.scrollLeft;
+    // Once the user scrolls any amount, latch hasScrolled — used by boards to
+    // hide the first-scroll affordance (A-MIN-2) after discovery.
+    if (scrollLeft > 0) {
+      setHasScrolled(true);
+    }
     let bestIdx = 0;
     let bestDist = Infinity;
     colRefs.current.forEach((col, i) => {
@@ -63,5 +75,5 @@ export function useKanbanMobileScroll(): KanbanMobileScroll {
     setActiveStageIndex(index);
   }, []);
 
-  return { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick };
+  return { activeStageIndex, hasScrolled, scrollWrapRef, colRefs, onScroll, handleStageClick };
 }

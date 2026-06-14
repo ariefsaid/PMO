@@ -164,7 +164,7 @@ export interface ProjectKanbanBoardProps {
  * on a swipe gesture (Defect-1 precedent).
  */
 const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpen }) => {
-  const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
+  const { activeStageIndex, hasScrolled, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
 
   return (
@@ -176,35 +176,82 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
         onStageClick={handleStageClick}
       />
 
-      {/* Board: onScroll attached directly to <Kanban> so it lands on .kanban-scroll. */}
-      <Kanban aria-label="Projects kanban board" onScroll={onScroll}>
-        {PROJECT_KANBAN_COLUMNS.map((col, colIdx) => {
-          const colProjects = projects.filter((p) => col.statuses.includes(p.status as string));
-          return (
-            <div
-              key={col.testId}
-              ref={(el) => { colRefs.current[colIdx] = el; }}
-              data-testid={col.testId}
-              className="flex min-w-0 flex-col"
-            >
-              <KanbanColumn
-                title={col.title}
-                dotColor={col.dotColor}
-                count={colProjects.length}
-                emptyMessage={`No projects in ${col.title}`}
+      {/* Board: onScroll attached directly to <Kanban> so it lands on .kanban-scroll.
+          Relative wrapper needed so the absolute swipe-hint chip stays contained. */}
+      <div className="relative">
+        <Kanban aria-label="Projects kanban board" onScroll={onScroll}>
+          {PROJECT_KANBAN_COLUMNS.map((col, colIdx) => {
+            const colProjects = projects.filter((p) => col.statuses.includes(p.status as string));
+            return (
+              <div
+                key={col.testId}
+                ref={(el) => { colRefs.current[colIdx] = el; }}
+                data-testid={col.testId}
+                className="flex min-w-0 flex-col"
               >
-                {colProjects.map((p) => (
-                  <ProjectKanbanCard
-                    key={p.id}
-                    project={p}
-                    onActivate={() => onOpen(p)}
-                  />
-                ))}
-              </KanbanColumn>
-            </div>
-          );
-        })}
-      </Kanban>
+                <KanbanColumn
+                  title={col.title}
+                  dotColor={col.dotColor}
+                  count={colProjects.length}
+                  emptyMessage={`No projects in ${col.title}`}
+                >
+                  {colProjects.map((p) => (
+                    <ProjectKanbanCard
+                      key={p.id}
+                      project={p}
+                      onActivate={() => onOpen(p)}
+                    />
+                  ))}
+                </KanbanColumn>
+              </div>
+            );
+          })}
+        </Kanban>
+
+        {/* A-MIN-2: First-scroll affordance — "Swipe for more →" hint chip.
+            Shown ONLY on mobile (md:hidden) and ONLY before the user has scrolled.
+            Decorative: aria-hidden="true". Pointer-events-none so it never blocks cards.
+            Tokens: bg-card border-border text-muted-foreground rounded-full (DESIGN.md §3).
+            Transitions out with opacity/translate (compositor-only, prefers-reduced-motion
+            safe — 0ms when reduced-motion is set by the global CSS rule in index.css). */}
+        <div
+          data-testid="swipe-hint"
+          aria-hidden="true"
+          className={[
+            // Mobile-only: hidden at md+ where all columns are visible.
+            'md:hidden',
+            // Positioning: float at bottom-right of the board area.
+            'pointer-events-none absolute bottom-3 right-2 z-10',
+            // Chip visual: matches the count-badge pattern from DESIGN.md §3
+            // (secondary bg, border, muted-foreground text, full radius).
+            'flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1',
+            'text-[11px] font-semibold text-muted-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.06)]',
+            // Visibility: animate away once the user has scrolled (hasScrolled latch).
+            // opacity + translate so only compositor properties are animated (no reflow).
+            'transition-[opacity,transform] duration-200',
+            hasScrolled ? 'pointer-events-none opacity-0 translate-x-1' : 'opacity-100 translate-x-0',
+          ].join(' ')}
+        >
+          {/* Arrow icon — SVG so no emoji (DESIGN.md §4, taste §icon rule). */}
+          <svg
+            aria-hidden="true"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            className="shrink-0"
+          >
+            <path
+              d="M1.5 5h7M5.5 2l3 3-3 3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Swipe for more →
+        </div>
+      </div>
     </div>
   );
 };
