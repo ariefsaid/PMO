@@ -9,6 +9,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { useContacts } from '@/src/hooks/useContacts';
+import { useIncidents } from '@/src/hooks/useIncidents';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 
@@ -47,6 +48,10 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
   // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
   const companies = useCompanies();
   const contacts = useContacts();
+  // CW-4a: index the incident register so ⌘K opens an incident's routable /incidents/:id detail
+  // page (the dead-end fix). Incidents are visible to EVERY role (any member may file), so this
+  // is indexed unconditionally — no view-gate; RLS scopes the rows.
+  const incidents = useIncidents();
   // ⌘K module view-gate (A-8, AC-W2-RBAC-015): a module's records are indexed ONLY when the
   // viewer's REAL role may view that module's index, so a denied role (e.g. Engineer — no
   // Procurement / Sales nav per rbac-visibility §A/§C/§E) never surfaces another module's rows
@@ -139,6 +144,18 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
       }
     }
 
+    for (const inc of incidents.data ?? []) {
+      out.push({
+        id: `incidents:${inc.id}`,
+        group: 'Records',
+        title: inc.type,
+        sub: 'Incident',
+        icon: 'alert' as IconName,
+        // CW-4a: open the routable detail page (was a dead-end — no detail route existed).
+        run: () => navigate(`/incidents/${inc.id}`),
+      });
+    }
+
     return out;
   }, [
     projects.data,
@@ -146,6 +163,7 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
     procurements.data,
     companies.data,
     contacts.data,
+    incidents.data,
     navigate,
     mayViewPipeline,
     mayViewProcurement,
@@ -160,19 +178,22 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
       procurements.isPending ||
       pipeline.isPending ||
       companies.isPending ||
-      contacts.isPending,
+      contacts.isPending ||
+      incidents.isPending,
     isError:
       projects.isError ||
       procurements.isError ||
       pipeline.isError ||
       companies.isError ||
-      contacts.isError,
+      contacts.isError ||
+      incidents.isError,
     refetch: () => {
       projects.refetch?.();
       procurements.refetch?.();
       pipeline.refetch?.();
       companies.refetch?.();
       contacts.refetch?.();
+      incidents.refetch?.();
     },
   };
 }

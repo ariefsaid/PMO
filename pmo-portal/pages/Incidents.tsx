@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Toolbar,
   SearchMini,
@@ -7,13 +8,6 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  TextArea,
-  SelectField,
-  FormSection,
-  FormGrid,
-  useEntityForm,
   useToast,
   Button,
   Icon,
@@ -24,13 +18,10 @@ import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIncidents, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type {
-  IncidentRow,
-  IncidentSeverity,
-  IncidentStatus,
-  IncidentInput,
-} from '@/src/lib/db/incidents';
+import type { IncidentRow, IncidentStatus } from '@/src/lib/db/incidents';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
+import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
+import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /** Status filter segments: All + the three incident_status enum values. */
 type StatusFilter = 'All' | IncidentStatus;
@@ -41,57 +32,10 @@ const STATUS_FILTERS: StatusFilter[] = ['All', 'Open', 'Investigating', 'Closed'
 // Freed-Blue Status Rule, Low = neutral, Medium/High = amber `warn`, Critical = red
 // `lost`; Open = neutral grey `progress` (NOT the action-blue), Investigating =
 // `progress`, Closed = neutral. The distinct LABEL carries identity (never colour-only).
-
-const SEVERITY_OPTIONS = [
-  { value: 'Low', label: 'Low' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'High', label: 'High' },
-  { value: 'Critical', label: 'Critical' },
-];
-
-/** A status the workflow can transition TO (Open is only an initial state). */
-type AdvanceStatus = 'Investigating' | 'Closed';
-
-/** The next workflow step for a status (Closed is terminal → null). */
-const NEXT_STATUS: Record<IncidentStatus, AdvanceStatus | null> = {
-  Open: 'Investigating',
-  Investigating: 'Closed',
-  Closed: null,
-};
-
-/** Human verb-object label + confirm copy for a status transition. */
-const TRANSITION_COPY: Record<
-  'Investigating' | 'Closed',
-  { menu: string; confirm: string; title: (t: string) => string; body: string }
-> = {
-  Investigating: {
-    menu: 'Start investigating',
-    confirm: 'Start investigating',
-    title: (t) => `Start investigating ${t}?`,
-    body: 'This moves the incident to Investigating so the team can record findings. You can close it once the investigation is complete.',
-  },
-  Closed: {
-    menu: 'Close incident',
-    confirm: 'Close incident',
-    title: (t) => `Close ${t}?`,
-    body: 'This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges.',
-  },
-};
-
-interface FormValues {
-  incident_date: string;
-  type: string;
-  severity: IncidentSeverity;
-  location: string;
-  description: string;
-}
-
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.incident_date.trim()) errors.incident_date = 'Incident date is required.';
-  if (!v.type.trim()) errors.type = 'Incident type is required.';
-  return errors;
-};
+//
+// The workflow transition machinery (NEXT_STATUS / TRANSITION_COPY) lives in the shared
+// `src/lib/incidents/transitions.ts` so the list and the `/incidents/:id` detail page (CW-4a)
+// advance the lifecycle the same way; the File/Edit form is the shared `IncidentFormModal`.
 
 /** Pending status transition (drives the confirm dialog). */
 interface TransitionTarget {
@@ -101,6 +45,7 @@ interface TransitionTarget {
 
 const Incidents: React.FC = () => {
   const may = usePermission();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncidents();
   const { create, update, transition, remove } = useIncidentMutations();
@@ -319,6 +264,11 @@ const Incidents: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(i) => i.id}
+          // CW-4a: rows now OPEN the routable `/incidents/:id` detail page (they were inert — a
+          // functional dead-end). Create/edit-in-modal are unchanged; only the row-open behavior
+          // is added. RLS scopes which records the detail page can read.
+          onActivate={(i) => navigate(`/incidents/${i.id}`)}
+          rowLabel={(i) => `Open ${i.type}`}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No incidents match your filters"
@@ -376,157 +326,6 @@ const Incidents: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
-  );
-};
-
-// ── File / edit incident form modal ─────────────────────────────────────────
-
-/**
- * Today as a LOCAL-date `YYYY-MM-DD` string (the <input type="date"> value format,
- * matching the `date` — not timestamptz — column). Built from local
- * getFullYear/getMonth/getDate to avoid the UTC-midnight off-by-one that
- * `toISOString().slice(0,10)` would introduce in negative-UTC-offset zones.
- */
-function todayLocalISO(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-interface IncidentFormModalProps {
-  incident: IncidentRow | null;
-  onClose: () => void;
-  onCreate: (input: IncidentInput) => Promise<void>;
-  onUpdate: (id: string, input: IncidentInput) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
-  incident,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-}) => {
-  const isEdit = !!incident;
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      // AC-W6-IXD-INCDATE (B-5): the dominant case is filing a same-day incident, so the
-      // create form defaults the date to TODAY. Built from local getFullYear/Month/Date
-      // (NOT toISOString, which is UTC and off-by-one near midnight) to match the `date`
-      // (not timestamptz) column. Edit keeps the stored value.
-      incident_date: incident?.incident_date ?? todayLocalISO(),
-      type: incident?.type ?? '',
-      severity: incident?.severity ?? 'Low',
-      location: incident?.location ?? '',
-      description: incident?.description ?? '',
-    },
-    validate,
-    idPrefix: 'incident-form',
-    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required date + type are present.
-    requiredFields: ['incident_date', 'type'],
-  });
-
-  const dateField = form.fieldProps('incident_date');
-  const typeField = form.fieldProps('type');
-  const severityField = form.fieldProps('severity');
-  const locationField = form.fieldProps('location');
-  const descriptionField = form.fieldProps('description');
-
-  const errorSummary = [
-    form.errors.incident_date ? { fieldId: dateField.id, message: form.errors.incident_date } : null,
-    form.errors.type ? { fieldId: typeField.id, message: form.errors.type } : null,
-  ].filter((x): x is { fieldId: string; message: string } => x !== null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      const input: IncidentInput = {
-        incident_date: values.incident_date,
-        type: values.type.trim(),
-        severity: values.severity,
-        location: values.location.trim() || undefined,
-        description: values.description.trim() || undefined,
-      };
-      try {
-        if (isEdit && incident) await onUpdate(incident.id, input);
-        else await onCreate(input);
-      } catch (err) {
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={isEdit ? 'Edit incident' : 'File incident'}
-      subtitle={
-        isEdit
-          ? 'Update this incident report'
-          : 'Record what happened. You will be stamped as the reporter.'
-      }
-      submitLabel={isEdit ? 'Save incident' : 'File incident'}
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={errorSummary.length ? errorSummary : undefined}
-    >
-      <FormSection legend="What happened">
-        <FormGrid>
-          <TextField
-            id={dateField.id}
-            label="Date"
-            type="date"
-            required
-            value={dateField.value}
-            onChange={dateField.onChange}
-            onBlur={dateField.onBlur}
-            error={dateField.error}
-          />
-          <SelectField
-            id={severityField.id}
-            label="Severity"
-            required
-            value={severityField.value}
-            onChange={(v) => severityField.onChange(v as IncidentSeverity)}
-            onBlur={severityField.onBlur}
-            options={SEVERITY_OPTIONS}
-          />
-          <TextField
-            id={typeField.id}
-            label="Type"
-            required
-            value={typeField.value}
-            onChange={typeField.onChange}
-            onBlur={typeField.onBlur}
-            error={typeField.error}
-            placeholder="e.g. Near Miss, Equipment Damage, Spill"
-            fullWidth
-          />
-          <TextField
-            id={locationField.id}
-            label="Location"
-            value={locationField.value}
-            onChange={locationField.onChange}
-            onBlur={locationField.onBlur}
-            placeholder="e.g. Regional Site B"
-            fullWidth
-          />
-          <TextArea
-            id={descriptionField.id}
-            label="Description"
-            value={descriptionField.value}
-            onChange={descriptionField.onChange}
-            onBlur={descriptionField.onBlur}
-            placeholder="What happened, who was involved, and any immediate action taken."
-            fullWidth
-          />
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

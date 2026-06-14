@@ -24,6 +24,7 @@ import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useIncidents } from '@/src/hooks/useIncidents';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
@@ -43,6 +44,7 @@ const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
+const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
@@ -81,6 +83,9 @@ const AppRoutes: React.FC = () => (
       <Route path="/companies" element={<CompaniesPage />} />
       <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/incidents" element={<IncidentsPage />} />
+      {/* CW-4a: /incidents/:id — the routable Incident detail page (fixes the dead-end: rows
+          now open here to track/investigate/close). */}
+      <Route path="/incidents/:incidentId" element={<IncidentDetailPage />} />
       {/* /work-orders removed (owner decision — the route, not just the nav). */}
       {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
       {/* B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list. */}
@@ -115,6 +120,9 @@ const ShellChrome: React.FC = () => {
   // `opportunities` array threaded into the breadcrumb resolvers, so a lost record resolves to its
   // name + the Sales-Pipeline ancestry instead of "Projects > Not found".
   const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
+  // CW-4a: the incident register backs the /incidents/:id breadcrumb's record name (its `type`).
+  // Already fetched by the Incidents index; read here only to resolve the crumb (no new query).
+  const { data: incidents, isPending: incidentsPending } = useIncidents();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -152,6 +160,7 @@ const ShellChrome: React.FC = () => {
       projects,
       opportunities,
       procurements,
+      incidents,
     });
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
     // STAGE — resolve its status group from the cached lists (the pipeline list carries pre-win
@@ -172,6 +181,7 @@ const ShellChrome: React.FC = () => {
         !pipelinePending &&
         !lostDealsPending) ||
       (pathname.startsWith('/procurement/') && !procurementsPending) ||
+      (pathname.startsWith('/incidents/') && !incidentsPending) ||
       (pathname.startsWith('/sales/') && !pipelinePending);
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
@@ -181,10 +191,12 @@ const ShellChrome: React.FC = () => {
     procurements,
     pipeline,
     lostDeals,
+    incidents,
     projectsPending,
     procurementsPending,
     pipelinePending,
     lostDealsPending,
+    incidentsPending,
   ]);
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.

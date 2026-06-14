@@ -33,7 +33,8 @@ const { state } = vi.hoisted(() => ({
   },
 }));
 
-// Companies + Contacts cached-list holders (added so ⌘K indexes master data — CW-7).
+// Companies + Contacts + Incidents cached-list holders (⌘K indexes master data — CW-7 +
+// the incident register — CW-4a).
 const { stateCC } = vi.hoisted(() => ({
   stateCC: {
     companies: { data: undefined, isPending: false, isError: false } as {
@@ -46,6 +47,11 @@ const { stateCC } = vi.hoisted(() => ({
       isPending: boolean;
       isError: boolean;
     },
+    incidents: { data: undefined, isPending: false, isError: false } as {
+      data: unknown;
+      isPending: boolean;
+      isError: boolean;
+    },
   },
 }));
 
@@ -54,6 +60,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.pro
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => stateCC.companies }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => stateCC.contacts }));
+vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => stateCC.incidents }));
 
 import { useRecordSearch, rankRecords } from '../useRecordSearch';
 
@@ -66,6 +73,7 @@ beforeEach(() => {
   state.pipeline = { data: undefined, isPending: false, isError: false };
   stateCC.companies = { data: undefined, isPending: false, isError: false };
   stateCC.contacts = { data: undefined, isPending: false, isError: false };
+  stateCC.incidents = { data: undefined, isPending: false, isError: false };
 });
 
 describe('useRecordSearch — index of the 3 cached lists', () => {
@@ -160,12 +168,28 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(navigate).toHaveBeenCalledWith('/contacts?focus=ct1');
   });
 
+  it('CW-4a: indexes incidents → /incidents/:id (its `type` is the title) with the right sub-label', () => {
+    stateCC.incidents = {
+      data: [{ id: 'in1', type: 'Near Miss', severity: 'Low', status: 'Open' }],
+      isPending: false,
+      isError: false,
+    };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const inc = result.current.records.find((r) => r.title === 'Near Miss');
+    expect(inc).toBeDefined();
+    expect(inc!.group).toBe('Records');
+    expect(inc!.sub).toBe('Incident');
+    inc!.run();
+    expect(navigate).toHaveBeenCalledWith('/incidents/in1');
+  });
+
   it('returns no records (empty index) when all lists are empty', () => {
     state.projects = { data: [], isPending: false, isError: false };
     state.procurements = { data: [], isPending: false, isError: false };
     state.pipeline = { data: { stages: [], projects: [] }, isPending: false, isError: false };
     stateCC.companies = { data: [], isPending: false, isError: false };
     stateCC.contacts = { data: [], isPending: false, isError: false };
+    stateCC.incidents = { data: [], isPending: false, isError: false };
     const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     expect(result.current.records).toHaveLength(0);
   });

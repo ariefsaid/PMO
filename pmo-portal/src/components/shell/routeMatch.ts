@@ -82,6 +82,9 @@ export const MODULES: ModuleDef[] = [
     icon: 'alert',
     label: 'Incidents',
     path: '/incidents',
+    // CW-4a: /incidents/:id is a routable detail page (fixes the Incidents dead-end) — the
+    // detail pattern makes the breadcrumb drill [Incidents > <record>] and lets ⌘K open one.
+    detail: { pattern: '/incidents/:incidentId', param: 'incidentId' },
     // Incidents: visible to every role (any member may file — rbac-visibility §A/§G).
   },
   // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
@@ -223,6 +226,8 @@ export interface RecordLists {
   projects?: { id: string; name: string }[];
   opportunities?: { id: string; name: string }[];
   procurements?: { id: string; title: string }[];
+  /** CW-4a: incidents — the record "name" is its `type` (there is no title column). */
+  incidents?: { id: string; type: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -304,6 +309,10 @@ export function recordLabelForPath(
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
+
+  // CW-4a: an incident's human label is its `type` (no title column).
+  const incidentId = idFrom('/incidents');
+  if (incidentId) return lists.incidents?.find((i) => i.id === incidentId)?.type;
 
   return undefined;
 }
