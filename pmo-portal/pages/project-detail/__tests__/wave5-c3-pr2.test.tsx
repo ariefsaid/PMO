@@ -392,7 +392,7 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     // "Pre-Qual" should not appear as a rendered node label
     // (Note: it may still appear in the SALES_COLUMNS title for the kanban board — that is
     //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
-    const journey = screen.getByRole('list', { name: /Deal stage journey/i });
+    const journey = screen.getByRole('list', { name: /Project stage journey/i });
     expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
   });
 });

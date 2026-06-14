@@ -22,8 +22,17 @@ export interface LifecycleStepperProps {
   'aria-label'?: string;
 }
 
+/**
+ * Inline pip fill per state (Freed-Blue Status Rule, DESIGN.md §2).
+ * `done` → `success` green (status = completed, NOT an interactive affordance).
+ * `current` → `primary` (the one blue: it IS the live/active step, treated as
+ *   an interactive CTA analog in the stepper context — the design system allows
+ *   this single blue use per step).
+ * `paid` → `success` (terminal success, same as done).
+ * `upcoming`/`skipped` → `secondary` (neutral/unvisited).
+ */
 const PIP_CLASS: Record<StepState, string> = {
-  done: 'bg-primary',
+  done: 'bg-success',
   current: 'bg-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.18)]',
   upcoming: 'bg-secondary',
   skipped: 'bg-secondary',
@@ -73,7 +82,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
                 className={cn(
                   'inline-block h-0.5 w-2.5 align-middle',
                   steps[i - 1].state === 'done' || steps[i - 1].state === 'paid'
-                    ? 'bg-primary/50'
+                    ? 'bg-success/50'
                     : 'bg-border'
                 )}
               />

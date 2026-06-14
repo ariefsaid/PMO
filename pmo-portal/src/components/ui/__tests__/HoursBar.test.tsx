@@ -21,14 +21,22 @@ describe('T5 — HoursBar', () => {
     expect(hoursEl!.textContent).toContain('7.5');
   });
 
-  it('renders a bg-primary fill element — not a status hue (T5 One-Blue)', () => {
+  it('renders a neutral fill element, NOT bg-primary (T5 Freed-Blue / r2fix-enforce Part 2)', () => {
+    // A quantity/hours bar is a data indicator, NOT an interactive affordance.
+    // The Freed-Blue Status Rule (DESIGN.md §2): action-blue must not appear on
+    // non-interactive data indicators. Fill uses bg-muted-foreground (neutral).
     const { container } = render(<HoursBar label="Project" code="P1" hours={5} maxHours={10} />);
-    const fill = container.querySelector('.bg-primary');
+    // Fill must be present (not empty).
+    const fill = container.querySelector('[role="progressbar"] span');
     expect(fill).not.toBeNull();
-    // Must NOT have status-hue classes
-    expect(container.innerHTML).not.toContain('bg-success');
-    expect(container.innerHTML).not.toContain('bg-destructive');
-    expect(container.innerHTML).not.toContain('bg-warning');
+    // Fill must NOT carry the action-blue token.
+    expect(fill!.className).not.toMatch(/bg-primary\b/);
+    // Fill must be a neutral tone (muted-foreground).
+    expect(fill!.className).toMatch(/bg-muted-foreground/);
+    // Must NOT bleed status-hue fills either.
+    expect(fill!.className).not.toMatch(/bg-success\b/);
+    expect(fill!.className).not.toMatch(/bg-destructive\b/);
+    expect(fill!.className).not.toMatch(/bg-warning\b/);
   });
 
   it('renders mono code when provided (T5 Mono-For-Identifiers)', () => {

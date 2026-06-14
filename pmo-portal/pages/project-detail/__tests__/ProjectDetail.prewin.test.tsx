@@ -176,16 +176,16 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Opportunity journey / Next actions) BEFORE the Delivery phases section', () => {
+  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', () => {
     renderAt('/projects/opp1');
 
-    // The PipelineLens "Deal stage journey" stepper must be in the DOM
-    const dealJourney = screen.getByLabelText('Deal stage journey');
-    // The "Opportunity journey" heading in PipelineLens card
-    const opportunityJourneyHeading = screen.getByText('Opportunity journey');
+    // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
+    const projectJourney = screen.getByLabelText('Project stage journey');
+    // The "Project journey" heading in PipelineLens card (CW-1: "Opportunity journey" → "Project journey")
+    const projectJourneyHeading = screen.getByText('Project journey');
 
-    expect(dealJourney).toBeInTheDocument();
-    expect(opportunityJourneyHeading).toBeInTheDocument();
+    expect(projectJourney).toBeInTheDocument();
+    expect(projectJourneyHeading).toBeInTheDocument();
 
     // T1: The prewin-compact-planner affordance is always present (M2 implementation — the compact
     // one-liner always renders for a pre-win empty planner, making the ordering check unconditional).
@@ -193,9 +193,9 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     const compactPlanner = screen.getByTestId('prewin-compact-planner');
     expect(compactPlanner).toBeInTheDocument();
 
-    // The compact planner must come AFTER the "Opportunity journey" heading in document order.
-    const pos = opportunityJourneyHeading.compareDocumentPosition(compactPlanner);
-    // DOCUMENT_POSITION_FOLLOWING (4): compactPlanner comes AFTER opportunityJourneyHeading
+    // The compact planner must come AFTER the "Project journey" heading in document order.
+    const pos = projectJourneyHeading.compareDocumentPosition(compactPlanner);
+    // DOCUMENT_POSITION_FOLLOWING (4): compactPlanner comes AFTER projectJourneyHeading
     expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

@@ -79,13 +79,13 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
   it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', () => {
     renderAs('Engineer');
     // The deal still renders its stats + journey (read-only surface).
-    expect(screen.getByRole('list', { name: /Deal stage journey/i })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
     // No reject-bound lifecycle control is rendered.
     expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark lost/i })).not.toBeInTheDocument();
     // A clean read-only note explains who manages the pipeline (not a wall of dead buttons).
-    expect(screen.getByText(/managed by the deal owner/i)).toBeInTheDocument();
+    expect(screen.getByText(/managed by the project owner/i)).toBeInTheDocument();
   });
 
   it('AC-W2-RBAC-001: Finance is read-only on the pipeline lens too (denied)', () => {

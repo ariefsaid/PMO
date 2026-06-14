@@ -9,6 +9,7 @@ import {
   StatusPill,
   ListState,
   ConfirmDialog,
+  RecordActionZone,
   Icon,
   useToast,
 } from '@/src/components/ui';
@@ -128,7 +129,7 @@ const IncidentDetail: React.FC = () => {
       </div>
 
       {/* The ONE RecordHeader anatomy — icon + type + severity/status pills (CW-2 registry) +
-          the role-allowed action zone (Edit + the next status transition). */}
+          the role-allowed header actions (Edit only; advance verbs go to RecordActionZone). */}
       <RecordHeader
         name={incident.type}
         iconColor="hsl(var(--primary))"
@@ -141,27 +142,31 @@ const IncidentDetail: React.FC = () => {
         }
         meta={<span className="tabular">Reported {formatDate(incident.incident_date)}</span>}
         actions={
-          canEdit || (canTransition && next) ? (
-            <>
-              {canTransition && next && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  data-testid="incident-advance"
-                  onClick={() => setTransitionTo(next)}
-                >
-                  {TRANSITION_COPY[next].menu}
-                </Button>
-              )}
-              {canEdit && (
-                <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
-                  Edit
-                </Button>
-              )}
-            </>
+          canEdit ? (
+            <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
+              Edit
+            </Button>
           ) : undefined
         }
       />
+
+      {/* RecordActionZone — advance/decide verb (DESIGN.md §7: advance verbs live here, not in the header).
+          Sticky on desktop so the action is never below the fold. Only rendered when the user can transition
+          AND a next state exists for this incident. */}
+      {canTransition && next && (
+        <RecordActionZone>
+          <div className="py-3">
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="incident-advance"
+              onClick={() => setTransitionTo(next)}
+            >
+              {TRANSITION_COPY[next].menu}
+            </Button>
+          </div>
+        </RecordActionZone>
+      )}
 
       {/* Body — the incident's fields (read-only; edit-in-modal). Shared Card primitives,
           DESIGN.md tokens (no raw hex). */}
