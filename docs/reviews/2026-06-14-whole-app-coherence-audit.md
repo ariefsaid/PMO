@@ -66,3 +66,32 @@ Ordered by coherence-per-effort. Each is a cross-cutting PR; several are owner-c
 ---
 
 *Owner: this is the answer to "make it flow naturally" — a normalization track, not features. The Director maintains this doc; the terminology + record-paradigm decisions (steps 1, 4) want an owner sign-off before build.*
+
+---
+
+## r2 re-audit + reconciliation (2026-06-14, post-remediation, on `intent-fix-wave` @ b05a899)
+
+Re-ran the **same** dual-substrate audit (gpt-5.4 ×4 + Opus ×4, now with **Lens D / JTBD** as the 4th lens, blind to this doc + the fix-list) against `intent-fix-wave` after the coherence wave (`#106`,`#107`,`#108`,`#109`,`#110`,`#112`,`#114`) + IF-A…IF-F shipped. Raw lens reports + 138 shots: `review/wholeapp-r2/{gpt,opus}-lens-{a,b,c,d}.md` (gitignored scratch).
+
+**Owner challenge that triggered this:** *"this was all captured & should have been fixed — which branch did you run on?"* Branch confirmed b05a899 (the fixes are in the code); blind findings confirmed in code (not reviewer error). **The cause is fix granularity:** the §1 remediation closed issues **instance-by-instance**, and where it built a shared component it didn't **propagate or enforce** it — so the §2 patterns survive on every surface no commit explicitly named.
+
+### Remediation status (commit-claim vs build at b05a899, code-verified)
+| §1 step / commit | Kills | r2 finding | Verdict |
+|---|---|---|---|
+| 6 · `#114` sticky record-action zone | P2 | `RecordActionZone` imported by **`ProcurementDetails.tsx` only**; `ProjectDetail`/`PipelineLens`/`Incidents` place verbs ad-hoc | **Incomplete** (1 of 4+ records) |
+| 3 · `#106` one bar stepper | P5 | record-detail bar unified, but **`Funnel` + `KanbanStageIndicator` + procurement pip + `MilestonePhaseHeader`** survive | **Incomplete** |
+| 5 · `#110` one ListPage shell | P6 | all 6 list pages **import `ListPage`**, but it **doesn't enforce slot order** → 6 toolbar grammars remain | **Built, not enforcing** |
+| 1 · `#114` kill 'deal' copy | P3 | "deal" gone, but **"Opportunity journey" / "Sales Pipeline" / "Pipeline"** still name the same `/projects/:id` | **Partial** |
+| 2 · one status colour map | P4 | action-blue still painting funnel dots + lifecycle pips (**68 DOM-sampled**) + chart bars | **Mostly open** |
+| 4 · `#108/#109` routable records | P1 | detail pages shipped ✓, but **breadcrumb root is entry-point-dependent** + **two list homes** (Sales vs Projects) for one entity | **Detail fixed, IA-above-it open** |
+| 6 · `#112` single /approvals | P7 | unified, but PM review still leaks via an "Approvals N" link on `/timesheets` | **Partial** (verify) |
+| IF-A procurement preview | — | landed in `/approvals` (as scoped); **`/procurement` module list still has no preview** (calibration Anchor #1) | **Scope gap** |
+
+### New (not in §2; never in a prior wave)
+**Money semantics not pinned** — spend/spent/actual/committed contradict within one screen (project "Actual $0" beside "Spend 91% / $6.3M committed"; Finance dashboard "spend $2.1M" two rows above "spent $6.3M"). This is the owner's "business logic feels not-as-expected," literal. Universal "Actual $0" may be a **real calc bug** behind the seed — verify directly. (Opus B-09/D-05, gpt D-03)
+
+### What the wave genuinely fixed (verified)
+Routable Company/Contact/Incident pages + ⌘K (P1 detail layer) · Anchor #2 (calendar = routable list views) · Anchor #3 (S-curve has adjacent "View blocking tasks" lever) · the `/approvals` procurement preview (IF-A). Atoms remain disciplined; role-tailored dashboards remain strong.
+
+### The process fix (so this stops recurring)
+The lenses **find instances** → a wave **closes instances** → nothing **enforces the pattern**. Convert instance-patching to pattern-enforcement: (1) make the shared component the **only** path and **delete the alternatives** (every record → one `RecordActionZone`; one stage-indicator; `ListPage` owns its slots; one entity noun); (2) add a **lint/unit guard** (no advance verb outside `RecordActionZone`; no non-canonical stage-indicator; list pages render only via `ListPage` slots; entity noun ∈ {Project}); (3) **raise the DONE bar** — a coherence finding is closed only when the pattern is enforced app-wide + guarded, not when cited instances are patched.
