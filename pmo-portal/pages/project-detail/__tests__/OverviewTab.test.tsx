@@ -93,7 +93,9 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
-  useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  // AC-W2-1-FE-01: budget utilization now reads from useProjectBudget (derived from Active version
+  // line-items). Return 900,000 to match the test project's intended budget so util% assertions work.
+  useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() },
     activate: { mutateAsync: vi.fn() },

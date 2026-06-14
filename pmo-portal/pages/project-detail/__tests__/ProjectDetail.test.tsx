@@ -41,7 +41,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }) }));
 // Budget tab mounts the real ProjectBudget — stub its data hooks to avoid network.
 vi.mock('@/src/hooks/useBudget', () => ({
-  useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  // AC-W2-1-FE-01: budget utilization reads from useProjectBudget (derived from Active version
+  // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
+  useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },

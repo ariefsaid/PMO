@@ -48,6 +48,26 @@ insert into procurements (id, org_id, title, status, total_value, project_id, re
    'At-Risk PO','Ordered',95000,
    '00740000-0000-0000-0000-000000000d02','00740000-0000-0000-0000-0000000000a1');
 
+-- Budget versions: migration 0033 derives budget from Active version line-items (not stored column).
+-- Add Active version + line-items matching the stored budget values so at-risk logic fires correctly.
+-- AT_RISK_PROJECT: Active version = 100,000 (matches stored budget, 95k PO → 95% at risk).
+-- PAID_PROJECT: Active version = 10,000,000 (matches stored budget, 3.7M PO → 37% — NOT at risk).
+-- Insert as Draft, add line-items, then activate (enforce_draft_line_item trigger).
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('00740000-0000-0000-0000-000000000b01','00740000-0000-0000-0000-000000000001',
+   '00740000-0000-0000-0000-000000000d02', 1, 'v1', 'Draft'),
+  ('00740000-0000-0000-0000-000000000b02','00740000-0000-0000-0000-000000000001',
+   '00740000-0000-0000-0000-000000000d01', 1, 'v1', 'Draft');
+
+insert into budget_line_items (id, org_id, budget_version_id, category, budgeted_amount) values
+  ('00740000-0000-0000-0000-000000000c01','00740000-0000-0000-0000-000000000001',
+   '00740000-0000-0000-0000-000000000b01','Labor', 100000),
+  ('00740000-0000-0000-0000-000000000c02','00740000-0000-0000-0000-000000000001',
+   '00740000-0000-0000-0000-000000000b02','Labor', 10000000);
+
+update budget_versions set status = 'Active'
+ where id in ('00740000-0000-0000-0000-000000000b01','00740000-0000-0000-0000-000000000b02');
+
 -- ── Run as the test-org Executive ─────────────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims to

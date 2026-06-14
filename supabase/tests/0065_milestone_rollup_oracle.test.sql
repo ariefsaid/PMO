@@ -27,6 +27,21 @@ insert into projects (id, org_id, code, name, status, client_id, project_manager
    '00650000-0000-0000-0000-000000000010',
    '00650000-0000-0000-0000-0000000000a1',100000,100000);
 
+-- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
+-- Add Active version for Empty Project (00000021, budget=100,000) so the no-milestones budget
+-- assertion at line 131 returns 100,000 instead of 0.
+-- Draft-first pattern (enforce_draft_line_item trigger blocks inserts on non-Draft versions).
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('00650000-0000-0000-0000-000000000b01','00000000-0000-0000-0000-000000000001',
+   '00650000-0000-0000-0000-000000000021', 1, 'v1', 'Draft');
+
+insert into budget_line_items (id, org_id, budget_version_id, category, budgeted_amount) values
+  ('00650000-0000-0000-0000-000000000c01','00000000-0000-0000-0000-000000000001',
+   '00650000-0000-0000-0000-000000000b01','Labor', 100000);
+
+update budget_versions set status = 'Active'
+ where id = '00650000-0000-0000-0000-000000000b01';
+
 -- Milestones E(w=20), P(w=30), C(w=50), N(w=0, no tasks — zero weight excluded from denominator).
 insert into project_milestones (id, org_id, project_id, name, weight, sort_order) values
   ('00650000-0000-0000-0000-000000000031','00000000-0000-0000-0000-000000000001',

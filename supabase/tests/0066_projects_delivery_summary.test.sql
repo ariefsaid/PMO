@@ -29,6 +29,22 @@ insert into projects (id, org_id, code, name, status, client_id, project_manager
    'SUM-002','Summary Project B','Ongoing Project',
    '00660000-0000-0000-0000-000000000011','00660000-0000-0000-0000-0000000000b1',700000,900000);
 
+-- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
+-- Add Active version for Summary Project A (budget=900,000) so get_projects_delivery returns
+-- the correct budget.  Summary Project B is in a different org and scoped out by RLS, so its
+-- budget is not tested here; we add one for completeness but it is not asserted.
+-- Draft-first pattern (enforce_draft_line_item trigger blocks inserts on non-Draft versions).
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('00660000-0000-0000-0000-000000000b01','00000000-0000-0000-0000-000000000001',
+   '00660000-0000-0000-0000-000000000020', 1, 'v1', 'Draft');
+
+insert into budget_line_items (id, org_id, budget_version_id, category, budgeted_amount) values
+  ('00660000-0000-0000-0000-000000000c01','00000000-0000-0000-0000-000000000001',
+   '00660000-0000-0000-0000-000000000b01','Labor', 900000);
+
+update budget_versions set status = 'Active'
+ where id = '00660000-0000-0000-0000-000000000b01';
+
 insert into project_milestones (id, org_id, project_id, name, weight, sort_order, input_pct) values
   ('00660000-0000-0000-0000-000000000031','00000000-0000-0000-0000-000000000001',
    '00660000-0000-0000-0000-000000000020','Engineering',50,0,100),

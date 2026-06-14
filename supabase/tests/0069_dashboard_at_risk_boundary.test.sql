@@ -37,6 +37,25 @@ insert into projects (id, org_id, code, name, status, client_id, project_manager
    'BND-BELOW','Just Below 90','Ongoing Project',
    '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,899900,1500000);
 
+-- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
+-- Add Active versions for edge + below projects (budget=1,000,000 each) so the at-risk guard fires.
+-- Draft-first pattern (enforce_draft_line_item trigger blocks inserts on non-Draft versions).
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('00690000-0000-0000-0000-000000000b01','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000020', 1, 'v1', 'Draft'),
+  ('00690000-0000-0000-0000-000000000b02','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000021', 1, 'v1', 'Draft');
+
+insert into budget_line_items (id, org_id, budget_version_id, category, budgeted_amount) values
+  ('00690000-0000-0000-0000-000000000c01','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000b01','Labor', 1000000),
+  ('00690000-0000-0000-0000-000000000c02','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000b02','Labor', 1000000);
+
+update budget_versions set status = 'Active'
+ where id in ('00690000-0000-0000-0000-000000000b01',
+              '00690000-0000-0000-0000-000000000b02');
+
 -- AC-MONEY-01: add committed POs so committed_spend matches the old projects.spent oracle.
 -- The stored projects.spent column is no longer read; these POs set the committed basis.
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
@@ -53,6 +72,18 @@ insert into projects (id, org_id, code, name, status, client_id, project_manager
   ('00690000-0000-0000-0000-000000000022','00690000-0000-0000-0000-000000000001',
    'BND-DRIFT','Drift Guard','Ongoing Project',
    '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,250000,1500000);
+
+-- Add Active budget version for Drift Guard project (inserted above, now exists for FK).
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('00690000-0000-0000-0000-000000000b03','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000022', 1, 'v1', 'Draft');
+
+insert into budget_line_items (id, org_id, budget_version_id, category, budgeted_amount) values
+  ('00690000-0000-0000-0000-000000000c03','00690000-0000-0000-0000-000000000001',
+   '00690000-0000-0000-0000-000000000b03','Labor', 1000000);
+
+update budget_versions set status = 'Active'
+ where id = '00690000-0000-0000-0000-000000000b03';
 
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
   ('00690000-0000-0000-0000-000000000101','00690000-0000-0000-0000-000000000001','Ordered','Ordered',100000,'00690000-0000-0000-0000-000000000022','00690000-0000-0000-0000-0000000000a1'),

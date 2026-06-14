@@ -33,6 +33,10 @@ const baseProject = {
 
 const procState = { data: [] as ProcurementWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 const budgetState = { data: [] as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() };
+// AC-W2-1-FE-01: budget now comes from useProjectBudget (derived from Active version line-items).
+// Default = 900,000 (matching the baseProject.budget) so existing at-risk tests continue to work
+// with the derived-budget path.  Override per-test when a different budget value is needed.
+let derivedBudgetData: number = 900_000;
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
@@ -40,7 +44,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
-  useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBudget: () => ({ data: derivedBudgetData, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => ({}),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -62,6 +66,7 @@ const renderTab = (p: ProjectWithRefs, committedSpend = 0) =>
 beforeEach(() => {
   procState.data = [];
   budgetState.data = [];
+  derivedBudgetData = 900_000;
   navigate.mockClear();
 });
 
@@ -86,7 +91,9 @@ describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => 
     expect(screen.queryByText(/^At risk$/i)).not.toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN (guarded)', () => {
+  it('AC-W6-IXD-ATRISK: budget===0 (derived) → no caption, no NaN (guarded)', () => {
+    // When derived budget = 0 (no Active version), at-risk gate must not fire and NaN must not appear.
+    derivedBudgetData = 0;
     const p = { ...baseProject, budget: 0, spent: 500_000 } as ProjectWithRefs;
     renderTab(p, 500_000);
     expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();

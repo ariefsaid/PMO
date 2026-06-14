@@ -4,7 +4,7 @@ import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, 
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useBudgetVersions } from '@/src/hooks/useBudget';
+import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
@@ -61,8 +61,12 @@ const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
   const navigate = useNavigate();
   const contract = project.contract_value ?? 0;
-  const activeBudget = project.budget ?? 0;
   const committed = committedSpend ?? 0;
+  // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
+  // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
+  // this aligns the utilization card + at-risk gate to the same source.
+  const { data: derivedBudget } = useProjectBudget(project.id);
+  const activeBudget = derivedBudget ?? 0;
   const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk. Routes through the
   // shared canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
