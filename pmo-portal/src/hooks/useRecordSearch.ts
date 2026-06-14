@@ -7,6 +7,8 @@ import type { PaletteItem } from '@/src/components/shell/CommandPalette';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
+import { useCompanies } from '@/src/hooks/useCompanies';
+import { useContacts } from '@/src/hooks/useContacts';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 
@@ -25,10 +27,10 @@ export interface RecordSearch {
 }
 
 /**
- * Indexes the three already-cached TanStack lists (projects, sales-pipeline
- * opportunities, procurements) into a flat `PaletteItem[]` the ⌘K palette can
- * search. Reads only cached data — it never issues a new query and adds no new
- * DAL/RPC (the lists are already RLS-scoped by the pages that fetched them).
+ * Indexes the already-cached TanStack lists (projects, sales-pipeline
+ * opportunities, procurements, companies, contacts) into a flat `PaletteItem[]`
+ * the ⌘K palette can search. Reads only cached data — it never issues a new query
+ * and adds no new DAL/RPC (the lists are already RLS-scoped by the pages that fetched them).
  *
  * Each row carries a human `title`, a module `sub`-label, an optional mono
  * `code`, and a `run()` that navigates to the record's detail route — the
@@ -41,6 +43,10 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
   const projects = useProjects();
   const procurements = useProcurements();
   const pipeline = useSalesPipeline();
+  // CW-7: index master data (Companies + Contacts) too — searching a company/contact name
+  // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
+  const companies = useCompanies();
+  const contacts = useContacts();
   // ⌘K module view-gate (A-8, AC-W2-RBAC-015): a module's records are indexed ONLY when the
   // viewer's REAL role may view that module's index, so a denied role (e.g. Engineer — no
   // Procurement / Sales nav per rbac-visibility §A/§C/§E) never surfaces another module's rows
@@ -52,6 +58,10 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
   // that role set (the shipped WRITE_ROLES). Procurement index view = Admin·Exec·PM·Finance (§E).
   const mayViewPipeline = can('transition', 'project', { realRole });
   const mayViewProcurement = can('view', 'procurement', { realRole });
+  // Companies + Contacts directory view = master-data roles (Admin·Exec·PM·Finance §D); an Engineer
+  // (no master-data nav) never surfaces these rows via ⌘K. RLS stays the authority.
+  const mayViewCompanies = can('view', 'company', { realRole });
+  const mayViewContacts = can('view', 'contact', { realRole });
 
   const records = useMemo<PaletteItem[]>(() => {
     const out: PaletteItem[] = [];
@@ -99,17 +109,70 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
       }
     }
 
+    if (mayViewCompanies) {
+      for (const c of companies.data ?? []) {
+        out.push({
+          id: `companies:${c.id}`,
+          group: 'Records',
+          title: c.name,
+          sub: 'Company',
+          icon: 'doc' as IconName,
+          // Interim deep-link until the `/companies/:id` page lands (plan §4, Phase 3): the
+          // Companies index reads `?focus=<id>` on mount and opens that record's quick-view.
+          run: () => navigate(`/companies?focus=${c.id}`),
+        });
+      }
+    }
+
+    if (mayViewContacts) {
+      for (const ct of contacts.data ?? []) {
+        out.push({
+          id: `contacts:${ct.id}`,
+          group: 'Records',
+          title: ct.full_name,
+          sub: 'Contact',
+          icon: 'doc' as IconName,
+          // Interim deep-link until `/contacts/:id` lands (plan §4, Phase 3): the Contacts index
+          // reads `?focus=<id>` on mount and opens that record's quick-view.
+          run: () => navigate(`/contacts?focus=${ct.id}`),
+        });
+      }
+    }
+
     return out;
-  }, [projects.data, pipeline.data, procurements.data, navigate, mayViewPipeline, mayViewProcurement]);
+  }, [
+    projects.data,
+    pipeline.data,
+    procurements.data,
+    companies.data,
+    contacts.data,
+    navigate,
+    mayViewPipeline,
+    mayViewProcurement,
+    mayViewCompanies,
+    mayViewContacts,
+  ]);
 
   return {
     records,
-    isPending: projects.isPending || procurements.isPending || pipeline.isPending,
-    isError: projects.isError || procurements.isError || pipeline.isError,
+    isPending:
+      projects.isPending ||
+      procurements.isPending ||
+      pipeline.isPending ||
+      companies.isPending ||
+      contacts.isPending,
+    isError:
+      projects.isError ||
+      procurements.isError ||
+      pipeline.isError ||
+      companies.isError ||
+      contacts.isError,
     refetch: () => {
       projects.refetch?.();
       procurements.refetch?.();
       pipeline.refetch?.();
+      companies.refetch?.();
+      contacts.refetch?.();
     },
   };
 }

@@ -34,6 +34,29 @@ export function pct(v: number | null): string {
   return v == null ? '—' : `${Math.round(v)}%`;
 }
 
+// Single source of truth for human date display (CW-7 coherence sweep). Routing ALL date cells
+// through this kills the "ISO next to human-formatted" drift the audit flagged. `en-US`, "Jun 14,
+// 2026" — matches the prototype's prior `toLocaleDateString` look while staying deterministic.
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
+
+/**
+ * Format a date string for display. Accepts either a date-only ISO string (`YYYY-MM-DD`, parsed at
+ * local midnight so the calendar day never drifts across timezones) or a full ISO timestamp.
+ * Missing / blank / unparseable → an em-dash `—` (never a raw ISO string or "Invalid Date").
+ */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  // Date-only strings get an explicit local-midnight time so a UTC-stored "2026-06-14" doesn't
+  // render as the 13th in a behind-UTC timezone.
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return dateFormatter.format(parsed);
+}
+
 /** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces. */
 export function formatCompactCurrency(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;

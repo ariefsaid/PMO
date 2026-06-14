@@ -10,8 +10,8 @@
  * Assertions:
  *   (a) Engineer: NO finance StatTiles / SoD row appear ABOVE the [role="tablist"] in DOM order.
  *   (b) Engineer: the "Financial summary" section appears INSIDE the Overview tabpanel.
- *   (c) Engineer: defaults to the Tasks tab (not Overview), and the finance section is
- *       reachable by switching to Overview.
+ *   (c) CW-7: Engineer's no-tab default is role-invariant Overview (was Tasks) — so the finance
+ *       section is visible on the default landing, inside the Overview tabpanel.
  *   (d) PM (finance-forward): header keeps finance StatTiles ABOVE the tablist;
  *       Overview tab does NOT double-render the finance block.
  *
@@ -258,22 +258,26 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(isFollowing).toBe(true);
   });
 
-  // ── (b) Engineer: defaults to Tasks, finance reachable from Overview ───────
+  // ── (b) CW-7: Engineer now defaults to Overview (role-invariant URL) ───────
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-05: Engineer opening /projects/:id (no tab) lands on Tasks by default (no finance visible yet)', () => {
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-D15-POS-05): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', () => {
     const { container } = renderPage('Engineer', '/projects/p1');
 
-    // The Tasks tab must be active (aria-selected=true).
+    // CW-7: the no-tab default is role-invariant Overview for every role.
     const tablist = container.querySelector('[role="tablist"]');
     expect(tablist).not.toBeNull();
-    const tasksTab = Array.from(tablist!.querySelectorAll('[role="tab"]')).find(
-      (t) => t.textContent === 'Tasks',
+    const overviewTab = Array.from(tablist!.querySelectorAll('[role="tab"]')).find(
+      (t) => t.textContent === 'Overview',
     );
-    expect(tasksTab).not.toBeUndefined();
-    expect(tasksTab!.getAttribute('aria-selected')).toBe('true');
+    expect(overviewTab).not.toBeUndefined();
+    expect(overviewTab!.getAttribute('aria-selected')).toBe('true');
 
-    // The financial-summary aside is NOT currently visible (Tasks tab is active, not Overview).
-    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+    // The Overview tab is active, so the Engineer's relocated finance summary is now visible
+    // INSIDE the tabpanel (the header stays delivery-meta; finance lives in the Overview aside).
+    const tabpanel = container.querySelector('[role="tabpanel"]');
+    const summary = container.querySelector('[data-testid="financial-summary"]');
+    expect(summary).not.toBeNull();
+    expect(tabpanel!.contains(summary!)).toBe(true);
   });
 
   it('AC-IXD-PROJ-W5-C3-D15-POS-06: Engineer switching to Overview tab reveals the "Financial summary" inside the tabpanel', () => {

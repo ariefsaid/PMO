@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
@@ -25,7 +25,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
@@ -96,6 +96,26 @@ const Companies: React.FC = () => {
   const canRowWrite = canEdit || canArchive || canDelete;
 
   const all = useMemo(() => data ?? [], [data]);
+
+  // CW-7: ⌘K deep-link interim. A `?focus=<id>` param (set by the command palette until the
+  // `/companies/:id` page lands, plan §4) opens that record's quick-view drawer once the list is
+  // loaded, then clears the param so a refresh/back doesn't re-trigger it. RLS already scoped the
+  // cache, so a focus id the viewer can't see simply finds no row (no leak).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusId = searchParams.get('focus');
+  useEffect(() => {
+    if (!focusId || !canView) return;
+    const match = all.find((c) => c.id === focusId);
+    if (match) setDrawerCompany(match);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('focus');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [focusId, all, canView, setSearchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

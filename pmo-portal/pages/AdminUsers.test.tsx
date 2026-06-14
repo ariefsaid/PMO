@@ -138,6 +138,19 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('CW-7: the disabled New-user control exposes an explanatory hint (honest-disabled, not silently dead)', () => {
+    renderPage('Admin');
+    const addBtn = screen.getByRole('button', { name: /New user/i });
+    expect(addBtn).toBeDisabled();
+    // The "why it's disabled" is always discoverable: a static title on the wrapping span (a
+    // disabled button fires no hover/focus, so a hover-only tooltip would leave AT/keyboard users
+    // with no reason) PLUS an accessible name that carries the same reason.
+    const hintHost = addBtn.closest('[title]');
+    expect(hintHost).not.toBeNull();
+    expect(hintHost).toHaveAttribute('title', expect.stringMatching(/invite/i));
+    expect(addBtn).toHaveAccessibleName(/invite/i);
+  });
+
   it('polish#7: there is NO disable/Status row affordance (deferred — needs a status column)', async () => {
     renderPage('Admin');
     await userEvent.click(
@@ -243,9 +256,10 @@ describe('Admin Users — invite deferred (AC-AU-005)', () => {
     renderPage('Admin');
     const addBtn = screen.getByRole('button', { name: /New user/i });
     // Honest: discoverable but visibly not-yet-available (needs server-side auth-admin),
-    // never a button that opens a "coming soon" modal dead-end.
+    // never a button that opens a "coming soon" modal dead-end. CW-7 unified the reason copy to
+    // "user invites arrive soon" (goal-oracle intact: the accessible name carries the reason).
     expect(addBtn).toBeDisabled();
-    expect(addBtn).toHaveAccessibleName(/coming soon|deferred|server/i);
+    expect(addBtn).toHaveAccessibleName(/invite|arrive soon/i);
     // It does not silently call a create mutation that cannot succeed client-side.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(mutations.assignManager.mutateAsync).not.toHaveBeenCalled();

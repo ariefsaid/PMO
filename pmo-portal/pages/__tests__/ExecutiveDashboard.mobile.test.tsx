@@ -4,9 +4,9 @@
  * Verifies the mobile (<768px, useIsDesktop()=false) variant:
  * - AC-MOBILE-1: At-risk block renders BEFORE charts/pipeline below fold.
  * - AC-MOBILE-2: Approvals band with primary "Review" CTA renders before charts.
- * - AC-MOBILE-3: Contract book (Revenue on hand + Active contract value) renders before charts.
+ * - AC-MOBILE-3: Contract book (Revenue on hand + Total contract value) renders before charts.
  * - AC-MOBILE-4: B-MIN-3 source-lines present in Contract book.
- * - AC-MOBILE-5: "Active contract value" relabel in place of "Total contract value" on mobile.
+ * - AC-MOBILE-5 (CW-7): mobile reads the SAME metric labels as desktop ("Total contract value").
  * - AC-MOBILE-6: Desktop layout still renders full KPI band (6 tiles) with "Total contract value".
  *
  * Ordering is asserted by DOM order (compareDocumentPosition).
@@ -137,7 +137,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(domOrderCompare(approvalsBand, charts)).toBe(-1);
   });
 
-  it('AC-MOBILE-3: contract book section (Revenue on hand + Active contract value) renders before charts', () => {
+  it('AC-MOBILE-3: contract book section (Revenue on hand + Total contract value) renders before charts', () => {
     mockIsDesktop = false;
     renderPage();
     const contractBook = screen.getByTestId('mobile-contract-book');
@@ -145,7 +145,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(domOrderCompare(contractBook, charts)).toBe(-1);
     // Both money tiles present inside the contract book
     expect(within(contractBook).getByTestId('mobile-kpi-on-hand')).toBeInTheDocument();
-    expect(within(contractBook).getByTestId('mobile-kpi-active-contract-value')).toBeInTheDocument();
+    expect(within(contractBook).getByTestId('mobile-kpi-total-contract-value')).toBeInTheDocument();
   });
 
   it('AC-MOBILE-4: B-MIN-3 source-lines are present in the contract book', () => {
@@ -157,13 +157,37 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
   });
 
-  it('AC-MOBILE-5: "Active contract value" label replaces "Total contract value" in mobile contract book', () => {
+  it('AC-MOBILE-5 (CW-7): mobile uses the SAME metric labels as desktop (no forked "Active contract value")', () => {
+    // Deliberate copy reconcile (CW-7 §4): mobile must read the canonical desktop term so the two
+    // surfaces are the same page reflowed, not two different pages. Goal-oracle (the money tile
+    // shows the active contract-value figure with a scope micro-line) stays intact.
     mockIsDesktop = false;
     renderPage();
     const contractBook = screen.getByTestId('mobile-contract-book');
-    expect(within(contractBook).getByText(/Active contract value/i)).toBeInTheDocument();
-    // "Total contract value" should NOT appear inside the mobile contract book
-    expect(within(contractBook).queryByText(/^Total contract value$/i)).not.toBeInTheDocument();
+    // The headline metric label matches desktop ("Total contract value").
+    expect(within(contractBook).getByText(/^Total contract value$/i)).toBeInTheDocument();
+    // The old forked label is gone.
+    expect(within(contractBook).queryByText(/Active contract value/i)).not.toBeInTheDocument();
+    // The scope-explaining source micro-line is retained (the asymmetry is carried here, not by a forked term).
+    expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
+  });
+
+  it('CW-7: every shared metric LABEL on mobile matches a desktop KPI label (same page, reflowed)', () => {
+    // Desktop canonical labels (ExecutiveDashboard KPI band).
+    const desktopLabels = [
+      'Revenue on hand',
+      'Total contract value',
+      'Active projects',
+      'Total project spend',
+    ];
+    mockIsDesktop = false;
+    renderPage();
+    for (const label of desktopLabels) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    // The pre-reconcile mobile-only terms must NOT appear.
+    expect(screen.queryByText(/Active contract value/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Spent to date/i)).not.toBeInTheDocument();
   });
 
   it('at-risk block shows projects_at_risk count with warning tone', () => {

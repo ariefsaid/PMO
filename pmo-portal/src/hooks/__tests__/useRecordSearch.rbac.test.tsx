@@ -21,12 +21,16 @@ const { state } = vi.hoisted(() => ({
     projects: { data: undefined as unknown, isPending: false, isError: false },
     procurements: { data: undefined as unknown, isPending: false, isError: false },
     pipeline: { data: undefined as unknown, isPending: false, isError: false },
+    companies: { data: undefined as unknown, isPending: false, isError: false },
+    contacts: { data: undefined as unknown, isPending: false, isError: false },
   },
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => state.companies }));
+vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => state.contacts }));
 
 import { useRecordSearch } from '../useRecordSearch';
 
@@ -55,10 +59,20 @@ beforeEach(() => {
     isPending: false,
     isError: false,
   };
+  state.companies = {
+    data: [{ id: 'co1', name: 'Innovate Corp', type: 'Client' }],
+    isPending: false,
+    isError: false,
+  };
+  state.contacts = {
+    data: [{ id: 'ct1', full_name: 'Dana Buyer', company_id: 'co1' }],
+    isPending: false,
+    isError: false,
+  };
 });
 
 describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
-  it('AC-W2-RBAC-015 (PM, authorized): indexes projects + procurement + pipeline rows', () => {
+  it('AC-W2-RBAC-015 (PM, authorized): indexes projects + procurement + pipeline + master data', () => {
     const { result } = renderHook(() => useRecordSearch(navigate), {
       wrapper: wrap('Project Manager'),
     });
@@ -66,9 +80,12 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     expect(subs).toContain('Project');
     expect(subs).toContain('Procurement');
     expect(subs).toContain('Project · Pipeline');
+    // CW-7: master data (Companies + Contacts) is visible to MASTER_DATA roles → indexed.
+    expect(subs).toContain('Company');
+    expect(subs).toContain('Contact');
   });
 
-  it('AC-W2-RBAC-015 (Engineer, denied): excludes procurement + pipeline rows, keeps projects', () => {
+  it('AC-W2-RBAC-015 (Engineer, denied): excludes procurement + pipeline + master data, keeps projects', () => {
     const { result } = renderHook(() => useRecordSearch(navigate), {
       wrapper: wrap('Engineer'),
     });
@@ -78,6 +95,9 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     // Procurement + Sales Pipeline have no Engineer nav → never surfaced via ⌘K.
     expect(subs).not.toContain('Procurement');
     expect(subs).not.toContain('Project · Pipeline');
+    // CW-7: Companies/Contacts directory is master-data (Engineer = denied) → never surfaced.
+    expect(subs).not.toContain('Company');
+    expect(subs).not.toContain('Contact');
   });
 
   it('AC-W2-RBAC-015: a null role indexes nothing reject-bound (deny-by-default)', () => {

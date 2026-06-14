@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, parseMoneyInput, pct } from './format';
+import { formatCurrency, parseMoneyInput, pct, formatDate } from './format';
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
@@ -44,5 +44,23 @@ describe('pct — nullable % formatter (added for delivery-milestones feature)',
     expect(pct(67.7)).toBe('68%');
     expect(pct(0)).toBe('0%');
     expect(pct(100)).toBe('100%');
+  });
+});
+
+describe('formatDate — canonical human date formatter (CW-7 coherence: no raw ISO leaks)', () => {
+  it('null / undefined / blank render an em-dash, never a raw value', () => {
+    expect(formatDate(null)).toBe('—');
+    expect(formatDate(undefined)).toBe('—');
+    expect(formatDate('')).toBe('—');
+  });
+  it('formats a date-only ISO string (YYYY-MM-DD) without timezone drift', () => {
+    // Parsed at local midnight so the calendar day is preserved regardless of TZ.
+    expect(formatDate('2026-06-14')).toBe('Jun 14, 2026');
+  });
+  it('formats a full ISO timestamp to the same human date', () => {
+    expect(formatDate('2026-06-14T09:30:00.000Z')).toBe('Jun 14, 2026');
+  });
+  it('returns the em-dash for an unparseable string rather than "Invalid Date" or raw ISO', () => {
+    expect(formatDate('not-a-date')).toBe('—');
   });
 });

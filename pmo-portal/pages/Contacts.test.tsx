@@ -151,6 +151,22 @@ describe('Contacts create form (AC-CRM-030)', () => {
   });
 });
 
+describe('Contacts — ⌘K deep-link (CW-7)', () => {
+  it('CW-7: a ?focus=<id> deep-link (from ⌘K) opens that contact\'s quick-view drawer', async () => {
+    realRole = 'Admin';
+    render(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/contacts?focus=ct2']}>
+          <Contacts />
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+    const drawer = await screen.findByRole('dialog');
+    const labelId = drawer.getAttribute('aria-labelledby');
+    expect(document.getElementById(labelId!)?.textContent).toContain('Marcus Webb');
+  });
+});
+
 describe('Contacts drawer — activity timeline (AC-CRM-031)', () => {
   const openDrawer = async (name: string) => {
     await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));

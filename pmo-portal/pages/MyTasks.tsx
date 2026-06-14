@@ -1,6 +1,8 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ListState } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
+import { formatDate } from '@/src/lib/format';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
 /**
@@ -28,10 +30,10 @@ const MyTasks: React.FC = () => {
   // Group by project for a structured "what do I do today" view.
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
-    const map = new Map<string, { projectName: string; items: typeof tasks }>();
+    const map = new Map<string, { projectId: string; projectName: string; items: typeof tasks }>();
     for (const t of tasks) {
       if (!map.has(t.project_id)) {
-        map.set(t.project_id, { projectName: t.project_name, items: [] });
+        map.set(t.project_id, { projectId: t.project_id, projectName: t.project_name, items: [] });
       }
       map.get(t.project_id)!.items.push(t);
     }
@@ -72,9 +74,17 @@ const MyTasks: React.FC = () => {
       {!isPending && !isError && grouped.length > 0 && (
         <div className="space-y-6">
           {grouped.map((group) => (
-            <section key={group.projectName} aria-label={group.projectName}>
+            <section key={group.projectId} aria-label={group.projectName}>
               <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                {group.projectName}
+                {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
+                    explicitly (/projects/:id/tasks) — the project URL default is role-invariant
+                    Overview, so this link carries the intent rather than mutating the default. */}
+                <Link
+                  to={`/projects/${group.projectId}/tasks`}
+                  className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {group.projectName}
+                </Link>
               </h2>
               <div className="rounded-lg border border-border bg-card divide-y divide-border">
                 {group.items.map((task) => (
@@ -88,9 +98,9 @@ const MyTasks: React.FC = () => {
                       </span>
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-[12px] text-muted-foreground">
-                          {task.start_date && <span>Start {task.start_date}</span>}
+                          {task.start_date && <span>Start {formatDate(task.start_date)}</span>}
                           {task.start_date && task.end_date && <span className="mx-1">·</span>}
-                          {task.end_date && <span>Due {task.end_date}</span>}
+                          {task.end_date && <span>Due {formatDate(task.end_date)}</span>}
                         </span>
                       )}
                     </div>

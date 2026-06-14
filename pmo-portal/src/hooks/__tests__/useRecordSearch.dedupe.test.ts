@@ -28,6 +28,13 @@ const { state } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
+// CW-7: the index now reads master-data caches too; stub them empty for the dedupe scope.
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useContacts', () => ({
+  useContacts: () => ({ data: [], isPending: false, isError: false }),
+}));
 
 import { useRecordSearch } from '../useRecordSearch';
 
