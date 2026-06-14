@@ -342,12 +342,26 @@ export const ApprovalsQueue: React.FC = () => {
             const canSelect = approvableIds.has(sheet.id);
             return (
               <div key={sheet.id}>
+                {/* N11: disclosure slot — chevron sits BEFORE the avatar (AC-JR-W3-01 / T20). */}
                 <ApprovalRow
                   name={name}
                   week={weekLabel(sheet.week_start_date)}
                   hours={total}
                   status={
                     <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
+                  }
+                  disclosure={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      aria-label={`Show hours for ${name}`}
+                      onClick={() => toggleExpanded(sheet.id)}
+                      className={isExpanded ? '[&_svg]:rotate-90 [&_svg]:transition-transform' : '[&_svg]:transition-transform'}
+                    >
+                      <Icon name="chev" />
+                    </Button>
                   }
                 >
                   {/* N12: per-row checkbox in selection mode. Only approvable rows get one;
@@ -359,18 +373,6 @@ export const ApprovalsQueue: React.FC = () => {
                       label={`Select ${name}'s week`}
                     />
                   )}
-                  {/* N11: leading-edge disclosure to reveal the per-project/day grid. */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    aria-label={`Show hours for ${name}`}
-                    onClick={() => toggleExpanded(sheet.id)}
-                    className={isExpanded ? '[&_svg]:rotate-90 [&_svg]:transition-transform' : '[&_svg]:transition-transform'}
-                  >
-                    <Icon name="chev" />
-                  </Button>
                   {actions.approve && !selecting && (
                     <Button
                       variant="primary"

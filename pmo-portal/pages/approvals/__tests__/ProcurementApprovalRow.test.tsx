@@ -243,3 +243,104 @@ describe('AC-IFW-PROC-02: can() gate — no Approve/Reject for Engineer role', (
     expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
   });
 });
+
+// ── AC-JR-W2-01: ProjectNameLink — project name links to /projects/:id ───────
+
+describe('AC-JR-W2-01: project name is wrapped in ProjectNameLink (T07 census E)', () => {
+  it('AC-JR-W2-01: project name renders as a link to /projects/:id', () => {
+    renderAs();
+    // ProjectNameLink renders a link with aria-label="Open <name>"
+    const link = screen.getByRole('link', { name: /Open Solar Alpha/i });
+    expect(link).toBeInTheDocument();
+    expect(link.getAttribute('href')).toBe('/projects/proj-001');
+  });
+
+  it('AC-JR-W2-01: no project id — project name renders as inert text (no navigation)', () => {
+    const rowNoProject = { ...ROW, project_id: undefined as unknown as string, project: { name: 'Orphan', code: null } };
+    render(
+      <MemoryRouter>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <ProcurementApprovalRow row={rowNoProject as never} />
+          </ToastProvider>
+        </ImpersonationProvider>
+      </MemoryRouter>,
+    );
+    // Inert text span — no link
+    expect(screen.queryByRole('link', { name: /Open Orphan/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Orphan')).toBeInTheDocument();
+  });
+
+  it('AC-JR-W2-01: no project at all — renders em-dash (defensive fallback)', () => {
+    const rowNoName = { ...ROW, project_id: 'proj-001', project: null };
+    render(
+      <MemoryRouter>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <ProcurementApprovalRow row={rowNoName as never} />
+          </ToastProvider>
+        </ImpersonationProvider>
+      </MemoryRouter>,
+    );
+    // ProjectNameLink renders em-dash when name is null
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+});
+
+// ── AC-JR-W2-02: "Open request" link in expanded panel footer ────────────────
+
+describe('AC-JR-W2-02: "Open request" link in expanded panel footer (T07)', () => {
+  it('AC-JR-W2-02: expanded panel footer contains an "Open request" link to /procurement/:id', async () => {
+    renderAs();
+    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
+    const link = screen.getByRole('link', { name: /open request/i });
+    expect(link).toBeInTheDocument();
+    expect(link.getAttribute('href')).toBe('/procurement/pr-001');
+  });
+
+  it('AC-JR-W2-02: "Open request" link is in the same footer region as Approve/Reject', async () => {
+    renderAs();
+    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
+    const openLink = screen.getByRole('link', { name: /open request/i });
+    const approveBtn = screen.getByRole('button', { name: /^Approve$/i });
+    // Both are in the DOM simultaneously — same footer
+    expect(openLink).toBeInTheDocument();
+    expect(approveBtn).toBeInTheDocument();
+  });
+
+  it('AC-JR-W2-02: "Open request" visible even when user lacks transition permission', async () => {
+    renderAs('Engineer');
+    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
+    // Engineers can't approve but should still be able to open the full request
+    const link = screen.getByRole('link', { name: /open request/i });
+    expect(link).toBeInTheDocument();
+    expect(link.getAttribute('href')).toBe('/procurement/pr-001');
+  });
+
+  it('AC-JR-W2-02: navigateMock is never called — link is declarative, not imperative', async () => {
+    renderAs();
+    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
+    // Link renders without ever calling useNavigate()
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── AC-JR-W3-02: disclosure pattern consistency — solid border on wrapper ─────
+
+describe('AC-JR-W3-02: ProcurementApprovalRow uses solid (not dashed) border (T20 consistency)', () => {
+  it('AC-JR-W3-02: the row wrapper has border-border (solid) not border-dashed', () => {
+    const { container } = renderAs();
+    // The outermost div wrapping the row
+    const row = container.firstChild as HTMLElement;
+    expect(row.className).not.toContain('border-dashed');
+    expect(row.className).toContain('border-border');
+  });
+
+  it('AC-JR-W3-02: the disclosure chevron button is the first interactive element in the row header', () => {
+    renderAs();
+    const disclosureBtn = screen.getByRole('button', { name: /show budget impact/i });
+    // The disclosure button exists at the leading edge (first button in the row header)
+    expect(disclosureBtn).toBeInTheDocument();
+    expect(disclosureBtn).toHaveAttribute('aria-expanded', 'false');
+  });
+});

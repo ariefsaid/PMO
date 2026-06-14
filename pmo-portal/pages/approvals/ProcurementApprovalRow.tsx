@@ -11,8 +11,9 @@
  * authority; `can('transition','procurement')` is the UX-only gate (ADR-0016).
  */
 import React, { useId, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog, Icon, ListState, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, ListState, ProjectNameLink, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import {
   useProcurementDetail,
@@ -127,9 +128,13 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
           </div>
         </div>
 
-        {/* Meta */}
+        {/* Meta — project name links to the project record (AC-JR-W2-01). */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 text-[12px] text-muted-foreground">
-          {row.project?.name && <span>{row.project.name}</span>}
+          <ProjectNameLink
+            projectId={row.project_id}
+            name={row.project?.name ?? null}
+            className="text-[12px]"
+          />
           {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
           <span className="tabular font-medium text-foreground">
             {formatCurrency(row.total_value)}
@@ -190,28 +195,38 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
                 </div>
               )}
 
-              {/* Action footer — UX-gated by can('transition','procurement') */}
-              {canTransition && (
-                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setPending('Approved')}
-                    loading={transition.isPending}
-                  >
-                    <Icon name="check" />
-                    Approve
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPending('Rejected')}
-                    loading={transition.isPending}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              )}
+              {/* Action footer — "Open request" always visible; Approve/Reject UX-gated by
+                  can('transition','procurement') (AC-JR-W2-02). */}
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                <Link
+                  to={`/procurement/${row.id}`}
+                  aria-label="Open request"
+                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                >
+                  Open request
+                </Link>
+                {canTransition && (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setPending('Approved')}
+                      loading={transition.isPending}
+                    >
+                      <Icon name="check" />
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPending('Rejected')}
+                      loading={transition.isPending}
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+              </div>
             </>
           ) : null}
         </div>
