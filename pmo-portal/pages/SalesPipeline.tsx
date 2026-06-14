@@ -73,6 +73,10 @@ const SalesPipeline: React.FC = () => {
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<DealScope>('Open');
+  /** Index into OPEN_COLUMNS for the currently selected funnel stage (null = no stage filter). */
+  const [stageIndex, setStageIndex] = useState<number | null>(null);
+  /** The status string for the selected funnel stage, or null when no stage is selected. */
+  const selectedStatus = stageIndex !== null ? OPEN_COLUMNS[stageIndex]?.statuses[0] ?? null : null;
 
   const openProjects = useMemo(() => data?.projects ?? [], [data]);
   const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
@@ -95,13 +99,18 @@ const SalesPipeline: React.FC = () => {
     } else {
       base = openProjects;
     }
+    // When a funnel stage is selected, intersect the scope with that stage's status.
+    // Selecting a funnel stage implies we're looking at open deals for that stage.
+    if (selectedStatus !== null) {
+      base = base.filter((p) => p.status === selectedStatus);
+    }
     const q = search.trim().toLowerCase();
     if (!q) return base;
     return base.filter(
       (p) =>
         p.name.toLowerCase().includes(q) || (p.client_name ?? '').toLowerCase().includes(q),
     );
-  }, [openProjects, lost, scope, search]);
+  }, [openProjects, lost, scope, search, selectedStatus]);
 
   // Funnel band — always the five open stages in fixed order, even when the RPC
   // omits empty stages (edge (b): render zero-value stages, never blank). Each
@@ -137,7 +146,7 @@ const SalesPipeline: React.FC = () => {
   const tableColumns: Column<PipelineProject>[] = [
     {
       key: 'opp',
-      header: 'Opportunity',
+      header: 'Project',
       cell: (r) => (
         <div className="flex items-center gap-2.5">
           <span
@@ -344,7 +353,12 @@ const SalesPipeline: React.FC = () => {
               {/* Narrow viewports scroll the band horizontally so the five stages stay
                   readable rather than crushing below their min track width (§2 reflow). */}
               <div className="overflow-x-auto">
-                <Funnel stages={funnelStages} className="min-w-[640px]" />
+                <Funnel
+                  stages={funnelStages}
+                  className="min-w-[640px]"
+                  selectedIndex={stageIndex ?? undefined}
+                  onSelect={(i) => setStageIndex((prev) => (prev === i ? null : i))}
+                />
               </div>
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>Weighted pipeline forecast</span>
