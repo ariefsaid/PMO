@@ -99,3 +99,4 @@ export {
   type ValidateFn,
   type FieldProps,
 } from './useEntityForm';
+export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';

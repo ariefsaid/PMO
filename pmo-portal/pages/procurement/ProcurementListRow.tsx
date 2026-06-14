@@ -11,7 +11,7 @@
  */
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Icon, ListState, StatusPill } from '@/src/components/ui';
+import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency } from '@/src/lib/format';
@@ -159,7 +159,9 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
 
         {/* Meta */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
-          {row.project?.name && <span>{row.project.name}</span>}
+          {row.project?.name && (
+            <ProjectNameLink projectId={row.project_id} name={row.project.name} />
+          )}
           {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
           <span className="tabular font-medium text-foreground">
             {formatCurrency(row.total_value)}

@@ -9,6 +9,7 @@ import {
   Button,
   Icon,
   useToast,
+  ProjectNameLink,
   type Column,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
@@ -169,7 +170,7 @@ const ProcurementPage: React.FC = () => {
     {
       key: 'project',
       header: 'Project',
-      cell: (r) => <span className="text-muted-foreground">{r.project?.name ?? '—'}</span>,
+      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} className="text-muted-foreground" />,
       exportValue: (r) => r.project?.name ?? '',
     },
     {

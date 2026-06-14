@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import ProcurementBoard from './ProcurementBoard';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
@@ -32,7 +33,11 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
   });
 
   it('groups a request into its stage column (Ordered → Purchase Order)', () => {
-    render(<ProcurementBoard procurements={[row({ status: 'Ordered' })]} onOpen={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <ProcurementBoard procurements={[row({ status: 'Ordered' })]} onOpen={vi.fn()} />
+      </MemoryRouter>,
+    );
     const poCol = screen.getByTestId('prstage-po');
     expect(poCol).toHaveTextContent('Structural steel');
     expect(poCol).toHaveTextContent('PR-2606040001');
@@ -45,7 +50,11 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
 
   it('activating a card calls onOpen with the request', async () => {
     const onOpen = vi.fn();
-    render(<ProcurementBoard procurements={[row({ status: 'Ordered' })]} onOpen={onOpen} />);
+    render(
+      <MemoryRouter>
+        <ProcurementBoard procurements={[row({ status: 'Ordered' })]} onOpen={onOpen} />
+      </MemoryRouter>,
+    );
     await userEvent.click(screen.getByRole('button', { name: /Open Structural steel/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen.mock.calls[0][0].id).toBe('p1');
