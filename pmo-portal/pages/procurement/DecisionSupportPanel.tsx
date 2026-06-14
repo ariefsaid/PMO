@@ -18,9 +18,11 @@
  * Over-budget is a non-blocking advisory (approval still permitted — OD-W5-4/OD-W5-5).
  */
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
+import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { formatCurrency } from '@/src/lib/format';
@@ -53,7 +55,11 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         Budget impact
       </h3>
       {projectName ? (
-        <span className="text-[12.5px] font-medium text-foreground">· {projectName}</span>
+        <ProjectNameLink
+          projectId={projectId}
+          name={projectName}
+          className="text-[12.5px] font-medium text-foreground"
+        />
       ) : null}
     </div>
   );
@@ -164,6 +170,18 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             }
           />
         )}
+
+        {/* Explicit affordance to drill into the project budget detail.
+            Styled as a quiet link (not a competing CTA) — the decision zone
+            primary action owns the blue; this is a secondary navigation escape. */}
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <Link
+            to={`/projects/${projectId}`}
+            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
+          >
+            Open project
+          </Link>
+        </div>
       </CardPad>
     </Card>
   );

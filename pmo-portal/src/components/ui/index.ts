@@ -62,6 +62,7 @@ export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { EntryList, type EntryListProps } from './EntryList';
+export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 
 // --- CRUD form primitives (Phase 1, crud-components §2) ---
 export {
