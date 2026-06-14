@@ -132,7 +132,8 @@ const ExecutiveDashboard: React.FC = () => {
                 <ListState variant="empty" icon="cart" title="No procurement activity yet" />
               ) : (
                 <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
-                  label="Procurement by status" noun="requests" />
+                  label="Procurement by status" noun="requests"
+                  hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`} />
               )}
             </div>
           </Card>
@@ -216,7 +217,7 @@ const ExecutiveDashboard: React.FC = () => {
             value={formatCurrency(data.pipeline_weighted_value)} vs={`of ${formatCurrency(data.pipeline_total_value)} gross`}
             to="/sales"
             linkLabel="Open the sales pipeline"
-            help="Sum of (opportunity value × stage win-probability) across all open stages." />
+            help="Sum of (project value × stage win-probability) across all open stages." />
           {/* Pipeline forecast margin: PLAIN tile (OD-W5-C2-D — /sales has no margin lens; drilling
               would misrepresent). ONE metric, ONE number — the probability-weighted pipeline
               projected margin only (SP-7). */}
