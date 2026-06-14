@@ -180,13 +180,14 @@ describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
     expect(link).toHaveAttribute('href', '/approvals?scope=timesheets');
   });
 
-  it('CW-6: the cross-link shows the pending count when sheets are awaiting', () => {
+  it('CW-6: the cross-link shows "Review N awaiting" when sheets are pending (fix #8)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     awaitingState.data = [{ id: 'a1' }, { id: 'a2' }] as unknown[];
     renderPage();
-    const link = screen.getByRole('link', { name: /approvals/i });
+    // fix #8: with pending count > 0, copy changes to "Review N awaiting" (more prominent CTA).
+    const link = screen.getByRole('link', { name: /review 2 awaiting/i });
     expect(link.textContent).toContain('2');
     awaitingState.data = [];
   });
@@ -233,14 +234,14 @@ describe('Timesheets returned-for-changes edge state', () => {
 // ---------------------------------------------------------------------------
 
 describe('CW-6: Timesheets approvals cross-link badge', () => {
-  it('CW-6: the approvals cross-link shows no "0" badge when nothing is pending', () => {
+  it('CW-6: the approvals cross-link reads "Approvals" (no count) when nothing is pending', () => {
     // useTimesheetsAwaitingApproval returns [] (empty) by default in this file's mock
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    const link = screen.getByRole('link', { name: /approvals/i });
-    // No "0" count should appear in the cross-link.
+    // fix #8: zero-pending shows plain "Approvals" (no count in the text).
+    const link = screen.getByRole('link', { name: /^Approvals$/i });
     expect(link.textContent).not.toContain('0');
   });
 });

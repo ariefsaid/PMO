@@ -143,11 +143,15 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           <Icon name="chev" />
         </Button>
 
-        {/* Request info */}
+        {/* Request info — title is a Link so clicking the row title navigates (AC-NAV-006) */}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-[13px]" title={row.title}>
+          <Link
+            to={`/procurement/${row.id}`}
+            className="block truncate font-semibold text-[13px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            title={row.title}
+          >
             {row.title}
-          </div>
+          </Link>
           <div className="font-mono text-[12px] text-muted-foreground">
             {row.code ?? row.id.slice(0, 8)}
           </div>
