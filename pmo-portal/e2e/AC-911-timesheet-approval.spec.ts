@@ -3,7 +3,7 @@ import { login } from './helpers';
 
 // AC-911 — Submit → Approve happy path across two users (single curated journey).
 // Owner (Grace/ts-approve-eng@acme.test) submits their Draft week → sheet shows Submitted.
-// Line manager (Heidi/ts-approve-mgr@acme.test) opens /approvals, approves → row leaves the queue.
+// Line manager (Heidi/ts-approve-mgr@acme.test) opens /approvals (timesheets scope), approves → row leaves the queue.
 //
 // ISOLATION (mirrors the P011 pattern): this spec uses DEDICATED seed actors — Grace (b1, Engineer)
 // reports to Heidi (b2, PM) — and Grace has a DEDICATED current-week Draft timesheet (…b1) that NO
@@ -60,7 +60,9 @@ test('AC-911 submit→approve across two users: report submits Draft→Submitted
 
   // ── Step 2: Heidi (line manager) approves Grace's Submitted sheet ───────────
   await login(page, 'ts-approve-mgr@acme.test');
-  await page.goto('/approvals');
+  // CW-6: a PM sees both approval modules as deep-linkable scope tabs; this test approves a
+  // timesheet, so it deep-links straight to the timesheets scope (its canonical home).
+  await page.goto('/approvals?scope=timesheets');
 
   // Wait for loading skeleton to disappear.
   await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 15_000 });

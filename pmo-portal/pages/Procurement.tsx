@@ -13,7 +13,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -247,14 +247,28 @@ const ProcurementPage: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          /* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */
-          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
-            <ViewToggle<StatusFilter>
-              options={FILTERS.map((f) => ({ value: f, label: f }))}
-              value={filter}
-              onChange={setFilter}
-              ariaLabel="Status filter"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */}
+            <div data-testid="status-filter-scroll" className="min-w-0 overflow-x-auto scroll-fade-x">
+              <ViewToggle<StatusFilter>
+                options={FILTERS.map((f) => ({ value: f, label: f }))}
+                value={filter}
+                onChange={setFilter}
+                ariaLabel="Status filter"
+              />
+            </div>
+            {/* CW-6: the "Needs approval" segment is a VIEW of this list, not an approvals home.
+                Approvers get a clear cross-link to the single canonical inbox so this filter never
+                reads as a competing approvals surface (audit P7 / C-IMP-4). */}
+            {canApprove && (
+              <Link
+                to="/approvals?scope=procurement"
+                className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[13px] font-medium text-primary transition-colors hover:bg-accent"
+              >
+                See all approvals
+                <Icon name="chev" aria-hidden />
+              </Link>
+            )}
           </div>
         )
       }

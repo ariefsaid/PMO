@@ -9,13 +9,12 @@ import {
   StatusPill,
   TimesheetGrid,
   Toolbar,
-  ViewToggle,
   AccessDenied,
   useToast,
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
@@ -24,7 +23,6 @@ import {
   useTimesheetsAwaitingApproval,
 } from '@/src/hooks/useTimesheetApproval';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
-import { useTimesheetsView } from '@/src/hooks/useTimesheetsView';
 import { useProjects } from '@/src/hooks/useProjects';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import {
@@ -37,7 +35,6 @@ import {
 } from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
 const getWeekStartDate = (date: Date): Date => {
@@ -72,9 +69,10 @@ const TimesheetsPage: React.FC = () => {
   // RLS tightening (Finance cannot insert timesheet_entries) is a SEPARATE pgTAP-owned security
   // follow-up, not built here.
   const canEnterTimesheet = may('create', 'timesheet');
-  // AC-W3-N2: gate the Approvals queue affordance on the same capability as the rail's Approvals
-  // item and ApprovalsQueue itself — `may('transition','approval')` (DELIVERY = Admin·Exec·PM).
-  // Engineer cannot approve timesheets (OD-W2-2), so showing them the toggle is a RBAC leak.
+  // CW-6 (was AC-W3-N2): the approvals queue no longer lives on this page — it has ONE home at
+  // /approvals. Timesheets shows only a cross-link there, gated on the same approval capability
+  // as the rail's Approvals item — `may('transition','approval')` (DELIVERY = Admin·Exec·PM).
+  // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
   // O1 (review fix): synchronous re-entrancy guard for the async Submit. React Query's
@@ -82,7 +80,6 @@ const TimesheetsPage: React.FC = () => {
   // `commitSubmit` twice before the `loading` prop updates — on a fresh week that means TWO
   // lazy-Draft creates → two sheets. This ref blocks the second invocation in the same tick.
   const submittingRef = useRef(false);
-  const [view, setView] = useTimesheetsView();
   // T1: the Submit button stages this confirm; nothing submits on a single click.
   const [confirmSubmit, setConfirmSubmit] = useState(false);
 
@@ -499,18 +496,23 @@ const TimesheetsPage: React.FC = () => {
       </div>
 
       <Toolbar standalone>
-        {/* AC-W3-N2: show the ViewToggle (and its Approvals queue tab) only to approvers.
-            Engineers see no toggle at all — a single-view surface needs no tab-switcher. */}
+        {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
+            there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
+            competes as a second approvals surface. Non-approvers (Engineer) see no link at all. */}
         {isApprover && (
-          <ViewToggle<'grid' | 'approvals'>
-            options={[
-              { value: 'grid', label: 'Weekly grid', icon: 'cal' },
-              { value: 'approvals', label: 'Approvals queue', icon: 'check', count: pendingCount },
-            ]}
-            value={view}
-            onChange={setView}
-            ariaLabel="Timesheet view"
-          />
+          <Link
+            to="/approvals?scope=timesheets"
+            className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Icon name="check" aria-hidden />
+            Approvals
+            {pendingCount > 0 && (
+              <span className="grid min-w-[18px] place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground tabular">
+                {pendingCount}
+              </span>
+            )}
+            <Icon name="chev" aria-hidden />
+          </Link>
         )}
         <span className="ml-auto inline-flex items-center gap-0.5">
           <Button
@@ -531,19 +533,6 @@ const TimesheetsPage: React.FC = () => {
       </Toolbar>
     </>
   );
-
-  // ── Approvals queue view ────────────────────────────────────────────────────
-  // AC-W3-N2: also guard the branch on isApprover so a stale persisted view='approvals'
-  // from a previous session where the user had approval rights never accidentally surfaces
-  // the queue to a non-approver (e.g. an Engineer).
-  if (view === 'approvals' && isApprover) {
-    return (
-      <div>
-        {head}
-        <ApprovalsQueue />
-      </div>
-    );
-  }
 
   // ── Weekly grid view ────────────────────────────────────────────────────────
   if (isPending) {

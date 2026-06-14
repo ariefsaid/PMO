@@ -71,3 +71,16 @@ describe('Procurement — Finance "Needs approval" segment (B-2, AC-W2-IXD-003)'
     expect(screen.queryByRole('tab', { name: /needs approval/i })).not.toBeInTheDocument();
   });
 });
+
+describe('CW-6: Procurement "Needs approval" filter cross-links to the /approvals inbox', () => {
+  it('CW-6: an approver sees a cross-link to /approvals?scope=procurement (filter is a view, not a competing inbox)', () => {
+    renderAs('Finance');
+    const link = screen.getByRole('link', { name: /all approvals/i });
+    expect(link).toHaveAttribute('href', '/approvals?scope=procurement');
+  });
+
+  it('CW-6: an Engineer (non-approver) sees no approvals cross-link', () => {
+    renderAs('Engineer');
+    expect(screen.queryByRole('link', { name: /all approvals/i })).not.toBeInTheDocument();
+  });
+});

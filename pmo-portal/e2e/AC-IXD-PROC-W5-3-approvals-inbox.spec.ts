@@ -86,7 +86,9 @@ test(
     // Step 1: Alice (pm@) opens /approvals — Wave5 BulkEng's Submitted sheet should already
     // be in the queue (seeded as Submitted; no Dave→Submit pre-step needed).
     await login(page, 'pm@acme.test');
-    await page.goto('/approvals');
+    // CW-6: a PM sees both modules as deep-linkable scope tabs; this test exercises the
+    // timesheet queue, so it deep-links straight to that scope.
+    await page.goto('/approvals?scope=timesheets');
 
     // Timesheet section visible.
     const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
@@ -141,7 +143,7 @@ test(
     // Goal oracle 2 (reload-safe): navigate away and back to force a fresh server query —
     // approved weeks MUST NOT reappear (tests real server persistence, not optimistic UI).
     await page.goto('/');
-    await page.goto('/approvals');
+    await page.goto('/approvals?scope=timesheets');
 
     // Wait for the section to re-render from fresh data.
     await expect(tsSection).toBeVisible({ timeout: 15_000 });

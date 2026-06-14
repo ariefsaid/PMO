@@ -94,10 +94,12 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
     .getByRole('textbox', { name: new RegExp(`${PROJECT_NAME}, Mon hours`, 'i') })).toBeVisible();
   await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
 
-  // AC-W3-N2: an Engineer (non-approver) has NO Approvals-queue toggle — they only ever see the
-  // editable grid, so there is no alternate view to be navigated to (the "stayed editable" goal is
-  // already proven by the persisted cell + total above). Confirm the Approvals toggle is absent.
+  // CW-6 (was AC-W3-N2): the approvals queue has ONE home at /approvals; Timesheets no longer
+  // hosts an in-page queue. An Engineer (non-approver) sees neither the old queue toggle NOR the
+  // approvers' cross-link — only the editable grid (the "stayed editable" goal is already proven
+  // by the persisted cell + total above).
   await expect(page.getByRole('tab', { name: /approvals queue/i })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /approvals/i })).toHaveCount(0);
 
   // ── Step 5: Submit is now ENABLED (a Draft with persisted hours exists) ──────
   await expect(submitBtn).toBeEnabled({ timeout: 10_000 });

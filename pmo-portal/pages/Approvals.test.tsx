@@ -81,9 +81,12 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
   },
 ];
 
+// CW-6: /approvals now splits its two modules into deep-linkable scope tabs. This file
+// tests the TIMESHEET section's behavior (approve/return), so it deep-links to that scope
+// (`?scope=timesheets`) — the timesheet panel is the surface under test here.
 const renderPage = () =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/approvals?scope=timesheets']}>
       <ToastProvider>
         <ApprovalsPage />
       </ToastProvider>
