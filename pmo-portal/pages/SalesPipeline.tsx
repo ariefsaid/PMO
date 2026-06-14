@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Button,
   Funnel,
-  Toolbar,
+  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -302,71 +302,91 @@ const SalesPipeline: React.FC = () => {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Pipeline</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Track projects in the sales pipeline, manage leads, and forecast revenue.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* B-5 (AC-W2-IXD-008 / W1-E): Export is now a live xlsx download of the
-              current table view. The disabled "arrives with Reports" stub is replaced
-              now that the client-side export layer is shipped (KANNA W1-E). */}
-          <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
-          {/* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
-              pre-win projects live — not the Projects list. Reuses the same create modal +
-              mutation as Projects.tsx (no new create path). Gated on can('create','project')
-              = DELIVERY (Admin·Exec·PM); Finance views but cannot start projects per §C. */}
-          {canCreate && (
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
-              <Icon name="plus" />
-              New project
-            </Button>
+    <ListPage
+      title="Pipeline"
+      description="Track projects in the sales pipeline, manage leads, and forecast revenue."
+      /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
+         pre-win projects live — not the Projects list. Reuses the same create modal +
+         mutation as Projects.tsx (no new create path). Gated on can('create','project')
+         = DELIVERY (Admin·Exec·PM); Finance views but cannot start projects per §C. */
+      primaryAction={
+        canCreate && (
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Icon name="plus" />
+            New project
+          </Button>
+        )
+      }
+      banner={
+        <>
+          {/* B-3: create modal (same flow as Projects.tsx — no new create path) */}
+          {createOpen && (
+            <ProjectFormModal
+              onClose={() => setCreateOpen(false)}
+              onSubmit={async (input) => {
+                await create.mutateAsync(input);
+                toast('Project created', input.name, 'success');
+                setCreateOpen(false);
+              }}
+              onError={(err) => {
+                const { headline, detail } = classifyMutationError(err);
+                toast(headline, detail, 'warning');
+              }}
+            />
           )}
-        </div>
-        {/* B-3: create modal (same flow as Projects.tsx — no new create path) */}
-        {createOpen && (
-          <ProjectFormModal
-            onClose={() => setCreateOpen(false)}
-            onSubmit={async (input) => {
-              await create.mutateAsync(input);
-              toast('Project created', input.name, 'success');
-              setCreateOpen(false);
-            }}
-            onError={(err) => {
-              const { headline, detail } = classifyMutationError(err);
-              toast(headline, detail, 'warning');
-            }}
+          {/* Weighted funnel summary band — the Pipeline's stage-summary, above the toolbar. */}
+          {state === 'loading' ? (
+            <div className="mb-4">
+              <ListState variant="loading" rows={2} />
+            </div>
+          ) : state === undefined ? (
+            <section aria-label="Pipeline summary" className="mb-4">
+              {/* Narrow viewports scroll the band horizontally so the five stages stay
+                  readable rather than crushing below their min track width (§2 reflow). */}
+              <div className="overflow-x-auto">
+                <Funnel stages={funnelStages} className="min-w-[640px]" />
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
+                <span>Weighted pipeline forecast</span>
+                <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
+                  {formatCurrency(totalWeighted)}
+                </span>
+              </div>
+            </section>
+          ) : null}
+        </>
+      }
+      filters={
+        state !== 'loading' &&
+        /* Open / Lost scope — table-only (the kanban already shows the Lost column). */
+        view === 'table' && (
+          <ViewToggle<DealScope>
+            options={DEAL_SCOPES.map((s) => ({ value: s, label: s }))}
+            value={scope}
+            onChange={setScope}
+            ariaLabel="Deal scope"
           />
-        )}
-      </div>
-
-      {/* Weighted funnel summary band */}
-      {state === 'loading' ? (
-        <div className="mb-4">
-          <ListState variant="loading" rows={2} />
-        </div>
-      ) : state === undefined ? (
-        <section aria-label="Pipeline summary" className="mb-4">
-          {/* Narrow viewports scroll the band horizontally so the five stages stay
-              readable rather than crushing below their min track width (§2 reflow). */}
-          <div className="overflow-x-auto">
-            <Funnel stages={funnelStages} className="min-w-[640px]" />
-          </div>
-          <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
-            <span>Weighted pipeline forecast</span>
-            <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-              {formatCurrency(totalWeighted)}
-            </span>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Toolbar */}
-      {state !== 'loading' && (
-        <Toolbar standalone>
+        )
+      }
+      search={
+        state !== 'loading' && (
+          <SearchMini
+            placeholder="Search projects…"
+            aria-label="Search projects"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
+          />
+        )
+      }
+      /* B-5 (AC-W2-IXD-008 / W1-E): Export is a live xlsx download of the current table view. */
+      exportAction={
+        state !== 'loading' && (
+          <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
+        )
+      }
+      view={
+        state !== 'loading' && (
           <ViewToggle
             options={[
               { value: 'kanban', label: 'Board', icon: 'cards' },
@@ -376,25 +396,9 @@ const SalesPipeline: React.FC = () => {
             onChange={setView}
             ariaLabel="Pipeline view"
           />
-          {/* Open / Lost scope — table-only (the kanban already shows the Lost column). */}
-          {view === 'table' && (
-            <ViewToggle<DealScope>
-              options={DEAL_SCOPES.map((s) => ({ value: s, label: s }))}
-              value={scope}
-              onChange={setScope}
-              ariaLabel="Deal scope"
-            />
-          )}
-          <SearchMini
-            placeholder="Search projects…"
-            aria-label="Search projects"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            containerClassName="ml-auto"
-          />
-        </Toolbar>
-      )}
-
+        )
+      }
+    >
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -447,7 +451,7 @@ const SalesPipeline: React.FC = () => {
           }
         />
       )}
-    </div>
+    </ListPage>
   );
 };
 

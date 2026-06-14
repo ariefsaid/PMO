@@ -74,6 +74,16 @@ beforeEach(() => {
   realRole = 'Admin';
 });
 
+describe('Companies index — shared ListPage shell (CW-5)', () => {
+  it('renders on the shared ListPage shell: header + canonical toolbar', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    // the page title lives in the shell header
+    expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Companies' })).toBeInTheDocument();
+  });
+});
+
 describe('Companies index — rows + filters (AC-CO-001)', () => {
   it('AC-CO-001: renders seeded company rows with name + type', () => {
     renderPage();

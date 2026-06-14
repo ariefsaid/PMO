@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Toolbar,
+  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -362,22 +362,22 @@ const Projects: React.FC = () => {
   ];
 
   // ── States ──────────────────────────────────────────────────────────────
+  const primaryAction = newProjectAction(canCreate, () => setCreateOpen(true));
+
   if (isPending) {
     return (
-      <div>
-        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
+      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
         </div>
         {createModal}
-      </div>
+      </ListPage>
     );
   }
 
   if (isError || !data) {
     return (
-      <div>
-        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
+      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
         <ListState
           variant="error"
           title="Couldn't load projects"
@@ -385,14 +385,13 @@ const Projects: React.FC = () => {
           onRetry={() => refetch()}
         />
         {createModal}
-      </div>
+      </ListPage>
     );
   }
 
   if (all.length === 0) {
     return (
-      <div>
-        <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
+      <ListPage title="Projects" description={PAGE_DESCRIPTION} primaryAction={primaryAction}>
         <ListState
           variant="empty"
           icon="folder"
@@ -403,30 +402,75 @@ const Projects: React.FC = () => {
           }
         />
         {createModal}
-      </div>
+      </ListPage>
     );
   }
 
   return (
-    <div>
-      <Header canCreate={canCreate} onNew={() => setCreateOpen(true)} />
-
-      {/*
-        N19 (AC-IXD-PIPE-W5-C5): The customer and PM filter dropdowns are manager-browse
-        tools — an Engineer manages no projects and cares only about their assigned work.
-        For the Engineer scope they are hidden so the toolbar leads with the relevant
-        SegFilter (already defaulted to "My Projects" per B-11). Non-Engineer roles keep
-        the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
-      */}
-      <Toolbar standalone>
-        {/*
+    <ListPage
+      title="Projects"
+      description={PAGE_DESCRIPTION}
+      primaryAction={primaryAction}
+      filters={
+        /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
+           reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
+           affordance (the project tab strip pattern). */
+        <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+          <ViewToggle<StatusFilter>
+            options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
+            value={filter}
+            onChange={setFilter}
+            ariaLabel="Status filter"
+          />
+        </div>
+      }
+      search={
+        <SearchMini
+          placeholder="Search projects…"
+          aria-label="Search projects"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
+        />
+      }
+      secondaryFilter={
+        /*
+          N19 (AC-IXD-PIPE-W5-C5): The customer and PM filter dropdowns are manager-browse
+          tools — an Engineer manages no projects and cares only about their assigned work.
+          For the Engineer scope they are hidden so the toolbar leads with the relevant
+          SegFilter (already defaulted to "My Projects" per B-11). Non-Engineer roles keep
+          the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
+        */
+        !isEngineer ? (
+          <>
+            <SelectField
+              hideLabel
+              label="Filter by customer"
+              value={filterClient}
+              onChange={setFilterClient}
+              options={customerFilterOptions}
+              className="w-auto"
+            />
+            <SelectField
+              hideLabel
+              label="Filter by project manager"
+              value={filterPM}
+              onChange={setFilterPM}
+              options={pmFilterOptions}
+              className="w-auto"
+            />
+          </>
+        ) : undefined
+      }
+      view={
+        /*
           A-MIN-1 (updated, AC-MOB-VT): Wave-0 hid the entire toggle below md because Table+Cards
           were the only options and DataTable auto-renders cards on mobile (toggle was a no-op).
           Now that Calendar (day-agenda) and Kanban (horizontal-scroll) have real mobile renders,
           those views need to be reachable on phones. Fix: hide only the Table option below md via
           `optionClassName="hidden md:inline-flex"`. Cards / Calendar / Kanban are always visible.
           Desktop (≥md) shows all four unchanged.
-        */}
+        */
         <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
           options={[
             { value: 'table', label: 'Table', icon: 'table', optionClassName: 'hidden md:inline-flex' },
@@ -438,49 +482,8 @@ const Projects: React.FC = () => {
           onChange={setView}
           ariaLabel="Projects view"
         />
-        {/* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
-            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
-            affordance (the project tab strip pattern). */}
-        <div
-          data-testid="status-filter-scroll"
-          className="overflow-x-auto scroll-fade-x"
-        >
-          <ViewToggle<StatusFilter>
-            options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
-            value={filter}
-            onChange={setFilter}
-            ariaLabel="Status filter"
-          />
-        </div>
-        {!isEngineer && (
-          <SelectField
-            hideLabel
-            label="Filter by customer"
-            value={filterClient}
-            onChange={setFilterClient}
-            options={customerFilterOptions}
-            className="w-auto"
-          />
-        )}
-        {!isEngineer && (
-          <SelectField
-            hideLabel
-            label="Filter by project manager"
-            value={filterPM}
-            onChange={setFilterPM}
-            options={pmFilterOptions}
-            className="w-auto"
-          />
-        )}
-        <SearchMini
-          placeholder="Search projects…"
-          aria-label="Search projects"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          containerClassName="ml-auto"
-        />
-      </Toolbar>
-
+      }
+    >
       {/* Body */}
       {view === 'kanban' ? (
         <ProjectKanbanBoard projects={filtered} onOpen={onOpen} />
@@ -548,33 +551,21 @@ const Projects: React.FC = () => {
         </div>
       )}
       {createModal}
-    </div>
+    </ListPage>
   );
 };
 
-interface HeaderProps {
-  /** Render the single primary "New project" CTA (gated by can('create','project')). */
-  canCreate?: boolean;
-  onNew?: () => void;
-}
+/** Page subtitle — shared across the loading / error / empty / list `ListPage` shells. */
+const PAGE_DESCRIPTION =
+  'Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.';
 
-/** Page head — title + sub + the gated "New project" primary CTA (the single per-screen primary). */
-const Header: React.FC<HeaderProps> = ({ canCreate, onNew }) => (
-  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">Projects</h1>
-      <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        Track your active and completed projects. Open one to drill into its budget, procurement,
-        and detail. Pre-win projects live in the Pipeline.
-      </p>
-    </div>
-    {canCreate && onNew && (
-      <Button variant="primary" onClick={onNew}>
-        <Icon name="plus" />
-        New project
-      </Button>
-    )}
-  </div>
-);
+/** The single per-screen primary "New project" CTA (gated by can('create','project')). */
+const newProjectAction = (canCreate: boolean | undefined, onNew: () => void) =>
+  canCreate ? (
+    <Button variant="primary" onClick={onNew}>
+      <Icon name="plus" />
+      New project
+    </Button>
+  ) : undefined;
 
 export default Projects;

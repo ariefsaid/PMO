@@ -80,6 +80,15 @@ beforeEach(() => {
   realRole = 'Admin';
 });
 
+describe('Contacts index — shared ListPage shell (CW-5)', () => {
+  it('renders on the shared ListPage shell: header + canonical toolbar', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Contacts' })).toBeInTheDocument();
+  });
+});
+
 describe('Contacts index — rows + states (AC-CRM-030)', () => {
   it('AC-CRM-030: renders seeded contact rows with name + resolved company', () => {
     renderPage();

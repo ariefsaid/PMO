@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Toolbar,
+  ListPage,
   SearchMini,
   ListState,
   DataTable,
@@ -173,25 +173,19 @@ const Contacts: React.FC = () => {
   };
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Contacts</h1>
-          <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            People at the companies you work with. Master data shared by the whole organisation —
-            log calls, emails and meetings against each contact.
-          </p>
-        </div>
-        {canCreate && (
+    <ListPage
+      title="Contacts"
+      description="People at the companies you work with. Master data shared by the whole organisation — log calls, emails and meetings against each contact."
+      primaryAction={
+        canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
             <Icon name="plus" />
             New contact
           </Button>
-        )}
-      </div>
-
-      {state !== 'loading' && (
-        <Toolbar standalone>
+        )
+      }
+      filters={
+        state !== 'loading' && (
           <SelectField
             label="Filter by company"
             hideLabel
@@ -199,6 +193,10 @@ const Contacts: React.FC = () => {
             onChange={setCompanyFilter}
             options={[{ value: 'All', label: 'All companies' }, ...companyOptions]}
           />
+        )
+      }
+      search={
+        state !== 'loading' && (
           <SearchMini
             placeholder="Search contacts…"
             aria-label="Search contacts"
@@ -206,9 +204,9 @@ const Contacts: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
-        </Toolbar>
-      )}
-
+        )
+      }
+    >
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -295,7 +293,7 @@ const Contacts: React.FC = () => {
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+    </ListPage>
   );
 };
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Toolbar,
+  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -186,31 +186,21 @@ const Incidents: React.FC = () => {
   const transitionCopy = transitionTarget ? TRANSITION_COPY[transitionTarget.to] : null;
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Incidents</h1>
-          <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            The organisation incident register. Anyone can file an incident; managers
-            investigate and close them.
-          </p>
-        </div>
-        {canCreate && (
+    <ListPage
+      title="Incidents"
+      description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
+      primaryAction={
+        canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
             <Icon name="plus" />
             File incident
           </Button>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      {state !== 'loading' && (
-        <Toolbar standalone>
-          {/* AC-2: scrollable so all status segments are reachable at 390px. */}
-          <div
-            data-testid="status-filter-scroll"
-            className="overflow-x-auto scroll-fade-x"
-          >
+        )
+      }
+      filters={
+        state !== 'loading' && (
+          /* AC-2: scrollable so all status segments are reachable at 390px. */
+          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
             <ViewToggle<StatusFilter>
               options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
               value={filter}
@@ -218,6 +208,10 @@ const Incidents: React.FC = () => {
               ariaLabel="Filter by status"
             />
           </div>
+        )
+      }
+      search={
+        state !== 'loading' && (
           <SearchMini
             placeholder="Search incidents…"
             aria-label="Search incidents"
@@ -225,10 +219,14 @@ const Incidents: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
+        )
+      }
+      exportAction={
+        state !== 'loading' && (
           <ExportButton rows={filtered} columns={columns} entity="Incidents" />
-        </Toolbar>
-      )}
-
+        )
+      }
+    >
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -325,7 +323,7 @@ const Incidents: React.FC = () => {
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+    </ListPage>
   );
 };
 

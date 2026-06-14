@@ -83,6 +83,16 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
+  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    // the funnel summary band rides in the shell banner, above the toolbar
+    expect(screen.getByLabelText('Pipeline summary')).toBeInTheDocument();
+    // the view-switcher is right-aligned (Board / Table)
+    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+  });
+
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Pipeline' })).toBeInTheDocument();

@@ -89,6 +89,14 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 
+  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    // a single H1 lives in the shell header (the title text varies by own-scope)
+    expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
+  });
+
   it('defaults to the Table view with the lifecycle column header', () => {
     renderPage();
     expect(screen.getByRole('columnheader', { name: /Lifecycle/i })).toBeInTheDocument();
