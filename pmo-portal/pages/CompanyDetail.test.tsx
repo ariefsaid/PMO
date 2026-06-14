@@ -35,6 +35,15 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 }));
 vi.mock('@/src/hooks/useContacts', () => ({
   useContactsByCompany: () => contactsState,
+  // T17/T14: account-level hooks — default to empty/idle so existing tests are unaffected.
+  useCompanyActivities: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useContactMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    logActivity: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }));
 
 let realRole: Role = 'Admin';
@@ -129,8 +138,10 @@ describe('CompanyDetail', () => {
       { id: 'ct2', full_name: 'John Roe', title: null },
     ];
     renderPage();
-    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-    expect(screen.getByText('John Roe')).toBeInTheDocument();
+    // T18: Jane Doe may appear twice — once as Primary Contact link and once in the
+    // contacts list. Use getAllByText and assert at least one occurrence.
+    expect(screen.getAllByText('Jane Doe').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('John Roe').length).toBeGreaterThanOrEqual(1);
   });
 
   it('CW-4b: a contact in the Contacts section navigates to its routable /contacts/:id page (the master-data graph is navigable)', async () => {

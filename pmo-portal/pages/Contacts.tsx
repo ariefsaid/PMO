@@ -302,6 +302,9 @@ const Contacts: React.FC = () => {
 interface ContactFormModalProps {
   contact: ContactRow | null;
   companyOptions: { value: string; label: string }[];
+  /** When provided (T14 — "Add contact" from CompanyDetail), pre-fills and locks
+   *  the company_id field so the user cannot change it. */
+  defaultCompanyId?: string;
   onClose: () => void;
   onCreate: (input: ContactInput) => Promise<void>;
   onUpdate: (id: string, input: ContactInput) => Promise<void>;
@@ -311,16 +314,20 @@ interface ContactFormModalProps {
 const ContactFormModal: React.FC<ContactFormModalProps> = ({
   contact,
   companyOptions,
+  defaultCompanyId,
   onClose,
   onCreate,
   onUpdate,
   onError,
 }) => {
   const isEdit = !!contact;
+  // When defaultCompanyId is set (in-context create from CompanyDetail) the
+  // company_id initialises to it and the field is disabled.
+  const lockedCompanyId = defaultCompanyId ?? null;
   const form = useEntityForm<FormValues>({
     initialValues: {
       full_name: contact?.full_name ?? '',
-      company_id: contact?.company_id ?? '',
+      company_id: contact?.company_id ?? lockedCompanyId ?? '',
       title: contact?.title ?? '',
       email: contact?.email ?? '',
       phone: contact?.phone ?? '',
@@ -399,6 +406,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
             onBlur={companyField.onBlur}
             error={companyField.error}
             options={[{ value: '', label: 'Select a company…' }, ...companyOptions]}
+            disabled={!!lockedCompanyId}
           />
           <TextField
             id={titleField.id}

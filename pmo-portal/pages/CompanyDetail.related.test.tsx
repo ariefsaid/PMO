@@ -60,6 +60,15 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 }));
 vi.mock('@/src/hooks/useContacts', () => ({
   useContactsByCompany: () => contactsState,
+  // T17/T14: account-level hooks — default to empty/idle so existing tests are unaffected.
+  useCompanyActivities: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useContactMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    logActivity: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }));
 
 let realRole: Role = 'Admin';
