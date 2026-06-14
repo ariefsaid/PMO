@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { Icon } from './icons';
 import { computeTotals, type EditRow } from '@/src/lib/timesheet-edit';
 import { useIsDesktop } from './useIsDesktop';
+import { ProjectNameLink } from './ProjectNameLink';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -20,6 +21,8 @@ export interface TimesheetGridRow {
   code: string | null;
   /** Hours per day, parallel to `days` (length 7). */
   hours: number[];
+  /** Owning project id — present only in read-only contexts; enables click-to-open (AC-JR-W1-08). */
+  projectId?: string;
 }
 
 export interface TimesheetGridProps {
@@ -220,11 +223,14 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                       </Button>
                     </div>
                   ) : (
-                    // Read-only branch — byte-for-byte unchanged from the shipped surface.
+                    // Read-only branch — project name links to /projects/:id when projectId present
+                    // (AC-JR-W1-08); editable branch above stays plain text while in edit mode.
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium" title={r.project}>
-                        {r.project}
-                      </div>
+                      <ProjectNameLink
+                        projectId={r.projectId}
+                        name={r.project}
+                        className="truncate text-sm font-medium"
+                      />
                       {r.code && (
                         <div className="truncate font-mono text-[11px] text-muted-foreground">
                           {r.code}
@@ -393,9 +399,19 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
             {/* Card header: project name + code + delete */}
             <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-foreground" title={r.project}>
-                  {r.project}
-                </div>
+                {editable ? (
+                  // Editable mobile: plain text (no link while editing)
+                  <div className="truncate text-sm font-medium text-foreground" title={r.project}>
+                    {r.project}
+                  </div>
+                ) : (
+                  // Read-only mobile: link to project detail when projectId present (AC-JR-W1-08)
+                  <ProjectNameLink
+                    projectId={r.projectId}
+                    name={r.project}
+                    className="truncate text-sm font-medium"
+                  />
+                )}
                 {r.code && (
                   <div className="truncate font-mono text-[11px] text-muted-foreground">
                     {r.code}
