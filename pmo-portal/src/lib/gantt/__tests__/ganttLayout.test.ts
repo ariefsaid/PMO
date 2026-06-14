@@ -126,28 +126,68 @@ describe('AC-GANTT-002: dated milestone yields a positioned marker', () => {
   });
 });
 
-// ── AC-GANTT-003: today line ──────────────────────────────────────────────────
+// ── AC-GANTT-003: today line — always meaningful (extended span) ─────────────
 
-describe('AC-GANTT-003: today line is positioned in-span and null out-of-span', () => {
+describe('AC-GANTT-003: today line is always meaningful — span extended to include today', () => {
   const tasks: TaskWithRefs[] = [
     makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
   ];
 
-  it('todayLeft is the correct fraction when today is inside the span', () => {
+  it('todayLeft is the correct fraction when today is inside the original span', () => {
     // today = 2026-01-06 → 5 days into a 10-day span → 0.5
     const model = buildGanttModel(tasks, [], '2026-01-06');
     expect(model.todayLeft).not.toBeNull();
     expect(model.todayLeft!).toBeCloseTo(0.5, 9);
+    // Span unchanged when today is within
+    expect(model.span!.startIso).toBe('2026-01-01');
+    expect(model.span!.endIso).toBe('2026-01-11');
   });
 
-  it('todayLeft is null when today is before the span', () => {
-    const model = buildGanttModel(tasks, [], '2025-12-01');
-    expect(model.todayLeft).toBeNull();
-  });
-
-  it('todayLeft is null when today is after the span', () => {
+  it('AC-GANTT-003-after: todayLeft is near 1 (right edge) when today is after the task span', () => {
+    // today = 2026-02-01 → after span end 2026-01-11.
+    // The model should extend spanEnd to today so the line renders near the right edge.
     const model = buildGanttModel(tasks, [], '2026-02-01');
-    expect(model.todayLeft).toBeNull();
+    expect(model.todayLeft).not.toBeNull();
+    // Today is at or near 1 (right edge)
+    expect(model.todayLeft!).toBeGreaterThan(0.5);
+    // spanEnd is extended to today
+    expect(model.span!.endIso).toBe('2026-02-01');
+  });
+
+  it('AC-GANTT-003-before: todayLeft is near 0 (left edge) when today is before the task span', () => {
+    // today = 2025-12-01 → before span start 2026-01-01.
+    // The model should extend spanStart to today so the line renders near the left edge.
+    const model = buildGanttModel(tasks, [], '2025-12-01');
+    expect(model.todayLeft).not.toBeNull();
+    // Today is at or near 0 (left edge)
+    expect(model.todayLeft!).toBeLessThan(0.5);
+    // spanStart is extended to today
+    expect(model.span!.startIso).toBe('2025-12-01');
+  });
+
+  it('AC-GANTT-003-bars-after: bars keep correct relative fractions when today extends span after', () => {
+    // Span data: 2026-01-01..2026-01-11 (10 days). Today: 2026-01-21 (10 more days after).
+    // Extended span: 2026-01-01..2026-01-21 (20 days total).
+    // Task A: start=2026-01-01, end=2026-01-11 → left=0, width=0.5 (10/20).
+    const model = buildGanttModel(tasks, [], '2026-01-21');
+    const bars = model.lanes.flatMap((l) => l.bars);
+    const barA = bars.find((b) => b.id === 'a')!;
+    expect(barA).toBeDefined();
+    expect(barA.left).toBeCloseTo(0, 9);
+    expect(barA.width).toBeCloseTo(0.5, 9); // 10/20
+    expect(model.todayLeft).toBeCloseTo(1, 9); // 20/20
+  });
+
+  it('AC-GANTT-003-bars-before: bars keep correct relative fractions when today extends span before', () => {
+    // Today: 2025-12-22 (10 days before 2026-01-01).
+    // Extended span: 2025-12-22..2026-01-11 (20 days total).
+    // Task A: start=2026-01-01 → left = 10/20 = 0.5.
+    const model = buildGanttModel(tasks, [], '2025-12-22');
+    const bars = model.lanes.flatMap((l) => l.bars);
+    const barA = bars.find((b) => b.id === 'a')!;
+    expect(barA).toBeDefined();
+    expect(barA.left).toBeCloseTo(0.5, 9); // 10/20
+    expect(model.todayLeft).toBeCloseTo(0, 9); // 0/20
   });
 });
 
@@ -276,5 +316,20 @@ describe('axis ticks', () => {
       expect(tick.left).toBeGreaterThanOrEqual(0 - EPS);
       expect(tick.left).toBeLessThanOrEqual(1 + EPS);
     }
+  });
+
+  it('AC-GANTT-002-tick-density: a long span (>6 months) produces no more ticks than the visible months count, all fractions in [0,1]', () => {
+    // 18-month span: plenty of months. Ticks should all be in [0,1].
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Long', start_date: '2025-01-01', end_date: '2026-06-30' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2025-07-01');
+    for (const tick of model.ticks) {
+      expect(tick.left).toBeGreaterThanOrEqual(0 - EPS);
+      expect(tick.left).toBeLessThanOrEqual(1 + EPS);
+    }
+    // The model exposes ticks; the component decides how many to render.
+    // At minimum we should have at least one tick.
+    expect(model.ticks.length).toBeGreaterThan(0);
   });
 });

@@ -17,9 +17,12 @@ vi.mock('@/src/hooks/useMilestones', () => ({
 
 // Captured LineChart margin prop — set by the LineChart mock below.
 let capturedLineChartMargin: { top?: number; right?: number; bottom?: number; left?: number } | undefined;
+// Captured YAxis width prop — set by the YAxis mock below.
+let capturedYAxisWidth: number | undefined;
 
 // recharts' ResponsiveContainer needs a non-zero parent size under jsdom; force it.
-// Also intercept LineChart to capture its margin prop for AC-SC-009.
+// Also intercept LineChart to capture its margin prop for AC-SC-009,
+// and intercept YAxis to capture its width prop for AC-SC-010.
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
@@ -30,6 +33,13 @@ vi.mock('recharts', async () => {
     LineChart: ({ children, margin, ...rest }: React.ComponentProps<typeof actual.LineChart>) => {
       capturedLineChartMargin = margin as typeof capturedLineChartMargin;
       const ActualLineChart = actual.LineChart;
+      // Scan children for YAxis to capture its width prop (recharts YAxis is declarative,
+      // not rendered as a standalone component; we extract it from the LineChart's children).
+      React.Children.forEach(children as React.ReactNode, (child) => {
+        if (React.isValidElement(child) && (child.type as { displayName?: string })?.displayName === 'YAxis') {
+          capturedYAxisWidth = (child.props as { width?: number }).width;
+        }
+      });
       return <ActualLineChart margin={margin} {...rest}>{children}</ActualLineChart>;
     },
   };
@@ -62,6 +72,7 @@ describe('ProjectSCurve', () => {
     milestoneState.isError = false;
     milestoneState.refetch = vi.fn();
     capturedLineChartMargin = undefined;
+    capturedYAxisWidth = undefined;
   });
 
   it('AC-SC-005: ready with dated milestones renders the chart figure with a Planned/Actual two-item text legend', () => {
@@ -130,5 +141,16 @@ describe('ProjectSCurve', () => {
     // capturedLineChartMargin is set by the LineChart mock above on every render.
     expect(capturedLineChartMargin).toBeDefined();
     expect(capturedLineChartMargin!.left ?? 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it('AC-SC-010: YAxis width is ≥ 44 so the "100%" label (4 chars) renders without clipping (round-2 drift fix)', () => {
+    // With width=32, the "100%" 4-char label clips to "00%" — 44px gives the "1" room.
+    // This regression guard ensures the YAxis is always wide enough for "100%".
+    // We inspect the YAxis width prop via the LineChart children-scan mock above.
+    capturedYAxisWidth = undefined;
+    milestoneState.data = dated;
+    render$();
+    expect(capturedYAxisWidth).toBeDefined();
+    expect(capturedYAxisWidth!).toBeGreaterThanOrEqual(44);
   });
 });

@@ -9,11 +9,18 @@
  *   - Bar status is always a text label (never color-only).
  *   - Today line is aria-hidden (decorative) with a visible "Today" caption.
  *   - Respects prefers-reduced-motion (no bar-grow animation when set).
+ *   - Narrow bars carry a native `title` tooltip with the full task name (Fix 2a).
  *
  * Mobile (NFR-GANTT-RESP-001):
  *   - Outer wrapper: max-w-full overflow-hidden (no page overflow).
  *   - Inner scroll region: overflow-x-auto with scroll-fade.
  *   - Min-width 640px on the canvas so bars never crush.
+ *
+ * Round-2 drift fixes applied:
+ *   Fix 1 — today-line: buildGanttModel now always extends span to include today.
+ *   Fix 2a — narrow bars: in-bar label hidden below MIN_LABEL_WIDTH_FRACTION; title attr
+ *            always present so the full name is reachable on hover/focus.
+ *   Fix 2b — tick density: buildMonthTicks in ganttLayout.ts thins labels on long spans.
  */
 import React, { useMemo } from 'react';
 import { ListState } from '@/src/components/ui';
@@ -49,6 +56,14 @@ const ROW_H = 40; // px — lane row height (bar + vertical padding)
 const LANE_HEADER_H = 36; // px — milestone lane header height
 const AXIS_H = 32; // px — time axis height
 
+/**
+ * Minimum bar width fraction (of total span) below which the in-bar text label
+ * is hidden to avoid overflow/clip. The full name is still reachable via the
+ * native `title` attribute on the row wrapper (Fix 2a).
+ * 0.07 = ~45px on a 640px canvas — roughly the width of one word.
+ */
+const MIN_LABEL_WIDTH_FRACTION = 0.07;
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones }) => {
@@ -75,7 +90,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones }) => {
 
   const { lanes, todayLeft, ticks, undated } = model;
   const tasksCount = lanes.reduce((n, l) => n + l.bars.length, 0);
-  const summary = `Task Gantt timeline: ${tasksCount} task${tasksCount !== 1 ? 's' : ''} across ${milestones.length} milestone${milestones.length !== 1 ? 's' : ''}${todayLeft != null ? `, today at ${Math.round(todayLeft * 100)}% of the span` : ''}.`;
+  // todayLeft is always non-null when isEmpty is false (span is extended to include today)
+  const summary = `Task Gantt timeline: ${tasksCount} task${tasksCount !== 1 ? 's' : ''} across ${milestones.length} milestone${milestones.length !== 1 ? 's' : ''}, today at ${Math.round((todayLeft ?? 0) * 100)}% of the span.`;
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -140,7 +156,7 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, axisHeight }) =
     style={{ height: axisHeight }}
     aria-hidden="true"
   >
-    {/* Month ticks */}
+    {/* Month ticks (thinned for long spans by buildMonthTicks — Fix 2b) */}
     {ticks.map((tick) => (
       <span
         key={tick.iso}
@@ -151,7 +167,7 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, axisHeight }) =
       </span>
     ))}
 
-    {/* Today indicator on axis */}
+    {/* Today indicator on axis — always rendered when model.isEmpty is false (Fix 1) */}
     {todayLeft != null && (
       <span
         className="absolute bottom-0 text-[10px] font-semibold text-primary"
@@ -215,12 +231,16 @@ interface GanttBarRowProps {
 
 const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) => {
   const isPoint = bar.kind === 'point';
+  // Full task detail for the native tooltip — always present on the row wrapper (Fix 2a).
+  const tooltip = `${bar.name} — ${bar.status}${bar.startIso ? ` | Start: ${bar.startIso}` : ''}${bar.endIso ? ` | End: ${bar.endIso}` : ''}`;
+  // Hide in-bar label on narrow bars to avoid clip/overflow (Fix 2a).
+  const showInBarLabel = bar.width >= MIN_LABEL_WIDTH_FRACTION;
 
   return (
     <div
       className="relative"
       style={{ height: ROW_H }}
-      title={`${bar.name} — ${bar.status}${bar.startIso ? ` | Start: ${bar.startIso}` : ''}${bar.endIso ? ` | End: ${bar.endIso}` : ''}`}
+      title={tooltip}
     >
       {isPoint ? (
         /* Diamond marker for one-sided date (D5) */
@@ -248,17 +268,24 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion }) 
             transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
           }}
         >
-          <span className="truncate text-[11.5px] font-semibold leading-none text-foreground">
-            {bar.name}
-          </span>
-          <span className="ml-1.5 shrink-0">
-            <StatusPill variant={STATUS_PILL[bar.status]}>
-              {bar.status}
-            </StatusPill>
-          </span>
+          {/* sr-only name+status always present for a11y; visible label shown only on wide bars (Fix 2a). */}
+          <span className="sr-only">{bar.name}</span>
+          <span className="sr-only">{bar.status}</span>
+          {showInBarLabel && (
+            <>
+              <span aria-hidden="true" className="truncate text-[11.5px] font-semibold leading-none text-foreground">
+                {bar.name}
+              </span>
+              <span aria-hidden="true" className="ml-1.5 shrink-0">
+                <StatusPill variant={STATUS_PILL[bar.status]}>
+                  {bar.status}
+                </StatusPill>
+              </span>
+            </>
+          )}
           {bar.dependsOnCount > 0 && (
             <span
-              className="ml-1.5 shrink-0 rounded border border-border bg-background px-1 text-[10.5px] text-muted-foreground"
+              className={`${showInBarLabel ? 'ml-1.5' : ''} shrink-0 rounded border border-border bg-background px-1 text-[10.5px] text-muted-foreground`}
               title={`Depends on ${bar.dependsOnCount} task${bar.dependsOnCount !== 1 ? 's' : ''}`}
             >
               depends on {bar.dependsOnCount}
