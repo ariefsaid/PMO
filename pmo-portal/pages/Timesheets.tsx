@@ -14,7 +14,7 @@ import {
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
@@ -159,6 +159,15 @@ const TimesheetsPage: React.FC = () => {
 
   const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
 
+  // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
+  // Declared before the seedRows/seedKey block so the reseed can re-include the prefilled
+  // project when the seedKey transitions (e.g. sheets resolves AFTER projects — the common case
+  // for an active engineer with a saved draft). `prefillApplied` tracks the last applied id
+  // so we do not re-add the project on subsequent non-seedKey-changing renders.
+  const [searchParams] = useSearchParams();
+  const prefillProjectId = searchParams.get('project');
+  const prefillApplied = React.useRef<string | null>(null);
+
   // Seed the in-memory edit state from the last-fetched server grid. Re-seed ONLY when the
   // week, sheet identity, or sheet editability changes — NOT when entry content changes.
   // Keying on entry content would let every post-mutation invalidation refetch (the async
@@ -191,7 +200,37 @@ const TimesheetsPage: React.FC = () => {
   const lastSeedKey = useRef<string | null>(null);
   if (lastSeedKey.current !== seedKey) {
     lastSeedKey.current = seedKey;
-    if (editRows !== seedRows) setEditRows(seedRows);
+    // AC-IFW-TASKS-02 reseed-survival: when the seedKey transitions (e.g. the saved draft
+    // arrives from the server after the prefill effect already ran), the prefilled project
+    // would be dropped from editRows because seedRows only reflects the server state.
+    // Re-include the prefilled project in the reseed target if:
+    //   (a) a prefill was already applied (prefillApplied.current === prefillProjectId),
+    //   (b) the project is a valid Ongoing Project in allProjects, AND
+    //   (c) the project is not already present in seedRows (not yet saved to the server).
+    let nextRows = seedRows;
+    if (
+      prefillProjectId &&
+      prefillApplied.current === prefillProjectId &&
+      allProjects &&
+      !seedRows.some((r) => r.project_id === prefillProjectId)
+    ) {
+      const proj = allProjects.find(
+        (p) => p.id === prefillProjectId && p.status === 'Ongoing Project',
+      );
+      if (proj) {
+        nextRows = [
+          ...seedRows,
+          {
+            project_id: proj.id,
+            project: proj.name,
+            code: proj.code,
+            hours: ['', '', '', '', '', '', ''],
+            note: '',
+          },
+        ];
+      }
+    }
+    if (editRows !== nextRows) setEditRows(nextRows);
   }
 
   // Server entries shaped for diffEntries (id/project/date/hours/notes per cell). `notes` lets the
@@ -281,6 +320,26 @@ const TimesheetsPage: React.FC = () => {
       },
     ]);
   };
+
+  // AC-IFW-TASKS-02 prefill effect: run once per param value after allProjects loads.
+  // Guard: only Ongoing Project rows are valid timesheet projects (matches picker filter);
+  // unknown / already-present / non-active ids are silently ignored by addProject.
+  // The reseed-survival fix above handles the case where this effect fires BEFORE the
+  // server draft arrives — the reseed block re-appends the prefilled row when seedKey changes.
+  React.useEffect(() => {
+    if (
+      !prefillProjectId ||
+      !allProjects ||
+      allProjects.length === 0 ||
+      prefillApplied.current === prefillProjectId
+    ) {
+      return;
+    }
+    prefillApplied.current = prefillProjectId;
+    addProject(prefillProjectId);
+  // addProject is stable (no deps that change); allProjects loading is the trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillProjectId, allProjects]);
 
   // Delete-row confirm (mandatory destructive ConfirmDialog — FR-TSE-008/009).
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);

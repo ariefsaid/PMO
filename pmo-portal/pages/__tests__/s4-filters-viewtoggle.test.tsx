@@ -167,24 +167,35 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
 describe('A-MIN-1: Table/Cards view toggle is hidden below md (desktop-only)', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table option button carries hidden+md:inline-flex; tablist is no longer wrapped in a hidden container', () => {
+  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table option is hidden via a wrapper element, not via a class on the button itself', () => {
     renderProjects();
     const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
     // After the AC-MOB-VT round-2 fix, the *entire* toggle is always visible (Calendar +
-    // Kanban need to be reachable on mobile). Only the Table option button is hidden below md.
-    // The tablist wrapper no longer carries 'hidden' — that was the old A-MIN-1 approach when
-    // only Table+Cards existed. The new approach is per-option visibility.
+    // Kanban need to be reachable on mobile). Only the Table option is hidden below md.
     // The tablist itself is NOT wrapped in a hidden container.
-    const wrapper = viewToggle.parentElement;
-    expect(wrapper).not.toBeNull();
-    expect(wrapper!.className).not.toContain('hidden');
-    // The Table tab button carries 'hidden' + 'md:inline-flex' (per-option hide below md).
+    const toggleParent = viewToggle.parentElement;
+    expect(toggleParent).not.toBeNull();
+    expect(toggleParent!.className).not.toContain('hidden');
+
+    // The Table tab button must NOT carry 'hidden' directly on itself —
+    // that conflicts with the base `inline-flex` class in ViewToggle (clsx-only cn means
+    // both classes land and `inline-flex` wins at runtime, so the option stays visible).
     const tableTab = Array.from(viewToggle.querySelectorAll('[role="tab"]')).find(
       (el) => el.textContent?.trim() === 'Table',
     ) as HTMLElement | undefined;
     expect(tableTab).toBeDefined();
-    expect(tableTab!.className).toContain('hidden');
-    expect(tableTab!.className).toContain('md:inline-flex');
+    expect(tableTab!.className).not.toContain('hidden');
+
+    // Instead, the Table button must sit inside a wrapper element (between the button
+    // and the tablist) that carries 'hidden' + a 'md:' restore class.
+    // A wrapper with no competing display utility is the only safe hide given clsx-only cn.
+    const wrapperEl = tableTab!.parentElement;
+    expect(wrapperEl).not.toBeNull();
+    expect(wrapperEl).not.toBe(viewToggle); // wrapper is NOT the tablist itself
+    const wrapperCls = wrapperEl!.className;
+    expect(wrapperCls).toContain('hidden');
+    const hasMdRestore = wrapperCls.includes('md:inline-flex') || wrapperCls.includes('md:flex') || wrapperCls.includes('md:block');
+    expect(hasMdRestore).toBe(true);
   });
 
   it('Projects: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {

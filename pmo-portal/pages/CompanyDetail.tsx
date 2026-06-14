@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
   Card,
@@ -20,7 +20,12 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
-import { useCompany, useCompanyMutations } from '@/src/hooks/useCompanies';
+import {
+  useCompany,
+  useCompanyMutations,
+  useProjectsByClient,
+  useProcurementsByVendor,
+} from '@/src/hooks/useCompanies';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
@@ -184,6 +189,13 @@ const CompanyDetail: React.FC = () => {
         </CardPad>
       </Card>
 
+      {/* AC-IFW-COMPANY-01: related projects (always) and procurement (Vendor-only). */}
+      <RelatedProjects companyId={company.id} />
+
+      {company.type === 'Vendor' && (
+        <RelatedProcurement companyId={company.id} />
+      )}
+
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer. */}
       <Card>
         <CardHead>Contacts</CardHead>
@@ -230,6 +242,126 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dd className="text-[13.5px] text-foreground">{value}</dd>
   </div>
 );
+
+// ── RelatedList — shared presentational component for related-object lists ───
+//
+// AC-IFW-COMPANY-01: eliminates the ~45-line duplication between RelatedProjects
+// and RelatedProcurement. Both sections share the same load/empty/error/list shape;
+// the only differences are the card heading, the empty label, the link href, and
+// which text fields to display (title vs name, optional subtitle).
+
+interface RelatedItem {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+}
+
+interface RelatedListProps {
+  heading: string;
+  items: RelatedItem[];
+  isPending: boolean;
+  isError: boolean;
+  hrefFor: (id: string) => string;
+  emptyLabel: string;
+  listAriaLabel: string;
+  onRetry?: () => void;
+}
+
+/**
+ * Presentational list for "related objects" cards (AC-IFW-COMPANY-01). Handles
+ * loading / empty / error / populated states via the shared `ListState` component.
+ * Each item renders as a Link row. The card wrapper and gating (Vendor-only etc.)
+ * remain with the calling component.
+ */
+const RelatedList: React.FC<RelatedListProps> = ({
+  heading,
+  items,
+  isPending,
+  isError,
+  hrefFor,
+  emptyLabel,
+  listAriaLabel,
+  onRetry,
+}) => (
+  <Card className="mb-4">
+    <CardHead>{heading}</CardHead>
+    <CardPad>
+      {isPending && <ListState variant="loading" rows={2} />}
+      {isError && !isPending && (
+        <ListState
+          variant="error"
+          title={`Couldn't load ${heading.toLowerCase()}`}
+          sub="Something went wrong. Try again."
+          onRetry={onRetry}
+        />
+      )}
+      {!isPending && !isError && items.length === 0 && (
+        <p className="text-[13px] text-muted-foreground">{emptyLabel}</p>
+      )}
+      {!isPending && !isError && items.length > 0 && (
+        <ul className="flex flex-col gap-1" aria-label={listAriaLabel}>
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                to={hrefFor(item.id)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                <span className="text-[14px] font-medium text-foreground">{item.title}</span>
+                {item.subtitle && (
+                  <span className="text-[12px] text-muted-foreground">{item.subtitle}</span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CardPad>
+  </Card>
+);
+
+/**
+ * AC-IFW-COMPANY-01: Related projects list (client view). Shows all projects where the
+ * company is the client — clickable rows that navigate to /projects/:id. Always rendered.
+ */
+const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending, isError, refetch } = useProjectsByClient(companyId);
+  const items = (data ?? []).map((p) => ({ id: p.id, title: p.name, subtitle: p.status ?? null }));
+
+  return (
+    <RelatedList
+      heading="Related projects"
+      items={items}
+      isPending={isPending}
+      isError={isError}
+      hrefFor={(id) => `/projects/${id}`}
+      emptyLabel="No related projects yet"
+      listAriaLabel="Related projects"
+      onRetry={() => refetch()}
+    />
+  );
+};
+
+/**
+ * AC-IFW-COMPANY-01: Related procurement list (vendor view). Shows all PRs where the company
+ * is the vendor — clickable rows that navigate to /procurement/:id. Vendor-only.
+ */
+const RelatedProcurement: React.FC<{ companyId: string }> = ({ companyId }) => {
+  const { data, isPending, isError, refetch } = useProcurementsByVendor(companyId);
+  const items = (data ?? []).map((pr) => ({ id: pr.id, title: pr.title, subtitle: pr.status ?? null }));
+
+  return (
+    <RelatedList
+      heading="Procurement"
+      items={items}
+      isPending={isPending}
+      isError={isError}
+      hrefFor={(id) => `/procurement/${id}`}
+      emptyLabel="No procurement yet"
+      listAriaLabel="Procurement list"
+      onRetry={() => refetch()}
+    />
+  );
+};
 
 /**
  * FR-CRM-008: read-only contacts list for the company record page. Consumes the pre-wired

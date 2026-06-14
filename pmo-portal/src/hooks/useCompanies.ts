@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import { listProjectsByClient, type ProjectWithRefs } from '@/src/lib/db/projects';
+import { listProcurementsByVendor, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -31,6 +33,36 @@ export function useCompany(id: string | undefined) {
     queryKey: ['company', orgId, id],
     queryFn: () => repositories.company.get(id!),
     enabled: Boolean(orgId && id),
+  });
+}
+
+/**
+ * Related projects for a company (as client) — AC-IFW-COMPANY-01. Fetches all projects where
+ * `client_id = companyId`. queryKey includes org_id so cache is tenant-scoped; disabled until
+ * both org and company id are present.
+ */
+export function useProjectsByClient(companyId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ProjectWithRefs[]>({
+    queryKey: ['projects', 'by-client', orgId, companyId],
+    queryFn: () => listProjectsByClient(companyId!),
+    enabled: Boolean(orgId && companyId),
+  });
+}
+
+/**
+ * Related procurement for a company (as vendor) — AC-IFW-COMPANY-01. Fetches all PRs where
+ * `vendor_id = companyId`. queryKey includes org_id so cache is tenant-scoped; disabled until
+ * both org and company id are present.
+ */
+export function useProcurementsByVendor(companyId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<ProcurementWithRefs[]>({
+    queryKey: ['procurements', 'by-vendor', orgId, companyId],
+    queryFn: () => listProcurementsByVendor(companyId!),
+    enabled: Boolean(orgId && companyId),
   });
 }
 

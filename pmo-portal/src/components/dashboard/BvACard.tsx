@@ -1,7 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/src/lib/format';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
+import { Icon } from '@/src/components/ui/icons';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
@@ -41,11 +43,26 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
               className="size-1.5 shrink-0 rounded-full"
               style={{ background: dot }}
             />
-            <span className="text-[13px] font-semibold">{p.name}</span>
+            <Link
+              to={`/projects/${p.id}`}
+              className="text-[13px] font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              {p.name}
+            </Link>
             {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
             <span className="ml-auto text-[12px] tabular text-muted-foreground">
               {formatCurrency(p.spent)} / {formatCurrency(contract)}
             </span>
+            {/* M5: exception rows (at-risk) get a resting trailing chevron so the row reads as
+                openable at rest — scoped to exception rows only, not plain BvA rows. The Link
+                above is the sole interactive; this icon is decorative (aria-hidden via Icon default). */}
+            {atRisk && (
+              <Icon
+                name="chev"
+                data-testid="bva-row-open-chevron"
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+            )}
           </div>
           <ProgressBar
             value={pct}

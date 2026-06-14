@@ -135,23 +135,24 @@ describe('AC-MOB-VT — Projects mobile view toggle (round-2 drift fix)', () => 
     expect(boardBtn.className).not.toContain('hidden');
   });
 
-  it('AC-MOB-VT-002: Table toggle option (or its wrapper) carries `hidden` + a `md:` restore class', () => {
+  it('AC-MOB-VT-002: Table toggle option is hidden via a wrapper element (not a class on the button itself)', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
     const tableBtn = within(toggle).getByRole('tab', { name: /Table/i });
 
-    // The Table button itself carries `hidden` + `md:inline-flex` (per-option approach),
-    // OR a parent wrapper between it and the tablist carries `hidden` + `md:*`.
-    const buttonHidden = tableBtn.className.includes('hidden');
-    const wrapperHidden = !buttonHidden && tableBtn.closest('[class*="hidden"]') !== null;
-    expect(buttonHidden || wrapperHidden).toBe(true);
+    // The Table button must NOT carry `hidden` directly on itself.
+    // Putting `hidden` on the button alongside ViewToggle's base `inline-flex` is a
+    // clsx-only cn collision: both land as classes and `inline-flex` wins at runtime,
+    // leaving the option visible @390. The only safe approach is a wrapper element.
+    expect(tableBtn.className).not.toContain('hidden');
 
-    // Confirm the md: restore is present on the same element.
-    const hiddenEl = buttonHidden
-      ? tableBtn
-      : (tableBtn.closest('[class*="hidden"]') as HTMLElement);
-    expect(hiddenEl).not.toBeNull();
-    const cls = hiddenEl.className;
+    // A parent wrapper between the button and the tablist must carry `hidden` + `md:` restore.
+    // The wrapper has no competing display utility, so `hidden` (display:none) is not overridden.
+    const wrapperEl = tableBtn.parentElement;
+    expect(wrapperEl).not.toBeNull();
+    expect(wrapperEl).not.toBe(toggle); // wrapper is between button and tablist, not the tablist itself
+    const cls = wrapperEl!.className;
+    expect(cls).toContain('hidden');
     const hasMdRestore = cls.includes('md:inline-flex') || cls.includes('md:flex') || cls.includes('md:block');
     expect(hasMdRestore).toBe(true);
   });

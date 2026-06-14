@@ -9,7 +9,8 @@ import type { Role } from '@/src/auth/AuthContext';
 /**
  * AC-IXD-PROC-W5-3 — the promoted `/approvals` two-section role-aware inbox (N6).
  *   Procurement section: PRs in Requested the role may approve + not-self (SoD-a).
- *     Rows ROUTE to /procurement/:id — never inline-approve.
+ *     Rows PREVIEW IN PLACE (expand) with adjacent Approve/Reject — no drill-in
+ *     (intent-fix-wave IF-A / AC-IFW-PROC-01, replacing the CW-6 route-away).
  *   Timesheet section: the enhanced ApprovalsQueue.
  *   Role-awareness: Finance → procurement only; PM/Exec/Admin → both; Engineer → no-access.
  */
@@ -43,6 +44,34 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' }, role: 'Project Manager' }),
+}));
+
+// IF-A: the procurement section now renders <ProcurementApprovalRow>, which expands
+// in place (react-query detail) instead of routing away. Mock its hooks like the row's
+// own unit test, so the page test stays hermetic (no real QueryClientProvider needed).
+vi.mock('@/src/hooks/useProcurementDetail', () => ({
+  useProcurementDetail: () => ({
+    data: {
+      id: 'pr1',
+      title: 'Steel beams',
+      project: { name: 'Apollo', code: 'PRJ-014' },
+      vendor: null,
+      items: [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useProcurementMutations: () => ({ transition: { mutate: vi.fn(), isPending: false } }),
+}));
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+});
+vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
+  DecisionSupportPanel: ({ projectName }: { projectName?: string | null }) => (
+    <div data-testid="decision-support">Budget · {projectName}</div>
+  ),
 }));
 
 import ApprovalsPage from '../Approvals';
@@ -115,13 +144,18 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByText(/Purchase requests awaiting you \(1\)/i)).toBeInTheDocument();
   });
 
-  it('a PR row ROUTES to /procurement/:id (no inline approve)', async () => {
+  it('a PR row previews in place + approves inline — no navigation (AC-IFW-PROC-01)', async () => {
+    // IF-A: replaces the CW-6 route-away. The row expands to a budget preview with
+    // Approve/Reject adjacent, so the PM clears the queue without leaving the inbox.
     renderAs('Project Manager', '/approvals?scope=procurement');
-    // there is no Approve control in the procurement section
-    const procSection = screen.getByRole('region', { name: /Purchase requests awaiting you/i });
-    expect(procSection).not.toHaveTextContent(/^Approve$/);
-    await userEvent.click(screen.getByRole('button', { name: /Open Steel beams/i }));
-    expect(navigateMock).toHaveBeenCalledWith('/procurement/pr1');
+    const disclosure = screen.getByRole('button', { name: /Show budget impact for Steel beams/i });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    // Approve/Reject are now adjacent, in the inbox — and the row never routed away.
+    expect(screen.getByRole('button', { name: /Approve/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Reject/i })).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('Finance sees ONLY the procurement section (no timesheet approval, no tabs)', () => {

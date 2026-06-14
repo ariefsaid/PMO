@@ -13,10 +13,21 @@ export interface ViewOption<V extends string = string> {
   testId?: string;
   /**
    * Optional Tailwind classes applied to the individual option button.
-   * Use this for per-option responsive visibility (e.g. `"hidden md:inline-flex"`
-   * to hide an option below the `md` breakpoint while keeping it in the DOM).
+   * NOTE: Because `cn` is clsx-only (no tailwind-merge), adding a display utility here
+   * (e.g. `"hidden"`) will NOT override the base `inline-flex` class that ViewToggle
+   * emits — both land in the class string and `inline-flex` wins. Use `wrapperClassName`
+   * instead when you need to control visibility on the per-option level.
    */
   optionClassName?: string;
+  /**
+   * Optional Tailwind classes applied to a `<span>` wrapper rendered around the option
+   * button. Because the wrapper carries no competing display utility, a class like
+   * `"hidden md:block"` reliably hides the option below the breakpoint.
+   * This is the correct way to hide individual options on mobile given the clsx-only cn
+   * design: the wrapper has no `inline-flex` to conflict with `hidden`.
+   * When omitted, the button is rendered directly without a wrapping element.
+   */
+  wrapperClassName?: string;
 }
 
 export interface ViewToggleProps<V extends string = string> {
@@ -59,7 +70,7 @@ export function ViewToggle<V extends string = string>({
     >
       {options.map((opt) => {
         const on = opt.value === value;
-        return (
+        const btn = (
           <button
             key={opt.value}
             type="button"
@@ -87,6 +98,19 @@ export function ViewToggle<V extends string = string>({
             )}
           </button>
         );
+        // wrapperClassName wraps the button in a <span> so display utilities like `hidden`
+        // are not in conflict with the button's own base `inline-flex` class (clsx-only cn
+        // cannot resolve utility conflicts — the wrapper has no competing display value).
+        // When a wrapper is used, the span carries the React list key; the button key is
+        // redundant but harmless (React ignores keys on non-list children).
+        if (opt.wrapperClassName) {
+          return (
+            <span key={opt.value} className={opt.wrapperClassName}>
+              {btn}
+            </span>
+          );
+        }
+        return btn;
       })}
     </div>
   );

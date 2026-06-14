@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -33,9 +34,11 @@ import MilestoneStrip from '../MilestoneStrip';
 
 const render$ = () =>
   render(
-    <ToastProvider>
-      <MilestoneStrip projectId="p1" />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <MilestoneStrip projectId="p1" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 
 describe('MilestoneStrip at-risk state (AC-DEL-009)', () => {

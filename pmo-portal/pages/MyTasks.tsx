@@ -1,9 +1,31 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ListState } from '@/src/components/ui';
+import { ListState, StatusPill } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { formatDate } from '@/src/lib/format';
 import type { TaskStatus } from '@/src/lib/db/tasks';
+
+/** AC-IFW-TASKS-01: Today's ISO date string (YYYY-MM-DD) for overdue comparison. */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** AC-IFW-TASKS-01: True when a task is overdue (past due date, not Done/Blocked-complete). */
+function isOverdueTask(task: { end_date: string | null; status: string }): boolean {
+  return Boolean(task.end_date && task.end_date < todayIso() && task.status !== 'Done');
+}
+
+/**
+ * AC-IFW-TASKS-01: Sort key for urgency within a project group.
+ *   0 = overdue open  (highest urgency)
+ *   1 = non-overdue open
+ *   2 = Done
+ */
+function urgencyKey(task: { end_date: string | null; status: string }): number {
+  if (task.status === 'Done') return 2;
+  if (isOverdueTask(task)) return 0;
+  return 1;
+}
 
 /**
  * B-1 — "My Tasks" IC landing (AC-W2-IXD-001/002, OUTSTANDING D1 · Blocker).
@@ -27,7 +49,9 @@ const MyTasks: React.FC = () => {
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
 
-  // Group by project for a structured "what do I do today" view.
+  // Group by project for a structured "what do I do today" view, then sort each group by urgency.
+  // AC-IFW-TASKS-01: within each project group, overdue open tasks sort first (key=0), then
+  // non-overdue open (key=1), then Done (key=2). Secondary sort: end_date asc (nulls last).
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
     const map = new Map<string, { projectId: string; projectName: string; items: typeof tasks }>();
@@ -37,7 +61,21 @@ const MyTasks: React.FC = () => {
       }
       map.get(t.project_id)!.items.push(t);
     }
-    return [...map.values()];
+    const groups = [...map.values()];
+    // Sort within each group
+    for (const g of groups) {
+      g.items.sort((a, b) => {
+        const ka = urgencyKey(a);
+        const kb = urgencyKey(b);
+        if (ka !== kb) return ka - kb;
+        // Secondary: end_date asc, nulls last
+        if (a.end_date === b.end_date) return 0;
+        if (!a.end_date) return 1;
+        if (!b.end_date) return -1;
+        return a.end_date < b.end_date ? -1 : 1;
+      });
+    }
+    return groups;
   }, [tasks]);
 
   return (
@@ -93,9 +131,15 @@ const MyTasks: React.FC = () => {
                     className="flex items-center justify-between gap-3 px-4 py-3"
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-medium" title={task.name}>
-                        {task.name}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="block truncate text-[13.5px] font-medium" title={task.name}>
+                          {task.name}
+                        </span>
+                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
+                        {isOverdueTask(task) && (
+                          <StatusPill variant="warn">Overdue</StatusPill>
+                        )}
+                      </div>
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-[12px] text-muted-foreground">
                           {task.start_date && <span>Start {formatDate(task.start_date)}</span>}
@@ -104,23 +148,33 @@ const MyTasks: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    {/* Inline status control — the select IS the status display (its selected
-                        value), so no separate pill. Engineer may set own task status per the
-                        `taskStatus` policy predicate (assignee_id = self). */}
-                    <select
-                      aria-label={`Change status of ${task.name}`}
-                      value={task.status}
-                      onChange={(e) =>
-                        updateStatus.mutate({ id: task.id, status: e.target.value as TaskStatus })
-                      }
-                      className="h-7 shrink-0 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {TASK_STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    {/* Action cluster: Log time + status control. */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project. */}
+                      <Link
+                        to={`/timesheets?project=${task.project_id}`}
+                        className="text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      >
+                        Log time
+                      </Link>
+                      {/* Inline status control — the select IS the status display (its selected
+                          value), so no separate pill. Engineer may set own task status per the
+                          `taskStatus` policy predicate (assignee_id = self). */}
+                      <select
+                        aria-label={`Change status of ${task.name}`}
+                        value={task.status}
+                        onChange={(e) =>
+                          updateStatus.mutate({ id: task.id, status: e.target.value as TaskStatus })
+                        }
+                        className="h-7 rounded-md border border-input bg-background px-2 text-[12.5px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {TASK_STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ))}
               </div>
