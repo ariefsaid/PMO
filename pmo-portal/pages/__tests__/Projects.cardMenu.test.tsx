@@ -150,7 +150,7 @@ describe('AC-PJ-CM-001: ProjectCard kebab/Edit affordance in Cards view', () => 
     renderPage('Project Manager');
     await switchToCards();
     await userEvent.click(screen.getByRole('button', { name: /Edit/i }));
-    const dialog = screen.getByRole('dialog');
+    screen.getByRole('dialog'); // opens the edit modal
     // The name field is pre-filled; save as-is (no change required for test)
     await userEvent.click(screen.getByRole('button', { name: /Save project/i }));
     await waitFor(() =>

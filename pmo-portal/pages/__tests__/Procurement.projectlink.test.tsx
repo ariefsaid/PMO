@@ -9,7 +9,7 @@
  *
  * We test the cell renderer in isolation by rendering the JSX it returns.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';

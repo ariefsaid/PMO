@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -56,11 +57,13 @@ import { ApprovalsQueue } from '../ApprovalsQueue';
 
 const renderAs = (realRole: Role) =>
   render(
-    <ImpersonationProvider realRole={realRole}>
-      <ToastProvider>
-        <ApprovalsQueue />
-      </ToastProvider>
-    </ImpersonationProvider>,
+    <MemoryRouter>
+      <ImpersonationProvider realRole={realRole}>
+        <ToastProvider>
+          <ApprovalsQueue />
+        </ToastProvider>
+      </ImpersonationProvider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {

@@ -123,6 +123,7 @@ const TimesheetsPage: React.FC = () => {
       if (!row) {
         row = {
           id: key,
+          projectId: `${e.project_id}`,
           project: e.project?.name ?? 'Unknown Project',
           code: e.project?.code ?? null,
           hours: [0, 0, 0, 0, 0, 0, 0],

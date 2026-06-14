@@ -287,8 +287,11 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     const rows = screen.getAllByRole('row');
     const atRiskRow = rows.find((r) => r.textContent?.includes('Burning Beta'));
     expect(atRiskRow).toBeDefined();
-    const cells = within(atRiskRow!).getAllByRole('cell');
-    const budgetUsedCell = cells[cells.length - 2];
+    // Locate the Budget-used cell via its progressbar (robust to the rowMenu
+    // column PJ added, which shifts positional cell indices).
+    const budgetUsedCell = within(atRiskRow!)
+      .getByRole('progressbar', { name: /budget used/i })
+      .closest('td,[role="cell"]') as HTMLElement;
     expect(budgetUsedCell).toHaveTextContent('95%');
     expect(budgetUsedCell).toHaveTextContent('$475.0K of $500.0K budget');
   });

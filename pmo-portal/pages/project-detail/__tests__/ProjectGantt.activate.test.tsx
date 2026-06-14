@@ -10,10 +10,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
-import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import ProjectGantt from '../ProjectGantt';
 
 function makeTask(
@@ -30,22 +28,6 @@ function makeTask(
     dependencies: [],
     start_date: null,
     end_date: null,
-    ...overrides,
-  };
-}
-
-function makeMilestone(
-  overrides: Partial<MilestoneWithProgress> & { id: string; name: string },
-): MilestoneWithProgress {
-  return {
-    project_id: 'p1',
-    sort_order: 0,
-    target_date: null,
-    weight: 10,
-    input_pct: null,
-    task_count: 0,
-    calculated_pct: null,
-    effective_pct: 0,
     ...overrides,
   };
 }

@@ -76,6 +76,7 @@ function buildGrid(sheet: TimesheetAwaitingApproval): { days: TimesheetDay[]; ro
     if (!row) {
       row = {
         id: key,
+        projectId: key,
         project: e.project?.name ?? 'Unknown Project',
         code: e.project?.code ?? null,
         hours: [0, 0, 0, 0, 0, 0, 0],

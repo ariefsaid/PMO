@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -43,11 +44,13 @@ import { ApprovalsQueue } from '../ApprovalsQueue';
 
 const renderPM = () =>
   render(
-    <ImpersonationProvider realRole="Project Manager">
-      <ToastProvider>
-        <ApprovalsQueue />
-      </ToastProvider>
-    </ImpersonationProvider>,
+    <MemoryRouter>
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <ApprovalsQueue />
+        </ToastProvider>
+      </ImpersonationProvider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
