@@ -255,7 +255,7 @@ const Contacts: React.FC = () => {
           title="No contacts yet"
           sub="Add your first contact to start logging calls, emails and meetings against the people you work with."
           action={
-            canCreate ? { label: 'New contact', onClick: () => setFormTarget({ contact: null }) } : undefined
+            canCreate ? { label: 'Add your first contact', onClick: () => setFormTarget({ contact: null }) } : undefined
           }
         />
       )}
