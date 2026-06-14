@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
@@ -7,7 +7,6 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
-  Drawer,
   EntityFormModal,
   TextField,
   SelectField,
@@ -25,10 +24,9 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
-import { useContactsByCompany } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
@@ -84,10 +82,6 @@ const Companies: React.FC = () => {
   // because it is still referenced. Drives the inline GateNotice + Archive-instead
   // recovery path (crud-components §5.3).
   const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
-  // D11: the company shown in the read-first quick-view Drawer (the in-hand row;
-  // no extra fetch). Row activation opens it; footer entry points reuse the
-  // existing form/archive/delete setters.
-  const [drawerCompany, setDrawerCompany] = useState<CompanyRow | null>(null);
 
   const canCreate = may('create', 'company');
   const canEdit = may('edit', 'company');
@@ -96,26 +90,6 @@ const Companies: React.FC = () => {
   const canRowWrite = canEdit || canArchive || canDelete;
 
   const all = useMemo(() => data ?? [], [data]);
-
-  // CW-7: ⌘K deep-link interim. A `?focus=<id>` param (set by the command palette until the
-  // `/companies/:id` page lands, plan §4) opens that record's quick-view drawer once the list is
-  // loaded, then clears the param so a refresh/back doesn't re-trigger it. RLS already scoped the
-  // cache, so a focus id the viewer can't see simply finds no row (no leak).
-  const [searchParams, setSearchParams] = useSearchParams();
-  const focusId = searchParams.get('focus');
-  useEffect(() => {
-    if (!focusId || !canView) return;
-    const match = all.find((c) => c.id === focusId);
-    if (match) setDrawerCompany(match);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete('focus');
-        return next;
-      },
-      { replace: true },
-    );
-  }, [focusId, all, canView, setSearchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -323,57 +297,16 @@ const Companies: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(c) => c.id}
-          onActivate={(c) => setDrawerCompany(c)}
-          rowLabel={(c) => `View ${c.name}`}
+          // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
+          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+          onActivate={(c) => navigate(`/companies/${c.id}`)}
+          rowLabel={(c) => `Open ${c.name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
-          selectedKey={drawerCompany?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No companies match your filters"
           emptySub="Try a different type or clear the search."
         />
       )}
-
-      {/* D11: read-first quick-view drawer (the in-hand row — no extra fetch). */}
-      <CompanyDrawer
-        company={drawerCompany}
-        canEdit={canEdit}
-        canArchive={canArchive}
-        canDelete={canDelete}
-        onClose={() => setDrawerCompany(null)}
-        onTypeChange={async (next) => {
-          if (!drawerCompany) return;
-          const target = drawerCompany;
-          try {
-            await update.mutateAsync({ id: target.id, input: { name: target.name, type: next } });
-            // Optimistic pill update so the drawer reflects the new type immediately
-            // (the list re-fetch follows). OD-UX-1: routine reversible write → toast,
-            // no ConfirmDialog.
-            setDrawerCompany({ ...target, type: next });
-            toast('Company updated', `${target.name} is now ${next}`, 'success');
-          } catch (err) {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }
-        }}
-        typeChanging={update.isPending}
-        onEdit={() => {
-          // Close the drawer first, THEN open the form modal — never two
-          // focus-traps stacked (secondary Director decision).
-          const c = drawerCompany;
-          setDrawerCompany(null);
-          if (c) setFormTarget({ company: c });
-        }}
-        onArchive={() => {
-          const c = drawerCompany;
-          setDrawerCompany(null);
-          if (c) setArchiveTarget(c);
-        }}
-        onDelete={() => {
-          const c = drawerCompany;
-          setDrawerCompany(null);
-          if (c) setDeleteTarget(c);
-        }}
-      />
 
       {/* Create / edit modal */}
       {formTarget && (
@@ -421,163 +354,6 @@ const Companies: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
-  );
-};
-
-// ── FR-CRM-008: company's non-archived contacts list ─────────────────────────
-
-/**
- * Read-only contacts list for the company quick-view Drawer. Consumes the
- * pre-wired `useContactsByCompany` hook (AC-CRM-021). Handles loading,
- * empty ("No contacts yet"), and populated states. No write affordances here
- * — YAGNI; the Contacts page owns create/edit/archive.
- */
-const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => {
-  const { data, isPending } = useContactsByCompany(companyId);
-
-  if (isPending) {
-    return (
-      <p
-        role="status"
-        aria-label="Loading contacts"
-        className="text-[13px] text-muted-foreground"
-      >
-        Loading…
-      </p>
-    );
-  }
-
-  const contacts = data ?? [];
-
-  if (contacts.length === 0) {
-    return (
-      <p className="text-[13px] text-muted-foreground">No contacts yet</p>
-    );
-  }
-
-  return (
-    <ul className="flex flex-col gap-2" aria-label="Contacts list">
-      {contacts.map((c) => (
-        <li key={c.id} className="flex flex-col gap-0.5">
-          <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
-          {c.title && (
-            <span className="text-[12px] text-muted-foreground">{c.title}</span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-};
-
-// ── D11: read-first quick-view drawer ────────────────────────────────────────
-
-interface CompanyDrawerProps {
-  /** null = closed. The in-hand CompanyRow (no extra fetch). */
-  company: CompanyRow | null;
-  canEdit: boolean;
-  canArchive: boolean;
-  canDelete: boolean;
-  onClose: () => void;
-  /** Inline type change — routine reversible write (OD-UX-1: toast, no confirm). */
-  onTypeChange: (next: CompanyType) => Promise<void>;
-  typeChanging: boolean;
-  onEdit: () => void;
-  onArchive: () => void;
-  onDelete: () => void;
-}
-
-/** Definition-list row — label (overline voice) + value. */
-const DField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex flex-col gap-1">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {label}
-    </dt>
-    <dd className="text-[14px] text-foreground">{children}</dd>
-  </div>
-);
-
-const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
-  company,
-  canEdit,
-  canArchive,
-  canDelete,
-  onClose,
-  onTypeChange,
-  typeChanging,
-  onEdit,
-  onArchive,
-  onDelete,
-}) => {
-  const typeSelectId = React.useId();
-  if (!company) return null;
-
-  const hasActions = canEdit || canArchive || canDelete;
-
-  return (
-    <Drawer
-      open
-      title={company.name}
-      // CW-3a: the drawer opens with the shared RecordHeader anatomy — icon + name +
-      // status pill + a top-right action zone. Edit/Archive/Delete are surfaced IN THE
-      // HEADER (no longer buried in the drawer footer). The solid destructive fill stays
-      // inside the delete confirm (one solid destructive) — the trigger is a quiet ghost.
-      icon={(company.name.trim().charAt(0) || '•').toUpperCase()}
-      status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
-      headerActions={
-        hasActions ? (
-          <>
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                Edit
-              </Button>
-            )}
-            {canArchive && (
-              <Button variant="ghost" size="sm" onClick={onArchive}>
-                Archive
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                Delete
-              </Button>
-            )}
-          </>
-        ) : undefined
-      }
-      loading={typeChanging}
-      onClose={onClose}
-    >
-      <dl className="flex flex-col gap-4">
-        <DField label="Name">{company.name}</DField>
-        <DField label="Type">
-          {canEdit ? (
-            // OD-UX-1: company type is master-data classification, not an SoD
-            // workflow → a single-click change + toast, NO ConfirmDialog. On
-            // !canEdit the value renders as the read-only pill (below).
-            <SelectField
-              id={typeSelectId}
-              label="Type"
-              hideLabel
-              value={company.type}
-              onChange={(v) => void onTypeChange(v as CompanyType)}
-              options={TYPE_OPTIONS}
-              disabled={typeChanging}
-            />
-          ) : (
-            <StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>
-          )}
-        </DField>
-        {/* FR-CRM-008: read-only contacts section (non-archived, fed by useContactsByCompany). */}
-        <DField label="Contacts">
-          <CompanyContactsList companyId={company.id} />
-        </DField>
-      </dl>
-    </Drawer>
   );
 };
 

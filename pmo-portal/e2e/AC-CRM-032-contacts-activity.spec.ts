@@ -5,7 +5,9 @@ import { login } from './helpers';
  * AC-CRM-032  CRM Contacts + activity — real user journey (binding BDD authoring principle).
  *
  * A manager's intuitive path to the goal: sign in → open Contacts via the rail → create a
- * contact (name + company) → open its drawer → log a Call activity → SEE it in the timeline.
+ * contact (name + company) → open its routable /contacts/:id record page → log a Call activity
+ * → SEE it in the timeline. (CW-4b: the drawer-as-record is retired; the activity timeline +
+ * Log-activity form now live on the record page.)
  *
  * GOAL ORACLE: the logged activity appears in the contact's timeline (not merely "a form exists").
  *
@@ -20,8 +22,9 @@ async function waitReady(page: Page) {
 }
 
 function contactRow(page: Page, name: string) {
+  // CW-4b: rows navigate to /contacts/:id — the activation button reads "Open <name>".
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `View ${name}`, exact: true }),
+    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -56,19 +59,22 @@ test(
     const row = contactRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    // ── Step 3: open the drawer and log a Call ───────────────────────────────
-    await row.getByRole('button', { name: `View ${name}`, exact: true }).click();
-    const drawer = page.getByRole('dialog');
-    await expect(drawer).toBeVisible({ timeout: 8_000 });
+    // ── Step 3: open the routable record page and log a Call ─────────────────
+    await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+    // GOAL ORACLE (navigation): the routable /contacts/:id record page rendered.
+    await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/i, { timeout: 15_000 });
+    const header = page.getByTestId('record-header');
+    await expect(header).toBeVisible({ timeout: 10_000 });
+    await expect(header.getByText(name)).toBeVisible();
 
-    await drawer.getByLabel(/activity type/i).selectOption('Call');
-    await drawer.getByLabel(/subject/i).fill(subject);
-    await drawer.getByRole('button', { name: /log activity/i }).click();
+    await page.getByLabel(/activity type/i).selectOption('Call');
+    await page.getByLabel(/subject/i).fill(subject);
+    await page.getByRole('button', { name: /log activity/i }).click();
 
-    // GOAL ORACLE (the real goal): the logged activity appears in the timeline.
-    await expect(drawer.getByText(subject)).toBeVisible({ timeout: 15_000 });
-    // Scope to the rendered timeline list — avoids matching the invisible <option> in the log-activity <select>.
-    const timeline = drawer.getByTestId('activity-timeline');
+    // GOAL ORACLE (the real goal): the logged activity appears in the TIMELINE
+    // (scope to the timeline — avoid matching the success toast or the <select> <option>).
+    const timeline = page.getByTestId('activity-timeline');
+    await expect(timeline.getByText(subject)).toBeVisible({ timeout: 15_000 });
     await expect(timeline.getByText('Call').first()).toBeVisible();
   },
 );

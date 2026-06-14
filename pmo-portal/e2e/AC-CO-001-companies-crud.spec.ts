@@ -34,16 +34,13 @@ async function waitReady(page: Page) {
 
 /**
  * Locate the DataTable row whose first cell contains the activation button for `name`.
- * D11 wrapped the first cell's content in `<button aria-label="View <name>">` so the
- * old `getByRole('cell', { name, exact: true })` no longer matches (the cell's accessible
- * name is now "View <name>", not the bare name). The activation button is the new doorway —
- * it is unique per row and prevents substring ambiguity (e.g. "E2E-Co-123" vs "E2E-Co-123-EDITED").
+ * CW-4b retired the drawer-as-record: the first cell's activation button now reads
+ * "Open <name>" (it navigates to the routable `/companies/:id` page) — the locator filters
+ * by that button so it stays stable + exact per row (e.g. "E2E-Co-123" vs "E2E-Co-123-EDITED").
  */
 function companyRow(page: Page, name: string) {
-  // The first <td> wraps its content in <button aria-label="View <name>"> (DataTable
-  // onActivate + rowLabel). Filter by that button so the locator is stable and exact.
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `View ${name}`, exact: true }),
+    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -122,6 +119,52 @@ test(
     await expect(editedRow).not.toBeVisible({ timeout: 15_000 });
     // The page is still the companies index (no error / redirect)
     await expect(page).toHaveURL(/\/companies/);
+  },
+);
+
+// ── CW-4b — list → open the routable /companies/:id record page → Back ─────────
+
+test(
+  'CW-4b: admin creates a company, opens its routable /companies/:id record page from the row, then Back returns to the directory — goal oracle: the URL is /companies/:id and the record header shows the company name',
+  async ({ page }) => {
+    const runId = Date.now();
+    const coName = `E2E-CoPage-${runId}`;
+
+    await login(page, 'admin@acme.test');
+    await page.goto('/companies');
+    await waitReady(page);
+
+    // Seed a company to open.
+    await page.getByRole('button', { name: /new company/i }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 8_000 });
+    await dialog.getByLabel(/company name/i).fill(coName);
+    await dialog.getByRole('button', { name: /create company/i }).click();
+    await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+
+    const row = companyRow(page, coName);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+
+    // ── Open the record page (the drawer-as-record is retired — rows navigate) ──
+    await row.getByRole('button', { name: `Open ${coName}`, exact: true }).click();
+
+    // GOAL ORACLE: the URL is the routable record route and the RecordHeader shows the name.
+    await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
+    const header = page.getByTestId('record-header');
+    await expect(header).toBeVisible({ timeout: 10_000 });
+    await expect(header.getByText(coName)).toBeVisible();
+    // The Contacts section (moved off the retired drawer) is present on the page.
+    await expect(page.getByText(/no contacts yet/i)).toBeVisible({ timeout: 10_000 });
+
+    // ── Back returns to the directory — the breadcrumb "Companies" crumb is the desktop
+    //    back affordance (the in-content BackBar is the mobile-only escape). ────────────
+    await page
+      .getByRole('navigation', { name: /breadcrumb/i })
+      .getByRole('button', { name: /^companies$/i })
+      .click();
+    await expect(page).toHaveURL(/\/companies$/, { timeout: 10_000 });
+    await waitReady(page);
+    await expect(companyRow(page, coName)).toBeVisible({ timeout: 15_000 });
   },
 );
 

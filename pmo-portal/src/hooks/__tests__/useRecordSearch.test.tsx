@@ -151,7 +151,9 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(co!.group).toBe('Records');
     expect(co!.sub).toBe('Company');
     co!.run();
-    expect(navigate).toHaveBeenCalledWith('/companies?focus=co1');
+    // CW-4b: ⌘K now navigates to the routable `/companies/:id` record page (the interim
+    // `?focus=<id>` drawer-open is retired).
+    expect(navigate).toHaveBeenCalledWith('/companies/co1');
   });
 
   it('CW-7: indexes contacts → /contacts (deep-link to the record) with the right sub-label', () => {
@@ -165,7 +167,8 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(ct).toBeDefined();
     expect(ct!.sub).toBe('Contact');
     ct!.run();
-    expect(navigate).toHaveBeenCalledWith('/contacts?focus=ct1');
+    // CW-4b: ⌘K now navigates to the routable `/contacts/:id` record page (interim focus retired).
+    expect(navigate).toHaveBeenCalledWith('/contacts/ct1');
   });
 
   it('CW-4a: indexes incidents → /incidents/:id (its `type` is the title) with the right sub-label', () => {

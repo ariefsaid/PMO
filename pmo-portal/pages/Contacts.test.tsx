@@ -8,10 +8,9 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { contactsState, companiesState, activitiesState, mutations } = vi.hoisted(() => ({
+const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(() => ({
   contactsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   companiesState: { data: [] as unknown[], isPending: false, isError: false },
-  activitiesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -19,16 +18,22 @@ const { contactsState, companiesState, activitiesState, mutations } = vi.hoisted
     remove: { mutateAsync: vi.fn(), isPending: false },
     logActivity: { mutateAsync: vi.fn(), isPending: false },
   },
+  navigateMock: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useContacts', () => ({
   useContacts: () => contactsState,
-  useContactActivities: () => activitiesState,
   useContactMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
 }));
+
+// CW-4b: rows navigate to /contacts/:id — capture the navigate call.
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => navigateMock };
+});
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -66,14 +71,12 @@ beforeEach(() => {
   companiesState.data = companies;
   companiesState.isPending = false;
   companiesState.isError = false;
-  activitiesState.data = [];
-  activitiesState.isPending = false;
-  activitiesState.isError = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
+  navigateMock.mockClear();
   realRole = 'Admin';
 });
 
@@ -151,84 +154,23 @@ describe('Contacts create form (AC-CRM-030)', () => {
   });
 });
 
-describe('Contacts — ⌘K deep-link (CW-7)', () => {
-  it('CW-7: a ?focus=<id> deep-link (from ⌘K) opens that contact\'s quick-view drawer', async () => {
-    realRole = 'Admin';
-    render(
-      <ToastProvider>
-        <MemoryRouter initialEntries={['/contacts?focus=ct2']}>
-          <Contacts />
-        </MemoryRouter>
-      </ToastProvider>,
-    );
-    const drawer = await screen.findByRole('dialog');
-    const labelId = drawer.getAttribute('aria-labelledby');
-    expect(document.getElementById(labelId!)?.textContent).toContain('Marcus Webb');
-  });
-});
-
-describe('Contacts drawer — activity timeline (AC-CRM-031)', () => {
-  const openDrawer = async (name: string) => {
-    await userEvent.click(screen.getByRole('button', { name: `View ${name}` }));
-    return screen.getByRole('dialog');
-  };
-
-  it('CW-3a: the contact drawer opens with the shared RecordHeader; actions are in the header, not a footer', async () => {
+// CW-4b: the drawer-as-record is retired — a row now NAVIGATES to the routable
+// `/contacts/:id` record page (the page's own anatomy + the activity timeline + Log-activity
+// form are covered by ContactDetail.test.tsx). The journey's goal — "open this contact's
+// record" — is intact; the destination changed from an in-page overlay to a URL.
+describe('Contacts index — row → detail navigation (CW-4b)', () => {
+  it('CW-4b: activating a row navigates to the routable /contacts/:id page', async () => {
     renderPage('Admin');
-    const drawer = await openDrawer('Jane Doe');
-    const header = within(drawer).getByTestId('record-header');
-    expect(header).toBeInTheDocument();
-    expect(within(header).getByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
-    // the record actions (Edit/Archive/Delete by permission) are in the header action zone
-    const actionZone = within(header).getByTestId('record-header-actions');
-    expect(within(actionZone).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+    // Row activation = the first-cell <button> (rowLabel "Open <name>").
+    expect(screen.getByRole('button', { name: 'Open Marcus Webb' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/contacts/ct2'));
   });
 
-  it('AC-CRM-031: an empty timeline shows "No activity logged yet"', async () => {
-    activitiesState.data = [];
+  it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
-    const drawer = await openDrawer('Jane Doe');
-    expect(within(drawer).getByText(/No activity logged yet/i)).toBeInTheDocument();
-  });
-
-  it('AC-CRM-031: existing activities render newest-first in the timeline', async () => {
-    activitiesState.data = [
-      { id: 'a1', kind: 'Call', subject: 'Intro call', body: 'Hello', occurred_at: '2026-03-01T10:00:00Z' },
-    ];
-    renderPage('Admin');
-    const drawer = await openDrawer('Jane Doe');
-    expect(within(drawer).getByText('Intro call')).toBeInTheDocument();
-    expect(within(drawer).getAllByText('Call').length).toBeGreaterThan(0);
-  });
-
-  it('AC-CRM-031: logging an activity calls logActivity with the contact + kind + subject', async () => {
-    renderPage('Admin');
-    const drawer = await openDrawer('Jane Doe');
-    await userEvent.selectOptions(within(drawer).getByLabelText(/Activity type/i), 'Email');
-    await userEvent.type(within(drawer).getByLabelText(/Subject/i), 'Sent quote');
-    await userEvent.click(within(drawer).getByRole('button', { name: /Log activity/i }));
-    await waitFor(() =>
-      expect(mutations.logActivity.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ contact_id: 'ct1', kind: 'Email', subject: 'Sent quote' }),
-      ),
-    );
-  });
-
-  it('AC-CRM-031: a writer (Finance) drawer shows the Log activity form', async () => {
-    activitiesState.data = [
-      { id: 'a1', kind: 'Note', subject: 'Note one', body: null, occurred_at: '2026-03-01T10:00:00Z' },
-    ];
-    renderPage('Finance'); // Finance is a writer
-    const writerDrawer = await openDrawer('Jane Doe');
-    expect(within(writerDrawer).getByRole('button', { name: /Log activity/i })).toBeInTheDocument();
-  });
-
-  it('AC-CRM-031: the timeline shows a loading skeleton then an error+retry', async () => {
-    activitiesState.isError = true;
-    renderPage('Admin');
-    const drawer = await openDrawer('Jane Doe');
-    await userEvent.click(within(drawer).getByRole('button', { name: /Retry/i }));
-    expect(activitiesState.refetch).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Open Jane Doe' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 

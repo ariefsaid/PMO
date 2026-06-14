@@ -66,6 +66,9 @@ export const MODULES: ModuleDef[] = [
     icon: 'doc',
     label: 'Companies',
     path: '/companies',
+    // CW-4b: /companies/:id is a routable detail page (retires the drawer-as-record) — the detail
+    // pattern makes the breadcrumb drill [Companies > <record>] and lets ⌘K open one.
+    detail: { pattern: '/companies/:companyId', param: 'companyId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Companies nav — rbac-visibility §D).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
@@ -74,6 +77,9 @@ export const MODULES: ModuleDef[] = [
     icon: 'doc',
     label: 'Contacts',
     path: '/contacts',
+    // CW-4b: /contacts/:id is a routable detail page (retires the drawer-as-record) — the detail
+    // pattern makes the breadcrumb drill [Contacts > <record>] and lets ⌘K open one.
+    detail: { pattern: '/contacts/:contactId', param: 'contactId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no CRM nav — master-data, like Companies).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
@@ -228,6 +234,10 @@ export interface RecordLists {
   procurements?: { id: string; title: string }[];
   /** CW-4a: incidents — the record "name" is its `type` (there is no title column). */
   incidents?: { id: string; type: string }[];
+  /** CW-4b: companies — the record name is its `name`. */
+  companies?: { id: string; name: string }[];
+  /** CW-4b: contacts — the record name is its `full_name`. */
+  contacts?: { id: string; full_name: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -313,6 +323,13 @@ export function recordLabelForPath(
   // CW-4a: an incident's human label is its `type` (no title column).
   const incidentId = idFrom('/incidents');
   if (incidentId) return lists.incidents?.find((i) => i.id === incidentId)?.type;
+
+  // CW-4b: a company's label is its `name`, a contact's is its `full_name`.
+  const companyId = idFrom('/companies');
+  if (companyId) return lists.companies?.find((c) => c.id === companyId)?.name;
+
+  const contactId = idFrom('/contacts');
+  if (contactId) return lists.contacts?.find((c) => c.id === contactId)?.full_name;
 
   return undefined;
 }

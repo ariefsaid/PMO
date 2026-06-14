@@ -18,6 +18,22 @@ export function useCompanies(type?: CompanyType) {
   });
 }
 
+/**
+ * A single company by id over the repository seam (ADR-0017) — backs the routable
+ * `/companies/:id` record page (CW-4b). queryKey includes org_id so the cache is
+ * tenant-scoped; disabled until both an org and an id are present. Returns `null`
+ * when the record is absent or RLS-scoped out (the page renders a calm not-found).
+ */
+export function useCompany(id: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<CompanyRow | null>({
+    queryKey: ['company', orgId, id],
+    queryFn: () => repositories.company.get(id!),
+    enabled: Boolean(orgId && id),
+  });
+}
+
 export interface UpdateCompanyArgs {
   id: string;
   input: CompanyInput;
@@ -36,6 +52,8 @@ export function useCompanyMutations() {
   // or combobox forms serve a stale/archived/missing company for the ~5-min query staleTime.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['companies'] });
+    // CW-4b: also bust the single-record family so an open `/companies/:id` detail page refetches.
+    qc.invalidateQueries({ queryKey: ['company'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
   };

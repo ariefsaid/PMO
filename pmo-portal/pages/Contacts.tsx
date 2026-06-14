@@ -1,12 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
   ListState,
   DataTable,
-  StatusPill,
   ConfirmDialog,
-  Drawer,
   EntityFormModal,
   TextField,
   TextArea,
@@ -21,27 +19,12 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
-import { useContacts, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
+import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityKind, CrmActivityInput } from '@/src/lib/db/crmActivities';
-import { crmActivityVariant } from '@/src/lib/status/statusVariants';
-
-// Activity-kind pill comes from the single status registry's CATEGORY family
-// (`crmActivityVariant`): Call = categorical `violet` (the highlighted kind),
-// Email / Meeting / Note = `neutral`. Per the Freed-Blue Status Rule, an activity
-// pill never uses the action-blue (`open`) and never borrows a workflow tint
-// (`won`); the distinct LABEL carries identity (never colour-only).
-
-const KIND_OPTIONS = [
-  { value: 'Call', label: 'Call' },
-  { value: 'Email', label: 'Email' },
-  { value: 'Meeting', label: 'Meeting' },
-  { value: 'Note', label: 'Note' },
-];
 
 interface FormValues {
   full_name: string;
@@ -76,7 +59,6 @@ const Contacts: React.FC = () => {
   const [formTarget, setFormTarget] = useState<{ contact: ContactRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContactRow | null>(null);
-  const [drawerContact, setDrawerContact] = useState<ContactRow | null>(null);
 
   const canCreate = may('create', 'contact');
   const canEdit = may('edit', 'contact');
@@ -95,25 +77,6 @@ const Contacts: React.FC = () => {
   );
 
   const all = useMemo(() => data ?? [], [data]);
-
-  // CW-7: ⌘K deep-link interim. A `?focus=<id>` param (set by the command palette until the
-  // `/contacts/:id` page lands, plan §4) opens that record's quick-view drawer once the list is
-  // loaded, then clears the param. RLS already scoped the cache; an unseeable id finds no row.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const focusId = searchParams.get('focus');
-  useEffect(() => {
-    if (!focusId || !canView) return;
-    const match = all.find((c) => c.id === focusId);
-    if (match) setDrawerContact(match);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete('focus');
-        return next;
-      },
-      { replace: true },
-    );
-  }, [focusId, all, canView, setSearchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -278,39 +241,16 @@ const Contacts: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(c) => c.id}
-          onActivate={(c) => setDrawerContact(c)}
-          rowLabel={(c) => `View ${c.full_name}`}
+          // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the
+          // drawer-as-record is retired). Create/edit-in-modal are unchanged.
+          onActivate={(c) => navigate(`/contacts/${c.id}`)}
+          rowLabel={(c) => `Open ${c.full_name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
-          selectedKey={drawerContact?.id}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No contacts match your filters"
           emptySub="Try a different company or clear the search."
         />
       )}
-
-      <ContactDrawer
-        contact={drawerContact}
-        companyName={drawerContact ? companyById.get(drawerContact.company_id) ?? null : null}
-        canEdit={canEdit}
-        canArchive={canArchive}
-        canDelete={canDelete}
-        onClose={() => setDrawerContact(null)}
-        onEdit={() => {
-          const c = drawerContact;
-          setDrawerContact(null);
-          if (c) setFormTarget({ contact: c });
-        }}
-        onArchive={() => {
-          const c = drawerContact;
-          setDrawerContact(null);
-          if (c) setArchiveTarget(c);
-        }}
-        onDelete={() => {
-          const c = drawerContact;
-          setDrawerContact(null);
-          if (c) setDeleteTarget(c);
-        }}
-      />
 
       {formTarget && (
         <ContactFormModal
@@ -355,223 +295,6 @@ const Contacts: React.FC = () => {
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
-  );
-};
-
-// ── Quick-view drawer ────────────────────────────────────────────────────────
-
-interface ContactDrawerProps {
-  contact: ContactRow | null;
-  companyName: string | null;
-  canEdit: boolean;
-  canArchive: boolean;
-  canDelete: boolean;
-  onClose: () => void;
-  onEdit: () => void;
-  onArchive: () => void;
-  onDelete: () => void;
-}
-
-/** Definition-list row — label (overline voice) + value. */
-const DField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex flex-col gap-1">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {label}
-    </dt>
-    <dd className="text-[14px] text-foreground">{children}</dd>
-  </div>
-);
-
-const ContactDrawer: React.FC<ContactDrawerProps> = ({
-  contact,
-  companyName,
-  canEdit,
-  canArchive,
-  canDelete,
-  onClose,
-  onEdit,
-  onArchive,
-  onDelete,
-}) => {
-  if (!contact) return null;
-  const hasActions = canEdit || canArchive || canDelete;
-
-  return (
-    <Drawer
-      open
-      title={contact.full_name}
-      // CW-3a: the drawer opens with the shared RecordHeader anatomy — icon + name +
-      // status pill + a top-right action zone. A contact has no workflow status, so the
-      // identity pill is the categorical "Contact" (violet, non-interactive); the job
-      // title stays as the meta line. Edit/Archive/Delete surface IN THE HEADER (no
-      // longer buried in the drawer footer).
-      icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
-      status={<StatusPill variant="violet">Contact</StatusPill>}
-      subtitle={contact.title ?? undefined}
-      onClose={onClose}
-      headerActions={
-        hasActions ? (
-          <>
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                Edit
-              </Button>
-            )}
-            {canArchive && (
-              <Button variant="ghost" size="sm" onClick={onArchive}>
-                Archive
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                Delete
-              </Button>
-            )}
-          </>
-        ) : undefined
-      }
-    >
-      <dl className="flex flex-col gap-4">
-        <DField label="Company">{companyName ?? '—'}</DField>
-        {contact.email && <DField label="Email">{contact.email}</DField>}
-        {contact.phone && <DField label="Phone">{contact.phone}</DField>}
-        {contact.notes && <DField label="Notes">{contact.notes}</DField>}
-      </dl>
-      <div className="mt-6 border-t border-border pt-5">
-        <ContactActivityPanel contactId={contact.id} />
-      </div>
-    </Drawer>
-  );
-};
-
-// ── Activity timeline + log form ─────────────────────────────────────────────
-
-const formatOccurred = (iso: string): string => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-};
-
-const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
-  const may = usePermission();
-  const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useContactActivities(contactId);
-  const { logActivity } = useContactMutations();
-  const canLog = may('create', 'contactActivity');
-
-  const [kind, setKind] = useState<CrmActivityKind>('Call');
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
-
-  const activities = data ?? [];
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!subject.trim() && !body.trim()) return;
-    const input: CrmActivityInput = {
-      contact_id: contactId,
-      kind,
-      subject: subject.trim() || null,
-      body: body.trim() || null,
-      occurred_at: new Date().toISOString(),
-      company_id: null,
-      project_id: null,
-    };
-    try {
-      await logActivity.mutateAsync(input);
-      toast('Activity logged', subject.trim() || kind, 'success');
-      setSubject('');
-      setBody('');
-      setKind('Call');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
-
-  return (
-    <div>
-      <h3 className="mb-3 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        Activity
-      </h3>
-
-      {canLog && (
-        <form onSubmit={onSubmit} className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3">
-          <FormGrid>
-            <SelectField
-              label="Activity type"
-              value={kind}
-              onChange={(v) => setKind(v as CrmActivityKind)}
-              options={KIND_OPTIONS}
-            />
-            <TextField
-              label="Subject"
-              value={subject}
-              onChange={setSubject}
-              placeholder="e.g. Kickoff call"
-            />
-          </FormGrid>
-          <TextArea
-            label="Notes"
-            value={body}
-            onChange={setBody}
-            rows={2}
-            fullWidth
-            placeholder="What was discussed?"
-          />
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              loading={logActivity.isPending}
-              disabled={!subject.trim() && !body.trim()}
-            >
-              Log activity
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {isPending && <ListState variant="loading" rows={3} />}
-
-      {!isPending && isError && (
-        <ListState
-          variant="error"
-          title="Couldn't load activity"
-          sub="The request failed. Try again."
-          onRetry={() => refetch()}
-        />
-      )}
-
-      {!isPending && !isError && activities.length === 0 && (
-        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
-          No activity logged yet.
-        </p>
-      )}
-
-      {!isPending && !isError && activities.length > 0 && (
-        <ol data-testid="activity-timeline" className="flex flex-col gap-3">
-          {activities.map((a) => (
-            <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
-              <div className="flex items-center justify-between gap-2">
-                <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
-                <span className="text-[11px] text-muted-foreground">
-                  {formatOccurred(a.occurred_at)}
-                </span>
-              </div>
-              {a.subject && <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>}
-              {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
-            </li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 };
