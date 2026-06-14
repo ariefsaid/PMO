@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -248,6 +249,21 @@ const ExecutiveDashboard: React.FC = () => {
             linkLabel="Open active projects to see spend breakdown"
             help="Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)" />
         </section>
+
+        {/* AC-IFW-DASH-02: discrete at-risk drill link — sits OUTSIDE the Active-projects tile
+            (which is already a whole-tile link to /projects?filter=Ongoing) so no nested
+            interactives. Only shown when there are at-risk projects. */}
+        {data.projects_at_risk > 0 && (
+          <div className="flex items-center gap-1 text-[13px]">
+            <Link
+              to="/projects?filter=at-risk"
+              className="font-medium text-warning hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              aria-label={`View ${data.projects_at_risk} at-risk projects`}
+            >
+              {data.projects_at_risk} at-risk →
+            </Link>
+          </div>
+        )}
 
         {/* N15: combined approvals shortcut (PRs Exec can approve + timesheets) → /approvals. */}
         <section

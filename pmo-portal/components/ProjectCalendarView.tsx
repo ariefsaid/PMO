@@ -106,18 +106,24 @@ const ProjectEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void
   </button>
 );
 
-/** A non-interactive milestone chip (display-only in v1 — only project events navigate). */
-const MilestoneEventChip: React.FC<{ event: CalEvent }> = ({ event }) => (
-  <span
+/** A clickable milestone chip — opens the milestone's project (AC-IFW-CAL-01). */
+const MilestoneEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void }> = ({
+  event,
+  onOpen,
+}) => (
+  <button
+    type="button"
+    onClick={() => onOpen(event.projectId)}
     aria-label={event.ariaLabel}
     title={event.ariaLabel}
     className={cn(
-      'block truncate rounded px-1.5 py-0.5 text-[11px] font-medium',
+      'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
+      'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       chipClass('milestone'),
     )}
   >
     {event.label}
-  </span>
+  </button>
 );
 
 const EventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void }> = ({
@@ -125,7 +131,7 @@ const EventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void }> = (
   onOpen,
 }) =>
   event.kind === 'milestone' ? (
-    <MilestoneEventChip event={event} />
+    <MilestoneEventChip event={event} onOpen={onOpen} />
   ) : (
     <ProjectEventChip event={event} onOpen={onOpen} />
   );

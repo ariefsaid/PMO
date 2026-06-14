@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/src/lib/format';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
@@ -41,7 +42,12 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
               className="size-1.5 shrink-0 rounded-full"
               style={{ background: dot }}
             />
-            <span className="text-[13px] font-semibold">{p.name}</span>
+            <Link
+              to={`/projects/${p.id}`}
+              className="text-[13px] font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              {p.name}
+            </Link>
             {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
             <span className="ml-auto text-[12px] tabular text-muted-foreground">
               {formatCurrency(p.spent)} / {formatCurrency(contract)}
