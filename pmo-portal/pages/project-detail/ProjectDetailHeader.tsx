@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  PageHeader,
+  RecordHeader,
   StatTiles,
   StatusPill,
   Button,
@@ -298,7 +298,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
 
   return (
     <>
-      <PageHeader
+      <RecordHeader
         icon={(project.name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={project.name}

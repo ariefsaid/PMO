@@ -1,10 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Card,
   CardHead,
   CardPad,
-  Button,
-  Icon,
   TextField,
   Combobox,
   FormGrid,
@@ -16,16 +14,16 @@ import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 
 // ---------------------------------------------------------------------------
-// ProcurementHeaderEdit — the Draft-header edit affordance (crud-components §3
-// inline detail-header edit, §9.3 "edit while Draft/Rejected"). An Edit button
-// flips the request's editable header fields (title + project + vendor) into
-// controls with Save/Cancel; gated by the caller (requester while Draft/Rejected).
-// Inline rather than a giant modal-over-page (the modal-first anti-pattern).
+// ProcurementHeaderEdit — the Draft-header edit panel (crud-components §3 inline
+// detail-header edit, §9.3 "edit while Draft/Rejected"). CW-3a: the Edit affordance
+// now lives in the canonical RecordHeader action zone; this panel is CONTROLLED by
+// the host (`onClose`) and renders the editable header fields (title + project +
+// vendor) directly with Save/Cancel. Inline rather than a giant modal-over-page.
 //
 // Backed by `useEntityForm` (matches NewProcurementModal): one controlled-form
 // helper owns values / dirty / submit / per-field validation, so the title-required
 // rule and the disabled-Save state are the shared form contract, not ad-hoc state.
-// Token-pure (Card / Button / form primitives).
+// Token-pure (Card / form primitives).
 // ---------------------------------------------------------------------------
 
 interface FormValues {
@@ -48,6 +46,8 @@ export interface ProcurementHeaderEditProps {
   vendorName: string | null;
   onSave: (patch: ProcurementHeaderPatch) => Promise<unknown>;
   onError: (err: unknown) => void;
+  /** Host-controlled close (the panel is opened from the RecordHeader Edit action). */
+  onClose: () => void;
   busy?: boolean;
 }
 
@@ -59,15 +59,22 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   vendorName,
   onSave,
   onError,
+  onClose,
   busy,
 }) => {
-  const [editing, setEditing] = useState(false);
-
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId },
     validate,
     idPrefix: 'pr-header-edit',
   });
+
+  const { reset } = form;
+  // Re-seed the form from the live props when the panel mounts (it is mounted only
+  // while the header Edit action holds it open).
+  useEffect(() => {
+    reset({ title, projectId, vendorId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once on mount from props
+  }, []);
 
   const titleField = form.fieldProps('title');
 
@@ -82,12 +89,6 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
     [vendorOptions],
   );
 
-  const start = () => {
-    // Re-seed the form from the live props each time editing opens.
-    form.reset({ title, projectId, vendorId });
-    setEditing(true);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -97,28 +98,12 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
           projectId: values.projectId,
           vendorId: values.vendorId,
         });
-        setEditing(false);
+        onClose();
       } catch (err) {
         onError(err);
       }
     });
   };
-
-  if (!editing) {
-    return (
-      <Card className="mb-4" data-testid="header-edit-card">
-        <CardPad className="flex items-center gap-3">
-          <div className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-            This request is editable while it is a draft. Update the title, project, or vendor.
-          </div>
-          <Button size="sm" variant="outline" onClick={start} data-testid="edit-header">
-            <Icon name="doc" />
-            Edit request
-          </Button>
-        </CardPad>
-      </Card>
-    );
-  }
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
@@ -166,7 +151,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
           </FormGrid>
           <FormActions
             submitLabel="Save request"
-            onCancel={() => setEditing(false)}
+            onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}
           />

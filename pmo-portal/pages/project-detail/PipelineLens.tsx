@@ -175,7 +175,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
           <CardHead>Opportunity journey</CardHead>
           <CardPad>
             <LifecycleStepper
-              variant="node"
+              variant="bar"
               steps={dealJourneySteps(liveStatus as never)}
               aria-label="Deal stage journey"
             />

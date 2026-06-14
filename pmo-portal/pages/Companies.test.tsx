@@ -348,7 +348,19 @@ describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
     expect(toast).toHaveTextContent(/Company updated/i);
   });
 
-  it('AC-W5-C6-D11: footer Edit closes the drawer then opens the edit form (never two focus-traps)', async () => {
+  it('CW-3a: the company drawer opens with the shared RecordHeader; actions are in the header, not a footer', async () => {
+    renderPage('Admin');
+    const drawer = await openDrawer('Cascade Port Authority');
+    const header = within(drawer).getByTestId('record-header');
+    expect(header).toBeInTheDocument();
+    // status pill (company type) is part of the one shared header anatomy
+    expect(within(header).getByText('Client')).toBeInTheDocument();
+    // the record actions (Edit/Archive/Delete) are surfaced IN the header action zone
+    const actionZone = within(header).getByTestId('record-header-actions');
+    expect(within(actionZone).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+  });
+
+  it('AC-W5-C6-D11: header Edit closes the drawer then opens the edit form (never two focus-traps)', async () => {
     renderPage('Admin');
     const drawer = await openDrawer('Cascade Port Authority');
     await userEvent.click(within(drawer).getByRole('button', { name: /^Edit$/i }));
@@ -358,7 +370,7 @@ describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
     expect(screen.getByRole('button', { name: /^Save company$/i })).toBeInTheDocument();
   });
 
-  it('AC-W5-C6-D11: footer Delete closes the drawer then opens the destructive confirm', async () => {
+  it('AC-W5-C6-D11: header Delete closes the drawer then opens the destructive confirm', async () => {
     renderPage('Admin');
     const drawer = await openDrawer('Steelforge Fabrication');
     await userEvent.click(within(drawer).getByRole('button', { name: /^Delete$/i }));
@@ -367,7 +379,7 @@ describe('Companies detail drawer — D11 (AC-W5-C6-D11)', () => {
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('c2'));
   });
 
-  it('AC-W5-C6-D11: a PM (no delete) sees Edit + Archive in the drawer but no Delete', async () => {
+  it('AC-W5-C6-D11: a PM (no delete) sees Edit + Archive in the drawer header but no Delete', async () => {
     renderPage('Project Manager');
     const drawer = await openDrawer('Cascade Port Authority');
     expect(within(drawer).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();

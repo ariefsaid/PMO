@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
+import { RecordHeader } from './RecordHeader';
 
 // ---------------------------------------------------------------------------
 // Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
@@ -48,6 +49,20 @@ export interface DrawerProps {
   width?: 'sm' | 'lg';
   /** Optional border-top footer slot for secondary entry points. */
   footer?: React.ReactNode;
+  /**
+   * CW-3a: record-header anatomy. When `icon` or `status` is provided, the drawer
+   * header renders the shared `RecordHeader` (icon + name + status pill + a top-right
+   * action zone) instead of the plain title/subtitle row — so a drawer record opens
+   * with the SAME header anatomy as a full record page. `headerActions` holds the
+   * record actions (Edit/Archive/Delete by permission), surfaced in the HEADER (not
+   * the footer). `status` doubles as the drawer's aria-describedby content.
+   */
+  icon?: React.ReactNode;
+  iconColor?: string;
+  /** Status pill node — surfaced beside the name in the RecordHeader anatomy. */
+  status?: React.ReactNode;
+  /** Top-right record action zone (Edit/Archive/Delete by permission). */
+  headerActions?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -60,6 +75,10 @@ export const Drawer: React.FC<DrawerProps> = ({
   nestedOpen = false,
   width = 'sm',
   footer,
+  icon,
+  iconColor,
+  status,
+  headerActions,
   children,
 }) => {
   const titleId = useId();
@@ -150,6 +169,12 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   if (!open) return null;
 
+  // CW-3a: when record-header props are supplied the drawer header renders the shared
+  // RecordHeader anatomy (icon + name + status + top-right action zone) instead of the
+  // plain title/subtitle row. The dialog's accessible name/description stay wired via
+  // visually-hidden id anchors (RecordHeader's own h1/status carry no stable ids).
+  const useRecordHeader = icon != null || status != null || headerActions != null;
+
   return createPortal(
     <div className="fixed inset-0 z-[800] flex justify-end">
       <div
@@ -182,19 +207,39 @@ export const Drawer: React.FC<DrawerProps> = ({
       >
         {/* Header */}
         <div className="flex items-start gap-2.5 border-b border-border px-[18px] py-4">
-          <div className="min-w-0 flex-1">
-            <h2
-              id={titleId}
-              className="truncate text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
-            >
-              {title}
-            </h2>
-            {subtitle && (
-              <div id={subId} className="mt-1.5 text-[12.5px] text-muted-foreground">
-                {subtitle}
-              </div>
-            )}
-          </div>
+          {useRecordHeader ? (
+            <div className="min-w-0 flex-1">
+              {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
+                  id, so the dialog's accessible name (aria-labelledby) points here.
+                  The status pill is conveyed visually + by RecordHeader's anatomy. */}
+              <span id={titleId} className="sr-only">
+                {title}
+              </span>
+              <RecordHeader
+                variant="drawer"
+                icon={icon ?? (typeof title === 'string' ? title.trim().charAt(0).toUpperCase() : '•')}
+                iconColor={iconColor}
+                name={title}
+                status={status}
+                meta={subtitle}
+                actions={headerActions}
+              />
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <h2
+                id={titleId}
+                className="truncate text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
+              >
+                {title}
+              </h2>
+              {subtitle && (
+                <div id={subId} className="mt-1.5 text-[12.5px] text-muted-foreground">
+                  {subtitle}
+                </div>
+              )}
+            </div>
+          )}
           <Button
             variant="ghost"
             iconOnly

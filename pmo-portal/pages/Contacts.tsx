@@ -395,16 +395,23 @@ const ContactDrawer: React.FC<ContactDrawerProps> = ({
   onDelete,
 }) => {
   if (!contact) return null;
-  const hasFooter = canEdit || canArchive || canDelete;
+  const hasActions = canEdit || canArchive || canDelete;
 
   return (
     <Drawer
       open
       title={contact.full_name}
+      // CW-3a: the drawer opens with the shared RecordHeader anatomy — icon + name +
+      // status pill + a top-right action zone. A contact has no workflow status, so the
+      // identity pill is the categorical "Contact" (violet, non-interactive); the job
+      // title stays as the meta line. Edit/Archive/Delete surface IN THE HEADER (no
+      // longer buried in the drawer footer).
+      icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
+      status={<StatusPill variant="violet">Contact</StatusPill>}
       subtitle={contact.title ?? undefined}
       onClose={onClose}
-      footer={
-        hasFooter ? (
+      headerActions={
+        hasActions ? (
           <>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
@@ -417,7 +424,12 @@ const ContactDrawer: React.FC<ContactDrawerProps> = ({
               </Button>
             )}
             {canDelete && (
-              <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
                 Delete
               </Button>
             )}

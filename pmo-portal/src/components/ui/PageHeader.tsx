@@ -19,6 +19,14 @@ export interface PageHeaderProps {
   /** Trailing action buttons. */
   actions?: React.ReactNode;
   className?: string;
+  /** Optional test hook forwarded to the header root. */
+  'data-testid'?: string;
+  /**
+   * `card` (default) wraps the header in the bordered `card` chrome used on detail pages.
+   * `bare` drops that chrome so a host surface (e.g. a Drawer with its own border seam)
+   * supplies the framing — the inner icon + name + status + actions anatomy is unchanged.
+   */
+  surface?: 'card' | 'bare';
 }
 
 /** Detail-page header card (`phead`): icon + name + status + meta + stats + actions. */
@@ -31,8 +39,16 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   stats,
   actions,
   className,
+  'data-testid': dataTestId,
+  surface = 'card',
 }) => (
-  <div className={cn('mb-4 rounded-lg border border-border bg-card px-5 py-[18px]', className)}>
+  <div
+    data-testid={dataTestId}
+    className={cn(
+      surface === 'card' && 'mb-4 rounded-lg border border-border bg-card px-5 py-[18px]',
+      className,
+    )}
+  >
     <div className="flex items-start gap-3.5">
       {icon && (
         <span

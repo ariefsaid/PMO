@@ -511,17 +511,20 @@ const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
   const typeSelectId = React.useId();
   if (!company) return null;
 
-  const hasFooter = canEdit || canArchive || canDelete;
+  const hasActions = canEdit || canArchive || canDelete;
 
   return (
     <Drawer
       open
       title={company.name}
-      subtitle={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
-      loading={typeChanging}
-      onClose={onClose}
-      footer={
-        hasFooter ? (
+      // CW-3a: the drawer opens with the shared RecordHeader anatomy — icon + name +
+      // status pill + a top-right action zone. Edit/Archive/Delete are surfaced IN THE
+      // HEADER (no longer buried in the drawer footer). The solid destructive fill stays
+      // inside the delete confirm (one solid destructive) — the trigger is a quiet ghost.
+      icon={(company.name.trim().charAt(0) || '•').toUpperCase()}
+      status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
+      headerActions={
+        hasActions ? (
           <>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
@@ -534,13 +537,20 @@ const CompanyDrawer: React.FC<CompanyDrawerProps> = ({
               </Button>
             )}
             {canDelete && (
-              <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
                 Delete
               </Button>
             )}
           </>
         ) : undefined
       }
+      loading={typeChanging}
+      onClose={onClose}
     >
       <dl className="flex flex-col gap-4">
         <DField label="Name">{company.name}</DField>

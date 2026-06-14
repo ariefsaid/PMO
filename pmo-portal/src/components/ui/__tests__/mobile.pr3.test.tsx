@@ -274,15 +274,15 @@ describe('LifecycleStepper — scroll-fade affordance (AC-IXD-MOBILE-W4-PR3-C4)'
     { label: 'Paid', state: 'upcoming' as const },
   ];
 
-  it('the node-variant stepper has a scroll-fade wrapper (scroll-fade-x class or mask-image)', () => {
-    render(<LifecycleStepper variant="node" steps={steps} aria-label="Lifecycle" />);
+  it('the bar-variant stepper has a scroll-fade wrapper (scroll-fade-x class or mask-image)', () => {
+    render(<LifecycleStepper variant="bar" steps={steps} aria-label="Lifecycle" />);
     // The scroll-fade wrapper must be present
     const container = document.querySelector('[data-testid="stepper-scroll-container"]');
     expect(container).toBeInTheDocument();
   });
 
   it('the scroll-fade overlay element is aria-hidden and pointer-events-none (decorative)', () => {
-    render(<LifecycleStepper variant="node" steps={steps} aria-label="Lifecycle" />);
+    render(<LifecycleStepper variant="bar" steps={steps} aria-label="Lifecycle" />);
     // The fade affordance itself (a pseudo or sibling element) must be decorative
     const fade = document.querySelector('[data-testid="stepper-fade"]');
     expect(fade).toBeInTheDocument();
@@ -290,7 +290,7 @@ describe('LifecycleStepper — scroll-fade affordance (AC-IXD-MOBILE-W4-PR3-C4)'
   });
 
   it('preserves all step labels and aria semantics', () => {
-    render(<LifecycleStepper variant="node" steps={steps} aria-label="Lifecycle" />);
+    render(<LifecycleStepper variant="bar" steps={steps} aria-label="Lifecycle" />);
     expect(screen.getByRole('list', { name: 'Lifecycle' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(steps.length);
   });
