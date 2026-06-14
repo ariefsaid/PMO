@@ -1,5 +1,5 @@
 import React from 'react';
-import { Kanban, KanbanColumn, KanbanCard } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanCard, ProjectNameLink } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -43,9 +43,11 @@ const PrCard: React.FC<{
     <div className="mt-2 text-[15px] font-bold tabular">{formatCurrency(pr.total_value)}</div>
     <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
       <Initial name={pr.requested_by?.full_name} />
-      <span className="truncate text-[11px] text-muted-foreground" title={pr.project?.name ?? undefined}>
-        {pr.project?.name ?? '—'}
-      </span>
+      <ProjectNameLink
+        projectId={pr.project_id}
+        name={pr.project?.name}
+        className="truncate text-[11px] text-muted-foreground"
+      />
     </div>
   </KanbanCard>
 );
