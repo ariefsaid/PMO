@@ -10,10 +10,11 @@
  *   on desktop (≥920px) so the Approve/Reject/advance zone is never below the fold.
  *   On mobile (≤920px) the existing mobile-sticky-action bar handles it.
  *
- * CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized roles
- *   Any role for which `can('edit','procurement')` returns true must see an Edit
- *   button in the RecordHeader action zone, regardless of status. The server/RLS
- *   enforces actual writability; the FE shows the affordance by permission only.
+ * CW-EDIT-1: Procurement RecordHeader exposes Edit in the action zone (record-scoped gate)
+ *   The Edit button must appear inside the RecordHeader action zone (not buried elsewhere)
+ *   when the procurement is editable: status Draft or Rejected, AND the user is the
+ *   requester or an Admin. Edit must NOT appear on terminal/non-editable states or for
+ *   non-requester non-Admin roles. RLS remains the enforcement authority.
  */
 
 // ── Fix 1: "No deals" → "No projects" in SalesKanbanBoard ─────────────────
@@ -232,7 +233,7 @@ describe('CW-STICKY-1: decision card is sticky on desktop (RecordActionZone neve
 // ---------------------------------------------------------------------------
 // CW-EDIT-1: Procurement RecordHeader Edit affordance for authorized roles
 // ---------------------------------------------------------------------------
-describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized roles', () => {
+describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editable cases', () => {
   beforeEach(() => {
     mockIsDesktop = true;
     mockEffectiveRole = 'Project Manager';
@@ -241,26 +242,28 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized roles'
     detailState.error = null;
   });
 
-  it('CW-EDIT-1: PM sees Edit button in RecordHeader actions on a Requested PR', () => {
-    // PM can('edit','procurement') = true (allow(ALL) in policy)
-    // Previously Edit was hidden unless isDraft || isRejected — this tests the fix.
-    detailState.data = { ...requestedPR }; // status=Requested, PM is not requester
+  it('CW-EDIT-1: requester (PM) sees Edit button in RecordHeader actions on their own Draft PR', () => {
+    // CW-EDIT-1 keeps Edit surfaced inside the RecordHeader action zone (not buried elsewhere).
+    // Gate: (isDraft || isRejected) && (isRequester || Admin) — draftByPM has PM as requester.
+    detailState.data = { ...draftByPM }; // status=Draft, requested_by_id='u-pm' = current user
     renderPage();
     const headerActions = screen.getByTestId('record-header-actions');
     expect(within(headerActions).getByRole('button', { name: /edit/i })).toBeInTheDocument();
   });
 
-  it('CW-EDIT-1: PM sees Edit button in RecordHeader actions on an Approved PR', () => {
-    detailState.data = { ...approvedPR }; // status=Approved
+  it('CW-EDIT-1: Edit is hidden on a non-editable state (Approved) — record-scoped gate', () => {
+    // Approved is not Draft or Rejected; Edit must NOT appear even though PM has the policy permission.
+    detailState.data = { ...approvedPR }; // status=Approved, PM is not requester
     renderPage();
-    const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    // record-header-actions is only rendered when canEditHeader is true; on Approved it won't exist.
+    expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
-  it('CW-EDIT-1: PM sees Edit button in RecordHeader actions on a Draft PR', () => {
-    detailState.data = { ...draftByPM }; // status=Draft
+  it('CW-EDIT-1: Edit is hidden for a non-requester non-Admin on a Draft PR', () => {
+    // PM is not the requester here (requested_by_id = u-eng) and not an Admin.
+    detailState.data = { ...requestedPR, status: 'Draft' as const }; // Draft, but PM not requester
     renderPage();
-    const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    // record-header-actions is only rendered when canEditHeader is true; here it won't exist.
+    expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 });

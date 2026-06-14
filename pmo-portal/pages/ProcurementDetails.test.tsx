@@ -985,13 +985,11 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('AC-PROC-002: header-edit is VISIBLE for a non-requester PM (CW-EDIT-1: Edit gated by permission, not status)', () => {
-    // CW-EDIT-1: Edit is now shown to any role for which can('edit','procurement') is true.
-    // The server/RLS enforces actual writability; the FE shows the affordance by permission.
-    // mockEffectiveRole = 'Project Manager' (from beforeEach); PM may('edit','procurement') = true.
+  it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {
+    // Edit is scoped to Draft/Rejected AND requester/Admin — a non-requester PM must not see it.
     detailState.data = { ...draftByAlice, requested_by_id: 'u-someone-else' };
     renderPage();
-    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
+    expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
   it('AC-PROC-004: the Select-quote action shows at Vendor Quoted for a sourcing role', () => {

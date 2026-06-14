@@ -319,16 +319,15 @@ const ProcurementDetails: React.FC = () => {
 
   // ── CRUD affordance gating (clarity projection; RLS/RPC is the authority) ──
   const isDraft = p.status === 'Draft';
-  // Header edit: shown to any role for which `can('edit','procurement')` is true (allow(ALL)
-  // in policy.ts — every member including Engineer). The server/RLS is the real enforcement
-  // authority (only the requester + Admin can actually write while Draft/Rejected); the FE
-  // shows the affordance whenever the user has the permission claim so the Edit button is
-  // always discoverable and the server provides the authoritative rejection if attempted in
-  // the wrong state. No archive/delete — Cancel is a lifecycle transition in the action zone.
-  // CW-EDIT-1: previously gated on (isDraft || isRejected) && (isRequester || Admin) — now
-  // gated on policy only so PM/Finance/Exec/Admin see Edit on any status (consistent with
-  // Project/Company/Contact RecordHeader behavior per DESIGN.md §RecordActionZone).
-  const canEditHeader = may('edit', 'procurement');
+  const isRejected = p.status === 'Rejected';
+  // Header edit: requester may edit while Draft/Rejected (record-scoped entity edit).
+  // A8: Admin break-glass header edit while Draft/Rejected (RLS 0010 permits; edit is not an SoD axis).
+  // CW-EDIT-1: the Edit affordance is surfaced inside the RecordHeader action zone (not buried
+  // elsewhere), but its visibility remains record-scoped — Edit only appears on Draft/Rejected
+  // procurements and only to the requester or an Admin. No archive/delete — Cancel is a lifecycle
+  // transition in the action zone. RLS remains the enforcement authority.
+  const canEditHeader =
+    (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const canEditItems = isDraft && (isRequester || may('edit', 'procItem'));
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
