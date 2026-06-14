@@ -17,6 +17,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,11 @@ import { DecisionSupportPanel } from './DecisionSupportPanel';
 // Helpers
 // ---------------------------------------------------------------------------
 function renderPanel(props: React.ComponentProps<typeof DecisionSupportPanel>) {
-  return render(<DecisionSupportPanel {...props} />);
+  return render(
+    <MemoryRouter>
+      <DecisionSupportPanel {...props} />
+    </MemoryRouter>,
+  );
 }
 
 beforeEach(() => {

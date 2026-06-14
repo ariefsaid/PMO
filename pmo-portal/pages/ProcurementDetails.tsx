@@ -15,6 +15,7 @@ import {
   ConfirmDialog,
   RecordActionZone,
   useToast,
+  ProjectNameLink,
   type StatTile,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -383,7 +384,7 @@ const ProcurementDetails: React.FC = () => {
   const moneyContext = (
     <>
       <b>{formatCurrency(Number(p.total_value))}</b>
-      {p.project?.name ? <> on <i>{p.project.name}</i></> : null}
+      {p.project?.name ? <> on <ProjectNameLink projectId={p.project_id} name={p.project.name} /></> : null}
       {p.requested_by?.full_name ? <>, requested by <i>{p.requested_by.full_name}</i></> : null}
     </>
   );
@@ -547,7 +548,7 @@ const ProcurementDetails: React.FC = () => {
 
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
-    p.project?.name ? <span key="proj"> · {p.project.name}</span> : null,
+    p.project?.name ? <span key="proj"> · <ProjectNameLink projectId={p.project_id} name={p.project.name} /></span> : null,
     p.requested_by?.full_name ? <span key="req"> · requested by {p.requested_by.full_name}</span> : null,
   ].filter(Boolean);
 
