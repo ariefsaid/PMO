@@ -99,6 +99,15 @@ beforeEach(() => {
   realRole = 'Admin';
 });
 
+describe('Incidents index — shared ListPage shell (CW-5)', () => {
+  it('renders on the shared ListPage shell: header + canonical toolbar', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Incidents' })).toBeInTheDocument();
+  });
+});
+
 describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
   it('AC-IN-001: renders seeded incidents with type, severity + status badges', () => {
     renderPage();

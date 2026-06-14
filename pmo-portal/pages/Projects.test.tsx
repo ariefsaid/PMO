@@ -98,6 +98,15 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     navigate.mockClear();
   });
 
+  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+    renderPage();
+    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    // the view-switcher is right-aligned (filter-vs-view trap)
+    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+  });
+
   it('AC-PK-008: the view toggle offers a Board option; selecting it renders the kanban board', async () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });

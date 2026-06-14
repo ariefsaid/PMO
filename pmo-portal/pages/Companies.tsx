@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Toolbar,
+  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -188,59 +188,57 @@ const Companies: React.FC = () => {
   };
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Companies</h1>
-          <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            Clients and vendors used across projects and procurement. Master data shared by the
-            whole organisation.
-          </p>
-        </div>
-        {canCreate && (
+    <ListPage
+      title="Companies"
+      description="Clients and vendors used across projects and procurement. Master data shared by the whole organisation."
+      primaryAction={
+        canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
             <Icon name="plus" />
             New company
           </Button>
-        )}
-      </div>
-
-      {/* In-use delete block (23503) — inline GateNotice with an Archive-instead
-          recovery path. Persists until the user archives or dismisses it. */}
-      {blockedCompany && (
-        <GateNotice variant="blocked" className="mb-3.5" data-testid="company-delete-gate">
-          <div>
-            <b className="font-semibold">{blockedCompany.name}</b> is referenced by other
-            records and can&rsquo;t be deleted. Archive it instead to remove it from new records
-            while keeping the audit trail.
-            <div className="mt-2.5 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setArchiveTarget(blockedCompany);
-                  setBlockedCompany(null);
-                }}
-              >
-                Archive instead
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setBlockedCompany(null)}>
-                Dismiss
-              </Button>
+        )
+      }
+      /* In-use delete block (23503) — inline GateNotice with an Archive-instead
+         recovery path. Persists until the user archives or dismisses it. */
+      banner={
+        blockedCompany && (
+          <GateNotice variant="blocked" className="mb-3.5" data-testid="company-delete-gate">
+            <div>
+              <b className="font-semibold">{blockedCompany.name}</b> is referenced by other
+              records and can&rsquo;t be deleted. Archive it instead to remove it from new records
+              while keeping the audit trail.
+              <div className="mt-2.5 flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setArchiveTarget(blockedCompany);
+                    setBlockedCompany(null);
+                  }}
+                >
+                  Archive instead
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setBlockedCompany(null)}>
+                  Dismiss
+                </Button>
+              </div>
             </div>
-          </div>
-        </GateNotice>
-      )}
-
-      {/* Toolbar */}
-      {state !== 'loading' && (
-        <Toolbar standalone>
+          </GateNotice>
+        )
+      }
+      filters={
+        state !== 'loading' && (
           <ViewToggle<TypeFilter>
             options={TYPE_FILTERS.map((f) => ({ value: f, label: f }))}
             value={filter}
             onChange={setFilter}
             ariaLabel="Filter by type"
           />
+        )
+      }
+      search={
+        state !== 'loading' && (
           <SearchMini
             placeholder="Search companies…"
             aria-label="Search companies"
@@ -252,18 +250,26 @@ const Companies: React.FC = () => {
             // `sm`+ it right-aligns at its natural width (ml-auto).
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
+        )
+      }
+      exportAction={
+        state !== 'loading' && (
           <ExportButton rows={filtered} columns={columns} entity="Companies" />
-          {/* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
-              entity's create repository so RLS stamps org_id + gates the write role. On a
-              successful import the wizard close refetches the list. */}
+        )
+      }
+      /* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
+         entity's create repository so RLS stamps org_id + gates the write role. On a
+         successful import the wizard close refetches the list. */
+      importAction={
+        state !== 'loading' && (
           <ImportButton
             entity="company"
             descriptor={companyImportDescriptor}
             onImported={() => void refetch()}
           />
-        </Toolbar>
-      )}
-
+        )
+      }
+    >
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -353,7 +359,7 @@ const Companies: React.FC = () => {
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+    </ListPage>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Toolbar,
+  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -230,31 +230,54 @@ const ProcurementPage: React.FC = () => {
         : undefined;
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {ownScoped ? 'Your purchase requests' : 'Procurement'}
-          </h1>
-          <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-            {ownScoped
-              ? 'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.'
-              : 'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.'}
-          </p>
-        </div>
-        {canCreate && (
+    <ListPage
+      title={ownScoped ? 'Your purchase requests' : 'Procurement'}
+      description={
+        ownScoped
+          ? 'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.'
+          : 'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.'
+      }
+      primaryAction={
+        canCreate && (
           <Button variant="primary" onClick={() => setShowNew(true)}>
             <Icon name="plus" />
             Raise request
           </Button>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      {state !== 'loading' && (
-        <Toolbar standalone>
-          {/* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
-              so hide the Table/Board toggle — it would be a state-lie. */}
+        )
+      }
+      filters={
+        state !== 'loading' && (
+          /* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */
+          <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+            <ViewToggle<StatusFilter>
+              options={FILTERS.map((f) => ({ value: f, label: f }))}
+              value={filter}
+              onChange={setFilter}
+              ariaLabel="Status filter"
+            />
+          </div>
+        )
+      }
+      search={
+        state !== 'loading' && (
+          <SearchMini
+            placeholder="Filter requests…"
+            aria-label="Filter requests"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
+          />
+        )
+      }
+      exportAction={
+        state !== 'loading' && (
+          <ExportButton rows={filtered} columns={columns} entity="Procurement" />
+        )
+      }
+      view={
+        state !== 'loading' && (
+          /* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
+             so hide the Table/Board toggle — it would be a state-lie. */
           <div className="hidden md:block">
             <ViewToggle<'table' | 'board'>
               options={[
@@ -266,29 +289,9 @@ const ProcurementPage: React.FC = () => {
               ariaLabel="Procurement view"
             />
           </div>
-          {/* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */}
-          <div
-            data-testid="status-filter-scroll"
-            className="overflow-x-auto scroll-fade-x"
-          >
-            <ViewToggle<StatusFilter>
-              options={FILTERS.map((f) => ({ value: f, label: f }))}
-              value={filter}
-              onChange={setFilter}
-              ariaLabel="Status filter"
-            />
-          </div>
-          <SearchMini
-            placeholder="Filter requests…"
-            aria-label="Filter requests"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            containerClassName="ml-auto"
-          />
-          <ExportButton rows={filtered} columns={columns} entity="Procurement" />
-        </Toolbar>
-      )}
-
+        )
+      }
+    >
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -350,7 +353,7 @@ const ProcurementPage: React.FC = () => {
           }}
         />
       )}
-    </div>
+    </ListPage>
   );
 };
 

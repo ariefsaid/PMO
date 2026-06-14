@@ -396,6 +396,13 @@ by one rulebook. Build plan + per-phase migration order: `docs/plans/2026-06-14-
   **Board**. The view-switcher renders right-aligned (icon segmented); status **filters** render left
   as text chips — visually distinct so the two strips are never confused. Master-data lists get Export
   **and** Import; the slot order is identical everywhere.
+- **Implemented** as `ListPage` (`src/components/ui/ListPage.tsx`, CW-5). Named slots
+  `title / description / count / primaryAction` (header row) + `banner / filters / search /
+  secondaryFilter / exportAction / importAction / view` (the toolbar). The view-switcher is the
+  *last* DOM node but carries `ml-auto`, so it sits hard-right while filters/search/Export lead at
+  the left — the documented right-aligned view, left-aligned filters arrangement. Every list page
+  (`Companies / Contacts / Incidents / Procurement / Projects / Pipeline`) renders on it; per-page
+  columns/filters/views are passed as slots — the shell is shared, the content is per-page.
 
 ### Approvals (one inbox)
 - `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs
