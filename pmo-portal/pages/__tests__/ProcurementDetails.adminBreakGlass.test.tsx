@@ -147,12 +147,16 @@ describe('AC-IXD-PROC-A8: Admin break-glass header edit', () => {
     expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) does NOT see Edit-header on a Draft PR', () => {
+  it('AC-IXD-PROC-A8: a non-Admin, non-requester (Finance) DOES see Edit-header on a Draft PR (CW-EDIT-1)', () => {
+    // CW-EDIT-1: Edit affordance now shown to any role for which can('edit','procurement') is true.
+    // Finance has may('edit','procurement') = true (policy: allow(ALL)). The server/RLS enforces
+    // actual writability; the FE shows the affordance by permission. This replaces the old
+    // Admin-break-glass-only gate — the Edit button is discoverable for all authorized roles.
     auth.realRole = 'Finance';
     auth.currentUserId = 'u-finance';
     detailState.data = { ...base, status: 'Draft' };
     renderPage();
-    expect(screen.queryByTestId('edit-header')).toBeNull();
+    expect(screen.getByTestId('edit-header')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-A8: the requester still sees Edit-header (no regression)', () => {

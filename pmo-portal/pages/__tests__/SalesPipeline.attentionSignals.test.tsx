@@ -261,7 +261,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
-    expect(screen.getByText(/no deals need attention/i)).toBeInTheDocument();
+    expect(screen.getByText(/no projects need attention/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-9: Owner column header is accessible (columnheader role with name)', async () => {

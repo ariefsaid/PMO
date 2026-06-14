@@ -364,7 +364,7 @@ const SalesPipeline: React.FC = () => {
             options={DEAL_SCOPES.map((s) => ({ value: s, label: s }))}
             value={scope}
             onChange={setScope}
-            ariaLabel="Deal scope"
+            ariaLabel="Project scope"
           />
         )
       }
@@ -437,16 +437,16 @@ const SalesPipeline: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
             scope === 'Lost'
-              ? 'No lost deals'
+              ? 'No lost projects'
               : scope === 'Needs attention'
-                ? 'No deals need attention'
-                : 'No deals match your search'
+                ? 'No projects need attention'
+                : 'No projects match your search'
           }
           emptySub={
             scope === 'Lost'
-              ? 'Deals marked lost will appear here.'
+              ? 'Projects marked lost will appear here.'
               : scope === 'Needs attention'
-                ? `No deal has been untouched for ${ATTENTION_THRESHOLD_DAYS}+ days — pipeline is active.`
+                ? `No project has been untouched for ${ATTENTION_THRESHOLD_DAYS}+ days — pipeline is active.`
                 : 'Try a different name or customer.'
           }
         />

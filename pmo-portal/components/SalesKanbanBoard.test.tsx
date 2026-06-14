@@ -68,7 +68,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
 
   it('AC-SP-204: an empty column shows the per-stage empty message', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
-    expect(screen.getByText('No deals in Leads')).toBeInTheDocument();
+    expect(screen.getByText('No projects in Leads')).toBeInTheDocument();
   });
 
   it('AC-SP-204: a won deal shows a won status pill and lands in the terminal Won column', () => {

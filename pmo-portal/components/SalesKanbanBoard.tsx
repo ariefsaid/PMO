@@ -128,7 +128,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                 dotColor={col.dotColor}
                 count={colProjects.length}
                 totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} /> : undefined}
-                emptyMessage={`No deals in ${col.title}`}
+                emptyMessage={`No projects in ${col.title}`}
               >
                 {colProjects.map((p) => (
                   <DealCard
