@@ -84,7 +84,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
 
     const opp = result.current.records.find((r) => r.title === 'Acme Tender');
-    expect(opp?.sub).toBe('Sales Pipeline');
+    expect(opp?.sub).toBe('Project · Pipeline');
     opp!.run();
     expect(navigate).toHaveBeenCalledWith('/projects/o1');
 

@@ -5,12 +5,12 @@ import { login } from './helpers';
  * AC-AU-001  Administration › Users management — real user journey (binding BDD principle).
  *
  * Covers in one sequential Admin journey:
- *   AC-AU-001  the user directory loads for an Admin → "Add user" CTA is visible
+ *   AC-AU-001  the user directory loads for an Admin → "New user" CTA is visible
  *   AC-AU-003  edit a user's role → the high-impact confirm appears → the role pill updates
  *   AC-AU-004  assign a user's manager → the manager column updates
  *
  * Plus separate gate assertions:
- *   AC-AU-002a Executive sees a READ-ONLY directory (no "Add user", no row actions)
+ *   AC-AU-002a Executive sees a READ-ONLY directory (no "New user", no row actions)
  *   AC-AU-002b a non-admin/non-exec role (Engineer) reaching the route sees an Admin-only gate
  *
  * Roles: admin@acme.test (full management), exec@acme.test (read-only), engineer@acme.test (gate).
@@ -50,8 +50,8 @@ test(
     await page.goto('/administration');
     await waitReady(page);
 
-    // ── Step 1: AC-AU-001 — directory loads, "Add user" CTA visible for Admin ──
-    await expect(page.getByRole('button', { name: /add user/i })).toBeVisible({ timeout: 10_000 });
+    // ── Step 1: AC-AU-001 — directory loads, "New user" CTA visible for Admin ──
+    await expect(page.getByRole('button', { name: /new user/i })).toBeVisible({ timeout: 10_000 });
     const daveRow = userRow(page, engineerEmail);
     await expect(daveRow).toBeVisible({ timeout: 10_000 });
     // "Engineer" also appears in his name (Dave Engineer) + email — target the role
@@ -107,7 +107,7 @@ test(
 // ── AC-AU-002a — Executive read-only directory ──
 
 test(
-  'AC-AU-002a gating: an Executive sees a read-only user directory — no "Add user", no row actions',
+  'AC-AU-002a gating: an Executive sees a read-only user directory — no "New user", no row actions',
   async ({ page }) => {
     await login(page, 'exec@acme.test');
     await page.goto('/administration');
@@ -116,7 +116,7 @@ test(
     // Exec CAN see the directory…
     await expect(userRow(page, 'admin@acme.test')).toBeVisible({ timeout: 10_000 });
     // …but the management chrome is absent (not merely disabled).
-    await expect(page.getByRole('button', { name: /add user/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /new user/i })).not.toBeVisible();
     await expect(page.getByRole('button', { name: /row actions/i })).not.toBeVisible();
     // and a read-only explanation is shown.
     await expect(page.getByText(/only an Admin can/i)).toBeVisible();
@@ -133,6 +133,6 @@ test(
 
     // GOAL ORACLE: an Admin-only gate is shown and the directory rows are NOT rendered.
     await expect(page.getByText(/Admin-only area/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: /add user/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /new user/i })).not.toBeVisible();
   },
 );

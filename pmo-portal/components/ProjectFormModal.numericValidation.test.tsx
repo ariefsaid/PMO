@@ -4,7 +4,7 @@
  * The "Estimated value" field is OPTIONAL:
  *   - Blank → allowed (treated as unset; no error, mutation may fire).
  *   - Non-empty but not a valid non-negative number (e.g. "abc", "12x", "-5")
- *     → inline FieldError on the value field + Create-deal submit BLOCKED.
+ *     → inline FieldError on the value field + Create-project submit BLOCKED.
  *   - Valid positive number (e.g. "1500", "4,820,000") → mutation fires with
  *     the correct parsed value.
  *
@@ -49,7 +49,7 @@ function renderModal(onSubmit = vi.fn().mockResolvedValue(undefined)) {
 
 /** Fill the required fields (name + client) so value is the only gating factor. */
 async function fillRequired() {
-  await userEvent.type(screen.getByLabelText(/opportunity name/i), 'Test Deal');
+  await userEvent.type(screen.getByLabelText(/project name/i), 'Test Project');
   // Client Combobox: open → pick the first option.
   await userEvent.click(screen.getByRole('combobox', { name: /client company/i }));
   const option = await screen.findByRole('option', { name: /innovate corp/i });
@@ -65,7 +65,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     // Leave value blank.
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -74,7 +74,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     // Inline FieldError must appear (F8: the value error is also listed in the
     // top error-summary, so there are 2 role="alert" regions — assert >=1).
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
@@ -85,7 +85,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '12x');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -94,7 +94,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '-5');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -103,7 +103,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '1500');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1500 });
   });
@@ -115,7 +115,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '1e5');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 100000 });
   });
@@ -124,7 +124,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '4,820,000');
-    await userEvent.click(screen.getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 4820000 });
   });

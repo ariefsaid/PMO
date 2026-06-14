@@ -119,20 +119,20 @@ describe('AC-MOB-VT — Projects mobile view toggle (round-2 drift fix)', () => 
     viewBox.value = 'table';
   });
 
-  it('AC-MOB-VT-001: Cards / Calendar / Kanban toggle options do NOT carry `hidden` class (reachable on mobile)', () => {
+  it('AC-MOB-VT-001: Cards / Calendar / Board toggle options do NOT carry `hidden` class (reachable on mobile)', () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
 
     const cardsBtn = within(toggle).getByRole('tab', { name: /Cards/i });
     const calBtn = within(toggle).getByRole('tab', { name: /Calendar/i });
-    const kanbanBtn = within(toggle).getByRole('tab', { name: /Kanban/i });
+    const boardBtn = within(toggle).getByRole('tab', { name: /^Board$/i });
 
     // None of the mobile-visible option buttons should individually carry `hidden`,
     // and none of their closest wrapper parents (up to the tablist) should be
     // exclusively hidden (they may sit in a wrapper that also carries a md: restore).
     expect(cardsBtn.className).not.toContain('hidden');
     expect(calBtn.className).not.toContain('hidden');
-    expect(kanbanBtn.className).not.toContain('hidden');
+    expect(boardBtn.className).not.toContain('hidden');
   });
 
   it('AC-MOB-VT-002: Table toggle option (or its wrapper) carries `hidden` + a `md:` restore class', () => {
@@ -162,6 +162,6 @@ describe('AC-MOB-VT — Projects mobile view toggle (round-2 drift fix)', () => 
     expect(within(toggle).getByRole('tab', { name: /Table/i })).toBeInTheDocument();
     expect(within(toggle).getByRole('tab', { name: /Cards/i })).toBeInTheDocument();
     expect(within(toggle).getByRole('tab', { name: /Calendar/i })).toBeInTheDocument();
-    expect(within(toggle).getByRole('tab', { name: /Kanban/i })).toBeInTheDocument();
+    expect(within(toggle).getByRole('tab', { name: /^Board$/i })).toBeInTheDocument();
   });
 });

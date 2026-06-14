@@ -399,7 +399,7 @@ const Projects: React.FC = () => {
           title="No projects yet"
           sub="Projects you create or win will appear here."
           action={
-            canCreate ? { label: 'New deal', onClick: () => setCreateOpen(true) } : undefined
+            canCreate ? { label: 'New project', onClick: () => setCreateOpen(true) } : undefined
           }
         />
         {createModal}
@@ -432,7 +432,7 @@ const Projects: React.FC = () => {
             { value: 'table', label: 'Table', icon: 'table', optionClassName: 'hidden md:inline-flex' },
             { value: 'cards', label: 'Cards', icon: 'cards' },
             { value: 'calendar', label: 'Calendar', icon: 'cal' },
-            { value: 'kanban', label: 'Kanban', icon: 'cols' },
+            { value: 'kanban', label: 'Board', icon: 'cols' },
           ]}
           value={view}
           onChange={setView}
@@ -553,25 +553,25 @@ const Projects: React.FC = () => {
 };
 
 interface HeaderProps {
-  /** Render the single primary "New deal" CTA (gated by can('create','project')). */
+  /** Render the single primary "New project" CTA (gated by can('create','project')). */
   canCreate?: boolean;
   onNew?: () => void;
 }
 
-/** Page head — title + sub + the gated "New deal" primary CTA (the single per-screen primary). */
+/** Page head — title + sub + the gated "New project" primary CTA (the single per-screen primary). */
 const Header: React.FC<HeaderProps> = ({ canCreate, onNew }) => (
   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
     <div>
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">Projects</h1>
       <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
         Track your active and completed projects. Open one to drill into its budget, procurement,
-        and detail. Pre-win deals live in the Sales Pipeline.
+        and detail. Pre-win projects live in the Pipeline.
       </p>
     </div>
     {canCreate && onNew && (
       <Button variant="primary" onClick={onNew}>
         <Icon name="plus" />
-        New deal
+        New project
       </Button>
     )}
   </div>

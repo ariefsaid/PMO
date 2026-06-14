@@ -108,7 +108,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
-  it('switching to the by-stage Board groups requests into stage columns', async () => {
+  it('switching to the Board view groups requests into stage columns', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
     // Vendor Quoted request lands in the VQ column

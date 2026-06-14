@@ -74,7 +74,7 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
           id: `sales:${o.id}`,
           group: 'Records',
           title: o.name,
-          sub: 'Sales Pipeline',
+          sub: 'Project · Pipeline',
           // The pipeline projection carries no code field; the title disambiguates.
           icon: 'pipe' as IconName,
           // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.

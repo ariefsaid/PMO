@@ -43,21 +43,21 @@ test(
     const runId = Date.now();
     const dealName = `E2E-Canonical-${runId}`;
 
-    // ── A PM creates a new deal (origination status = Leads) ──────────────────
+    // ── A PM creates a new project (origination status = Leads) ──────────────────
     await login(page, 'pm@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
 
-    await page.getByRole('button', { name: /new deal/i }).click();
+    await page.getByRole('button', { name: /new project/i }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
-    await dialog.getByLabel(/opportunity name/i).fill(dealName);
+    await dialog.getByLabel(/project name/i).fill(dealName);
     // Robust FK pick: wait for the async option list to settle before selecting (the bare
     // listbox.option.first().click() races the lazy load→ready re-render → a lost selection that
-    // then blocks the Create-deal submit on the "Select a company" validation error — the dominant
+    // then blocks the Create-project submit on the "Select a company" validation error — the dominant
     // create-flow flake under the single-DB parallel suite). See helpers.pickComboboxOption.
     await pickComboboxOption(dialog, page, /client company/i, 'first');
-    await dialog.getByRole('button', { name: /^Create deal$/i }).click();
+    await dialog.getByRole('button', { name: /^Create project$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
     // ── AC-IXD-PROJ-001a: the new Lead is ABSENT from the active Projects list … ──

@@ -144,7 +144,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('../../components/ProjectFormModal', () => ({
   default: ({ onClose }: { onClose: () => void }) => (
-    <div role="dialog" aria-label="New opportunity">
+    <div role="dialog" aria-label="New project">
       <button onClick={onClose}>Cancel</button>
     </div>
   ),

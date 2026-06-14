@@ -98,11 +98,11 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     navigate.mockClear();
   });
 
-  it('AC-PK-008: the view toggle offers a Kanban option; selecting it renders the kanban board', async () => {
+  it('AC-PK-008: the view toggle offers a Board option; selecting it renders the kanban board', async () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });
-    expect(within(toggle).getByRole('tab', { name: /Kanban/i })).toBeInTheDocument();
-    await userEvent.click(within(toggle).getByRole('tab', { name: /Kanban/i }));
+    expect(within(toggle).getByRole('tab', { name: /^Board$/i })).toBeInTheDocument();
+    await userEvent.click(within(toggle).getByRole('tab', { name: /^Board$/i }));
     // Board root appears; no project-card elements (kanban uses its own card format)
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
     expect(screen.queryAllByTestId('project-card').length).toBe(0);
@@ -203,19 +203,21 @@ describe('Projects index states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('C3: shows the teaching empty state with NO dead New Project CTA when zero rows (AC-406)', () => {
+  it('C3: shows the teaching empty state with a live New project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
-    renderPage();
+    renderPage(); // renders as PM (canCreate=true)
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
-    // C3: no disabled "New Project" button anywhere (header CTA removed + the
-    // page-empty state teaches via its sub copy, not a dead button).
-    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
+    // The live "New project" CTA is shown (not disabled) — page is always actionable for PM.
+    const ctaButtons = screen.getAllByRole('button', { name: /New project/i });
+    ctaButtons.forEach((btn) => expect(btn).not.toBeDisabled());
   });
 
-  it('C3: the page header is not anchored by a disabled New Project CTA', () => {
+  it('C3: the page header shows a live New project CTA for PM (not a dead/disabled button)', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New Project/i })).toBeNull();
+    // The primary CTA in the header is live for PM.
+    const headerCta = screen.getAllByRole('button', { name: /New project/i })[0];
+    expect(headerCta).not.toBeDisabled();
   });
 
   it('shows a filter-no-match empty state with a clear-filters action (AC-D)', async () => {
@@ -305,8 +307,8 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
   });
 });
 
-// ── New deal create + RBAC gating (AC-PRJ-003 / AC-PRJ-007) ──────────────────
-describe('Projects index — New deal create + gating', () => {
+// ── New project create + RBAC gating (AC-PRJ-003 / AC-PRJ-007) ──────────────────
+describe('Projects index — New project create + gating', () => {
   beforeEach(() => {
     sessionStorage.clear();
     projectsState.data = seed as unknown as ProjectWithRefs[];
@@ -321,28 +323,28 @@ describe('Projects index — New deal create + gating', () => {
     });
   });
 
-  it('AC-PRJ-007: a delivery role (PM) sees the "New deal" CTA', () => {
+  it('AC-PRJ-007: a delivery role (PM) sees the "New project" CTA', () => {
     renderPage('Project Manager');
-    expect(screen.getByRole('button', { name: /new deal/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Finance does NOT see "New deal" (FE stricter than RLS — Finance owns money, not delivery)', () => {
+  it('AC-PRJ-007: Finance does NOT see "New project" (FE stricter than RLS — Finance owns money, not delivery)', () => {
     renderPage('Finance');
-    expect(screen.queryByRole('button', { name: /new deal/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Engineer does NOT see "New deal" (read-only index)', () => {
+  it('AC-PRJ-007: Engineer does NOT see "New project" (read-only index)', () => {
     renderPage('Engineer');
-    expect(screen.queryByRole('button', { name: /new deal/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-003: "New deal" opens the create modal; blank required name + client keep submit disabled (F8 readiness)', async () => {
+  it('AC-PRJ-003: "New project" opens the create modal; blank required name + client keep submit disabled (F8 readiness)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     // F8 (AC-IXD-FORM-F8): the blank required name + client disable submit, so the user
-    // cannot silently submit a blank deal and no create mutation fires.
-    const submit = screen.getByRole('button', { name: /^Create deal$/i });
+    // cannot silently submit a blank project and no create mutation fires.
+    const submit = screen.getByRole('button', { name: /^Create project$/i });
     expect(submit).toBeDisabled();
     await userEvent.click(submit);
     expect(projectMutations.create.mutateAsync).not.toHaveBeenCalled();
@@ -350,14 +352,14 @@ describe('Projects index — New deal create + gating', () => {
 
   it('AC-PRJ-003: a valid create submits name/status/client/PM/value to the mutation (origination = Leads)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/opportunity name/i), 'Harborside Terminal');
+    await userEvent.type(within(dialog).getByLabelText(/project name/i), 'Harborside Terminal');
     // Client company is a Combobox FK picker — open, search, select.
     await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
     const listbox = await screen.findByRole('listbox', { name: /compan/i });
     await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
     await waitFor(() =>
       expect(projectMutations.create.mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -371,7 +373,7 @@ describe('Projects index — New deal create + gating', () => {
 
   it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
     const dialog = screen.getByRole('dialog');
     const select = within(dialog).getByLabelText(/origination stage/i) as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.value);
@@ -383,13 +385,13 @@ describe('Projects index — New deal create + gating', () => {
   it('AC-PRJ-003: a create rejected by RLS (42501) surfaces a classified warning toast', async () => {
     projectMutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new deal/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/opportunity name/i), 'Blocked Deal');
+    await userEvent.type(within(dialog).getByLabelText(/project name/i), 'Blocked Project');
     await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
     const listbox = await screen.findByRole('listbox', { name: /compan/i });
     await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Create deal$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/don't have permission/i);
   });

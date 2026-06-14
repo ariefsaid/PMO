@@ -259,7 +259,7 @@ const ProcurementPage: React.FC = () => {
             <ViewToggle<'table' | 'board'>
               options={[
                 { value: 'table', label: 'Table', icon: 'table' },
-                { value: 'board', label: 'By-stage Board', icon: 'cols' },
+                { value: 'board', label: 'Board', icon: 'cols' },
               ]}
               value={view}
               onChange={setView}

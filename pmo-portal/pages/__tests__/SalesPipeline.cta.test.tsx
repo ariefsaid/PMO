@@ -33,7 +33,7 @@ vi.mock('@/src/hooks/usePipelineView', () => ({ usePipelineView: () => ['table',
 // Stub the create modal (tested elsewhere).
 vi.mock('../../components/ProjectFormModal', () => ({
   default: ({ onClose }: { onClose: () => void }) => (
-    <div role="dialog" aria-label="New opportunity">
+    <div role="dialog" aria-label="New project">
       <button onClick={onClose}>Cancel</button>
     </div>
   ),
@@ -59,26 +59,26 @@ const renderAs = (realRole: Role) =>
     </ImpersonationProvider>,
   );
 
-describe('SalesPipeline — + New opportunity CTA gating (B-3, AC-W2-IXD-005)', () => {
-  it('AC-W2-IXD-005: a PM sees the "+ New opportunity" CTA on the Sales Pipeline', () => {
+describe('SalesPipeline — + New project CTA gating (B-3, AC-W2-IXD-005)', () => {
+  it('AC-W2-IXD-005: a PM sees the "+ New project" CTA on the Pipeline', () => {
     renderAs('Project Manager');
     expect(
-      screen.getByRole('button', { name: /new opportunity/i }),
+      screen.getByRole('button', { name: /new project/i }),
     ).toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-005: Finance does NOT see the "+ New opportunity" CTA (gating regression)', () => {
+  it('AC-W2-IXD-005: Finance does NOT see the "+ New project" CTA (gating regression)', () => {
     renderAs('Finance');
     expect(
-      screen.queryByRole('button', { name: /new opportunity/i }),
+      screen.queryByRole('button', { name: /new project/i }),
     ).not.toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-005: an Engineer does NOT see the "+ New opportunity" CTA', () => {
+  it('AC-W2-IXD-005: an Engineer does NOT see the "+ New project" CTA', () => {
     renderAs('Engineer');
-    // Engineers are denied the Sales Pipeline page entirely (A-4); CTA also absent.
+    // Engineers are denied the Pipeline page entirely (A-4); CTA also absent.
     expect(
-      screen.queryByRole('button', { name: /new opportunity/i }),
+      screen.queryByRole('button', { name: /new project/i }),
     ).not.toBeInTheDocument();
   });
 });

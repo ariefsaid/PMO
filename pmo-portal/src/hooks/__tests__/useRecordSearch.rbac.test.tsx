@@ -65,7 +65,7 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     const subs = result.current.records.map((r) => r.sub);
     expect(subs).toContain('Project');
     expect(subs).toContain('Procurement');
-    expect(subs).toContain('Sales Pipeline');
+    expect(subs).toContain('Project · Pipeline');
   });
 
   it('AC-W2-RBAC-015 (Engineer, denied): excludes procurement + pipeline rows, keeps projects', () => {
@@ -77,7 +77,7 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     expect(subs).toContain('Project');
     // Procurement + Sales Pipeline have no Engineer nav → never surfaced via ⌘K.
     expect(subs).not.toContain('Procurement');
-    expect(subs).not.toContain('Sales Pipeline');
+    expect(subs).not.toContain('Project · Pipeline');
   });
 
   it('AC-W2-RBAC-015: a null role indexes nothing reject-bound (deny-by-default)', () => {
@@ -85,6 +85,6 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     const subs = result.current.records.map((r) => r.sub);
     // With no role, procurement + pipeline (view-gated) are excluded; projects (view=all) stay.
     expect(subs).not.toContain('Procurement');
-    expect(subs).not.toContain('Sales Pipeline');
+    expect(subs).not.toContain('Project · Pipeline');
   });
 });
