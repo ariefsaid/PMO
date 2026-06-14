@@ -67,6 +67,8 @@ test(
 
     // GOAL ORACLE (the real goal): the logged activity appears in the timeline.
     await expect(drawer.getByText(subject)).toBeVisible({ timeout: 15_000 });
-    await expect(drawer.getByText('Call').first()).toBeVisible();
+    // Scope to the rendered timeline list — avoids matching the invisible <option> in the log-activity <select>.
+    const timeline = drawer.getByTestId('activity-timeline');
+    await expect(timeline.getByText('Call').first()).toBeVisible();
   },
 );

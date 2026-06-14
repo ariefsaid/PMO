@@ -532,7 +532,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
       )}
 
       {!isPending && !isError && activities.length > 0 && (
-        <ol className="flex flex-col gap-3">
+        <ol data-testid="activity-timeline" className="flex flex-col gap-3">
           {activities.map((a) => (
             <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
