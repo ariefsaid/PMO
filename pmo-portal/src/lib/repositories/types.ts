@@ -71,6 +71,8 @@ import type {
   MilestoneDate,
 } from '@/src/lib/db/milestones';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
+import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
+import type { CrmActivityRow, CrmActivityInput } from '@/src/lib/db/crmActivities';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -296,6 +298,27 @@ export interface ProcurementFileRepository {
   cleanupObject(filePath: string): Promise<void>;
 }
 
+export interface ContactRepository {
+  /** All non-archived contacts in the org, ordered by name. */
+  list(): Promise<ContactRow[]>;
+  /** A company's non-archived contacts (the company-detail list). */
+  listByCompany(companyId: string): Promise<ContactRow[]>;
+  /** A single contact by id, or null when not found / not readable. */
+  get(id: string): Promise<ContactRow | null>;
+  /** Create a contact (org_id stamped by RLS, never sent). */
+  create(input: ContactInput): Promise<ContactRow>;
+  /** Update a contact's fields. */
+  update(id: string, input: ContactInput): Promise<void>;
+  /** Soft-archive a contact (stamps archived_at). */
+  archive(id: string): Promise<void>;
+  /** Hard-delete a contact (Admin-only at the RLS layer); cascades its activities. */
+  delete(id: string): Promise<void>;
+  /** A contact's activities, newest-first by occurred_at. */
+  listActivities(contactId: string): Promise<CrmActivityRow[]>;
+  /** Log an activity (org_id trigger-stamped from the parent; logged_by from the caller). */
+  createActivity(input: CrmActivityInput, loggedById: string | null): Promise<CrmActivityRow>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -309,4 +332,5 @@ export interface Repositories {
   incident: IncidentRepository;
   milestone: MilestoneRepository;
   procurementFiles: ProcurementFileRepository;
+  contact: ContactRepository;
 }

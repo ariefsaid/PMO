@@ -41,6 +41,7 @@ const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails')
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
+const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
@@ -78,6 +79,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/timesheets" element={<TimesheetsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/companies" element={<CompaniesPage />} />
+      <Route path="/contacts" element={<ContactsPage />} />
       <Route path="/incidents" element={<IncidentsPage />} />
       {/* /work-orders removed (owner decision — the route, not just the nav). */}
       {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}

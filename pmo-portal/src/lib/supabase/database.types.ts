@@ -159,6 +159,138 @@ export type Database = {
           },
         ]
       }
+      contacts: {
+        Row: {
+          archived_at: string | null
+          company_id: string
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          org_id: string
+          phone: string | null
+          title: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id: string
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          phone?: string | null
+          title?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          phone?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_activities: {
+        Row: {
+          body: string | null
+          company_id: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["crm_activity_kind"]
+          logged_by_id: string | null
+          occurred_at: string
+          org_id: string
+          project_id: string | null
+          subject: string | null
+        }
+        Insert: {
+          body?: string | null
+          company_id?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["crm_activity_kind"]
+          logged_by_id?: string | null
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          subject?: string | null
+        }
+        Update: {
+          body?: string | null
+          company_id?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["crm_activity_kind"]
+          logged_by_id?: string | null
+          occurred_at?: string
+          org_id?: string
+          project_id?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_activities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_logged_by_id_fkey"
+            columns: ["logged_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_reports: {
         Row: {
           created_at: string
@@ -1474,6 +1606,7 @@ export type Database = {
         | "Contingency"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
+      crm_activity_kind: "Call" | "Email" | "Meeting" | "Note"
       doc_status:
         | "Draft"
         | "Issued"
@@ -1658,6 +1791,7 @@ export const Constants = {
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],
+      crm_activity_kind: ["Call", "Email", "Meeting", "Note"],
       doc_status: [
         "Draft",
         "Issued",

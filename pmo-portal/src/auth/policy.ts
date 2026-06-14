@@ -46,7 +46,9 @@ export type Entity =
   | 'user'
   | 'timesheet'
   | 'approval'
-  | 'milestone';
+  | 'milestone'
+  | 'contact'
+  | 'contactActivity';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -214,6 +216,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(MILESTONE_WRITE),
     edit: allow(MILESTONE_WRITE),
     delete: allow(MILESTONE_WRITE),
+  },
+  contact: {
+    // CRM is master data — a directory of people, mirroring `company` (rbac-visibility §D):
+    // view/create/edit = the 4 master-data writers (Engineer = ○, no CRM nav/page); archive =
+    // Admin·Exec; hard-delete = Admin only. UX-only — the contacts RLS (0030) is the authority.
+    view: allow(MASTER_DATA),
+    create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    archive: allow(ARCHIVE_ROLES),
+    delete: allow(ADMIN),
+  },
+  contactActivity: {
+    // Logging a touchpoint is a routine master-data write (no SoD axis) — any of the 4 writers.
+    view: allow(MASTER_DATA),
+    create: allow(MASTER_DATA),
   },
 };
 

@@ -70,6 +70,14 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
+    module: 'contacts',
+    icon: 'doc',
+    label: 'Contacts',
+    path: '/contacts',
+    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no CRM nav — master-data, like Companies).
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+  },
+  {
     module: 'incidents',
     icon: 'alert',
     label: 'Incidents',
