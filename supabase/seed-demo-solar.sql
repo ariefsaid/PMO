@@ -1111,7 +1111,7 @@ update tasks set milestone_id = 'd7000000-0000-0000-0000-000000000012'
 
 -- ============================================================
 -- §K CRM contacts + activity (AC-IFW-SEED-01, LOCAL-ONLY)
--- UUID namespace: ct000000-0000-0000-0000-0000000000XX (contacts)
+-- UUID namespace: ce000000-0000-0000-0000-0000000000XX (contacts)
 --                 ca000000-0000-0000-0000-0000000000XX (crm_activities)
 -- org_id defaults to 00000000-…-0001 (column default, no explicit send).
 -- Idempotent via ON CONFLICT (id) DO NOTHING.
