@@ -5,22 +5,26 @@
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
 ## ▶ Current state (2026-06-14)
-- **⚑ `dev` branch — unreviewed autonomous burst awaiting owner review (2026-06-14).** A parallel Director-run burst (Claude `Task` subagents + the `Workflow` tool, owner serialized, exploiting the Claude weekly-quota window) shipped to **`dev`** (NOT main/prod): **Wave 0** — 8 mobile/UX streams @390 (exec dashboard glanceable · shell touch-targets+404/h1 · DataTable card-clip · scrollable status filter + Table-toggle hidden on mobile · bottom-sheet confirm · procurement-detail mobile actions/back/SoD · one-handed day-stacked timesheet · project-detail back-affordance). **KANNA Wave 1** — Bulk **Export** (xlsx, #92) · Project **Calendar** read-only (#93) · **Procurement attachments** per-phase child tables+RLS+storage (#94). **KANNA Wave 2** — **S-Curve** planned-vs-actual (#95) · Projects **Kanban** by status (#96) · mobile view-toggle/S-curve drift fix (#97). Each ran TDD + the **3-reviewer battery** (spec+quality+security) + **design-review round 2 @390**; CI green; merged to `dev` (PRs **#84–#97**; new migrations **0028** procurement-files, **0029** calendar-milestone RPC). **Prod is UNCHANGED at 0027/#83.** Owner: review `dev` → promote `dev → main` when satisfied. **Deferred-debt ledger from this burst is in OPEN debt below.** The verification floor caught real defects again (a prod-breaking missing `org_id` stamp-trigger on 0028 that 3 reviewers passed; an export shipped sub-spec with its xlsx serialization fully mocked; full-suite-red-but-subset-green twice).
+- **⚑ `dev` branch — large autonomous burst awaiting owner review (2026-06-14).** `dev` is ~32 commits ahead of `main`; **prod is UNCHANGED at migration 0027 / PR #83**. Owner: review `dev` → promote `dev → main → production` when satisfied.
+- **KANNA Waves 0–3 (PRs #84–#101, on `dev`):** each ran TDD + 3-reviewer battery (spec+quality+security) + design-review round 2; grill+mockup skipped per owner directive (Director locked `[OWNER-DECISION]`s); CI green throughout.
+  - **Wave 0** — 8 mobile/UX @390 fixes: exec dashboard glanceable · shell touch-targets+404/h1 · DataTable card-clip · scrollable status filter + Table-toggle hidden on mobile · bottom-sheet confirm · procurement-detail mobile actions/back/SoD · day-stacked timesheet · project-detail back-affordance.
+  - **Wave 1** — Bulk **Export** xlsx (#92) · Project **Calendar** read-only (#93) · **Procurement attachments** per-phase child tables+RLS+storage (#94, migration **0028**).
+  - **Wave 2** — **S-Curve** planned-vs-actual (#95) · Projects **Kanban** by status (#96) · mobile view-toggle/S-curve drift fix (#97).
+  - **Wave 3** — **Gantt** (#98) · **Import wizard** xlsx (#99) · **CRM** contacts+activity (#100, migration **0030**) · CRM companies-drawer (#101). New migrations: **0029** calendar-milestone RPC, **0030** CRM contacts/activities.
+- **Whole-app coherence audit (2026-06-14):** dual-substrate (Opus ×3 + gpt-5.4 ×3, 3-lens) → `docs/reviews/2026-06-14-whole-app-coherence-audit.md`. Diagnosis: "doesn't feel like the same app" = **PATTERN drift** (5 record verbs built per-feature), not token drift.
+- **Coherence wave (PRs #103–#112 + #111, on `dev`):** plan `docs/plans/2026-06-14-coherence-wave.md`, DESIGN.md §7 added. CW-1: one noun "Project" + one create-verb. CW-2: status/colour registry (action-blue freed, active→grey). CW-7: bug sweep (NaN/dates, ⌘K-index Companies/Contacts, role-invariant URL, dashboard copy, validation, honest Add-user). CW-3a: one RecordHeader + bar stepper (retired procurement circle stepper). CW-3b: one KpiTile + one ProjectCard. CW-4a/b: routable `/incidents/:id` + `/companies/:id` + `/contacts/:id` pages (drawers-as-record retired, Incidents dead-end fixed). CW-5: one ListPage shell. CW-6: unified `/approvals` inbox. #111: re-landed orphaned #102 drift fixes (gantt today-line, s-curve "100%", import autoMap; #102 closed). Design-review closing verdict: **SHIP — "feels like one app."** Two minor residuals in follow-up PR (sticky action zone + procurement header Edit; "No deals in <stage>" → "No projects" copy leak). **B-MIN-1 noun-soup RESOLVED by CW-1.**
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
   merge `main → production`. **Prod is current** — Cloud at migration **0027**, `production` promoted (2026-06-13). PRs through **#83**.
   (Don't trust hardcoded counts — `supabase migration list` / `ls supabase/migrations` is the real check.)
-- **Built & hardened:** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
+- **Built & hardened (prod):** Commercial pipeline + win-rate, Budget versioning, Procure-to-Pay (full SoD),
   Timesheets, Companies/Tasks/Incidents/Documents CRUD, Admin users, RBAC (5 roles, RLS-enforced),
   per-role dashboards, mobile, **delivery milestones (spine 3)**, **delivery UI redesign** (even-bar
   stepper + 'Project delivery %' rollup + 'Budget used' committed-spend column), **document file upload
   (storage)**, PostHog analytics, Solar EPC demo seed (4-phase milestones). The CRUD/RBAC foundation
   (ADR-0015–0021) is the pattern all new work follows.
-- **Most recently shipped:** PR #82 at-risk consolidation (one shared rule + migration 0027 + drift-guard).
-  PR #80 delivery migration-chain fix (restored 0023, new 0026 committed-spend
-  RPC) + committed-spend budget basis — ran the full 4-agent review loop (security/spec/quality/qa) on the
-  pi-trial; e2e gate caught a redesign-locator regression + an ambient esbuild CI-audit breakage, both
-  fixed. PR #79 delivery-UI redesign; KANNA Issue #1 document file upload (PR #78). Full timeline: history.md.
+- **`dev` additionally contains (not yet on prod):** Export/Import wizard, Calendar, Procurement attachments, S-Curve, Kanban, Gantt, CRM contacts+activity, whole-app coherence pass — awaiting owner review + promote.
+- **Most recently shipped to prod:** PR #83 CI changed-lines coverage gate. PR #82 at-risk consolidation. PR #80 delivery migration-chain fix. PR #79 delivery-UI redesign. PR #78 document file upload. Full timeline: history.md.
 
 ## ▶ KNOWN ISSUES
 
@@ -29,7 +33,7 @@ to the Supabase Cloud project; `production` branch promoted to `main`@094406c �
 'Budget used', document file upload + the prod storage bucket, and the at-risk `>=` boundary are now LIVE.
 The migration-0023 immutability bug behind this was fixed in PR #80; 0023 is byte-identical to its #74 prod content.)
 
-## ▶ ACTIVE PROGRAM — KANNA gap-closing series (started 2026-06-12)
+## ▶ ACTIVE PROGRAM — KANNA gap-closing (burst on `dev`, awaiting promote)
 **Execution plan + wave sequencing: [`docs/kanna-program.md`](kanna-program.md)** — read it before any fan-out.
 Gap analysis (what's missing): `docs/reviews/2026-06-11-kanna-gap-analysis.md`. Model: **parallel waves of ≤3–4
 independent issues** (worktree + PR each; CI verifies in parallel on the public repo), with all owner-interactive
@@ -38,16 +42,12 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **✅ Issue #1 — document file upload — DONE & MERGED (PR #78).** Decisions OD-DOC-1..5; migrations 0024+0025;
   private org-scoped bucket; Draft-only upload/replace; download + preview; New-revision auto-Supersede (SoD);
   5 MB bumpable + allowlist. Security PASS. **Live on prod** (pushed 2026-06-13).
-- **✅ Wave 1 — BUILT ON `dev` (review-pending, 2026-06-14):** Bulk **Export** (xlsx, #92) · Project **Calendar**
-  read-only (#93) · **Procurement attachments** per-phase child tables/RLS/storage (#94). **Bulk Import** wizard was
-  split out → a later wave (owner steer: visual-first for demo). Grill + mockup were skipped (owner directive for the
-  burst); Director locked the `[OWNER-DECISION]`s. All 3 reviewed + design-reviewed; on `dev`.
-- **✅ Wave 2 — BUILT ON `dev` (review-pending, 2026-06-14):** **S-Curve** planned-vs-actual (#95) · Projects
-  **Kanban** by status (#96) · mobile view-toggle drift fix (#97, also makes Calendar reachable on mobile). Demo-visual
-  priority per owner.
-- **▶ Wave 3 (next, NOT started):** candidates per kanna-program.md §3 — Gantt · CRM contacts+activity · sub-projects ·
-  **Bulk Import** wizard. **Default SOP reverts to series + pi** once the Claude weekly-quota window closes (the parallel
-  burst was the transient mode, [[kanna-parallel-model]]).
+- **✅ Wave 0 — BUILT & on `dev` (PRs #84–#91):** 8 mobile/UX @390 fixes (exec dashboard glanceable · shell touch-targets · DataTable card-clip · scrollable filters · bottom-sheet confirm · procurement-detail mobile · day-stacked timesheet · project-detail back).
+- **✅ Wave 1 — BUILT & on `dev` (PRs #92–#94):** Bulk **Export** (#92) · Project **Calendar** (#93) · **Procurement attachments** (#94, migration 0028). Grill + mockup skipped per owner directive; Director locked `[OWNER-DECISION]`s.
+- **✅ Wave 2 — BUILT & on `dev` (PRs #95–#97):** **S-Curve** (#95) · **Kanban** (#96) · drift fix (#97).
+- **✅ Wave 3 — BUILT & on `dev` (PRs #98–#101):** **Gantt** (#98) · **Import wizard** (#99) · **CRM** contacts+activity (#100, migration 0030) · CRM companies-drawer (#101).
+- **✅ Coherence wave — BUILT & on `dev` (PRs #103–#112 + #111):** whole-app pattern unification. Design verdict: **SHIP.** Minor follow-up pending (sticky action zone + procurement header Edit + copy leak).
+- **▶ Next after promote:** candidates per kanna-program.md §3 — Sub-projects · Append-only audit events · Commitment-governance spec · Spine-4 Revenue/AR. Default SOP = **series + pi** (the parallel burst consumed the Claude weekly-quota window and is now closed).
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)
 - **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct
@@ -60,13 +60,13 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **Reports module** — `/reports` is a placeholder; needs owner definition (read-only dashboards/exports).
   Export affordances (Sales, board pack) route here.
 - **Design-system normalization (H2/H4)** — full arbitrary-px-spacing sweep + off-scale-font normalization
-  (only a scoped subset done in Wave 6); touches dozens of components → own track with a rendered diff audit.
+  (only a scoped subset done in the coherence wave); touches dozens of components → own track with a rendered diff audit.
 - **Later spines:** Revenue/AR (progress billing, retention, change orders — spine 4; ties into milestones),
   Resources/Assets (spine 8), Service/O&M (spine 9). See `docs/roadmap-spines.md`.
 
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
 
-### Deferred-debt ledger from the 2026-06-14 `dev` burst (review-pending; fold in before promote where noted)
+### Deferred-debt ledger from the 2026-06-14 `dev` burst (fold in before promote where noted)
 - **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit
   `org_id=B` override-insert test (caller in org A supplies `org_id=B` → expect `42501` from WITH CHECK) and (b) an
   anon-read=0 assertion on the three `procurement_*_files` metadata tables. Code is provably safe (stamp-trigger guard
@@ -74,12 +74,10 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **Projects xlsx Export opt-in** [Low]: the Export button was wired to Companies/Incidents/Procurement/SalesPipeline but
   **deliberately skipped on `pages/Projects.tsx`** (collision-avoidance with the Calendar/Kanban view-mode stream). Add the
   one-line `<ExportButton entity=…>` to the Projects toolbar now that those merged.
-- **B-MIN-1 noun consistency** [Low, owner copy call]: Projects / "New deal" / "Opportunity name" / "Create deal" mix nouns
-  in one create flow. Pulled out of the Wave-0 mobile sweep as a product-copy decision (pipeline *opportunity* vs delivery
-  *project* may be intentional) — **owner to decide the canonical copy.**
+- ~~**B-MIN-1 noun consistency**~~ — **RESOLVED by CW-1** (one noun "Project" + one create-verb, coherence wave).
 - **Detail-page metric-tile strip clips a tile @390** [Low, pre-existing]: project/procurement detail metric tiles render
   as a horizontal-scroll strip with the right-edge tile cut (no page overflow, no content loss). Pre-existing; surfaced by
-  the Wave-0 audit, outside its scope.
+  Wave-0 audit, outside its scope.
 - **S-Curve actual model = single as-of-today point** (OBS-SC-001 / ADR-0025) [Low, by design]: no per-date actual history
   exists; a future `project_milestones.completed_on` (or progress-history) migration upgrades the actual to a stepped curve
   with **no FE rewrite** (`buildSCurve` already consumes a `{date, cumulativePct}` list).
@@ -87,8 +85,10 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   `procurement_quotations.file_url` backfill** deferred (ADR-0023).
 - **Kanban status-dot color reuse** [Minor]: Won + Close Out share the green status dot (disambiguated by label) — assign
   distinct DESIGN.md status tokens.
-- **Calendar/Kanban e2e depth** [Minor]: the toggle→render→click journeys are covered (AC-CAL/AC-PK e2e); confirm the new
-  mobile-toggle path (#97) is exercised once when convenient.
+- **Coherence wave minor follow-up** [Low]: two residuals to land in a follow-up PR — sticky action zone + procurement
+  header Edit button; "No deals in <stage>" → "No projects" copy leak.
+- **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
+  (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
 
 ### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
@@ -145,3 +145,5 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   `npm run build` · `npx playwright test` (stack up, from `pmo-portal/`) · `supabase test db` (pgTAP).
 - **Parallel-worktree caution:** one shared local Supabase stack — serialize DB-driving work; `db reset`
   between an e2e run and pgTAP. See `docs/environments.md` "Local stack hygiene".
+- **Worktree e2e caution:** worktrees lack `.env.local` (gitignored) — copy it from the main checkout and
+  use a fresh port to avoid auth failures.

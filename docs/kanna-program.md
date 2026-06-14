@@ -27,6 +27,9 @@ The coverage, typecheck/lint, and CI e2e/pgTAP gates are binding.
 > burst spends the abundant weekly Claude quota instead). `docs/pi-delegation.md` stays unchanged — it is the
 > series executor. When the quota window closes, **revert to series + pi.** Everything below describes the
 > parallel mode only.
+>
+> **Status (2026-06-14): the parallel burst has concluded.** Waves 0–3 + the coherence wave are on `dev`
+> (PRs #84–#112). The Claude weekly-quota window is consumed; **default SOP reverts to series + pi.**
 
 Going fast under the quality bar = **parallelize what doesn't contend; serialize what does.** This session
 proved the bottleneck isn't building (cheap substrates build fast) — it's **verification + integration +
@@ -54,6 +57,13 @@ Parallel agents have **no access to the human product owner.** Therefore:
 - **The ceiling is Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Past that, the
   Director starts trusting instead of verifying — the exact failure the rigor exists to prevent.
 
+### Process lessons from the 2026-06-14 burst (durable, applies to future bursts)
+1. **Doc commits via PR, not direct push.** Direct-to-`dev` doc commits orphan silently when the `-q` push is rejected against a moved `origin/dev`. Always land docs via a PR + verify the merge landed.
+2. **Worktree `.env.local`.** Worktrees lack the gitignored `.env.local` — copy it from the main checkout and use a fresh port; otherwise local e2e can't authenticate.
+3. **Pre-assign ADR + migration numbers in briefs.** Parallel agents collided on ADR-0023 in this burst; pre-assigning in the Director's brief prevents the collision.
+4. **Build agents must run the FULL unit suite before push.** A subset-green-but-full-red failure slipped through twice; the CI gate caught it, but costs a cycle.
+5. **Scope e2e locators tightly.** Strict-mode duplicate failures occur when UI restructuring moves elements; scope locators to their container to survive layout changes.
+
 ## 2. Cadence per wave
 - **Phase A — serial alignment (Director ↔ Owner):** grill the wave's features (terminology, scope,
   `[OWNER-DECISION]`s); for UI features run the design round → **owner-approved mockup** (design 3-lens,
@@ -68,43 +78,45 @@ Parallel agents have **no access to the human product owner.** Therefore:
 
 Effort/priority/dependency are quoted from the gap analysis; "independent" = no dependency on unshipped work.
 
-| Wave | Feature | Gap # | Effort | Dependency | Independent now? |
+| Wave | Feature | Gap # | Effort | Dependency | Status |
 |---|---|---|---|---|---|
-| **1** | Procurement attachments (quotation files + GR/VI) | EPC daily-pain | ~1 sprint | reuses #78 upload infra | ✅ |
-| **1** | Bulk Import/Export (xlsx) | #4 (T1) | 1 sprint | none | ✅ |
-| **1** | Project Calendar view | #3 (T1) | 1–2 sprints | none | ✅ |
-| 2 | S-Curve (planned vs actual) | #8 | 1–2 sprints | met (rides milestones; **not** Gantt) | ✅ |
-| 2 | Gantt chart | #2 (T1) | 2–3 sprints | met (`task_dependencies` seeded) | ✅ |
-| 2 | CRM: contacts + activity log | #9 | 2 sprints | none | ✅ |
-| 2 | Sub-projects (hierarchy) | #7 | 2 sprints | none | ✅ |
+| **0** | 8 mobile/UX @390 fixes | UX debt | ~8 streams | none | **✅ `dev` PRs #84–#91** |
+| **1** | Procurement attachments (quotation files + GR/VI) | EPC daily-pain | ~1 sprint | reuses #78 upload infra | **✅ `dev` PR #94** |
+| **1** | Bulk Export (xlsx) | #4 (T1) | 1 sprint | none | **✅ `dev` PR #92** |
+| **1** | Project Calendar view | #3 (T1) | 1–2 sprints | none | **✅ `dev` PR #93** |
+| **2** | S-Curve (planned vs actual) | #8 | 1–2 sprints | met (rides milestones) | **✅ `dev` PR #95** |
+| **2** | Projects Kanban | #5 | 1 sprint | none | **✅ `dev` PR #96** |
+| **3** | Gantt chart | #2 (T1) | 2–3 sprints | met (`task_dependencies` seeded) | **✅ `dev` PR #98** |
+| **3** | Bulk Import wizard (xlsx) | #4 (T1) | 1 sprint | none | **✅ `dev` PR #99** |
+| **3** | CRM: contacts + activity log | #9 | 2 sprints | none | **✅ `dev` PR #100** |
+| **Coherence** | Whole-app pattern unification | audit finding | ~10 PRs | on top of waves 0–3 | **✅ `dev` PRs #103–#112** |
+| Next (series) | Sub-projects (hierarchy) | #7 | 2 sprints | none | not started |
+| Next (series) | Append-only `audit_events` table | #14 note | S | none | not started |
 | Big track | In-house chat (Chatscope + Realtime) | #1 (T1) | 4–5 sprints | none | own program |
 | Big track | Custom report builder | #6 | 3–4 sprints | met (storage shipped) | own program |
 | Big track | **Spine-4 Revenue/AR** (progress billing, retention, change orders) | spine 4 | large | rides milestones | **asymmetry play KANNA can't match** |
 | Big track | Project templates (#17) + Guest/external access (#19) | #17/#19 | M / L | OD-PROC-6 RBAC config engine | own program |
 | Later | PWA · AI assist · native app · i18n · enterprise 2FA/IP | #11–#16,#18 | varies | varies | Tier 3 |
-| Cheap, pull-early | Append-only `audit_events` table + transition triggers | #14 note | S | none | compliance posture; cheap |
 
 **Sequencing rationale:** quick, independent wins first (Wave 1) to bank momentum + bank the parallel-via-CI
-muscle; medium independent features next (Wave 2); the heavy collaborative/financial tracks (Chat, Report
-builder, Revenue/AR) as their own programs. Don't only chase parity — **exploit asymmetry:** Spine-4
-Revenue/AR ties into the milestones already built and is differentiation KANNA cannot match today.
+muscle; medium independent features next (Wave 2); coherence audit + unification before promote to ensure
+"feels like one app"; the heavy collaborative/financial tracks (Chat, Report builder, Revenue/AR) as their
+own programs. Don't only chase parity — **exploit asymmetry:** Spine-4 Revenue/AR ties into the milestones
+already built and is differentiation KANNA cannot match today.
 
-## 4. Wave 1 — proposed (to LOCK in the grill, Phase A)
+## 4. Wave 1 — delivered
 
 > Status: **DELIVERED on `dev` (2026-06-14), review-pending.** Built via the parallel burst — **grill + mockup were
 > skipped per the owner's directive for this run; the Director locked the `[OWNER-DECISION]`s.** Composition changed vs
-> this draft: Bulk **Import** was split out (Export shipped now; the Import wizard → a later wave) on the owner's
-> visual-first-for-demo steer, and **Calendar** shipped read-only. Shipped: **Export** (#92), **Calendar** (#93),
-> **Procurement attachments** per-phase child tables (#94). **Wave 2** (S-Curve #95, Kanban #96, drift fix #97) is also
-> on `dev`. Prod unchanged at 0027/#83. See `docs/backlog.md` for the full dev-burst summary + deferred-debt ledger.
+> the original draft: Bulk **Import** was split out (Export shipped now; the Import wizard shipped in Wave 3 as PR #99)
+> on the owner's visual-first-for-demo steer, and **Calendar** shipped read-only. Shipped: **Export** (#92), **Calendar** (#93),
+> **Procurement attachments** per-phase child tables (#94). **Waves 2–3 + coherence** are also on `dev`. Prod unchanged at 0027/#83.
 
-| Feature | One-line scope | Key `[OWNER-DECISION]`s to lock in the grill |
+| Feature | Shipped scope | Key decisions locked |
 |---|---|---|
-| **Procurement attachments** | Attach files to procurement records — quotation files on PR/PO, GR/VI evidence docs — reusing the #78 upload component (FileCell / useFileUpload / signed-URL / private bucket). | Which procurement states allow which attachment types? Required-vs-optional at GR/VI? Who can delete? Reuse the doc bucket or a `procurement-files` bucket? |
-| **Bulk Import/Export** | Export any DataTable view to Excel (`xlsx`); an import wizard for projects/companies/tasks with validation + dry-run preview. | Which entities import in v1? Update-existing vs insert-only? Column mapping UX? Role gate on import? |
-| **Project Calendar** | A calendar view toggle on Projects (alongside table/kanban) over project + milestone target dates. | Which dates render (project start/end, milestone targets, task due)? Month/week/agenda? Click-through target? Read-only or drag-to-reschedule in v1? |
-
-S-Curve (#8) leads **Wave 2** — it's independent and ready, held only to keep Wave 1 at three streams.
+| **Procurement attachments** | Per-phase child tables (`procurement_*_files`), RLS, storage integration (migration 0028). Quotation/GR/VI phases only; PR/PO-header deferred (ADR-0023). | Separate `procurement-files` bucket; staff+ delete; org-scoped RLS with stamp-trigger. |
+| **Bulk Export** | Export any DataTable view to Excel (xlsx). Projects deliberately skipped on PR #92 — add as a one-liner now that Calendar/Kanban merged. | Companies/Incidents/Procurement/SalesPipeline in v1. |
+| **Project Calendar** | Read-only calendar view toggle on Projects over project + milestone target dates (migration 0029 calendar-milestone RPC). | Month view; click-through to record; no drag-to-reschedule in v1. |
 
 ---
 
