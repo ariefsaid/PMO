@@ -6,7 +6,7 @@
  *  - Flag on   → Incidents nav item present (gate is the hiding mechanism, not deletion).
  * Other nav items must be unaffected in both states.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
