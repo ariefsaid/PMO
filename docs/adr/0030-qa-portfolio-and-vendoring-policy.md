@@ -40,7 +40,7 @@ Anything with a right answer is a test, not an opinion — chart-position/golden
 
 ### D. What is retired / kept / added
 
-- **Retired:** the narrative 4-lens **×2** battery and the **full-lens audit of the static mockup**. (Lens A → visual-regression + token-lint; Lens B/C/D → enumerated sweep + vision discovery; taste → owner-at-boundaries.)
+- **Demoted from default — NOT deleted (kept fully runnable as the reversible fallback; see "Reversibility" below):** the narrative 4-lens **×2** battery and the **full-lens audit of the static mockup** stop being the *default* path. Their unknown-unknown value is preserved in the **Discover** layer (same skills, same agents). The `design-reviewer` agent, the 4-lens skills, and `design-workflow.md` §1a/§2.3 stay intact in-repo so the old battery can be re-enabled with a single switch. Within the new default: Lens A → visual-regression + token-lint; Lens B/C/D → enumerated sweep + vision discovery; taste → owner-at-boundaries.
 - **Kept, right-sized:** the **3 code reviewers** (spec/quality/security — orthogonal, cheap; depth right-sized per CLAUDE.md model-tiering), the **intake grill**, and the mockup **only as a ~30-second owner "right shape?" sketch-glance** (directional alignment), never an agent battery.
 - **Added:** the deterministic gate-tests (C), the enumerated `routes×oracles` sweep (B), the retention KB / graduation step (A), and a **vision rendered-acceptance** pass with a fixed per-screen question bank.
 
@@ -59,6 +59,25 @@ For any **non-trivial generic widget**, default to vendoring a mature, widely-us
 **Standing shortlist (verified 2026-06):** Gantt → **keep custom + fix** (the spike — `docs/spikes/2026-06-16-gantt-library-eval.md` — *overturned* the SVAR pick: SVAR `wx-react-gantt` is **GPLv3** on npm *and* crashes on React 19; Frappe is MIT but ships **zero a11y** + no milestone-diamond model; our custom component is 80% there, the most accessible, and the smallest — its gaps [dependency connector lines, axis diamonds, MS-Project table+zoom] are bounded SVG work, **M** effort); tables/data-grid → **TanStack Table** (headless, confirmed *not* in CVE-2026-45321); primitives → **React Aria / Base UI** (Radix slowed post-acquisition); date math → **date-fns** (kills the TZ class); charts → **keep recharts** (the S-curve bug was our misuse, not the lib); virtualization → **TanStack Virtual**. Excluded for MVP: Bryntum (commercial). *Correction from the spike:* DHTMLX Community Edition is **now MIT** (`dhtmlx-gantt@10`, not the GPLv2 the search reported) — still excluded for the MVP (heavy, imposes its own skin), but re-weighable if the custom Gantt's gaps ever prove too costly.
 
 > **Worked example of the policy (do not delete):** my initial Gantt rec (SVAR, "MIT") came from a *vendor blog* (svar.dev ranked its own product #1). The hands-on spike found the real npm license is **GPLv3** and it **does not render on React 19**. Lesson, now binding for L0: **verify license + target-framework compatibility + a11y empirically in a throwaway harness before adopting — never from a blog/marketing page.** Vendoring is *evaluate-first*, not *always-buy*; a widget may (as here) fail the bar and custom wins.
+
+## Reversibility (binding — this ADR is a *trial*, not a one-way door)
+
+This is a process bet; it must be cheap to undo. Reversibility is a first-class requirement.
+
+- **Nothing is deleted.** The `design-reviewer` agent (+ `.codex` surface), the 4-lens skills
+  (`design-review`/`impeccable`/`taste`), and `design-workflow.md` §1a/§2.3 (the mockup-round + rendered-round
+  4-lens battery) remain in the repo, unchanged, for the entire trial. The new portfolio runs *alongside* them.
+- **One-switch revert — a "review mode" selector** (`portfolio` | `4-lens` | `3-lens`), recorded at the top of
+  `docs/qa-portfolio.md` and honoured by the Director's per-issue loop. Reverting = flip the mode back to
+  `4-lens` (or `3-lens`); no rebuild, no agent re-creation. The deterministic gate-tests (Layer 1) and any
+  graduated tests **stay regardless of mode** — they are pure additions and never need reverting.
+- **Trial window:** the next ~5 UI issues (≈2 weeks). 
+- **Success criteria (keep the portfolio):** (a) it catches **≥** what the lens battery would — measured by the
+  owner-boundary pass + later audits finding **no** escape the 4-lens would plausibly have caught; (b) fewer
+  defects reach the owner than under the battery; (c) the **graduation registry actually grows** (findings get
+  locked into tests/matrix cells, not re-found).
+- **Revert trigger:** if escapes rise, the owner judges quality dropped, or graduation stalls → flip `review mode`
+  back to `4-lens`. Because the battery was never removed, this is immediate and lossless.
 
 ## Consequences
 

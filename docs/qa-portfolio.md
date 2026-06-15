@@ -4,6 +4,17 @@
 > `routes × oracles` denominator, the graduation mechanism, and the vendoring backlog. Binding on the
 > Director + all review/build agents.
 
+## ▸ REVIEW MODE (the reversibility switch) — current: **`portfolio`**
+
+The Director's per-issue loop reads this line. Allowed values:
+- **`portfolio`** (default, ADR-0030 trial) — Discover→Graduate→Cover (this doc).
+- **`4-lens`** — the legacy battery: `design-workflow.md` §1a (mockup round) + §2.3 (rendered round), full
+  A/B/C/D ×2. **Kept intact in-repo** — flip here to revert, no rebuild.
+- **`3-lens`** — the same battery minus Lens D (intent).
+
+To revert: change the word above to `4-lens` (or `3-lens`). Layer-1 gate-tests + any graduated tests
+remain active in **every** mode (pure additions). Trial window + success/revert criteria: ADR-0030 §Reversibility.
+
 ## The spine: Discover → Graduate → Cover
 
 ```
@@ -28,7 +39,7 @@ recur and never needs re-explaining). The graduation step is the point of the wh
 | **4 — Adversarial** | plausible-but-wrong on dangerous surfaces | **launch / version gate** + auth/RLS/money/migration changes | Workflow red-team→refute | block on risk |
 | **Owner (you)** | taste · product-trust | issue/epic boundaries | agents pre-stage candidate-defects+screenshots; you adjudicate a checklist | sign-off |
 
-**Retired:** narrative 4-lens ×2 battery; full-lens audit of the static mockup.
+**Demoted to fallback (NOT deleted — `review mode` switch above reverts in one edit):** narrative 4-lens ×2 battery; full-lens audit of the static mockup.
 **Kept (right-sized):** 3 code reviewers; intake grill; mockup = 30-sec owner sketch-glance only.
 
 ## Defect class → single owner (no double-coverage)
@@ -74,7 +85,7 @@ Standing shortlist (ADR-0030 §F; verified 2026-06):
 
 | Surface | Adopt | Status |
 |---|---|---|
-| Gantt | **KEEP CUSTOM + fix** (vendors failed the eval) | **spike DONE** (`docs/spikes/2026-06-16-gantt-library-eval.md`): SVAR=GPLv3+R19-crash, Frappe=zero-a11y+no-diamonds; custom is 80% there, most accessible, smallest → fix dependency lines + axis diamonds + optional MS-Project table/zoom (**M**) |
+| Gantt | **OWNER-ELECTED: DHTMLX Gantt** (Community, now MIT) — *pending verification spike* | spike-1 said keep-custom (SVAR=GPLv3+R19-crash, Frappe=zero-a11y); **owner overrode (2026-06-16)** to buy the richer engine — wants milestones + dependency lines + **scheduling** + **resource management** rather than build them. Accepts the coherence/bundle cost for capability. **Gate before commit:** verify real npm license=MIT, **React 19 compat** (the SVAR-killer), theme-to-tokens, bundle, a11y. **Custom Gantt kept as the fallback.** Spike-2: `docs/spikes/2026-06-16-gantt-dhtmlx-prototype.md` |
 | Tables / data-grid | **TanStack Table** (headless; confirmed *not* hit by CVE-2026-45321) | backfill-on-touch |
 | Primitives (dialog/popover/combobox/select) | **React Aria** or **Base UI** | backfill-on-touch (also closes a11y gap) |
 | Date math | **date-fns** | high-ROI swap (kills TZ/off-by-one class) |
