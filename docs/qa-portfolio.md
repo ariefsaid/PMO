@@ -66,7 +66,7 @@ once all three artifacts exist:
 | Finding (date) | Test (the lock) | Matrix oracle/cell | DESIGN/decision note | Done |
 |---|---|---|---|---|
 | S-curve plots "today" at far-right (categorical axis) — 2026-06-15 | `ProjectSCurve` position test (today-point ordered by date) | data-correctness × `/projects/:id` | DESIGN.md: time-series uses a time axis, points placed by value | ☐ (Phase 1) |
-| Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | superseded by L0 (vendor Gantt) | data-correctness × `/projects/:id` | — | ☐ (Phase 4 / spike) |
+| Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | `ganttLayout` marker-position test + render-at-`marker.left` test | data-correctness × `/projects/:id` | DESIGN.md: timeline markers placed on the axis by date | ☐ (Gantt-fix wave — vendors failed eval, fix custom) |
 
 ## Vendoring backlog (Layer 0)
 
@@ -74,7 +74,7 @@ Standing shortlist (ADR-0030 §F; verified 2026-06):
 
 | Surface | Adopt | Status |
 |---|---|---|
-| Gantt | **SVAR React Gantt** (MIT) · fallback Frappe | **spike in progress** (`docs/spikes/2026-06-16-gantt-library-eval.md`) |
+| Gantt | **KEEP CUSTOM + fix** (vendors failed the eval) | **spike DONE** (`docs/spikes/2026-06-16-gantt-library-eval.md`): SVAR=GPLv3+R19-crash, Frappe=zero-a11y+no-diamonds; custom is 80% there, most accessible, smallest → fix dependency lines + axis diamonds + optional MS-Project table/zoom (**M**) |
 | Tables / data-grid | **TanStack Table** (headless; confirmed *not* hit by CVE-2026-45321) | backfill-on-touch |
 | Primitives (dialog/popover/combobox/select) | **React Aria** or **Base UI** | backfill-on-touch (also closes a11y gap) |
 | Date math | **date-fns** | high-ROI swap (kills TZ/off-by-one class) |
