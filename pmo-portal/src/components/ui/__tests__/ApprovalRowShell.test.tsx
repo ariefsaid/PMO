@@ -11,7 +11,7 @@
  *  - leading avatar/initial present
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { ApprovalRow } from '../ApprovalRow';
 
 describe('AC-JR-W3B-03: ApprovalRow shell contract', () => {

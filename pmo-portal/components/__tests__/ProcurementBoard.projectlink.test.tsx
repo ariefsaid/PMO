@@ -56,7 +56,6 @@ describe('AC-JR-W1-04 / AC-C-PR-2: ProcurementBoard card — single activation t
   });
 
   it('AC-C-PR-2: card is the single role=button activation target', () => {
-    const onOpen = vi.fn();
     wrap([row()]);
     // The KanbanCard is the role=button
     const cardBtn = screen.getByRole('button', { name: /Open Structural Steel/i });
