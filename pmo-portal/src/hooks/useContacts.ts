@@ -57,12 +57,11 @@ export function useContactActivities(contactId: string | null | undefined) {
 }
 
 /**
- * Account-level activity timeline (T17): aggregates all crm_activities across a
- * company's contacts client-side (fan-in). No DB change — runs a single query per
- * contact returned by useContactsByCompany, then merges + sorts newest-first.
+ * Account-level activity timeline (T17): fetches all crm_activities across a company's
+ * contacts in ONE batched query (C3 — crm_activities_contact_idx covers this path).
  *
- * The hook accepts the list of contacts for this company (from useContactsByCompany)
- * to avoid coupling to another DB query. When contacts is empty the result is empty.
+ * The hook accepts the list of contactIds for this company (from useContactsByCompany)
+ * to avoid coupling to another DB query. When contactIds is empty the result is empty.
  * `enabled` is false until both orgId and at least one contactId are known.
  */
 export function useCompanyActivities(contactIds: string[]) {
@@ -72,16 +71,7 @@ export function useCompanyActivities(contactIds: string[]) {
 
   return useQuery<CrmActivityRow[]>({
     queryKey: ['crm-activities', 'by-company', orgId, key],
-    queryFn: async () => {
-      if (contactIds.length === 0) return [];
-      const results = await Promise.all(
-        contactIds.map((id) => repositories.contact.listActivities(id)),
-      );
-      const merged = results.flat();
-      // Sort newest-first by occurred_at
-      merged.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-      return merged;
-    },
+    queryFn: () => repositories.contact.listActivitiesForContacts(contactIds),
     enabled: Boolean(orgId && contactIds.length > 0),
   });
 }

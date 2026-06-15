@@ -65,7 +65,24 @@ const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Workfor
 const NAV_LINK_BASE =
   'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
 
-export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
+/** The two items that get stage-aware active-state overrides on `/projects/:id`. */
+const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
+
+export interface RailProps {
+  onNavigate?: () => void;
+  /**
+   * Stage-aware active-item override for `/projects/:id` detail routes (Option A, Task D).
+   *
+   * When non-null, the "Projects" (/projects) and "Sales Pipeline" (/sales) items switch
+   * their active class from NavLink's URL-based `isActive` to this override:
+   *   'salesPipeline' → Sales Pipeline active, Projects inactive
+   *   'projects'      → Projects active, Sales Pipeline inactive
+   *   null            → both items fall back to NavLink URL-based behaviour (unchanged)
+   */
+  railActiveOverride?: 'salesPipeline' | 'projects' | null;
+}
+
+export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) => {
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
@@ -73,25 +90,57 @@ export const Rail: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
 
   const items = ALL_ITEMS.filter((i) => i.roles.includes(role));
 
-  const renderItem = (item: NavItem) => (
-    <NavLink
-      key={item.to}
-      to={item.to}
-      end={item.to === '/'}
-      onClick={onNavigate}
-      className={({ isActive }: { isActive: boolean }) =>
-        cn(
-          NAV_LINK_BASE,
-          isActive
-            ? 'bg-primary/10 font-semibold text-primary'
-            : 'text-foreground hover:bg-accent'
-        )
-      }
-    >
-      <Icon name={item.icon} />
-      <span>{item.text}</span>
-    </NavLink>
-  );
+  const renderItem = (item: NavItem) => {
+    // For the two stage-aware items, when an override is set, drive active from
+    // the override instead of NavLink's built-in URL-prefix matching.
+    const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
+
+    if (isStageAware) {
+      const overrideActive =
+        (item.to === '/projects' && railActiveOverride === 'projects') ||
+        (item.to === '/sales' && railActiveOverride === 'salesPipeline');
+      return (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === '/'}
+          onClick={onNavigate}
+          // Ignore NavLink's built-in isActive; use the override decision.
+          className={() =>
+            cn(
+              NAV_LINK_BASE,
+              overrideActive
+                ? 'bg-primary/10 font-semibold text-primary'
+                : 'text-foreground hover:bg-accent',
+            )
+          }
+        >
+          <Icon name={item.icon} />
+          <span>{item.text}</span>
+        </NavLink>
+      );
+    }
+
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        end={item.to === '/'}
+        onClick={onNavigate}
+        className={({ isActive }: { isActive: boolean }) =>
+          cn(
+            NAV_LINK_BASE,
+            isActive
+              ? 'bg-primary/10 font-semibold text-primary'
+              : 'text-foreground hover:bg-accent',
+          )
+        }
+      >
+        <Icon name={item.icon} />
+        <span>{item.text}</span>
+      </NavLink>
+    );
+  };
 
   return (
     <div

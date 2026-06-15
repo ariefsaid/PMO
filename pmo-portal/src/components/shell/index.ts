@@ -11,6 +11,7 @@ export {
   recordLabelForPath,
   recordStatusForPath,
   recordStatusGroupForPath,
+  deriveRailActiveOverride,
   PLACEHOLDER_TITLES,
   type RecordLists,
   type RecordStatusLists,

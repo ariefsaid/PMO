@@ -33,6 +33,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
           key={i}
           role={interactive ? 'button' : undefined}
           tabIndex={interactive ? 0 : undefined}
+          aria-pressed={interactive ? selected : undefined}
           onClick={() => onSelect?.(i)}
           onKeyDown={(e) => {
             if (interactive && (e.key === 'Enter' || e.key === ' ')) {
