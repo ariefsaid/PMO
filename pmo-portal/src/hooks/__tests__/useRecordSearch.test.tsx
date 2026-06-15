@@ -171,7 +171,10 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(navigate).toHaveBeenCalledWith('/contacts/ct1');
   });
 
-  it('CW-4a: indexes incidents → /incidents/:id (its `type` is the title) with the right sub-label', () => {
+  // CW-4a: incidents indexing is gated by the interim UI feature flag (FEATURES.incidents = false).
+  // With the flag off, incident rows are excluded even when useIncidents returns data.
+  // The flag-on proof (incidents ARE indexed when enabled) lives in useRecordSearch.features.test.tsx.
+  it('CW-4a (flag-off): incidents are NOT indexed while the feature flag is off', () => {
     stateCC.incidents = {
       data: [{ id: 'in1', type: 'Near Miss', severity: 'Low', status: 'Open' }],
       isPending: false,
@@ -179,11 +182,8 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     };
     const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
     const inc = result.current.records.find((r) => r.title === 'Near Miss');
-    expect(inc).toBeDefined();
-    expect(inc!.group).toBe('Records');
-    expect(inc!.sub).toBe('Incident');
-    inc!.run();
-    expect(navigate).toHaveBeenCalledWith('/incidents/in1');
+    // Flag off → no incident entry in the index. See useRecordSearch.features.test.tsx for flag-on.
+    expect(inc).toBeUndefined();
   });
 
   it('returns no records (empty index) when all lists are empty', () => {

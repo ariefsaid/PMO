@@ -34,6 +34,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
+import { FeatureRoute } from '@/src/components/FeatureRoute';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -66,7 +67,7 @@ const SalesDetailRedirect: React.FC = () => {
   return <Navigate to={`/projects/${opportunityId}`} replace />;
 };
 
-const AppRoutes: React.FC = () => (
+export const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingFallback />}>
     <Routes>
       <Route path="/" element={<ExecutiveDashboard />} />
@@ -91,10 +92,15 @@ const AppRoutes: React.FC = () => (
       <Route path="/contacts" element={<ContactsPage />} />
       {/* CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record). */}
       <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
-      <Route path="/incidents" element={<IncidentsPage />} />
-      {/* CW-4a: /incidents/:id — the routable Incident detail page (fixes the dead-end: rows
-          now open here to track/investigate/close). */}
-      <Route path="/incidents/:incidentId" element={<IncidentDetailPage />} />
+      {/* Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
+          <FeatureRoute> renders the page when enabled, else redirects deep-links to home
+          instead of 404. Flip the flag in src/lib/features.ts to re-enable. CW-4a: /incidents/:id
+          is the routable Incident detail page (fixes the dead-end) when the module is on. */}
+      <Route path="/incidents" element={<FeatureRoute feature="incidents" element={<IncidentsPage />} />} />
+      <Route
+        path="/incidents/:incidentId"
+        element={<FeatureRoute feature="incidents" element={<IncidentDetailPage />} />}
+      />
       {/* /work-orders removed (owner decision — the route, not just the nav). */}
       {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
       {/* B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list. */}
@@ -131,6 +137,9 @@ const ShellChrome: React.FC = () => {
   const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
   // CW-4a: the incident register backs the /incidents/:id breadcrumb's record name (its `type`).
   // Already fetched by the Incidents index; read here only to resolve the crumb (no new query).
+  // Intentionally retained while the `incidents` feature flag hides the module (features.ts):
+  // the /incidents routes redirect, so this branch is dormant — kept so re-enabling stays a
+  // one-line flag flip rather than re-plumbing. Do NOT "tidy" it away.
   const { data: incidents, isPending: incidentsPending } = useIncidents();
   // CW-4b: the companies + contacts directories back the /companies/:id and /contacts/:id
   // breadcrumbs' record names. Already fetched by their index pages (and the ⌘K record search);

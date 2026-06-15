@@ -23,6 +23,10 @@ import { login } from './helpers';
  *                 (Admin·Exec·PM) investigate/close; Incidents nav visible to all roles.
  */
 
+// ⚑ QUARANTINED (2026-06-15): the Incidents module is hidden behind the interim UI feature flag
+// (src/lib/features.ts `incidents: false`, "UI-hide-first" — docs/backlog.md §OPEN feature tracks).
+// The /incidents routes now redirect home, so this journey is intentionally unreachable. Behaviour
+// is preserved in code/DAL/RLS; un-skip these tests when the module is re-enabled (flip the flag).
 test.setTimeout(120_000);
 
 /** Wait for the Incidents page to finish its initial data fetch. */
@@ -49,7 +53,7 @@ async function openRowMenu(page: Page, row: ReturnType<typeof page.locator>) {
 
 // ── AC-IN-006 / AC-IN-007 — Engineer files; cannot investigate/close ─────────
 
-test(
+test.skip(
   'AC-IN-001 + AC-IN-003 + AC-IN-006 + AC-IN-007: engineer files an incident and sees no investigate/close actions — goal oracle: row present after filing, no manager row menu',
   async ({ page }) => {
     const runId = Date.now();
@@ -94,7 +98,7 @@ test(
 
 // ── AC-IN-004 — a manager (PM) drives the Open→Investigating→Closed workflow ──
 
-test(
+test.skip(
   'AC-IN-004: a manager (PM) advances an incident Open→Investigating→Closed — goal oracle: status badge updates in the list at each step',
   async ({ page }) => {
     const runId = Date.now();

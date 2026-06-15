@@ -24,7 +24,7 @@ const renderRail = () =>
   );
 
 describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, AC-NAV-008/009)', () => {
-  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies/Incidents', () => {
+  it('Executive sees Dashboard/Projects/Sales/Procurement/Timesheets/Approvals/Companies (Incidents hidden by flag)', () => {
     effectiveRole = 'Executive';
     renderRail();
     for (const name of [
@@ -35,29 +35,34 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
       'Timesheets',
       'Approvals',
       'Companies',
-      'Incidents',
     ]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    // Incidents is hidden by the interim UI feature flag (FEATURES.incidents = false).
+    // Flip the flag in src/lib/features.ts to re-enable. See Rail.features.test.tsx.
+    expect(screen.queryByText('Incidents')).not.toBeInTheDocument();
     // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8).
     expect(screen.queryByText('Reports')).not.toBeInTheDocument();
   });
 
-  // AC-IN-006: Incidents is visible to EVERY role (any member may file) — incl. Engineer,
-  // who otherwise has the most restricted nav (rbac-visibility.md §A).
-  it('AC-IN-006: Incidents nav is shown for Engineer (all roles see Incidents)', () => {
+  // AC-IN-006 (original): Incidents was visible to EVERY role when the module was active.
+  // Updated: Incidents is now hidden by the interim UI feature flag (FEATURES.incidents = false).
+  // The flag-on two-sided proof lives in Rail.features.test.tsx.
+  it('AC-IN-006 (flag-off): Incidents nav is NOT shown for any role while the feature flag is off', () => {
     effectiveRole = 'Engineer';
     renderRail();
-    expect(screen.getByRole('link', { name: /Incidents/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Incidents/i })).toBeNull();
   });
 
-  it('Engineer sees the Engineer subset, not the restricted nav', () => {
+  it('Engineer sees the Engineer subset, not the restricted nav (Incidents hidden by flag)', () => {
     effectiveRole = 'Engineer';
     renderRail();
     // Tasks is no longer a top-level nav (it lives in the project Tasks tab).
-    for (const name of ['Dashboard', 'Projects', 'Timesheets', 'Incidents']) {
+    for (const name of ['Dashboard', 'Projects', 'Timesheets']) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    // Incidents is hidden by the interim UI feature flag.
+    expect(screen.queryByText('Incidents')).not.toBeInTheDocument();
     expect(screen.queryByText('Tasks')).not.toBeInTheDocument();
     for (const name of ['Sales Pipeline', 'Procurement', 'Companies', 'Reports']) {
       expect(screen.queryByText(name)).not.toBeInTheDocument();
