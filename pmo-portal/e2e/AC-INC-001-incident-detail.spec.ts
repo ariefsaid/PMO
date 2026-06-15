@@ -15,6 +15,10 @@ import { login } from './helpers';
  * Role: engineer@acme.test (any member may file AND read an incident; RLS scopes visibility).
  */
 
+// ⚑ QUARANTINED (2026-06-15): Incidents module hidden behind the interim UI feature flag
+// (src/lib/features.ts `incidents: false`, "UI-hide-first" — docs/backlog.md §OPEN feature tracks).
+// The /incidents routes redirect home, so this journey is intentionally unreachable. Un-skip when
+// the module is re-enabled (flip the flag); behaviour is preserved in code/DAL/RLS.
 test.setTimeout(120_000);
 
 /** Wait for the Incidents page to finish its initial data fetch. */
@@ -22,7 +26,7 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
-test(
+test.skip(
   'AC-INC-001: an Engineer opens an incident from the list to its detail page and returns — goal oracle: the incident opens to a real /incidents/:id page (dead-end gone)',
   async ({ page }) => {
     const runId = Date.now();
