@@ -66,6 +66,13 @@ The Director's detailed orchestration runbook (per-issue loop, delegation, gates
 The UI/UX cycle (Foundation → per-UI-issue loop → human-UX improvement loop; code→UI agent analogs) is **`docs/design-workflow.md`**.
 
 ## Agent roster (`.claude/agents/`) and models
+**Model-tiering (binding):** when delegating, pick the **minimum model that does the job well** — don't
+use opus where sonnet suffices, don't use sonnet where haiku suffices — **but never skimp:** match the
+model to the task's real difficulty, and use opus for opus-grade work (deep design, security/spec review,
+hard slices) rather than under-spending on it. Right-size **per dispatch**, not by agent default: the
+parenthesised tiers below are the *defaults*, and the Director overrides up or down per task (e.g. a
+trivial implementer slice → haiku; a gnarly one → opus).
+
 eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
 code-quality-reviewer (opus) · qa-acceptance (sonnet) · security-auditor (opus) ·
 release-engineer (sonnet) · mechanical (haiku) · design-architect (opus) ·

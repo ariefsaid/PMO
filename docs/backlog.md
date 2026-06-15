@@ -79,6 +79,21 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **▶ Next after promote:** candidates per kanna-program.md §3 — Sub-projects · Append-only audit events · Commitment-governance spec · Spine-4 Revenue/AR. Default SOP = **series + pi** (the parallel burst consumed the Claude weekly-quota window and is now closed).
 
 ## ▶ OPEN feature tracks (owner-scope-gated — not started)
+- **Feature entitlements / per-org gating (owner-decided 2026-06-15, BACKLOGGED)** — deactivate features per
+  org ("not every company needs Incidents") on the *same axis* that later becomes paid tiers. **Decision of
+  record (owner):** build the **entitlement seam + per-org toggles**; **UI-hide now, server-enforce later**
+  (defer RLS per feature until it becomes a paywall); **NO billing/Stripe** yet. **First build:** `org_features`
+  table (`org_id`,`feature_key`,`enabled`) + a feature registry (`incidents`,`crm`,`procurement`,`timesheets`,
+  `import_export`,…; core never-gated = Projects/Dashboard/Approvals/Admin) + `org_has_feature(key)` SQL fn
+  (ships now, *unused by gated tables* — the later-enforcement hook); FE `useFeature()`/`<FeatureGate>` mirroring
+  `usePermission`/`<CanWrite>` gating **rail item + route (redirect, not just hidden nav) + affordances**; an
+  Admin `/administration` "Features" toggle section. **Hold-the-line even in UI-first:** `org_features` itself
+  gets real RLS (read-own-org, **admin-only write**); disable = **hide, never destroy** (re-enable restores).
+  **Deferred:** `plans`/`plan_features`, billing, and the `AND org_has_feature(...)` RLS on each gated module.
+  Orthogonal to RBAC (entitlement = per-*org* feature; RBAC = per-*role* action) — both UX-gate + (eventually)
+  RLS-enforce. **Own issue via full loop** (grill → spec → **ADR-00NN** [pre-assign] + plan → TDD → 3 reviewers →
+  mockup+design-review for the Admin toggle/gated nav → ship). The ADR must record the UI-first bypass risk
+  explicitly. May expand the registry once the owner's broader app feedback lands.
 - **Commitment-governance (OD-W5-5)** — (a) a server-enforced **PO-commitment approval gate** (distinct
   authority signs off the order commitment vs budget+cashflow before PO): new state-machine state + RPC +
   ADR; (b) a **cash-position/cashflow data domain** (opening balance, in/out-flows, runway — none exists
