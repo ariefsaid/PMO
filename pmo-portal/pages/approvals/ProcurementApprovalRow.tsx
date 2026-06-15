@@ -141,7 +141,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
             <Icon name="chev" />
           </Button>
         }
-        className="border-b-0 px-3.5"
+        className="border-b-0 px-4"
       />
 
       {/* Expanded panel */}

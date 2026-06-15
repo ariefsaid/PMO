@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ApprovalRow,
   Button,
+  Card,
   Checkbox,
   ConfirmDialog,
   GateNotice,
@@ -249,7 +250,7 @@ export const ApprovalsQueue: React.FC = () => {
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
+    <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
         <h2 className="text-sm font-semibold">Team approvals queue</h2>
         <span className="flex-1" />
@@ -476,6 +477,6 @@ export const ApprovalsQueue: React.FC = () => {
           onConfirm={commitBulk}
         />
       )}
-    </section>
+    </Card>
   );
 };

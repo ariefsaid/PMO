@@ -20,7 +20,8 @@ import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
  * Two module sections, each shown only when the REAL role may act on that entity (UX-only
  * clarity — RLS is the enforcement authority, ADR-0016):
  *   • Procurement — PRs in `Requested` the role may approve, not-self (SoD). Rows
- *     ROUTE to /procurement/:id (the reordered decision screen); no inline approve.
+ *     expand in place (ProcurementApprovalRow): budget impact + line items revealed on
+ *     click, with adjacent Approve / Reject actions — no navigation away from the inbox.
  *   • Timesheets  — the enhanced ApprovalsQueue (expand-in-place + bulk approve).
  *
  * When a role can act on BOTH modules, the sections are split into deep-linkable scope

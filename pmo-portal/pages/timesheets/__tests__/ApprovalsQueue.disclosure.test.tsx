@@ -5,6 +5,11 @@
  * The chevron must sit at the LEADING edge (before the avatar) because it is
  * passed as `disclosure`, not as the first `children`. The structural check
  * reads the data-approval-row element's child order.
+ *
+ * AC-B1-SHELL: ApprovalsQueue wraps in the same Card component shell as
+ * ProcurementApprovalSection (both render a bordered card div, not a raw
+ * <section> element), so the leading edge of the chevron column aligns across
+ * scope tabs regardless of which queue is active.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -107,5 +112,16 @@ describe('AC-JR-W3-01: ApprovalsQueue routes disclosure chevron via disclosure p
     const row = document.querySelector('[data-approval-row]')!;
     const chevron = within(row as HTMLElement).getByRole('button', { name: /show hours/i });
     expect(chevron).toBeInTheDocument();
+  });
+
+  it('AC-B1-SHELL: outer shell is a Card component (div element) not a raw section — same shell as ProcurementApprovalSection', () => {
+    // Card renders a <div>; a raw <section> wrapper fails this. This ensures both
+    // approval queues share the same Card shell so the leading column aligns across tabs.
+    const { container } = renderPM();
+    const outerShell = container.firstChild as HTMLElement;
+    expect(outerShell.tagName).toBe('DIV');
+    // Card semantics: the outer shell carries the card surface classes
+    expect(outerShell.className).toContain('rounded-lg');
+    expect(outerShell.className).toContain('border-border');
   });
 });
