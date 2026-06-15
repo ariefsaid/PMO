@@ -21,6 +21,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`specs/`** | SDD specs per feature — `FR-`/`AC-` requirements; Playwright/pgTAP/unit tests trace to these AC-ids. |
 | **`analytics-events.md`** | The PostHog event taxonomy + naming/property contract (the analytics spec, PR #77). Reference when instrumenting a new surface. |
 | **`product-expectations.md`** | The product charter + per-layer Definition of Done (binding on all agents). |
+| **`qa-portfolio.md`** | **The QA model (ADR-0030):** Discover→Graduate→Cover, the layer table, the `routes×oracles` denominator, the vendoring (buy-the-engine/build-the-skin) backlog. Supersedes the 4-lens ×2 battery. |
 | **`director-playbook.md`** | The Director's per-issue orchestration loop, gates, grading rubric. |
 | **`design-workflow.md`** | The UI/UX cycle (Foundation → per-UI-issue loop) + the standing **4-lens** rendered design-review battery (A visual / B flow / C structure / **D intent**) + the design-agent→skill-command map. |
 | **`jtbd.md`** | **Lens D oracle** — the role × job-story map that `design-reviewer` grades every FE screen against. Living: each new feature adds its job story here during intake (before spec). Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`. |
