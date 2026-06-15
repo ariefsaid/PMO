@@ -299,8 +299,8 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion, on
           className={`absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded px-2${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
           style={{
             left: `${bar.left * 100}%`,
-            // C4: clamp at render so a model value that slipped through as negative
-            // (e.g. reversed end<start range) never produces a negative CSS width.
+            // Belt-and-suspenders: bar.width is already clamped to [0,1] by clamp01 in
+            // ganttLayout (reversed end<start ranges resolve to 0); guard the CSS width too.
             width: `${Math.max(0, bar.width) * 100}%`,
             height: BAR_H,
             // Use token-aligned bg (primary/15 analogous to the s-curve's primary)

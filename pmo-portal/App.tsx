@@ -187,11 +187,11 @@ const ShellChrome: React.FC = () => {
       opportunities,
     });
     // The list that backs THIS detail route has settled (not pending) → an
-    // Note: recordStatusGroup is also consumed below to derive railActiveOverride (Option A).
     // unresolved record is a genuine not-found, so resolve the crumb to a
     // friendly label rather than a perpetual "Loading…". For /projects/:id the
     // record can live in ANY of the three caches (Model B: active projects, open
     // pipeline, or lost deals), so all must have settled before "Not found".
+    // (recordStatusGroup, computed above, is also reused below to derive railActiveOverride — Option A.)
     const recordResolved =
       (pathname.startsWith('/projects/') &&
         !projectsPending &&
