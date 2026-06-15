@@ -138,8 +138,15 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
             </div>
 
             {/* Undated footer (AC-GANTT-005) */}
+            {/* C-PD-1: thread onActivateTask so undated chips are activatable (mirror bars). */}
             {undated.length > 0 && (
-              <UndatedFooter undated={undated} />
+              <UndatedFooter
+                undated={undated}
+                onActivateTask={onActivateTask ? (id) => {
+                  const task = taskMap.get(id);
+                  if (task) onActivateTask(task);
+                } : undefined}
+              />
             )}
           </figure>
         </div>
@@ -327,9 +334,15 @@ const GanttBarRow: React.FC<GanttBarRowProps> = ({ bar, prefersReducedMotion, on
 
 interface UndatedFooterProps {
   undated: { id: string; name: string }[];
+  /**
+   * C-PD-1 fix: when provided, each undated chip becomes role=button/keyboard/focus-ring
+   * activatable (mirrors GanttBarRow). Resolves bar.id→TaskWithRefs via taskMap and fires
+   * onActivateTask(task). Inert when callback is omitted.
+   */
+  onActivateTask?: (id: string) => void;
 }
 
-const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated }) => (
+const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }) => (
   <div className="mt-4 border-t border-border pt-3">
     <div className="mb-1.5 text-[12px] font-semibold text-muted-foreground">
       Undated ({undated.length})
@@ -338,7 +351,21 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated }) => (
       {undated.map((u) => (
         <li
           key={u.id}
-          className="rounded border border-border bg-secondary/40 px-2 py-0.5 text-[12px] text-muted-foreground"
+          role={onActivateTask ? 'button' : undefined}
+          tabIndex={onActivateTask ? 0 : undefined}
+          aria-label={onActivateTask ? `Open ${u.name}` : undefined}
+          onClick={onActivateTask ? () => onActivateTask(u.id) : undefined}
+          onKeyDown={
+            onActivateTask
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onActivateTask(u.id);
+                  }
+                }
+              : undefined
+          }
+          className={`rounded border border-border bg-secondary/40 px-2 py-0.5 text-[12px] text-muted-foreground${onActivateTask ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring hover:bg-secondary/60' : ''}`}
         >
           {u.name}
         </li>

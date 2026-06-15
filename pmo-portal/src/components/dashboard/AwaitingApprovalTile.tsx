@@ -43,11 +43,14 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const { realRole } = useEffectiveRole();
   const selfId = currentUser?.id;
 
-  const { data: procurements, isPending: procPending } = useProcurements();
-  const { data: timesheets, isPending: tsPending } = useTimesheetsAwaitingApproval();
+  const { data: procurements, isPending: procPending, isError: procError } = useProcurements();
+  const { data: timesheets, isPending: tsPending, isError: tsError } = useTimesheetsAwaitingApproval();
   // Loading until BOTH contributing queries settle, else the tile briefly shows a
   // procurement-only count as if final (review #4).
   const loading = procPending || (includeTimesheets && tsPending);
+  // B-0.5: on error surface "—" / error tone (match ExecutiveDashboard's approvalError)
+  // instead of silently falling back to 0 / "nothing waiting".
+  const hasError = procError || (includeTimesheets && tsError);
 
   // PR count: Requested + this role may approve procurement + not raised by me (SoD).
   // pendingProcurementApprovals is the single source of truth for this predicate (H7).
@@ -63,20 +66,24 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
     ? 'Purchase requests and timesheets waiting on your decision. Open the approvals inbox.'
     : 'Purchase requests waiting on your decision. Open the approvals inbox.';
 
-  const vs = total === 0 ? 'nothing waiting' : `${total === 1 ? '1 item' : `${total} items`} waiting`;
+  const vs = hasError
+    ? 'unavailable — check connection'
+    : total === 0
+      ? 'nothing waiting'
+      : `${total === 1 ? '1 item' : `${total} items`} waiting`;
 
   return (
     <KPITile
       testId={testId}
-      tone="amber"
+      tone={hasError ? 'red' : 'amber'}
       icon="check"
       label={label}
-      value={String(total)}
+      value={hasError ? '—' : String(total)}
       vs={vs}
       help={help}
       loading={loading}
       to="/approvals"
-      linkLabel={`${label}: ${total} ${total === 1 ? 'item' : 'items'} awaiting`}
+      linkLabel={`${label}: ${hasError ? 'unavailable' : `${total} ${total === 1 ? 'item' : 'items'} awaiting`}`}
     />
   );
 };

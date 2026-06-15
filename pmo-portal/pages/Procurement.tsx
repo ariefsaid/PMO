@@ -336,7 +336,18 @@ const ProcurementPage: React.FC = () => {
       )}
 
       {state === undefined && view === 'board' && (
-        <ProcurementBoard procurements={filtered} onOpen={onOpen} />
+        /* C-PR-1: guard filtered.length===0 before rendering the board. When a filter
+           yields zero results, show a single "No requests match your filters" empty state
+           instead of 7 empty stage columns (mirrors the Table view empty-filter branch). */
+        filtered.length === 0 ? (
+          <ListState
+            variant="empty"
+            title="No requests match your filters"
+            sub="Try a different status, search term, or clear the filters."
+          />
+        ) : (
+          <ProcurementBoard procurements={filtered} onOpen={onOpen} />
+        )
       )}
 
       {state === undefined && view === 'table' && (

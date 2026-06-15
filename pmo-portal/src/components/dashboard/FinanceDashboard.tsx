@@ -182,7 +182,9 @@ export const FinanceDashboard: React.FC = () => {
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   // N17: portfolio-wide budget review — ALL budget>0 projects ranked by committed-basis variance,
   // computed server-side by get_finance_budget_review (OD-E). Replaces the FE re-sort of top_projects.
-  const { data: budgetReview, isPending: budgetPending } = useFinanceBudgetReview();
+  // B-0.3: capture isError/refetch so the budget-review card can surface an error branch instead
+  // of rendering the "No project spend yet" empty state on RPC failure (mirror ReadyToPayTable).
+  const { data: budgetReview, isPending: budgetPending, isError: budgetError, refetch: refetchBudget } = useFinanceBudgetReview();
 
   // N17 client-side sort state. The RPC returns rows already ranked variance-desc (the default);
   // this only re-sorts when the user clicks another column header.
@@ -343,21 +345,32 @@ export const FinanceDashboard: React.FC = () => {
           <CardHead className="rounded-t-lg">
             Budget review — top 5 by variance (portfolio-wide)
           </CardHead>
-          <DataTable<BudgetReviewRow>
-            rows={topByVariance}
-            columns={budgetColumns}
-            rowKey={(p) => p.id}
-            sort={budgetSort}
-            onSort={(key) =>
-              setBudgetSort((prev) => ({
-                key,
-                dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc',
-              }))
-            }
-            state={budgetPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
-            emptyTitle="No project spend yet"
-            className="rounded-t-none border-t-0"
-          />
+          {/* B-0.3: RPC error must show an error/retry branch, not the "No project spend yet" empty.
+              The DataTable's built-in empty state fires on error (budgetReview=undefined → topByVariance=[])
+              — that's the false-empty. Mirror ReadyToPayTable: check isError first. */}
+          {budgetError ? (
+            <ListState
+              variant="error"
+              title="Couldn't load budget review"
+              onRetry={() => refetchBudget()}
+            />
+          ) : (
+            <DataTable<BudgetReviewRow>
+              rows={topByVariance}
+              columns={budgetColumns}
+              rowKey={(p) => p.id}
+              sort={budgetSort}
+              onSort={(key) =>
+                setBudgetSort((prev) => ({
+                  key,
+                  dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc',
+                }))
+              }
+              state={budgetPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
+              emptyTitle="No project spend yet"
+              className="rounded-t-none border-t-0"
+            />
+          )}
         </Card>
       </section>
 

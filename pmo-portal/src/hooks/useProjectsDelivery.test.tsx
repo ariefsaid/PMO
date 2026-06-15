@@ -61,4 +61,38 @@ describe('useProjectsDelivery', () => {
     expect(result.current.fetchStatus).toBe('idle');
     expect(milestone.deliveryForProjects).not.toHaveBeenCalled();
   });
+
+  /**
+   * B-0.1 (CRITICAL) — cache-key collision fix.
+   * useProjectsDelivery ('pct') and useProjectsDeliverySummary ('summary') must use
+   * DISTINCT React-Query keys so a wrong-shaped cached value is never served
+   * cross-consumer.  The shared QueryClient below proves the two hooks co-exist
+   * without cross-contamination.
+   */
+  it('AC-B-0-1: pct and summary hooks use distinct query keys (no cache collision)', async () => {
+    const sharedClient = freshClient();
+    const pctWrapper = wrap(sharedClient);
+
+    // Render both hooks against the same QueryClient
+    const { result: pctResult } = renderHook(() => useProjectsDelivery(['p1']), {
+      wrapper: pctWrapper,
+    });
+    const { result: summaryResult } = renderHook(() => useProjectsDeliverySummary(['p1']), {
+      wrapper: pctWrapper,
+    });
+
+    await waitFor(() => expect(pctResult.current.isSuccess).toBe(true));
+    await waitFor(() => expect(summaryResult.current.isSuccess).toBe(true));
+
+    // pct hook returns number values
+    expect(typeof Object.values(pctResult.current.data ?? {})[0]).toBe('number');
+    // summary hook returns object values (not a number, not cross-contaminated)
+    const summaryVal = Object.values(summaryResult.current.data ?? {})[0];
+    expect(typeof summaryVal).toBe('object');
+    expect(summaryVal).toHaveProperty('deliveryPct');
+
+    // Both RPCs were called independently
+    expect(milestone.deliveryForProjects).toHaveBeenCalledWith(['p1']);
+    expect(milestone.deliverySummaryForProjects).toHaveBeenCalledWith(['p1']);
+  });
 });

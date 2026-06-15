@@ -61,7 +61,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
-  const { data: derivedBudget } = useProjectBudget(project.id);
+  // B-0.4: also destructure isPending/isError so the utilization card shows a distinct loading/
+  // error state instead of collapsing pending/error to "$0 of $0" (mirror Budget-snapshot card).
+  const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError, refetch: budgetUtilRefetch } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
   const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk. Routes through the
@@ -149,30 +151,42 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
         <Card>
           <CardHead>Budget utilization</CardHead>
-          <CardPad className="flex flex-col gap-3">
-            <div className="text-[12px] text-muted-foreground">
-              <span className="font-semibold tabular text-foreground">{formatCurrency(committed)}</span> of{' '}
-              <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget)}</span>{' '}
-              budget committed
-            </div>
-            <ProgressBar
-              value={budgetUtilPctValue}
-              showValue
-              aria-label={`Budget committed: ${budgetUtilPctValue}% of budget`}
+          {/* B-0.4: gate on useProjectBudget loading/error — mirror Budget-snapshot card.
+              Pending/error must not collapse to "$0 of $0" (false-zero). */}
+          {budgetUtilPending ? (
+            <ListState variant="loading" rows={2} />
+          ) : budgetUtilError ? (
+            <ListState
+              variant="error"
+              title="Couldn't load budget"
+              onRetry={() => budgetUtilRefetch()}
             />
-            {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
-                When at-risk, show the spent/budget figure + the "At risk" flag below the
-                contract bar (the I3 two-metric split: contract bar above, budget below).
-                The bar itself is NOT recolored — text-not-color per DESIGN.md. */}
-            {budgetUtil !== null && (
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusPill variant="warn">At risk</StatusPill>
-                <span className="text-[12px] font-semibold tabular text-warning-foreground">
-                  {budgetUtil}% of budget
-                </span>
+          ) : (
+            <CardPad className="flex flex-col gap-3">
+              <div className="text-[12px] text-muted-foreground">
+                <span className="font-semibold tabular text-foreground">{formatCurrency(committed)}</span> of{' '}
+                <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget)}</span>{' '}
+                budget committed
               </div>
-            )}
-          </CardPad>
+              <ProgressBar
+                value={budgetUtilPctValue}
+                showValue
+                aria-label={`Budget committed: ${budgetUtilPctValue}% of budget`}
+              />
+              {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
+                  When at-risk, show the spent/budget figure + the "At risk" flag below the
+                  contract bar (the I3 two-metric split: contract bar above, budget below).
+                  The bar itself is NOT recolored — text-not-color per DESIGN.md. */}
+              {budgetUtil !== null && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill variant="warn">At risk</StatusPill>
+                  <span className="text-[12px] font-semibold tabular text-warning-foreground">
+                    {budgetUtil}% of budget
+                  </span>
+                </div>
+              )}
+            </CardPad>
+          )}
         </Card>
       </div>
 

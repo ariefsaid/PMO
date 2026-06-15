@@ -15,6 +15,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
+import { useProjectBudget } from '@/src/hooks/useBudget';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -102,7 +103,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
   // AC-MONEY-01: "Actual" is the committed-PO basis (Ordered..Paid), not the dead stored
   // projects.spent column which is never populated (0001_init_schema.sql:79 DEFERRED).
   // committed == actual (Ordered..Paid sum) — both reflect realized procurement spend.
-  const activeBudget = project.budget ?? 0;
+  //
+  // B-0.2 fix: Spend% must use the DERIVED budget (Σ Active-version line-items) not the
+  // dead stored projects.budget column (which is never populated). Mirror OverviewTab.
+  const { data: derivedBudget } = useProjectBudget(project.id);
+  const activeBudget = derivedBudget ?? 0;
   const margin = contract - committed;
   const spendPct = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
 

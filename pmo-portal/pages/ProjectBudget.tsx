@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
   StatusPill,
@@ -66,6 +67,12 @@ interface LineItemEditorProps {
   /** Routine inline update (OD-UX-1: single-click + toast, no confirm). */
   onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
   onSaveSuccess: () => void;
+  /** B-0.7: isPending flags from the parent mutation (createLineItem / updateLineItem).
+   *  Disables Save while a write is in-flight — prevents double-submit duplication. */
+  createIsPending?: boolean;
+  updateIsPending?: boolean;
+  /** B-0.6: called when a line-item write fails so the page-level toast fires. */
+  onSaveError?: (err: unknown) => void;
 }
 
 /** Per-row inline edit state: `null` = reading, `string` = that row's id is open. */
@@ -77,6 +84,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   onDeleteLineItem,
   onUpdateLineItem,
   onSaveSuccess,
+  createIsPending = false,
+  updateIsPending = false,
+  onSaveError,
 }) => {
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
@@ -115,22 +125,32 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       return;
     }
     setEditAmountError(null);
-    await onUpdateLineItem(li.id, {
-      category: editCategory,
-      description: editDesc || null,
-      budgeted_amount: parsed,
-    });
-    setEditingId(null);
-    onSaveSuccess();
+    // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
+    try {
+      await onUpdateLineItem(li.id, {
+        category: editCategory,
+        description: editDesc || null,
+        budgeted_amount: parsed,
+      });
+      setEditingId(null);
+      onSaveSuccess();
+    } catch (err) {
+      onSaveError?.(err);
+    }
   };
 
   const handleAdd = async () => {
     const amount = parseMoneyInput(newAmount);
     if (!newCategory || amount === null || amount <= 0) return;
-    await onCreateLineItem({ category: newCategory, description: newDesc || null, budgeted_amount: amount });
-    setAdding(false);
-    setNewDesc('');
-    setNewAmount('');
+    // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
+    try {
+      await onCreateLineItem({ category: newCategory, description: newDesc || null, budgeted_amount: amount });
+      setAdding(false);
+      setNewDesc('');
+      setNewAmount('');
+    } catch (err) {
+      onSaveError?.(err);
+    }
   };
 
   const fieldCls =
@@ -217,12 +237,15 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   {formatCurrency(Number(li.actual_amount))}
                 </td>
                 <td className="space-x-1 px-3 py-2 text-right">
+                  {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => void handleSaveEdit(li)}
                     className="text-primary"
                     aria-label="Save"
+                    loading={updateIsPending}
+                    disabled={updateIsPending}
                   >
                     Save
                   </Button>
@@ -231,6 +254,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     size="sm"
                     onClick={closeEdit}
                     aria-label="Cancel"
+                    disabled={updateIsPending}
                   >
                     Cancel
                   </Button>
@@ -240,6 +264,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     onClick={() => onDeleteLineItem(li.id)}
                     className="text-destructive hover:bg-destructive/10"
                     aria-label={`Delete line item ${li.category}`}
+                    disabled={updateIsPending}
                   >
                     Delete
                   </Button>
@@ -318,10 +343,23 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               </td>
               <td />
               <td className="space-x-1 px-3 py-2 text-right">
-                <Button variant="ghost" size="sm" onClick={() => void handleAdd()} className="text-primary">
+                {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleAdd()}
+                  className="text-primary"
+                  loading={createIsPending}
+                  disabled={createIsPending}
+                >
                   Save
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAdding(false)}
+                  disabled={createIsPending}
+                >
                   Cancel
                 </Button>
               </td>
@@ -362,6 +400,10 @@ interface VersionCardProps {
   /** Routine inline update — no confirm required (OD-UX-1). */
   onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
   onUpdateLineItemSuccess: () => void;
+  /** B-0.6/0.7: passed through to LineItemEditor. */
+  createIsPending?: boolean;
+  updateIsPending?: boolean;
+  onLineItemSaveError?: (err: unknown) => void;
 }
 
 const VersionCard: React.FC<VersionCardProps> = ({
@@ -375,6 +417,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
   onDeleteLineItem,
   onUpdateLineItem,
   onUpdateLineItemSuccess,
+  createIsPending,
+  updateIsPending,
+  onLineItemSaveError,
 }) => {
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
@@ -448,6 +493,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
           onDeleteLineItem={onDeleteLineItem}
           onUpdateLineItem={onUpdateLineItem}
           onSaveSuccess={onUpdateLineItemSuccess}
+          createIsPending={createIsPending}
+          updateIsPending={updateIsPending}
+          onSaveError={onLineItemSaveError}
         />
       ) : (
         version.line_items.length > 0 && (
@@ -823,6 +871,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             onUpdateLineItemSuccess={() =>
               toast('Line item updated', undefined, 'success')
             }
+            // B-0.7: thread isPending into Save buttons (double-submit guard).
+            createIsPending={mutations.createLineItem.isPending}
+            updateIsPending={mutations.updateLineItem.isPending}
+            // B-0.6: surface mutation errors via toast (no silent no-op).
+            onLineItemSaveError={(err) => {
+              const { headline, detail } = classifyMutationError(err);
+              toast(headline, detail, 'warning');
+            }}
           />
         )}
       </div>

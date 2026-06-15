@@ -15,6 +15,11 @@ import { ToastProvider } from '@/src/components/ui';
 
 // ── Mocks (minimal — we only need the header to render with a contract_date) ──
 
+// B-0.2: ProjectDetailHeader now calls useProjectBudget (derived budget for Spend%).
+// Provide a minimal mock so we don't need a QueryClientProvider here.
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },

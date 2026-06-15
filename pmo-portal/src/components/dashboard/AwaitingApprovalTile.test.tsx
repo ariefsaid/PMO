@@ -4,18 +4,23 @@ import { MemoryRouter } from 'react-router-dom';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 
 // ── Mocked data sources ──────────────────────────────────────────────────────
-const procState: { data: unknown[] | undefined; isPending: boolean } = {
+const procState: { data: unknown[] | undefined; isPending: boolean; isError: boolean } = {
   data: [],
   isPending: false,
+  isError: false,
 };
-const tsState: { data: unknown[] | undefined } = { data: [] };
+const tsState: { data: unknown[] | undefined; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
 const roleState: { realRole: string | null } = { realRole: 'Project Manager' };
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: tsState.data }),
+  useTimesheetsAwaitingApproval: () => ({ ...tsState }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }),
@@ -42,7 +47,10 @@ const procRows = [
 beforeEach(() => {
   procState.data = procRows;
   procState.isPending = false;
+  procState.isError = false;
   tsState.data = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
+  tsState.isPending = false;
+  tsState.isError = false;
   roleState.realRole = 'Project Manager';
 });
 
@@ -104,5 +112,46 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
     procState.data = undefined;
     renderTile(true);
     expect(screen.getByTestId('kpi-skeleton')).toBeInTheDocument();
+  });
+});
+
+describe('AC-B-0-5: AwaitingApprovalTile surfaces error tone on query failure', () => {
+  it('AC-B-0-5: procurement error → shows "—" value, not "0"', () => {
+    procState.isError = true;
+    procState.data = undefined;
+    renderTile(false);
+    const link = screen.getByRole('link');
+    // Must show "—" (em dash), NOT the false-zero "0"
+    expect(link).toHaveTextContent('—');
+    expect(link.textContent).not.toMatch(/\b0\b/);
+  });
+
+  it('AC-B-0-5: procurement error → "unavailable" sub-text (not "nothing waiting")', () => {
+    procState.isError = true;
+    procState.data = undefined;
+    renderTile(false);
+    const link = screen.getByRole('link');
+    expect(link).toHaveTextContent(/unavailable/i);
+    expect(link.textContent).not.toMatch(/nothing waiting/i);
+  });
+
+  it('AC-B-0-5: timesheet error (includeTimesheets=true) → shows "—" value', () => {
+    tsState.isError = true;
+    tsState.data = undefined;
+    renderTile(true);
+    const link = screen.getByRole('link');
+    expect(link).toHaveTextContent('—');
+    expect(link.textContent).not.toMatch(/\b0\b/);
+  });
+
+  it('AC-B-0-5: no error when only timesheets error but includeTimesheets=false', () => {
+    tsState.isError = true;
+    tsState.data = undefined;
+    // Finance role: includeTimesheets=false — timesheet error is irrelevant
+    roleState.realRole = 'Finance';
+    renderTile(false);
+    const link = screen.getByRole('link');
+    // Should show the procCount (2) not error dash
+    expect(link).toHaveTextContent('2');
   });
 });

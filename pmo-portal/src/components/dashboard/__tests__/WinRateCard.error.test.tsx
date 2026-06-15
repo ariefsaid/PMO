@@ -37,12 +37,10 @@ describe('WinRateCard — error state (AC-W2-4-02)', () => {
 
     // Should NOT show the "no closed projects" empty state
     expect(screen.queryByText(/No closed projects in this window/i)).toBeNull();
-    // Should show an error UI (some error text)
-    expect(
-      screen.getByRole('alert') ||
-      screen.getByText(/couldn't load/i) ||
-      screen.getByText(/something went wrong/i),
-    ).toBeTruthy();
+    // Should show an error UI — getByRole('alert') is the single robust assertion
+    // (Q-1: drop the dead || fallback that short-circuits on the first truthy value
+    // and never exercises the alternatives).
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
   it('AC-W2-4-02: Retry button calls refetch on error', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -18,6 +18,13 @@ const { roleBox, projectMutations } = vi.hoisted(() => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
+}));
+// B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
+// budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
+// stale stored budget 4_700_000 on the onHand fixture).
+const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false } }));
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => budgetBox,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => projectMutations,
@@ -262,6 +269,32 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/don't have permission/i);
+  });
+});
+
+// ── AC-B-0-2: Spend% uses derived budget (not dead projects.budget) ──────────
+describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => {
+  it('AC-B-0-2: Spend% is computed from useProjectBudget (derived), not projects.budget', () => {
+    // Project with stored budget=0 (dead column) but derivedBudget=1_000_000 (line-items).
+    // committedSpend=500_000 → real Spend% = 50%; if dead column used → 0%.
+    const zeroStoredBudget = { ...onHand, budget: 0 } as unknown as ProjectWithRefs;
+    budgetBox.data = 1_000_000; // derived budget from useProjectBudget
+
+    renderHeader('Project Manager', zeroStoredBudget, 500_000);
+
+    // Locate the Spend stat tile
+    const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
+    const spendTile = Array.from(tiles).find((el) => el.textContent?.includes('Spend'));
+    expect(spendTile).toBeTruthy();
+    // Must show 50% (derived basis), NOT "0%" (dead stored projects.budget renders as Spend0%).
+    // Use regex word-boundary to avoid false match: "50%" contains "0%" literally, so we
+    // check for the exact string "0%" preceded by "Spend" to detect the false-zero case.
+    expect(spendTile!.textContent).toContain('50%');
+    expect(spendTile!.textContent).not.toMatch(/^Spend0%$/);
+  });
+
+  afterEach(() => {
+    budgetBox.data = 4_200_000; // reset to default
   });
 });
 
