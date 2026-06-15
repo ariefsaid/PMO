@@ -163,7 +163,7 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
 -- §E  projects — full lifecycle (pipeline + delivery + won/lost)
 -- ============================================================
 -- UUID prefix 40000000-... (existing e2e fixtures preserved: P001-P004, P011-P013)
--- New solar projects use 41000000-... namespace
+-- SV-2310 replaces the old P010 code; New solar projects use 41000000-... namespace
 
 insert into projects
   (id, code, name, status, client_id, project_manager_id,
@@ -233,8 +233,8 @@ values
   ('40000000-0000-0000-0000-000000000002','P002','Northwind ERP Rollout','Tender Submitted',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    1200000,0,0,null,null),
-  -- P010 PQ Submitted (pipeline fixture for AC-IXD-WP-001/002 procurement specs)
-  ('40000000-0000-0000-0000-000000000003','P010','Regional Services Program','PQ Submitted',
+  -- SV-2310 PQ Submitted (pipeline fixture for AC-IXD-WP-001/002 procurement specs)
+  ('40000000-0000-0000-0000-000000000003','SV-2310','Riverside Plastics Phase 2 Scoping','PQ Submitted',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
    800000,0,0,null,null),
   -- P001 Ongoing (timesheet / task fixture for e2e)
@@ -411,7 +411,7 @@ update budget_versions set status = 'Active'
     '51000000-0000-0000-0000-000000000014',
     '51000000-0000-0000-0000-000000000015');
 
--- ── e2e isolation project budgets (P001, P002/P010, P003, P004, P011, P012, P013) ──
+-- ── e2e isolation project budgets (P001, P002/SV-2310, P003, P004, P011, P012, P013) ──
 
 insert into budget_versions (id, project_id, version, name, status) values
   ('50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',1,'Initial Budget','Archived'),
@@ -936,41 +936,41 @@ update procurements set pr_number='PR-2606010001'
 -- ============================================================
 
 insert into procurements (id, code, title, project_id, requested_by_id, status, total_value, vendor_id, created_at) values
-  ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Workstations & AV',
+  ('60000000-0000-0000-0000-000000000001','PROC-2026-004','Site CCTV & Access Control Systems',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
    'Vendor Quoted',150000,null,'2026-02-05T00:00:00Z'),
-  ('60000000-0000-0000-0000-000000000002','PROC-2026-001','Network Infrastructure',
+  ('60000000-0000-0000-0000-000000000002','PROC-2026-001','HV Switchgear & Protection Relays',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
    'Ordered',85000,'c0000000-0000-0000-0000-000000000010','2026-01-10T00:00:00Z'),
   -- PROC-2026-002: dedicated for AC-IXD-WP-002 (Requested → Approved confirm)
   ('60000000-0000-0000-0000-000000000003','PROC-2026-002','Safety Equipment & PPE',
    '40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a4',
    'Requested',22500,null,'2026-01-20T00:00:00Z'),
-  ('60000000-0000-0000-0000-000000000004','PROC-2026-003','Survey Software Licenses',
+  ('60000000-0000-0000-0000-000000000004','PROC-2026-003','PV Monitoring & SCADA Software',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Draft',9800,null,'2026-01-25T00:00:00Z'),
-  ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Office Fit-Out Furniture',
+  ('60000000-0000-0000-0000-000000000005','PROC-2026-005','Earthing & Lightning Protection Kit',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
    'Paid',320000,'c0000000-0000-0000-0000-000000000011','2025-12-01T00:00:00Z'),
   -- PROC-2026-006: dedicated for AC-CONFIRM-001
-  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','Confirm-Gate Fixture',
+  ('60000000-0000-0000-0000-000000000006','PROC-2026-006','AC Distribution Board & Metering',
    '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
    'Draft',12000,null,'2026-02-20T00:00:00Z'),
   -- PROC-2026-007: dedicated for AC-IXD-WP-001 (Approved→Vendor Quoted routine step)
-  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Routine-Write Fixture',
+  ('60000000-0000-0000-0000-000000000007','PROC-2026-007','Cable Tray & Conduit Supply',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Approved',45000,null,'2026-02-22T00:00:00Z'),
   -- PROC-2026-008: dedicated for AC-IXD-WP-002 (Vendor Invoiced → Paid confirm)
-  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Paid-Confirm Fixture',
+  ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Surge Protection Devices & Fusing',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
    'Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z')
 on conflict (id) do nothing;
 
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
-  ('60000000-0000-0000-0000-000000000001','Workstation','Desk + chair',50,1500),
-  ('60000000-0000-0000-0000-000000000001','AV unit','Conference AV',5,15000),
-  ('60000000-0000-0000-0000-000000000004','Survey software license','Annual seat licenses',1,9800),
-  ('60000000-0000-0000-0000-000000000006','Confirm-gate line item','Fixture line item',1,12000),
+  ('60000000-0000-0000-0000-000000000001','IP Camera Dome Unit','4K IP dome camera for site perimeter',50,1500),
+  ('60000000-0000-0000-0000-000000000001','Access Control Panel','8-door access control panel',5,15000),
+  ('60000000-0000-0000-0000-000000000004','SCADA Software License','Annual per-site monitoring licence',1,9800),
+  ('60000000-0000-0000-0000-000000000006','AC Distribution Board 630A','Main LV distribution board with metering',1,12000),
   ('60000000-0000-0000-0000-000000000003','Safety helmets','Hard hat PPE',30,250),
   ('60000000-0000-0000-0000-000000000003','Hi-vis vests','Class 3 reflective vests',60,175),
   ('60000000-0000-0000-0000-000000000003','Safety boots','Steel-toe boots',15,300);
