@@ -1,5 +1,14 @@
 # UI/UX Workflow
 
+> **⚑ SUPERSEDED IN PART by ADR-0030 (2026-06-16) — read `docs/qa-portfolio.md` first.** The standing
+> **4-lens design review run ×2** (mockup round + rendered round) below is being replaced by the
+> **Discover → Graduate → Cover** QA portfolio: open-ended *Discover* (the lenses' real value — unknown-unknowns)
+> → *Graduate* each finding into a test + a `routes×oracles` matrix cell + a DESIGN/decision note → *Cover*
+> via enumerated sweeps + deterministic gate-tests. The mockup becomes a 30-sec owner sketch-glance; deterministic
+> correctness (chart positions, money, dates, a11y, tokens) moves to CI tests; the double-pass retires in favour
+> of one pass + a retained KB. Foundation + per-issue mechanics here still apply; the *review-battery* section
+> migrates per the ADR-0030 rollout phases.
+
 The design analog of the code-side SDD→TDD→BDD loop (`docs/director-playbook.md` §2,
 `docs/decisions.md`). The **Director** (main Opus session) orchestrates this and **owns the
 human-UX checkpoint** — taste is the owner's gate, the way spec sign-off is. `DESIGN.md` at repo
