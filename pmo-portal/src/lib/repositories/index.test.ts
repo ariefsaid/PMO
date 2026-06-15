@@ -148,8 +148,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('contact exposes its expected methods (W3-CRM)', () => {
+    // G3c: updateActivity + deleteActivity added (CD-1/CT-1 editable activity rows)
     expect(Object.keys(repositories.contact).sort()).toEqual(
-      ['archive', 'create', 'createActivity', 'delete', 'get', 'list', 'listActivities', 'listByCompany', 'update'].sort(),
+      ['archive', 'create', 'createActivity', 'delete', 'deleteActivity', 'get', 'list', 'listActivities', 'listByCompany', 'update', 'updateActivity'].sort(),
     );
   });
 

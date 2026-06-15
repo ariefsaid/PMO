@@ -51,6 +51,8 @@ vi.mock('@/src/hooks/useContacts', () => ({
     update: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     logActivity: { mutateAsync: vi.fn(), isPending: false },
+    updateActivity: { mutateAsync: vi.fn(), isPending: false },
+    deleteActivity: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 

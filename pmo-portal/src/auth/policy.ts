@@ -228,9 +228,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(ADMIN),
   },
   contactActivity: {
-    // Logging a touchpoint is a routine master-data write (no SoD axis) — any of the 4 writers.
+    // Logging/editing/deleting a touchpoint is a routine master-data write (no SoD axis) —
+    // any of the 4 master-data writers. RLS (crm_activities_write for ALL) is the authority.
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    delete: allow(MASTER_DATA),
   },
 };
 

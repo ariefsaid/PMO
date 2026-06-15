@@ -68,3 +68,37 @@ export async function createActivity(
   if (error) throwWrite(error);
   return data as CrmActivityRow;
 }
+
+export interface CrmActivityPatch {
+  kind?: CrmActivityKind;
+  subject?: string | null;
+  body?: string | null;
+  occurred_at?: string;
+}
+
+/**
+ * Update an activity's editable fields (kind/subject/body/occurred_at).
+ * org_id is never touched — RLS (crm_activities_write for ALL) enforces org-scope + role.
+ * Throws an `AppError` (code preserved, e.g. `42501`) on failure.
+ */
+export async function updateActivity(id: string, patch: CrmActivityPatch): Promise<void> {
+  const { error } = await supabase
+    .from('crm_activities')
+    .update(patch)
+    .eq('id', id);
+  if (error) throwWrite(error);
+}
+
+/**
+ * Hard-delete an activity by id.
+ * RLS (crm_activities_write for ALL with org + role guard) is the authority — the same
+ * MASTER_DATA roles that can create can also delete (no SoD axis on activity deletion).
+ * Throws an `AppError` (code preserved) on failure.
+ */
+export async function deleteActivity(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('crm_activities')
+    .delete()
+    .eq('id', id);
+  if (error) throwWrite(error);
+}

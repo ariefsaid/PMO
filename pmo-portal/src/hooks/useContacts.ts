@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -135,5 +135,20 @@ export function useContactMutations() {
     },
   });
 
-  return { create, update, archive, remove, logActivity };
+  const updateActivity = useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & CrmActivityPatch) =>
+      repositories.contact.updateActivity(id, patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+    },
+  });
+
+  const deleteActivity = useMutation({
+    mutationFn: (id: string) => repositories.contact.deleteActivity(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crm-activities'] });
+    },
+  });
+
+  return { create, update, archive, remove, logActivity, updateActivity, deleteActivity };
 }

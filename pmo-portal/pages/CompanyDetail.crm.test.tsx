@@ -73,6 +73,8 @@ const {
     archive: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     remove: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     logActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    updateActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    deleteActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   },
 }));
 
@@ -230,12 +232,16 @@ describe('CompanyDetail — contacts error state (AC-CRM-CD-01)', () => {
 describe('CompanyDetail — in-context Add contact (AC-CRM-CD-02, AC-CRM-CD-03)', () => {
   it('AC-CRM-CD-02: Admin sees "Add contact" button in the Contacts section', () => {
     renderPage('Admin');
-    expect(screen.getByRole('button', { name: /add contact/i })).toBeInTheDocument();
+    // CD-4: when there are no contacts the cold-start Activity card also shows an "Add contact"
+    // button — so there may be multiple. Asserting at least one is the correct intent here.
+    const addBtns = screen.getAllByRole('button', { name: /add contact/i });
+    expect(addBtns.length).toBeGreaterThan(0);
   });
 
   it('AC-CRM-CD-02: Finance sees "Add contact" button (is a MASTER_DATA writer)', () => {
     renderPage('Finance');
-    expect(screen.getByRole('button', { name: /add contact/i })).toBeInTheDocument();
+    const addBtns = screen.getAllByRole('button', { name: /add contact/i });
+    expect(addBtns.length).toBeGreaterThan(0);
   });
 
   it('AC-CRM-CD-02: Engineer does NOT see the "Add contact" button (no contact write permission)', () => {
@@ -254,7 +260,7 @@ describe('CompanyDetail — in-context Add contact (AC-CRM-CD-02, AC-CRM-CD-03)'
   });
 
   it('AC-CRM-CD-03: clicking "Add contact" opens the contact create modal with company pre-filled and locked', async () => {
-    contactsState.data = [];
+    contactsState.data = contacts; // Contacts exist — only the Contacts-section button appears
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /add contact/i }));
     const dialog = await screen.findByRole('dialog', { name: /new contact/i });
@@ -266,6 +272,7 @@ describe('CompanyDetail — in-context Add contact (AC-CRM-CD-02, AC-CRM-CD-03)'
   });
 
   it('AC-CRM-CD-03: contact created via "Add contact" submits with the company_id pre-populated', async () => {
+    contactsState.data = contacts; // Contacts exist — only the Contacts-section button appears
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /add contact/i }));
     const dialog = await screen.findByRole('dialog', { name: /new contact/i });

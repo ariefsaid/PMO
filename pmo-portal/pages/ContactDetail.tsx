@@ -6,6 +6,7 @@ import {
   CardHead,
   CardPad,
   Button,
+  Icon,
   StatusPill,
   ListState,
   ConfirmDialog,
@@ -26,7 +27,7 @@ import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityKind, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 
 /**
  * ContactDetail — the routable `/contacts/:id` master-data record page (CW-4b).
@@ -303,12 +304,19 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
   const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useContactActivities(contactId);
-  const { logActivity } = useContactMutations();
+  const { logActivity, updateActivity, deleteActivity } = useContactMutations();
   const canLog = may('create', 'contactActivity');
+  const canEdit = may('edit', 'contactActivity');
+  const canDelete = may('delete', 'contactActivity');
 
   const [kind, setKind] = useState<CrmActivityKind>('Call');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+
+  // Edit modal state
+  const [editingActivity, setEditingActivity] = useState<CrmActivityRow | null>(null);
+  // Delete confirm state
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   const activities = data ?? [];
 
@@ -330,6 +338,18 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
       setSubject('');
       setBody('');
       setKind('Call');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const onDeleteConfirm = async () => {
+    if (!deletingActivityId) return;
+    try {
+      await deleteActivity.mutateAsync(deletingActivityId);
+      toast('Activity deleted', '', 'success');
+      setDeletingActivityId(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -396,7 +416,29 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
               <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
-                  <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Edit activity"
+                        onClick={() => setEditingActivity(a)}
+                      >
+                        <Icon name="pencil" />
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Delete activity"
+                        onClick={() => setDeletingActivityId(a.id)}
+                      >
+                        <Icon name="trash" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {a.subject && (
                   relatedHref ? (
@@ -416,7 +458,134 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
           })}
         </ol>
       )}
+
+      {/* Edit activity modal */}
+      {editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          onClose={() => setEditingActivity(null)}
+          onSave={async (patch) => {
+            await updateActivity.mutateAsync({ id: editingActivity.id, ...patch });
+            toast('Activity updated', patch.subject ?? editingActivity.kind, 'success');
+            setEditingActivity(null);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
+          isPending={updateActivity.isPending}
+        />
+      )}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={deletingActivityId !== null}
+        tone="destructive"
+        title="Delete this activity?"
+        description="This action cannot be undone. The activity log entry will be permanently removed."
+        confirmLabel="Delete"
+        loading={deleteActivity.isPending}
+        onConfirm={onDeleteConfirm}
+        onCancel={() => setDeletingActivityId(null)}
+      />
     </div>
+  );
+};
+
+// ── EditActivityModal — inline edit for a single crm_activity row ────────────
+
+interface ActivityFormValues {
+  kind: CrmActivityKind;
+  subject: string;
+  body: string;
+}
+
+interface EditActivityModalProps {
+  activity: CrmActivityRow;
+  onClose: () => void;
+  onSave: (patch: { kind: CrmActivityKind; subject: string | null; body: string | null }) => Promise<void>;
+  onError: (err: unknown) => void;
+  isPending: boolean;
+}
+
+const EditActivityModal: React.FC<EditActivityModalProps> = ({
+  activity,
+  onClose,
+  onSave,
+  onError,
+  isPending,
+}) => {
+  const form = useEntityForm<ActivityFormValues>({
+    initialValues: {
+      kind: activity.kind,
+      subject: activity.subject ?? '',
+      body: activity.body ?? '',
+    },
+    validate: () => ({}),
+    idPrefix: 'edit-activity-form',
+    requiredFields: [],
+  });
+
+  const kindField = form.fieldProps('kind');
+  const subjectField = form.fieldProps('subject');
+  const bodyField = form.fieldProps('body');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void form.handleSubmit(async (values) => {
+      try {
+        await onSave({
+          kind: values.kind,
+          subject: values.subject.trim() || null,
+          body: values.body.trim() || null,
+        });
+      } catch (err) {
+        onError(err);
+      }
+    });
+  };
+
+  return (
+    <EntityFormModal
+      open
+      title="Edit activity"
+      subtitle="Update this activity log entry"
+      submitLabel="Save"
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      loading={isPending}
+      dirty={form.isDirty}
+    >
+      <FormSection legend="Details">
+        <FormGrid>
+          <SelectField
+            id={kindField.id}
+            label="Activity type"
+            value={kindField.value}
+            onChange={(v) => kindField.onChange(v as CrmActivityKind)}
+            options={KIND_OPTIONS}
+          />
+          <TextField
+            id={subjectField.id}
+            label="Subject"
+            value={subjectField.value}
+            onChange={subjectField.onChange}
+            onBlur={subjectField.onBlur}
+            placeholder="e.g. Kickoff call"
+          />
+        </FormGrid>
+        <TextArea
+          id={bodyField.id}
+          label="Notes"
+          value={bodyField.value}
+          onChange={bodyField.onChange}
+          onBlur={bodyField.onBlur}
+          rows={3}
+          fullWidth
+          placeholder="What was discussed?"
+        />
+      </FormSection>
+    </EntityFormModal>
   );
 };
 

@@ -37,7 +37,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
-import type { CrmActivityKind, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import type { ContactInput } from '@/src/lib/db/contacts';
 
 /**
@@ -216,15 +216,17 @@ const CompanyDetail: React.FC = () => {
         </CardPad>
       </Card>
 
-      {/* AC-IFW-COMPANY-01: related projects (always) and procurement (Vendor-only). */}
+      {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
+          (always fetch; visible for Vendors or any type when vendor PRs exist). */}
       <RelatedProjects companyId={company.id} />
+      <RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} />
 
-      {company.type === 'Vendor' && (
-        <RelatedProcurement companyId={company.id} />
-      )}
-
-      {/* T17: Account-level activity timeline — aggregated across all company contacts. */}
-      <AccountActivityCard companyId={company.id} />
+      {/* T17: Account-level activity timeline — aggregated across all company contacts.
+          CD-4: pass the add-contact opener so the cold-start card can surface it. */}
+      <AccountActivityCard
+        companyId={company.id}
+        onAddContact={canCreateContact ? () => setAddContactOpen(true) : undefined}
+      />
 
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
           T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
@@ -430,12 +432,21 @@ const RelatedProjects: React.FC<{ companyId: string }> = ({ companyId }) => {
 };
 
 /**
- * AC-IFW-COMPANY-01: Related procurement list (vendor view). Shows all PRs where the company
- * is the vendor — clickable rows that navigate to /procurement/:id. Vendor-only.
+ * AC-IFW-COMPANY-01 + AC-G3C-CD-3: Related procurement list. Shows all PRs where the company
+ * is the vendor — clickable rows that navigate to /procurement/:id.
+ *
+ * CD-3 fix: no longer gated solely on `type==='Vendor'` — renders for ANY company type when
+ * `useProcurementsByVendor` returns rows (dual-role accounts have vendor PRs even when typed
+ * "Client"). For Vendor companies the card always renders (showing empty state if none). For
+ * non-Vendor companies the card is suppressed when genuinely empty (hide-when-empty).
  */
-const RelatedProcurement: React.FC<{ companyId: string }> = ({ companyId }) => {
+const RelatedProcurement: React.FC<{ companyId: string; isVendor: boolean }> = ({ companyId, isVendor }) => {
   const { data, isPending, isError, refetch } = useProcurementsByVendor(companyId);
   const items = (data ?? []).map((pr) => ({ id: pr.id, title: pr.title, subtitle: pr.status ?? null }));
+
+  // For non-Vendor companies suppress the card when there are no rows (genuinely empty).
+  // Vendor companies always show the card so they can see "No procurement yet" clearly.
+  if (!isVendor && !isPending && !isError && items.length === 0) return null;
 
   return (
     <RelatedList
@@ -521,8 +532,14 @@ const formatOccurred = (iso: string): string => {
  * this company's contacts client-side (fan-in via useCompanyActivities). Includes a
  * gated "Log activity" form — since crm_activities.contact_id is NOT NULL, the form
  * requires/defaults to a contact of this company.
+ *
+ * CD-4: when the company has no contacts (cold-start), renders an empty Activity card
+ * with a prompt whose button opens the Add-contact modal (via the `onAddContact` callback).
  */
-const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => {
+const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => void }> = ({
+  companyId,
+  onAddContact,
+}) => {
   const may = usePermission();
   const { toast } = useToast();
   const { data: contacts, isPending: contactsPending } = useContactsByCompany(companyId);
@@ -530,8 +547,10 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
   const contactIds = useMemo(() => contactList.map((c) => c.id), [contactList]);
 
   const { data, isPending, isError, refetch } = useCompanyActivities(contactIds);
-  const { logActivity } = useContactMutations();
+  const { logActivity, updateActivity, deleteActivity } = useContactMutations();
   const canLog = may('create', 'contactActivity');
+  const canEdit = may('edit', 'contactActivity');
+  const canDelete = may('delete', 'contactActivity');
 
   const activities = data ?? [];
 
@@ -548,6 +567,10 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
   // When there's more than one contact the user must pick; with a single contact we
   // pre-populate and hide the selector.
   const [selectedContactId, setSelectedContactId] = useState<string>('');
+
+  // Edit/delete state for activity rows (CD-1)
+  const [editingActivity, setEditingActivity] = useState<CrmActivityRow | null>(null);
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
 
   // When contactList changes, auto-select the first contact if there's only one.
   const effectiveContactId = contactList.length === 1 ? contactList[0].id : selectedContactId;
@@ -582,12 +605,43 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
     }
   };
 
+  const onDeleteConfirm = async () => {
+    if (!deletingActivityId) return;
+    try {
+      await deleteActivity.mutateAsync(deletingActivityId);
+      toast('Activity deleted', '', 'success');
+      setDeletingActivityId(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
   // Don't render the card until we know if there are any contacts (to avoid a flash).
   if (contactsPending) return null;
 
-  // If the company has no contacts yet, skip the activity section entirely — there's
-  // nobody to log activity against.
-  if (contactList.length === 0 && activities.length === 0) return null;
+  // CD-4: contactless company — show an empty Activity card with a cold-start prompt
+  // instead of returning null (which was a dead-end for first-time setup).
+  if (contactList.length === 0 && activities.length === 0) {
+    return (
+      <Card className="mb-4">
+        <CardHead>Activity</CardHead>
+        <CardPad>
+          <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-4 py-8 text-center">
+            <p className="text-[13px] text-muted-foreground">
+              Add a contact to start logging activity
+            </p>
+            {onAddContact && (
+              <Button variant="outline" size="sm" onClick={onAddContact}>
+                <Icon name="plus" />
+                Add contact
+              </Button>
+            )}
+          </div>
+        </CardPad>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mb-4">
@@ -672,9 +726,31 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
                 >
                   <div className="flex items-center justify-between gap-2">
                     <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatOccurred(a.occurred_at)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatOccurred(a.occurred_at)}
+                      </span>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit activity"
+                          onClick={() => setEditingActivity(a)}
+                        >
+                          <Icon name="pencil" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Delete activity"
+                          onClick={() => setDeletingActivityId(a.id)}
+                        >
+                          <Icon name="trash" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {/* CD-2 (AC-JR-W3B-E1): contact name links to /contacts/:id */}
                   {contact && (
@@ -693,8 +769,143 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
             })}
           </ol>
         )}
+
+        {/* Edit activity modal (CD-1) */}
+        {editingActivity && (
+          <AccountEditActivityModal
+            activity={editingActivity}
+            contactOptions={contactOptions}
+            onClose={() => setEditingActivity(null)}
+            onSave={async (patch) => {
+              await updateActivity.mutateAsync({ id: editingActivity.id, ...patch });
+              toast('Activity updated', patch.subject ?? editingActivity.kind, 'success');
+              setEditingActivity(null);
+            }}
+            onError={(err) => {
+              const { headline, detail } = classifyMutationError(err);
+              toast(headline, detail, 'warning');
+            }}
+            isPending={updateActivity.isPending}
+          />
+        )}
+
+        {/* Delete confirm (CD-1) */}
+        <ConfirmDialog
+          open={deletingActivityId !== null}
+          tone="destructive"
+          title="Delete this activity?"
+          description="This action cannot be undone. The activity log entry will be permanently removed."
+          confirmLabel="Delete"
+          loading={deleteActivity.isPending}
+          onConfirm={onDeleteConfirm}
+          onCancel={() => setDeletingActivityId(null)}
+        />
       </CardPad>
     </Card>
+  );
+};
+
+// ── AccountEditActivityModal — inline edit for a crm_activity row (CD-1) ─────
+
+interface AccountActivityPatch {
+  kind: CrmActivityKind;
+  subject: string | null;
+  body: string | null;
+}
+
+interface AccountEditActivityModalValues {
+  kind: CrmActivityKind;
+  subject: string;
+  body: string;
+}
+
+interface AccountEditActivityModalProps {
+  activity: CrmActivityRow;
+  contactOptions: { value: string; label: string }[];
+  onClose: () => void;
+  onSave: (patch: AccountActivityPatch) => Promise<void>;
+  onError: (err: unknown) => void;
+  isPending: boolean;
+}
+
+const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
+  activity,
+  onClose,
+  onSave,
+  onError,
+  isPending,
+}) => {
+  const form = useEntityForm<AccountEditActivityModalValues>({
+    initialValues: {
+      kind: activity.kind,
+      subject: activity.subject ?? '',
+      body: activity.body ?? '',
+    },
+    validate: () => ({}),
+    idPrefix: 'account-edit-activity',
+    requiredFields: [],
+  });
+
+  const kindField = form.fieldProps('kind');
+  const subjectField = form.fieldProps('subject');
+  const bodyField = form.fieldProps('body');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void form.handleSubmit(async (values) => {
+      try {
+        await onSave({
+          kind: values.kind,
+          subject: values.subject.trim() || null,
+          body: values.body.trim() || null,
+        });
+      } catch (err) {
+        onError(err);
+      }
+    });
+  };
+
+  return (
+    <EntityFormModal
+      open
+      title="Edit activity"
+      subtitle="Update this activity log entry"
+      submitLabel="Save"
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      loading={isPending}
+      dirty={form.isDirty}
+    >
+      <FormSection legend="Details">
+        <FormGrid>
+          <SelectField
+            id={kindField.id}
+            label="Activity type"
+            value={kindField.value}
+            onChange={(v) => kindField.onChange(v as CrmActivityKind)}
+            options={KIND_OPTIONS}
+          />
+          <TextField
+            id={subjectField.id}
+            label="Subject"
+            value={subjectField.value}
+            onChange={subjectField.onChange}
+            onBlur={subjectField.onBlur}
+            placeholder="e.g. Kickoff call"
+          />
+        </FormGrid>
+        <TextArea
+          id={bodyField.id}
+          label="Notes"
+          value={bodyField.value}
+          onChange={bodyField.onChange}
+          onBlur={bodyField.onBlur}
+          rows={3}
+          fullWidth
+          placeholder="What was discussed?"
+        />
+      </FormSection>
+    </EntityFormModal>
   );
 };
 

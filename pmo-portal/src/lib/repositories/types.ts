@@ -72,7 +72,7 @@ import type {
 } from '@/src/lib/db/milestones';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-import type { CrmActivityRow, CrmActivityInput } from '@/src/lib/db/crmActivities';
+import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -317,6 +317,10 @@ export interface ContactRepository {
   listActivities(contactId: string): Promise<CrmActivityRow[]>;
   /** Log an activity (org_id trigger-stamped from the parent; logged_by from the caller). */
   createActivity(input: CrmActivityInput, loggedById: string | null): Promise<CrmActivityRow>;
+  /** Update an activity's editable fields (kind/subject/body/occurred_at). */
+  updateActivity(id: string, patch: CrmActivityPatch): Promise<void>;
+  /** Hard-delete an activity by id (RLS gate: MASTER_DATA roles + org). */
+  deleteActivity(id: string): Promise<void>;
 }
 
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */

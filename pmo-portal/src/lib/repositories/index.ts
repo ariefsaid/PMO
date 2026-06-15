@@ -134,7 +134,7 @@ import {
   archiveContact,
   deleteContact,
 } from '@/src/lib/db/contacts';
-import { listActivities, createActivity } from '@/src/lib/db/crmActivities';
+import { listActivities, createActivity, updateActivity, deleteActivity } from '@/src/lib/db/crmActivities';
 import type {
   Repositories,
   ProjectRepository,
@@ -304,6 +304,8 @@ const contact: ContactRepository = {
   delete: (id) => wrap(() => deleteContact(id)),
   listActivities: (id) => wrap(() => listActivities(id)),
   createActivity: (input, loggedById) => wrap(() => createActivity(input, loggedById)),
+  updateActivity: (id, patch) => wrap(() => updateActivity(id, patch)),
+  deleteActivity: (id) => wrap(() => deleteActivity(id)),
 };
 
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */

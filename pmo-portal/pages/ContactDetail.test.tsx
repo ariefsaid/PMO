@@ -26,6 +26,8 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
     archive: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     remove: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     logActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    updateActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    deleteActivity: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   },
   companiesState: {
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
