@@ -176,10 +176,11 @@ values
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
    5250000,4500000,0,'2025-09-01','2026-06-30'),
   -- SP-2402: at-risk (committed spend > budget), ~80% delivery but behind schedule
+  --   original end was 2026-04-30; overrunning — extended to 2026-07-31
   ('41000000-0000-0000-0000-000000000002','SP-2402',
    'Cascade Foods 6.0 MW Ground-Mount PV',    'Ongoing Project',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   7800000,6900000,0,'2025-06-01','2026-04-30'),
+   7800000,6900000,0,'2025-06-01','2026-07-31'),
   -- SP-2403: Close Out — 100% complete
   ('41000000-0000-0000-0000-000000000003','SP-2403',
    'Atlas Chemicals 2.8 MW Carport PV',       'Close Out',
@@ -474,15 +475,15 @@ values
 
   -- ── SP-2402 (Cascade Foods — at-risk, behind schedule) ──────────────────────
   -- Engineering 100%, Procurement 100%, Construction: input_pct=70 (PM) vs 40% calc (2/5 Done) DIVERGE
-  -- target_dates PAST-DUE to show schedule pressure
+  -- target_dates PAST-DUE to show schedule pressure; project overran to 2026-07-31
   ('71000000-0000-0000-0000-000000000005','41000000-0000-0000-0000-000000000002',
    'Engineering Design', 1,'2025-08-15',15,null),
   ('71000000-0000-0000-0000-000000000006','41000000-0000-0000-0000-000000000002',
    'Procurement',        2,'2025-11-30',35,null),
   ('71000000-0000-0000-0000-000000000007','41000000-0000-0000-0000-000000000002',
-   'Construction',       3,current_date - interval '60 days',40,70),
+   'Construction',       3,'2026-04-16',40,70),
   ('71000000-0000-0000-0000-000000000008','41000000-0000-0000-0000-000000000002',
-   'Commissioning & Grid Connection',4,current_date - interval '10 days',10,null),
+   'Commissioning & Grid Connection',4,'2026-07-15',10,null),
 
   -- ── SP-2403 (Atlas Chemicals — Close Out, 100%) ───────────────────────────────
   ('71000000-0000-0000-0000-000000000009','41000000-0000-0000-0000-000000000003',
@@ -594,13 +595,13 @@ insert into tasks (id, project_id, name, start_date, end_date, assignee_id, stat
   ('81000000-0000-0000-0000-000000000031','41000000-0000-0000-0000-000000000002',
    'CONST — Electrical Termination & HV Connection','2026-03-01','2026-04-30','00000000-0000-0000-0000-0000000000a4','To Do'),
 
-  -- ── SP-2402 Commissioning (3 To Do — past due) ──────────────────────────────
+  -- ── SP-2402 Commissioning (3 To Do — overrunning, revised to Jun-Jul 2026) ──
   ('81000000-0000-0000-0000-000000000032','41000000-0000-0000-0000-000000000002',
-   'COMM — Install DC String Cabling All Blocks','2026-03-16','2026-04-15','00000000-0000-0000-0000-0000000000a4','To Do'),
+   'COMM — Install DC String Cabling All Blocks','2026-05-16','2026-06-15','00000000-0000-0000-0000-0000000000a4','To Do'),
   ('81000000-0000-0000-0000-000000000033','41000000-0000-0000-0000-000000000002',
-   'COMM — Inverter Energization & Relay Test','2026-04-01','2026-04-25','00000000-0000-0000-0000-0000000000a4','To Do'),
+   'COMM — Inverter Energization & Relay Test','2026-06-16','2026-06-30','00000000-0000-0000-0000-0000000000a4','To Do'),
   ('81000000-0000-0000-0000-000000000034','41000000-0000-0000-0000-000000000002',
-   'COMM — Grid Interconnection Witness Test','2026-04-16','2026-04-30','00000000-0000-0000-0000-0000000000a4','To Do'),
+   'COMM — Grid Interconnection Witness Test','2026-07-01','2026-07-15','00000000-0000-0000-0000-0000000000a4','To Do'),
 
   -- ── SP-2402 undated tasks ────────────────────────────────────────────────────
   ('81000000-0000-0000-0000-000000000035','41000000-0000-0000-0000-000000000002',
@@ -842,32 +843,32 @@ on conflict (id) do nothing;
 insert into procurement_quotations
   (id, procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number)
 values
-  -- SP2401-001 Paid: selected from SunVolt
+  -- SP2401-001 Paid: selected from SunVolt (received 2 days after procurement created 2025-09-10)
   ('61000000-0000-0000-0000-000000002001','61000000-0000-0000-0000-000000000001',
-   'c0000000-0000-0000-0000-000000000008','SVX-Q-2501-01',1680000,'2025-09-08',true,'VQ-2509080001'),
-  -- SP2401-002 Ordered: selected from VoltEdge
+   'c0000000-0000-0000-0000-000000000008','SVX-Q-2501-01',1680000,'2025-09-12',true,'VQ-2509120001'),
+  -- SP2401-002 Ordered: selected from VoltEdge (received 2 days after procurement created 2025-10-05)
   ('61000000-0000-0000-0000-000000002002','61000000-0000-0000-0000-000000000002',
-   'c0000000-0000-0000-0000-000000000009','VEI-Q-2501-01',680000,'2025-10-03',true,'VQ-2510030001'),
+   'c0000000-0000-0000-0000-000000000009','VEI-Q-2501-01',680000,'2025-10-07',true,'VQ-2510070001'),
   -- SP2401-003 Vendor Quoted: two competing (neither selected)
   ('61000000-0000-0000-0000-000000002003','61000000-0000-0000-0000-000000000003',
    'c0000000-0000-0000-0000-000000000010','RMS-Q-2501-01',545000,'2025-11-05',false,null),
   ('61000000-0000-0000-0000-000000002004','61000000-0000-0000-0000-000000000003',
    'c0000000-0000-0000-0000-000000000011','CCE-Q-2501-01',538000,'2025-11-06',false,null),
-  -- SP2402-001 Paid: selected from SunVolt
+  -- SP2402-001 Paid: selected from SunVolt (received 3 days after procurement created 2025-06-10)
   ('61000000-0000-0000-0000-000000002005','61000000-0000-0000-0000-000000000005',
-   'c0000000-0000-0000-0000-000000000008','SVX-Q-2502-01',3700000,'2025-06-08',true,'VQ-2506080001'),
-  -- SP2402-002 Ordered: selected from VoltEdge
+   'c0000000-0000-0000-0000-000000000008','SVX-Q-2502-01',3700000,'2025-06-13',true,'VQ-2506130001'),
+  -- SP2402-002 Ordered: selected from VoltEdge (received 3 days after procurement created 2025-08-02)
   ('61000000-0000-0000-0000-000000002006','61000000-0000-0000-0000-000000000006',
-   'c0000000-0000-0000-0000-000000000009','VEI-Q-2502-01',1350000,'2025-08-01',true,'VQ-2508010001'),
-  -- SP2402-003 Received: selected from RackMount
+   'c0000000-0000-0000-0000-000000000009','VEI-Q-2502-01',1350000,'2025-08-05',true,'VQ-2508050001'),
+  -- SP2402-003 Received: selected from RackMount (received 2 days after procurement created 2025-08-20)
   ('61000000-0000-0000-0000-000000002007','61000000-0000-0000-0000-000000000007',
-   'c0000000-0000-0000-0000-000000000010','RMS-Q-2502-01',1250000,'2025-08-18',true,'VQ-2508180001'),
-  -- SP2403-001 Paid: selected from SunVolt
+   'c0000000-0000-0000-0000-000000000010','RMS-Q-2502-01',1250000,'2025-08-22',true,'VQ-2508220001'),
+  -- SP2403-001 Paid: selected from SunVolt (received 3 days after procurement created 2025-04-01)
   ('61000000-0000-0000-0000-000000002009','61000000-0000-0000-0000-000000000009',
-   'c0000000-0000-0000-0000-000000000008','SVX-Q-2503-01',1440000,'2025-03-29',true,'VQ-2503290001'),
-  -- SP2403-002 Paid: selected from RackMount
+   'c0000000-0000-0000-0000-000000000008','SVX-Q-2503-01',1440000,'2025-04-04',true,'VQ-2504040001'),
+  -- SP2403-002 Paid: selected from RackMount (received 3 days after procurement created 2025-05-05)
   ('61000000-0000-0000-0000-000000002010','61000000-0000-0000-0000-000000000010',
-   'c0000000-0000-0000-0000-000000000010','RMS-Q-2503-01',630000,'2025-05-03',true,'VQ-2505030001')
+   'c0000000-0000-0000-0000-000000000010','RMS-Q-2503-01',630000,'2025-05-08',true,'VQ-2505080001')
 on conflict (id) do nothing;
 
 -- ── receipts + invoices ───────────────────────────────────────────────────────
@@ -905,7 +906,7 @@ update procurements set pr_number='PR-2601100001',
 
 update procurements set pr_number='PR-2506100001', po_number='PO-2506200001',
   approved_by_id='00000000-0000-0000-0000-0000000000a1',
-  vendor_invoiced_at = now() - interval '14 days'
+  vendor_invoiced_at = '2025-11-28T00:00:00Z'
   where id='61000000-0000-0000-0000-000000000005'; -- SP2402-001 Paid (at-risk SoD demo)
 
 update procurements set pr_number='PR-2508020001', po_number='PO-2508050001',
