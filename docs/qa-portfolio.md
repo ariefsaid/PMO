@@ -76,7 +76,7 @@ once all three artifacts exist:
 
 | Finding (date) | Test (the lock) | Matrix oracle/cell | DESIGN/decision note | Done |
 |---|---|---|---|---|
-| S-curve plots "today" at far-right (categorical axis) — 2026-06-15 | `ProjectSCurve` position test (today-point ordered by date) | data-correctness × `/projects/:id` | DESIGN.md: time-series uses a time axis, points placed by value | ☐ (Phase 1) |
+| S-curve plots "today" at far-right (categorical axis) — 2026-06-15 | `sCurve.test.ts` AC-SC-AXIS-001/002/003/004 (ts field; position-oracle; monotonic domain; year-disambig formatter) | data-correctness × `/projects/:id` | DESIGN.md: time-series uses a time axis, points placed by value | ☑ (2026-06-16) |
 | Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | `ganttLayout` marker-position test + render-at-`marker.left` test | data-correctness × `/projects/:id` | DESIGN.md: timeline markers placed on the axis by date | ☐ (Gantt-fix wave — vendors failed eval, fix custom) |
 
 ## Vendoring backlog (Layer 0)

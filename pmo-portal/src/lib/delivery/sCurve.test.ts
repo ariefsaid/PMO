@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSCurve } from './sCurve';
+import { buildSCurve, formatSCurveAxisDate } from './sCurve';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 /**
@@ -109,5 +109,61 @@ describe('buildSCurve', () => {
     expect(actualPts).toHaveLength(1);
     expect(actualPts[0].date).toBe('2026-05-01');
     expect(actualPts[0].actual).toBe(37.5);
+  });
+
+  // ── Time-axis correctness (data-viz position bug fix) ─────────────────────────
+
+  it('AC-SC-AXIS-001: every point carries a ts (epoch ms UTC midnight) matching its date', () => {
+    const model = buildSCurve(threePhases, '2026-05-01');
+    for (const pt of model.points) {
+      const expected = Date.parse(`${pt.date}T00:00:00Z`);
+      expect(pt.ts).toBe(expected);
+    }
+  });
+
+  it('AC-SC-AXIS-002 position-oracle: today/actual ts sits BETWEEN surrounding milestone ts values, not after the last', () => {
+    // asOf = 2026-05-01, between milestones at 2026-04-01 and 2026-07-01
+    const asOf = '2026-05-01';
+    const model = buildSCurve(threePhases, asOf);
+
+    const actualPt = model.points.find((p) => p.actual !== null);
+    expect(actualPt).toBeDefined();
+
+    // ts of the last planned milestone (2026-07-01)
+    const lastMilestonePt = model.points
+      .filter((p) => p.planned !== null)
+      .at(-1)!;
+
+    const actualTs = actualPt!.ts;
+    const lastMilestoneTs = lastMilestonePt.ts;
+
+    // The bug: categorical axis appended today AFTER the last milestone, making
+    // ts of today > ts of the last milestone visually. With a time axis, today
+    // (2026-05-01) must be BEFORE 2026-07-01.
+    expect(actualTs).toBeLessThan(lastMilestoneTs);
+
+    // Also strictly after the preceding milestone (2026-04-01).
+    const prevMilestonePt = model.points
+      .filter((p) => p.planned !== null && p.ts < lastMilestoneTs)
+      .at(-1)!;
+    expect(actualTs).toBeGreaterThan(prevMilestonePt.ts);
+  });
+
+  it('AC-SC-AXIS-003: all ts values are non-decreasing when points are sorted by ts (monotonic domain)', () => {
+    const model = buildSCurve(threePhases, '2026-05-01');
+    const sorted = [...model.points].sort((a, b) => a.ts - b.ts);
+    for (let i = 1; i < sorted.length; i += 1) {
+      expect(sorted[i].ts).toBeGreaterThanOrEqual(sorted[i - 1].ts);
+    }
+  });
+
+  it('AC-SC-AXIS-004: formatSCurveAxisDate disambiguates same-month different-year (no duplicate labels)', () => {
+    // Categorical year-drop bug: 2025-03-15 and 2026-03-15 both rendered "15 Mar"
+    const label2025 = formatSCurveAxisDate(Date.parse('2025-03-15T00:00:00Z'));
+    const label2026 = formatSCurveAxisDate(Date.parse('2026-03-15T00:00:00Z'));
+    expect(label2025).not.toBe(label2026);
+    // Both must include the year in some form
+    expect(label2025).toMatch(/25|2025/);
+    expect(label2026).toMatch(/26|2026/);
   });
 });

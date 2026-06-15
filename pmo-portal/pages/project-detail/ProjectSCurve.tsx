@@ -7,16 +7,13 @@ import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersRe
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { buildSCurve } from '@/src/lib/delivery/sCurve';
+import { buildSCurve, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
 export interface ProjectSCurveProps {
   projectId: string;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-
-const dateFmt = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
-const formatAxisDate = (iso: string) => dateFmt.format(new Date(`${iso}T00:00:00`));
 
 /**
  * Per-project cumulative S-curve on the Delivery lens (FR-SC-001), below the
@@ -72,12 +69,15 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             <LineChart data={model.points} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
               <XAxis
-                dataKey="date"
-                tickFormatter={formatAxisDate}
+                dataKey="ts"
+                type="number"
+                scale="time"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={formatSCurveAxisDate}
                 tick={axisTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
-                minTickGap={24}
+                minTickGap={32}
               />
               <YAxis
                 domain={[0, 100]}
@@ -91,7 +91,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <Tooltip
                 contentStyle={tooltipContentStyle}
                 labelStyle={tooltipLabelStyle}
-                labelFormatter={(label: string) => formatAxisDate(label)}
+                labelFormatter={(label: number) => formatSCurveAxisDate(label)}
                 formatter={(value: number) => `${value}%`}
               />
               {/* Planned = dashed One-Blue (the "target"). */}
