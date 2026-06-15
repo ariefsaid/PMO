@@ -67,7 +67,7 @@ const SalesDetailRedirect: React.FC = () => {
   return <Navigate to={`/projects/${opportunityId}`} replace />;
 };
 
-const AppRoutes: React.FC = () => (
+export const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingFallback />}>
     <Routes>
       <Route path="/" element={<ExecutiveDashboard />} />
