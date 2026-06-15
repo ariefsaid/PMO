@@ -99,8 +99,10 @@ describe('useRecordSearch — ⌘K module view-gate (AC-W2-RBAC-015)', () => {
     const subs = result.current.records.map((r) => r.sub);
     // Projects are visible to every role → still indexed.
     expect(subs).toContain('Project');
-    // CW-4a: incidents are visible to every role (any member may file) → indexed for Engineer too.
-    expect(subs).toContain('Incident');
+    // Incidents are hidden by the interim UI feature flag (FEATURES.incidents = false).
+    // CW-4a originally indexed them for all roles; the flag supersedes that while the module is off.
+    // The flag-on proof lives in useRecordSearch.features.test.tsx.
+    expect(subs).not.toContain('Incident');
     // Procurement + Sales Pipeline have no Engineer nav → never surfaced via ⌘K.
     expect(subs).not.toContain('Procurement');
     expect(subs).not.toContain('Project · Pipeline');

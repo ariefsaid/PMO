@@ -12,6 +12,7 @@ import { useContacts } from '@/src/hooks/useContacts';
 import { useIncidents } from '@/src/hooks/useIncidents';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { isFeatureEnabled } from '@/src/lib/features';
 
 /** Per-group result cap so the palette never becomes a wall of rows (AC-CMDK-006). */
 export const RECORD_GROUP_CAP = 8;
@@ -144,16 +145,21 @@ export function useRecordSearch(navigate: (path: string) => void): RecordSearch 
       }
     }
 
-    for (const inc of incidents.data ?? []) {
-      out.push({
-        id: `incidents:${inc.id}`,
-        group: 'Records',
-        title: inc.type,
-        sub: 'Incident',
-        icon: 'alert' as IconName,
-        // CW-4a: open the routable detail page (was a dead-end — no detail route existed).
-        run: () => navigate(`/incidents/${inc.id}`),
-      });
+    // Incidents are indexed only when the feature flag is on. The useIncidents()
+    // hook call is unconditional (hooks can't be conditional) — the fetch is
+    // harmless while the module is hidden; only the result is excluded here.
+    if (isFeatureEnabled('incidents')) {
+      for (const inc of incidents.data ?? []) {
+        out.push({
+          id: `incidents:${inc.id}`,
+          group: 'Records',
+          title: inc.type,
+          sub: 'Incident',
+          icon: 'alert' as IconName,
+          // CW-4a: open the routable detail page (was a dead-end — no detail route existed).
+          run: () => navigate(`/incidents/${inc.id}`),
+        });
+      }
     }
 
     return out;

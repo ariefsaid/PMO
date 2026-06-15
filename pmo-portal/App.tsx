@@ -34,6 +34,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
+import { isFeatureEnabled } from '@/src/lib/features';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -91,10 +92,21 @@ const AppRoutes: React.FC = () => (
       <Route path="/contacts" element={<ContactsPage />} />
       {/* CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record). */}
       <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
-      <Route path="/incidents" element={<IncidentsPage />} />
+      {/* Incidents is hidden behind the interim UI feature flag (UI-hide-first).
+          When the flag is off, bookmarks/deep-links redirect to home instead of
+          404 or the hidden page. Flip isFeatureEnabled('incidents') to re-enable. */}
+      <Route
+        path="/incidents"
+        element={isFeatureEnabled('incidents') ? <IncidentsPage /> : <Navigate to="/" replace />}
+      />
       {/* CW-4a: /incidents/:id — the routable Incident detail page (fixes the dead-end: rows
           now open here to track/investigate/close). */}
-      <Route path="/incidents/:incidentId" element={<IncidentDetailPage />} />
+      <Route
+        path="/incidents/:incidentId"
+        element={
+          isFeatureEnabled('incidents') ? <IncidentDetailPage /> : <Navigate to="/" replace />
+        }
+      />
       {/* /work-orders removed (owner decision — the route, not just the nav). */}
       {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
       {/* B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list. */}

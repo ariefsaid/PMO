@@ -4,6 +4,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
+import { isFeatureEnabled } from '@/src/lib/features';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -88,7 +89,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
 
   if (!role) return null;
 
-  const items = ALL_ITEMS.filter((i) => i.roles.includes(role));
+  const items = ALL_ITEMS.filter(
+    (i) => i.roles.includes(role) && (i.to !== '/incidents' || isFeatureEnabled('incidents')),
+  );
 
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
