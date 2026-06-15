@@ -134,7 +134,7 @@ import {
   archiveContact,
   deleteContact,
 } from '@/src/lib/db/contacts';
-import { listActivities, createActivity, updateActivity, deleteActivity } from '@/src/lib/db/crmActivities';
+import { listActivities, listActivitiesForContacts, createActivity, updateActivity, deleteActivity } from '@/src/lib/db/crmActivities';
 import type {
   Repositories,
   ProjectRepository,
@@ -303,6 +303,7 @@ const contact: ContactRepository = {
   archive: (id) => wrap(() => archiveContact(id)),
   delete: (id) => wrap(() => deleteContact(id)),
   listActivities: (id) => wrap(() => listActivities(id)),
+  listActivitiesForContacts: (ids) => wrap(() => listActivitiesForContacts(ids)),
   createActivity: (input, loggedById) => wrap(() => createActivity(input, loggedById)),
   updateActivity: (id, patch) => wrap(() => updateActivity(id, patch)),
   deleteActivity: (id) => wrap(() => deleteActivity(id)),

@@ -315,6 +315,8 @@ export interface ContactRepository {
   delete(id: string): Promise<void>;
   /** A contact's activities, newest-first by occurred_at. */
   listActivities(contactId: string): Promise<CrmActivityRow[]>;
+  /** Batch-fetch activities for N contacts in one query (C3 N+1 fix), merged newest-first. */
+  listActivitiesForContacts(contactIds: string[]): Promise<CrmActivityRow[]>;
   /** Log an activity (org_id trigger-stamped from the parent; logged_by from the caller). */
   createActivity(input: CrmActivityInput, loggedById: string | null): Promise<CrmActivityRow>;
   /** Update an activity's editable fields (kind/subject/body/occurred_at). */

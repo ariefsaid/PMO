@@ -42,6 +42,26 @@ export async function listActivities(contactId: string): Promise<CrmActivityRow[
 }
 
 /**
+ * Batch-fetch activities for N contacts in ONE query (C3 — replaces per-contact N+1 in
+ * useCompanyActivities). Uses the crm_activities_contact_idx index for O(log n) per batch.
+ * org_id is NEVER sent — RLS scopes rows. Returns rows merged and sorted newest-first by
+ * occurred_at, matching the per-contact `listActivities` sort. Throws an `AppError` on failure.
+ * When `contactIds` is empty, returns [] without hitting the DB.
+ */
+export async function listActivitiesForContacts(
+  contactIds: string[],
+): Promise<CrmActivityRow[]> {
+  if (contactIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('crm_activities')
+    .select('*')
+    .in('contact_id', contactIds)
+    .order('occurred_at', { ascending: false });
+  if (error) throwWrite(error);
+  return data ?? [];
+}
+
+/**
  * Create an activity on a contact (AC-CRM-023). org_id is NEVER sent — the BEFORE INSERT trigger
  * inherits it from the parent contact; the crm_activities_write WITH CHECK (role + parent-org
  * guard) is the authority. `logged_by_id` is stamped from the caller's profile id. Returns the

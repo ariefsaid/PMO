@@ -118,9 +118,11 @@ export function formatDocNumber(
   date: Date,
   seq: number,
 ): string {
-  const yy = String(date.getFullYear()).slice(2);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
+  // C4: use UTC parts so a date constructed from a UTC ISO string (e.g. new Date('2026-06-04'))
+  // or the server date never shifts by one day in behind-UTC timezones (date-only convention).
+  const yy = String(date.getUTCFullYear()).slice(2);
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
   return `${prefix}-${yy}${mm}${dd}${String(seq).padStart(4, '0')}`;
 }
 

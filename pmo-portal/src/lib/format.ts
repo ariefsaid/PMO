@@ -59,11 +59,18 @@ export function formatDate(iso: string | null | undefined): string {
 
 /** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces.
  *  AC-W2-9-01: compact on magnitude (Math.abs) then re-apply sign so negatives
- *  compact too: -$2.5M not -$2,500,000. */
+ *  compact too: -$2.5M not -$2,500,000.
+ *  C4 boundary fix: values that would display as "$1000.0K" are rolled to "$1.0M"
+ *  so the M tier begins at values that round to ≥ 1000 at 1-decimal-place K display. */
 export function formatCompactCurrency(value: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  if (abs >= 1_000) {
+    const kDisplay = (abs / 1_000).toFixed(1);
+    // If the K display would roll to "1000.0" or beyond, use the M tier instead
+    if (parseFloat(kDisplay) >= 1_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+    return `${sign}$${kDisplay}K`;
+  }
   return formatCurrency(value);
 }
