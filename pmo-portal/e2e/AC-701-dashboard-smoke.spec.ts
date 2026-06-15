@@ -5,8 +5,8 @@ import { login } from './helpers';
 test('AC-701 Executive sees real org-scoped KPI values from the RPC', async ({ page }) => {
   await login(page, 'exec@acme.test');
   await page.goto('/');
-  // P001 + P003 + P013 (Seabridge Terminal Delivery, added in plan D-5) = 3 Ongoing projects (see PR-#29 seed-resync precedent)
-  await expect(page.getByTestId('kpi-active-projects')).toHaveText(/3/);
-  // P001 5,000,000 + P003 3,000,000 + P013 2,000,000 = 10,000,000 (clean-state seed values)
-  await expect(page.getByTestId('kpi-total-contract-value')).toHaveText(/\$10,000,000/);
+  // SP-2401 + SP-2402 + P001 + P003 + P013 = 5 Ongoing projects (rich solar seed, PR-#118 resync)
+  await expect(page.getByTestId('kpi-active-projects')).toHaveText(/5/);
+  // SP-2401 5,250,000 + SP-2402 7,800,000 + P001 5,000,000 + P003 3,000,000 + P013 2,000,000 = 23,050,000
+  await expect(page.getByTestId('kpi-total-contract-value')).toHaveText(/\$23,050,000/);
 });

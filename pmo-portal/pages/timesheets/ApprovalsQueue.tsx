@@ -203,49 +203,30 @@ export const ApprovalsQueue: React.FC = () => {
     );
   };
 
-  // N12: commit the batch. Fire the existing per-sheet approve RPC for each selected id;
-  // resilient — one SoD/stale failure must NOT abort the rest. Aggregate into ONE toast.
-  const commitBulk = () => {
+  // N12: commit the batch. Fire the existing per-sheet approve RPC for each selected id via
+  // mutateAsync + Promise.allSettled — resilient to partial failure (SoD/stale), aggregated
+  // into ONE toast. React Query v5 silently drops per-call callbacks on a shared mutation
+  // instance when multiple .mutate() calls are in flight; mutateAsync avoids this entirely.
+  const commitBulk = async () => {
     const ids = sheets.filter((s) => effectiveSelected.has(s.id)).map((s) => s.id);
     if (ids.length === 0) {
       setConfirmBulk(false);
       return;
     }
     setBulkRunning(true);
-    let settled = 0;
-    let ok = 0;
-    let failed = 0;
-    const total = ids.length;
-    const finish = () => {
-      if (settled < total) return;
-      setBulkRunning(false);
-      setConfirmBulk(false);
-      exitSelection();
-      if (failed === 0) {
-        toast('Timesheets approved', `${ok} approved`, 'success');
-      } else if (ok === 0) {
-        toast('Couldn’t approve', `${failed} failed (separation of duties or stale)`, 'warning');
-      } else {
-        toast('Partially approved', `${ok} approved, ${failed} failed (separation of duties or stale)`, 'warning');
-      }
-    };
-    ids.forEach((id) => {
-      approve.mutate(
-        { id },
-        {
-          onSuccess: () => {
-            ok += 1;
-            settled += 1;
-            finish();
-          },
-          onError: () => {
-            failed += 1;
-            settled += 1;
-            finish();
-          },
-        },
-      );
-    });
+    const results = await Promise.allSettled(ids.map((id) => approve.mutateAsync({ id })));
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    setBulkRunning(false);
+    setConfirmBulk(false);
+    exitSelection();
+    if (failed === 0) {
+      toast('Timesheets approved', `${ok} approved`, 'success');
+    } else if (ok === 0) {
+      toast("Couldn't approve", `${failed} failed (separation of duties or stale)`, 'warning');
+    } else {
+      toast('Partially approved', `${ok} approved, ${failed} failed (separation of duties or stale)`, 'warning');
+    }
   };
 
   if (isPending) {
@@ -344,7 +325,7 @@ export const ApprovalsQueue: React.FC = () => {
             const panelId = `ts-breakdown-${sheet.id}`;
             const canSelect = approvableIds.has(sheet.id);
             return (
-              <div key={sheet.id}>
+              <div key={sheet.id} data-week-start={sheet.week_start_date}>
                 {/* N11: disclosure slot — chevron sits BEFORE the avatar (AC-JR-W3-01 / T20). */}
                 <ApprovalRow
                   name={name}
