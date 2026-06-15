@@ -85,7 +85,7 @@ Standing shortlist (ADR-0030 §F; verified 2026-06):
 
 | Surface | Adopt | Status |
 |---|---|---|
-| Gantt | **OWNER-ELECTED: DHTMLX Gantt** (Community, now MIT) — *pending verification spike* | spike-1 said keep-custom (SVAR=GPLv3+R19-crash, Frappe=zero-a11y); **owner overrode (2026-06-16)** to buy the richer engine — wants milestones + dependency lines + **scheduling** + **resource management** rather than build them. Accepts the coherence/bundle cost for capability. **Gate before commit:** verify real npm license=MIT, **React 19 compat** (the SVAR-killer), theme-to-tokens, bundle, a11y. **Custom Gantt kept as the fallback.** Spike-2: `docs/spikes/2026-06-16-gantt-dhtmlx-prototype.md` |
+| Gantt | **BUILD & OWN (Gantt-v2) — reference MIT implementations, do NOT vendor** | Owner final (2026-06-16): don't take a DHTMLX runtime dependency; if building, stand on proven MIT source (**frappe-gantt** for dependency-arrow SVG routing; **dhtmlx-gantt**'s MIT source for scheduling/resource-histogram patterns) as *blueprints*, but write to our tokens/a11y/R19 and own it. Extends our 80%-there component. **Phase-a (M):** milestone diamonds on-axis + dependency connector lines + MS-Project table/timeline/zoom/gridlines. **Phase-b (L, later):** drag-scheduling (dependency-aware) + resource load/management. DHTMLX-vendor spike stopped (premise changed). |
 | Tables / data-grid | **TanStack Table** (headless; confirmed *not* hit by CVE-2026-45321) | backfill-on-touch |
 | Primitives (dialog/popover/combobox/select) | **React Aria** or **Base UI** | backfill-on-touch (also closes a11y gap) |
 | Date math | **date-fns** | high-ROI swap (kills TZ/off-by-one class) |
