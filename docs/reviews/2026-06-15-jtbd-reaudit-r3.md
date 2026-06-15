@@ -72,7 +72,7 @@ Two new criticals (one a **residual of my own W2-1 fix**), plus money-tile false
 ## fix-wave-3 plan-of-record (sequential groups on `jtbd-remediation`)
 > Same executor model as wave-2: **sequential non-worktree implementer groups** (the Workflow worktree-fork was inconsistent — see LESSONS). Each group TDD → commit on `jtbd-remediation`; central gate after; then a **final fresh re-audit** to confirm 0 Crit / 0 Imp before PR.
 
-- **G3a — Criticals + W1/W2 residuals (TIER 0):** B-0.1 cache-key, B-0.2 header budget, B-0.4 OverviewTab tile, B-0.5 AwaitingApprovalTile, B-0.3 FinanceDashboard, B-0.6/0.7 ProjectBudget line-item, C-PD-1 Gantt undated, C-PR-2 board link-in-button, C-PR-1 board empty-state, Q-1 + S-1 test fixes.
+- **G3a — Criticals + W1/W2 residuals (TIER 0): ✅ DONE** (`e1e2b0d`, 2986 unit / typecheck 0 / lint 0). All 12 items: B-0.1 cache-key, B-0.2 header budget, B-0.4 OverviewTab tile, B-0.5 AwaitingApprovalTile, B-0.3 FinanceDashboard, B-0.6/0.7 ProjectBudget line-item, C-PD-1 Gantt undated, C-PR-2 board link-in-button (project name → inert text, single activation), C-PR-1 board empty-state, Q-1 + S-1 test fixes.
 - **G3b — Shared link class + approval shell (TIER 1 coherence, owner complaints):** `CompanyNameLink`+`ContactNameLink` + apply (E-1: D-1/PL-1/PL-2/PRD-1/CD-2/AD-1/D-2); `ApprovalRowShell` unification (B).
 - **G3c — CRM hub completion:** CD-1/CT-1 editable/deletable activity; CD-3 type-independent procurement; CD-4 cold-start empty.
 - **G3d — Mobile overflow + consistency + dead-code:** PageHeader/BvACard @390 (+test, ProgressBar cn); ROLE_PILL/VERSION_PILL→registry (D); noun (C); delete dead components + guard tests; xlsx export catch.
