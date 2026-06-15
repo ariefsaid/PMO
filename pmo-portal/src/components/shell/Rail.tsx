@@ -4,7 +4,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
-import { isFeatureEnabled } from '@/src/lib/features';
+import { isFeatureEnabled, type FeatureKey } from '@/src/lib/features';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -28,6 +28,12 @@ interface NavItem {
   roles: UserRole[];
   /** Owning rail group. */
   group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce';
+  /**
+   * Optional feature gate: when set, the item renders only if `isFeatureEnabled(feature)`
+   * (interim UI-hide flag — src/lib/features.ts). Generalizes the per-module hide so the
+   * next gated module is a data change here, not a special-case in the filter.
+   */
+  feature?: FeatureKey;
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
@@ -49,7 +55,8 @@ const ALL_ITEMS: NavItem[] = [
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   { to: '/contacts', text: 'Contacts', icon: 'doc', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
-  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
+  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-1 (AC-W2-IXD-001 / OD-W2-4): My Tasks — IC (Engineer) own-assigned cross-project list.
   // An Engineer lands on something actionable rather than the all-projects financial table.
   // Admin is included for parity (Admin may also have tasks assigned to them).
@@ -90,7 +97,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
   if (!role) return null;
 
   const items = ALL_ITEMS.filter(
-    (i) => i.roles.includes(role) && (i.to !== '/incidents' || isFeatureEnabled('incidents')),
+    (i) => i.roles.includes(role) && (!i.feature || isFeatureEnabled(i.feature)),
   );
 
   const renderItem = (item: NavItem) => {

@@ -143,6 +143,9 @@ const ShellChrome: React.FC = () => {
   const { data: lostDeals, isPending: lostDealsPending } = useLostDeals();
   // CW-4a: the incident register backs the /incidents/:id breadcrumb's record name (its `type`).
   // Already fetched by the Incidents index; read here only to resolve the crumb (no new query).
+  // Intentionally retained while the `incidents` feature flag hides the module (features.ts):
+  // the /incidents routes redirect, so this branch is dormant — kept so re-enabling stays a
+  // one-line flag flip rather than re-plumbing. Do NOT "tidy" it away.
   const { data: incidents, isPending: incidentsPending } = useIncidents();
   // CW-4b: the companies + contacts directories back the /companies/:id and /contacts/:id
   // breadcrumbs' record names. Already fetched by their index pages (and the ⌘K record search);
