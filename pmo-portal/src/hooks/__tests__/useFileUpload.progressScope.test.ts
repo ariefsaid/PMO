@@ -53,12 +53,12 @@ beforeEach(() => {
 
 describe('useFileUpload per-doc progress scope (W2-8)', () => {
   it("AC-W2-8-04: completing one upload clears only that doc's progress, not the other's", async () => {
-    // Control the resolution of two separate uploads
+    // Control the resolution of the first upload; the second stays in-flight
+    // (deliberately never resolved) so we can assert its progress is untouched.
     let resolveDoc1!: () => void;
-    let resolveDoc2!: () => void;
 
     const doc1Done = new Promise<void>((res) => { resolveDoc1 = res; });
-    const doc2Done = new Promise<void>((res) => { resolveDoc2 = res; });
+    const doc2Done = new Promise<void>(() => {});
 
     let callCount = 0;
     vi.mocked(uploadWithProgress).mockImplementation(async (_url, _file, opts) => {
