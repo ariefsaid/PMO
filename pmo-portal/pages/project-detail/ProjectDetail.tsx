@@ -191,31 +191,33 @@ const ProjectDetail: React.FC = () => {
         aria-labelledby={tabId('project-detail', tab)}
       >
         {tab === 'overview' && (
-          <OverviewTab
-            project={project}
-            committedSpend={committedSpend}
-            setTab={setTab}
-            // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-            // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)
-            // rather than in the header above the tabs. Finance-forward roles (Admin·Exec·Finance·PM)
-            // keep the finance block in the header; isDelivery gates to delivery-lens only.
-            showFinanceSummary={isDeliveryForward && !isPipeline}
-          />
+          <>
+            <OverviewTab
+              project={project}
+              committedSpend={committedSpend}
+              setTab={setTab}
+              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
+              // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)
+              // rather than in the header above the tabs. Finance-forward roles (Admin·Exec·Finance·PM)
+              // keep the finance block in the header; isDelivery gates to delivery-lens only.
+              showFinanceSummary={isDeliveryForward && !isPipeline}
+            />
+            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
+                the Overview tab is active, and is hidden for pre-win records (no real progress
+                data). Scoping it here (not at shell level) prevents it bleeding into
+                Budget / Procurement / Tasks / Documents. */}
+            {!isPipeline && (
+              <div className="mt-4">
+                <ProjectSCurve projectId={project.id} />
+              </div>
+            )}
+          </>
         )}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
         {tab === 'tasks' && <TasksTab projectId={project.id} />}
         {tab === 'documents' && <DocumentsTab projectId={project.id} />}
       </div>
-
-      {/* S-curve — demoted below the tab panel for delivery projects (AC-IFW-RECORD-02:
-          tabs surface above the fold; the progress curve is still reachable by scrolling).
-          Hidden for pre-win records (no real progress data, would show an empty chart). */}
-      {!isPipeline && (
-        <div className="mt-4">
-          <ProjectSCurve projectId={project.id} />
-        </div>
-      )}
     </div>
   );
 };

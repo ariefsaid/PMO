@@ -43,6 +43,21 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(breadcrumbForPath('/procurement/pr1', 'Crane hire', navigate)[0].label).toBe('Procurement');
   });
 
+  it('AC-NAV-004 (FIX-2): a pipeline-status project at /projects/:id ALWAYS roots at "Projects", never "Sales Pipeline"', () => {
+    // The breadcrumb is URL-driven; "Sales Pipeline" is a filter lens, not the record home.
+    // Even when recordStatusGroup='pipeline', /projects/:id must read "Projects > <name>".
+    const navigate = vi.fn();
+    const pipelineCrumbs = breadcrumbForPath('/projects/abc', 'Pre-Win Deal', navigate, true, 'pipeline');
+    expect(pipelineCrumbs[0].label).toBe('Projects');
+    pipelineCrumbs[0].onClick!();
+    expect(navigate).toHaveBeenCalledWith('/projects');
+    expect(pipelineCrumbs[1]).toEqual({ label: 'Pre-Win Deal' });
+
+    const lostCrumbs = breadcrumbForPath('/projects/xyz', 'Lost Deal', navigate, true, 'lost');
+    expect(lostCrumbs[0].label).toBe('Projects');
+    expect(lostCrumbs[1]).toEqual({ label: 'Lost Deal' });
+  });
+
   it('AC-NAV-004: a detail route WITHOUT a resolved record name shows a neutral "Loading…" current segment (never a raw id)', () => {
     const crumbs = breadcrumbForPath('/projects/9f3a-uuid');
     expect(crumbs).toHaveLength(2);

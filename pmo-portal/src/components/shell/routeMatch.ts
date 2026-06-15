@@ -192,7 +192,10 @@ export function breadcrumbForPath(
   recordLabel?: string,
   navigate?: (path: string) => void,
   recordResolved = false,
-  recordStatusGroup?: ProjectStatusGroup,
+  // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
+  // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
+  // The param is kept in the signature so App.tsx callers don't need updating.
+  _recordStatusGroup?: ProjectStatusGroup,
 ): BreadcrumbPart[] {
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
@@ -211,14 +214,13 @@ export function breadcrumbForPath(
         // resolved-but-absent (bad id / deleted) → "Not found", never a
         // perpetual "Loading…" once the error card has rendered (item I).
         const recordCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
-        // Model B: a project detail route's parent crumb is the record's STAGE home, not the
-        // module the URL happens to sit under. A pipeline | lost record's home is the Sales
-        // Pipeline; otherwise the active Projects list.
-        const isPipelineStage =
-          m.module === 'projects' &&
-          (recordStatusGroup === 'pipeline' || recordStatusGroup === 'lost');
-        const parentLabel = isPipelineStage ? 'Sales Pipeline' : m.label;
-        const parentPath = isPipelineStage ? '/sales' : m.path;
+        // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
+        // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
+        // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
+        // so the breadcrumb must do the same. The pipeline status cue stays on the status pill
+        // and stepper, not the breadcrumb ancestry.
+        const parentLabel = m.label;
+        const parentPath = m.path;
         return [
           { label: parentLabel, onClick: () => navigate?.(parentPath) },
           { label: recordCrumb },

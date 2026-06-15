@@ -7,36 +7,35 @@ import {
 } from '../routeMatch';
 
 /**
- * AC-IXD-PROJ-005 (Model B, ADR-0020): one canonical detail route `/projects/:id` whose
- * breadcrumb ancestry follows the record's STAGE, not the entry point.
+ * FIX-2 (coherence): `/projects/:id` ALWAYS roots at "Projects", regardless of the record's
+ * pipeline status. The rail highlights "Projects" for every `/projects/:id` URL — the breadcrumb
+ * must agree (Sales Pipeline is a filter lens, not the record's home). The pipeline cue stays
+ * on the status pill and stepper, not the ancestry.
  *
- *  - A pipeline | lost record → `Sales Pipeline > <name>` (the deal lives in the pipeline).
- *  - An onHand | internal record → `Projects > <name>` (the active delivery list).
- *
- * The status group is resolved by App.tsx from the cached lists (projects + pipeline.projects,
- * both of which carry a `status`) and threaded into the pure helper, so it stays testable in
- * isolation with no router/query.
+ * The old AC-IXD-PROJ-005 assertion ("pipeline-status record → Sales Pipeline > name") is
+ * superseded by this deliberate UX change. The BDD oracle stays intact: the goal is that
+ * breadcrumb + rail agree on the record's home — both must say "Projects".
  */
-describe('breadcrumbForPath — stage-aware project ancestry (AC-IXD-PROJ-005)', () => {
-  it('AC-IXD-PROJ-005: a pipeline-status record reads "Sales Pipeline > <name>" and links back to /sales', () => {
+describe('breadcrumbForPath — /projects/:id always roots at "Projects" (FIX-2)', () => {
+  it('FIX-2: a pipeline-status project at /projects/:id reads "Projects > <name>" (not Sales Pipeline)', () => {
     const navigate = vi.fn();
     const crumbs = breadcrumbForPath('/projects/p1', 'Acme Tender', navigate, true, 'pipeline');
     expect(crumbs).toHaveLength(2);
-    expect(crumbs[0].label).toBe('Sales Pipeline');
+    expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
-    expect(navigate).toHaveBeenCalledWith('/sales');
+    expect(navigate).toHaveBeenCalledWith('/projects');
     expect(crumbs[1]).toEqual({ label: 'Acme Tender' });
   });
 
-  it('AC-IXD-PROJ-005: a lost-status record also reads "Sales Pipeline > <name>" (lost is sales history)', () => {
+  it('FIX-2: a lost-status project at /projects/:id reads "Projects > <name>"', () => {
     const navigate = vi.fn();
     const crumbs = breadcrumbForPath('/projects/p1', 'Lost Bid', navigate, true, 'lost');
-    expect(crumbs[0].label).toBe('Sales Pipeline');
+    expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
-    expect(navigate).toHaveBeenCalledWith('/sales');
+    expect(navigate).toHaveBeenCalledWith('/projects');
   });
 
-  it('AC-IXD-PROJ-005: an onHand-status record reads "Projects > <name>" and links back to /projects', () => {
+  it('an onHand-status project reads "Projects > <name>" (unchanged)', () => {
     const navigate = vi.fn();
     const crumbs = breadcrumbForPath('/projects/p1', 'Innovate HQ', navigate, true, 'onHand');
     expect(crumbs[0].label).toBe('Projects');
@@ -45,17 +44,17 @@ describe('breadcrumbForPath — stage-aware project ancestry (AC-IXD-PROJ-005)',
     expect(crumbs[1]).toEqual({ label: 'Innovate HQ' });
   });
 
-  it('AC-IXD-PROJ-005: an internal-status record reads "Projects > <name>"', () => {
+  it('an internal-status project reads "Projects > <name>"', () => {
     const crumbs = breadcrumbForPath('/projects/p1', 'Internal Tooling', undefined, true, 'internal');
     expect(crumbs[0].label).toBe('Projects');
   });
 
-  it('AC-IXD-PROJ-005: the /budget deep-link variant follows the same stage rule', () => {
+  it('the /budget deep-link variant also roots at "Projects"', () => {
     const crumbs = breadcrumbForPath('/projects/p1/budget', 'Innovate HQ', undefined, true, 'onHand');
     expect(crumbs[0].label).toBe('Projects');
   });
 
-  it('AC-IXD-PROJ-005: with no resolved status group it defaults to the Projects ancestry (back-compat)', () => {
+  it('with no resolved status group it defaults to the Projects ancestry (back-compat)', () => {
     const crumbs = breadcrumbForPath('/projects/p1', 'Innovate HQ');
     expect(crumbs[0].label).toBe('Projects');
   });
@@ -92,15 +91,12 @@ describe('recordStatusForPath (cached-list status resolution)', () => {
 });
 
 /**
- * Blocker 1 (AC-IXD-PROJ-005, ADR-0020 §4): a Loss-Tender deal opened at `/projects/:id` must
- * read "Sales Pipeline > <name>", NOT "Projects > Not found". A lost row lives in NEITHER the
- * active-projects cache (excluded by Wave-1 listProjects scoping) nor the open-pipeline cache
- * (get_sales_pipeline returns only the five open stages). So App.tsx must UNION the lost-deals
- * list into the `opportunities` array it threads into these resolvers — these tests pin that a
- * lost-group record, present in `opportunities`, resolves to its name + the Sales-Pipeline group
- * (the routeMatch logic is already correct; the union is the fix).
+ * FIX-2: a lost/pre-win deal at /projects/:id must resolve its NAME from the
+ * unioned opportunities list and still root at "Projects" (not "Sales Pipeline").
+ * The union of lists in App.tsx is still needed for name resolution; only the
+ * breadcrumb ancestry changes.
  */
-describe('Blocker 1: lost-deal breadcrumb resolution (AC-IXD-PROJ-005)', () => {
+describe('Lost/pre-win deal breadcrumb resolution (FIX-2)', () => {
   // The shape App.tsx builds: opportunities = open pipeline ∪ lost deals; projects = active list.
   const lists = {
     projects: [{ id: 'on1', name: 'On-Hand HQ', status: 'Ongoing Project' }],
@@ -110,34 +106,34 @@ describe('Blocker 1: lost-deal breadcrumb resolution (AC-IXD-PROJ-005)', () => {
     ],
   };
 
-  it('AC-IXD-PROJ-005: a lost deal resolves its NAME from the unioned opportunities list (not "Not found")', () => {
+  it('a lost deal resolves its NAME from the unioned opportunities list (not "Not found")', () => {
     expect(recordLabelForPath('/projects/lost1', lists)).toBe('Acme Loss Tender');
   });
 
-  it('AC-IXD-PROJ-005: a lost deal resolves to the "lost" status group → Sales-Pipeline ancestry', () => {
+  it('a lost deal resolves to the "lost" status group (helper unchanged)', () => {
     expect(recordStatusGroupForPath('/projects/lost1', lists)).toBe('lost');
   });
 
-  it('AC-IXD-PROJ-005: a lost deal\'s full crumb reads "Sales Pipeline > <name>" and links to /sales', () => {
+  it('FIX-2: a lost deal at /projects/:id reads "Projects > <name>" (breadcrumb + rail agree)', () => {
     const navigate = vi.fn();
     const label = recordLabelForPath('/projects/lost1', lists);
     const group = recordStatusGroupForPath('/projects/lost1', lists);
     const crumbs = breadcrumbForPath('/projects/lost1', label, navigate, true, group);
-    expect(crumbs[0].label).toBe('Sales Pipeline');
+    expect(crumbs[0].label).toBe('Projects');
     crumbs[0].onClick!();
-    expect(navigate).toHaveBeenCalledWith('/sales');
+    expect(navigate).toHaveBeenCalledWith('/projects');
     expect(crumbs[1]).toEqual({ label: 'Acme Loss Tender' });
   });
 
-  it('AC-IXD-PROJ-005: a pre-win deal still reads "Sales Pipeline > Northwind ERP Rollout"', () => {
+  it('FIX-2: a pre-win deal at /projects/:id reads "Projects > <name>"', () => {
     const label = recordLabelForPath('/projects/pre1', lists);
     const group = recordStatusGroupForPath('/projects/pre1', lists);
     const crumbs = breadcrumbForPath('/projects/pre1', label, undefined, true, group);
-    expect(crumbs[0].label).toBe('Sales Pipeline');
+    expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1]).toEqual({ label: 'Northwind ERP Rollout' });
   });
 
-  it('AC-IXD-PROJ-005: an on-hand project still reads "Projects > <name>"', () => {
+  it('an on-hand project still reads "Projects > <name>" (unchanged)', () => {
     const label = recordLabelForPath('/projects/on1', lists);
     const group = recordStatusGroupForPath('/projects/on1', lists);
     const crumbs = breadcrumbForPath('/projects/on1', label, undefined, true, group);

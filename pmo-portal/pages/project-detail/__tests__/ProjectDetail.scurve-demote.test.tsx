@@ -1,9 +1,11 @@
 /**
- * AC-IFW-RECORD-02 — Delivery project: the tab bar (tablist) renders BEFORE the "Progress curve"
- * (S-curve), so the actionable tab surface is above the fold.
+ * AC-IFW-RECORD-02 — S-curve scope: the Progress curve renders ONLY when the Overview
+ * tab is active (it is an Overview-panel widget, not a shell-level widget). It must NOT
+ * appear below Budget / Tasks / other tabs. It remains hidden for pre-win/isPipeline records.
  *
- * Lens-D regression invariant: a delivery project renders getByRole('tablist') BEFORE the S-curve
- * "Progress curve" heading in document order.
+ * Deliberate UX change (BDD rule): the prior test asserted document-order (tablist before
+ * S-curve); now that the S-curve is moved INSIDE the Overview tabpanel the ordering test
+ * is superseded — the scope test (Overview-only) is the correct oracle.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -158,6 +160,7 @@ const renderAt = (path: string) =>
         <ToastProvider>
           <Routes>
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
+            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
           </Routes>
         </ToastProvider>
       </MemoryRouter>
@@ -165,7 +168,7 @@ const renderAt = (path: string) =>
   );
 
 // ── tests ─────────────────────────────────────────────────────────────────────
-describe('AC-IFW-RECORD-02: delivery project — tab bar renders before the S-curve', () => {
+describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects', () => {
   beforeEach(() => {
     projectsState.data = [deliveryRow];
     projectsState.isPending = false;
@@ -174,29 +177,24 @@ describe('AC-IFW-RECORD-02: delivery project — tab bar renders before the S-cu
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-02: the tablist (Project sections) appears BEFORE "Progress curve" in document order', () => {
+  it('AC-IFW-RECORD-02 (a): the Progress curve IS rendered when the Overview tab is active', () => {
+    // Default route → Overview tab is active.
     renderAt('/projects/del1');
-
-    const tablist = screen.getByRole('tablist', { name: /project sections/i });
-    const progressCurveHeading = screen.getByText('Progress curve');
-
-    // tablist must come BEFORE the S-curve heading in the DOM
-    // compareDocumentPosition returns DOCUMENT_POSITION_FOLLOWING (4) if the argument
-    // comes AFTER the node — i.e., the S-curve heading follows the tablist.
-    const pos = tablist.compareDocumentPosition(progressCurveHeading);
-    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Progress curve')).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02: the S-curve IS rendered for a delivery project (data available)', () => {
-    renderAt('/projects/del1');
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Tasks tab is active', () => {
+    renderAt('/projects/del1/tasks');
+    expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
+  });
 
-    // For a delivery project with milestones, the S-curve should be present
-    expect(screen.getByText('Progress curve')).toBeInTheDocument();
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Budget tab is active', () => {
+    renderAt('/projects/del1/budget');
+    expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', () => {
     renderAt('/projects/del1');
-
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });

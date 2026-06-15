@@ -88,12 +88,14 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
   });
 
-  it('renders Overline group labels', () => {
+  it('renders Overline group labels — FIX-3: Sales group renamed to CRM', () => {
     effectiveRole = 'Executive';
     renderRail();
-    for (const group of ['Overview', 'Sales', 'Delivery', 'Workforce']) {
+    for (const group of ['Overview', 'CRM', 'Delivery', 'Workforce']) {
       expect(screen.getByText(group)).toBeInTheDocument();
     }
+    // The old 'Sales' section header must no longer appear (items 'Sales Pipeline' etc. still exist).
+    expect(screen.queryByText('Sales', { selector: 'div' })).not.toBeInTheDocument();
   });
 
   // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works

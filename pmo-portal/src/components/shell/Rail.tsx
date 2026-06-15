@@ -26,14 +26,14 @@ interface NavItem {
   icon: IconName;
   roles: UserRole[];
   /** Owning rail group. */
-  group: 'Overview' | 'Sales' | 'Delivery' | 'Workforce';
+  group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce';
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'grid', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
@@ -44,9 +44,9 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
-  { to: '/companies', text: 'Companies', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies', text: 'Companies', icon: 'doc', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
-  { to: '/contacts', text: 'Contacts', icon: 'doc', group: 'Sales', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/contacts', text: 'Contacts', icon: 'doc', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-1 (AC-W2-IXD-001 / OD-W2-4): My Tasks — IC (Engineer) own-assigned cross-project list.
@@ -59,7 +59,7 @@ const ALL_ITEMS: NavItem[] = [
   // (App.tsx) so a stray deep link still resolves to the honest "arrives later" placeholder.
 ];
 
-const GROUP_ORDER: NavItem['group'][] = ['Overview', 'Sales', 'Delivery', 'Workforce'];
+const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Workforce'];
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
