@@ -36,7 +36,8 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
           data-row
           className="flex flex-col gap-2 border-b border-border/70 py-3 last:border-b-0"
         >
-          <div className="flex items-center gap-2.5">
+          {/* flex-wrap: at 390px the name + money values wrap to a second line (C-Mobile). */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <span
               aria-hidden="true"
               className="size-1.5 shrink-0 rounded-full"
@@ -44,12 +45,12 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
             />
             <Link
               to={`/projects/${p.id}`}
-              className="text-[13px] font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="min-w-0 truncate text-[13px] font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {p.name}
             </Link>
             {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
-            <span className="ml-auto text-[12px] tabular text-muted-foreground">
+            <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
               {formatCurrency(p.spent)} / {formatCurrency(contract)}
             </span>
             {/* D-2 (AC-JR-W3B-04): decorative trailing chevron removed — it was a false
@@ -57,9 +58,12 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
                 interactive. The "At risk" StatusPill above is the exception badge; the name
                 Link is the affordance. No chevron needed. */}
           </div>
+          {/* widthless: no outer min-w so the bar fills the flex row at any viewport width.
+              [&>span:first-child]:flex-1 ensures the track expands in the flex container. */}
           <ProgressBar
             value={pct}
-            className="min-w-0 [&>span:first-child]:flex-1"
+            widthless
+            className="w-full [&>span:first-child]:flex-1"
             aria-label={`${p.name}: ${pct}% of contract`}
           />
         </div>

@@ -134,6 +134,48 @@ export function crmActivityVariant(kind: string): StatusVariant {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// D. Module-specific categorical pills (migrated from local maps — CW-2
+//    consolidation). Each follows the same rule: categorical tints only
+//    (violet for highlighted, neutral for the rest — never workflow-green
+//    or the action-blue).
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * User role pill — categorical, never workflow-green or action-blue (D consistency fix).
+ * Executive is highlighted (violet); all others are neutral (the distinct LABEL carries
+ * identity, never color-only). Finance deliberately removed from workflow-green (`won`)
+ * to avoid confusing a role with a positive-terminal workflow outcome.
+ */
+const ROLE_VARIANT: Record<string, StatusVariant> = {
+  Admin: 'neutral',
+  Executive: 'violet',
+  'Project Manager': 'neutral',
+  Finance: 'neutral',
+  Engineer: 'neutral',
+};
+
+/** User role → categorical StatusPill variant. Unknown roles fall back to `neutral`. */
+export function roleVariant(role: string): StatusVariant {
+  return ROLE_VARIANT[role] ?? 'neutral';
+}
+
+/**
+ * Budget version status pill — aligned to the workflow registry (Active→green,
+ * Draft→amber, Archived→neutral). Migrated from the local `VERSION_PILL` map
+ * in `ProjectBudget.tsx` to close the last local-map bypass.
+ */
+const BUDGET_VERSION_VARIANT: Record<string, StatusVariant> = {
+  Active: 'won',    // effective/live version → positive-terminal green
+  Draft: 'warn',    // awaiting finalization → amber
+  Archived: 'neutral', // superseded version → quiet grey
+};
+
+/** Budget version status → tinted StatusPill variant. Unknown statuses fall back to `neutral`. */
+export function budgetVersionVariant(status: string): StatusVariant {
+  return BUDGET_VERSION_VARIANT[status] ?? 'neutral';
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Test/guard surface: every variant the registry can ever resolve to. The
 // Freed-Blue guard asserts `open` is not among them.
 // ───────────────────────────────────────────────────────────────────────────
@@ -143,6 +185,8 @@ export const ALL_REGISTRY_VARIANTS: readonly StatusVariant[] = [
   ...new Set<StatusVariant>([
     ...Object.values(WORKFLOW_VARIANT),
     ...Object.values(SEVERITY_VARIANT),
+    ...Object.values(ROLE_VARIANT),
+    ...Object.values(BUDGET_VERSION_VARIANT),
     'violet',
     'neutral',
   ]),

@@ -35,9 +35,8 @@ import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/li
  * Mirrors the CW-4a `IncidentDetail` / sibling `CompanyDetail` pattern: the shared `RecordHeader`
  * (page variant: icon + name + the categorical "Contact" pill + the role-allowed Edit/Archive
  * action zone), a `BackBar` "Back to Contacts", read-only field sections with edit-in-modal, and
- * the CRM activity timeline + Log-activity form moved off the retired `ContactDrawer` onto the
- * page. RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for
- * clarity.
+ * the CRM activity timeline + Log-activity form on the page.
+ * RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for clarity.
  */
 const KIND_OPTIONS = [
   { value: 'Call', label: 'Call' },

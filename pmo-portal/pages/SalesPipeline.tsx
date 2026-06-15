@@ -456,7 +456,7 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
         <ListState
           variant="error"
-          title="Couldn't load lost deals"
+          title="Couldn't load lost projects"
           sub="Something went wrong fetching lost projects."
           onRetry={() => refetchLost()}
         />

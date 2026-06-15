@@ -11,8 +11,8 @@ import {
   TableFoot,
   ConfirmDialog,
   useToast,
-  type StatusVariant,
 } from '@/src/components/ui';
+import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
 import type { Enums } from '@/src/lib/supabase/database.types';
 
@@ -29,20 +29,13 @@ const BUDGET_CATEGORIES: Array<Enums<'budget_category'>> = [
   'Contingency',
 ];
 
-/** vpill: Active → success, Draft → warning, Archived → secondary (DESIGN.md). */
-const VERSION_PILL: Record<Enums<'budget_status'>, StatusVariant> = {
-  Active: 'won',
-  Draft: 'warn',
-  Archived: 'neutral',
-};
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
 const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) => (
   <span data-testid={`version-status-${status.toLowerCase()}`}>
-    <StatusPill variant={VERSION_PILL[status]}>{status}</StatusPill>
+    <StatusPill variant={budgetVersionVariant(status)}>{status}</StatusPill>
   </span>
 );
 
@@ -837,7 +830,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         </select>
         {/* A4/A5: status pill — tinted, darkened AA text, dot + text (not color-only) */}
         {selected && (
-          <StatusPill variant={VERSION_PILL[selected.status]}>{selected.status}</StatusPill>
+          <StatusPill variant={budgetVersionVariant(selected.status)}>{selected.status}</StatusPill>
         )}
         {/* A6: tabular total in selector bar so it's visible without scrolling */}
         {selected && (

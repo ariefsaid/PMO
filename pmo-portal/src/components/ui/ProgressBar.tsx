@@ -16,6 +16,13 @@ export interface ProgressBarProps {
    * The track shrinks from min-w-[70px] to min-w-[48px]; outer wrapper from 120px to 80px.
    */
   compact?: boolean;
+  /**
+   * Widthless mode — omits the outer min-width entirely so the caller's flex/grid
+   * layout controls the bar's width. Use when the host already provides a flex-1 or
+   * min-w-0 context (e.g. BvACard rows on narrow/390px screens) where the default
+   * min-w-[120px] would compound overflow. The track still gets flex-1 from the host.
+   */
+  widthless?: boolean;
   className?: string;
   'aria-label'?: string;
 }
@@ -44,6 +51,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   tone,
   showValue = false,
   compact = false,
+  widthless = false,
   className,
   'aria-label': ariaLabel,
 }) => {
@@ -51,15 +59,21 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const width = Math.max(0, Math.min(100, value));
   const resolvedTone: ProgressTone = over ? 'destructive' : (tone ?? thresholdTone(value));
 
+  const wrapperCls = widthless
+    ? 'inline-flex items-center gap-2'
+    : compact
+      ? 'inline-flex min-w-[80px] items-center gap-1.5'
+      : 'inline-flex min-w-[120px] items-center gap-2';
+
   return (
-    <span className={cn(compact ? 'inline-flex min-w-[80px] items-center gap-1.5' : 'inline-flex min-w-[120px] items-center gap-2', className)}>
+    <span className={cn(wrapperCls, className)}>
       <span
         role="progressbar"
         aria-label={ariaLabel}
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={100}
-        className={cn('h-[7px] flex-1 overflow-hidden rounded-full bg-secondary', compact ? 'min-w-[48px]' : 'min-w-[70px]')}
+        className={cn('h-[7px] flex-1 overflow-hidden rounded-full bg-secondary', !widthless && (compact ? 'min-w-[48px]' : 'min-w-[70px]'))}
       >
         <span
           data-testid="progress-fill"

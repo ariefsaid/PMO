@@ -17,12 +17,12 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type StatusVariant,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useUsers, useUserMutations } from '@/src/hooks/useUsers';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 
 /**
@@ -50,20 +50,6 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'Executive', label: 'Executive' },
   { value: 'Admin', label: 'Admin' },
 ];
-
-/**
- * Tinted role pill per user_role (crud-admin-users.html role-pill spec):
- * blue is reserved for interactive affordances (One-Blue) and red for destructive, so the
- * three lower-privilege/admin roles read as quiet NEUTRAL tints differentiated by their LABEL
- * (never color-only), while Executive = categorical violet and Finance = success green.
- */
-const ROLE_PILL: Record<UserRole, StatusVariant> = {
-  Admin: 'neutral',
-  Executive: 'violet',
-  'Project Manager': 'draft',
-  Finance: 'won',
-  Engineer: 'progress',
-};
 
 /** Deterministic two-letter initials for the avatar tile. */
 function initialsOf(name: string): string {
@@ -206,7 +192,7 @@ const AdminUsers: React.FC = () => {
     {
       key: 'role',
       header: 'Role',
-      cell: (u) => <StatusPill variant={ROLE_PILL[u.role]}>{u.role}</StatusPill>,
+      cell: (u) => <StatusPill variant={roleVariant(u.role)}>{u.role}</StatusPill>,
     },
     {
       key: 'manager',

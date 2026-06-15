@@ -49,7 +49,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       className,
     )}
   >
-    <div className="flex items-start gap-3.5">
+    {/* flex-wrap: long record name + pill + actions wrap to a second line at 390px (C-Mobile). */}
+    <div className="flex flex-wrap items-start gap-3.5">
       {icon && (
         <span
           className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-white [&_svg]:size-5"
@@ -58,14 +59,14 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {icon}
         </span>
       )}
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-[19px] font-bold tracking-[-0.02em]">{name}</h1>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="min-w-0 truncate text-[19px] font-bold tracking-[-0.02em]">{name}</h1>
           {status}
         </div>
         {meta && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{meta}</div>}
       </div>
-      {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
+      {actions && <div className="ml-auto shrink-0 flex items-center gap-2">{actions}</div>}
     </div>
     {stats && stats.length > 0 && (
       <div
