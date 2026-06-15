@@ -325,7 +325,7 @@ export const ApprovalsQueue: React.FC = () => {
             const panelId = `ts-breakdown-${sheet.id}`;
             const canSelect = approvableIds.has(sheet.id);
             return (
-              <div key={sheet.id}>
+              <div key={sheet.id} data-week-start={sheet.week_start_date}>
                 {/* N11: disclosure slot — chevron sits BEFORE the avatar (AC-JR-W3-01 / T20). */}
                 <ApprovalRow
                   name={name}
