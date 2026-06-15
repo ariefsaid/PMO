@@ -104,7 +104,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
-            className="inline-flex h-8 items-center gap-[7px] rounded-lg border border-input bg-background pl-[11px] pr-2.5 text-[13px] font-medium text-foreground hover:bg-accent [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
+            className="touch-target inline-flex h-8 items-center gap-[7px] rounded-lg border border-input bg-background pl-[11px] pr-2.5 text-[13px] font-medium text-foreground hover:bg-accent [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           >
             <span className="text-muted-foreground max-[921px]:hidden">View as role:</span>
             <strong>{effectiveRole}</strong>

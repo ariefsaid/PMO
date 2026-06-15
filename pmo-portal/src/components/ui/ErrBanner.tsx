@@ -7,7 +7,7 @@ export interface ErrBannerProps {
   title: React.ReactNode;
   sub?: React.ReactNode;
   /** Optional trailing action (e.g. "Review"). */
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void; disabled?: boolean };
   className?: string;
 }
 
@@ -33,7 +33,7 @@ export const ErrBanner: React.FC<ErrBannerProps> = ({ title, sub, action, classN
       {sub && <div className="mt-px text-[12.5px] text-muted-foreground">{sub}</div>}
     </div>
     {action && (
-      <Button variant="outline" size="sm" onClick={action.onClick} className="shrink-0">
+      <Button variant="outline" size="sm" onClick={action.onClick} disabled={action.disabled} className="shrink-0">
         {action.label}
       </Button>
     )}

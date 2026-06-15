@@ -82,7 +82,7 @@ export const WinRateCard: React.FC = () => {
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
         <span className="text-[13.5px] font-semibold">Win Rate</span>
         <span className="flex-1" />
-        <ViewToggle<'count' | 'value'> options={BASIS_OPTIONS} value={mode} onChange={setMode} ariaLabel="Win-rate basis" />
+        <ViewToggle<'count' | 'value'> options={BASIS_OPTIONS} value={mode} onChange={setMode} ariaLabel="Win-rate basis" semantics="toggle" />
       </div>
 
       <ViewToggle<PeriodKey>
@@ -91,6 +91,7 @@ export const WinRateCard: React.FC = () => {
         onChange={setPeriod}
         ariaLabel="Time frame"
         className="mb-3.5 flex-wrap"
+        semantics="toggle"
       />
 
       {isError ? (

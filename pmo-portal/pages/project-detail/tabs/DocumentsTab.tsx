@@ -581,6 +581,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         ref={fileInputRef}
         type="file"
         accept={FILE_INPUT_ACCEPT}
+        aria-label="Upload a document"
         className="hidden"
         onChange={handleFileSelected}
         data-testid="file-input"

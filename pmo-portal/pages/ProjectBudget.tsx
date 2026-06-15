@@ -298,6 +298,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               <td className="px-3 py-2">
                 <input
                   type="text"
+                  aria-label="Line item description"
                   placeholder="Description"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
@@ -308,6 +309,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 <input
                   type="text"
                   inputMode="decimal"
+                  aria-label="Line item amount"
                   placeholder="Amount"
                   value={newAmount}
                   onChange={(e) => setNewAmount(e.target.value)}
@@ -843,6 +845,7 @@ const NewVersionForm: React.FC<{
   <Toolbar standalone className="items-center">
     <input
       type="text"
+      aria-label="Version name"
       placeholder="Version name (e.g. Budget v1)"
       value={value}
       onChange={(e) => onChange(e.target.value)}

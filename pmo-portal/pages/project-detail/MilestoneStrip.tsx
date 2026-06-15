@@ -451,7 +451,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
             <button
               type="button"
               aria-label={`More actions for ${milestone.name}`}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => setMenuOpen((open) => !open)}
             >
               <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>

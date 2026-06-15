@@ -47,8 +47,9 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   it('announces the rate politely and groups the basis + frame segs for a11y', () => {
     render(<WinRateCard />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveAttribute('aria-live', 'polite');
-    expect(screen.getByRole('tablist', { name: /Win-rate basis/i })).toBeInTheDocument();
-    expect(screen.getByRole('tablist', { name: /Time frame/i })).toBeInTheDocument();
+    // W2-10: WinRateCard uses semantics="toggle" (no tabpanel) → role="group" + aria-pressed
+    expect(screen.getByRole('group', { name: /Win-rate basis/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Time frame/i })).toBeInTheDocument();
   });
 
   it('renders a basis-aware won/closed readout and a Won/Lost dot+text legend', () => {

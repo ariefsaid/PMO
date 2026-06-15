@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
 import { ConfirmDialog, useToast } from '@/src/components/ui';
@@ -36,6 +36,54 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
   // Confirm-before-write (owner rule, PR1-PR3): a chosen non-win target is
   // staged here and only commits when the ConfirmDialog's Confirm is pressed.
   const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
+
+  // Focus management (W2-6): capture trigger + restore on close; focus into popover on open.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // Whether focus should be restored to trigger on next render (after open→closed transition).
+  const shouldRestoreFocusRef = useRef(false);
+
+  // Move focus into the first menu item when popover opens.
+  useEffect(() => {
+    if (open && !pendingTarget) {
+      const firstBtn = popoverRef.current?.querySelector<HTMLButtonElement>('button');
+      firstBtn?.focus();
+    }
+  }, [open, pendingTarget]);
+
+  // When open closes and shouldRestoreFocus is set, focus the trigger (now mounted).
+  useEffect(() => {
+    if (!open && shouldRestoreFocusRef.current) {
+      shouldRestoreFocusRef.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [open]);
+
+  // Esc closes + restores focus; outside-click closes.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        shouldRestoreFocusRef.current = true;
+        setOpen(false);
+      }
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (
+        !popoverRef.current?.contains(e.target as Node) &&
+        !triggerRef.current?.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onMouseDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [open]);
 
   // Cosmetic gate on the REAL role (ADR-0016): hide for non-write roles. The RPC
   // is the real authority — gating on realRole keeps the affordance honest under
@@ -92,6 +140,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
   };
 
   const handleCancel = () => {
+    shouldRestoreFocusRef.current = true;
     setOpen(false);
     setPendingTarget(null);
     setContractRef('');
@@ -109,11 +158,14 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
 
       {!open && !pendingTarget && (
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen(true)}
           className="rounded-md border border-input px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           disabled={mutation.isPending}
           aria-label="Change status"
+          aria-haspopup="true"
+          aria-expanded={false}
         >
           {mutation.isPending ? 'Saving…' : 'Change status'}
         </button>
@@ -121,7 +173,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
 
       {/* Target selection dropdown */}
       {open && !pendingTarget && (
-        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+        <div ref={popoverRef} className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
           <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Move to
           </p>

@@ -36,6 +36,16 @@ export interface ViewToggleProps<V extends string = string> {
   onChange: (value: V) => void;
   ariaLabel: string;
   className?: string;
+  /**
+   * ARIA semantics variant.
+   * - `'tabs'` (default): `role="tablist"` container + `role="tab"` + `aria-selected`. Use when
+   *   there is a corresponding tabpanel for each option (e.g. project-detail tabs, Tasks view).
+   * - `'toggle'`: `role="group"` container + `aria-pressed` toggle buttons (no `role="tab"`).
+   *   Use for filter/scope/basis selectors that have NO associated tabpanel — e.g. WinRateCard
+   *   basis/period, status filters, scope switchers. Arrow-key roving is disabled in this mode
+   *   (all buttons are directly focusable at tabIndex 0).
+   */
+  semantics?: 'tabs' | 'toggle';
 }
 
 /**
@@ -49,8 +59,13 @@ export function ViewToggle<V extends string = string>({
   onChange,
   ariaLabel,
   className,
+  semantics = 'tabs',
 }: ViewToggleProps<V>) {
+  const isToggle = semantics === 'toggle';
+
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // Arrow-key roving only applies to the tablist semantics variant.
+    if (isToggle) return;
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     const idx = options.findIndex((o) => o.value === value);
@@ -63,7 +78,7 @@ export function ViewToggle<V extends string = string>({
 
   return (
     <div
-      role="tablist"
+      role={isToggle ? 'group' : 'tablist'}
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       className={cn('inline-flex h-8 items-center gap-0.5 rounded-lg bg-secondary p-0.5', className)}
@@ -74,10 +89,11 @@ export function ViewToggle<V extends string = string>({
           <button
             key={opt.value}
             type="button"
-            role="tab"
+            // tabs: role="tab" + aria-selected + roving tabIndex
+            // toggle: no role override + aria-pressed + always focusable
+            {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: on ? 0 : -1 })}
+            {...(isToggle && { 'aria-pressed': on, tabIndex: 0 })}
             data-testid={opt.testId}
-            aria-selected={on}
-            tabIndex={on ? 0 : -1}
             onClick={() => onChange(opt.value)}
             className={cn(
               // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).

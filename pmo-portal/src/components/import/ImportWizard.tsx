@@ -308,7 +308,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       <p className="text-[13px] text-foreground" data-testid="import-summary">
         <b className="font-semibold">{wiz.counts.valid} valid</b>, {wiz.counts.invalid} invalid, {wiz.counts.total} total
       </p>
-      <div className="overflow-hidden rounded-md border border-border">
+      <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-border bg-card text-left text-muted-foreground">

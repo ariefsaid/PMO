@@ -19,6 +19,7 @@ import { useTimesheetsAwaitingApproval, useTimesheetMutations } from '@/src/hook
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
 function sumHours(sheet: TimesheetAwaitingApproval): number {
@@ -195,7 +196,8 @@ export const ApprovalsQueue: React.FC = () => {
         },
         onError: (err: unknown) => {
           setPending(null);
-          toast('Action failed', err instanceof Error ? err.message : undefined, 'warning');
+          const { headline, detail } = classifyMutationError(err);
+          toast(headline, detail, 'warning');
         },
       },
     );

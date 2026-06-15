@@ -53,6 +53,7 @@ const { awaitingState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetMutations: () => ({
     submit: { mutate: submitMutate, isPending: false },
+    reopen: { mutate: vi.fn(), isPending: false },
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
   }),

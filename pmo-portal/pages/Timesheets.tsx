@@ -35,6 +35,7 @@ import {
 } from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
 const getWeekStartDate = (date: Date): Date => {
@@ -508,7 +509,8 @@ const TimesheetsPage: React.FC = () => {
         onError: (err: unknown) => {
           submittingRef.current = false;
           setConfirmSubmit(false);
-          toast('Submit failed', err instanceof Error ? err.message : undefined, 'warning');
+          const { headline, detail } = classifyMutationError(err);
+          toast(headline, detail, 'warning');
         },
       },
     );
@@ -625,12 +627,15 @@ const TimesheetsPage: React.FC = () => {
   // Available only to the OWNER of a Rejected sheet; the RPC is the real authority.
   const canRevise = returned && isOwner && !!currentTimesheet?.id;
   const commitReopen = () => {
-    if (!currentTimesheet?.id) return;
+    if (!currentTimesheet?.id || reopen.isPending) return;
     reopen.mutate(
       { id: currentTimesheet.id },
       {
         onSuccess: () => toast('Reopened for editing', 'Week moved back to Draft — make your changes and resubmit.', 'success'),
-        onError: (err: { message: string }) => toast('Reopen failed', err.message, 'warning'),
+        onError: (err: unknown) => {
+          const { headline, detail } = classifyMutationError(err);
+          toast(headline, detail, 'warning');
+        },
       },
     );
   };
@@ -644,7 +649,7 @@ const TimesheetsPage: React.FC = () => {
         <ErrBanner
           title="This week was returned for changes"
           sub="Your line manager sent it back. Review the flagged days, correct them, and resubmit."
-          action={canRevise ? { label: 'Revise this week', onClick: commitReopen } : undefined}
+          action={canRevise ? { label: 'Revise this week', onClick: commitReopen, disabled: reopen.isPending } : undefined}
         />
       )}
 

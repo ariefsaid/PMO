@@ -93,9 +93,9 @@ export function useFileUpload(projectId: string) {
 
   const upload = useMutation({
     mutationFn: async ({ docId, file }: UploadArgs) => uploadDocumentFile(docId, file, true),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       invalidate();
-      setProgress({});
+      clearProgress(variables.docId);
     },
     onError: (error, variables) => {
       onError(error, variables.docId);
@@ -104,9 +104,9 @@ export function useFileUpload(projectId: string) {
 
   const replace = useMutation({
     mutationFn: async ({ docId, file }: ReplaceArgs) => uploadDocumentFile(docId, file, true),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       invalidate();
-      setProgress({});
+      clearProgress(variables.docId);
     },
     onError: (error, variables) => {
       onError(error, variables.docId);
