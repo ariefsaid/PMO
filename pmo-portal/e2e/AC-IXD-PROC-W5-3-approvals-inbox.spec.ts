@@ -78,21 +78,25 @@ test(
 );
 
 // ── AC-IXD-TS-W5-3 ──────────────────────────────────────────────────────────
-// Given: a PM opens /approvals where Wave5 BulkEng's (b4) Submitted prior-week sheet
-//        is already in the queue (pre-seeded; no UI-submit step).
-// When:  pm@ (Alice) enters Select mode, selects all approvable rows, clicks "Approve N",
-//        and confirms the dialog.
-// Then:  a success toast confirms N approved AND Wave5 BulkEng's week is gone from the
-//        queue after a fresh server re-fetch (reload-safe: not just optimistic UI).
+// Given: a PM opens /approvals where ≥2 Submitted prior-week sheets are in the queue:
+//        Wave5 BulkEng (b4, dedicated fixture) AND Engineer/Dave (a4, prior-week Submitted).
+//        Both are pre-seeded as Submitted; no UI-submit step needed.
+// When:  pm@ (Alice) enters Select mode, clicks "Select All" (selects ≥2 rows),
+//        clicks "Approve N", and confirms the dialog.
+// Then:  (a) the confirm dialog CLOSES, (b) a success/aggregate toast fires,
+//        (c) the approved rows leave the queue after a fresh server re-fetch (reload-safe).
 //
-// Isolation: b4 (Wave5 BulkEng) is a DEDICATED fixture — no auth.users row, never
-// logs in. Its prior-week Submitted sheet is untouched by any other spec in the suite,
-// so this test is ordering-independent with --workers=N or full sequential runs.
+// Goal-oracle: "a PM can bulk-approve ≥2 timesheets in one confirm from the inbox" —
+// the REAL multi-row journey the bug (RQ v5 concurrent-mutate callbacks dropped) broke.
+//
+// Isolation: both seeded sheets (b4 + a4 prior-week) are untouched by other specs in
+// the suite. Dave's prior-week Submitted sheet (…000004) is not mutated by any other
+// e2e (AC-TSE-021 uses Dave's CURRENT-week Draft; AC-911 uses Grace/b1 + Heidi/b2).
 test(
-  'AC-IXD-TS-W5-3: PM bulk-approves awaiting timesheets; approved weeks leave the queue (reload-safe)',
+  'AC-IXD-TS-W5-3: PM bulk-approves ≥2 awaiting timesheets; dialog closes, toast fires, approved weeks leave queue (reload-safe)',
   async ({ page }) => {
-    // Step 1: Alice (pm@) opens /approvals — Wave5 BulkEng's Submitted sheet should already
-    // be in the queue (seeded as Submitted; no Dave→Submit pre-step needed).
+    // Step 1: Alice (pm@) opens /approvals — both Wave5 BulkEng (b4) and Engineer/Dave (a4)
+    // prior-week Submitted sheets are already in the queue (no Dave→Submit pre-step needed).
     await login(page, 'pm@acme.test');
     // CW-6: a PM sees both modules as deep-linkable scope tabs; this test exercises the
     // timesheet queue, so it deep-links straight to that scope.
@@ -102,7 +106,7 @@ test(
     const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
-    // Wave5 BulkEng's row is in the queue.
+    // Both rows must be visible (≥2 submitted sheets in the queue for the real bulk path).
     await expect(tsSection.getByText('Wave5 BulkEng')).toBeVisible({ timeout: 15_000 });
 
     // Enter Select mode.
@@ -112,23 +116,24 @@ test(
     const bulkGroup = page.getByRole('group', { name: /bulk approve/i });
     await expect(bulkGroup).toBeVisible({ timeout: 5_000 });
 
-    // Select ONLY Wave5 BulkEng's row (not "Select All") — seed-robust: other Submitted
-    // timesheets from other reports may also be in the queue; selecting all would fire
-    // concurrent mutate() calls on the same mutation instance (React Query limitation).
-    // Selecting the specific fixture row keeps the test isolation guarantee intact.
-    const wave5Check = tsSection.getByRole('checkbox', { name: /select wave5 bulkeng.*week/i });
-    await expect(wave5Check).toBeVisible({ timeout: 5_000 });
-    await wave5Check.click();
+    // Select All — exercises the real multi-row concurrent-approve path (the RQ v5 bug
+    // was triggered by ≥2 concurrent mutate() calls on the same mutation instance;
+    // commitBulk now uses mutateAsync + Promise.allSettled to avoid this).
+    const selectAllCheck = bulkGroup.getByRole('checkbox', { name: /select all/i });
+    await expect(selectAllCheck).toBeVisible({ timeout: 5_000 });
+    await selectAllCheck.click();
 
-    // 1 row selected; "Approve 1" button becomes enabled.
+    // ≥2 rows selected; "Approve N" (N≥2) button becomes enabled.
     const approveNBtn = bulkGroup.getByRole('button', { name: /^approve \d+$/i });
     await expect(approveNBtn).toBeVisible({ timeout: 5_000 });
     await expect(approveNBtn).toBeEnabled();
 
-    // N is 1 (we selected exactly one row).
+    // Capture N from the button label.
     const approveLabel = (await approveNBtn.textContent()) ?? '';
     const nMatch = approveLabel.match(/approve (\d+)/i);
-    const n = nMatch ? parseInt(nMatch[1], 10) : 1;
+    const n = nMatch ? parseInt(nMatch[1], 10) : 2;
+    // Real multi-row journey: N must be ≥2.
+    expect(n).toBeGreaterThanOrEqual(2);
 
     // Click "Approve N" → stages the bulk ConfirmDialog.
     await approveNBtn.click();
@@ -145,13 +150,13 @@ test(
     await expect(confirmBtn).toBeVisible();
     await confirmBtn.click();
 
-    // Dialog closes after mutation completes.
+    // Goal oracle (a): the confirm dialog CLOSES (was stuck indefinitely with the RQ v5 bug).
     await expect(bulkDialog).not.toBeVisible({ timeout: 20_000 });
 
-    // Goal oracle 1: success toast appears confirming N approved.
+    // Goal oracle (b): aggregate success toast appears confirming N approved.
     await expect(page.getByText(/timesheets? approved/i)).toBeVisible({ timeout: 15_000 });
 
-    // Goal oracle 2 (reload-safe): navigate away and back to force a fresh server query —
+    // Goal oracle (c) — reload-safe: navigate away and back to force a fresh server query —
     // approved weeks MUST NOT reappear (tests real server persistence, not optimistic UI).
     await page.goto('/');
     await page.goto('/approvals?scope=timesheets');

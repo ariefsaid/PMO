@@ -14,8 +14,9 @@ import type { Role } from '@/src/auth/AuthContext';
  * `timesheetActions(...).approve` is true. Bulk fires the existing per-sheet approve
  * RPC N times, resilient to partial failure, aggregated into ONE toast.
  */
-const { queue, approveMock } = vi.hoisted(() => ({
+const { queue, approveMock, mutateAsyncMock } = vi.hoisted(() => ({
   approveMock: vi.fn(),
+  mutateAsyncMock: vi.fn(),
   queue: {
     data: [
       {
@@ -48,7 +49,7 @@ const { queue, approveMock } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => queue,
   useTimesheetMutations: () => ({
-    approve: { mutate: approveMock, isPending: false },
+    approve: { mutate: approveMock, mutateAsync: mutateAsyncMock, isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
   }),
 }));
@@ -68,6 +69,7 @@ const renderAs = (realRole: Role) =>
 
 beforeEach(() => {
   approveMock.mockReset();
+  mutateAsyncMock.mockReset();
   queue.isPending = false;
   queue.isError = false;
 });
@@ -121,7 +123,8 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
   });
 
   it('selecting rows then Approve N fires the per-sheet approve N times after confirm', async () => {
-    approveMock.mockImplementation((_arg, opts) => opts?.onSuccess?.());
+    // commitBulk uses mutateAsync — mock returns a resolved promise for each call.
+    mutateAsyncMock.mockResolvedValue(undefined);
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /select Anita Rao's week/i }));
@@ -132,9 +135,30 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     // ConfirmDialog → confirm (scope to the dialog to disambiguate from the cluster button)
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve 2$/i }));
-    await waitFor(() => expect(approveMock).toHaveBeenCalledTimes(2));
-    expect(approveMock.mock.calls[0][0]).toEqual({ id: 's1' });
-    expect(approveMock.mock.calls[1][0]).toEqual({ id: 's2' });
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2));
+    expect(mutateAsyncMock.mock.calls[0][0]).toEqual({ id: 's1' });
+    expect(mutateAsyncMock.mock.calls[1][0]).toEqual({ id: 's2' });
+  });
+
+  it('AC-IXD-TS-W5-3-bulk-fix: bulk-approving ≥2 rows closes the dialog and fires the aggregate toast (RQ v5 fix)', async () => {
+    // FAILING TEST (RED): commitBulk must close dialog + toast after ≥2 mutateAsync calls.
+    // With the OLD mutate-in-loop implementation, React Query v5 silently drops callbacks
+    // for all but the last in-flight call, so settled never reaches total and the dialog
+    // stays stuck. This test proves the mutateAsync/allSettled fix works correctly.
+    mutateAsyncMock.mockResolvedValue(undefined);
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    // Select all (2 approvable rows — Anita Rao + Dev Shah)
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    const dialog = await screen.findByRole('dialog');
+    await expect(dialog).toBeInTheDocument();
+    // Confirm the bulk dialog
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve 2$/i }));
+    // Goal 1: the confirm dialog CLOSES (was stuck with the bug)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3_000 });
+    // Goal 2: aggregate success toast appears
+    expect(await screen.findByText(/timesheets? approved/i)).toBeInTheDocument();
   });
 
   it('select-all selects only the approvable rows', async () => {
@@ -147,10 +171,10 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
   });
 
   it('resilient: a partial failure still approves the rest and reports one aggregate toast', async () => {
-    // s1 fails (SoD/stale), s2 succeeds — the failure must NOT abort s2.
-    approveMock.mockImplementation((arg, opts) => {
-      if (arg.id === 's1') opts?.onError?.(new Error('separation of duties'));
-      else opts?.onSuccess?.();
+    // s1 fails (SoD/stale), s2 succeeds — Promise.allSettled ensures s2 runs even if s1 rejects.
+    mutateAsyncMock.mockImplementation((arg: { id: string }) => {
+      if (arg.id === 's1') return Promise.reject(new Error('separation of duties'));
+      return Promise.resolve(undefined);
     });
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
@@ -158,7 +182,7 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve 2$/i }));
-    await waitFor(() => expect(approveMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2));
     // aggregate toast reports the split, not two separate toasts
     expect(await screen.findByText(/1 approved/i)).toBeInTheDocument();
     expect(screen.getByText(/1 failed/i)).toBeInTheDocument();
