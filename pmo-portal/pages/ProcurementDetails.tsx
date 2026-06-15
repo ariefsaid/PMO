@@ -16,6 +16,7 @@ import {
   RecordActionZone,
   useToast,
   ProjectNameLink,
+  CompanyNameLink,
   type StatTile,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -528,16 +529,32 @@ const ProcurementDetails: React.FC = () => {
       // AC-IXD-PROC-004: once a quote is selected, the tile is bound to the
       // CHOSEN quotation — its amount + the selected vendor — through to Paid,
       // instead of reverting to "Pending — 0 received".
+      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
       label: 'Selected quote',
       value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
       sub: selectedQuote
-        ? (p.vendor?.name ?? selectedQuote.vq_number ?? 'selected')
+        ? (
+          <CompanyNameLink
+            companyId={p.vendor_id}
+            name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
+            className="text-[11px]"
+          />
+        )
         : `${p.quotations.length} received`,
     },
     {
       label: 'PO committed',
       value: p.po_number ? formatCurrency(Number(p.total_value)) : 'Pending',
-      sub: p.vendor?.name ?? (p.po_number ? undefined : 'no PO yet'),
+      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
+      sub: p.vendor?.name
+        ? (
+          <CompanyNameLink
+            companyId={p.vendor_id}
+            name={p.vendor.name}
+            className="text-[11px]"
+          />
+        )
+        : (p.po_number ? undefined : 'no PO yet'),
     },
     {
       label: 'Goods received',

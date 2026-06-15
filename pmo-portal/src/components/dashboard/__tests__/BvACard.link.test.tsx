@@ -60,14 +60,12 @@ describe('BvACard — AC-IFW-DASH-01: BvA row name links to /projects/:id', () =
     expect(screen.getByLabelText(/Meridian Steelworks: \d+% of contract/i)).toBeInTheDocument();
   });
 
-  it('AC-IFW-DASH-01 (M5): at-risk exception rows show a trailing chevron affordance at rest (not hover-only)', () => {
+  it('AC-IFW-DASH-01 (D-2): at-risk rows have NO trailing chevron — false affordance removed; "At risk" pill is the badge', () => {
     renderCard();
-    // d2 (SunVolt Install) is at-risk (98% utilization). Its row must have a resting chevron.
+    // d2 (SunVolt Install) is at-risk. The false-affordance chevron must NOT be present.
     const atRiskRow = screen.getByRole('link', { name: /SunVolt Install/i }).closest('[data-row]') as HTMLElement;
-    expect(within(atRiskRow).getByTestId('bva-row-open-chevron')).toBeInTheDocument();
-
-    // d1 (Meridian Steelworks, 44% utilization) is NOT at-risk — no chevron
-    const safeRow = screen.getByRole('link', { name: /Meridian Steelworks/i }).closest('[data-row]') as HTMLElement;
-    expect(within(safeRow).queryByTestId('bva-row-open-chevron')).not.toBeInTheDocument();
+    expect(within(atRiskRow).queryByTestId('bva-row-open-chevron')).not.toBeInTheDocument();
+    // The "At risk" badge is still present as the exception indicator.
+    expect(within(atRiskRow).getByText(/At risk/i)).toBeInTheDocument();
   });
 });

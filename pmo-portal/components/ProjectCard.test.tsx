@@ -3,12 +3,19 @@ import { render as rtlRender, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectCard from './ProjectCard';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-// ProjectCard embeds ProjectStatusControl, which uses useToast — needs a provider.
-const render = (ui: ReactElement) => rtlRender(<ToastProvider>{ui}</ToastProvider>);
+// ProjectCard embeds ProjectStatusControl (useToast) + CompanyNameLink (Link) —
+// wrap in both providers.
+const render = (ui: ReactElement) =>
+  rtlRender(
+    <MemoryRouter>
+      <ToastProvider>{ui}</ToastProvider>
+    </MemoryRouter>,
+  );
 
 // ADR-0016: ProjectStatusControl now gates on the REAL JWT role via usePermission,
 // so the mock supplies realRole (equal to effectiveRole — no impersonation here).

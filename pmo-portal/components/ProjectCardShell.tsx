@@ -1,5 +1,5 @@
 import React from 'react';
-import { KanbanCard } from '@/src/components/ui';
+import { KanbanCard, CompanyNameLink } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { projectIconColor } from './projects';
 
@@ -12,6 +12,13 @@ export interface ProjectCardShellProps {
   name: string;
   /** Customer name (em-dash fallback for a missing client). */
   client: string | null | undefined;
+  /**
+   * PL-2 (AC-JR-W3B-E1): optional client company UUID. When provided in `grid`
+   * mode, the client name is rendered as a `CompanyNameLink` so users can navigate
+   * to the company record. In `kanban` mode the whole card is role=button, so a
+   * nested Link would be invalid HTML — the name renders as inert text there.
+   */
+  clientId?: string | null;
   /** Optional project code, rendered as a "· CODE" qualifier. */
   code?: string | null;
   /** Status slot — a <StatusPill> for the project's lifecycle status. */
@@ -55,6 +62,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   initial,
   name,
   client,
+  clientId,
   code,
   status,
   body,
@@ -102,7 +110,16 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
             isKanban && 'mt-0',
           )}
         >
-          <span className="truncate">{client ?? '—'}</span>
+          {/* PL-2: grid mode only — kanban card is role=button so nested Links are invalid. */}
+          {!isKanban && clientId ? (
+            <CompanyNameLink
+              companyId={clientId}
+              name={client ?? null}
+              className="text-[12px]"
+            />
+          ) : (
+            <span className="truncate">{client ?? '—'}</span>
+          )}
           {code && <span className="shrink-0 font-mono text-[11px]">· {code}</span>}
         </div>
       </div>

@@ -15,7 +15,7 @@ import {
   type FunnelStage,
   type Column,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
@@ -70,11 +70,23 @@ const SalesPipeline: React.FC = () => {
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
   const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [view, setView] = usePipelineView();
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<DealScope>('Open');
+
+  // D-1 (AC-JR-W3B-05): seed stageIndex from ?status= so drill-links from
+  // ProjectedMarginBars land pre-filtered. Index is derived from OPEN_COLUMNS
+  // (the same source the Funnel uses) so the two filters stay in sync.
+  const initialStageIndex = useMemo(() => {
+    const statusParam = searchParams.get('status');
+    if (!statusParam) return null;
+    const idx = OPEN_COLUMNS.findIndex((c) => c.statuses.includes(statusParam));
+    return idx >= 0 ? idx : null;
+  }, [searchParams]);
+
   /** Index into OPEN_COLUMNS for the currently selected funnel stage (null = no stage filter). */
-  const [stageIndex, setStageIndex] = useState<number | null>(null);
+  const [stageIndex, setStageIndex] = useState<number | null>(initialStageIndex);
   /** The status string for the selected funnel stage, or null when no stage is selected. */
   const selectedStatus = stageIndex !== null ? OPEN_COLUMNS[stageIndex]?.statuses[0] ?? null : null;
 

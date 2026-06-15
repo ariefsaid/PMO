@@ -59,6 +59,8 @@ export {
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
+export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
+export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { EntryList, type EntryListProps } from './EntryList';

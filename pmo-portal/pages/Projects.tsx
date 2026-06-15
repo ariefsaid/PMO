@@ -12,6 +12,7 @@ import {
   Button,
   Icon,
   useToast,
+  CompanyNameLink,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -293,7 +294,19 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: 'Customer',
-      cell: (p) => <span>{p.client?.name ?? '—'}</span>,
+      // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
+      // can navigate directly to the client record. stopPropagation prevents the
+      // row's own click handler (which opens the project detail) from firing when
+      // the user clicks the company link.
+      cell: (p) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <CompanyNameLink
+            companyId={p.client_id}
+            name={p.client?.name ?? null}
+            className="text-[13px]"
+          />
+        </div>
+      ),
       // Hide below 1280px — frees ~120px so Progress+Action columns fit at 1180px
       colClassName: 'hidden xl:table-cell',
     },

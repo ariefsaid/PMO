@@ -19,6 +19,7 @@ import {
   FormGrid,
   useEntityForm,
   useToast,
+  ContactNameLink,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
@@ -534,6 +535,12 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
 
   const activities = data ?? [];
 
+  // CD-2 (AC-JR-W3B-E1): lookup map from contact_id → {id, name} for activity row links.
+  const contactById = useMemo(
+    () => new Map(contactList.map((c) => [c.id, c])),
+    [contactList],
+  );
+
   // Log-activity form state
   const [kind, setKind] = useState<CrmActivityKind>('Call');
   const [subject, setSubject] = useState('');
@@ -656,23 +663,34 @@ const AccountActivityCard: React.FC<{ companyId: string }> = ({ companyId }) => 
 
         {!isPending && !isError && activities.length > 0 && (
           <ol data-testid="account-activity-timeline" className="flex flex-col gap-3">
-            {activities.map((a) => (
-              <li
-                key={a.id}
-                className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatOccurred(a.occurred_at)}
-                  </span>
-                </div>
-                {a.subject && (
-                  <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
-                )}
-                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
-              </li>
-            ))}
+            {activities.map((a) => {
+              const contact = contactById.get(a.contact_id);
+              return (
+                <li
+                  key={a.id}
+                  className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatOccurred(a.occurred_at)}
+                    </span>
+                  </div>
+                  {/* CD-2 (AC-JR-W3B-E1): contact name links to /contacts/:id */}
+                  {contact && (
+                    <ContactNameLink
+                      contactId={contact.id}
+                      name={contact.full_name}
+                      className="text-[11px]"
+                    />
+                  )}
+                  {a.subject && (
+                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                  )}
+                  {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                </li>
+              );
+            })}
           </ol>
         )}
       </CardPad>

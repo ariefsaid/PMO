@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
@@ -103,11 +103,42 @@ const AdminUsers: React.FC = () => {
   const { data, isPending, isError, refetch } = useUsers();
   const { updateRole, assignManager } = useUserMutations();
 
+  const tableRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
   const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserRow } | null>(null);
   // Pending high-impact role change awaiting the confirm step.
   const [pendingRole, setPendingRole] = useState<{ user: UserRow; role: UserRole } | null>(null);
+
+  /**
+   * AD-1 (AC-JR-W3B-E1): scroll the table to the manager's row and highlight it
+   * transiently (same-screen lever; no user-detail route exists yet).
+   */
+  const scrollToManager = (managerId: string) => {
+    const manager = byId.get(managerId);
+    if (!manager || !tableRef.current) return;
+    // Find the <tr> or card element whose text contains the manager's name.
+    // DataTable renders both a table branch (md+) and a card branch (<md).
+    const container = tableRef.current;
+    const allRows = [
+      ...Array.from(container.querySelectorAll<HTMLElement>('tr[class]')),
+      ...Array.from(container.querySelectorAll<HTMLElement>('[data-testid="dt-card-branch"] > div')),
+    ];
+    const target = allRows.find((el) => el.textContent?.includes(manager.full_name));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Transient highlight ring so the user sees which row was navigated to.
+      target.style.outline = '2px solid hsl(var(--primary))';
+      target.style.outlineOffset = '-2px';
+      target.style.borderRadius = '4px';
+      const timer = setTimeout(() => {
+        target.style.outline = '';
+        target.style.outlineOffset = '';
+        target.style.borderRadius = '';
+      }, 1600);
+      return () => clearTimeout(timer);
+    }
+  };
 
   const canManage = may('edit', 'user'); // Admin only (policy.ts user.edit)
   const canView = canManage || may('view', 'user'); // Exec read-only (policy.ts user.view = Admin·Exec)
@@ -181,12 +212,22 @@ const AdminUsers: React.FC = () => {
       key: 'manager',
       header: 'Manager',
       colClassName: 'hidden md:table-cell',
-      cell: (u) =>
-        u.manager_id && byId.get(u.manager_id) ? (
-          <span className="truncate">{byId.get(u.manager_id)!.full_name}</span>
+      // AD-1 (AC-JR-W3B-E1): clicking the manager name scrolls to that manager's
+      // row in the same table (no user-detail route exists; keep small).
+      cell: (u) => {
+        const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
+        return manager ? (
+          <button
+            type="button"
+            onClick={() => scrollToManager(manager.id)}
+            className="truncate text-left text-[13px] underline-offset-2 hover:text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          >
+            {manager.full_name}
+          </button>
         ) : (
           <span className="text-muted-foreground">No manager</span>
-        ),
+        );
+      },
     },
   ];
 
@@ -284,15 +325,17 @@ const AdminUsers: React.FC = () => {
       )}
 
       {state === undefined && (
-        <DataTable<UserRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(u) => u.id}
-          rowMenu={canManage ? rowMenu : undefined}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No users match your search"
-          emptySub="Try a different name or email."
-        />
+        <div ref={tableRef}>
+          <DataTable<UserRow>
+            rows={filtered}
+            columns={columns}
+            rowKey={(u) => u.id}
+            rowMenu={canManage ? rowMenu : undefined}
+            state={filtered.length === 0 ? 'empty' : undefined}
+            emptyTitle="No users match your search"
+            emptySub="Try a different name or email."
+          />
+        </div>
       )}
 
       {/* Edit-role modal */}

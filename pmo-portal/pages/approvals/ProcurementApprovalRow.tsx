@@ -13,7 +13,7 @@
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog, Icon, ListState, ProjectNameLink, useToast } from '@/src/components/ui';
+import { ApprovalRow, Button, ConfirmDialog, Icon, ListState, ProjectNameLink, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import {
   useProcurementDetail,
@@ -95,53 +95,54 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
   };
 
   // ---------------------------------------------------------------------------
-  // Collapsed row header
+  // Collapsed row header — rendered through the shared ApprovalRow shell (B,
+  // AC-JR-W3B-03) so padding/gap/vertical-alignment + avatar match the timesheet
+  // rows. Switching the scope tab no longer shifts row metrics.
   // ---------------------------------------------------------------------------
+
+  // B: subtitle node — request meta in the same text-[12px] style as the timesheet
+  // "week · hours h" subtitle. Uses the same slot so the layout is identical.
+  const subtitle = (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+      <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+      <ProjectNameLink
+        projectId={row.project_id}
+        name={row.project?.name ?? null}
+        className="text-[12px]"
+      />
+      {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
+      <span className="tabular font-medium text-foreground">
+        {formatCurrency(row.total_value)}
+      </span>
+      <span>{daysAgo(row.created_at)}</span>
+    </span>
+  );
+
   return (
     <div className="border-b border-border last:border-b-0">
-      {/* Row summary — always visible */}
-      <div className="flex flex-wrap items-start gap-2 px-3.5 py-3">
-        {/* Disclosure button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-expanded={expanded}
-          aria-controls={panelId}
-          aria-label={`Show budget impact for ${row.title}`}
-          onClick={() => setExpanded((v) => !v)}
-          className={
-            expanded
-              ? '[&_svg]:rotate-90 [&_svg]:transition-transform'
-              : '[&_svg]:transition-transform'
-          }
-        >
-          <Icon name="chev" />
-        </Button>
-
-        {/* Request info */}
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-[13px]" title={row.title}>
-            {row.title}
-          </div>
-          <div className="font-mono text-[12px] text-muted-foreground">
-            {row.code ?? row.id.slice(0, 8)}
-          </div>
-        </div>
-
-        {/* Meta — project name links to the project record (AC-JR-W2-01). */}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 text-[12px] text-muted-foreground">
-          <ProjectNameLink
-            projectId={row.project_id}
-            name={row.project?.name ?? null}
-            className="text-[12px]"
-          />
-          {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-          <span className="tabular font-medium text-foreground">
-            {formatCurrency(row.total_value)}
-          </span>
-          <span>{daysAgo(row.created_at)}</span>
-        </div>
-      </div>
+      {/* Row summary rendered through the shared ApprovalRow shell. */}
+      <ApprovalRow
+        name={row.title}
+        subtitle={subtitle}
+        disclosure={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            aria-label={`Show budget impact for ${row.title}`}
+            onClick={() => setExpanded((v) => !v)}
+            className={
+              expanded
+                ? '[&_svg]:rotate-90 [&_svg]:transition-transform'
+                : '[&_svg]:transition-transform'
+            }
+          >
+            <Icon name="chev" />
+          </Button>
+        }
+        className="border-b-0 px-3.5"
+      />
 
       {/* Expanded panel */}
       {expanded && (

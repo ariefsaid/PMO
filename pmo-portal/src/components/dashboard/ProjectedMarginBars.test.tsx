@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { formatCurrency } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ProjectedMarginBars } from './ProjectedMarginBars';
@@ -13,14 +14,17 @@ const stages: PipelineStage[] = [
   { status: 'Loss Tender', count: 1, total_value: 400_000, win_probability: 0, weighted_value: 0 },
 ];
 
+// D-1: rows are now Links; wrap in MemoryRouter.
+const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+
 describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   it('renders the projected-margin headline from the exec payload', () => {
-    render(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
     expect(screen.getByText('14.1%')).toBeInTheDocument();
   });
 
   it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {
-    render(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
     expect(screen.getByText(formatCurrency(600_000))).toBeInTheDocument();
@@ -30,13 +34,13 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   });
 
   it('labels the section and each bar for assistive tech', () => {
-    render(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
     expect(screen.getByRole('group', { name: /Pipeline projected margin/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
   });
 
   it('C1: colors every bar with the single primary token (no categorical/violet rainbow)', () => {
-    const { container } = render(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    const { container } = wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
     const fills = Array.from(
       container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
     );

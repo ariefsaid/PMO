@@ -4,10 +4,22 @@ import { cn } from './cn';
 export interface ApprovalRowProps {
   /** Owner full name (drives the avatar initial). */
   name: string;
-  /** Week label, e.g. "Week of Jun 2". */
-  week: React.ReactNode;
-  /** Total hours for the week (tabular). */
-  hours: number;
+  /**
+   * Week label, e.g. "Week of Jun 2". Required when `subtitle` is not provided
+   * (the default timesheet subtitle is `{week} · {hours} h`).
+   */
+  week?: React.ReactNode;
+  /**
+   * Total hours for the week (tabular). Required when `subtitle` is not provided.
+   */
+  hours?: number;
+  /**
+   * B (AC-JR-W3B-03): optional fully-custom subtitle that overrides the default
+   * `{week} · {hours} h` line. When provided, `week` and `hours` are ignored.
+   * Used by ProcurementApprovalRow to render request-meta (code · amount · age)
+   * in the unified shell without being tied to the timesheet format.
+   */
+  subtitle?: React.ReactNode;
   /** Status pill node. */
   status?: React.ReactNode;
   /**
@@ -26,22 +38,32 @@ export interface ApprovalRowProps {
 }
 
 /**
- * A single submitted-timesheet row in the manager approval queue: optional
- * leading disclosure affordance + avatar + owner + week·hours + status pill +
- * actions. Avatar is decorative (the name is the accessible label). Solid bottom
- * rule separates rows (consistent with ProcurementApprovalRow — census violation B
- * fix: `border-dashed` replaced with `border-b border-border`).
+ * A single submitted-approval row (timesheet or procurement): optional leading
+ * disclosure affordance + avatar + owner/title + subtitle + status pill + actions.
+ * Avatar is decorative (the name is the accessible label). Solid bottom rule
+ * separates rows (consistent across both approval types — census violation B fix).
+ *
+ * The `subtitle` prop allows procurement rows to supply custom meta (code · amount
+ * · age) while sharing the identical container shell (gap-3/py-[11px]/items-center
+ * /avatar) that timesheet rows use. Switching the scope tab no longer shifts row
+ * metrics (B — the owner's chevron-order complaint, root cause addressed).
  */
 export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   name,
   week,
   hours,
+  subtitle,
   status,
   disclosure,
   children,
   className,
 }) => {
   const initial = (name.trim().charAt(0) || '?').toUpperCase();
+  const subtitleNode = subtitle ?? (
+    <span>
+      {week} · <span className="tabular">{hours !== undefined ? hours.toFixed(1) : '0.0'}</span> h
+    </span>
+  );
   return (
     <div
       data-approval-row
@@ -57,13 +79,12 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
       >
         {initial}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{name}</div>
         <div className="text-[12px] text-muted-foreground">
-          {week} · <span className="tabular">{hours.toFixed(1)}</span> h
+          {subtitleNode}
         </div>
       </div>
-      <span className="flex-1" />
       {status && <div className="shrink-0">{status}</div>}
       {children}
     </div>
