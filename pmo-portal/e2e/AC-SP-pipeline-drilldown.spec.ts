@@ -12,11 +12,12 @@ import { signIn, openPipelineCard } from './helpers';
 //
 // NOTE (feat/ui-polish I7): the in-page BackBar ("Back to Sales Pipeline" button) was
 // intentionally removed on the success render — the top-bar breadcrumb owns wayfinding.
-// AC-SP-207 asserts that the breadcrumb link "Sales Pipeline" navigates back to /sales.
+// AC-SP-207 asserts that the breadcrumb parent link navigates back to the list.
 //
-// Model B (ADR-0020): a pipeline deal opens at the ONE canonical detail route /projects/:id
-// (was /sales/:id), with the stage-adaptive PIPELINE lens; its breadcrumb ancestry follows the
-// stage, so a pre-win deal still reads "Sales Pipeline > <name>" and the crumb links to /sales.
+// FIX-2 (coherence wave): /projects/:id ALWAYS roots at "Projects" in the breadcrumb,
+// regardless of pipeline status — the pipeline status is surfaced via the stage pill and
+// stepper, not the breadcrumb ancestry. So the breadcrumb reads "Projects > <name>" and
+// clicking "Projects" navigates to /projects (the on-hand list), not /sales.
 test('AC-SP-207: opens a deal from the Kanban board into its canonical detail page (pipeline lens)', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
 
@@ -38,18 +39,18 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
   await expect(page.getByRole('heading', { name: /Highfield Bridge Survey/i })).toBeVisible();
   await expect(page.getByLabel('Project stage journey')).toBeVisible();
 
-  // I7: the in-page BackBar ("Back to Sales Pipeline" button) was removed.
-  // The breadcrumb (rendered in the top ContextBar, inside nav[aria-label="Breadcrumb"])
-  // owns wayfinding. Assert the breadcrumb "Sales Pipeline" link navigates back to /sales.
+  // I7: the in-page BackBar was removed. The breadcrumb (in nav[aria-label="Breadcrumb"])
+  // owns wayfinding. FIX-2 (coherence): breadcrumb now always reads "Projects > <name>";
+  // clicking "Projects" navigates to /projects (the on-hand list).
   const breadcrumb = page.getByRole('navigation', { name: /breadcrumb/i });
   await expect(breadcrumb).toBeVisible();
-  const salesPipelineLink = breadcrumb.getByRole('button', { name: /Sales Pipeline/i });
-  await expect(salesPipelineLink).toBeVisible({ timeout: 10_000 });
-  await salesPipelineLink.click();
-  await page.waitForURL('**/sales');
+  const projectsLink = breadcrumb.getByRole('button', { name: /^Projects$/i });
+  await expect(projectsLink).toBeVisible({ timeout: 10_000 });
+  await projectsLink.click();
+  await page.waitForURL('**/projects');
 
-  // Navigated back — the Kanban board is visible again.
-  await expect(page.getByLabel('Sales pipeline board')).toBeVisible();
+  // Navigated back to the Projects list — the list is visible.
+  await expect(page.getByRole('main')).toBeVisible();
 });
 
 test('AC-SP-206: the view toggle switches the body to a Table of deals', async ({ page }) => {

@@ -38,6 +38,6 @@ test('magic-link login completes via the local Mailpit inbox', async ({ page }) 
 
   await page.goto(link!);
   // detectSessionInUrl consumes the token and clears the hash, landing on the dashboard.
-  await expect(page.getByText('Dave Engineer')).toBeVisible();
+  await expect(page.getByText('Tomas Beck')).toBeVisible();
   await expect(page).not.toHaveURL(/\/login/);
 });

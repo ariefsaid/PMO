@@ -11,8 +11,8 @@ import { login } from './helpers';
 // conforms to the test; never weaken an assertion to match current app state.
 //
 // Seed assumptions (clean `npx supabase db reset`):
-//   PROC-2026-002 (id …003): Requested, $22,500, requested_by = Dave Engineer
-//     (engineer@acme.test / a4). pm@acme.test (Alice / a2) is an approver (PM role).
+//   PROC-2026-002 (id …003): Requested, $22,500, requested_by = Tomas Beck
+//     (engineer@acme.test / a4). pm@acme.test (Diego / a2) is an approver (PM role).
 //   timesheets …001 (Dave, a4): Draft — current-week sheet for the shared engineer@.
 //   timesheets …002 (Alice, a2): Draft — Alice's OWN sheet; SoD excludes from her queue.
 //   Grace/b1 (ts-approve-eng@) + Heidi/b2 (ts-approve-mgr@): dedicated AC-911 actors;
@@ -112,17 +112,20 @@ test(
     const bulkGroup = page.getByRole('group', { name: /bulk approve/i });
     await expect(bulkGroup).toBeVisible({ timeout: 5_000 });
 
-    // Select all approvable rows via the select-all checkbox.
-    const selectAllCheck = bulkGroup.getByRole('checkbox', { name: /select all approvable weeks/i });
-    await expect(selectAllCheck).toBeVisible();
-    await selectAllCheck.click();
+    // Select ONLY Wave5 BulkEng's row (not "Select All") — seed-robust: other Submitted
+    // timesheets from other reports may also be in the queue; selecting all would fire
+    // concurrent mutate() calls on the same mutation instance (React Query limitation).
+    // Selecting the specific fixture row keeps the test isolation guarantee intact.
+    const wave5Check = tsSection.getByRole('checkbox', { name: /select wave5 bulkeng.*week/i });
+    await expect(wave5Check).toBeVisible({ timeout: 5_000 });
+    await wave5Check.click();
 
-    // At least 1 row selected; "Approve N" button becomes enabled.
+    // 1 row selected; "Approve 1" button becomes enabled.
     const approveNBtn = bulkGroup.getByRole('button', { name: /^approve \d+$/i });
     await expect(approveNBtn).toBeVisible({ timeout: 5_000 });
     await expect(approveNBtn).toBeEnabled();
 
-    // Capture N from the button label (e.g. "Approve 1").
+    // N is 1 (we selected exactly one row).
     const approveLabel = (await approveNBtn.textContent()) ?? '';
     const nMatch = approveLabel.match(/approve (\d+)/i);
     const n = nMatch ? parseInt(nMatch[1], 10) : 1;

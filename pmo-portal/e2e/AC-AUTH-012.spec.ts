@@ -6,5 +6,5 @@ test('session survives a page reload', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
   await page.reload();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText('Alice Manager')).toBeVisible();
+  await expect(page.getByText('Diego Salvatierra')).toBeVisible();
 });

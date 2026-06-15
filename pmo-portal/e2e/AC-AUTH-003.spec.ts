@@ -5,7 +5,7 @@ import { signIn } from './helpers';
 test('PM password login lands on dashboard with PM nav', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText('Alice Manager')).toBeVisible();
+  await expect(page.getByText('Diego Salvatierra')).toBeVisible();
 
   const sidebar = page.getByRole('navigation', { name: /primary navigation/i });
   await expect(sidebar.getByRole('link', { name: 'Projects' })).toBeVisible();

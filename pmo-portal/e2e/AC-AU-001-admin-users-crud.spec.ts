@@ -14,9 +14,10 @@ import { login } from './helpers';
  *   AC-AU-002b a non-admin/non-exec role (Engineer) reaching the route sees an Admin-only gate
  *
  * Roles: admin@acme.test (full management), exec@acme.test (read-only), engineer@acme.test (gate).
- * Seed (supabase/seed.sql): Erin Admin / Bob Director (Exec) / Alice Manager (PM) / Carol Finance /
- *   Dave Engineer; Dave→Alice manager chain. The journey edits Dave (Engineer) so it never collides
- *   with another slice's fixtures, and restores his role at the end to keep the seed reusable.
+ * Seed (supabase/seed.sql): Erin Adebayo (Admin) / Mara Lindqvist (Exec) / Diego Salvatierra (PM) /
+ *   Priya Ramanathan (Finance) / Tomas Beck (Engineer); Tomas→Diego manager chain. The journey
+ *   edits Tomas (Engineer) so it never collides with another slice's fixtures, and restores his
+ *   role at the end to keep the seed reusable.
  *
  * RBAC authority: docs/design/rbac-visibility.md §J + the profiles_admin_write RLS policy (0002).
  */
@@ -43,18 +44,19 @@ async function openRowMenu(page: Page, row: ReturnType<typeof page.locator>) {
 test(
   'AC-AU-001 + AC-AU-003 + AC-AU-004: an Admin views the directory, changes a role (with confirm), and assigns a manager — goal oracle: the role pill and manager column reflect the changes',
   async ({ page }) => {
-    const engineerEmail = 'engineer@acme.test'; // Dave Engineer
-    const newManager = 'Bob Director'; // exec@acme.test, a valid manager candidate
+    const engineerEmail = 'engineer@acme.test'; // Tomas Beck
+    const newManager = 'Mara Lindqvist'; // exec@acme.test, a valid manager candidate
 
     await login(page, 'admin@acme.test');
     await page.goto('/administration');
     await waitReady(page);
 
-    // ── Step 1: AC-AU-001 — directory loads, "New user" CTA visible for Admin ──
-    await expect(page.getByRole('button', { name: /new user/i })).toBeVisible({ timeout: 10_000 });
+    // ── Step 1: AC-AU-001 — directory loads, invite CTA visible for Admin ──
+    // "New user" was replaced with "Copy invite instructions" (AC-PJ-ADMIN-001).
+    await expect(page.getByRole('button', { name: /copy invite instructions/i })).toBeVisible({ timeout: 10_000 });
     const daveRow = userRow(page, engineerEmail);
     await expect(daveRow).toBeVisible({ timeout: 10_000 });
-    // "Engineer" also appears in his name (Dave Engineer) + email — target the role
+    // "Engineer" also appears in his title (Lead PV Engineer) — target the role
     // pill specifically via its own table cell (exact match excludes the User cell).
     await expect(daveRow.getByRole('cell', { name: 'Engineer', exact: true })).toBeVisible();
 
@@ -75,7 +77,7 @@ test(
     // GOAL ORACLE: the row's role pill now reads Finance.
     await expect(userRow(page, engineerEmail).getByText('Finance')).toBeVisible({ timeout: 15_000 });
 
-    // ── Step 3: AC-AU-004 — assign Dave a manager (Bob Director) ──
+    // ── Step 3: AC-AU-004 — assign Tomas a manager (Mara Lindqvist) ──
     await openRowMenu(page, userRow(page, engineerEmail));
     await page.getByRole('menuitem', { name: /change manager/i }).click();
 
@@ -87,7 +89,7 @@ test(
     await listbox.getByText(newManager, { exact: true }).click();
     await mgrDialog.getByRole('button', { name: /save manager/i }).click();
 
-    // GOAL ORACLE: the manager column for Dave now shows Bob Director.
+    // GOAL ORACLE: the manager column for Tomas now shows Mara Lindqvist.
     await expect(mgrDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(userRow(page, engineerEmail).getByText(newManager)).toBeVisible({ timeout: 15_000 });
 
@@ -107,7 +109,7 @@ test(
 // ── AC-AU-002a — Executive read-only directory ──
 
 test(
-  'AC-AU-002a gating: an Executive sees a read-only user directory — no "New user", no row actions',
+  'AC-AU-002a gating: an Executive sees a read-only user directory — no invite CTA, no row actions',
   async ({ page }) => {
     await login(page, 'exec@acme.test');
     await page.goto('/administration');
@@ -116,7 +118,7 @@ test(
     // Exec CAN see the directory…
     await expect(userRow(page, 'admin@acme.test')).toBeVisible({ timeout: 10_000 });
     // …but the management chrome is absent (not merely disabled).
-    await expect(page.getByRole('button', { name: /new user/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /copy invite instructions/i })).not.toBeVisible();
     await expect(page.getByRole('button', { name: /row actions/i })).not.toBeVisible();
     // and a read-only explanation is shown.
     await expect(page.getByText(/only an Admin can/i)).toBeVisible();
@@ -133,6 +135,6 @@ test(
 
     // GOAL ORACLE: an Admin-only gate is shown and the directory rows are NOT rendered.
     await expect(page.getByText(/Admin-only area/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: /new user/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /copy invite instructions/i })).not.toBeVisible();
   },
 );

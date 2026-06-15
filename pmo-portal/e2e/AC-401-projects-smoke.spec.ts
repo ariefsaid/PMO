@@ -7,5 +7,5 @@ test('AC-401 PM sees real seeded projects with joined client + PM names', async 
   await page.goto('/projects');
   await expect(page.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
   await expect(page.locator('span, div, td').filter({ hasText: 'Innovate Corp' }).first()).toBeVisible();
-  await expect(page.locator('span, div, td').filter({ hasText: 'Alice Manager' }).first()).toBeVisible();
+  await expect(page.locator('span, div, td').filter({ hasText: 'Diego Salvatierra' }).first()).toBeVisible();
 });
