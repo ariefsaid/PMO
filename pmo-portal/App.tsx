@@ -19,6 +19,7 @@ import {
   breadcrumbForPath,
   recordLabelForPath,
   recordStatusGroupForPath,
+  deriveRailActiveOverride,
 } from '@/src/components/shell';
 import type { PaletteItem } from '@/src/components/shell';
 import type { BreadcrumbPart } from '@/src/components/shell';
@@ -186,6 +187,7 @@ const ShellChrome: React.FC = () => {
       opportunities,
     });
     // The list that backs THIS detail route has settled (not pending) → an
+    // Note: recordStatusGroup is also consumed below to derive railActiveOverride (Option A).
     // unresolved record is a genuine not-found, so resolve the crumb to a
     // friendly label rather than a perpetual "Loading…". For /projects/:id the
     // record can live in ANY of the three caches (Model B: active projects, open
@@ -220,6 +222,16 @@ const ShellChrome: React.FC = () => {
     contactsPending,
   ]);
 
+  // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.
+  // Reuses the same cached lists as the breadcrumb — no new query. The override is
+  // null while caches are pending (NavLink URL-based fallback) and resolves on the
+  // next render once the pipeline/projects lists settle.
+  const railActiveOverride = useMemo<'salesPipeline' | 'projects' | null>(() => {
+    const opportunities = [...(pipeline?.projects ?? []), ...(lostDeals ?? [])];
+    const statusGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
+    return deriveRailActiveOverride(pathname, statusGroup);
+  }, [pathname, projects, pipeline, lostDeals]);
+
   // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.
   // A denied role (e.g. Engineer) never sees Sales/Procurement/Companies/Administration.
   // Read the real role non-throwing; deny-by-default when outside the provider (no Navigate items).
@@ -246,7 +258,7 @@ const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
-        rail={<Rail onNavigate={() => setRailOpen(false)} />}
+        rail={<Rail onNavigate={() => setRailOpen(false)} railActiveOverride={railActiveOverride} />}
         header={
           <ContextBar
             breadcrumb={breadcrumb}

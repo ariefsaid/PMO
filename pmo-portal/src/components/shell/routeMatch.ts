@@ -297,6 +297,35 @@ export function recordStatusGroupForPath(
 }
 
 /**
+ * Maps a (pathname, statusGroup) pair to the rail's active-item override (Option A, Task D).
+ *
+ * Returns:
+ *  - 'salesPipeline' when on a `/projects/:id` detail and the record is pipeline or lost
+ *  - 'projects'      when on a `/projects/:id` detail and the record is onHand or internal
+ *  - null            when the caches are still pending (statusGroup = undefined) OR when the
+ *                    current route is not a `/projects/:id` detail — in both cases the Rail
+ *                    falls back to its URL-based NavLink `isActive` logic.
+ *
+ * Only `/projects/<id>` (with any optional trailing `/tab`) qualifies — the index `/projects`
+ * never triggers the override so the Projects nav item stays active there as usual.
+ */
+export function deriveRailActiveOverride(
+  pathname: string,
+  statusGroup: ProjectStatusGroup | undefined,
+): 'salesPipeline' | 'projects' | null {
+  // Must be a /projects/:id detail route (not the index).
+  if (!pathname.startsWith('/projects/')) return null;
+  const segment = pathname.slice('/projects/'.length).split('/')[0];
+  if (!segment) return null; // bare /projects/ with no id
+
+  // Caches still resolving → no override; let NavLink URL-matching stand.
+  if (!statusGroup) return null;
+
+  if (statusGroup === 'pipeline' || statusGroup === 'lost') return 'salesPipeline';
+  return 'projects'; // onHand | internal
+}
+
+/**
  * Resolves a detail route's record name from the cached index lists (the same
  * lists the ⌘K palette indexes) — the breadcrumb's `recordLabel` source. Pure:
  * it reads the passed-in lists, never a query. Returns the human title, or
