@@ -2,15 +2,19 @@ import { parseISO } from 'date-fns';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 /**
- * Pure S-curve math for the project Delivery lens (FR-SC-002/003, OBS-SC-001).
+ * Pure S-curve math for the project Delivery lens (FR-SC-002/003, FR-SCA-008..011).
  *
- * OBS-SC-001 (honesty): `project_milestones` records no per-date actual-completion
- * history — only the current weight-weighted `effective_pct`. So v1 plots a genuine
- * multi-point PLANNED curve (one cumulative point per dated milestone) but a SINGLE
- * "actual to date" point at `asOf`; it does NOT synthesize historical actuals. When a
- * future migration adds a milestone completion date, the actual series can step at
- * those dates with no rewrite — `buildSCurve` already emits a `{date, planned, actual}`
- * point list either way.
+ * v1 (OBS-SC-001): plots a genuine multi-point PLANNED curve but a SINGLE "actual to date"
+ * dot — because `project_milestones` records no per-date completion history.
+ *
+ * v2 (FR-SCA-008..011): When `tasks` is provided and non-empty, buildSCurve emits a
+ * multi-point actual series via the **hybrid source rule** (mirrors `effective_pct`):
+ *   - Milestone has tasks AND no input_pct override → task-level: each Done task contributes
+ *     weight·(1/total_tasks) at `completed_at` (real) else `end_date` (proxy), clamped ≤ asOf.
+ *   - Milestone has input_pct override OR no tasks → milestone-level: contributes
+ *     weight·input_pct/100·100 (i.e. weight·effective_pct) at `target_date`, clamped ≤ asOf.
+ *   The series endpoint at asOf equals actualToDate by construction (NFR-SCA-001).
+ *   When tasks absent/empty → the existing single-point fallback (FR-SCA-011).
  */
 
 export interface SCurvePoint {
@@ -35,6 +39,20 @@ export interface SCurveModel {
   plannedToDate: number | null;
 }
 
+/**
+ * Narrow task view the builder reads. Structurally assignable from TaskWithRefs.
+ * (FR-SCA-007/008: completed_at is the trigger-stamped instant; end_date is the proxy.)
+ */
+export interface SCurveTask {
+  milestone_id: string | null;
+  /** 'To Do' | 'In Progress' | 'Done' | 'Blocked' — only 'Done' matters here. */
+  status: string;
+  /** ISO timestamptz, trigger-stamped when task entered Done. null = not yet Done or backfill absent. */
+  completed_at: string | null;
+  /** 'YYYY-MM-DD' scheduled finish — proxy when completed_at is null. */
+  end_date: string | null;
+}
+
 const round2 = (x: number): number => Math.round(x * 100) / 100;
 const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
 
@@ -43,7 +61,20 @@ const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
  * date-fns `parseISO` honours the explicit `Z` offset → UTC instant, byte-identical to the
  * prior `Date.parse(`${iso}T00:00:00Z`)` (UTC-midnight convention A; DST/TZ-immutable).
  */
-const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
+export const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
+
+/**
+ * Clamp an ISO date string (either 'YYYY-MM-DD' or timestamptz ISO) to be ≤ asOf.
+ * Returns the epoch-ms of min(isoDate, asOf) using UTC-midnight for both inputs.
+ * The `completed_at` column is a timestamptz; we extract just the date portion (first 10 chars)
+ * for the comparison so that time-of-day doesn't push the result past midnight of asOf.
+ * (FR-SCA-008: all proxy dates clamped ≤ asOf.)
+ */
+function clampDate(iso: string, asOf: string): number {
+  // Take only the date portion (YYYY-MM-DD) to normalise timestamptz to day precision.
+  const dateOnly = iso.slice(0, 10);
+  return isoToTs(dateOnly < asOf ? dateOnly : asOf);
+}
 
 /**
  * Days between two 'YYYY-MM-DD' dates (b - a). Keeps the UTC-midnight ms-divide (via `isoToTs`'s
@@ -84,7 +115,94 @@ export const formatSCurveAxisDate = (epochMs: number): string => {
 };
 
 /**
- * Build the S-curve series from milestones. Pure + deterministic.
+ * Returns evenly-spaced first-of-month UTC epoch-ms ticks across [tsMin, tsMax].
+ *
+ * Stride selection keeps the tick count in the 5–7 range for readability:
+ *   span ≤ 7 months  → monthly (stride 1)
+ *   span ≤ 18 months → every 2nd month (stride 2)
+ *   span ≤ 36 months → every 3rd month (stride 3)
+ *   span > 36 months → quarterly (stride 4)
+ *
+ * All ticks are first-of-month boundaries so labels never overlap regardless of
+ * how clustered the underlying data points are (fixes the overlapping-axis-label
+ * defect caused by auto-ticks near clustered actual-line coordinates).
+ *
+ * Exported so unit tests can assert determinism and the component can pass
+ * explicit `ticks` to recharts XAxis.
+ */
+export function evenAxisTicks(tsMin: number, tsMax: number): number[] {
+  // Edge: degenerate range — return the single point as-is.
+  if (tsMin >= tsMax) return [tsMin];
+
+  // Identify the first first-of-month UTC date on or after tsMin.
+  const dMin = new Date(tsMin);
+  let year = dMin.getUTCFullYear();
+  let month = dMin.getUTCMonth(); // 0-based
+
+  // If tsMin is not already the 1st, advance to the next month's 1st.
+  if (dMin.getUTCDate() !== 1) {
+    month += 1;
+    if (month > 11) { month = 0; year += 1; }
+  }
+
+  // Identify the last first-of-month UTC date on or before tsMax.
+  const dMax = new Date(tsMax);
+  let endYear = dMax.getUTCFullYear();
+  let endMonth = dMax.getUTCMonth();
+  // Step back to the 1st of the current month if needed.
+  // (Date.UTC with day=1 always gives midnight UTC.)
+  if (Date.UTC(endYear, endMonth, 1) > tsMax) {
+    endMonth -= 1;
+    if (endMonth < 0) { endMonth = 11; endYear -= 1; }
+  }
+
+  // Total number of first-of-month boundaries from start to end (inclusive).
+  const totalMonths = (endYear - year) * 12 + (endMonth - month) + 1;
+
+  if (totalMonths <= 0) {
+    // No first-of-month boundary fits within [tsMin, tsMax]; return tsMin itself.
+    return [tsMin];
+  }
+
+  // Choose stride to keep tick count near 5–7.
+  let stride: number;
+  if (totalMonths <= 7) {
+    stride = 1;
+  } else if (totalMonths <= 18) {
+    stride = 2;
+  } else if (totalMonths <= 36) {
+    stride = 3;
+  } else {
+    stride = 4;
+  }
+
+  const ticks: number[] = [];
+  let m = month;
+  let y = year;
+
+  while (y < endYear || (y === endYear && m <= endMonth)) {
+    const tickTs = Date.UTC(y, m, 1);
+    if (tickTs >= tsMin && tickTs <= tsMax) {
+      ticks.push(tickTs);
+    }
+    m += stride;
+    while (m > 11) { m -= 12; y += 1; }
+  }
+
+  // Safety: ensure the last first-of-month boundary is always included so there
+  // is always a tick close to tsMax (within one stride-period of the end).
+  const lastBoundary = Date.UTC(endYear, endMonth, 1);
+  if (ticks.length === 0 || ticks[ticks.length - 1] !== lastBoundary) {
+    if (lastBoundary >= tsMin && lastBoundary <= tsMax) {
+      ticks.push(lastBoundary);
+    }
+  }
+
+  return ticks;
+}
+
+/**
+ * Build the S-curve series from milestones (and optionally tasks). Pure + deterministic.
  *
  * - `totalWeight` = Σ weight over milestones with weight > 0 (dated or not), so the
  *   planned curve and the actual rollup share ONE denominator (no drift between them).
@@ -95,13 +213,15 @@ export const formatSCurveAxisDate = (epochMs: number): string => {
  *   The planned series is prefixed by an origin point at the earliest date valued 0.
  * - `plannedToDate` = the planned curve linearly interpolated at `asOf`, clamped [0,100]
  *   (before the first point → 0, after the last → 100).
- * - The actual series carries a single point at `asOf` valued `actualToDate`.
+ * - When `tasks` is provided and non-empty: the hybrid actual series (FR-SCA-008..011).
+ * - When `tasks` is absent/empty: single-point fallback at `asOf` valued `actualToDate`.
  * - No dated milestones (or zero total weight) → `points: []` (caller shows the empty
  *   state), but `actualToDate` is still computed when there is weight.
  */
 export function buildSCurve(
   milestones: MilestoneWithProgress[],
   asOf: string,
+  tasks?: SCurveTask[],
 ): SCurveModel {
   const totalWeight = milestones.reduce(
     (sum, m) => (m.weight > 0 ? sum + m.weight : sum),
@@ -147,16 +267,109 @@ export function buildSCurve(
 
   const plannedToDate = interpolatePlanned(plannedSeries, asOf);
 
-  // Merge into the {date, ts, planned, actual} point list. The actual series is a single
-  // point at `asOf` (OBS-SC-001 — no fabricated history).
-  // `ts` is epoch ms (UTC midnight) so the recharts time axis places every point at its
-  // real date coordinate, not by array index (fixes the categorical-axis position bug).
+  // Base points list from the planned series (actual=null on all planned points).
   const points: SCurvePoint[] = plannedSeries.map((p) => ({
     date: p.date,
     ts: isoToTs(p.date),
     planned: p.planned,
     actual: null,
   }));
+
+  // ── Actual series (FR-SCA-008..011) ─────────────────────────────────────────
+  //
+  // When tasks arg is provided (even empty), attempt to build a hybrid actual series.
+  // Tasks=undefined (absent) → immediate single-point fallback (FR-SCA-011).
+  // Tasks=[] or all non-Done → 0 contributions → same single-point fallback.
+  //
+  // Each weighted milestone contributes one or more (ts, numerator) pairs:
+  //   - Has tasks AND no input_pct override → one contribution per Done task.
+  //   - Has input_pct override OR no tasks → one contribution at target_date.
+  // Contributions are accumulated in ascending ts order → monotone series (FR-SCA-009).
+  // Final point forced to asOf valued actualToDate anchors endpoint to the gauge (NFR-SCA-001).
+  if (tasks !== undefined) {
+    const tasksByMilestone = new Map<string | null, SCurveTask[]>();
+    for (const t of tasks) {
+      const key = t.milestone_id;
+      if (!tasksByMilestone.has(key)) tasksByMilestone.set(key, []);
+      tasksByMilestone.get(key)!.push(t);
+    }
+
+    // Collect (ts, numeratorContribution) pairs from each weighted milestone.
+    const contributions: Array<{ ts: number; numerator: number }> = [];
+
+    for (const m of milestones) {
+      if (m.weight <= 0) continue;
+
+      const msTasksAll = tasksByMilestone.get(m.id) ?? [];
+      const hasTasks = msTasksAll.length > 0;
+      const hasOverride = m.input_pct != null;
+
+      if (hasOverride || !hasTasks) {
+        // ── Milestone-level path: override or no tasks ──────────────────────
+        // Contribution = weight · clampPct(effective_pct); placed at target_date.
+        // Skip if no target_date (Error-Handling row in spec).
+        if (m.target_date == null) continue;
+        const ts = clampDate(m.target_date, asOf);
+        const numerator = m.weight * clampPct(m.effective_pct);
+        contributions.push({ ts, numerator });
+      } else {
+        // ── Task-level path: has tasks, no override ─────────────────────────
+        // Each Done task contributes weight · (1 / total_tasks) at completed_at else end_date.
+        const totalTasksInMs = msTasksAll.length;
+        const perTaskNumerator = (m.weight * 100) / totalTasksInMs;
+        for (const t of msTasksAll) {
+          if (t.status !== 'Done') continue;
+          // Use completed_at if present, else end_date proxy. Skip if both null.
+          const dateIso = t.completed_at ?? t.end_date;
+          if (dateIso == null) continue;
+          const ts = clampDate(dateIso, asOf);
+          contributions.push({ ts, numerator: perTaskNumerator });
+        }
+      }
+    }
+
+    // Sort contributions by ts ascending (non-decreasing — FR-SCA-009).
+    contributions.sort((a, b) => a.ts - b.ts);
+
+    if (contributions.length > 0) {
+      // Accumulate into the points list; merge by ts (same-ts contributions collapse).
+      let runningNumerator = 0;
+      const actualPointsMap = new Map<number, number>(); // ts → running actual value
+
+      for (const c of contributions) {
+        runningNumerator += c.numerator;
+        const val = round2(runningNumerator / totalWeight);
+        actualPointsMap.set(c.ts, val);
+      }
+
+      // Emit actual points in ts order.
+      const asOfTs = isoToTs(asOf);
+      for (const [ts, val] of actualPointsMap) {
+        // Convert ts back to 'YYYY-MM-DD' for the date label.
+        const d = new Date(ts);
+        const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        points.push({ date, ts, planned: null, actual: val });
+      }
+
+      // If the last contribution ts < asOfTs, add a terminal point at asOf valued actualToDate
+      // to anchor the endpoint to the gauge (FR-SCA-010 / NFR-SCA-001).
+      const lastContribTs = [...actualPointsMap.keys()].at(-1)!;
+      if (lastContribTs < asOfTs) {
+        points.push({ date: asOf, ts: asOfTs, planned: null, actual: actualToDate });
+      } else if (lastContribTs === asOfTs) {
+        // The last contribution already lands at asOf; force its value to actualToDate
+        // to guarantee the endpoint invariant (NFR-SCA-001) even under floating-point drift.
+        const lastPoint = points.find((p) => p.ts === asOfTs && p.actual !== null);
+        if (lastPoint) lastPoint.actual = actualToDate;
+      }
+
+      return { points, actualToDate, plannedToDate };
+    }
+  }
+
+  // ── Single-point fallback (FR-SCA-011) ──────────────────────────────────────
+  // tasks absent, empty, or no contributions (all tasks non-Done + no override milestones) →
+  // preserve the v1 single "actual to date" dot at asOf.
   points.push({ date: asOf, ts: isoToTs(asOf), planned: null, actual: actualToDate });
 
   return { points, actualToDate, plannedToDate };

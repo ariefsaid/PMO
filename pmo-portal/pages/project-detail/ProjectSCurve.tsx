@@ -7,7 +7,8 @@ import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersRe
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { buildSCurve, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
+import { useTasks } from '@/src/hooks/useTasks';
+import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
 export interface ProjectSCurveProps {
   projectId: string;
@@ -17,25 +18,41 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Per-project cumulative S-curve on the Delivery lens (FR-SC-001), below the
- * milestone stepper. Reuses `useMilestones(projectId)` verbatim (NFR-SC-PERF-001 —
- * shares the stepper's cache entry; no extra round-trip; RLS on the security-invoker
- * RPC scopes rows, NFR-SC-SEC-001).
+ * milestone stepper. Reuses `useMilestones(projectId)` + `useTasks(projectId)` which
+ * are already loaded on the project-detail page (NFR-SCA-004 — no extra round-trip;
+ * RLS on the security-invoker RPC scopes rows, NFR-SC-SEC-001).
  *
- * Planned = a multi-point cumulative weight-normalized curve at each milestone
- * `target_date` (monotonic to 100%). Actual = a SINGLE weight-weighted "as of today"
- * rollup point (OBS-SC-001 — the data layer records no per-date actual history, so we
- * do not fabricate historical actuals). Planned vs actual are distinguished by line
- * STYLE (dashed vs solid) + a text legend, not color — both are One-Blue (DESIGN.md
- * single-blue identity, FR-SC-006 / NFR-SC-A11Y-001).
+ * Planned = dashed multi-point cumulative curve at each milestone `target_date`
+ * (monotonic → 100%). Actual = solid multi-point line via the hybrid source rule
+ * (FR-SCA-008): task-tracked milestones step at each Done task's `completed_at` (or
+ * `end_date` proxy); overridden/task-less milestones contribute at `target_date`.
+ * Falls back to a single as-of-today dot when tasks are absent (FR-SCA-011).
+ * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
  */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const { data, isPending, isError, refetch } = useMilestones(projectId);
+  // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
+  const { data: tasksData } = useTasks(projectId);
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const model = useMemo(
-    () => buildSCurve(data ?? [], todayIso()),
-    [data],
+    () => buildSCurve(data ?? [], todayIso(), tasksData ?? []),
+    [data, tasksData],
   );
+
+  // FR-SCA-013: suppress the lone dot only when the actual series has ≥2 points.
+  const hasActualSeries = model.points.filter((p) => p.actual !== null).length >= 2;
+
+  // Explicit evenly-spaced first-of-month ticks so recharts never auto-ticks
+  // at clustered data coordinates (fixes overlapping labels on the left when
+  // actual-line points cluster early in the timeline).
+  const axisTicks = useMemo(() => {
+    if (model.points.length === 0) return undefined;
+    const tsList = model.points.map((p) => p.ts);
+    const tsMin = Math.min(...tsList);
+    const tsMax = Math.max(...tsList);
+    return evenAxisTicks(tsMin, tsMax);
+  }, [model.points]);
 
   const state: ChartState = isPending
     ? 'loading'
@@ -73,6 +90,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
+                ticks={axisTicks}
                 tickFormatter={formatSCurveAxisDate}
                 tick={axisTickStyle}
                 tickLine={false}
@@ -106,14 +124,15 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 connectNulls
                 isAnimationActive={!prefersReducedMotion}
               />
-              {/* Actual = solid One-Blue, a single as-of-today point (OBS-SC-001). */}
+              {/* Actual = solid One-Blue; linear type gives a stepped real-history shape.
+                  Drop the lone dot at ≥2 actual points (FR-SCA-012/013). */}
               <Line
-                type="monotone"
+                type="linear"
                 dataKey="actual"
                 name="Actual to date"
                 stroke={chartTheme.series.primary}
                 strokeWidth={2}
-                dot={{ r: 4, fill: chartTheme.series.primary }}
+                dot={hasActualSeries ? false : { r: 4, fill: chartTheme.series.primary }}
                 connectNulls
                 isAnimationActive={!prefersReducedMotion}
               />
@@ -144,9 +163,9 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </span>
           </figcaption>
 
-          {/* OBS-SC-001 honesty caption — actual is a single as-of-today value, not history. */}
+          {/* FR-SCA-014 backfill caveat — proxy dates (completed_at absent) are estimates. */}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Actual reflects current progress as of today; historical actuals are not yet tracked.
+            Completion dates before today are estimated; live tracking starts now.
           </p>
         </figure>
       </ChartFrame>

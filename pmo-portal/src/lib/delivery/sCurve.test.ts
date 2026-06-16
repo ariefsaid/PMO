@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildSCurve, formatSCurveAxisDate } from './sCurve';
+import { buildSCurve, evenAxisTicks, formatSCurveAxisDate, isoToTs } from './sCurve';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import type { SCurveTask } from './sCurve';
 
 /**
- * Test oracle for the pure S-curve math util (FR-SC-002/003, OBS-SC-001).
+ * Test oracle for the pure S-curve math util (FR-SC-002/003, OBS-SC-001; v2 actual
+ * series: FR-SCA-008..011, AC-SCA-001..006, + the evenAxisTicks helper).
  * Each case drives a property of buildSCurve at the lowest sufficient layer.
  */
 
@@ -177,5 +179,261 @@ describe('buildSCurve', () => {
     expect(d22).toMatch(/\b22\b/);
     // UTC-stable: the day does not drift across timezones (no off-by-one).
     expect(formatSCurveAxisDate(Date.parse('2026-03-01T00:00:00Z'))).toMatch(/\b01 Mar '26\b/);
+  });
+});
+
+// ── evenAxisTicks ────────────────────────────────────────────────────────────
+
+describe('evenAxisTicks', () => {
+  /** Helper: convert a 'YYYY-MM-DD' string to UTC-midnight epoch ms. */
+  const ts = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+
+  /** Returns true when epoch ms falls on the first day of its UTC month. */
+  const isFirstOfMonth = (epochMs: number): boolean => {
+    const d = new Date(epochMs);
+    return d.getUTCDate() === 1;
+  };
+
+  it('returns ascending ticks all within [tsMin, tsMax]', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    expect(ticks.length).toBeGreaterThan(0);
+    for (const t of ticks) {
+      expect(t).toBeGreaterThanOrEqual(min);
+      expect(t).toBeLessThanOrEqual(max);
+    }
+    // strictly ascending
+    for (let i = 1; i < ticks.length; i++) {
+      expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+    }
+  });
+
+  it('returns roughly 5–7 ticks (monthly stride) for a 9-month span', () => {
+    const min = ts('2025-09-01');
+    const max = ts('2026-06-01');
+    const ticks = evenAxisTicks(min, max);
+
+    // 9-month span → monthly stride → ~9 ticks but we aim for 5–7
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    expect(ticks.length).toBeLessThanOrEqual(10);
+  });
+
+  it('returns all first-of-month UTC ticks', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    for (const t of ticks) {
+      expect(isFirstOfMonth(t)).toBe(true);
+    }
+  });
+
+  it('uses a wider stride (every 2nd or 3rd month) for a multi-year span', () => {
+    const min = ts('2023-01-01');
+    const max = ts('2026-12-31');
+    const ticks = evenAxisTicks(min, max);
+
+    // 48-month span → stride > 1 month → fewer than 20 ticks
+    expect(ticks.length).toBeLessThanOrEqual(20);
+    // Still at least a few
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    // All first-of-month
+    for (const t of ticks) {
+      expect(isFirstOfMonth(t)).toBe(true);
+    }
+  });
+
+  it('handles min === max by returning exactly one tick at or near that point', () => {
+    const min = ts('2026-03-15');
+    const ticks = evenAxisTicks(min, min);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(1);
+    // The single tick must be within [min, max] — since min === max, it equals min
+    expect(ticks[0]).toBe(min);
+  });
+
+  it('returns a tick close to tsMin and a tick close to tsMax for any span', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    const first = ticks[0];
+    const last = ticks[ticks.length - 1];
+
+    // First tick should be within 31 days of min
+    expect(first - min).toBeLessThanOrEqual(31 * 86_400_000);
+    // Last tick should be within 31 days of max
+    expect(max - last).toBeLessThanOrEqual(31 * 86_400_000);
+  });
+});
+
+// ── SCurveTask factory ──────────────────────────────────────────────────────
+/** Minimal SCurveTask — only the fields buildSCurve reads from a task. */
+const scTask = (over: Partial<SCurveTask> & { milestone_id: string | null }): SCurveTask => ({
+  milestone_id: over.milestone_id,
+  status: over.status ?? 'To Do',
+  completed_at: over.completed_at ?? null,
+  end_date: over.end_date ?? null,
+});
+
+/** Minimal milestone factory reused in the actual-series tests. */
+const msa = (over: Partial<MilestoneWithProgress>): MilestoneWithProgress => ({
+  id: over.id ?? 'm',
+  project_id: 'p1',
+  name: over.name ?? 'Phase',
+  sort_order: over.sort_order ?? 0,
+  target_date: over.target_date ?? null,
+  weight: over.weight ?? 1,
+  input_pct: over.input_pct ?? null,
+  task_count: over.task_count ?? 0,
+  calculated_pct: over.calculated_pct ?? null,
+  effective_pct: over.effective_pct ?? 0,
+});
+
+describe('buildSCurve — actual series', () => {
+  it('AC-SCA-001: ≥2 Done tasks at distinct completed_at → ≥2 non-null actual points, non-decreasing, last === actualToDate', () => {
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-01', weight: 1, effective_pct: 100 }),
+      msa({ id: 'm2', target_date: '2026-06-01', weight: 1, effective_pct: 100 }),
+    ];
+    const tasks = [
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-02-01T00:00:00Z' }),
+      scTask({ milestone_id: 'm2', status: 'Done', completed_at: '2026-05-01T00:00:00Z' }),
+    ];
+    const model = buildSCurve(milestones, '2026-06-16', tasks);
+
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    expect(actualPts.length).toBeGreaterThanOrEqual(2);
+
+    // Non-decreasing actual values.
+    const vals = actualPts.map((p) => p.actual as number);
+    for (let i = 1; i < vals.length; i++) {
+      expect(vals[i]).toBeGreaterThanOrEqual(vals[i - 1]);
+    }
+
+    // Last actual point equals actualToDate.
+    expect(vals[vals.length - 1]).toBeCloseTo(model.actualToDate, 2);
+  });
+
+  it('AC-SCA-002: mix of Done + non-Done → final actual point equals actualToDate within round2', () => {
+    // M1: weight 2, task-tracked, 1 Done / 2 total → effective_pct=50
+    // M2: weight 2, task-tracked, 0 Done / 1 total → effective_pct=0
+    // actualToDate = (2*50 + 2*0) / 4 = 25
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-01', weight: 2, effective_pct: 50 }),
+      msa({ id: 'm2', target_date: '2026-06-01', weight: 2, effective_pct: 0 }),
+    ];
+    const tasks = [
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-02-01T00:00:00Z' }),
+      scTask({ milestone_id: 'm1', status: 'In Progress' }),
+      scTask({ milestone_id: 'm2', status: 'In Progress' }),
+    ];
+    const model = buildSCurve(milestones, '2026-06-16', tasks);
+
+    // Anchor on the independently-known value (25) so a systematic error in actualToDate
+    // can't pass via self-consistency (review nit), THEN assert the endpoint reconciles to it.
+    expect(model.actualToDate).toBe(25);
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    const lastActual = actualPts[actualPts.length - 1].actual as number;
+    expect(lastActual).toBeCloseTo(model.actualToDate, 2);
+  });
+
+  it('AC-SCA-003: all tasks In Progress, no input_pct → exactly one actual point at asOf, no throw', () => {
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-01', weight: 1, effective_pct: 0 }),
+      msa({ id: 'm2', target_date: '2026-06-01', weight: 1, effective_pct: 0 }),
+    ];
+    const tasks = [
+      scTask({ milestone_id: 'm1', status: 'In Progress' }),
+      scTask({ milestone_id: 'm2', status: 'In Progress' }),
+    ];
+    expect(() => buildSCurve(milestones, '2026-06-16', tasks)).not.toThrow();
+    const model = buildSCurve(milestones, '2026-06-16', tasks);
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    expect(actualPts).toHaveLength(1);
+    expect(actualPts[0].date).toBe('2026-06-16');
+  });
+
+  it('AC-SCA-004: hybrid — override milestone uses target_date; task-tracked milestone uses task end_date', () => {
+    // M1: weight 2, input_pct=60, target_date='2025-03-01' → override path, contributes at 2025-03-01
+    // M2: weight 2, no input_pct, 1 Done task with end_date='2025-04-01' → task path, contributes at 2025-04-01
+    const milestones = [
+      msa({ id: 'm1', target_date: '2025-03-01', weight: 2, input_pct: 60, effective_pct: 60 }),
+      msa({ id: 'm2', target_date: '2025-04-01', weight: 2, input_pct: null, effective_pct: 100 }),
+    ];
+    const tasks = [
+      scTask({ milestone_id: 'm2', status: 'Done', end_date: '2025-04-01', completed_at: null }),
+    ];
+    const model = buildSCurve(milestones, '2026-06-16', tasks);
+
+    const actualPts = model.points.filter((p) => p.actual !== null);
+
+    // Should have a point at/near 2025-03-01 (from M1 override).
+    const tsM1 = isoToTs('2025-03-01');
+    const ptM1 = actualPts.find((p) => p.ts === tsM1);
+    expect(ptM1).toBeDefined();
+
+    // Should have a point at/near 2025-04-01 (from M2 task Done end_date).
+    const tsM2 = isoToTs('2025-04-01');
+    const ptM2 = actualPts.find((p) => p.ts === tsM2);
+    expect(ptM2).toBeDefined();
+
+    // Both timestamps ≤ isoToTs('2026-06-16').
+    const asOfTs = isoToTs('2026-06-16');
+    for (const pt of actualPts) {
+      expect(pt.ts).toBeLessThanOrEqual(asOfTs);
+    }
+  });
+
+  it('AC-SCA-005: task-less milestone with no input_pct and effective_pct=0 → one actual at target_date valued 0', () => {
+    const milestones = [
+      msa({ id: 'm1', target_date: '2025-06-01', weight: 1, input_pct: null, effective_pct: 0 }),
+    ];
+    const model = buildSCurve(milestones, '2026-06-16', []);
+
+    expect(model.actualToDate).toBe(0);
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    // The milestone has no tasks, no input_pct → task-less path: contributes at target_date with value 0.
+    // Since actualToDate=0, we expect at least one actual point at 2025-06-01 valued 0 (or the asOf fallback).
+    expect(actualPts.length).toBeGreaterThanOrEqual(1);
+    // Find a point near 2025-06-01.
+    const tsTarget = isoToTs('2025-06-01');
+    const ptTarget = actualPts.find((p) => p.ts === tsTarget);
+    expect(ptTarget).toBeDefined();
+    expect(ptTarget!.actual).toBe(0);
+  });
+
+  it('AC-SCA-006: Done task with future end_date and no completed_at → contribution clamped to asOf', () => {
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-01', weight: 1, input_pct: null, effective_pct: 100 }),
+    ];
+    const tasks = [
+      // Future end_date, no completed_at — proxy must clamp to asOf.
+      scTask({ milestone_id: 'm1', status: 'Done', end_date: '2027-12-31', completed_at: null }),
+    ];
+    const model = buildSCurve(milestones, '2026-06-16', tasks);
+
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    const asOfTs = isoToTs('2026-06-16');
+    // The contribution should be placed at asOf (clamped, not at 2027-12-31).
+    expect(actualPts.some((p) => p.ts === asOfTs)).toBe(true);
+    // No point beyond asOf.
+    for (const pt of actualPts) {
+      expect(pt.ts).toBeLessThanOrEqual(asOfTs);
+    }
+  });
+
+  it('AC-SCA-003 regression: tasks arg omitted → single actual point at asOf (fallback unchanged)', () => {
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-01', weight: 1, effective_pct: 100 }),
+      msa({ id: 'm2', target_date: '2026-06-01', weight: 1, effective_pct: 50 }),
+    ];
+    const model = buildSCurve(milestones, '2026-05-01'); // no tasks arg
+    const actualPts = model.points.filter((p) => p.actual !== null);
+    expect(actualPts).toHaveLength(1);
+    expect(actualPts[0].date).toBe('2026-05-01');
+    expect(actualPts[0].actual).toBe(model.actualToDate);
   });
 });

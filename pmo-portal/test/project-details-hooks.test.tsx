@@ -59,6 +59,11 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+// ProjectSCurve reads useTasks (ADR-0032) → stub it so the real hook's useAuth call
+// doesn't fire in this hooks-order test.
+vi.mock('@/src/hooks/useTasks', () => ({
+  useTasks: () => ({ data: [], isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestones: () => ({ data: [], isPending: false, isError: false }),
   useMilestoneMutations: () => ({

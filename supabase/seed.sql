@@ -652,6 +652,17 @@ insert into tasks (id, project_id, name, start_date, end_date, assignee_id, stat
 
 on conflict (id) do nothing;
 
+-- ── completion dates for the S-curve actual line (ADR-0032 / migration 0034) ──
+-- The `stamp_task_completed_at` trigger stamps `now()` on every INSERT-as-Done, so the
+-- Done tasks above would all complete "today" → the S-curve actual line collapses to a
+-- single dot. For a believable demo, give each Done task a historical completion date =
+-- its scheduled finish (`end_date`), exactly as the migration-0034 backfill does for real
+-- pre-existing prod data. Trigger disabled so it doesn't overwrite with now(); re-enabled
+-- after. (Local/demo seed only — never prod business data; see docs/environments.md.)
+alter table tasks disable trigger trg_stamp_task_completed_at;
+update tasks set completed_at = coalesce(end_date::timestamptz, created_at) where status = 'Done';
+alter table tasks enable trigger trg_stamp_task_completed_at;
+
 -- ── task_dependencies ────────────────────────────────────────────────────────
 
 insert into task_dependencies (task_id, depends_on_id) values

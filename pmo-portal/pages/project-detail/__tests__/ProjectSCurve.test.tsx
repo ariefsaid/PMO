@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import type { TaskWithRefs } from '@/src/lib/db/tasks';
 
 // ── Stub the milestone read (the S-curve's only data source) ─────────────────
 const milestoneState = {
@@ -15,11 +16,25 @@ vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestones: () => milestoneState,
 }));
 
+// ── Stub the tasks read (NFR-SCA-004 — no extra round-trip; reuses same data) ─
+const taskState = {
+  data: [] as TaskWithRefs[] | undefined,
+  isPending: false,
+  isError: false,
+};
+
+vi.mock('@/src/hooks/useTasks', () => ({
+  useTasks: () => taskState,
+}));
+
 // Captured props from LineChart mock — set on every render.
 let capturedLineChartMargin: { top?: number; right?: number; bottom?: number; left?: number } | undefined;
 // YAxis width extracted from LineChart children (recharts wraps YAxis in React.memo so
 // el.type is an object with a `displayName` property, not a plain function).
 let capturedYAxisWidth: number | undefined;
+// Line props captured from LineChart children (AC-SCA-012).
+interface CapturedLine { dataKey: string; strokeDasharray: string | undefined }
+let capturedLines: CapturedLine[] = [];
 
 /** Extract a display name from any React element type (function, memo object, or string). */
 function getTypeName(type: unknown): string | undefined {
@@ -36,8 +51,8 @@ function getTypeName(type: unknown): string | undefined {
 }
 
 // recharts' ResponsiveContainer needs a non-zero parent size under jsdom; force it.
-// Also intercept LineChart to capture its margin prop (AC-SC-009) and scan its children
-// for a YAxis element to capture the width prop (AC-SC-010).
+// Also intercept LineChart to capture its margin prop (AC-SC-009), YAxis width (AC-SC-010),
+// and Line props (AC-SCA-012).
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
@@ -47,13 +62,20 @@ vi.mock('recharts', async () => {
     ),
     LineChart: ({ children, margin, ...rest }: React.ComponentProps<typeof actual.LineChart>) => {
       capturedLineChartMargin = margin as typeof capturedLineChartMargin;
-      // Recharts treats YAxis as a config child — scan children for YAxis element to
-      // capture its `width` prop before passing to the real LineChart.
+      capturedLines = [];
+      // Recharts treats YAxis/Line as config children — scan children to capture props.
       React.Children.forEach(children as React.ReactNode, (child) => {
         if (React.isValidElement(child)) {
           const name = getTypeName(child.type);
           if (name === 'YAxis') {
             capturedYAxisWidth = (child.props as { width?: number }).width;
+          }
+          if (name === 'Line') {
+            const p = child.props as { dataKey?: string; strokeDasharray?: string };
+            capturedLines.push({
+              dataKey: p.dataKey ?? '',
+              strokeDasharray: p.strokeDasharray,
+            });
           }
         }
       });
@@ -78,6 +100,43 @@ const dated: MilestoneWithProgress[] = [
   },
 ];
 
+/**
+ * Milestones for the actual-line tests: no input_pct override, task-tracked.
+ * milestone 'ms1' has 2 Done tasks at different dates → hybrid task-level path.
+ */
+const datedTaskTracked: MilestoneWithProgress[] = [
+  {
+    id: 'ms1', project_id: 'p1', name: 'Phase 1', sort_order: 0,
+    target_date: '2026-03-01', weight: 2, input_pct: null, task_count: 2,
+    calculated_pct: 100, effective_pct: 100,
+  },
+];
+
+/** Minimal TaskWithRefs shape — only the SCurveTask fields matter here. */
+function makeTask(overrides: {
+  id?: string;
+  milestone_id?: string | null;
+  status?: string;
+  completed_at?: string | null;
+  end_date?: string | null;
+}): TaskWithRefs {
+  return {
+    id: overrides.id ?? 'task-1',
+    org_id: 'org1',
+    project_id: 'p1',
+    milestone_id: overrides.milestone_id ?? 'ms1',
+    name: 'Task',
+    status: (overrides.status ?? 'Done') as TaskWithRefs['status'],
+    assignee_id: null,
+    start_date: null,
+    end_date: overrides.end_date ?? null,
+    completed_at: overrides.completed_at ?? null,
+    created_at: '2026-01-01T00:00:00Z',
+    assignee: null,
+    dependencies: [],
+  };
+}
+
 const undated: MilestoneWithProgress[] = dated.map((m) => ({ ...m, target_date: null }));
 
 const render$ = () => render(<ProjectSCurve projectId="p1" />);
@@ -89,8 +148,12 @@ describe('ProjectSCurve', () => {
     milestoneState.isPending = false;
     milestoneState.isError = false;
     milestoneState.refetch = vi.fn();
+    taskState.data = [];
+    taskState.isPending = false;
+    taskState.isError = false;
     capturedLineChartMargin = undefined;
     capturedYAxisWidth = undefined;
+    capturedLines = [];
   });
 
   it('AC-SC-005: ready with dated milestones renders the chart figure with a Planned/Actual two-item text legend', () => {
@@ -171,5 +234,42 @@ describe('ProjectSCurve', () => {
     // recharts wraps YAxis in React.memo; getTypeName() handles memo object displayName.
     expect(capturedYAxisWidth).toBeDefined();
     expect(capturedYAxisWidth!).toBeGreaterThanOrEqual(44);
+  });
+
+  it('AC-SCA-012: with ≥2 Done tasks at different dates, renders two Lines — one dashed (planned) and one solid (actual, dataKey=actual)', () => {
+    // AC-SCA-012: Given a project with ≥2 Done tasks at different dates,
+    // When ProjectSCurve renders with real milestones + tasks data,
+    // Then the LineChart contains two <Line> elements:
+    //   one with strokeDasharray set (planned — dashed),
+    //   one without strokeDasharray (actual — solid),
+    //   and the actual <Line> dataKey is 'actual'.
+    milestoneState.data = datedTaskTracked;
+    taskState.data = [
+      makeTask({ id: 't1', milestone_id: 'ms1', status: 'Done', completed_at: '2026-01-15T10:00:00Z' }),
+      makeTask({ id: 't2', milestone_id: 'ms1', status: 'Done', completed_at: '2026-02-20T10:00:00Z' }),
+    ];
+    render$();
+
+    expect(capturedLines).toHaveLength(2);
+
+    const dashedLine = capturedLines.find((l) => l.strokeDasharray != null && l.strokeDasharray !== '');
+    const solidLine = capturedLines.find((l) => !l.strokeDasharray);
+
+    expect(dashedLine).toBeDefined(); // planned — dashed
+    expect(solidLine).toBeDefined(); // actual — solid
+    expect(solidLine!.dataKey).toBe('actual');
+  });
+
+  it('AC-SCA-013: with at least one actual data point, renders the backfill caveat text', () => {
+    // AC-SCA-013: When ProjectSCurve renders with at least one actual data point,
+    // Then the DOM contains "Completion dates before today are estimated".
+    milestoneState.data = datedTaskTracked;
+    taskState.data = [
+      makeTask({ id: 't1', milestone_id: 'ms1', status: 'Done', completed_at: '2026-01-15T10:00:00Z' }),
+      makeTask({ id: 't2', milestone_id: 'ms1', status: 'Done', completed_at: '2026-02-20T10:00:00Z' }),
+    ];
+    render$();
+
+    expect(screen.getByText(/Completion dates before today are estimated/i)).toBeInTheDocument();
   });
 });
