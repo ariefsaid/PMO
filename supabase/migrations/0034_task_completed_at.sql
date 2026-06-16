@@ -31,7 +31,10 @@ create trigger trg_stamp_task_completed_at
   before insert or update on tasks
   for each row execute function stamp_task_completed_at();
 
--- 4. Backfill existing Done rows (disable trigger so the trigger's else-branch doesn't overwrite the explicit set)
+-- 4. Backfill existing Done rows (disable trigger so the trigger's else-branch doesn't overwrite the explicit set).
+--    `end_date` (the task's scheduled finish) is the honest completion proxy; `created_at` is the weaker
+--    fallback only when end_date is null (it can pre-date the true completion) — both are ESTIMATES, surfaced
+--    by the FR-SCA-014 "dates before today are estimated" chart caveat. Go-forward writes are real (trigger).
 alter table tasks disable trigger trg_stamp_task_completed_at;
 
 update tasks

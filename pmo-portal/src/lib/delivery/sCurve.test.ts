@@ -4,7 +4,8 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { SCurveTask } from './sCurve';
 
 /**
- * Test oracle for the pure S-curve math util (FR-SC-002/003, OBS-SC-001).
+ * Test oracle for the pure S-curve math util (FR-SC-002/003, OBS-SC-001; v2 actual
+ * series: FR-SCA-008..011, AC-SCA-001..006, + the evenAxisTicks helper).
  * Each case drives a property of buildSCurve at the lowest sufficient layer.
  */
 
@@ -331,6 +332,9 @@ describe('buildSCurve — actual series', () => {
     ];
     const model = buildSCurve(milestones, '2026-06-16', tasks);
 
+    // Anchor on the independently-known value (25) so a systematic error in actualToDate
+    // can't pass via self-consistency (review nit), THEN assert the endpoint reconciles to it.
+    expect(model.actualToDate).toBe(25);
     const actualPts = model.points.filter((p) => p.actual !== null);
     const lastActual = actualPts[actualPts.length - 1].actual as number;
     expect(lastActual).toBeCloseTo(model.actualToDate, 2);
