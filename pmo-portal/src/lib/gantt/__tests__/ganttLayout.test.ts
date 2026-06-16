@@ -3,7 +3,7 @@
  * All ACs at this layer (ADR-0010): AC-GANTT-001, 002, 003, 004, 006.
  */
 import { describe, it, expect } from 'vitest';
-import { buildGanttModel } from '../ganttLayout';
+import { buildGanttModel, type GanttLayoutConfig } from '../ganttLayout';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -282,6 +282,57 @@ describe('AC-GANTT-006: bars appear under milestone lanes ordered by sort_order 
     const model = buildGanttModel(tasks, [], '2026-01-05');
     const bars = model.lanes.flatMap((l) => l.bars);
     expect(bars.find((b) => b.id === 'a')!.dependsOnCount).toBe(2);
+  });
+});
+
+// ── AC-GANTT-011: pixel geometry ──────────────────────────────────────────────
+
+const MONTH_CFG: GanttLayoutConfig = {
+  scale: 'month',
+  rowHeight: 40,
+  laneHeaderHeight: 36,
+  axisHeight: 32,
+};
+
+describe('AC-GANTT-011: pixel geometry (config yields absolute px boxes)', () => {
+  it('AC-GANTT-011: config yields px geometry with correct contentWidth and bar boxes', () => {
+    // Span 2026-01-01..2026-01-11 (10 days). month scale → 6px/day.
+    // Task A: full span → xStart 0, xEnd 60. Task B: 2026-01-06..2026-01-11 → xStart 30, xEnd 60.
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
+      makeTask({ id: 'b', name: 'Task B', start_date: '2026-01-06', end_date: '2026-01-11' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
+
+    expect(model.geometry).not.toBeNull();
+    const geo = model.geometry!;
+    expect(geo.pxPerDay).toBe(6);
+    expect(geo.contentWidth).toBeCloseTo(10 * 6, 6); // 60
+
+    const boxA = geo.bars.find((b) => b.id === 'a')!;
+    const boxB = geo.bars.find((b) => b.id === 'b')!;
+    expect(boxA).toBeDefined();
+    expect(boxA.xStart).toBeCloseTo(0, 6);
+    expect(boxA.xEnd).toBeCloseTo(60, 6);
+    expect(boxB.xStart).toBeCloseTo(30, 6);
+    expect(boxB.xEnd).toBeCloseTo(60, 6);
+    // Each bar has a positive row height and a distinct y.
+    expect(boxA.h).toBeGreaterThan(0);
+    expect(boxB.y).toBeGreaterThan(boxA.y);
+  });
+
+  it('AC-GANTT-011: omitting config keeps geometry null (v1 back-compat)', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
+      makeTask({ id: 'b', name: 'Task B', start_date: '2026-01-06', end_date: '2026-01-11' }),
+    ];
+    const withCfg = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
+    const noCfg = buildGanttModel(tasks, [], '2026-01-05');
+    expect(noCfg.geometry).toBeNull();
+    // The v1 fraction lanes are identical whether or not a config is passed.
+    expect(noCfg.lanes).toEqual(withCfg.lanes);
+    expect(noCfg.span).toEqual(withCfg.span);
+    expect(noCfg.ticks).toEqual(withCfg.ticks);
   });
 });
 
