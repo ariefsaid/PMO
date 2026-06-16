@@ -1,5 +1,7 @@
 # Lens D (JTBD) cognitive-walkthrough pass — dual-substrate, on `dev`
 
+> ⚑ SUPERSEDED by ADR-0030 (2026-06-16). This is the NARRATIVE JTBD-walkthrough method, retired in favour of the enumerated CENSUS (docs/reviews/2026-06-14-jtbd-census.md) + the Discover→Graduate→Cover portfolio (docs/qa-portfolio.md). Kept for history; do NOT use it as a review method.
+
 **Status:** COMPLETE (2026-06-14). The first run of **Lens D — Product / Intent (JTBD Cognitive
 Walkthrough)** (charter: [`2026-06-14-intent-lens-gap.md`](2026-06-14-intent-lens-gap.md); oracle:
 [`../jtbd.md`](../jtbd.md)). This is **discovery** — a triaged backlog of intent gaps to feed the next
