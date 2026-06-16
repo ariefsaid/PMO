@@ -468,4 +468,15 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     expect(screen.getByText(/no dated work yet/i)).toBeInTheDocument();
     expect(screen.queryByTestId('gantt-mobile-notice')).toBeNull();
   });
+
+  it('AC-GANTT-D1-5: the mobile notice exposes its title as a heading', () => {
+    mockViewport(390);
+    const tasks = [
+      makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
+    ];
+    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+
+    // The styled title is a semantic heading so screen-reader users can jump to it.
+    expect(screen.getByRole('heading', { name: /open on a larger screen/i })).toBeInTheDocument();
+  });
 });

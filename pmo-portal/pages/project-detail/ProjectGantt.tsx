@@ -389,7 +389,7 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="cal" className="size-6" strokeWidth={1.75} />
     </span>
-    <div className="text-[15px] font-semibold">Open on a larger screen</div>
+    <h3 className="text-[15px] font-semibold">Open on a larger screen</h3>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">
       The timeline is best viewed on a wider screen. Switch to a view that fits your device:
     </div>
