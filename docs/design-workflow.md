@@ -26,6 +26,12 @@ Establish the design system before any UI issue builds on it.
    sign-off). Until signed, no UI issue proceeds.
 
 ## 1a. Pre-spec HTML mockup gate (every UI issue — before Spec) — design-review **ROUND 1 of 2**
+> **⚑ FALLBACK PATH (review mode `4-lens`/`3-lens`).** Under the **default `portfolio`** mode (ADR-0030),
+> this full mockup round is **demoted to a ~30-second owner sketch-glance** (`docs/director-playbook.md`
+> §2 step 1c) — directional "right shape?" alignment, not an agent battery. The full mockup round below
+> runs **only** when `review mode` (top of `docs/qa-portfolio.md`) is flipped to `4-lens`/`3-lens`. Kept
+> intact as the reversible fallback.
+
 Runs at **intake**, right after the `grill-with-docs` alignment grill (`docs/director-playbook.md`
 §2 step 1b/1c) and **before any spec/plan/build effort is committed**. The mockup is the cheap
 artifact that absorbs taste/IxD/IA iteration so the per-issue loop (§2) doesn't re-litigate it
@@ -60,7 +66,13 @@ update the e2e *steps*, never weaken the goal-oracle to match the rendered app (
 2. **UI-implement** *(`ui-ux-pro-max` `ui-styling` + `build`; `taste` discipline; `impeccable`
    `harden`/`adapt`/`animate`/`clarify` per plan)* — `ui-implementer` builds strictly to tokens + the
    design-plan; all states + responsive + a11y; TDD component tests (Vitest/RTL). No raw hex/spacing.
-3. **Design-review — the standing FOUR-LENS battery (review ROUND 2 of 2 — post-build drift pass)** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the others (this gap let real IxD/IA/intent defects ship). This is the **second** of the two mandatory FE reviews: beyond `DESIGN.md` + the design-plan, it **explicitly diffs the rendered build against the owner-approved mockup (§1a) to catch mockup→implementation drift** (spacing/scale/state/interaction that slipped between the approved design and the built result). Findings write to `review/*.md`.
+3. **Design-review.** **Default (review mode `portfolio`, ADR-0030):** a **single rendered Discover pass** —
+   `design-reviewer` renders the running app on **rich seed** and audits **open-endedly** (no checklist;
+   `taste`/`impeccable`/`design-review`), and **every finding GRADUATES** into a test + a `routes × oracles`
+   matrix cell + a `DESIGN.md`/`docs/decisions.md` note (`docs/qa-portfolio.md` "Graduation registry"). The
+   double-pass is retired — one retained pass beats two stateless ones. Deterministic correctness (token/visual
+   drift, chart positions, money, dates, a11y) moves to **Layer-1 CI gate-tests**, not this human pass.
+   **Fallback (review mode `4-lens`/`3-lens`) — the standing FOUR-LENS battery (review ROUND 2 of 2 — post-build drift pass)** *(read-only; renders + screenshots the running app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly directed** — a single generic "UX review" prompt reliably hits only the first and misses the others (this gap let real IxD/IA/intent defects ship). This is the **second** of the two mandatory FE reviews: beyond `DESIGN.md` + the design-plan, it **explicitly diffs the rendered build against the owner-approved mockup (§1a) to catch mockup→implementation drift** (spacing/scale/state/interaction that slipped between the approved design and the built result). Findings write to `review/*.md`.
    - **(a) Visual / correctness** *(`design-review` engine + `impeccable critique`/`audit`; `taste` AI-tells; `ui-ux-pro-max` `review`)* — token fidelity, hierarchy, all states, AI-slop, WCAG-AA, interaction perf, vs `DESIGN.md` + the design-plan.
    - **(b) IxD / task-flow naturalness** *(`impeccable critique`: Nielsen-10 scored + cognitive-load + 5-persona walkthrough; `ui-ux-pro-max` `primary-action`/`progressive-disclosure`/`success-feedback`)* — for each role's REAL tasks, walk the journey in the running app and flag **workflow friction, convention violation, needless state transition, information overload, mental-model mismatch, task-analysis gap**. *Naturalness, not correctness.* (e.g. timesheet Save↔Submit split across a view change.) **Scoped to flow-smoothness — not job-fit (that is Lens D).**
    - **(c) IA / structure & navigation** *(Nielsen #4 Consistency + IA first-principles + ERP/CRM/PSA domain conventions)* — **one canonical home/URL per entity**, no list/route overlap, no entry-point-dependent rendering, coherent lifecycle presentation, consistent breadcrumb/back. *Structure, not flow.* (e.g. one record → two lists → two detail pages.)
@@ -111,7 +123,7 @@ variants) + a11y checks in isolation. Not before — premature Storybook is over
 |---|---|---|
 | spec-miner / eng-planner | **design-architect** | reverse-engineer `DESIGN.md`; per-issue design-plan (read-only on code, writes DESIGN.md + docs/) |
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
-| spec-reviewer + code-quality-reviewer + security-auditor (the **3-reviewer** code battery) | **design-reviewer** (the **4-lens** battery, run **twice** — mockup §1a + built UI §2.3 for drift) | render + screenshot; audit vs `DESIGN.md` + plan + the approved mockup + `docs/jtbd.md` (Lens D); AI-slop / a11y / perf; read-only |
+| spec-reviewer + code-quality-reviewer + security-auditor (the **3-reviewer** code battery) | **design-reviewer** — default (`portfolio`): **one rendered Discover pass** on rich seed, every finding **graduated** into a test + matrix cell + DESIGN/decision note (ADR-0030); fallback (`4-lens`/`3-lens`): the **4-lens** battery run **twice** (mockup §1a + built UI §2.3 for drift) | render + screenshot; audit vs `DESIGN.md` + plan (+ approved mockup + `docs/jtbd.md` Lens D in `4-lens` mode); AI-slop / a11y / perf; read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** (owner sign-off) |
 
 ### Skills → exact commands per agent (one owner per command — no overlap)

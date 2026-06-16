@@ -23,25 +23,35 @@ boundaries and before any push / merge / deploy.
 > **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
 > (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
 > the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
-> right now.** The loop and gates are unchanged.
+> right now.** The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
+> (`docs/qa-portfolio.md`, `review mode: portfolio` default — see the loop below).
 
-Per-issue loop:
+Per-issue loop (**QA = ADR-0030 "Discover → Graduate → Cover" portfolio; source of truth `docs/qa-portfolio.md`**,
+with a `review mode` switch at its top: `portfolio` default | `4-lens` | `3-lens` fallback — the lens battery
+stays intact in-repo, flip the mode to revert):
 
 1. **Intake** — Director clarifies the issue with the owner, then runs the **`grill-with-docs` alignment
-   grill**; UI issues additionally require an **owner-approved static HTML mockup** (full 3-lens design
-   review — **round 1 of 2**, `docs/design-workflow.md` §1a) before Spec.
+   grill** + captures the **job story**; UI issues additionally get a **~30-second owner sketch-glance** of
+   layout/intent (directional "right shape?", NOT a full-lens mockup audit) before Spec. *(In `4-lens`/`3-lens`
+   mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — `implementer` (red-green-refactor; no prod code without a failing test).
+4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing
+   test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
+   derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
 5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
-   (OWASP/STRIDE on auth + RLS + `org_id` tenancy). All three run on every code issue — the code-side
-   analog of the design 3-lens. (Security focuses its depth on auth/RLS/RPC/public surfaces; on a change
-   that touches none it confirms that quickly.)
-6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
-7. **Design re-review (FE/UI only — round 2 of 2)** — `design-reviewer` re-runs the full 3-lens battery on
-   the *rendered, implemented* UI to capture **mockup→build drift** (round 1 was the §1a mockup gate). Fixes
-   route back to `ui-implementer` until ship-clean.
-8. **Ship** — `release-engineer` (branch → commit → push → PR).
+   (OWASP/STRIDE on auth + RLS + `org_id` tenancy; right-sized per model-tiering). All three run on every code
+   issue. (Security focuses its depth on auth/RLS/RPC/public surfaces; on a change that touches none it
+   confirms that quickly.)
+6. **Discover (FE/UI only — the rendered unknown-unknown net)** — `design-reviewer` renders the running app
+   on **rich seed** and audits open-endedly (no checklist). **Every finding GRADUATES** → a test + a
+   `routes × oracles` matrix cell + a `DESIGN.md`/`docs/decisions.md` note (the retention KB,
+   `docs/qa-portfolio.md`). Fixes route to `ui-implementer`; **re-render until clean.** Runs alongside step 5.
+   *(In `4-lens`/`3-lens` mode this is the legacy rendered §2.3 battery, round 2 of 2, mockup-drift check.)*
+7. **Cover / Accept (BDD)** — the Layer-1 gate-tests + the enumerated `routes × oracles` sweep + `qa-acceptance`
+   verify each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
+8. **Ship** — `release-engineer` (branch → commit → push → PR). *(Adversarial red-team review is a launch /
+   version gate, not per-PR — ADR-0030 §E.)*
 
 ## Director posture (main session)
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
@@ -58,8 +68,10 @@ for one client, architected to scale to millions.
   strategic or out-of-spec.
 - **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; `/design-review`
-  before merging UI changes; Storybook for the shared component library (from Phase 3).
+- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; QA per the
+  **ADR-0030 portfolio** (`docs/qa-portfolio.md`) — Layer-1 deterministic gate-tests + a rendered Discover
+  pass (every finding graduated) before merging UI changes (`/design-review` is the `4-lens`-mode fallback);
+  Storybook for the shared component library (from Phase 3).
 
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.

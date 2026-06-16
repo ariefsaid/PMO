@@ -92,7 +92,7 @@ production-SaaS bar.
 | **Design+Plan** | eng-planner | Design covers architecture, components, data flow, error handling, testing; plan is no-placeholder 2–5 min tasks, each naming the `AC-###` it satisfies; ADR written if the decision is architectural/irreversible. |
 | **Data/Schema** | eng-planner + implementer (+ code-quality-reviewer: index/query-plan audit) | Migration is reviewed and **reversible**; **RLS enabled on every business table**; `org_id` tenancy seam present and not bypassable; **indexes for hot paths** (filtered/joined columns; no N+1) — audited at Review; seed/typed-client regenerated. |
 | **Build (TDD)** | implementer | RED→GREEN→REFACTOR; no prod code without a failing test first; behavior covered (incl. loading/empty/error/edge); follows existing patterns; YAGNI; **does not change existing behavior when the task is a quality upgrade**. |
-| **Frontend/UI** | implementer + design-reviewer (**×2**) | Reusable, accessible (WCAG AA) components; loading/empty/error/edge states handled; responsive; matches `DESIGN.md` tokens; **4-lens** design-review passed **twice** — round 1 on the mockup (design-workflow §1a) and round 2 on the built UI (§2.3, explicit drift check vs the approved mockup) — for UI-affecting changes. **Lens D (Intent/JTBD)** grades against `docs/jtbd.md`; the feature's job story must be captured there before the mockup. |
+| **Frontend/UI** | implementer + design-reviewer | Reusable, accessible (WCAG AA) components; loading/empty/error/edge states handled; responsive; matches `DESIGN.md` tokens. **QA = ADR-0030 portfolio (default `review mode: portfolio`):** deterministic correctness (token/visual drift, chart positions, money, dates, a11y) is locked by **Layer-1 CI gate-tests**, not human review; one **rendered Discover pass** (`design-reviewer` on rich seed) finds unknown-unknowns and **every finding graduates** into a test + a `routes × oracles` matrix cell + a `DESIGN.md`/`docs/decisions.md` note (`docs/qa-portfolio.md`). *Fallback (`review mode: 4-lens`/`3-lens`):* the legacy **4-lens** design-review **×2** (mockup §1a + built-UI §2.3 drift), **Lens D (Intent/JTBD)** graded against `docs/jtbd.md` with the job story captured before the mockup. |
 | **Review (3 reviewers, always)** | spec-reviewer + code-quality-reviewer + security-auditor | Spec compliance verified by reading code (not the report); quality pass on single-responsibility, decomposition, naming, maintainability, scalability, **and performance — incl. DB query-plans / indexes on filtered+joined columns / N+1 for SQL/migration/DAL changes**; plus the security audit (next row). **All three run on every code issue.** No Critical/Important issues left open. |
 | **Acceptance (BDD)** | qa-acceptance | Each `AC-###` has a passing **owning test at its lowest sufficient layer** (Unit / pgTAP / E2E per ADR-0010), AC-id-tagged for traceability; cross-stack journeys covered by the curated e2e set; per-AC pass matrix green across all three layers. **Each test encodes the user's real, intuitive journey to accomplish the task end-to-end and asserts the user's goal; the app conforms to the test, never the reverse. On failure: fix the app — or, *only* for a deliberate UX change, update the journey *steps* while keeping the goal-oracle intact — never bend an assertion to the app's current state to go green.** |
 | **Security** | security-auditor | **Runs on every code issue** (the standard 3rd reviewer): goes deep on auth / RLS / tenancy / API-surface (OWASP Top 10 + STRIDE) and quick-confirms when a change touches none; no High/Critical findings; no secrets in code or history. |
@@ -128,8 +128,20 @@ contract). Not for routine implementation choices.
   [design.md](https://github.com/google-labs-code/design.md) format (YAML token front-matter:
   colors/typography/spacing/rounded/components + markdown rationale: Overview, Colors, Typography,
   Layout, Elevation, Shapes, Components, Do's & Don'ts). Built via `/design-consultation` (Phase 3).
-- Frontend flow per UI issue: **design plan → implement → 4-lens design-review ×2** (round 1 on the mockup §1a, round 2 on the built UI §2.3 with an explicit drift check vs the approved mockup) before merge. The **4-lens battery** is: **Lens A — Visual / correctness · Lens B — IxD / task-flow naturalness · Lens C — IA / structure · Lens D — Product / Intent (JTBD)**. All four run at both rounds; `design-reviewer` owns all four.
-- **Lens D — Product / Intent (JTBD) is a binding FE gate** alongside Lenses A/B/C. It grades intent-fit against `docs/jtbd.md` (the role × job-story oracle). A feature without a captured job story in `docs/jtbd.md` has no Lens D oracle and cannot pass the intent gate. Full workflow: `docs/design-workflow.md` §2.3(d).
+- Frontend flow per UI issue (**default `review mode: portfolio`**, ADR-0030 — source of truth
+  `docs/qa-portfolio.md`): **owner sketch-glance (~30 s) → design plan → implement → Layer-1 deterministic
+  gate-tests + one rendered Discover pass (graduate every finding) → enumerated `routes × oracles` sweep on
+  affected routes** before merge. Deterministic correctness (token/visual drift, chart positions, money,
+  dates, a11y) is a CI gate-test, not a human lens; the single retained Discover pass replaces the old
+  double-pass.
+- **Fallback (`review mode: 4-lens`/`3-lens`):** the legacy **4-lens design-review ×2** (round 1 on the
+  mockup §1a, round 2 on the built UI §2.3 with an explicit drift check vs the approved mockup). The
+  **4-lens battery** is: **Lens A — Visual / correctness · Lens B — IxD / task-flow naturalness · Lens C —
+  IA / structure · Lens D — Product / Intent (JTBD)**; all four run at both rounds; `design-reviewer` owns
+  all four. **Lens D** grades intent-fit against `docs/jtbd.md` (the role × job-story oracle) — a feature
+  without a captured job story has no Lens D oracle and cannot pass the intent gate. Flip the mode (top of
+  `docs/qa-portfolio.md`) to re-enable this battery; it stays intact in-repo. Full workflow:
+  `docs/design-workflow.md` §1a/§2.3.
 - **Storybook** is adopted for the shared component library (isolated component dev, state matrix,
   a11y checks) — introduced in Phase 3 when the reusable component library is created, not before.
 
