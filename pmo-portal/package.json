@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "verify": "npm run typecheck && npm run lint:ci && npm run test && npm run build",
     "e2e": "playwright test"
   },
   "dependencies": {
