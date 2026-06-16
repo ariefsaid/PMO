@@ -115,6 +115,93 @@ export const formatSCurveAxisDate = (epochMs: number): string => {
 };
 
 /**
+ * Returns evenly-spaced first-of-month UTC epoch-ms ticks across [tsMin, tsMax].
+ *
+ * Stride selection keeps the tick count in the 5–7 range for readability:
+ *   span ≤ 7 months  → monthly (stride 1)
+ *   span ≤ 18 months → every 2nd month (stride 2)
+ *   span ≤ 36 months → every 3rd month (stride 3)
+ *   span > 36 months → quarterly (stride 4)
+ *
+ * All ticks are first-of-month boundaries so labels never overlap regardless of
+ * how clustered the underlying data points are (fixes the overlapping-axis-label
+ * defect caused by auto-ticks near clustered actual-line coordinates).
+ *
+ * Exported so unit tests can assert determinism and the component can pass
+ * explicit `ticks` to recharts XAxis.
+ */
+export function evenAxisTicks(tsMin: number, tsMax: number): number[] {
+  // Edge: degenerate range — return the single point as-is.
+  if (tsMin >= tsMax) return [tsMin];
+
+  // Identify the first first-of-month UTC date on or after tsMin.
+  const dMin = new Date(tsMin);
+  let year = dMin.getUTCFullYear();
+  let month = dMin.getUTCMonth(); // 0-based
+
+  // If tsMin is not already the 1st, advance to the next month's 1st.
+  if (dMin.getUTCDate() !== 1) {
+    month += 1;
+    if (month > 11) { month = 0; year += 1; }
+  }
+
+  // Identify the last first-of-month UTC date on or before tsMax.
+  const dMax = new Date(tsMax);
+  let endYear = dMax.getUTCFullYear();
+  let endMonth = dMax.getUTCMonth();
+  // Step back to the 1st of the current month if needed.
+  // (Date.UTC with day=1 always gives midnight UTC.)
+  if (Date.UTC(endYear, endMonth, 1) > tsMax) {
+    endMonth -= 1;
+    if (endMonth < 0) { endMonth = 11; endYear -= 1; }
+  }
+
+  // Total number of first-of-month boundaries from start to end (inclusive).
+  const totalMonths = (endYear - year) * 12 + (endMonth - month) + 1;
+
+  if (totalMonths <= 0) {
+    // No first-of-month boundary fits within [tsMin, tsMax]; return tsMin itself.
+    return [tsMin];
+  }
+
+  // Choose stride to keep tick count near 5–7.
+  let stride: number;
+  if (totalMonths <= 7) {
+    stride = 1;
+  } else if (totalMonths <= 18) {
+    stride = 2;
+  } else if (totalMonths <= 36) {
+    stride = 3;
+  } else {
+    stride = 4;
+  }
+
+  const ticks: number[] = [];
+  let m = month;
+  let y = year;
+
+  while (y < endYear || (y === endYear && m <= endMonth)) {
+    const tickTs = Date.UTC(y, m, 1);
+    if (tickTs >= tsMin && tickTs <= tsMax) {
+      ticks.push(tickTs);
+    }
+    m += stride;
+    while (m > 11) { m -= 12; y += 1; }
+  }
+
+  // Safety: ensure the last first-of-month boundary is always included so there
+  // is always a tick close to tsMax (within one stride-period of the end).
+  const lastBoundary = Date.UTC(endYear, endMonth, 1);
+  if (ticks.length === 0 || ticks[ticks.length - 1] !== lastBoundary) {
+    if (lastBoundary >= tsMin && lastBoundary <= tsMax) {
+      ticks.push(lastBoundary);
+    }
+  }
+
+  return ticks;
+}
+
+/**
  * Build the S-curve series from milestones (and optionally tasks). Pure + deterministic.
  *
  * - `totalWeight` = Σ weight over milestones with weight > 0 (dated or not), so the

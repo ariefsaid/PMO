@@ -8,7 +8,7 @@ import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/com
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useTasks } from '@/src/hooks/useTasks';
-import { buildSCurve, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
+import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
 export interface ProjectSCurveProps {
   projectId: string;
@@ -42,6 +42,17 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
 
   // FR-SCA-013: suppress the lone dot only when the actual series has ≥2 points.
   const hasActualSeries = model.points.filter((p) => p.actual !== null).length >= 2;
+
+  // Explicit evenly-spaced first-of-month ticks so recharts never auto-ticks
+  // at clustered data coordinates (fixes overlapping labels on the left when
+  // actual-line points cluster early in the timeline).
+  const axisTicks = useMemo(() => {
+    if (model.points.length === 0) return undefined;
+    const tsList = model.points.map((p) => p.ts);
+    const tsMin = Math.min(...tsList);
+    const tsMax = Math.max(...tsList);
+    return evenAxisTicks(tsMin, tsMax);
+  }, [model.points]);
 
   const state: ChartState = isPending
     ? 'loading'
@@ -79,11 +90,12 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
+                ticks={axisTicks}
                 tickFormatter={formatSCurveAxisDate}
                 tick={axisTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
-                minTickGap={48}
+                minTickGap={32}
               />
               <YAxis
                 domain={[0, 100]}

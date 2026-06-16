@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSCurve, formatSCurveAxisDate, isoToTs } from './sCurve';
+import { buildSCurve, evenAxisTicks, formatSCurveAxisDate, isoToTs } from './sCurve';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { SCurveTask } from './sCurve';
 
@@ -178,6 +178,93 @@ describe('buildSCurve', () => {
     expect(d22).toMatch(/\b22\b/);
     // UTC-stable: the day does not drift across timezones (no off-by-one).
     expect(formatSCurveAxisDate(Date.parse('2026-03-01T00:00:00Z'))).toMatch(/\b01 Mar '26\b/);
+  });
+});
+
+// ── evenAxisTicks ────────────────────────────────────────────────────────────
+
+describe('evenAxisTicks', () => {
+  /** Helper: convert a 'YYYY-MM-DD' string to UTC-midnight epoch ms. */
+  const ts = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+
+  /** Returns true when epoch ms falls on the first day of its UTC month. */
+  const isFirstOfMonth = (epochMs: number): boolean => {
+    const d = new Date(epochMs);
+    return d.getUTCDate() === 1;
+  };
+
+  it('returns ascending ticks all within [tsMin, tsMax]', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    expect(ticks.length).toBeGreaterThan(0);
+    for (const t of ticks) {
+      expect(t).toBeGreaterThanOrEqual(min);
+      expect(t).toBeLessThanOrEqual(max);
+    }
+    // strictly ascending
+    for (let i = 1; i < ticks.length; i++) {
+      expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+    }
+  });
+
+  it('returns roughly 5–7 ticks (monthly stride) for a 9-month span', () => {
+    const min = ts('2025-09-01');
+    const max = ts('2026-06-01');
+    const ticks = evenAxisTicks(min, max);
+
+    // 9-month span → monthly stride → ~9 ticks but we aim for 5–7
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    expect(ticks.length).toBeLessThanOrEqual(10);
+  });
+
+  it('returns all first-of-month UTC ticks', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    for (const t of ticks) {
+      expect(isFirstOfMonth(t)).toBe(true);
+    }
+  });
+
+  it('uses a wider stride (every 2nd or 3rd month) for a multi-year span', () => {
+    const min = ts('2023-01-01');
+    const max = ts('2026-12-31');
+    const ticks = evenAxisTicks(min, max);
+
+    // 48-month span → stride > 1 month → fewer than 20 ticks
+    expect(ticks.length).toBeLessThanOrEqual(20);
+    // Still at least a few
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    // All first-of-month
+    for (const t of ticks) {
+      expect(isFirstOfMonth(t)).toBe(true);
+    }
+  });
+
+  it('handles min === max by returning exactly one tick at or near that point', () => {
+    const min = ts('2026-03-15');
+    const ticks = evenAxisTicks(min, min);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(1);
+    // The single tick must be within [min, max] — since min === max, it equals min
+    expect(ticks[0]).toBe(min);
+  });
+
+  it('returns a tick close to tsMin and a tick close to tsMax for any span', () => {
+    const min = ts('2025-09-25');
+    const max = ts('2026-06-16');
+    const ticks = evenAxisTicks(min, max);
+
+    const first = ticks[0];
+    const last = ticks[ticks.length - 1];
+
+    // First tick should be within 31 days of min
+    expect(first - min).toBeLessThanOrEqual(31 * 86_400_000);
+    // Last tick should be within 31 days of max
+    expect(max - last).toBeLessThanOrEqual(31 * 86_400_000);
   });
 });
 
