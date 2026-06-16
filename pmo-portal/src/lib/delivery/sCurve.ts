@@ -13,8 +13,13 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
  */
 
 export interface SCurvePoint {
-  /** ISO date 'YYYY-MM-DD' (x). */
+  /** ISO date 'YYYY-MM-DD' (label). */
   date: string;
+  /**
+   * Epoch ms (UTC midnight) for the recharts time axis (`type='number'`, `dataKey='ts'`).
+   * Placing every point at its real coordinate, not by array index.
+   */
+  ts: number;
   /** Cumulative planned % at this date (0..100), or null on the actual-only point. */
   planned: number | null;
   /** Cumulative actual-to-date % (0..100), or null on planned-only points. */
@@ -32,10 +37,36 @@ export interface SCurveModel {
 const round2 = (x: number): number => Math.round(x * 100) / 100;
 const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
 
+/** Epoch ms for an ISO date string at UTC midnight — the x-coordinate for the time axis. */
+const isoToTs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
+
 /** Days between two 'YYYY-MM-DD' dates (b - a), via UTC midnight to avoid DST drift. */
-const daysBetween = (a: string, b: string): number => {
-  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
-  return ms / 86_400_000;
+const daysBetween = (a: string, b: string): number =>
+  (isoToTs(b) - isoToTs(a)) / 86_400_000;
+
+/**
+ * Axis tick + tooltip formatter for the S-curve time axis.
+ *
+ * Takes epoch ms (the `ts` coordinate) and returns a compact label that keeps
+ * **day precision** (so multiple milestones in the same month are distinguishable,
+ * and the tooltip shows the exact date) AND **disambiguates the year** when the
+ * chart span crosses calendar-year boundaries (e.g. 2025-03-15 → "15 Mar '25",
+ * 2026-03-15 → "15 Mar '26").
+ *
+ * Exported so the component (axis + tooltip) can use it and tests can assert the
+ * day- and year-disambiguation properties directly (AC-SC-AXIS-004/005).
+ */
+const axisDateFmt = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+
+export const formatSCurveAxisDate = (epochMs: number): string => {
+  const parts = axisDateFmt.formatToParts(new Date(epochMs));
+  const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${find('day')} ${find('month')} '${find('year')}`;
 };
 
 /**
@@ -102,14 +133,17 @@ export function buildSCurve(
 
   const plannedToDate = interpolatePlanned(plannedSeries, asOf);
 
-  // Merge into the {date, planned, actual} point list. The actual series is a single
+  // Merge into the {date, ts, planned, actual} point list. The actual series is a single
   // point at `asOf` (OBS-SC-001 — no fabricated history).
+  // `ts` is epoch ms (UTC midnight) so the recharts time axis places every point at its
+  // real date coordinate, not by array index (fixes the categorical-axis position bug).
   const points: SCurvePoint[] = plannedSeries.map((p) => ({
     date: p.date,
+    ts: isoToTs(p.date),
     planned: p.planned,
     actual: null,
   }));
-  points.push({ date: asOf, planned: null, actual: actualToDate });
+  points.push({ date: asOf, ts: isoToTs(asOf), planned: null, actual: actualToDate });
 
   return { points, actualToDate, plannedToDate };
 }
