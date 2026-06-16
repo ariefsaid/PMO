@@ -61,6 +61,12 @@ implementation plan, and a production-ready solution. Build a production-grade M
 for one client, architected to scale to millions.
 
 ## Quality gates & checkpoints (binding)
+- **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
+  pushing ANY PR, run **`npm run verify`** (= `typecheck && lint:ci && test && build`, mirrors CI's `verify`
+  job) from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
+  cross-component breakage (a change to a shared component silently breaks every *other* test that renders
+  it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
+  transition; subagent briefs MUST mandate it as their final gate.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **Checkpoints:** the **owner** approves spec sign-off + production deploy / irreversible infra; the
