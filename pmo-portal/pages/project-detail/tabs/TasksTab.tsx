@@ -333,6 +333,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         <ProjectGantt
           tasks={all}
           milestones={milestoneList}
+          onSwitchView={setView}
           onActivateTask={
             canEdit
               ? (task) => setFormTarget({ task })
