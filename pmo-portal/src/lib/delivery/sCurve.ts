@@ -1,3 +1,4 @@
+import { parseISO } from 'date-fns';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 /**
@@ -37,10 +38,18 @@ export interface SCurveModel {
 const round2 = (x: number): number => Math.round(x * 100) / 100;
 const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
 
-/** Epoch ms for an ISO date string at UTC midnight — the x-coordinate for the time axis. */
-const isoToTs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
+/**
+ * Epoch ms for an ISO date string at UTC midnight — the x-coordinate for the time axis.
+ * date-fns `parseISO` honours the explicit `Z` offset → UTC instant, byte-identical to the
+ * prior `Date.parse(`${iso}T00:00:00Z`)` (UTC-midnight convention A; DST/TZ-immutable).
+ */
+const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
 
-/** Days between two 'YYYY-MM-DD' dates (b - a), via UTC midnight to avoid DST drift. */
+/**
+ * Days between two 'YYYY-MM-DD' dates (b - a). Keeps the UTC-midnight ms-divide (via `isoToTs`'s
+ * date-fns parsing) so the value is byte-identical to the prior hand-rolled divide for every input
+ * — important because the result feeds a linear-interpolation fraction.
+ */
 const daysBetween = (a: string, b: string): number =>
   (isoToTs(b) - isoToTs(a)) / 86_400_000;
 
@@ -64,6 +73,11 @@ const axisDateFmt = new Intl.DateTimeFormat('en-GB', {
 });
 
 export const formatSCurveAxisDate = (epochMs: number): string => {
+  // Left on Intl (not date-fns `format`) intentionally: date-fns `format` is LOCAL-tz, which would
+  // drift the day in behind-UTC zones. Reproducing this UTC-locale output would require the
+  // separate `date-fns-tz` package (`formatInTimeZone`) — not worth a second dependency for a
+  // display formatter that is already correct + UTC-stable. (ADR-0030 §F: buy the engine where it
+  // kills a bug class; don't add deps chasing purity.) Parsing/arithmetic above IS date-fns-backed.
   const parts = axisDateFmt.formatToParts(new Date(epochMs));
   const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${find('day')} ${find('month')} '${find('year')}`;

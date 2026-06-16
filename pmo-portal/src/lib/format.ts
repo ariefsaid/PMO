@@ -1,3 +1,5 @@
+import { parseISO } from 'date-fns';
+
 // Single source of truth for currency formatting (F-6). USD, no fraction digits —
 // preserves the prototype's prior output. Multi-currency deferred (NFR-I18N-001, OD-1).
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -50,9 +52,11 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
  */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  // Date-only strings get an explicit local-midnight time so a UTC-stored "2026-06-14" doesn't
-  // render as the 13th in a behind-UTC timezone.
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  // date-fns `parseISO` reproduces the prior LOCAL-midnight semantics exactly: a date-only ISO
+  // ('YYYY-MM-DD', no offset) parses as LOCAL midnight (so "2026-06-14" never renders as the 13th
+  // in a behind-UTC zone), and a full timestamp with an offset/Z parses to the same instant as the
+  // prior `new Date(iso)`. Unparseable input → Invalid Date → em-dash (no throw).
+  const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
   return dateFormatter.format(parsed);
 }
