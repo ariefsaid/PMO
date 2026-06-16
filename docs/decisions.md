@@ -470,3 +470,16 @@ Cap is **5 MB for now** (testing) — implemented as a single bumpable knob (buc
 shared constant), not scattered literals. Allowlist: pdf · png/jpg/webp · docx/xlsx/pptx ·
 dwg/dxf · csv/txt. **No zip, no executables** until a real user asks — every allowlist
 exception is forever.
+
+## OD-DATE — Date math via date-fns (graduation note, ADR-0030 Discover→Graduate→Cover; 2026-06-16)
+date-fns vendored for date parsing/arithmetic (pinned exact, MIT) so no one hand-rolls
+timezone-stable date parsing again.
+
+### OD-DATE-1 — Date math uses date-fns (UTC-stable); never hand-roll T00:00:00Z parsing
+All date parsing/arithmetic uses **date-fns** (`parseISO`), pinned exact (MIT). Two conventions,
+both preserved: **UTC-midnight** — `parseISO('${iso}T00:00:00Z')` — for time-axis coordinates /
+day-diffs (sCurve, ganttLayout); and **LOCAL-tz** — `parseISO('YYYY-MM-DD')` = local midnight —
+for the calendar grid + xlsx cells (monthMatrix, `toWorkbookBuffer`). Do NOT hand-roll
+`new Date(\`${iso}T00:00:00Z\`)` / manual `getUTC*` / `getFullYear` string-building. Two
+intentional native exceptions stay (would need `date-fns-tz`, not worth a 2nd dep):
+`formatDocNumber` (UTC parts) and `formatSCurveAxisDate` (Intl UTC formatter).

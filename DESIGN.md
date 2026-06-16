@@ -433,7 +433,7 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 4. **Numbers:** add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric.
 5. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.
 6. **Charts (recharts):** theme series/axes/grid from these tokens — axis/grid in `border`/`muted-foreground`, primary series in `primary`, status series in success/warning/destructive, categorical in violet. (No chart tokens existed in the mockups; derive from the palette, do not invent new chart colors.)
-7. **Time-series charts use a time/value axis** (`type='number'` + `scale='time'` on `<XAxis>`, `dataKey` set to epoch-ms), never a categorical index. Every plotted point sits at the coordinate its date implies — a point for "today" between two future milestones renders between them, not at the end of the array.
+7. **Time-series charts use a time/value axis** (`type='number'` + `scale='time'` on `<XAxis>`, `dataKey` set to epoch-ms), never a categorical index. Every plotted point sits at the coordinate its date implies — a point for "today" between two future milestones renders between them, not at the end of the array. Date math uses date-fns (UTC-stable); see OD-DATE-1.
 
 ---
 
