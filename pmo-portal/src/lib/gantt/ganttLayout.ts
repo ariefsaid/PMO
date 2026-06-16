@@ -424,18 +424,72 @@ function buildEdges(
 const MONTH_ABBREVS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const WEEKDAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 /**
- * Dispatches axis-tick generation by scale (ADR-0031 §5). The `month` path is the
- * v1 behaviour verbatim; other scales add denser ticks. Task 5 fills in the
- * day/week/quarter paths — for now everything routes through the month generator.
+ * Dispatches axis-tick generation by scale (ADR-0031 §5):
+ *   - `month`   → first day of each month (v1 behaviour, verbatim).
+ *   - `quarter` → first day of each quarter month (Jan/Apr/Jul/Oct).
+ *   - `week`    → every Monday in the span.
+ *   - `day`     → every day in the span (the component thins labels visually).
+ * Every tick keeps `{iso, left (fraction), label}`.
  */
 function buildTicks(
   spanStart: string,
   spanEnd: string,
   spanDays: number,
-  _scale: GanttScale,
+  scale: GanttScale,
 ): GanttAxisTick[] {
-  return buildMonthTicks(spanStart, spanEnd, spanDays);
+  switch (scale) {
+    case 'month':
+      return buildMonthTicks(spanStart, spanEnd, spanDays);
+    case 'quarter':
+      // Reuse the month walk, keeping only quarter-start months (0,3,6,9).
+      return buildMonthTicks(spanStart, spanEnd, spanDays).filter((t) => {
+        const month = Number(t.iso.split('-')[1]); // 1-based
+        return month === 1 || month === 4 || month === 7 || month === 10;
+      });
+    case 'week':
+      return buildDayStepTicks(spanStart, spanEnd, spanDays, {
+        keep: (d) => d.getDay() === 1, // Mondays only
+        label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
+      });
+    case 'day':
+      return buildDayStepTicks(spanStart, spanEnd, spanDays, {
+        keep: () => true,
+        label: (d) => `${WEEKDAY_ABBREVS[d.getDay()]} ${d.getDate()}`,
+      });
+  }
+}
+
+/**
+ * Generic day-stepping tick generator: walks each day in [spanStart, spanEnd] and
+ * emits a tick for every day for which `keep(date)` is true.
+ */
+function buildDayStepTicks(
+  spanStart: string,
+  spanEnd: string,
+  spanDays: number,
+  opts: { keep: (d: Date) => boolean; label: (d: Date) => string },
+): GanttAxisTick[] {
+  const ticks: GanttAxisTick[] = [];
+  const start = parseLocalDate(spanStart);
+  const end = parseLocalDate(spanEnd);
+
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  while (cursor <= end) {
+    if (opts.keep(cursor)) {
+      const iso = toIso(cursor);
+      ticks.push({
+        iso,
+        left: fraction(spanStart, spanDays, iso),
+        label: opts.label(cursor),
+      });
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return ticks;
 }
 
 /**

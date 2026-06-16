@@ -336,6 +336,108 @@ describe('AC-GANTT-011: pixel geometry (config yields absolute px boxes)', () =>
   });
 });
 
+// ── AC-GANTT-012: dependency edge resolution ──────────────────────────────────
+
+describe('AC-GANTT-012: dependency edges resolve from predecessor end to successor start', () => {
+  it('AC-GANTT-012: a dependency between two dated tasks yields a resolved edge', () => {
+    // A: 2026-01-01..2026-01-06, B: 2026-01-06..2026-01-11, B depends on A.
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'A', start_date: '2026-01-01', end_date: '2026-01-06' }),
+      makeTask({
+        id: 'b',
+        name: 'B',
+        start_date: '2026-01-06',
+        end_date: '2026-01-11',
+        dependencies: [{ depends_on_id: 'a' }],
+      }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
+    const geo = model.geometry!;
+    expect(geo.edges).toHaveLength(1);
+    const edge = geo.edges[0];
+    expect(edge.id).toBe('a->b');
+    expect(edge.fromId).toBe('a');
+    expect(edge.toId).toBe('b');
+
+    // x1 = predecessor (A) bar END; x2 = successor (B) bar START.
+    const boxA = geo.bars.find((b) => b.id === 'a')!;
+    const boxB = geo.bars.find((b) => b.id === 'b')!;
+    expect(edge.x1).toBeCloseTo(boxA.xEnd, 6);
+    expect(edge.y1).toBeCloseTo(boxA.y + boxA.h / 2, 6);
+    expect(edge.x2).toBeCloseTo(boxB.xStart, 6);
+    expect(edge.y2).toBeCloseTo(boxB.y + boxB.h / 2, 6);
+    // B starts at A's end → forward edge.
+    expect(edge.forward).toBe(true);
+    expect(geo.hiddenEdgeCount).toBe(0);
+  });
+
+  it('AC-GANTT-012: a dependency on an undated/absent task is hidden and counted', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({
+        id: 'b',
+        name: 'B',
+        start_date: '2026-01-06',
+        end_date: '2026-01-11',
+        // depends on a task that has no dates (lands in undated → no bar box)
+        dependencies: [{ depends_on_id: 'ghost' }],
+      }),
+      makeTask({ id: 'ghost', name: 'Ghost' }), // undated → no bar
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
+    const geo = model.geometry!;
+    expect(geo.edges).toHaveLength(0);
+    expect(geo.hiddenEdgeCount).toBe(1);
+  });
+});
+
+// ── AC-GANTT-013: zoom granularity ────────────────────────────────────────────
+
+describe('AC-GANTT-013: scale changes px-per-day, content width, and tick density', () => {
+  it('AC-GANTT-013: day scale produces day ticks and a wider timeline than month', () => {
+    // ~3-month span (Jan 1 .. Mar 31, 2026) — 89 days.
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Long task', start_date: '2026-01-01', end_date: '2026-03-31' }),
+    ];
+    const monthModel = buildGanttModel(tasks, [], '2026-02-15', { ...MONTH_CFG, scale: 'month' });
+    const dayModel = buildGanttModel(tasks, [], '2026-02-15', { ...MONTH_CFG, scale: 'day' });
+
+    // Day scale is far wider (28px/day vs 6px/day).
+    expect(dayModel.geometry!.pxPerDay).toBe(28);
+    expect(monthModel.geometry!.pxPerDay).toBe(6);
+    expect(dayModel.geometry!.contentWidth).toBeGreaterThan(monthModel.geometry!.contentWidth);
+
+    // Month ticks are month-starts (3 of them); day ticks are far denser.
+    expect(dayModel.ticks.length).toBeGreaterThan(monthModel.ticks.length);
+    // Month ticks are the 1st of each month.
+    expect(monthModel.ticks.every((t) => t.iso.endsWith('-01'))).toBe(true);
+    // Day ticks include non-month-start days (true day resolution).
+    expect(dayModel.ticks.some((t) => !t.iso.endsWith('-01'))).toBe(true);
+  });
+
+  it('AC-GANTT-013: quarter ticks are quarter-start months; week ticks are Mondays', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Year task', start_date: '2026-01-05', end_date: '2026-12-20' }),
+    ];
+    const quarterModel = buildGanttModel(tasks, [], '2026-06-15', { ...MONTH_CFG, scale: 'quarter' });
+    const weekModel = buildGanttModel(tasks, [], '2026-06-15', { ...MONTH_CFG, scale: 'week' });
+
+    // Quarter ticks fall on Jan/Apr/Jul/Oct (months 0,3,6,9), all month-starts.
+    expect(quarterModel.ticks.length).toBeGreaterThan(0);
+    for (const t of quarterModel.ticks) {
+      const month = Number(t.iso.split('-')[1]);
+      expect([1, 4, 7, 10]).toContain(month);
+      expect(t.iso.endsWith('-01')).toBe(true);
+    }
+
+    // Week ticks are all Mondays.
+    expect(weekModel.ticks.length).toBeGreaterThan(0);
+    for (const t of weekModel.ticks) {
+      const [y, m, d] = t.iso.split('-').map(Number);
+      expect(new Date(y, m - 1, d).getDay()).toBe(1); // Monday
+    }
+  });
+});
+
 // ── Axis ticks ────────────────────────────────────────────────────────────────
 
 describe('axis ticks', () => {
