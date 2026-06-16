@@ -115,8 +115,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
   return (
     <div className="space-y-4">
-      {/* Row 1 (unchanged) */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
+          whose min-content (a long title / unbroken number) exceeds the track refuse to
+          shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}
+      <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
         <Card className="lg:col-span-2">
           <CardHead>Project information</CardHead>
           <CardPad>
@@ -234,7 +236,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       )}
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
-      <div data-testid="overview-row2" className="grid gap-4 lg:grid-cols-2">
+      <div data-testid="overview-row2" className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         {/* T14/T15 — Procurement summary card */}
         <Card>
           <CardHead>Procurement summary</CardHead>

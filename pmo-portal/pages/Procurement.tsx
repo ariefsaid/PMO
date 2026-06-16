@@ -248,9 +248,13 @@ const ProcurementPage: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <div className="flex flex-wrap items-center gap-2">
-            {/* AC-2: scrollable so "Vendor Invoiced" etc. aren't clipped at 390px. */}
-            <div data-testid="status-filter-scroll" className="min-w-0 overflow-x-auto scroll-fade-x">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            {/* AC-2 / AC-MOBILE-OVERFLOW-001: scrollable AND width-bounded so the tab
+                strip ("Vendor Invoiced" etc.) scrolls WITHIN the viewport instead of
+                bleeding off-screen at 390px. The parent needs `w-full min-w-0` or the
+                flex row grows to the strip's intrinsic ~498px and the scroller never
+                gets a bounded width to scroll against. */}
+            <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x">
               <ViewToggle<StatusFilter>
                 options={FILTERS.map((f) => ({ value: f, label: f }))}
                 value={filter}

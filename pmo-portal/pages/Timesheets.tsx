@@ -661,10 +661,14 @@ const TimesheetsPage: React.FC = () => {
           {editable && (
             <label
               htmlFor="ts-add-project"
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground"
+              className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground"
             >
               <Icon name="plus" aria-hidden />
               Add project
+              {/* max-w cap + min-w-0: a native <select> sizes to its widest OPTION
+                  ("Acme Internal Platform"…), bleeding past the viewport at 360px
+                  (AC-MOBILE-OVERFLOW-001). The closed control only shows the short
+                  placeholder, so capping its width is safe; options still show in full. */}
               <select
                 id="ts-add-project"
                 aria-label="Add a project"
@@ -673,7 +677,7 @@ const TimesheetsPage: React.FC = () => {
                   if (e.target.value) addProject(e.target.value);
                 }}
                 disabled={pickerOptions.length === 0}
-                className="touch-target h-8 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
+                className="touch-target h-8 min-w-0 max-w-[160px] rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
               >
                 <option value="">
                   {pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}

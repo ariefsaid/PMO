@@ -21,7 +21,7 @@ const posthog = vi.hoisted(() => ({
 
 vi.mock('posthog-js', () => ({ default: posthog }));
 
-import { analyticsClient } from './client';
+import { analyticsClient, POSTHOG_PROPERTY_DENYLIST } from './client';
 
 const base: AnalyticsConfig = {
   enabled: true,
@@ -67,6 +67,19 @@ describe('analyticsClient', () => {
       disable_session_recording: true,
       enable_heatmaps: false,
     }));
+  });
+
+  it('AC-PH-011: the SDK property_denylist excludes the PostHog auth field `token` but keeps PII keys (issue #3438 — denylisting token → tokenless /e/ → 401)', () => {
+    // The exported constant: `token` removed (it IS PostHog's api_key field on capture),
+    // PII keys retained.
+    expect(POSTHOG_PROPERTY_DENYLIST).not.toContain('token');
+    expect(POSTHOG_PROPERTY_DENYLIST).toContain('email');
+    expect(POSTHOG_PROPERTY_DENYLIST).toContain('access_token');
+    // And it's actually what gets handed to posthog.init.
+    analyticsClient.init(base);
+    const initConfig = posthog.init.mock.calls.at(-1)?.[1] as { property_denylist: string[] };
+    expect(initConfig.property_denylist).not.toContain('token');
+    expect(initConfig.property_denylist).toContain('email');
   });
 
   it('AC-PH-005: deployed prospect demo enables replay and click-only autocapture', () => {

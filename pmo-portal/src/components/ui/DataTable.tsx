@@ -341,8 +341,13 @@ export function DataTable<Row>({
               >
                 {/* Title row: first column + rowMenu ⋯ pinned top-right */}
                 <div className="flex items-start justify-between gap-3">
-                  {/* Card title — activation button if rowLabel+onActivate supplied */}
-                  <div className="min-w-0 flex-1 font-semibold">
+                  {/* Card title — activation button if rowLabel+onActivate supplied.
+                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
+                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
+                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
+                      descendants to block lets them clip with an ellipsis within this min-w-0
+                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -379,7 +384,9 @@ export function DataTable<Row>({
                         </dt>
                         <dd
                           className={cn(
-                            'min-w-0 break-words text-[13.5px] text-foreground',
+                            // [&_.truncate]:block — see the title note above: inline truncate
+                            // cells (e.g. a contact email) don't clip and bleed at 360px.
+                            'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
                             col.align === 'num' && 'tabular text-right',
                             col.align === 'center' && 'text-center',
                             stripHiddenClasses(col.colClassName)

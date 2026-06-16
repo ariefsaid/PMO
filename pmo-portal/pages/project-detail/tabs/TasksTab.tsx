@@ -190,7 +190,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       cell: (t) => (
         <span
           id={`task-${t.id}`}
-          className={`truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+          /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
+             task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
+             the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
+             the card title wrapper's min-w-0 lets it clip with an ellipsis. */
+          className={`block truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
           title={t.name}
         >
           {t.name}

@@ -78,6 +78,7 @@ once all three artifacts exist:
 |---|---|---|---|---|
 | S-curve plots "today" at far-right (categorical axis) — 2026-06-15 | `sCurve.test.ts` AC-SC-AXIS-001/002/003/004 (ts field; position-oracle; monotonic domain; year-disambig formatter) | data-correctness × `/projects/:id` | DESIGN.md: time-series uses a time axis, points placed by value | ☑ (2026-06-16) |
 | Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | `ganttLayout` marker-position test + render-at-`marker.left` test | data-correctness × `/projects/:id` | DESIGN.md: timeline markers placed on the axis by date | ☐ (Gantt-fix wave — vendors failed eval, fix custom) |
+| **Mobile content bleeds off-screen** (procurement row/toolbar clipped, overview cards, timesheet select) — owner, 2026-06-16 | **`e2e/AC-MOBILE-OVERFLOW-001-no-horizontal-bleed.spec.ts`** — every route × {390, 360} asserts **no element's right edge exceeds the viewport** (the shell `overflow-x-hidden` *clips* bleed, so a page-`scrollWidth` oracle is blind — element-right-edge is the correct oracle, excluding legit `overflow-x` scrollers) | **mobile@390** (now an L1 GATE, every PR) × all routes | DESIGN.md: mobile = no horizontal bleed; native `<select>`/toolbars/grid-items must `min-w-0`/cap width | ☑ (2026-06-16) |
 
 ## Vendoring backlog (Layer 0)
 

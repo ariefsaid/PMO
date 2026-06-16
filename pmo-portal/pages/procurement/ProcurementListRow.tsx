@@ -157,8 +157,11 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
         </div>
 
-        {/* Meta */}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
+        {/* Meta — on phones drop to its own full-width line and wrap its items
+            (was `shrink-0`, which forced the block to its ~817px intrinsic width and
+            clipped the amount/status off the right edge under the shell's
+            overflow-x-hidden; AC-MOBILE-OVERFLOW-001). ≥640px: inline, non-shrinking. */}
+        <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted-foreground sm:w-auto sm:shrink-0">
           {row.project?.name && (
             <ProjectNameLink projectId={row.project_id} name={row.project.name} />
           )}

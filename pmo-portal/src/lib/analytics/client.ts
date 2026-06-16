@@ -10,6 +10,19 @@ import type { AnalyticsConfig } from './config';
 import type { AnalyticsEventName, SafeProperties } from './events';
 import { buildEventProperties, FORBIDDEN_PROPERTY_KEYS } from './events';
 
+/**
+ * The denylist handed to posthog-js MUST NOT include `token`: PostHog carries its own
+ * project API key as `properties.token` in the capture payload, so denylisting it makes
+ * the SDK send a TOKENLESS event → ingest returns 401 "event submitted without an api_key"
+ * (PostHog/posthog-js#3438 — the exact 401 that silenced capture on the demo, 2026-06-16:
+ * /flags + /array config 200, only the compressed /e/ capture 401'd because the token was
+ * stripped). We still scrub `token` from OUR OWN events in buildEventProperties (defence in
+ * depth); we just stop telling the SDK to delete the field that authenticates the request.
+ */
+export const POSTHOG_PROPERTY_DENYLIST = Array.from(FORBIDDEN_PROPERTY_KEYS).filter(
+  (key) => key !== 'token',
+);
+
 let initialized = false;
 let activeConfig: AnalyticsConfig | null = null;
 
@@ -41,7 +54,7 @@ export const analyticsClient = {
       disable_session_recording: !config.replayAndAutocapture,
       enable_heatmaps: false,
       enable_recording_console_log: false,
-      property_denylist: Array.from(FORBIDDEN_PROPERTY_KEYS),
+      property_denylist: POSTHOG_PROPERTY_DENYLIST,
       autocapture: config.replayAndAutocapture
         ? {
             dom_event_allowlist: ['click'],
