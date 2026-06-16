@@ -11,7 +11,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`decisions.md`** | Every locked owner decision (`OD-*`) — the binding product/scope calls. Grep by id. |
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
 | **`pi-delegation.md`** | **How role-agent work is currently dispatched** — the pi CLI (GLM/codex) trial: model routing, invocation, dispatch mechanics, resource isolation, rendered-UI verification. |
-| **`adr/`** | Architecture Decision Records `0001–0027` (no 0013; no 0026 — the 0026 migration was a bug-fix RPC, below the ADR threshold). The durable "why" of every architectural choice. `0006` (hosting) is **ACCEPTED** (deployed). |
+| **`adr/`** | Architecture Decision Records `0001–0031` (no 0013; no 0026 — the 0026 migration was a bug-fix RPC, below the ADR threshold). Latest: `0030` QA portfolio + vendoring, `0031` Gantt geometry/edge-model. The durable "why" of every architectural choice. `0006` (hosting) is **ACCEPTED** (deployed). |
 
 ## Durable reference (the contracts the code follows)
 | Path | Holds |
