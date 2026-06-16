@@ -35,7 +35,7 @@ geometry → re-route edges**, and that recompute has to be a pure function it c
    `GanttBarBox { id, xStart, xEnd, y, h }` per plotted bar, one `GanttMarkerBox { id, x, y }` per dated
    milestone, the resolved `edges`, and `hiddenEdgeCount`. This is what Phase-B drag mutates and re-derives.
 
-3. **The edge model is finite-state-start (FS) and resolved purely.** `GanttEdge` connects a predecessor
+3. **The edge model is finish-to-start (FS) and resolved purely.** `GanttEdge` connects a predecessor
    (`depends_on_id`) bar's **end** (right edge, vertically centred) to a successor bar's **start** (left edge,
    vertically centred). `buildEdges` walks all laid-out bars across all lanes, **skips** an edge whose
    predecessor or successor is undated/absent (recording `hiddenEdgeCount`), and returns edges sorted by

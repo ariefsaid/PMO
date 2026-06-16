@@ -26,8 +26,6 @@ export interface GanttLayoutConfig {
   rowHeight: number;
   /** Lane-header (milestone band) height in px. */
   laneHeaderHeight: number;
-  /** Axis height in px. */
-  axisHeight: number;
 }
 
 /** Absolute-px geometry for one laid-out bar within the timeline content box. */
@@ -114,6 +112,13 @@ export interface GanttAxisTick {
   iso: string;
   left: number;
   label: string;
+  /**
+   * Whether the label should be rendered on the axis.
+   * Always true for month/quarter/week scales.
+   * For day scale: true only for the first day of each week (Monday) so
+   * the axis remains legible — daily gridlines are still drawn for all ticks.
+   */
+  showLabel: boolean;
 }
 
 export interface GanttModel {
@@ -424,15 +429,15 @@ function buildEdges(
 const MONTH_ABBREVS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const WEEKDAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * Dispatches axis-tick generation by scale (ADR-0031 §5):
  *   - `month`   → first day of each month (v1 behaviour, verbatim).
  *   - `quarter` → first day of each quarter month (Jan/Apr/Jul/Oct).
  *   - `week`    → every Monday in the span.
- *   - `day`     → every day in the span (the component thins labels visually).
- * Every tick keeps `{iso, left (fraction), label}`.
+ *   - `day`     → every day (all ticks = daily gridlines), but `showLabel`
+ *                 is true only for Mondays so the axis stays legible.
+ * Every tick keeps `{iso, left (fraction), label, showLabel}`.
  */
 function buildTicks(
   spanStart: string,
@@ -452,12 +457,16 @@ function buildTicks(
     case 'week':
       return buildDayStepTicks(spanStart, spanEnd, spanDays, {
         keep: (d) => d.getDay() === 1, // Mondays only
+        showLabel: () => true,
         label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
       });
     case 'day':
+      // Every day emits a tick (→ daily gridline), but label is shown only on
+      // Mondays to prevent collision at typical zoom levels (28px/day).
       return buildDayStepTicks(spanStart, spanEnd, spanDays, {
         keep: () => true,
-        label: (d) => `${WEEKDAY_ABBREVS[d.getDay()]} ${d.getDate()}`,
+        showLabel: (d) => d.getDay() === 1, // Monday
+        label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
       });
   }
 }
@@ -465,12 +474,18 @@ function buildTicks(
 /**
  * Generic day-stepping tick generator: walks each day in [spanStart, spanEnd] and
  * emits a tick for every day for which `keep(date)` is true.
+ * `showLabel` controls whether the axis renders a visible text label for the tick;
+ * all ticks still drive gridlines regardless of `showLabel`.
  */
 function buildDayStepTicks(
   spanStart: string,
   spanEnd: string,
   spanDays: number,
-  opts: { keep: (d: Date) => boolean; label: (d: Date) => string },
+  opts: {
+    keep: (d: Date) => boolean;
+    showLabel: (d: Date) => boolean;
+    label: (d: Date) => string;
+  },
 ): GanttAxisTick[] {
   const ticks: GanttAxisTick[] = [];
   const start = parseLocalDate(spanStart);
@@ -484,6 +499,7 @@ function buildDayStepTicks(
         iso,
         left: fraction(spanStart, spanDays, iso),
         label: opts.label(cursor),
+        showLabel: opts.showLabel(cursor),
       });
     }
     cursor.setDate(cursor.getDate() + 1);
@@ -523,6 +539,7 @@ function buildMonthTicks(
         iso,
         left,
         label: `${MONTH_ABBREVS[m]} ${y}`,
+        showLabel: true,
       });
     }
 

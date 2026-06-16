@@ -30,6 +30,7 @@ import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import {
   buildGanttModel,
+  type GanttAxisTick,
   type GanttBar,
   type GanttBarBox,
   type GanttMarkerBox,
@@ -102,7 +103,6 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         scale,
         rowHeight: ROW_H,
         laneHeaderHeight: LANE_HEADER_H,
-        axisHeight: AXIS_H,
       }),
     [tasks, milestones, today, scale],
   );
@@ -369,7 +369,7 @@ type GanttBarLanes = ReturnType<typeof buildGanttModel>['lanes'];
 // ── Axis ──────────────────────────────────────────────────────────────────────
 
 interface GanttAxisProps {
-  ticks: { iso: string; left: number; label: string }[];
+  ticks: GanttAxisTick[];
   todayLeft: number | null;
   contentWidth: number;
 }
@@ -380,15 +380,17 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth })
     style={{ height: AXIS_H, width: contentWidth }}
     aria-hidden="true"
   >
-    {ticks.map((tick) => (
-      <span
-        key={tick.iso}
-        className="absolute top-0 translate-y-1/4 whitespace-nowrap text-[11px] text-muted-foreground"
-        style={{ left: tick.left * contentWidth }}
-      >
-        {tick.label}
-      </span>
-    ))}
+    {ticks.map((tick) =>
+      tick.showLabel ? (
+        <span
+          key={tick.iso}
+          className="absolute top-0 translate-y-1/4 whitespace-nowrap text-[11px] text-muted-foreground"
+          style={{ left: tick.left * contentWidth }}
+        >
+          {tick.label}
+        </span>
+      ) : null,
+    )}
     {todayLeft != null && (
       <span
         className="absolute bottom-0 text-[10px] font-semibold text-primary"
@@ -479,6 +481,8 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
     : undefined;
 
   const width = Math.max(0, box.xEnd - box.xStart);
+  /** A3: suppress the in-bar label when the bar is too narrow to show text legibly. */
+  const showInBarLabel = width >= 40;
 
   if (isPoint) {
     return (
@@ -516,9 +520,11 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
       }}
     >
-      <span className="truncate text-[11.5px] font-semibold leading-none text-foreground">
-        {bar.name}
-      </span>
+      {showInBarLabel && (
+        <span className="truncate text-[11.5px] font-semibold leading-none text-foreground">
+          {bar.name}
+        </span>
+      )}
     </div>
   );
 };
@@ -535,6 +541,14 @@ interface TaskTableRowProps {
   onActivate?: () => void;
 }
 
+/** B1: convert ISO date (YYYY-MM-DD) to compact human format ("Jan 1"). */
+function formatCompactDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const [, m, d] = iso.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[Number(m) - 1]} ${Number(d)}`;
+}
+
 const TaskTableRow: React.FC<TaskTableRowProps> = ({
   row,
   rovingActive,
@@ -545,8 +559,14 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   onActivate,
 }) => {
   const { bar } = row;
+  // B1: use compact human dates ("Jan 1 – Jan 11") to prevent date string from
+  // dominating the 260px table pane and starving the name column.
+  const startFmt = formatCompactDate(bar.startIso);
+  const endFmt = formatCompactDate(bar.endIso);
   const dates =
-    bar.startIso || bar.endIso ? `${bar.startIso ?? '—'} – ${bar.endIso ?? '—'}` : '—';
+    startFmt || endFmt
+      ? `${startFmt ?? '—'} – ${endFmt ?? '—'}`
+      : '—';
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -580,12 +600,14 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       >
         {bar.name}
       </span>
-      <span role="gridcell" className="shrink-0">
+      {/* D1: status + date columns collapse on narrow viewports so the timeline
+          (the point of the view) is not squeezed off screen at 390px. */}
+      <span role="gridcell" className="hidden shrink-0 sm:block">
         <StatusPill variant={workflowVariant(bar.status)}>{bar.status}</StatusPill>
       </span>
       <span
         role="gridcell"
-        className="shrink-0 whitespace-nowrap text-[10.5px] tabular-nums text-muted-foreground"
+        className="hidden shrink-0 whitespace-nowrap text-[10.5px] tabular-nums text-muted-foreground sm:block"
       >
         {dates}
       </span>

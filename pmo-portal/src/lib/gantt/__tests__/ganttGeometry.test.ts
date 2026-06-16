@@ -69,3 +69,35 @@ describe('AC-GANTT-012: edge path strings (frappe-gantt elbow blueprint)', () =>
     expect(EDGE_ARROW).toBe(6);
   });
 });
+
+// ── A2: near-adjacent forward FS edge clamp ───────────────────────────────────
+
+describe('A2 (fix): near-adjacent forward FS edge has stubOut <= approach (no backward nub)', () => {
+  it('A2: when successor starts immediately after predecessor, stubOut is clamped to approach', () => {
+    // x1 = 60, x2 = 65 (only 5px gap — narrower than EDGE_GAP=12).
+    // Without clamp: stubOut = 60+12 = 72 > approach = 65-6 = 59 → backward nub.
+    // With clamp:    stubOut = min(72, 59) = 59 ≤ 59 → no backward run.
+    const e = makeEdge({ x1: 60, y1: 20, x2: 65, y2: 20, forward: true });
+    const d = edgePath(e);
+    // stubOut = min(60+12, 65-6) = min(72, 59) = 59
+    const stubOut = Math.min(60 + EDGE_GAP, 65 - EDGE_ARROW);
+    const approach = 65 - EDGE_ARROW;
+    expect(stubOut).toBeLessThanOrEqual(approach);
+    // The path should NOT contain a horizontal run past (x2 - EDGE_ARROW) in the forward direction.
+    // Concretely: there should be no H value > approach in the path.
+    const hValues = [...d.matchAll(/H([\d.]+)/g)].map((m) => parseFloat(m[1]));
+    for (const h of hValues) {
+      expect(h).toBeLessThanOrEqual(approach + 0.01);
+    }
+    // Path starts at x1.
+    expect(d.startsWith('M60,')).toBe(true);
+  });
+
+  it('A2: a well-separated forward edge is unaffected — stubOut still equals x1+EDGE_GAP', () => {
+    // x1 = 60, x2 = 120: approach = 114, stubOut = 72 — clamp does nothing.
+    const e = makeEdge({ x1: 60, y1: 20, x2: 120, y2: 60, forward: true });
+    const d = edgePath(e);
+    expect(d).toContain(`H${60 + EDGE_GAP}`); // H72 — unchanged
+    expect(d).toContain(`H${120 - EDGE_ARROW}`); // H114
+  });
+});

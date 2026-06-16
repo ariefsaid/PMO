@@ -42,8 +42,10 @@ const r = (n: number): number => Math.round(n * 100) / 100;
  *    `M x1,y1  H x1+GAP  V midY  H x2-GAP  V y2  H x2-ARROW`.
  */
 export function edgePath(e: GanttEdge): string {
-  const stubOut = e.x1 + EDGE_GAP;
   const approach = e.x2 - EDGE_ARROW;
+  // For forward edges, clamp the stub so it never overshoots the approach point
+  // (which would produce a visible backward nub on near-adjacent tasks).
+  const stubOut = e.forward ? Math.min(e.x1 + EDGE_GAP, approach) : e.x1 + EDGE_GAP;
 
   if (e.forward) {
     return `M${r(e.x1)},${r(e.y1)} H${r(stubOut)} V${r(e.y2)} H${r(approach)}`;

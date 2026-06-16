@@ -291,7 +291,6 @@ const MONTH_CFG: GanttLayoutConfig = {
   scale: 'month',
   rowHeight: 40,
   laneHeaderHeight: 36,
-  axisHeight: 32,
 };
 
 describe('AC-GANTT-011: pixel geometry (config yields absolute px boxes)', () => {
@@ -435,6 +434,42 @@ describe('AC-GANTT-013: scale changes px-per-day, content width, and tick densit
       const [y, m, d] = t.iso.split('-').map(Number);
       expect(new Date(y, m - 1, d).getDay()).toBe(1); // Monday
     }
+  });
+});
+
+// ── A1 (fix): day-scale label thinning ────────────────────────────────────────
+
+describe('A1 (fix): day-scale produces far fewer visible labels than gridlines', () => {
+  it('A1: in a ~3-month span, day-scale has fewer showLabel=true ticks than total ticks', () => {
+    // ~89 days. All 89 ticks drive gridlines; only Mondays (≤13) get labels.
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Long task', start_date: '2026-01-01', end_date: '2026-03-31' }),
+    ];
+    const dayModel = buildGanttModel(tasks, [], '2026-02-15', { ...MONTH_CFG, scale: 'day' });
+
+    const labelledTicks = dayModel.ticks.filter((t) => t.showLabel);
+    const allTicks = dayModel.ticks;
+
+    // All daily gridlines should still be emitted (one per day).
+    expect(allTicks.length).toBeGreaterThan(50);
+    // But only a fraction carry visible labels (weekly cadence = ~13 labels for 89 days).
+    expect(labelledTicks.length).toBeLessThan(allTicks.length / 3);
+    // The labelled ticks are Mondays.
+    for (const t of labelledTicks) {
+      const [y, m, d] = t.iso.split('-').map(Number);
+      expect(new Date(y, m - 1, d).getDay()).toBe(1); // Monday
+    }
+  });
+
+  it('A1: month and week scales have all ticks labelled (showLabel=true for every tick)', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'a', name: 'Long task', start_date: '2026-01-01', end_date: '2026-03-31' }),
+    ];
+    const monthModel = buildGanttModel(tasks, [], '2026-02-15', { ...MONTH_CFG, scale: 'month' });
+    const weekModel = buildGanttModel(tasks, [], '2026-02-15', { ...MONTH_CFG, scale: 'week' });
+
+    expect(monthModel.ticks.every((t) => t.showLabel)).toBe(true);
+    expect(weekModel.ticks.every((t) => t.showLabel)).toBe(true);
   });
 });
 

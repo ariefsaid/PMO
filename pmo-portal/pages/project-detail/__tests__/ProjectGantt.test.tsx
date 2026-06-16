@@ -277,7 +277,7 @@ describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActi
 // ── AC-GANTT-018: left task table content ─────────────────────────────────────
 
 describe('AC-GANTT-018: the left table shows each task name, status, and date range aligned to its bar', () => {
-  it('AC-GANTT-018: the table row shows name, status pill, and date range', () => {
+  it('AC-GANTT-018: the table row shows name, status pill, and compact date range', () => {
     const tasks = [
       makeTask({
         id: 'a',
@@ -290,10 +290,73 @@ describe('AC-GANTT-018: the left table shows each task name, status, and date ra
     render(<ProjectGantt tasks={tasks} milestones={[]} />);
 
     const grid = screen.getByRole('grid');
-    // Name, status, and date-range text all appear within the table grid.
+    // Name and status appear within the table grid.
     expect(within(grid).getByText('Foundation')).toBeInTheDocument();
     expect(within(grid).getByText('In Progress')).toBeInTheDocument();
-    expect(within(grid).getByText(/2026-01-01\s*–\s*2026-01-11/)).toBeInTheDocument();
+    // B1 fix: date is now compact human format ("Jan 1 – Jan 11"), not ISO.
+    // We match the human-readable month abbreviation.
+    expect(within(grid).getByText(/Jan\s+\d+\s*–\s*Jan\s+\d+/i)).toBeInTheDocument();
+    // ISO dates must NOT appear as-is (that was the starving format).
+    expect(within(grid).queryByText(/2026-01-01/)).toBeNull();
+  });
+});
+
+// ── A3 (fix): narrow bar suppresses in-bar label ─────────────────────────────
+
+describe('A3 (fix): in-bar label is hidden when the bar is narrower than 40px', () => {
+  it('A3: a 1-day task at quarter scale (2px/day → 2px bar) does not render an in-bar label', () => {
+    // Quarter scale → 2px/day. A 1-day bar is 2px wide — below the 40px threshold.
+    // The task name should only appear in the table, not duplicated inside the bar.
+    const tasks = [
+      makeTask({
+        id: 'a',
+        name: 'Thin bar task',
+        start_date: '2026-06-01',
+        end_date: '2026-06-02',
+      }),
+    ];
+    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} />);
+
+    // Switch to Quarter scale to get 2px/day bars.
+    const quarterTab = screen.getByRole('tab', { name: /quarter/i });
+    fireEvent.click(quarterTab);
+
+    // The task name appears in the table gridcell (as text).
+    const grid = screen.getByRole('grid');
+    expect(within(grid).getByText('Thin bar task')).toBeInTheDocument();
+
+    // The bar element(s) inside the timeline (not the grid) should not carry the label text.
+    // The timeline bars are absolutely positioned divs outside role="grid".
+    // We find the bar div by its class (flex items-center overflow-hidden rounded).
+    // A narrow bar should have no inner text span visible.
+    const timelinePane = container.querySelector('[style*="overflow-x"]') ??
+      container.querySelector('.min-w-0.flex-1');
+    // There should be no in-bar text span for narrow bars (the span is not rendered or hidden).
+    // We can check that the bar container does not contain the task name text.
+    if (timelinePane) {
+      const inBarTexts = [...timelinePane.querySelectorAll('.truncate')];
+      // If any in-bar text spans are present, they must not contain the task name.
+      for (const el of inBarTexts) {
+        expect(el.textContent).not.toBe('Thin bar task');
+      }
+    }
+  });
+
+  it('A3: a wide bar (>40px width) at month scale still shows the in-bar label', () => {
+    // Month scale → 6px/day. A 30-day bar = 180px → well above threshold.
+    const tasks = [
+      makeTask({
+        id: 'a',
+        name: 'Wide bar task',
+        start_date: '2026-01-01',
+        end_date: '2026-01-31',
+      }),
+    ];
+    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+
+    // The name should appear at least twice: once in the table, once in the bar.
+    const allNames = screen.getAllByText('Wide bar task');
+    expect(allNames.length).toBeGreaterThanOrEqual(2);
   });
 });
 
