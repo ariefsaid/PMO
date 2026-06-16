@@ -2,7 +2,7 @@
  * RTL component tests for ProjectGantt.
  * Owns: AC-GANTT-005, AC-GANTT-007, AC-GANTT-008, AC-GANTT-010.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
@@ -372,5 +372,100 @@ describe('milestone lane headers', () => {
     ];
     render(<ProjectGantt tasks={tasks} milestones={milestones} />);
     expect(screen.getByText('Phase 1')).toBeInTheDocument();
+  });
+});
+
+// ── AC-GANTT-D1: mobile (<640px) Timeline fallback ────────────────────────────
+//
+// Defect D1: the MS-Project split layout (260px task table + scroll timeline)
+// is unusable at 390px — the table eats the width and leaves a sliver for the
+// timeline. Below the `sm` (640px) breakpoint the Timeline swaps the cramped
+// Gantt for a friendly notice that points the user at List/Board instead.
+// Desktop (>=640px) is unchanged. (Owner decision, 2026-06-16.)
+
+/**
+ * A viewport-aware matchMedia mock: returns `matches` based on a chosen viewport
+ * width so the responsive hooks the Gantt stack reads all agree.
+ *   - useIsNarrow            → (max-width: 639px) → width ≤ 639
+ *   - useIsDesktop (if used) → (min-width: 768px) → width ≥ 768
+ *   - prefers-reduced-motion → not matched (false), matching the global default
+ */
+function mockViewport(width: number) {
+  const matchesFor = (query: string): boolean =>
+    /max-width:\s*639px/.test(query)
+      ? width <= 639
+      : /min-width:\s*768px/.test(query)
+        ? width >= 768
+        : false;
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string): MediaQueryList => ({
+      matches: matchesFor(query),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })),
+  );
+}
+
+describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('AC-GANTT-D1-1: at <640px the Timeline shows the mobile notice instead of the Gantt grid', () => {
+    mockViewport(390);
+    const tasks = [
+      makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
+    ];
+    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+
+    // The friendly mobile notice is rendered…
+    expect(screen.getByTestId('gantt-mobile-notice')).toBeInTheDocument();
+    expect(screen.getByText(/best viewed on a wider screen/i)).toBeInTheDocument();
+
+    // …and the cramped Gantt split (the role=grid task table + the role=img figure) is NOT.
+    expect(screen.queryByRole('grid')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('AC-GANTT-D1-2: the mobile notice switch buttons call onSwitchView with list/board', () => {
+    mockViewport(390);
+    const tasks = [
+      makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
+    ];
+    const onSwitchView = vi.fn();
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={onSwitchView} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /list view/i }));
+    expect(onSwitchView).toHaveBeenCalledWith('list');
+
+    fireEvent.click(screen.getByRole('button', { name: /board view/i }));
+    expect(onSwitchView).toHaveBeenCalledWith('board');
+  });
+
+  it('AC-GANTT-D1-3: at >=640px the Gantt renders normally (no mobile notice)', () => {
+    mockViewport(1280);
+    const tasks = [
+      makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
+    ];
+    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+
+    // Full Gantt renders (table grid + figure)…
+    expect(screen.getByRole('grid')).toBeInTheDocument();
+    expect(screen.getByRole('img')).toBeInTheDocument();
+    // …and the mobile notice does not.
+    expect(screen.queryByTestId('gantt-mobile-notice')).toBeNull();
+  });
+
+  it('AC-GANTT-D1-4: an empty project still shows the honest empty state, not the mobile notice (even at <640px)', () => {
+    mockViewport(390);
+    render(<ProjectGantt tasks={[]} milestones={[]} />);
+
+    // The honest empty state wins over the narrow notice.
+    expect(screen.getByText(/no dated work yet/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('gantt-mobile-notice')).toBeNull();
   });
 });

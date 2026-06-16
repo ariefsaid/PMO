@@ -24,8 +24,7 @@
  *   - Respects prefers-reduced-motion (no bar-grow transition when set).
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { ListState } from '@/src/components/ui';
-import { StatusPill } from '@/src/components/ui';
+import { ListState, StatusPill, Button, Icon, useIsNarrow } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import {
@@ -56,6 +55,14 @@ export interface ProjectGanttProps {
    * firing this callback with the resolved TaskWithRefs. When omitted, bars/rows are inert.
    */
   onActivateTask?: (task: TaskWithRefs) => void;
+  /**
+   * Mobile fallback (defect D1): on viewports below the `sm` (640px) breakpoint the
+   * cramped MS-Project split is replaced by a notice that points the user at a
+   * better-fitting view. When provided, the notice's switch buttons fire this with
+   * 'list' / 'board' (TasksTab wires it to its view state). When omitted the buttons
+   * still render the notice but without a switch action (defensive — TasksTab always passes it).
+   */
+  onSwitchView?: (view: 'list' | 'board') => void;
 }
 
 // ── Layout geometry constants (not design tokens — like the v1 ROW_H) ─────────
@@ -91,8 +98,9 @@ type FlatRow = LaneHeaderRow | TaskRow;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask }) => {
+const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, onSwitchView }) => {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -167,6 +175,14 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         sub="Add start/due dates to tasks or target dates to milestones to see the timeline."
       />
     );
+  }
+
+  // D1: on narrow viewports (<640px) the MS-Project split is unusable — the 260px
+  // task table eats the width and leaves the timeline a sliver. When there IS dated
+  // work to show, swap the cramped Gantt for a friendly notice pointing at List/Board.
+  // (Empty state still wins above — an empty project shows the honest empty state.)
+  if (isNarrow) {
+    return <GanttMobileNotice onSwitchView={onSwitchView} />;
   }
 
   const { geometry, ticks, todayLeft, undated } = model;
@@ -353,6 +369,40 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     </div>
   );
 };
+
+// ── Mobile fallback notice (D1) ───────────────────────────────────────────────
+//
+// On viewports <640px the MS-Project split is unusable, so the Timeline swaps it
+// for this centered notice that points the user at List/Board. Tokens only: it
+// mirrors the ListState empty-state treatment (icon chip + centered heading +
+// muted sub-line + actions) so the two states read as one family.
+
+interface GanttMobileNoticeProps {
+  onSwitchView?: (view: 'list' | 'board') => void;
+}
+
+const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) => (
+  <div
+    data-testid="gantt-mobile-notice"
+    className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card px-6 py-14 text-center"
+  >
+    <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
+      <Icon name="cal" className="size-6" strokeWidth={1.75} />
+    </span>
+    <div className="text-[15px] font-semibold">Open on a larger screen</div>
+    <div className="max-w-[44ch] text-[13px] text-muted-foreground">
+      The timeline is best viewed on a wider screen. Switch to a view that fits your device:
+    </div>
+    <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => onSwitchView?.('list')}>
+        List view
+      </Button>
+      <Button variant="outline" size="sm" onClick={() => onSwitchView?.('board')}>
+        Board view
+      </Button>
+    </div>
+  </div>
+);
 
 // ── Helpers to resolve marker name/iso from lanes ─────────────────────────────
 
