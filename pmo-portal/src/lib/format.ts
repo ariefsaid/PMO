@@ -1,3 +1,5 @@
+import { parseISO } from 'date-fns';
+
 // Single source of truth for currency formatting (F-6). USD, no fraction digits —
 // preserves the prototype's prior output. Multi-currency deferred (NFR-I18N-001, OD-1).
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -44,15 +46,23 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 });
 
 /**
- * Format a date string for display. Accepts either a date-only ISO string (`YYYY-MM-DD`, parsed at
- * local midnight so the calendar day never drifts across timezones) or a full ISO timestamp.
- * Missing / blank / unparseable → an em-dash `—` (never a raw ISO string or "Invalid Date").
+ * Format an ISO date string for display. Accepts ONLY ISO input: a date-only `YYYY-MM-DD`
+ * (parsed at LOCAL midnight, so the calendar day never drifts across timezones) or a full ISO
+ * timestamp with an offset/`Z` (parsed to that instant). Non-string / blank / non-ISO /
+ * invalid-calendar-date input → an em-dash `—` (never a raw ISO string, "Invalid Date", or a
+ * throw). Does NOT leniently parse non-ISO formats — `parseISO` is the single parser.
  */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  // Date-only strings get an explicit local-midnight time so a UTC-stored "2026-06-14" doesn't
-  // render as the 13th in a behind-UTC timezone.
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  // Belt-and-suspenders: the TS signature is `string | null | undefined`, but guard so a
+  // non-string can never reach `parseISO` (which throws TypeError on non-string input) — keeps
+  // the "never throws" guarantee true even for untyped/loose callers.
+  if (typeof iso !== 'string') return '—';
+  // date-fns `parseISO` reproduces the prior LOCAL-midnight semantics exactly: a date-only ISO
+  // ('YYYY-MM-DD', no offset) parses as LOCAL midnight (so "2026-06-14" never renders as the 13th
+  // in a behind-UTC zone), and a full timestamp with an offset/Z parses to the same instant as the
+  // prior `new Date(iso)`. Unparseable input → Invalid Date → em-dash (no throw).
+  const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
   return dateFormatter.format(parsed);
 }

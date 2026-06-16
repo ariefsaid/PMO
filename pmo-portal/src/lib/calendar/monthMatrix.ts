@@ -1,5 +1,7 @@
 /**
- * Pure date helpers for the read-only Project Calendar view (no external deps).
+ * Pure date helpers for the read-only Project Calendar view. Atomic parse/format +
+ * month math use date-fns (ADR-0030 §F — kills the hand-rolled TZ class); the 6×7 grid loop
+ * stays native so the Sunday-first / 42-cell layout is byte-identical.
  *
  * All date math is done with the native `Date` in LOCAL time. `target_date` /
  * `start_date` / `end_date` arrive as `YYYY-MM-DD` calendar dates with no time
@@ -7,6 +9,8 @@
  * 3rd never renders in the 2nd's cell after a UTC shift. The matrix is a fixed
  * 6×7 grid (always 42 cells) so the month container never reflows between months.
  */
+
+import { addMonths as dfAddMonths, format as dfFormat, parseISO as dfParseISO } from 'date-fns';
 
 /** A displayed-month pointer. `month` is 0-based (0 = January) to match `Date`. */
 export interface MonthCursor {
@@ -24,17 +28,21 @@ export interface DayCell {
   isToday: boolean;
 }
 
-/** Parse a `YYYY-MM-DD` string as a LOCAL date (no UTC/TZ shift). */
+/**
+ * Parse a `YYYY-MM-DD` string as a LOCAL date (no UTC/TZ shift). date-fns `parseISO` parses a
+ * date-only ISO string as LOCAL midnight — byte-identical to `new Date(y, m-1, d)` (convention B:
+ * a `YYYY-MM-DD` must render on its own calendar day in the user's local tz, e.g. xlsx cells).
+ */
 export function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return dfParseISO(iso);
 }
 
-/** Format a Date as a local `YYYY-MM-DD` string (matches `parseLocalDate`). */
+/**
+ * Format a Date as a local `YYYY-MM-DD` string (matches `parseLocalDate`). date-fns `format` reads
+ * LOCAL components — byte-identical to the prior manual `getFullYear/Month/Date` build (convention B).
+ */
 export function toIso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`;
+  return dfFormat(d, 'yyyy-MM-dd');
 }
 
 /** Human month label, e.g. `June 2026` (en-US, locale-stable for the header). */
@@ -44,9 +52,12 @@ export function monthLabel(year: number, month: number): string {
   );
 }
 
-/** Shift a cursor by whole months, rolling year boundaries. */
+/**
+ * Shift a cursor by whole months, rolling year boundaries. Wraps date-fns `addMonths` (keeping the
+ * `MonthCursor` signature) — for a day-1 anchor it is byte-identical to the prior native roll-over.
+ */
 export function addMonths(c: MonthCursor, delta: number): MonthCursor {
-  const d = new Date(c.year, c.month + delta, 1);
+  const d = dfAddMonths(new Date(c.year, c.month, 1), delta);
   return { year: d.getFullYear(), month: d.getMonth() };
 }
 

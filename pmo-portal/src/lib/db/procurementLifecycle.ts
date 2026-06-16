@@ -112,6 +112,11 @@ export function canCancel(role: string, isRequester: boolean, from: ProcurementS
 /**
  * Formats a procurement document number. Mirrors the SQL lpad/to_char in next_procurement_doc_number
  * (AC-803, FR-PROC-010). `date` is the server date; `seq` is the per-(org,prefix,day) sequence.
+ *
+ * Stays native-UTC intentionally: the `yyMMdd` parts use `getUTC*` (the C4 fix) so a date-only
+ * value never drifts by one day in behind-UTC zones. date-fns `format` is LOCAL → it would shift
+ * the day, and the UTC-correct fix (`date-fns-tz` `formatInTimeZone`) is a second package we
+ * intentionally do not add for a dependency-free getter that is already correct (ADR-0030 §F).
  */
 export function formatDocNumber(
   prefix: 'PR' | 'VQ' | 'PO' | 'GR' | 'VI',

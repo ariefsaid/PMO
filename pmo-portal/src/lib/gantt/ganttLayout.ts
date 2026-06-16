@@ -5,6 +5,7 @@
  * no network calls. All date math via UTC midnight to avoid DST drift (same as sCurve.ts
  * `daysBetween`). Local-date parsing via `parseLocalDate` from monthMatrix (D7).
  */
+import { parseISO } from 'date-fns';
 import { parseLocalDate, toIso } from '@/src/lib/calendar/monthMatrix';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -146,9 +147,14 @@ export interface GanttModel {
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-/** Days between two 'YYYY-MM-DD' dates (b - a), via UTC midnight to avoid DST drift. */
+/**
+ * Days between two 'YYYY-MM-DD' dates (b - a), via UTC midnight to avoid DST drift.
+ * date-fns `parseISO` honours the explicit `Z` offset → UTC instant, byte-identical to the prior
+ * `Date.parse(`${x}T00:00:00Z`)` (UTC-midnight convention A). The local-tick walk below
+ * (`parseLocalDate`/`toIso`, convention B) is intentionally NOT touched.
+ */
 const daysBetween = (a: string, b: string): number => {
-  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
+  const ms = parseISO(`${b}T00:00:00Z`).getTime() - parseISO(`${a}T00:00:00Z`).getTime();
   return ms / 86_400_000;
 };
 
