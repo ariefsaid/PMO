@@ -41,22 +41,23 @@ const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
 const isoToTs = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
 
 /** Days between two 'YYYY-MM-DD' dates (b - a), via UTC midnight to avoid DST drift. */
-const daysBetween = (a: string, b: string): number => {
-  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
-  return ms / 86_400_000;
-};
+const daysBetween = (a: string, b: string): number =>
+  (isoToTs(b) - isoToTs(a)) / 86_400_000;
 
 /**
- * Axis tick formatter for the S-curve time axis.
+ * Axis tick + tooltip formatter for the S-curve time axis.
  *
- * Takes epoch ms (the `ts` coordinate) and returns a compact label that
- * disambiguates the year when the chart span crosses calendar-year boundaries
- * (e.g. 2025-03-15 → "Mar '25", 2026-03-15 → "Mar '26").
+ * Takes epoch ms (the `ts` coordinate) and returns a compact label that keeps
+ * **day precision** (so multiple milestones in the same month are distinguishable,
+ * and the tooltip shows the exact date) AND **disambiguates the year** when the
+ * chart span crosses calendar-year boundaries (e.g. 2025-03-15 → "15 Mar '25",
+ * 2026-03-15 → "15 Mar '26").
  *
- * Exported so the component can use it and tests can assert the year-disambiguation
- * property directly (AC-SC-AXIS-004).
+ * Exported so the component (axis + tooltip) can use it and tests can assert the
+ * day- and year-disambiguation properties directly (AC-SC-AXIS-004/005).
  */
 const axisDateFmt = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
   month: 'short',
   year: '2-digit',
   timeZone: 'UTC',
@@ -64,9 +65,8 @@ const axisDateFmt = new Intl.DateTimeFormat('en-GB', {
 
 export const formatSCurveAxisDate = (epochMs: number): string => {
   const parts = axisDateFmt.formatToParts(new Date(epochMs));
-  const month = parts.find((p) => p.type === 'month')?.value ?? '';
-  const year = parts.find((p) => p.type === 'year')?.value ?? '';
-  return `${month} '${year}`;
+  const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${find('day')} ${find('month')} '${find('year')}`;
 };
 
 /**

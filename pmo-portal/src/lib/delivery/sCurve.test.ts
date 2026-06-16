@@ -166,4 +166,16 @@ describe('buildSCurve', () => {
     expect(label2025).toMatch(/25|2025/);
     expect(label2026).toMatch(/26|2026/);
   });
+
+  it('AC-SC-AXIS-005: formatSCurveAxisDate keeps DAY precision (same-month different-day distinguishable)', () => {
+    // Day-precision regression guard: multiple milestones in one month (and the tooltip)
+    // must not collapse to one label. "15 Mar '26" vs "22 Mar '26".
+    const d15 = formatSCurveAxisDate(Date.parse('2026-03-15T00:00:00Z'));
+    const d22 = formatSCurveAxisDate(Date.parse('2026-03-22T00:00:00Z'));
+    expect(d15).not.toBe(d22);
+    expect(d15).toMatch(/\b15\b/);
+    expect(d22).toMatch(/\b22\b/);
+    // UTC-stable: the day does not drift across timezones (no off-by-one).
+    expect(formatSCurveAxisDate(Date.parse('2026-03-01T00:00:00Z'))).toMatch(/\b01 Mar '26\b/);
+  });
 });
