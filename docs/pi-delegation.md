@@ -24,9 +24,17 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 
 | Substrate | Use for | Analog |
 |---|---|---|
+| `zai` / `glm-5.2` | **Newest GLM (out 2026-06; trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies).** Strong builder; prefer for implementation slices | opus/sonnet |
 | `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment | opus |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+
+> **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
+> cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
+> `glm-5.2` → review `glm-5.1`). This gives *some* independence but is **same-family** — weaker than the
+> intended cross-family check. Acceptable for low-risk/presentational slices; for **security/RLS/RPC or
+> money-path** changes, escalate to the Director's own review or wait for cross-family, don't ship on a
+> same-family-only sign-off.
 | `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
 
 **Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. **When BOTH are
@@ -146,6 +154,22 @@ A `Bash(run_in_background)` pi dispatch is spawned **inside the Claude-app proce
 spec/plan/review/short dispatches). Switch to detached-tmux when a phase spawns the heavy local
 toolchain (Docker `db reset`, full e2e) AND session RAM is already high — crash-survival then beats
 the convenience of auto-notification.
+
+### 3c-bis. ⚑ Dispatching pi from a *subagent* orchestrator (NOT the main session)
+
+The §3b "background + the harness re-invokes you" pattern is **main-session-only**. A **Claude subagent
+acting as orchestrator** (e.g. an opus QA-orchestrator) is **never re-invoked when a background task
+finishes** — if it launches pi with `Bash(run_in_background)` and ends its turn, the build is
+**orphaned** (verified 2026-06-16: empty worktree, idle pi). And **detached-tmux (§3c) can also fail**
+in a sandboxed subagent (`fork failed: Device not configured`). So a subagent orchestrator must keep pi
+**inside its own turn**:
+- **Blocking foreground** `Bash(timeout: 600000)` per pi dispatch — the proven pattern for bounded
+  build/review slices (≤10 min each). The subagent stays alive to verify and continue the loop.
+- If a single dispatch would exceed 10 min, split the work, or (where tmux works) launch detached + poll
+  the `__PI_EXIT_0__` sentinel with a loop of short Bash calls **within the same turn** — never exit and
+  expect re-invocation.
+- The **main Director** keeps using §3b (background + auto-notify); only a *subagent* orchestrator needs
+  this rule. Make this explicit in any orchestrator brief.
 
 ### 3d. Keeping Claude / Codex / Pi role surfaces in sync
 
