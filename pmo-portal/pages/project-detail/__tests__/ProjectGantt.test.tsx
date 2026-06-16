@@ -19,6 +19,7 @@ function makeTask(
     assignee_id: null,
     milestone_id: null,
     created_at: '2026-01-01T00:00:00Z',
+    completed_at: null,
     assignee: null,
     dependencies: [],
     start_date: null,
