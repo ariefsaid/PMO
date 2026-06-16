@@ -19,7 +19,7 @@ different connection target** for that same schema.
 | Env | Supabase project ref | API URL | Anon key | Frontend | Migrations | Seed |
 |---|---|---|---|---|---|---|
 | `local` | — (Docker) | `http://127.0.0.1:54321` | local key in `pmo-portal/.env.local` | `npm run dev` | `supabase db reset` | `seed.sql` (auto) |
-| `prod` (cloud) | `prwccpsiumjzvnwjlkwq` | `https://prwccpsiumjzvnwjlkwq.supabase.co` | anon key in CF env vars | **Cloudflare Pages** `production` branch → https://pmo-bfb.pages.dev | `scripts/db-push-prod.sh` | **never** demo seed (admin-only via `seed-admin.sql`) |
+| `prod` (cloud) | `prwccpsiumjzvnwjlkwq` | `https://prwccpsiumjzvnwjlkwq.supabase.co` | anon key in CF env vars | **Cloudflare Pages** `production` branch → https://pmo-bfb.pages.dev | `scripts/db-push-prod.sh` | **demo-deploy posture:** full demo seed via `scripts/db-seed-prod.sh` (see below). For a *real* tenant: never seed. |
 | `selfhost` (later) | n/a (VPS) | `https://<domain>` | `<fill-in>` | a `selfhost` host env | `db push --db-url …@vps` | reference data only |
 
 ## Which command hits which target
@@ -183,9 +183,10 @@ the backend so a deploy can never silently talk to the wrong one).
 
 ## Prod migration state
 
-**Prod is CURRENT at migration 0027** (0024–0027 pushed 2026-06-13 via `scripts/db-push-prod.sh`; the
-`production` branch was then promoted to `main` so the FE matches). No migrations pending for prod.
-> **Note (`dev` branch):** `dev` carries migrations **0028** (procurement-files), **0029** (calendar-milestone RPC), and **0030** (CRM contacts/activity) that are not yet in Cloud. These will need pushing to Cloud via `db-push-prod.sh` when `dev` is promoted to `main → production`.
+**Prod is CURRENT at migration 0033** (0028–0033 pushed 2026-06-16 via `scripts/db-push-prod.sh`; FE
+promoted `main`@`a1e5115` → `production`). 0024–0027 were pushed 2026-06-13. No migrations pending.
+> **History:** 0028 procurement-files · 0029 calendar-milestone RPC · 0030 CRM contacts/activity ·
+> 0031 procurement vendor idx · 0032 fix top-projects spent · 0033 at-risk budget from versions.
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
@@ -207,6 +208,32 @@ scripts/db-push-prod.sh                           # typed 'prod' confirm → mig
 #    supabase start && supabase db reset
 ```
 Then dashboard → **Settings → API** → copy the URL + anon key into the frontend host's env vars (+ `VITE_APP_ENV=prod`).
+
+## Seeding prod — demo-deploy posture (`scripts/db-seed-prod.sh`)
+
+> The default rule is **never seed prod**. It is overridden *only* while the Cloud project is a **public
+> demo showcase** (`VITE_DEMO_MODE=true`; the login page already advertises the `acme.test` creds). When
+> prod becomes a real tenant with real data, **delete `db-seed-prod.sh`** and never demo-seed again.
+
+The standard promote (owner-gated):
+```bash
+scripts/db-push-prod.sh            # 1. DB: apply pending migrations (typed 'prod')
+scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-deploy only
+git push origin main:production    # 3. FE: Cloudflare builds the production branch
+```
+**`seed.sql` conflict gotcha (binding):** the seed's inserts are `on conflict (id) do nothing`, which does
+**not** catch a `(org_id, code)` unique-key collision. If prod already holds demo data from an **older
+seed with a different id scheme** (real incident 2026-06-16: prod had `d0…`-id projects, current seed uses
+`41…`), a re-seed errors mid-run and leaves a **partial overlay**. The clean fix is a **truncate + fresh
+reseed** (only demo data is touched; `organizations` + `pipeline_stage_config` + doc counters + the demo
+`auth.users` are migration-/stable-id-owned and preserved):
+```sql
+TRUNCATE budget_line_items, budget_versions, companies, contacts, crm_activities, incident_reports,
+  procurement_documents, procurement_invoices, procurement_items, procurement_quotations,
+  procurement_receipts, procurements, profiles, project_documents, project_milestones, projects,
+  task_dependencies, tasks, timesheet_entries, timesheets RESTART IDENTITY CASCADE;
+-- then re-run scripts/db-seed-prod.sh
+```
 
 ## Self-hosted (Docker/VPS) later
 
