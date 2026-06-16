@@ -11,6 +11,14 @@ challenge bad decisions, identify scaling risks, prefer simplicity, think long-t
 never write app code yourself — you delegate and **verify**.
 
 ## 2. The per-issue loop (one issue at a time, one branch, one PR)
+> **QA model (binding) — ADR-0030 "Discover → Graduate → Cover" portfolio.** The review apparatus is
+> **`docs/qa-portfolio.md`** — read it for the layers (L0 vendor · L1 deterministic gates · L2 enumerated
+> `routes × oracles` sweep · L3 vision acceptance · L4 adversarial-at-launch · 3 code reviewers · Discover
+> · owner), the **graduation step** (every Discover finding → a test + a matrix cell + a DESIGN/decision
+> note), and the **`routes × oracles` denominator**. A **`review mode` switch** at the top of that doc
+> selects `portfolio` (default) | `4-lens` | `3-lens`; this loop describes the **`portfolio`** default and
+> names the `4-lens`/`3-lens` fallback inline where it differs. The legacy 4-lens ×2 battery,
+> `design-reviewer` agent, and the lens skills stay intact in-repo — flipping the mode is the one-edit revert.
 1. **Intake** — clarify the issue with the owner (or, in autonomous mode, pick the top non-blocked
    backlog item). State the locked decisions you're applying up front.
 1b. **Grill (alignment gate — before any spec effort)** — run the `grill-with-docs` skill with the
@@ -24,12 +32,14 @@ never write app code yourself — you delegate and **verify**.
    becomes a binding input to the mockup (Lens D round 1) and the post-build review (Lens D round 2)
    so the spec/plan are *intent-anchored*, not just behaviour-anchored. A feature without a captured
    job story has no Lens D oracle and cannot pass the intent gate.
-1c. **HTML mockup (UI issues only — before any spec effort)** — when the issue includes frontend
-   work, produce a static HTML mockup FIRST and take it through a **full design round** per
-   `docs/design-workflow.md` §1a (design-plan → mockup build → **four-lens** design review → fix
-   rounds) before presenting it for **owner approval**. Only an approved mockup unlocks Spec.
-   Purpose: front-load taste/IxD/IA/intent decisions onto a cheap artifact so they don't recur as
-   post-build fix rounds.
+1c. **Owner sketch-glance (UI issues only — before any spec effort)** — when the issue includes
+   frontend work, show the owner a **~30-second "right shape?" sketch-glance** of the intended
+   layout/intent (a rough static frame or annotated wireframe) for directional alignment. This is a
+   cheap owner gate, **not** an agent design-review battery and **not** a full-lens mockup audit
+   (ADR-0030 demoted that to the `4-lens` fallback). The job-story captured in 1b is the intent
+   anchor. *Review-mode `4-lens`/`3-lens` fallback:* if `review mode` (top of `docs/qa-portfolio.md`)
+   is flipped to `4-lens`/`3-lens`, this step instead runs the full mockup round per
+   `docs/design-workflow.md` §1a. Owner directional approval unlocks Spec.
 2. **Spec (SDD)** — delegate to `spec-miner` (reverse-engineer existing code) and/or `feature-forge`
    (new behavior). For mirror/refactor issues a single `eng-planner` call can produce both spec +
    plan. Output: `docs/specs/<feature>.spec.md` — EARS `FR-/OBS-/NFR-###` + Given/When/Then `AC-###`,
@@ -40,25 +50,37 @@ never write app code yourself — you delegate and **verify**.
 4. **Build (TDD)** — `implementer` (sonnet; **opus for hard/security slices** — schema, RLS, auth,
    RPC). RED→GREEN→REFACTOR; no prod code without a failing test. Works on a branch; commits; does
    **not** push/PR.
-5. **Review — the 3-reviewer battery (always; the code-side analog of the design 3-lens):**
+5. **Review — the 3-reviewer battery (always; the code-side analog of the rendered Discover pass):**
    `spec-reviewer` (does it match spec/ACs? **don't trust the implementer — read code + run tests**),
    `code-quality-reviewer` (decomposition, naming, maintainability, the render seam), **and**
    `security-auditor` (opus) — which must attempt live cross-org/escalation exploits, not just read.
    **All three run on every code issue.** Security spends its depth on auth / RLS / tenancy / new RPC or
    view / public surfaces, and confirms quickly when a change touches none of those. Run them **in
    parallel** when independent.
-6. **Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. The curated e2e
-   journeys must pass live. **BDD rule (binding):** each test encodes the user's real, intuitive journey
-   to the task's goal and asserts that goal — the app conforms to the test, not the reverse. When a test
-   fails, fix the **app**; only for a *deliberate* UX change (e.g. a new confirm step, back-nav moving to
-   the breadcrumb) do you update the journey *steps*, and even then the goal-oracle stays intact. Never
-   reshape a test to match the app's current state to go green (see qa-acceptance "Authoring principle").
-7. **Design re-review (FE/UI issues only — round 2 of 2)** — `design-reviewer` re-runs the full
-   **four-lens** battery (`docs/design-workflow.md` §2.3) on the **rendered, implemented** UI, explicitly
-   checking for **drift from the owner-approved mockup** (round 1 was the §1c mockup gate) on top of
-   `DESIGN.md` + the design-plan. **Lens D grades against `docs/jtbd.md`** — the job story captured
-   at intake (§2 step 1b) is the oracle. Findings route back to `ui-implementer`; repeat until ship-clean.
-   (Code issues with no UI surface skip this step.)
+6. **Discover (FE/UI issues only — the rendered unknown-unknown net)** — `design-reviewer` renders the
+   **running app on rich seed data** and audits **open-endedly** (`taste`/`impeccable`/`design-review`,
+   no checklist — "something is wrong here that no rule would name"). This is where the old lenses' real
+   value lives. **Every finding GRADUATES** into permanent memory (the crux — see `docs/qa-portfolio.md`
+   "Graduation registry"): each becomes **(a)** a deterministic test (the regression lock), **(b)** a cell
+   in the `routes × oracles` matrix (so it is always re-checked), **and (c)** a `DESIGN.md`/`docs/decisions.md`
+   note (the decided pattern/taste call). Fixes route back to `ui-implementer`; **re-render until clean.**
+   This single retained pass replaces the old design-review-twice battery (ADR-0030 retired the double-pass
+   in favour of one pass + the retention KB). Run it **alongside the §5 code reviewers** (independent —
+   reviewers read code, Discover renders), then merge findings; the Discover pass is **advisory→fix** and
+   its graduated tests then live in Cover. (Code issues with no UI surface skip this step.)
+   *Review-mode fallback:* if `review mode` is `4-lens`/`3-lens`, run the legacy rendered §2.3 battery
+   (round 2 of 2, explicit mockup-drift check) instead — same agent, kept intact.
+7. **Cover / Accept** — verify each `AC-###` at its **owning layer** (see §5), AC-id-tagged. This step
+   also runs the **Layer-1 deterministic gate-tests** (ADR-0030 §C — anything with a right answer is a
+   test, not an opinion): chart-position/golden, money, dates/TZ (property-based), derived values,
+   `axe-core` a11y, Playwright visual-regression — plus the **Layer-2 enumerated `routes × oracles` sweep**
+   on the affected routes (`docs/qa-portfolio.md`). The Layer-1 gates are CI merge-blockers and **stay
+   active in every review mode** (pure additions). The curated e2e journeys must pass live. **BDD rule
+   (binding):** each test encodes the user's real, intuitive journey to the task's goal and asserts that
+   goal — the app conforms to the test, not the reverse. When a test fails, fix the **app**; only for a
+   *deliberate* UX change (e.g. a new confirm step, back-nav moving to the breadcrumb) do you update the
+   journey *steps*, and even then the goal-oracle stays intact. Never reshape a test to match the app's
+   current state to go green (see qa-acceptance "Authoring principle").
 8. **Ship** — `release-engineer`: fresh full verification → branch → commit → push → open PR. **It
    never merges.** Then the **Director merges** (see §6) and syncs.
 
