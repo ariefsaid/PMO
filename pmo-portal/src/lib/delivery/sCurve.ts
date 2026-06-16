@@ -43,7 +43,7 @@ const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
  * date-fns `parseISO` honours the explicit `Z` offset → UTC instant, byte-identical to the
  * prior `Date.parse(`${iso}T00:00:00Z`)` (UTC-midnight convention A; DST/TZ-immutable).
  */
-const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
+export const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
 
 /**
  * Days between two 'YYYY-MM-DD' dates (b - a). Keeps the UTC-midnight ms-divide (via `isoToTs`'s
