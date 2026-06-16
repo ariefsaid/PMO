@@ -57,8 +57,9 @@ export interface ProjectGanttProps {
   onActivateTask?: (task: TaskWithRefs) => void;
 }
 
-// ── Layout geometry constants (not design tokens — like the v1 BAR_H/ROW_H) ───
-const BAR_H = 28; // px — bar block height
+// ── Layout geometry constants (not design tokens — like the v1 ROW_H) ─────────
+// Bar block height is derived inside buildGanttModel (min(28, rowHeight-12)) and
+// returned per-bar as box.h, so it is no longer a standalone const here.
 const ROW_H = 40; // px — lane row height (bar + vertical padding)
 const LANE_HEADER_H = 36; // px — milestone lane header height
 const AXIS_H = 32; // px — time axis height
