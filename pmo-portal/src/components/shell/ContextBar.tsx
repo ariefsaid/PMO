@@ -42,6 +42,12 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   const { effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Mobile (<640px) account menu: collapses the role-switcher + user chip + Sign out
+  // behind the avatar so the breadcrumb isn't squashed to "Da…" at phone widths
+  // (AC-MOBILE-OVERFLOW-001 / header). Left nav is already a drawer; this is the
+  // conventional "right side → avatar menu" mobile pattern.
+  const [acctOpen, setAcctOpen] = useState(false);
+  const acctRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -56,6 +62,20 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!acctOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (acctRef.current && !acctRef.current.contains(e.target as Node)) setAcctOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAcctOpen(false);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [acctOpen]);
 
   return (
     <header
@@ -95,6 +115,9 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           into thinking notifications exist). The prop is kept in the interface
           for a future wired implementation but nothing renders. */}
 
+      {/* Desktop right-cluster (≥640px): role-switcher + user chip + Sign out, inline.
+          On phones this whole cluster collapses behind the avatar menu below. */}
+      <div className="hidden items-center gap-3.5 sm:flex">
       {/* Admin-only client-side impersonation (ADR-0008): view-only, does NOT
           change RLS/server identity. Behavior preserved from Header.tsx. */}
       {canImpersonate && (
@@ -167,6 +190,74 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       >
         Sign out
       </button>
+      </div>
+
+      {/* Mobile (<640px) account menu — the avatar IS the trigger; it holds the
+          role-switcher (admins) + Sign out so the desktop cluster doesn't squash
+          the breadcrumb to "Da…" at phone widths. */}
+      <div className="relative sm:hidden" ref={acctRef}>
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={acctOpen}
+          aria-label="Account menu"
+          onClick={() => setAcctOpen((v) => !v)}
+          className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
+          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
+        >
+          {initials(currentUser?.full_name)}
+        </button>
+        {acctOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+          >
+            <div className="px-2.5 py-2">
+              <div className="text-[13px] font-semibold leading-tight">{currentUser?.full_name}</div>
+              <div className="text-[11px] leading-tight text-muted-foreground">{effectiveRole}</div>
+            </div>
+            {canImpersonate && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  View as role
+                </div>
+                {IMPERSONATION_ROLES.map((role) => (
+                  <button
+                    key={role}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      viewAs(role);
+                      setAcctOpen(false);
+                    }}
+                    className={cn(
+                      'flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px]',
+                      effectiveRole === role
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'hover:bg-accent',
+                    )}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </>
+            )}
+            <div className="my-1 border-t border-border" />
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setAcctOpen(false);
+                void signOut();
+              }}
+              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 };

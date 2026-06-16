@@ -103,4 +103,43 @@ describe('ContextBar', () => {
     const trigger = screen.getByRole('button', { name: /command palette/i });
     expect(trigger.className).toContain('touch-target');
   });
+
+  // AC-MOBILE-OVERFLOW-001 (header): on phones the role-switcher + Sign out collapse
+  // behind an avatar "Account menu" so the desktop cluster doesn't squash the breadcrumb
+  // to "Da…". The desktop cluster is CSS-hidden (`hidden sm:flex`); the mobile menu is
+  // `sm:hidden`. Both live in the DOM (jsdom ignores the breakpoint), so we assert the
+  // menu's behavior directly.
+  it('the mobile account menu holds the role-switcher for admins', async () => {
+    effectiveRole = 'Admin';
+    canImpersonate = true;
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Engineer' }));
+    expect(viewAs).toHaveBeenCalledWith('Engineer');
+  });
+
+  it('the mobile account menu signs out (and omits role-switch for non-admins)', async () => {
+    canImpersonate = false;
+    effectiveRole = 'Finance';
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Engineer' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /sign out/i }));
+    expect(signOut).toHaveBeenCalled();
+  });
+
+  it('the desktop right-cluster is breakpoint-gated (hidden sm:flex) so it never squashes the breadcrumb on phones', () => {
+    canImpersonate = true;
+    effectiveRole = 'Admin';
+    const { container } = renderBar();
+    // The cluster wrapper holds the desktop role-switcher + user chip + Sign out.
+    const desktopSignOut = screen.getByRole('button', { name: /sign out/i });
+    const wrapper = desktopSignOut.closest('div.hidden');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.className).toContain('sm:flex');
+    // And the mobile avatar trigger is the sm:hidden counterpart.
+    const acct = screen.getByRole('button', { name: /account menu/i });
+    expect(acct.closest('div')!.className).toContain('sm:hidden');
+    expect(container).toBeTruthy();
+  });
 });

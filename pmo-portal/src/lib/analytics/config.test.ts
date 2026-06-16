@@ -1,8 +1,12 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { getAnalyticsConfig, parseDemoContext, persistDemoContext } from './config';
 
+// A valid PostHog public key is `phc_` + base62 (≥20). The mode tests use a valid key
+// so they exercise the demo/analytics-flag logic, not the key guard (which has its own
+// tests below). The old placeholder here was `ph_test` — exactly the invalid shape the
+// guard now blocks (real defect: an invalid key spammed 401s on the demo deploy).
 const baseEnv = {
-  VITE_POSTHOG_KEY: 'ph_test',
+  VITE_POSTHOG_KEY: 'phc_testTESTtestTESTtest0123456789',
   VITE_POSTHOG_HOST: 'https://us.i.posthog.com',
   VITE_ANALYTICS_ENABLED: 'false',
   VITE_DEMO_MODE: 'false',
@@ -108,6 +112,28 @@ describe('getAnalyticsConfig', () => {
     const cfg = getAnalyticsConfig({ ...baseEnv, VITE_ANALYTICS_ENABLED: 'true' }, '', sessionStorage);
     expect(cfg.enabled).toBe(true);
     expect(cfg.replayAndAutocapture).toBe(false);
+  });
+
+  it('AC-PH-010: an invalid/placeholder PostHog key disables analytics even in demo mode (no 401 spam)', () => {
+    for (const badKey of ['', undefined, 'ph_test', 'phc_short', 'changeme']) {
+      const cfg = getAnalyticsConfig(
+        { ...baseEnv, VITE_DEMO_MODE: 'true', VITE_POSTHOG_KEY: badKey },
+        '',
+        sessionStorage,
+      );
+      expect(cfg.enabled, `key=${JSON.stringify(badKey)}`).toBe(false);
+      expect(cfg.posthogKey).toBe('');
+    }
+  });
+
+  it('AC-PH-010: a valid phc_ key keeps analytics enabled in demo mode', () => {
+    const cfg = getAnalyticsConfig(
+      { ...baseEnv, VITE_DEMO_MODE: 'true', VITE_POSTHOG_KEY: 'phc_validKEYvalidKEYvalid123456' },
+      '',
+      sessionStorage,
+    );
+    expect(cfg.enabled).toBe(true);
+    expect(cfg.posthogKey).toBe('phc_validKEYvalidKEYvalid123456');
   });
 
   it('is pure — does not write to storage', () => {

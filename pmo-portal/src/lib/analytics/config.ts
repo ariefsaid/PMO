@@ -76,6 +76,16 @@ export function persistDemoContext(
   storage.setItem(SESSION_ACCOUNT, ctx.demoAccount);
 }
 
+/**
+ * A usable PostHog project key is `phc_` + base62. Guarding on this stops the SDK
+ * from initialising against a placeholder/empty/malformed key and spamming the
+ * console with 401s from the ingestion endpoint (real defect 2026-06-16: the demo
+ * deploy carried an invalid key → repeated 401s on us.i.posthog.com). A real key
+ * unlocks analytics as before; anything else disables it cleanly.
+ */
+export const isValidPosthogKey = (key: string | undefined): boolean =>
+  /^phc_[A-Za-z0-9]{20,}$/.test((key ?? '').trim());
+
 export function getAnalyticsConfig(
   env: EnvLike = import.meta.env,
   search = typeof window === 'undefined' ? '' : window.location.search,
@@ -83,7 +93,9 @@ export function getAnalyticsConfig(
 ): AnalyticsConfig {
   const demoMode = env.VITE_DEMO_MODE === 'true';
   const analyticsEnabled = env.VITE_ANALYTICS_ENABLED === 'true';
-  const enabled = demoMode || analyticsEnabled;
+  // A missing/invalid PostHog key fully disables analytics — no init, no 401 noise —
+  // regardless of demo/analytics flags. A valid `phc_` key re-enables it transparently.
+  const enabled = (demoMode || analyticsEnabled) && isValidPosthogKey(env.VITE_POSTHOG_KEY);
   const isDev = env.DEV === true;
   const isProd = env.PROD === true;
   const demo = parseDemoContext({ search, isDev, demoMode, storage });
@@ -93,7 +105,7 @@ export function getAnalyticsConfig(
     demoMode,
     analyticsEnabled,
     replayAndAutocapture: demoMode && !isDev && demo.demoAudience === 'prospect',
-    posthogKey: env.VITE_POSTHOG_KEY ?? '',
+    posthogKey: isValidPosthogKey(env.VITE_POSTHOG_KEY) ? env.VITE_POSTHOG_KEY!.trim() : '',
     posthogHost: env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
     appEnv: env.VITE_APP_ENV || env.MODE || (isDev ? 'local' : 'prod'),
     isDev,
