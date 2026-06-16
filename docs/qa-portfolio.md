@@ -86,7 +86,7 @@ Standing shortlist (ADR-0030 §F; verified 2026-06):
 | Surface | Adopt | Status |
 |---|---|---|
 | Gantt | **BUILD & OWN (Gantt-v2) — reference MIT implementations, do NOT vendor** | Owner final (2026-06-16): don't take a DHTMLX runtime dependency; if building, stand on proven MIT source (**frappe-gantt** for dependency-arrow SVG routing; **dhtmlx-gantt**'s MIT source for scheduling/resource-histogram patterns) as *blueprints*, but write to our tokens/a11y/R19 and own it. Extends our 80%-there component. **Phase-a (M):** milestone diamonds on-axis + dependency connector lines + MS-Project table/timeline/zoom/gridlines. **Phase-b (L, later):** drag-scheduling (dependency-aware) + resource load/management. DHTMLX-vendor spike stopped (premise changed). |
-| Tables / data-grid | **TanStack Table** (headless; confirmed *not* hit by CVE-2026-45321) | backfill-on-touch |
+| Tables / data-grid | **DEFER** (assessed 2026-06-16, `reviews/2026-06-16-vendor-tanstack-table-trial.md`) — our `DataTable` is a *controlled presentational* component with **no internal table-engine to replace** (sort/filter/pagination all parent-controlled or absent); a TanStack swap = pure churn + breaks the raw-`Row` contract for zero new capability. **RESCOPE only** on a real driver (server/client pagination, multi-select, column pinning/resizing, client multi-sort) → then TanStack *behind* the API on the desktop `<table>` branch. | DEFERRED |
 | Primitives (dialog/popover/combobox/select) | **React Aria** or **Base UI** | backfill-on-touch (also closes a11y gap) |
 | Date math | **date-fns** | high-ROI swap (kills TZ/off-by-one class) |
 | Charts | **keep recharts** (fix usage + position tests) | Phase 1 |

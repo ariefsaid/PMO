@@ -1,5 +1,7 @@
 # KANNA gap-closing program — execution plan
 
+> ⚑ **COMPLETED / ARCHIVED (2026-06-16).** All KANNA waves 0–3 (Export/Import, Calendar, Kanban, S-Curve, Gantt v1→v2, CRM contacts+activity, procurement attachments, mobile) shipped to `main` long ago; the coherence wave + JTBD remediation followed. This file is the *historical* execution plan — **not an active program.** Live status: `docs/backlog.md`; QA model: `docs/qa-portfolio.md`.
+
 **What this is:** the forward **execution & sequencing** plan for closing the KANNA feature gap, fast,
 under the project's quality bar. It is the program-level intake artifact — agreed with the owner before
 any fan-out.
