@@ -80,9 +80,10 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
 
   it('AC-JR-W5-01: without onActivateTask the bar has NO button role (inert display)', () => {
     render(<ProjectGantt tasks={tasks} milestones={milestones} />);
-    // Bar text is still visible but not a button
+    // Bar text is still visible but not a button.
+    // (Gantt v2 MS-Project layout shows the name in both the table cell and the bar.)
     expect(screen.queryByRole('button', { name: /Foundation Work/i })).toBeNull();
-    expect(screen.getByText('Foundation Work')).toBeInTheDocument();
+    expect(screen.getAllByText('Foundation Work').length).toBeGreaterThan(0);
   });
 
   it('AC-JR-W5-01: bar has cursor-pointer class when onActivateTask is provided', () => {

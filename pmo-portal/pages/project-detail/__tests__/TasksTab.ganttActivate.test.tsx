@@ -179,7 +179,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task edit modal when clicked',
 
     // Bars should NOT have role=button for read-only users
     expect(screen.queryByRole('button', { name: /Survey the site/i })).toBeNull();
-    // Task name text is still visible
-    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    // Task name text is still visible (Gantt v2 shows it in both table + bar).
+    expect(screen.getAllByText('Survey the site').length).toBeGreaterThan(0);
   });
 });
