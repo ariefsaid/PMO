@@ -23,6 +23,8 @@ export const Icon: React.FC<IconProps> = ({ name, className, ...rest }) => (
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-hidden={rest['aria-label'] ? undefined : true}
+    width="1em"
+    height="1em"
     className={className}
     {...rest}
   >
