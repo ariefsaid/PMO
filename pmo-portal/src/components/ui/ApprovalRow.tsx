@@ -35,6 +35,20 @@ export interface ApprovalRowProps {
   /** Action buttons (Approve / Return). */
   children?: React.ReactNode;
   className?: string;
+  /**
+   * AC-ROWCLICK-APPROVAL: whole-row pointer affordance. When provided, clicking
+   * anywhere on the row body (outside a nested interactive control) fires this
+   * callback — used by the /approvals action queue to TOGGLE the in-place expand
+   * (NOT navigate), so an approver can open the budget-impact panel by clicking
+   * the row, not just the disclosure chevron.
+   *
+   * The keyboard/AT affordance stays the existing focusable `disclosure` chevron
+   * (which carries aria-expanded/aria-controls) — the row click is a pointer
+   * convenience layered on top, so no nested-interactive a11y violation is
+   * introduced. Nested controls (chevron, status links, action buttons,
+   * checkboxes) are guarded via a `closest()` interactive-element check.
+   */
+  onActivate?: () => void;
 }
 
 /**
@@ -57,6 +71,7 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   disclosure,
   children,
   className,
+  onActivate,
 }) => {
   const initial = (name.trim().charAt(0) || '?').toUpperCase();
   const subtitleNode = subtitle ?? (
@@ -67,8 +82,26 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   return (
     <div
       data-approval-row
+      onClick={
+        onActivate
+          ? (e) => {
+              // Guard: ignore clicks originating from interactive controls inside
+              // the row (the disclosure chevron, status pill links, action
+              // buttons, checkboxes, etc.) so they never double-fire the row
+              // toggle. Mirrors the DataTable row-activation guard.
+              if (
+                (e.target as HTMLElement).closest(
+                  'button, a, select, input, textarea, label, [role="menuitem"], [contenteditable]'
+                )
+              )
+                return;
+              onActivate();
+            }
+          : undefined
+      }
       className={cn(
         'flex flex-wrap items-center gap-3 border-b border-border py-[11px] last:border-b-0',
+        onActivate && 'cursor-pointer transition-colors hover:bg-accent/60',
         className
       )}
     >

@@ -327,11 +327,16 @@ export const ApprovalsQueue: React.FC = () => {
             const canSelect = approvableIds.has(sheet.id);
             return (
               <div key={sheet.id} data-week-start={sheet.week_start_date}>
-                {/* N11: disclosure slot — chevron sits BEFORE the avatar (AC-JR-W3-01 / T20). */}
+                {/* N11: disclosure slot — chevron sits BEFORE the avatar (AC-JR-W3-01 / T20).
+                    AC-ROWCLICK-TIMESHEET: whole-row click TOGGLES the in-place hours
+                    breakdown (decide without leaving the queue) — never navigates. The
+                    chevron, per-row checkbox and Approve/Return buttons are interactive
+                    and excluded by the ApprovalRow shell's closest() guard. */}
                 <ApprovalRow
                   name={name}
                   week={weekLabel(sheet.week_start_date)}
                   hours={total}
+                  onActivate={() => toggleExpanded(sheet.id)}
                   status={
                     <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
                   }

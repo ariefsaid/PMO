@@ -10,7 +10,7 @@
  * value, status pill, lifecycle stepper) so the preview list feels like the table.
  */
 import React, { useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -121,11 +121,30 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <div className="border-b border-border last:border-b-0">
-      {/* Row summary — always visible */}
-      <div className="flex flex-wrap items-start gap-2 px-3.5 py-3">
+      {/* Row summary — always visible.
+          AC-ROWCLICK-PROCLIST: this is a NAVIGATION list, so a whole-row click
+          opens the detail page (/procurement/:id) — not just the title link. The
+          disclosure chevron, the title <Link>, and the project-name link are
+          interactive and excluded by the closest() guard (the chevron keeps its
+          expand behaviour; the inner links keep their own declarative href). The
+          title <Link> stays the keyboard/AT affordance — the row click is a
+          pointer convenience layered on top. */}
+      <div
+        data-row-activate
+        onClick={(e) => {
+          if (
+            (e.target as HTMLElement).closest(
+              'button, a, select, input, textarea, label, [role="menuitem"], [contenteditable]'
+            )
+          )
+            return;
+          navigate(`/procurement/${row.id}`);
+        }}
+        className="flex cursor-pointer flex-wrap items-start gap-2 px-3.5 py-3 transition-colors hover:bg-accent/60">
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
           variant="ghost"

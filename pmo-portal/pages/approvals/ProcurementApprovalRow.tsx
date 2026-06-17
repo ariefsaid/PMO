@@ -120,10 +120,15 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
 
   return (
     <div className="border-b border-border last:border-b-0">
-      {/* Row summary rendered through the shared ApprovalRow shell. */}
+      {/* Row summary rendered through the shared ApprovalRow shell.
+          AC-ROWCLICK-PROC-APPROVAL: whole-row click TOGGLES the in-place expand
+          (the IF-A "decide without leaving the queue" flow) — it never navigates.
+          The chevron, ProjectNameLink and (in the panel) action buttons / "Open
+          request" are interactive and excluded by the shell's closest() guard. */}
       <ApprovalRow
         name={row.title}
         subtitle={subtitle}
+        onActivate={() => setExpanded((v) => !v)}
         disclosure={
           <Button
             variant="ghost"
