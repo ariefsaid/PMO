@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
-    # Skip CI on docs/markdown-only changes (no code/test/migration touched) — saves
-    # the full Supabase+Playwright integration run on doc commits to main/dev.
+    # PUSH CI runs on `main` ONLY (a post-merge smoke). `dev` is intentionally NOT here:
+    # every change reaches `dev` through a PR (which already runs `verify`), and `dev` is
+    # otherwise only force-synced to `main` (identical, already-gated content) — so a
+    # push-trigger on `dev` would just re-run `verify` on content a PR just verified.
+    # Net effect: `verify` runs once per PR + once as the main post-merge smoke, instead
+    # of 4× per change. (`integration` is unaffected — it's PR→main only; see below.)
+    branches: [main]
+    # Skip CI on docs/markdown-only changes (no code/test/migration touched).
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -43,15 +48,16 @@ defaults:
   run:
     working-directory: pmo-portal
 
-# ─── CI TIERING ────────────────────────────────────────────────────────────────
-# dev branch  → push triggers `verify` only (typecheck · lint · unit tests · build).
-#               Fast iteration lane; no Supabase stack spin-up.
-# PR → main   → both jobs run: `verify` + `integration` (Supabase+pgTAP+Playwright
-#               e2e, which now includes the visual-invariant gate AC-VISUAL-ICON-001
-#               and the mobile-overflow gate AC-MOBILE-OVERFLOW-001).
-# PR → dev    → `verify` only (same fast lane as a dev push).
-# main→production promote → no CI step needed; main is already fully pre-gated by
-#               the integration job that ran on the PR that merged it to main.
+# ─── CI TIERING (lean: no redundant runs) ───────────────────────────────────────
+# PR → dev    → `verify` only (typecheck · lint · unit tests · build). Fast iteration
+#               lane; no Supabase stack spin-up.
+# PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e, incl. the
+#               visual-invariant gate AC-VISUAL-ICON-001 + the mobile-overflow gate
+#               AC-MOBILE-OVERFLOW-001). This is the authoritative pre-merge gate.
+# push main   → `verify` only (post-merge smoke; integration is skipped — see its `if`).
+# (no push CI on dev/feature branches → no duplicate `verify`; see the `on.push` note.)
+# main→production promote → no CI; main is already fully pre-gated by the integration
+#               job on the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
   verify:
