@@ -376,6 +376,69 @@ describe('milestone lane headers', () => {
   });
 });
 
+// ── Single-scroll-unit regression (2026-06-17) ────────────────────────────────
+//
+// The Gantt previously rendered the left task table and the right timeline as TWO
+// nested scroll contexts (a `sticky` left block inside a `overflow-y-auto` outer +
+// the right pane owning its OWN `overflow-x-auto`). With a tall task list the two
+// desynced vertically and showed two scrollbars ("two windows, not one unit").
+// The fix collapses them into a SINGLE scroll box that scrolls both axes, freezing
+// the task column + the header/axis via per-element `position: sticky`. This test
+// pins the structural invariant so the desync can never recur.
+
+describe('Gantt is one scroll unit — task column + timeline share a single scroller (no vertical desync, 2026-06-17)', () => {
+  function tallProject() {
+    // ~16 dated tasks so the body exceeds the 60vh cap (the desync repro condition).
+    return Array.from({ length: 16 }, (_, i) =>
+      makeTask({
+        id: `t${i}`,
+        name: `Task ${i}`,
+        start_date: '2026-01-01',
+        end_date: '2026-03-31',
+      }),
+    );
+  }
+
+  it('renders exactly ONE scroll container for the grid (not a left sticky block + a separate right overflow-x-auto)', () => {
+    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} />);
+
+    // The single scroll box is explicitly marked. There must be exactly one.
+    const scrollers = container.querySelectorAll('[data-gantt-scroll]');
+    expect(scrollers).toHaveLength(1);
+
+    // No element OTHER than the single scroller may own an independent axis scroll
+    // (the old structure had the right pane on its own `overflow-x-auto`, distinct
+    // from the table's `overflow-y-auto` parent — exactly the two-context desync).
+    const overflowEls = [...container.querySelectorAll('*')].filter((el) => {
+      const cls = el.getAttribute('class') ?? '';
+      return /overflow-(x|y)-auto|overflow-auto/.test(cls);
+    });
+    expect(overflowEls).toHaveLength(1);
+    expect(overflowEls[0]).toBe(scrollers[0]);
+  });
+
+  it('the frozen task-column cell and the timeline bar share a single scroll ancestor', () => {
+    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} />);
+
+    const scroller = container.querySelector('[data-gantt-scroll]');
+    expect(scroller).not.toBeNull();
+
+    // The name 'Task 0' appears as BOTH the frozen task-column cell AND the
+    // timeline bar (it is the same scroll box, so the name renders in both halves).
+    const matches = screen.getAllByText('Task 0');
+    // The table cell is the role=gridcell span; the bar is the other occurrence.
+    const cell = matches.find((el) => el.getAttribute('role') === 'gridcell');
+    const bar = matches.find((el) => el.getAttribute('role') !== 'gridcell');
+    expect(cell).toBeTruthy();
+    expect(bar).toBeTruthy();
+
+    // Both live under the ONE scroller — so vertical scroll moves them together and
+    // they can never desync (it is a single scroll box).
+    expect(scroller!.contains(cell!)).toBe(true);
+    expect(scroller!.contains(bar!)).toBe(true);
+  });
+});
+
 // ── AC-GANTT-D1: mobile (<640px) Timeline fallback ────────────────────────────
 //
 // Defect D1: the MS-Project split layout (260px task table + scroll timeline)

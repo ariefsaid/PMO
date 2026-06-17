@@ -226,20 +226,34 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         data-scale={scale}
         className="m-0"
       >
-        {/* One shared vertical-scroll container so table rows line up with bars. */}
-        <div className="flex max-h-[60vh] overflow-y-auto">
-          {/* Left pane — sticky task table (role=grid) */}
+        {/*
+          ONE scroll unit (2026-06-17): a single `overflow-auto` box scrolls BOTH
+          axes. The task column is frozen via per-cell `sticky left-0` and the
+          axis/header via `sticky top-0`, so the table and the bars can never
+          desync — they live in the same scroll box. The OLD structure used a
+          left sticky-block inside `overflow-y-auto` + a right pane with its OWN
+          `overflow-x-auto`, which produced two independent scroll contexts that
+          desynced vertically once the task list exceeded the height cap.
+
+          z-layering (high → low): corner (40) > sticky column cells (30) >
+          axis/header band (20) > bars/gridlines (default). The sticky cells carry
+          an opaque `bg-card`/`bg-secondary` so bars scroll UNDER them, not through.
+        */}
+        <div data-gantt-scroll className="flex max-h-[60vh] overflow-auto">
+          {/* Left column — the task TABLE (role=grid). Frozen on horizontal scroll
+              via sticky left-0; its own header cell freezes on vertical scroll. */}
           <div
             role="grid"
             aria-label="Task table"
             aria-rowcount={flatRows.length}
-            className="sticky left-0 z-10 shrink-0 border-r border-border bg-card"
+            className="sticky left-0 z-30 shrink-0 border-r border-border bg-card"
             style={{ width: TABLE_W }}
           >
-            {/* Header spacer aligned to the axis height */}
+            {/* Corner header cell ("Task") — frozen in BOTH directions (top-0 + the
+                column's own sticky left-0), highest z so nothing scrolls over it. */}
             <div
               role="row"
-              className="flex items-center border-b border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              className="sticky top-0 z-40 flex items-center border-b border-border bg-card px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
               style={{ height: AXIS_H }}
             >
               <span role="columnheader" className="flex-1">Task</span>
@@ -271,14 +285,16 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
             )}
           </div>
 
-          {/* Right pane — horizontally scrollable timeline */}
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="relative" style={{ width: contentWidth + 32, padding: '0 16px' }}>
-              {/* Axis */}
+          {/* Right column — the timeline (axis frozen on vertical scroll via
+              sticky top-0; content box uses absolute-px geometry, math unchanged). */}
+          <div className="shrink-0" style={{ width: contentWidth + 32, padding: '0 16px' }}>
+            {/* Axis — frozen on vertical scroll. Opaque bg so bars pass under it. */}
+            <div className="sticky top-0 z-20 bg-card">
               <GanttAxis ticks={ticks} todayLeft={todayLeft} contentWidth={contentWidth} />
+            </div>
 
-              {/* Content box: SVG overlay (gridlines + edges) under the bars/diamonds. */}
-              <div className="relative" style={{ width: contentWidth, height: contentHeight }}>
+            {/* Content box: SVG overlay (gridlines + edges) under the bars/diamonds. */}
+            <div className="relative" style={{ width: contentWidth, height: contentHeight }}>
                 <svg
                   aria-hidden="true"
                   width={contentWidth}
@@ -353,7 +369,6 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
                     />
                   );
                 })}
-              </div>
             </div>
           </div>
         </div>
