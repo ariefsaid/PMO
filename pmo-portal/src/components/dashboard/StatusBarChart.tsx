@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { chartTheme, tintStatusFill } from '@/src/components/ui/chartTheme';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, tooltipCursorFill, axisTickStyle } from './chartChrome';
 
@@ -46,6 +47,7 @@ export function StatusBarChart<S extends string>({
   hrefFor,
 }: StatusBarChartProps<S>) {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const isNarrow = useIsNarrow();
 
   const { total, topStatus } = useMemo(() => {
     const sum = data.reduce((a, d) => a + d.count, 0);
@@ -63,15 +65,19 @@ export function StatusBarChart<S extends string>({
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+          {/* On narrow viewports the rotated labels are cramped and redundant —
+              the figcaption legend lists every status with dot+name+count. Hide
+              the axis ticks on mobile and reclaim the vertical space. Desktop
+              keeps the original rotated-label config unchanged. */}
           <XAxis
             dataKey="status"
-            tick={axisTickStyle}
             tickLine={false}
             axisLine={{ stroke: chartTheme.grid }}
             interval={0}
-            angle={-30}
-            textAnchor="end"
-            height={64}
+            {...(isNarrow
+              ? { tick: false, height: 8 }
+              : { tick: axisTickStyle, angle: -30, textAnchor: 'end', height: 64 }
+            )}
           />
           <YAxis
             allowDecimals={false}
