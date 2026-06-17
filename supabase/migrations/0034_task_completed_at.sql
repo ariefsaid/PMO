@@ -3,9 +3,19 @@
 -- Reversibility: reversible pre-prod via `supabase db reset`; forward-only rollback if already promoted:
 --   alter table tasks drop column completed_at;
 --   drop function if exists stamp_task_completed_at() cascade;
+--   drop function if exists task_completion_proxy(date, timestamptz);
 -- Security note: the trigger only stamps the column; RLS on tasks is UNCHANGED (NFR-SCA-006).
 --   The BEFORE trigger overwrites any client-supplied value, so completed_at is never forgeable
 --   and always agrees with status (NFR-SCA-003).
+
+-- 0. Immutable helper: the single source of truth for the "completion proxy" expression used
+--    both in the backfill below (step 4) and in seed.sql's demo backfill. IMMUTABLE so the
+--    planner can inline / constant-fold it. Security: SECURITY INVOKER (default); no elevated
+--    privilege needed — it is a pure expression with no table access.
+create function task_completion_proxy(end_date date, created_at timestamptz)
+  returns timestamptz language sql immutable set search_path = public as $$
+  select coalesce(end_date::timestamptz, created_at)
+$$;
 
 -- 1. Column
 alter table tasks add column completed_at timestamptz;
@@ -38,7 +48,7 @@ create trigger trg_stamp_task_completed_at
 alter table tasks disable trigger trg_stamp_task_completed_at;
 
 update tasks
-  set completed_at = coalesce(end_date::timestamptz, created_at)
+  set completed_at = task_completion_proxy(end_date, created_at)
   where status = 'Done';
 
 alter table tasks enable trigger trg_stamp_task_completed_at;

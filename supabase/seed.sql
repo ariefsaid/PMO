@@ -660,7 +660,7 @@ on conflict (id) do nothing;
 -- pre-existing prod data. Trigger disabled so it doesn't overwrite with now(); re-enabled
 -- after. (Local/demo seed only — never prod business data; see docs/environments.md.)
 alter table tasks disable trigger trg_stamp_task_completed_at;
-update tasks set completed_at = coalesce(end_date::timestamptz, created_at) where status = 'Done';
+update tasks set completed_at = task_completion_proxy(end_date, created_at) where status = 'Done';
 alter table tasks enable trigger trg_stamp_task_completed_at;
 
 -- ── task_dependencies ────────────────────────────────────────────────────────
