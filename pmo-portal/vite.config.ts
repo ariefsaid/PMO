@@ -17,18 +17,27 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          // React core + router — changes rarely; long-lived browser cache
-          // Note: react/react-dom are already inlined into the main bundle by
-          // Rollup when they're re-exported by react-router-dom; combining them
-          // avoids an empty chunk warning.
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // TanStack Query — data-fetching layer
-          'vendor-query': ['@tanstack/react-query'],
-          // Supabase client — heaviest single dep
-          'vendor-supabase': ['@supabase/supabase-js'],
-          // Recharts — chart library, only used in dashboard pages
-          'vendor-recharts': ['recharts'],
+        // Vite 8 (rolldown) only accepts the function form of manualChunks.
+        // Behaviour is identical to the previous object form: each dep maps to
+        // the same named chunk (long-lived browser cache for rarely-changed
+        // vendor bundles).
+        manualChunks: (id: string) => {
+          if (id.includes('react-router-dom') || id.includes('/react/') || id.includes('/react-dom/')) {
+            // React core + router — changes rarely; long-lived browser cache
+            return 'vendor-react';
+          }
+          if (id.includes('@tanstack/react-query')) {
+            // TanStack Query — data-fetching layer
+            return 'vendor-query';
+          }
+          if (id.includes('@supabase/supabase-js') || id.includes('/supabase-js/')) {
+            // Supabase client — heaviest single dep
+            return 'vendor-supabase';
+          }
+          if (id.includes('recharts')) {
+            // Recharts — chart library, only used in dashboard pages
+            return 'vendor-recharts';
+          }
         },
       },
     },
