@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     # Skip CI on docs/markdown-only changes (no code/test/migration touched) — saves
-    # the full Supabase+Playwright integration run on doc commits to main.
+    # the full Supabase+Playwright integration run on doc commits to main/dev.
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -43,6 +43,16 @@ defaults:
   run:
     working-directory: pmo-portal
 
+# ─── CI TIERING ────────────────────────────────────────────────────────────────
+# dev branch  → push triggers `verify` only (typecheck · lint · unit tests · build).
+#               Fast iteration lane; no Supabase stack spin-up.
+# PR → main   → both jobs run: `verify` + `integration` (Supabase+pgTAP+Playwright
+#               e2e, which now includes the visual-invariant gate AC-VISUAL-ICON-001
+#               and the mobile-overflow gate AC-MOBILE-OVERFLOW-001).
+# PR → dev    → `verify` only (same fast lane as a dev push).
+# main→production promote → no CI step needed; main is already fully pre-gated by
+#               the integration job that ran on the PR that merged it to main.
+# ───────────────────────────────────────────────────────────────────────────────
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -92,12 +102,12 @@ jobs:
         run: npm run lint:ci
 
   integration:
-    # The expensive job (Supabase stack + pgTAP + full Playwright e2e, ~6 min). Run it on
-    # PULL REQUESTS only — that's the authoritative pre-merge gate. A squash-merge to main
-    # carries the exact PR-tested content, so re-running the full e2e on the main push is
-    # redundant; the fast `verify` job still runs on main as a smoke. (Make this a REQUIRED
-    # status check in branch protection so a red e2e can't be merged.)
-    if: github.event_name == 'pull_request'
+    # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
+    # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
+    # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
+    # is redundant. PRs targeting dev get `verify` only (fast lane — see tiering comment above).
+    # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
