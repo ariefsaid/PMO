@@ -69,9 +69,8 @@ for one client, architected to scale to millions.
   transition; subagent briefs MUST mandate it as their final gate.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
-- **Checkpoints:** the **owner** approves spec sign-off + production deploy / irreversible infra; the
-  **Director** approves merge-to-main and staging within the signed spec, and escalates anything
-  strategic or out-of-spec.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** **NEVER promote to `production` — no `git push origin main:production`, no prod DB push (`db-push-prod.sh`), no prod reseed — unless the owner instructs it DIRECTLY, that time.** A prior "ship to prod" is per-instance, never standing. CI is tiered to match: `dev` push/PR = `verify` only (fast lane); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; `main`→`production` is a manual, owner-instructed promote only.
+- **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
 - **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
 - **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; QA per the
