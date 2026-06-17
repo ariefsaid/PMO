@@ -64,6 +64,15 @@ const clampPct = (x: number): number => Math.max(0, Math.min(100, x));
 export const isoToTs = (iso: string): number => parseISO(`${iso}T00:00:00Z`).getTime();
 
 /**
+ * Inverse of `isoToTs`: convert epoch-ms (UTC midnight) back to a 'YYYY-MM-DD' string.
+ * Uses UTC date methods so the result is TZ-agnostic and round-trips exactly with `isoToTs`.
+ */
+export const tsToIso = (ts: number): string => {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+};
+
+/**
  * Clamp an ISO date string (either 'YYYY-MM-DD' or timestamptz ISO) to be ≤ asOf.
  * Returns the epoch-ms of min(isoDate, asOf) using UTC-midnight for both inputs.
  * The `completed_at` column is a timestamptz; we extract just the date portion (first 10 chars)
@@ -346,8 +355,7 @@ export function buildSCurve(
       const asOfTs = isoToTs(asOf);
       for (const [ts, val] of actualPointsMap) {
         // Convert ts back to 'YYYY-MM-DD' for the date label.
-        const d = new Date(ts);
-        const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        const date = tsToIso(ts);
         points.push({ date, ts, planned: null, actual: val });
       }
 
