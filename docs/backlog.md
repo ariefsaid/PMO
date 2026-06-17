@@ -4,11 +4,11 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-06-17) — MOBILE GATE + POSTHOG + S-CURVE + ROW-CLICKABLE + VITE 8 all merged to main
+## ▶ Current state (2026-06-17) — PROD PROMOTED: mobile + PostHog + S-curve + row-clickable + Vite 8 are LIVE
 
-> **RESUME ENTRY POINT (model-agnostic).** `main`@`158b727`, ahead of prod. **Prod is PARKED** at `production`=`a1e5115` / Cloud DB **migration 0033** (the 2026-06-16 promote) — **owner directive: ship new work to `main` ONLY, no prod promote** (the eventual promote will carry mobile + PostHog + S-curve + migration 0034 together, on the owner's call).
+> **RESUME ENTRY POINT (model-agnostic).** **Prod is CURRENT** — `production`=`5ce5a39` / Cloud DB **migration 0034** (promoted 2026-06-17). `main` == `production` == `5ce5a39`; nothing un-shipped. The promote pushed **migration 0034 only** (`scripts/db-push-prod.sh`, typed-`prod` confirm) + FE `git push origin main:production`. **No destructive reseed was needed** — migration 0034 self-backfills existing Done rows (`task_completion_proxy(end_date, created_at)`), so the S-curve actual line works on the existing 2026-06-16 prod dataset. **Verified live:** prod S-curve renders the real 2-line curve (`actual to date 50%` + planned, time axis, the "live tracking starts now" caveat = new-build proof), zero console errors.
 >
-> **⭐ IMMEDIATE NEXT ACTION — none queued; awaiting owner.** All in-flight PRs are merged + branches/worktrees clean (only `main`/`dev`/`production`). Pick from "Open feature tracks" below or await an owner directive. Prod promote remains parked.
+> **⭐ IMMEDIATE NEXT ACTION — none queued; awaiting owner.** All in-flight PRs merged, prod is current, branches/worktrees clean (only `main`/`dev`/`production`). Pick from "Open feature tracks" below or await an owner directive.
 >
 > **Shipped to main this session:**
 > - **#135** — mobile horizontal-bleed killed app-wide @390/360 + the measuring gate `e2e/AC-MOBILE-OVERFLOW-001` (every route×{390,360}, no element right-edge > viewport — the deterministic L1 gate the 4-lens reviews structurally couldn't be) + **PostHog fixed** (our `property_denylist` stripped PostHog's own `token` field → tokenless `/e/` → 401; posthog-js#3438) + valid-`phc_`-key guard. **#134** (earlier) = prod-promote ops docs + `scripts/db-seed-prod.sh`.
@@ -31,7 +31,7 @@
 **▶ pi/GLM QA-ORCHESTRATION TRIAL ✅ SUCCEEDED** (`docs/reviews/2026-06-16-qa-orchestration-trial-gantt.md`): a **separate opus orchestrator** ran the full portfolio loop on the Gantt D1 fix **from the docs alone**, dispatching **pi/GLM** for all work (build `glm-5.2` → review `glm-5.1` → fold), self-verified gates (3128/3128); Director only verified + hardened docs. **GLM verdict: keep both** (glm-5.2 first-pass-correct). **gpt-5.4/openai-codex is UNAVAILABLE → GLM-ONLY routing.** Prompting lesson: a Claude subagent gets NO background re-invoke → must run pi blocking-foreground within its turn.
 
 **▶ OUTSTANDING (owner-gated / next):**
-1. **PROD PROMOTE (parked, owner-gated)** — `main` → `production` + push migration **0034** to Cloud + reseed (the demo S-curve needs the seed.sql backfill block). Owner: **not yet — ship to main first.** Bundles mobile + PostHog + S-curve + row-clickable + Vite 8. 1 dependabot-high (esbuild, dismissed not-affected). Prod currently `a1e5115`/0033.
+1. **PROD PROMOTE ✅ DONE 2026-06-17** — `production`=`5ce5a39` / Cloud DB **migration 0034**. Pushed 0034 (self-backfilling, no reseed) + promoted FE; verified the live S-curve. mobile + PostHog + S-curve + row-clickable + Vite 8 are all LIVE. (1 dependabot-high esbuild remains dismissed not-affected.)
 2. **Vendoring:** date-fns ✅ #130 · TanStack Table ✅ DEFER #131. Closed for now.
 3. **Minor doc residual** (non-blocking): breakpoint-doc 768-vs-640. (`tsToIso` + migration↔seed backfill DRY both shipped in #140.)
 
