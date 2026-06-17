@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
-    # Skip CI on docs/markdown-only changes (no code/test/migration touched) — saves
-    # the full Supabase+Playwright integration run on doc commits to main/dev.
+    # PUSH CI on `main` ONLY (post-merge smoke). `dev`/feature branches are intentionally
+    # excluded: every change reaches them via a PR that already runs `verify`, and `dev` is
+    # otherwise only force-synced to `main` (identical, already-gated content) — so a push
+    # trigger there would just re-run `verify` on verified content. Net: `verify` runs once
+    # per PR + one main post-merge smoke, not ~4× per change. (`integration` is PR→main only.)
+    branches: [main]
+    # Skip CI on docs/markdown-only changes (no code/test/migration touched).
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -43,15 +47,16 @@ defaults:
   run:
     working-directory: pmo-portal
 
-# ─── CI TIERING ────────────────────────────────────────────────────────────────
-# dev branch  → push triggers `verify` only (typecheck · lint · unit tests · build).
-#               Fast iteration lane; no Supabase stack spin-up.
-# PR → main   → both jobs run: `verify` + `integration` (Supabase+pgTAP+Playwright
-#               e2e, which now includes the visual-invariant gate AC-VISUAL-ICON-001
-#               and the mobile-overflow gate AC-MOBILE-OVERFLOW-001).
-# PR → dev    → `verify` only (same fast lane as a dev push).
-# main→production promote → no CI step needed; main is already fully pre-gated by
-#               the integration job that ran on the PR that merged it to main.
+# ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
+# PR → dev    → `verify` only (typecheck · lint · unit tests · build). Fast lane.
+# PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
+#               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
+#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate.
+# push main   → `verify` smoke only (integration skipped — see its `if`).
+# No push CI on dev/feature branches (PR-gated) → no duplicate `verify` runs.
+# Integration trims: Playwright browsers cached + Supabase starts without the
+# CI-unused containers (studio/realtime/vector).
+# main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
   verify:
@@ -132,9 +137,12 @@ jobs:
         run: npm ci
 
       # Docker is pre-installed on ubuntu-latest; storage + edge_runtime are disabled in
-      # config.toml so the image pull is lighter.
+      # config.toml. Also exclude CI-unused containers to shave the stack-up time:
+      # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
+      # shipper). Kept: db/rest/auth/kong + storage (doc-upload e2e+pgTAP) + inbucket
+      # (1 magic-link e2e, AC-AUTH-005).
       - name: Start local Supabase stack
-        run: supabase start
+        run: supabase start -x studio,realtime,vector
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
@@ -153,10 +161,25 @@ jobs:
           echo "VITE_SUPABASE_URL=${API_URL}" > pmo-portal/.env.local
           echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}" >> pmo-portal/.env.local
 
-      # Install only the Chromium browser (the single project defined in playwright.config.ts).
-      - name: Install Playwright browsers
+      # Cache the Chromium binary across runs (the download is ~15s). System deps (apt)
+      # don't persist across runner VMs, so they always run; only the binary download is
+      # saved on a cache hit. Keyed on the lockfile so a Playwright bump busts the cache.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pmo-portal/package-lock.json') }}
+      # Install only Chromium (the single project in playwright.config.ts): browsers on a
+      # cache miss, system deps always.
+      - name: Install Playwright (browsers on cache miss; system deps always)
         working-directory: pmo-portal
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
       # reuseExistingServer=false in CI so Playwright owns the lifecycle.
