@@ -7,8 +7,13 @@
 --   AC-PF-011  in-org NON-WRITER (Engineer) CAN list file rows — deliberate org-wide SELECT
 --              parity with the parent `procurements_select` (file metadata is no more sensitive
 --              than the procurement rows in-org users already read)
+--   AC-PROCFILE-ORG-OVERRIDE (×3)  org-A PM supplying explicit org_id=org-B on INSERT into each
+--              of the three procurement_*_files tables → 42501 (the WITH CHECK guard; mirrors 0015
+--              pattern — a cross-org spoof is preserved untouched by the stamp-trigger so the
+--              RLS WITH CHECK (org_id = auth_org_id()) rejects it)
+--   AC-PROCFILE-ANON-READ (×3)     anon role SELECT count(*) on each table returns 0 (RLS denies anon)
 begin;
-select plan(6);
+select plan(12);
 
 -- Fixtures (two orgs, inserted as table owner — bypasses RLS).
 insert into organizations (id, name) values
@@ -43,6 +48,18 @@ insert into procurements (id, org_id, title, status) values
 insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date) values
   ('00700000-0000-0000-0000-000000000021','00700000-0000-0000-0000-000000000002',
    '00700000-0000-0000-0000-000000000011','00700000-0000-0000-0000-000000000051', 2000, '2026-01-01');
+
+-- Org-A receipt + invoice (parents for receipt_files and invoice_files org-override tests).
+-- Inserted as table owner (bypasses RLS). The stamp-org triggers are BEFORE INSERT so they only
+-- run under the authenticated role; table-owner inserts skip triggers? No — triggers fire regardless
+-- of role, but force RLS is on — insert directly sets org_id from column default (seed org) then the
+-- trigger rewrites from the parent row. We supply explicit org_id here to be safe.
+insert into procurement_receipts (id, org_id, procurement_id, status, receipt_date) values
+  ('00700000-0000-0000-0000-000000000030','00700000-0000-0000-0000-000000000001',
+   '00700000-0000-0000-0000-000000000010','Partial','2026-01-10');
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+  ('00700000-0000-0000-0000-000000000040','00700000-0000-0000-0000-000000000001',
+   '00700000-0000-0000-0000-000000000010','Received','2026-01-15');
 
 -- ── AC-PF-001: in-org PM can insert a quotation-file row ─────────────────────
 set local role authenticated;
@@ -100,6 +117,58 @@ select results_eq(
   $$ select count(*)::int from procurement_quotation_files where quotation_id = '00700000-0000-0000-0000-000000000020' $$,
   $$ values (0) $$,
   'AC-PF-005: deleting the parent quotation cascades — its file rows are deleted');
+
+-- ── AC-PROCFILE-ORG-OVERRIDE: org-A PM explicitly supplies org_id=org-B → 42501 (×3) ──
+-- The stamp-org trigger only rewrites org_id when it is NULL or the seed-org default; an
+-- explicitly-supplied cross-org UUID is preserved, so the RLS WITH CHECK (org_id = auth_org_id())
+-- rejects the row. Mirrors the 0015 procurement_items pattern (see 0019_procurement_orgid_anon.test.sql).
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into procurement_quotation_files (org_id, quotation_id, title)
+     values ('00700000-0000-0000-0000-000000000002',
+             '00700000-0000-0000-0000-000000000020', 'Org-override quotation') $$,
+  '42501', null,
+  'AC-PROCFILE-ORG-OVERRIDE: org-A PM supplying explicit org_id=org-B on procurement_quotation_files INSERT → 42501');
+
+select throws_ok(
+  $$ insert into procurement_receipt_files (org_id, receipt_id, title)
+     values ('00700000-0000-0000-0000-000000000002',
+             '00700000-0000-0000-0000-000000000030', 'Org-override receipt') $$,
+  '42501', null,
+  'AC-PROCFILE-ORG-OVERRIDE: org-A PM supplying explicit org_id=org-B on procurement_receipt_files INSERT → 42501');
+
+select throws_ok(
+  $$ insert into procurement_invoice_files (org_id, invoice_id, title)
+     values ('00700000-0000-0000-0000-000000000002',
+             '00700000-0000-0000-0000-000000000040', 'Org-override invoice') $$,
+  '42501', null,
+  'AC-PROCFILE-ORG-OVERRIDE: org-A PM supplying explicit org_id=org-B on procurement_invoice_files INSERT → 42501');
+
+reset role;
+
+-- ── AC-PROCFILE-ANON-READ: anon role sees 0 rows on each table ───────────────
+-- RLS SELECT policy uses auth_org_id() which returns NULL for the anon role (no JWT),
+-- so the predicate `org_id = auth_org_id()` is never satisfied → count = 0.
+set local role anon;
+
+select results_eq(
+  $$ select count(*)::int from procurement_quotation_files $$,
+  $$ values (0) $$,
+  'AC-PROCFILE-ANON-READ: anon role sees 0 rows in procurement_quotation_files (RLS denies anon)');
+
+select results_eq(
+  $$ select count(*)::int from procurement_receipt_files $$,
+  $$ values (0) $$,
+  'AC-PROCFILE-ANON-READ: anon role sees 0 rows in procurement_receipt_files (RLS denies anon)');
+
+select results_eq(
+  $$ select count(*)::int from procurement_invoice_files $$,
+  $$ values (0) $$,
+  'AC-PROCFILE-ANON-READ: anon role sees 0 rows in procurement_invoice_files (RLS denies anon)');
+
+reset role;
 
 select finish();
 rollback;
