@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSCurve, evenAxisTicks, formatSCurveAxisDate, isoToTs } from './sCurve';
+import { buildSCurve, evenAxisTicks, formatSCurveAxisDate, isoToTs, tsToIso } from './sCurve';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { SCurveTask } from './sCurve';
 
@@ -435,5 +435,19 @@ describe('buildSCurve — actual series', () => {
     expect(actualPts).toHaveLength(1);
     expect(actualPts[0].date).toBe('2026-05-01');
     expect(actualPts[0].actual).toBe(model.actualToDate);
+  });
+});
+
+describe('tsToIso', () => {
+  it('round-trips isoToTs → tsToIso identity for several YYYY-MM-DD dates', () => {
+    const dates = ['2025-01-01', '2025-06-15', '2026-03-31', '2026-12-31', '2024-02-29'];
+    for (const d of dates) {
+      expect(tsToIso(isoToTs(d))).toBe(d);
+    }
+  });
+
+  it('is the inverse of isoToTs (UTC midnight epoch → YYYY-MM-DD)', () => {
+    // Known epoch: 2026-01-01T00:00:00Z = 1767225600000
+    expect(tsToIso(1767225600000)).toBe('2026-01-01');
   });
 });
