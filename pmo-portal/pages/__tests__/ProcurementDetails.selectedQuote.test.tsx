@@ -135,11 +135,15 @@ const base = {
   invoices: [],
 };
 
-const renderPage = () =>
+// The page is a tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab`
+// deep-links the panel that owns the asserted content (the stat tiles live on the
+// default Overview tab; the quotations section lives on the Vendor-quotes tab).
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -188,7 +192,7 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
 
   it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected"', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
-    renderPage();
+    renderPage('quotes');
     const section = screen.getByTestId('quotations-section');
     expect(within(section).getByText('Selected')).toBeInTheDocument();
     // its vq number is shown alongside

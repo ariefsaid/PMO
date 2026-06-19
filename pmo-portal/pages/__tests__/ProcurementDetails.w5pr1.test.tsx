@@ -220,11 +220,15 @@ const draftWithCancelBase = {
   ],
 };
 
-const renderPage = () =>
+// Tabbed shell (`/procurement/:id/:tab?`). The decision zone (action buttons) renders
+// OUTSIDE the tabs (after the active panel in DOM), so the "evidence precedes decision"
+// goal holds on whichever tab the evidence lives. `tab` deep-links the owning panel.
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -252,7 +256,9 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
 
   it('AC-IXD-PROC-W5-1a: the line-items section appears before the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // Evidence now lives on the Line-items tab; the decision zone is outside the tabs,
+    // so it still follows the active panel in DOM order — the goal is preserved.
+    renderPage('items');
 
     const lineItemsSection = screen.getByTestId('line-items-section');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
@@ -265,7 +271,9 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
 
   it('AC-IXD-PROC-W5-1a: the quotations section appears before the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // Quotations now live on the Vendor-quotes tab; the decision zone is outside the
+    // tabs and still follows the active panel in DOM order — the goal is preserved.
+    renderPage('quotes');
 
     const quotationsSection = screen.getByTestId('quotations-section');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
@@ -536,13 +544,13 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
 
   it('non-regression: the line-items section still renders at Requested state', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    renderPage('items');
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
   });
 
   it('non-regression: the quotations section still renders at Requested state', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    renderPage('quotes');
     expect(screen.getByTestId('quotations-section')).toBeInTheDocument();
   });
 

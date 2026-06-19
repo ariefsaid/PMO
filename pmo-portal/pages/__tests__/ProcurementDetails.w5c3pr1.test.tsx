@@ -202,11 +202,14 @@ const paidFixture = {
   ],
 };
 
-const renderPage = () =>
+// Tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab` deep-links the
+// panel that owns the asserted content (line items live on the Line-items tab).
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -482,7 +485,9 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
 
   it('non-regression: evidence (line-items) precedes decision-card in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // Evidence now lives on the Line-items tab; the decision card is outside the tabs
+    // and still follows the active panel in DOM order — the goal is preserved.
+    renderPage('items');
     const lineItems = screen.getByTestId('line-items-section');
     const decisionCard = screen.getByTestId('decision-card');
     const position = lineItems.compareDocumentPosition(decisionCard);

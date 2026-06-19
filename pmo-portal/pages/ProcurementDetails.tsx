@@ -9,17 +9,21 @@ import {
   StatusPill,
   LifecycleStepper,
   GateNotice,
-  StatTiles,
   ListState,
   Icon,
   ConfirmDialog,
   RecordActionZone,
+  Tabs,
+  tabId,
+  tabPanelId,
   useToast,
   ProjectNameLink,
   CompanyNameLink,
   type StatTile,
+  type TabItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
+import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import {
   useProcurementCrudMutations,
@@ -30,7 +34,6 @@ import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
-import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { QuotationsSection } from './procurement/QuotationsSection';
 import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
@@ -68,6 +71,18 @@ const canApproveReject = (role: string) =>
 const canSource = (role: string) => can('create', 'quotation', { realRole: role as never });
 const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
+
+// ---------------------------------------------------------------------------
+// Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). Default tab =
+// Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
+// :tab defaults to Overview and is role-invariant (CW-7); an explicit :tab always wins.
+// ---------------------------------------------------------------------------
+type ProcTab = 'overview' | 'items' | 'documents' | 'quotes';
+const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes'];
+function tabFromParam(param: string | undefined): ProcTab {
+  if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
+  return 'overview';
+}
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -218,7 +233,9 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
 }
 
 const ProcurementDetails: React.FC = () => {
-  const { procurementId } = useParams<{ procurementId: string }>();
+  const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
+  // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
+  const tab = tabFromParam(tabParam);
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole } = useEffectiveRole();
@@ -252,6 +269,11 @@ const ProcurementDetails: React.FC = () => {
   // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record title from the cached list in App.tsx.
   const goBack = () => navigate('/procurement');
+
+  // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
+  // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
+  const setTab = (next: ProcTab) =>
+    navigate(`/procurement/${procurementId}/${next}`, { replace: true });
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -571,6 +593,60 @@ const ProcurementDetails: React.FC = () => {
     p.requested_by?.full_name ? <span key="req"> · requested by {p.requested_by.full_name}</span> : null,
   ].filter(Boolean);
 
+  // Overview Detail <dl> rows (the Field grammar). Vendor / Approved-by read a muted
+  // "Not yet selected" / "Pending" while absent rather than a bare blank (G5 honesty).
+  const detailRows: DetailRow[] = [
+    {
+      label: 'Project',
+      value: p.project?.name ? (
+        <ProjectNameLink projectId={p.project_id} name={p.project.name} />
+      ) : (
+        <span className="text-muted-foreground">Not linked</span>
+      ),
+    },
+    {
+      label: 'Vendor',
+      value: p.vendor?.name ? (
+        <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
+      ) : (
+        <span className="text-muted-foreground">Not yet selected</span>
+      ),
+    },
+    {
+      label: 'Requested by',
+      value: p.requested_by?.full_name ?? (
+        <span className="text-muted-foreground">—</span>
+      ),
+    },
+    {
+      label: 'Approved by',
+      value: p.approved_by?.full_name ?? (
+        <span className="text-muted-foreground">Pending</span>
+      ),
+    },
+  ];
+
+  // Progression-history events — the SAME union the old History section used, now
+  // folded into the Overview bento timeline (no separate History tab).
+  const historyEvents = buildProcurementHistory(p);
+
+  // Tab bar (counts on the three non-Overview tabs). Documents count = the document
+  // collections that will populate the Slice-2 ledger; for now it counts the records
+  // visible in the temporary Documents placeholder.
+  const documentsCount =
+    (p.purchase_requests?.length ?? 0) +
+    (p.rfqs?.length ?? 0) +
+    (p.purchase_orders?.length ?? 0) +
+    (p.payments?.length ?? 0) +
+    p.invoices.length +
+    p.receipts.length;
+  const procTabs: TabItem<ProcTab>[] = [
+    { value: 'overview', label: 'Overview' },
+    { value: 'items', label: 'Line items', count: p.items.length || null },
+    { value: 'documents', label: 'Documents', count: documentsCount || null },
+    { value: 'quotes', label: 'Vendor quotes', count: p.quotations.length || null },
+  ];
+
   return (
     <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
@@ -649,119 +725,156 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* ░░ EVIDENCE ZONE — read first (N7: AC-IXD-PROC-W5-1a) ░░
-          StatTiles → [PR-2 DecisionSupportPanel slot] → LineItems → Quotations+DocTrail
-          All evidence blocks appear ABOVE the DecisionCard in both DOM order and
-          visual order so the approver reviews facts before acting. */}
-
-      {/* Stat strip */}
-      <StatTiles tiles={stats} className="mb-4" />
-
-      {/* N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel — budget-remaining + variance.
-          Renders ONLY when project_id is set; is a pure read-only evidence block.
-          Committed spend is sourced inside the panel (useProjectCommittedSpend, the
-          honest Σ-PO-in-Ordered..Paid basis) — no widened join needed. */}
-      <DecisionSupportPanel
-        projectId={p.project_id}
-        totalValue={Number(p.total_value)}
-        projectName={p.project?.name ?? null}
+      {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
+          Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
+          progression). The other tabs home the Line items / Documents / Vendor quotes.
+          The RecordActionZone (decision zone) stays OUTSIDE the tabs — it is the ONE
+          advance/approve placement, never below the fold, at every tab. */}
+      <Tabs<ProcTab>
+        items={procTabs}
+        value={tab}
+        onChange={setTab}
+        ariaLabel="Procurement sections"
+        idBase="procurement-detail"
       />
 
-      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
-      <LineItemsSection
-        items={p.items}
-        editable={canEditItems}
-        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
-        onError={onMutationError}
-        onAdd={async (input) => {
-          await crud.createItem.mutateAsync(input);
-          toast('Line item added', input.name, 'success');
-        }}
-        onUpdate={async (id, patch) => {
-          await crud.updateItem.mutateAsync({ id, patch });
-          toast('Line item updated', patch.name, 'success');
-        }}
-        onDelete={async (id) => {
-          await crud.deleteItem.mutateAsync(id);
-          toast('Line item removed', undefined, 'success');
-        }}
-      />
+      <div
+        role="tabpanel"
+        id={tabPanelId('procurement-detail', tab)}
+        aria-labelledby={tabId('procurement-detail', tab)}
+        data-testid={`procurement-tabpanel-${tab}`}
+      >
+        {tab === 'overview' && (
+          <ProcurementOverviewTab
+            tiles={stats}
+            detailRows={detailRows}
+            events={historyEvents}
+            projectId={p.project_id}
+            projectName={p.project?.name ?? null}
+            totalValue={Number(p.total_value)}
+          />
+        )}
 
-      {/* Quotations (add + select-quote) + document trail */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <QuotationsSection
-          quotations={p.quotations}
-          selectedId={selectedQuote?.id ?? null}
-          canAdd={canAddQuote}
-          canSelect={canSelectQuote}
-          addBusy={mutations.createQuotation.isPending}
-          selectBusy={crud.selectQuote.isPending}
-          procurementId={p.id}
-          orgId={fileOrgId}
-          canManageFiles={canManageFiles}
-          currentUserId={currentUserId}
-          onError={onMutationError}
-          onAdd={async (input) => {
-            await mutations.createQuotation.mutateAsync(input);
-            toast('Quotation added', undefined, 'success');
-          }}
-          onSelect={async (quotationId) => {
-            await crud.selectQuote.mutateAsync(quotationId);
-            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
-          }}
-        />
+        {tab === 'items' && (
+          <LineItemsSection
+            items={p.items}
+            editable={canEditItems}
+            busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
+            onError={onMutationError}
+            onAdd={async (input) => {
+              await crud.createItem.mutateAsync(input);
+              toast('Line item added', input.name, 'success');
+            }}
+            onUpdate={async (id, patch) => {
+              await crud.updateItem.mutateAsync({ id, patch });
+              toast('Line item updated', patch.name, 'success');
+            }}
+            onDelete={async (id) => {
+              await crud.deleteItem.mutateAsync(id);
+              toast('Line item removed', undefined, 'success');
+            }}
+          />
+        )}
 
-        <Card>
-          <CardHead>Document trail</CardHead>
-          <CardPad className="flex flex-col gap-2">
-            <DocRow label="PR#" value={p.pr_number} />
-            {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
-            <DocRow label="PO#" value={p.po_number} />
-            {p.receipts.map((r) => (
-              <div key={r.id}>
-                <DocRow label="GR#" value={r.gr_number} sub={r.status} />
-                <ProcurementFilesSubsection
-                  phase="receipt"
-                  parentId={r.id}
-                  procurementId={p.id}
-                  orgId={fileOrgId}
-                  canWrite={canManageFiles}
-                  uploadedById={currentUserId}
-                />
-              </div>
-            ))}
-            {p.invoices.map((inv) => (
-              <div key={inv.id}>
-                <DocRow label="VI#" value={inv.vi_number} sub={inv.status} />
-                <ProcurementFilesSubsection
-                  phase="invoice"
-                  parentId={inv.id}
-                  procurementId={p.id}
-                  orgId={fileOrgId}
-                  canWrite={canManageFiles}
-                  uploadedById={currentUserId}
-                />
-              </div>
-            ))}
-          </CardPad>
-        </Card>
+        {/* ░░ Documents tab — TEMPORARY (Slice 2 replaces this with the single case
+            ledger). For now it re-homes the existing records register + document trail +
+            documents metadata so no capability is lost during the re-shell. ░░ */}
+        {tab === 'documents' && (
+          <>
+            <ProcurementRecordsSection
+              procurementId={p.id}
+              orgId={fileOrgId}
+              uploadedById={currentUserId}
+              canWrite={canManageFiles}
+              purchaseRequests={p.purchase_requests ?? []}
+              rfqs={p.rfqs ?? []}
+              purchaseOrders={p.purchase_orders ?? []}
+              payments={p.payments ?? []}
+              invoices={p.invoices}
+              historyEvents={historyEvents}
+            />
+
+            <Card className="mt-4">
+              <CardHead>Document trail</CardHead>
+              <CardPad className="flex flex-col gap-2">
+                <DocRow label="PR#" value={p.pr_number} />
+                {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
+                <DocRow label="PO#" value={p.po_number} />
+                {p.receipts.map((r) => (
+                  <div key={r.id}>
+                    <DocRow label="GR#" value={r.gr_number} sub={r.status} />
+                    <ProcurementFilesSubsection
+                      phase="receipt"
+                      parentId={r.id}
+                      procurementId={p.id}
+                      orgId={fileOrgId}
+                      canWrite={canManageFiles}
+                      uploadedById={currentUserId}
+                    />
+                  </div>
+                ))}
+                {p.invoices.map((inv) => (
+                  <div key={inv.id}>
+                    <DocRow label="VI#" value={inv.vi_number} sub={inv.status} />
+                    <ProcurementFilesSubsection
+                      phase="invoice"
+                      parentId={inv.id}
+                      procurementId={p.id}
+                      orgId={fileOrgId}
+                      canWrite={canManageFiles}
+                      uploadedById={currentUserId}
+                    />
+                  </div>
+                ))}
+              </CardPad>
+            </Card>
+
+            {/* Documents metadata register (over procurement_documents) */}
+            <ProcurementDocumentsSection
+              documents={docsQuery.data ?? []}
+              loading={docsQuery.isPending}
+              error={docsQuery.isError}
+              onRetry={() => docsQuery.refetch()}
+              editable={canManageDocs}
+              addBusy={crud.createDocument.isPending}
+              deleteBusy={crud.deleteDocument.isPending}
+              onError={onMutationError}
+              onAdd={async (input) => {
+                await crud.createDocument.mutateAsync(input);
+                toast('Document added', input.type, 'success');
+              }}
+              onDelete={async (id) => {
+                await crud.deleteDocument.mutateAsync(id);
+                toast('Document removed', undefined, 'success');
+              }}
+            />
+          </>
+        )}
+
+        {tab === 'quotes' && (
+          <QuotationsSection
+            quotations={p.quotations}
+            selectedId={selectedQuote?.id ?? null}
+            canAdd={canAddQuote}
+            canSelect={canSelectQuote}
+            addBusy={mutations.createQuotation.isPending}
+            selectBusy={crud.selectQuote.isPending}
+            procurementId={p.id}
+            orgId={fileOrgId}
+            canManageFiles={canManageFiles}
+            currentUserId={currentUserId}
+            onError={onMutationError}
+            onAdd={async (input) => {
+              await mutations.createQuotation.mutateAsync(input);
+              toast('Quotation added', undefined, 'success');
+            }}
+            onSelect={async (quotationId) => {
+              await crud.selectQuote.mutateAsync(quotationId);
+              toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+            }}
+          />
+        )}
       </div>
-
-      {/* ░░ NEW RECORDS SECTION — Slice 6: PR / RFQ / PO / Payment inline capture + history ░░
-          Placed between the evidence zone and the decision zone so the user sees the
-          record history before acting. canManageFiles gates on the real JWT role (ADR-0016). */}
-      <ProcurementRecordsSection
-        procurementId={p.id}
-        orgId={fileOrgId}
-        uploadedById={currentUserId}
-        canWrite={canManageFiles}
-        purchaseRequests={p.purchase_requests ?? []}
-        rfqs={p.rfqs ?? []}
-        purchaseOrders={p.purchase_orders ?? []}
-        payments={p.payments ?? []}
-        invoices={p.invoices}
-        historyEvents={buildProcurementHistory(p)}
-      />
 
       {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
           DecisionCard anchored BELOW all evidence. Contains:
@@ -1023,26 +1136,6 @@ const ProcurementDetails: React.FC = () => {
         </CardPad>
       </Card>
       </RecordActionZone>
-
-      {/* Documents metadata register (over the previously-dead procurement_documents) */}
-      <ProcurementDocumentsSection
-        documents={docsQuery.data ?? []}
-        loading={docsQuery.isPending}
-        error={docsQuery.isError}
-        onRetry={() => docsQuery.refetch()}
-        editable={canManageDocs}
-        addBusy={crud.createDocument.isPending}
-        deleteBusy={crud.deleteDocument.isPending}
-        onError={onMutationError}
-        onAdd={async (input) => {
-          await crud.createDocument.mutateAsync(input);
-          toast('Document added', input.type, 'success');
-        }}
-        onDelete={async (id) => {
-          await crud.deleteDocument.mutateAsync(id);
-          toast('Document removed', undefined, 'success');
-        }}
-      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (

@@ -257,11 +257,16 @@ const paidProcurement = {
 // ---------------------------------------------------------------------------
 // Render helper (renders at the route path so useParams works)
 // ---------------------------------------------------------------------------
-const renderPage = (id = 'proc-001') =>
+// The page is now a tabbed record shell (`/procurement/:id/:tab?`, default Overview).
+// `tab` deep-links a panel so a test can land on the tab that owns the content it
+// asserts (line items / documents / vendor quotes). Goals unchanged — only the journey
+// step "land on the owning tab" is made explicit (the content moved behind a tab).
+const renderPage = (id = 'proc-001', tab?: string) =>
   render(
-    <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+    <MemoryRouter initialEntries={[`/procurement/${id}${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>
   );
@@ -418,7 +423,7 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
   });
 
   it('PROC-004: the selected quotation row carries the "Selected" pill', () => {
-    renderPage();
+    renderPage('proc-001', 'quotes');
     const section = screen.getByTestId('quotations-section');
     // The chosen $148,000 (VQ-2602050001) row shows "Selected"; the $152,000 one does not.
     expect(within(section).getByText('Selected')).toBeInTheDocument();
@@ -607,7 +612,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
 
   it('renders VQ number, PO number, GR number and status from Ordered procurement', () => {
     detailState.data = orderedProcurement;
-    renderPage();
+    renderPage('proc-001', 'documents');
     // Numbers may appear in both the doc-trail panel and the section body — use getAllByText
     expect(screen.getAllByText('PO-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('VQ-2601100001').length).toBeGreaterThanOrEqual(1);
@@ -978,7 +983,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   });
 
   it('AC-PROC-003: line items section renders the editable add-row while Draft for the requester', () => {
-    renderPage();
+    renderPage('proc-001', 'items');
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
     expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
     expect(screen.getByText('Welding wire')).toBeInTheDocument();
@@ -986,7 +991,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
 
   it('AC-PROC-003: line items are READ-ONLY once the PR leaves Draft (no add-row)', () => {
     detailState.data = { ...draftByAlice, status: 'Approved' as const };
-    renderPage();
+    renderPage('proc-001', 'items');
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
     expect(screen.queryByTestId('line-item-add-row')).toBeNull();
   });
@@ -1016,12 +1021,12 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
         },
       ],
     };
-    renderPage();
+    renderPage('proc-001', 'quotes');
     expect(screen.getByRole('button', { name: /select quote vq-2/i })).toBeInTheDocument();
   });
 
   it('AC-PROC-005: the Documents section renders (over procurement_documents) with an Add affordance for a manager', () => {
-    renderPage();
+    renderPage('proc-001', 'documents');
     expect(screen.getByTestId('documents-section')).toBeInTheDocument();
     expect(screen.getByTestId('add-document')).toBeInTheDocument();
   });
@@ -1029,14 +1034,14 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   it('AC-PROC-005: Documents Add affordance is HIDDEN for an Engineer (no procDoc create)', () => {
     mockEffectiveRole = 'Engineer';
     // An Engineer requester still sees their own line items (Draft) but cannot manage documents.
-    renderPage();
+    renderPage('proc-001', 'documents');
     expect(screen.getByTestId('documents-section')).toBeInTheDocument();
     expect(screen.queryByTestId('add-document')).toBeNull();
   });
 
   it('AC-PROC-003: an Engineer requester CAN edit their own Draft line items', () => {
     mockEffectiveRole = 'Engineer';
-    renderPage();
+    renderPage('proc-001', 'items');
     // u-alice is the requester AND the mocked currentUser → the add-row shows for the Engineer requester.
     expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
   });
