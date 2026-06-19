@@ -22,6 +22,15 @@ const detailState = {
   refetch: vi.fn(),
 };
 
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));

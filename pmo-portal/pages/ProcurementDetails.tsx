@@ -36,6 +36,8 @@ import { QuotationsSection } from './procurement/QuotationsSection';
 import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
 import { ProcurementFilesSubsection } from './procurement/ProcurementFilesSubsection';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
+import { ProcurementRecordsSection } from './procurement/ProcurementRecordsSection';
+import { buildProcurementHistory } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
   canCancel,
@@ -744,6 +746,22 @@ const ProcurementDetails: React.FC = () => {
           </CardPad>
         </Card>
       </div>
+
+      {/* ░░ NEW RECORDS SECTION — Slice 6: PR / RFQ / PO / Payment inline capture + history ░░
+          Placed between the evidence zone and the decision zone so the user sees the
+          record history before acting. canManageFiles gates on the real JWT role (ADR-0016). */}
+      <ProcurementRecordsSection
+        procurementId={p.id}
+        orgId={fileOrgId}
+        uploadedById={currentUserId}
+        canWrite={canManageFiles}
+        purchaseRequests={p.purchase_requests ?? []}
+        rfqs={p.rfqs ?? []}
+        purchaseOrders={p.purchase_orders ?? []}
+        payments={p.payments ?? []}
+        invoices={p.invoices}
+        historyEvents={buildProcurementHistory(p)}
+      />
 
       {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
           DecisionCard anchored BELOW all evidence. Contains:

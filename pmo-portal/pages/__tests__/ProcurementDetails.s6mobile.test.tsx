@@ -27,6 +27,15 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 // Page-level tests focus on lifecycle/UX behavior; the subsection has its own
 // unit tests. This matches the pattern in all sibling ProcurementDetails test files.
 // ---------------------------------------------------------------------------
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));

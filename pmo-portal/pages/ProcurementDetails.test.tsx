@@ -31,6 +31,15 @@ const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
@@ -463,7 +472,9 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     detailState.data = { ...paidProcurement };
     renderPage();
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /pay/i })).not.toBeInTheDocument();
+    // "Mark as Paid" is the lifecycle transition button (terminal state: must not appear).
+    // Use an exact/anchored match to avoid colliding with "Add Payment" (record capture).
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('item G: a destructive action is a quiet OUTLINE at rest; the solid red is only in the confirm dialog', async () => {

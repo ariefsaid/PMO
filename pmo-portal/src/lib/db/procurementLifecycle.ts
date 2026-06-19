@@ -155,6 +155,13 @@ const DETAIL_SELECT = [
   'quotations:procurement_quotations(*)',
   'receipts:procurement_receipts(*)',
   'invoices:procurement_invoices(*)',
+  // Slice 6.1 — four new ERP-canonical record types + transition-event log (one bounded
+  // PostgREST embed, no N+1; NFR-PR-PERF-002, [PD-7]).
+  'purchase_requests:purchase_requests(*)',
+  'rfqs:rfqs(*)',
+  'purchase_orders:purchase_orders(*)',
+  'payments:payments(*)',
+  'statusEvents:procurement_status_events(*)',
 ].join(', ');
 
 /**

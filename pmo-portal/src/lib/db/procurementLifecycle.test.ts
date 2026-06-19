@@ -220,8 +220,30 @@ describe('getProcurementDetail', () => {
     // items:procurement_items(*) added for the editable line-items table (CRUD slice).
     // N8 (AC-IXD-PROC-W5-2): the DecisionSupportPanel sources committed spend via
     // useProjectCommittedSpend (the honest Σ-PO basis), so the project join stays name/code.
+    // Slice 6.1: DETAIL_SELECT now includes the four new record-type embeds + statusEvents.
+    // The assertion captures the full shape; partial match via toContain ensures additive
+    // extensions to DETAIL_SELECT stay test-visible without re-enumerating every join.
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), approved_by:profiles!procurements_approved_by_id_fkey(full_name), items:procurement_items(*), quotations:procurement_quotations(*), receipts:procurement_receipts(*), invoices:procurement_invoices(*)',
+      expect.stringContaining('purchase_requests:purchase_requests(*)'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('rfqs:rfqs(*)'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('purchase_orders:purchase_orders(*)'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('payments:payments(*)'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('statusEvents:procurement_status_events(*)'),
+    );
+    // Also assert the core legacy joins are still present (NFR-PR-PERF-002 one embed)
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('items:procurement_items(*)'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('receipts:procurement_receipts(*)'),
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'proc-1');
     expect(mockSingle).toHaveBeenCalled();
