@@ -35,6 +35,12 @@ import type {
   ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
 import type {
+  PurchaseRequestRow,
+  RfqRow,
+  PurchaseOrderRow,
+  PaymentRow,
+} from '@/src/lib/db/procurementRecords';
+import type {
   NewProcurementInput,
   ProcurementHeaderPatch,
   ProcurementItemInput,
@@ -215,6 +221,40 @@ export interface ProcurementRepository {
   ): Promise<ProcurementDocumentRow>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
+  // ── New ERP-canonical record creators (Slice 5.4) ──
+  /** Create a purchase-request record via RPC (mints PR#). referenceNumber bounded at form layer. */
+  createPurchaseRequest(
+    procurementId: string,
+    referenceNumber: string | null,
+    status: string | null,
+    date: string | null,
+    amount: number | null,
+  ): Promise<PurchaseRequestRow>;
+  /** Create an RFQ record via RPC (mints RFQ#). */
+  createRfq(
+    procurementId: string,
+    referenceNumber: string | null,
+    status: string | null,
+    date: string | null,
+    amount: number | null,
+  ): Promise<RfqRow>;
+  /** Create a purchase-order record via RPC (mints PO#). */
+  createPurchaseOrder(
+    procurementId: string,
+    referenceNumber: string | null,
+    status: string | null,
+    date: string | null,
+    amount: number | null,
+  ): Promise<PurchaseOrderRow>;
+  /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
+  createPayment(
+    procurementId: string,
+    invoiceId: string | null,
+    referenceNumber: string | null,
+    status: string | null,
+    date: string | null,
+    amount: number | null,
+  ): Promise<PaymentRow>;
 }
 
 export interface TimesheetRepository {

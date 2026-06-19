@@ -50,6 +50,13 @@ export type ProcurementDetail = ProcurementWithRefs & {
   quotations: Tables<'procurement_quotations'>[];
   receipts: ProcurementReceiptRow[];
   invoices: ProcurementInvoiceRow[];
+  // Slice 5 — new record types (loaded in Slice 6.1 DETAIL_SELECT extension)
+  purchase_requests: Tables<'purchase_requests'>[];
+  rfqs: Tables<'rfqs'>[];
+  purchase_orders: Tables<'purchase_orders'>[];
+  payments: Tables<'payments'>[];
+  /** Transition-event log ([PD-7] / FR-PR-025) loaded from procurement_status_events. */
+  statusEvents: Tables<'procurement_status_events'>[];
 };
 
 // ---------------------------------------------------------------------------

@@ -69,6 +69,12 @@ vi.mock('@/src/lib/db/procurementCrud', () => ({
   createProcurementDocument: vi.fn(),
   deleteProcurementDocument: vi.fn(),
 }));
+vi.mock('@/src/lib/db/procurementRecords', () => ({
+  createPurchaseRequest: vi.fn(),
+  createRfq: vi.fn(),
+  createPurchaseOrder: vi.fn(),
+  createPayment: vi.fn(),
+}));
 vi.mock('@/src/lib/db/timesheets', () => ({
   listTimesheets: vi.fn(),
   createDraftTimesheet: vi.fn(),
@@ -131,6 +137,7 @@ import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
+import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
@@ -196,8 +203,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createDocument',
         'createInvoice',
         'createItem',
+        'createPayment',
+        'createPurchaseOrder',
+        'createPurchaseRequest',
         'createQuotation',
         'createReceipt',
+        'createRfq',
         'deleteDocument',
         'deleteItem',
         'get',
@@ -513,6 +524,37 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.deleteDocument('d1');
     expect(procCrudDal.deleteProcurementDocument).toHaveBeenCalledWith('d1');
+  });
+
+  it('AC-PR-004: procurement record creators (createPurchaseRequest/createRfq/createPurchaseOrder/createPayment) delegate to procurementRecords DAL', async () => {
+    vi.mocked(procRecordsDal.createPurchaseRequest).mockResolvedValue({ id: 'pr-r1' } as never);
+    vi.mocked(procRecordsDal.createRfq).mockResolvedValue({ id: 'rfq-r1' } as never);
+    vi.mocked(procRecordsDal.createPurchaseOrder).mockResolvedValue({ id: 'po-r1' } as never);
+    vi.mocked(procRecordsDal.createPayment).mockResolvedValue({ id: 'pay-r1' } as never);
+
+    await repositories.procurement.createPurchaseRequest('proc-1', 'REF-001', 'Draft', '2026-06-19', 1000);
+    expect(procRecordsDal.createPurchaseRequest).toHaveBeenCalledWith(
+      'proc-1', 'REF-001', 'Draft', '2026-06-19', 1000,
+    );
+
+    await repositories.procurement.createRfq('proc-1', null, null, null, null);
+    expect(procRecordsDal.createRfq).toHaveBeenCalledWith('proc-1', null, null, null, null);
+
+    await repositories.procurement.createPurchaseOrder('proc-1', 'VENDOR-PO-99', 'Issued', '2026-06-20', 50000);
+    expect(procRecordsDal.createPurchaseOrder).toHaveBeenCalledWith(
+      'proc-1', 'VENDOR-PO-99', 'Issued', '2026-06-20', 50000,
+    );
+
+    await repositories.procurement.createPayment('proc-1', null, null, 'Scheduled', null, 50000);
+    expect(procRecordsDal.createPayment).toHaveBeenCalledWith(
+      'proc-1', null, null, 'Scheduled', null, 50000,
+    );
+
+    // invoiceId optional predecessor FK (FR-PR-004b)
+    await repositories.procurement.createPayment('proc-1', 'inv-1', null, 'Paid', '2026-06-21', 50000);
+    expect(procRecordsDal.createPayment).toHaveBeenCalledWith(
+      'proc-1', 'inv-1', null, 'Paid', '2026-06-21', 50000,
+    );
   });
 
   it('timesheet methods delegate to the timesheet DAL fns', async () => {

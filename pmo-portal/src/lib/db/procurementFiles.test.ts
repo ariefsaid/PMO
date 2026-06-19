@@ -265,3 +265,67 @@ describe('cleanupStorageObject', () => {
     expect(h.storageCalls.remove).toHaveLength(0);
   });
 });
+
+describe('AC-PR-009 archived-file exclusion — new record-type phases', () => {
+  it('AC-PR-009 purchase_order phase targets purchase_order_files with archived_at is null filter', async () => {
+    h.result.value = {
+      data: [
+        { id: 'f1', org_id: 'o1', purchase_order_id: 'po1', file_path: 'p', created_at: 't', archived_at: null },
+      ],
+      error: null,
+    };
+    const rows = await listProcurementFiles('purchase_order', 'po1');
+    expect(h.calls.from).toEqual(['purchase_order_files']);
+    expect(h.calls.eq).toContainEqual(['purchase_order_id', 'po1']);
+    // The archived_at filter must be present — the core of AC-PR-009
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].parent_id).toBe('po1');
+  });
+
+  it('AC-PR-009 purchase_request phase targets purchase_request_files with archived_at is null filter', async () => {
+    h.result.value = { data: [], error: null };
+    await listProcurementFiles('purchase_request', 'pr1');
+    expect(h.calls.from).toEqual(['purchase_request_files']);
+    expect(h.calls.eq).toContainEqual(['purchase_request_id', 'pr1']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+  });
+
+  it('AC-PR-009 rfq phase targets rfq_files with archived_at is null filter', async () => {
+    h.result.value = { data: [], error: null };
+    await listProcurementFiles('rfq', 'rfq1');
+    expect(h.calls.from).toEqual(['rfq_files']);
+    expect(h.calls.eq).toContainEqual(['rfq_id', 'rfq1']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+  });
+
+  it('AC-PR-009 payment phase targets payment_files with archived_at is null filter', async () => {
+    h.result.value = { data: [], error: null };
+    await listProcurementFiles('payment', 'pay1');
+    expect(h.calls.from).toEqual(['payment_files']);
+    expect(h.calls.eq).toContainEqual(['payment_id', 'pay1']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+  });
+
+  it('AC-PR-009 archiveProcurementFile uses purchase_order_files for purchase_order phase', async () => {
+    await archiveProcurementFile('purchase_order', 'pof1');
+    expect(h.calls.from).toEqual(['purchase_order_files']);
+    const patch = h.calls.update[0] as { archived_at?: string };
+    expect(patch.archived_at).toBeTruthy();
+    expect(h.calls.eq).toContainEqual(['id', 'pof1']);
+  });
+
+  it('AC-PR-009 confirmUpload for purchase_order phase inserts into purchase_order_files', async () => {
+    h.result.value = {
+      data: { id: 'row1', purchase_order_id: 'po1', file_path: 'p', created_at: 't' },
+      error: null,
+    };
+    const row = await confirmUpload('purchase_order', 'po1', 'org/proc/purchase_order/f/po.pdf', 'PO File', 'u1');
+    expect(h.calls.from).toEqual(['purchase_order_files']);
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.purchase_order_id).toBe('po1');
+    expect(insert.file_path).toBe('org/proc/purchase_order/f/po.pdf');
+    expect('org_id' in insert).toBe(false);
+    expect(row.id).toBe('row1');
+  });
+});

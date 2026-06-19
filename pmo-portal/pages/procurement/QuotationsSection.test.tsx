@@ -29,10 +29,13 @@ const quotes: Q[] = [
   {
     id: 'q1', org_id: 'o', procurement_id: 'p', vendor_id: 'v1', total_amount: 2710,
     received_date: '2026-06-01', is_selected: true, reference: null, vq_number: 'VQ-1', file_url: null,
+    // Slice 5 — new nullable columns added by migration 0035 (rfq linkage + P2 seam)
+    rfq_id: null, valid_until: null,
   },
   {
     id: 'q2', org_id: 'o', procurement_id: 'p', vendor_id: 'v2', total_amount: 2944,
     received_date: '2026-06-01', is_selected: false, reference: null, vq_number: 'VQ-2', file_url: null,
+    rfq_id: null, valid_until: null,
   },
 ];
 
