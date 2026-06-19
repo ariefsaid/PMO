@@ -25,10 +25,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
-import {
-  useProcurementCrudMutations,
-  useProcurementDocuments,
-} from '@/src/hooks/useProcurementCrud';
+import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -36,10 +33,9 @@ import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { QuotationsSection } from './procurement/QuotationsSection';
-import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
-import { ProcurementFilesSubsection } from './procurement/ProcurementFilesSubsection';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
-import { ProcurementRecordsSection } from './procurement/ProcurementRecordsSection';
+import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
 import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
@@ -247,7 +243,6 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
-  const docsQuery = useProcurementDocuments(procurementId);
 
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
@@ -360,8 +355,6 @@ const ProcurementDetails: React.FC = () => {
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
   const canAddQuote = may('create', 'quotation');
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
-  // Documents: Admin·Exec·PM·Finance manage; everyone else read-only.
-  const canManageDocs = may('create', 'procDoc');
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
   const fileOrgId = currentUser?.org_id ?? '';
@@ -631,16 +624,10 @@ const ProcurementDetails: React.FC = () => {
   // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
   const historyEvents = buildProgressionTimeline(p, p.id);
 
-  // Tab bar (counts on the three non-Overview tabs). Documents count = the document
-  // collections that will populate the Slice-2 ledger; for now it counts the records
-  // visible in the temporary Documents placeholder.
-  const documentsCount =
-    (p.purchase_requests?.length ?? 0) +
-    (p.rfqs?.length ?? 0) +
-    (p.purchase_orders?.length ?? 0) +
-    (p.payments?.length ?? 0) +
-    p.invoices.length +
-    p.receipts.length;
+  // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
+  // row count (all 7 record types, one row each, as built by buildLedgerRows).
+  const ledgerRows = buildLedgerRows(p);
+  const documentsCount = ledgerRows.length;
   const procTabs: TabItem<ProcTab>[] = [
     { value: 'overview', label: 'Overview' },
     { value: 'items', label: 'Line items', count: p.items.length || null },
@@ -777,79 +764,22 @@ const ProcurementDetails: React.FC = () => {
           />
         )}
 
-        {/* ░░ Documents tab — TEMPORARY (Slice 2 replaces this with the single case
-            ledger). For now it re-homes the existing records register + document trail +
-            documents metadata so no capability is lost during the re-shell. ░░ */}
+        {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
+            All 7 record types, chronological, one row each. Filter chips: All /
+            Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
+            ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
         {tab === 'documents' && (
-          <>
-            <ProcurementRecordsSection
+          <Card>
+            <ProcurementLedger
+              detail={p}
+              rows={ledgerRows}
               procurementId={p.id}
               orgId={fileOrgId}
               uploadedById={currentUserId}
               canWrite={canManageFiles}
-              purchaseRequests={p.purchase_requests ?? []}
-              rfqs={p.rfqs ?? []}
-              purchaseOrders={p.purchase_orders ?? []}
-              payments={p.payments ?? []}
               invoices={p.invoices}
-              historyEvents={historyEvents}
             />
-
-            <Card className="mt-4">
-              <CardHead>Document trail</CardHead>
-              <CardPad className="flex flex-col gap-2">
-                <DocRow label="PR#" value={p.pr_number} />
-                {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
-                <DocRow label="PO#" value={p.po_number} />
-                {p.receipts.map((r) => (
-                  <div key={r.id}>
-                    <DocRow label="GR#" value={r.gr_number} sub={r.status} />
-                    <ProcurementFilesSubsection
-                      phase="receipt"
-                      parentId={r.id}
-                      procurementId={p.id}
-                      orgId={fileOrgId}
-                      canWrite={canManageFiles}
-                      uploadedById={currentUserId}
-                    />
-                  </div>
-                ))}
-                {p.invoices.map((inv) => (
-                  <div key={inv.id}>
-                    <DocRow label="VI#" value={inv.vi_number} sub={inv.status} />
-                    <ProcurementFilesSubsection
-                      phase="invoice"
-                      parentId={inv.id}
-                      procurementId={p.id}
-                      orgId={fileOrgId}
-                      canWrite={canManageFiles}
-                      uploadedById={currentUserId}
-                    />
-                  </div>
-                ))}
-              </CardPad>
-            </Card>
-
-            {/* Documents metadata register (over procurement_documents) */}
-            <ProcurementDocumentsSection
-              documents={docsQuery.data ?? []}
-              loading={docsQuery.isPending}
-              error={docsQuery.isError}
-              onRetry={() => docsQuery.refetch()}
-              editable={canManageDocs}
-              addBusy={crud.createDocument.isPending}
-              deleteBusy={crud.deleteDocument.isPending}
-              onError={onMutationError}
-              onAdd={async (input) => {
-                await crud.createDocument.mutateAsync(input);
-                toast('Document added', input.type, 'success');
-              }}
-              onDelete={async (id) => {
-                await crud.deleteDocument.mutateAsync(id);
-                toast('Document removed', undefined, 'success');
-              }}
-            />
-          </>
+          </Card>
         )}
 
         {tab === 'quotes' && (
@@ -1295,24 +1225,6 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           Cancel
         </Button>
       </div>
-    </div>
-  );
-};
-
-/** Mono doc-reference row (PR/VQ/PO/GR/VI) with an optional status sub-label. */
-const DocRow: React.FC<{ label: string; value: string | null | undefined; sub?: string }> = ({
-  label,
-  value,
-  sub,
-}) => {
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-2.5 text-[13px]">
-      <span className="w-9 shrink-0 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="font-mono font-semibold">{value}</span>
-      {sub && <StatusPill variant="neutral" className="ml-auto">{sub}</StatusPill>}
     </div>
   );
 };

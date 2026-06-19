@@ -1025,18 +1025,22 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByRole('button', { name: /select quote vq-2/i })).toBeInTheDocument();
   });
 
-  it('AC-PROC-005: the Documents section renders (over procurement_documents) with an Add affordance for a manager', () => {
+  it('AC-PROC-005: the Documents tab renders the case ledger for a manager (capture affordance shown)', () => {
+    // Slice 2: ProcurementDocumentsSection → ProcurementLedger (case ledger DataTable).
+    // The 'documents-section' testid is replaced by 'procurement-ledger'; the 'add-document'
+    // testid (old metadata form) is replaced by 'ledger-capture-row'.
     renderPage('proc-001', 'documents');
-    expect(screen.getByTestId('documents-section')).toBeInTheDocument();
-    expect(screen.getByTestId('add-document')).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-ledger')).toBeInTheDocument();
+    // canManageFiles (PM = MASTER_DATA write) → capture row shows
+    expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
   });
 
-  it('AC-PROC-005: Documents Add affordance is HIDDEN for an Engineer (no procDoc create)', () => {
+  it('AC-PROC-005: Documents capture affordance is HIDDEN for an Engineer (no procFile create)', () => {
     mockEffectiveRole = 'Engineer';
-    // An Engineer requester still sees their own line items (Draft) but cannot manage documents.
+    // An Engineer who is not the requester cannot write files → capture row hidden.
     renderPage('proc-001', 'documents');
-    expect(screen.getByTestId('documents-section')).toBeInTheDocument();
-    expect(screen.queryByTestId('add-document')).toBeNull();
+    expect(screen.getByTestId('procurement-ledger')).toBeInTheDocument();
+    expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
   it('AC-PROC-003: an Engineer requester CAN edit their own Draft line items', () => {
