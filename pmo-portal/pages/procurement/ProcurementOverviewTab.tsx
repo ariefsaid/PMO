@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import { Card, CardHead, CardPad, StatTiles, type StatTile } from '@/src/components/ui';
-import type { HistoryEvent } from '@/src/lib/db/procurementHistory';
+import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
 
@@ -31,7 +31,7 @@ export interface ProcurementOverviewTabProps {
   /** The Detail `<dl>` rows. */
   detailRows: DetailRow[];
   /** Progression-history events (ASCENDING by time; the timeline presents newest-first). */
-  events: HistoryEvent[];
+  events: ProgressionEvent[];
   /** Linked project id (drives the Budget signal; null/undefined omits it). */
   projectId: string | null | undefined;
   /** Linked project display name. */

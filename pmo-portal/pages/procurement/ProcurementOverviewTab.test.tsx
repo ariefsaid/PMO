@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { StatTile } from '@/src/components/ui';
-import type { HistoryEvent } from '@/src/lib/db/procurementHistory';
+import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 
 // DecisionSupportPanel reads budget hooks; stub them so the bento renders a real
 // (non-loading) budget signal without a QueryClientProvider.
@@ -28,9 +28,9 @@ const detailRows = [
   { label: 'Requested by', value: 'D. Okafor' },
 ];
 
-const events: HistoryEvent[] = [
-  { kind: 'transition', label: 'Created → Requested', actor: 'D. Okafor', at: '2026-04-28T09:00:00Z' },
-  { kind: 'transition', label: 'Vendor Invoiced → Paid', actor: 'L. Chen', at: '2026-05-14T12:00:00Z' },
+const events: ProgressionEvent[] = [
+  { kind: 'transition', label: 'Requested', actor: 'D. Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Paid', actor: 'L. Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
 ];
 
 const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOverviewTab>> = {}) =>
@@ -83,7 +83,7 @@ describe('ProcurementOverviewTab (bento)', () => {
     const list = within(region).getByRole('list', { name: /Progression history/i });
     const items = within(list).getAllByRole('listitem');
     // newest-first: Paid is the latest event → first item, marked current.
-    expect(within(items[0]).getByText(/Vendor Invoiced → Paid/)).toBeInTheDocument();
+    expect(within(items[0]).getByText(/Paid/)).toBeInTheDocument();
     expect(items[0]).toHaveAttribute('data-current', 'true');
   });
 });

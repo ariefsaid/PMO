@@ -40,7 +40,7 @@ import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsS
 import { ProcurementFilesSubsection } from './procurement/ProcurementFilesSubsection';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementRecordsSection } from './procurement/ProcurementRecordsSection';
-import { buildProcurementHistory } from '@/src/lib/db/procurementHistory';
+import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
   canCancel,
@@ -626,9 +626,10 @@ const ProcurementDetails: React.FC = () => {
     },
   ];
 
-  // Progression-history events — the SAME union the old History section used, now
-  // folded into the Overview bento timeline (no separate History tab).
-  const historyEvents = buildProcurementHistory(p);
+  // Progression-history events — transition-centric merge (buildProgressionTimeline):
+  // transitions are the spine; each matching record is folded in as a docRef annotation
+  // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
+  const historyEvents = buildProgressionTimeline(p, p.id);
 
   // Tab bar (counts on the three non-Overview tabs). Documents count = the document
   // collections that will populate the Slice-2 ledger; for now it counts the records

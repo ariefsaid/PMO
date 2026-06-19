@@ -15,6 +15,10 @@
  *
  * Result is sorted ascending by `at` (stable sort — ties preserve stream order:
  * transitions first, then records within the same millisecond).
+ *
+ * `buildProgressionTimeline` (new) — transition-centric merge: the status-transition
+ * events are the spine; each matching record is folded in as a `docRef`/`docHref`
+ * annotation rather than a separate row. Produces ~one row per lifecycle event.
  */
 
 import type { ProcurementDetail } from './procurementLifecycle';
@@ -29,6 +33,20 @@ export interface HistoryEvent {
   actor: string | null;
   /** ISO 8601 timestamp the event occurred at. */
   at: string;
+}
+
+/**
+ * A progression event — a `HistoryEvent` extended with optional document annotation.
+ * Used by `buildProgressionTimeline` which folds records into their matching transitions.
+ */
+export interface ProgressionEvent extends HistoryEvent {
+  /** System number of the associated document (e.g. "PO-2026-0077"), or null. */
+  docRef: string | null;
+  /**
+   * Deep-link URL for the document. Falls back to `/procurement/:id/documents` when
+   * the record has no `file_path` (none of the core record tables carry one directly).
+   */
+  docHref: string | null;
 }
 
 /**
@@ -117,6 +135,210 @@ export function buildProcurementHistory(detail: ProcurementDetail): HistoryEvent
       label: `Invoice ${row.vi_number ?? row.id}`,
       actor: null,
       at: row.created_at,
+    });
+  }
+
+  // ── 3. Sort ascending by timestamp (stable) ────────────────────────────────
+  events.sort((a, b) => {
+    if (a.at < b.at) return -1;
+    if (a.at > b.at) return 1;
+    return 0;
+  });
+
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Transition → record mapping (to_status → which record type carries the doc ref)
+// ---------------------------------------------------------------------------
+
+/** Maps a procurement `to_status` value to the record type that documents it. */
+const STATUS_TO_RECORD_KIND = {
+  Requested: 'purchase_request',
+  'Vendor Quoted': 'rfq',
+  'Quote Selected': 'quotation',
+  Ordered: 'purchase_order',
+  Received: 'receipt',
+  'Vendor Invoiced': 'invoice',
+  Paid: 'payment',
+} as const;
+
+type MappedStatus = keyof typeof STATUS_TO_RECORD_KIND;
+
+function isMappedStatus(status: string): status is MappedStatus {
+  return status in STATUS_TO_RECORD_KIND;
+}
+
+/** Picks the docRef (system#) from the record that matches a given to_status. */
+function pickDocRef(
+  toStatus: string,
+  detail: ProcurementDetail,
+  consumed: Set<string>,
+): { docRef: string | null; consumedId: string | null } {
+  if (!isMappedStatus(toStatus)) return { docRef: null, consumedId: null };
+
+  const kind = STATUS_TO_RECORD_KIND[toStatus];
+
+  switch (kind) {
+    case 'purchase_request': {
+      const row = (detail.purchase_requests ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.pr_number ?? null, consumedId: row.id };
+    }
+    case 'rfq': {
+      const row = (detail.rfqs ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.rfq_number ?? null, consumedId: row.id };
+    }
+    case 'quotation': {
+      const row = (detail.quotations ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.vq_number ?? null, consumedId: row.id };
+    }
+    case 'purchase_order': {
+      const row = (detail.purchase_orders ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.po_number ?? null, consumedId: row.id };
+    }
+    case 'receipt': {
+      const row = (detail.receipts ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.gr_number ?? null, consumedId: row.id };
+    }
+    case 'invoice': {
+      const row = (detail.invoices ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.vi_number ?? null, consumedId: row.id };
+    }
+    case 'payment': {
+      const row = (detail.payments ?? []).find((r) => !consumed.has(r.id));
+      if (!row) return { docRef: null, consumedId: null };
+      return { docRef: row.pay_number ?? null, consumedId: row.id };
+    }
+    default:
+      return { docRef: null, consumedId: null };
+  }
+}
+
+/**
+ * Builds the de-noised progression timeline for the Overview bento.
+ *
+ * The primary spine is the `statusEvents` log (one row per lifecycle transition).
+ * Each transition that has a matching record folds the record's system number in as
+ * a `docRef` annotation — instead of creating a separate "record created" row.
+ * Orphan records (no matching transition consumed them) are appended as their own rows.
+ *
+ * Output is sorted ASCENDING by `at` (the component reverses to newest-first for display).
+ * The component then caps at 6 and offers an expander for earlier events.
+ *
+ * AC-PR-PROG-001..006.
+ */
+export function buildProgressionTimeline(
+  detail: ProcurementDetail,
+  procurementId: string,
+): ProgressionEvent[] {
+  const events: ProgressionEvent[] = [];
+  const docsBase = `/procurement/${procurementId}/documents`;
+  // Track which record IDs have been folded into a transition (consumed)
+  const consumed = new Set<string>();
+
+  // ── 1. Transition events (the spine) — fold in the matching record ─────────
+  for (const ev of detail.statusEvents ?? []) {
+    const { docRef, consumedId } = pickDocRef(ev.to_status, detail, consumed);
+    if (consumedId) consumed.add(consumedId);
+
+    events.push({
+      kind: 'transition',
+      label: ev.to_status,
+      actor: ev.actor_id ?? null,
+      at: ev.created_at,
+      docRef: docRef,
+      docHref: docRef ? docsBase : null,
+    });
+  }
+
+  // ── 2. Orphan records — not consumed by any transition above ───────────────
+  for (const row of detail.purchase_requests ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'PR',
+      actor: null,
+      at: row.created_at,
+      docRef: row.pr_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.rfqs ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'RFQ',
+      actor: null,
+      at: row.created_at,
+      docRef: row.rfq_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.quotations ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'Quote',
+      actor: null,
+      at: row.received_date ?? detail.created_at,
+      docRef: row.vq_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.purchase_orders ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'PO',
+      actor: null,
+      at: row.created_at,
+      docRef: row.po_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.receipts ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'GR',
+      actor: null,
+      at: row.created_at,
+      docRef: row.gr_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.invoices ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'Invoice',
+      actor: null,
+      at: row.created_at,
+      docRef: row.vi_number ?? null,
+      docHref: docsBase,
+    });
+  }
+
+  for (const row of detail.payments ?? []) {
+    if (consumed.has(row.id)) continue;
+    events.push({
+      kind: 'record',
+      label: 'Payment',
+      actor: null,
+      at: row.created_at,
+      docRef: row.pay_number ?? null,
+      docHref: docsBase,
     });
   }
 
