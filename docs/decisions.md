@@ -32,6 +32,12 @@ Admin = break-glass (may do anything). Matrix:
 SoD rules: (a) requester ≠ approver of the same procurement; (b) approver ≠ payer.
 
 ### OD-PROC-2 — ERP document audit trail (in MVP scope)
+> **⚑ REVISED by ADR-0033 (2026-06-19, owner-signed).** The column-based shape below (PR#/PO# as columns
+> on `procurements`; GR/VI as header tables) was the *original* MVP cut. ADR-0033 promotes procurement to
+> a **case folder over ERP-canonical record tables** — PR, RFQ, Quotation, PO, GR, Invoice, Payment each
+> their own 1:N table with a **dual identity** (minted system number + external reference) + file upload.
+> Read ADR-0033 as the current authority; the text below is retained for history.
+
 Full PR → VQ → PO → GR → VI reference capture. Schema deltas from current (`procurements` + children
 `procurement_items` / `procurement_quotations` / `procurement_documents`):
 - `procurements`: add `pr_number`, `po_number`, plus `approval_notes` / `rejection_notes`.
@@ -46,6 +52,10 @@ Format `{PREFIX}-YYMMDD####` where `YYMMDD` = creation date, `####` = that doc t
 day**, zero-padded, **daily-reset**, **per-org**. Prefixes: `PR-`, `VQ-`, `PO-`, `GR-`, `VI-`.
 Generated **server-side** in the transition RPC (gap-tolerant, collision-free). Example: first PO created
 on 2026-06-04 → `PO-2606040001`.
+> **Extended by ADR-0033 (Director-ratified 2026-06-19):** two new prefixes `RFQ-` and `PAY-` join the
+> list (for the RFQ and Payment record types the owner approved). Same minter (`next_procurement_doc_number`),
+> same format — a forward extension of the mechanism, not a new one. The `VQ-` prefix is retained for the
+> record now UI-labelled "Quotation" (do NOT rename to `QT-` — would orphan existing `VQ-…` numbers).
 
 ### OD-PROC-4 — State machine: centralized, permissive, skippable
 Transition rules defined as **data** (a transition map) in a single `transition_procurement()` RPC — NOT
