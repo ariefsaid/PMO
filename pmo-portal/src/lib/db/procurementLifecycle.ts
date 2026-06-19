@@ -161,7 +161,9 @@ const DETAIL_SELECT = [
   'rfqs:rfqs(*)',
   'purchase_orders:purchase_orders(*)',
   'payments:payments(*)',
-  'statusEvents:procurement_status_events(*)',
+  // Embed the actor's profile name so the timeline can display a real name instead
+  // of the raw UUID (AC-PR-PROG-012).  The FK alias must match the constraint name.
+  'statusEvents:procurement_status_events(*, actor:profiles!procurement_status_events_actor_id_fkey(full_name))',
 ].join(', ');
 
 /**

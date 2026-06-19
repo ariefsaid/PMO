@@ -29,8 +29,8 @@ const detailRows = [
 ];
 
 const events: ProgressionEvent[] = [
-  { kind: 'transition', label: 'Requested', actor: 'D. Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
-  { kind: 'transition', label: 'Paid', actor: 'L. Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Requested', actor: 'D. Okafor', actorName: 'Diana Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Paid', actor: 'L. Chen', actorName: 'Lena Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
 ];
 
 const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOverviewTab>> = {}) =>

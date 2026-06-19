@@ -235,8 +235,9 @@ describe('getProcurementDetail', () => {
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('payments:payments(*)'),
     );
+    // statusEvents embed now includes the actor profile join for name resolution (AC-PR-PROG-012)
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('statusEvents:procurement_status_events(*)'),
+      expect.stringContaining('statusEvents:procurement_status_events(*, actor:profiles!'),
     );
     // Also assert the core legacy joins are still present (NFR-PR-PERF-002 one embed)
     expect(mockSelect).toHaveBeenCalledWith(

@@ -478,4 +478,129 @@ describe('buildProgressionTimeline', () => {
     const events = buildProgressionTimeline(detail, PROC_ID);
     expect(events[0].at < events[1].at).toBe(true);
   });
+
+  // ── Bug fixes (render-caught) ─────────────────────────────────────────────
+
+  it('AC-PR-PROG-012: actorName is the resolved profile full_name, NEVER the raw UUID', () => {
+    // The statusEvent carries an embedded actor profile (joined by DETAIL_SELECT).
+    // buildProgressionTimeline must surface actorName from that profile join.
+    const detail = makeDetail({
+      statusEvents: [
+        {
+          id: 'ev1',
+          org_id: 'org-1',
+          procurement_id: PROC_ID,
+          from_status: 'Draft',
+          to_status: 'Requested',
+          // actor_id is a UUID — must NOT appear verbatim in actorName
+          actor_id: '00000000-0000-0000-0000-0000000000a2',
+          // PostgREST embeds the profile row via the FK alias
+          actor: { full_name: 'Aiko Tanaka' },
+          notes: null,
+          created_at: '2025-09-10T09:00:00Z',
+        },
+      ] as unknown as ProcurementDetail['statusEvents'],
+    });
+
+    const events = buildProgressionTimeline(detail, PROC_ID);
+    expect(events).toHaveLength(1);
+    // actorName must be the resolved name
+    expect(events[0].actorName).toBe('Aiko Tanaka');
+    // actorName must NOT be the raw UUID
+    expect(events[0].actorName).not.toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('AC-PR-PROG-013: actorName falls back to "—" (em-dash) when actor profile is null', () => {
+    const detail = makeDetail({
+      statusEvents: [
+        {
+          id: 'ev1',
+          org_id: 'org-1',
+          procurement_id: PROC_ID,
+          from_status: 'Draft',
+          to_status: 'Requested',
+          actor_id: null,
+          actor: null,
+          notes: null,
+          created_at: '2025-09-10T09:00:00Z',
+        },
+      ] as unknown as ProcurementDetail['statusEvents'],
+    });
+
+    const events = buildProgressionTimeline(detail, PROC_ID);
+    expect(events[0].actorName).toBeNull();
+  });
+
+  it('AC-PR-PROG-014: orphan record "at" uses business date, not created_at (RFQ with old date sorts before terminal transition)', () => {
+    // Scenario: RFQ has business date in 2025-09-11 but was inserted today (created_at = "today").
+    // The terminal Paid transition is 2025-11-25.
+    // The RFQ must sort BEFORE Paid (not after it), because its business date < Paid date.
+    const rfqBusinessDate = '2025-09-11';  // date-only string (date column)
+    const rfqCreatedAt = '2026-06-20T00:00:00Z';  // seed insert time = "today" (would float above Paid)
+    const paidTransitionAt = '2025-11-25T13:30:00Z';
+
+    const detail = makeDetail({
+      statusEvents: [
+        {
+          id: 'e-paid',
+          org_id: 'org-1',
+          procurement_id: PROC_ID,
+          from_status: 'Vendor Invoiced',
+          to_status: 'Paid',
+          actor_id: null,
+          actor: null,
+          notes: null,
+          created_at: paidTransitionAt,
+        },
+      ] as unknown as ProcurementDetail['statusEvents'],
+      rfqs: [
+        {
+          id: 'rfq-1',
+          org_id: 'org-1',
+          procurement_id: PROC_ID,
+          rfq_number: 'RFQ-2509110001',
+          reference_number: null,
+          status: 'Closed',
+          // business date in 2025 — must be used as sort key
+          date: rfqBusinessDate,
+          amount: null,
+          // created_at is "today" (seed insert time) — must NOT be used as sort key
+          created_at: rfqCreatedAt,
+        },
+      ] as unknown as ProcurementDetail['rfqs'],
+    });
+
+    const events = buildProgressionTimeline(detail, PROC_ID);
+    // RFQ is orphan (no Vendor Quoted transition), should sort by business date 2025-09-11
+    // Paid transition is at 2025-11-25 — so RFQ must come FIRST (ascending)
+    expect(events).toHaveLength(2);
+    // First event = RFQ (business date 2025-09-11)
+    expect(events[0].docRef).toBe('RFQ-2509110001');
+    // Second event = Paid transition
+    expect(events[1].label).toBe('Paid');
+    // The at value on the RFQ event should be the business date, not created_at
+    expect(events[0].at).toBe(rfqBusinessDate);
+  });
+
+  it('AC-PR-PROG-015: orphan record falls back to created_at when date is null', () => {
+    const detail = makeDetail({
+      rfqs: [
+        {
+          id: 'rfq-2',
+          org_id: 'org-1',
+          procurement_id: PROC_ID,
+          rfq_number: 'RFQ-2026-0001',
+          reference_number: null,
+          status: 'Draft',
+          date: null,  // no business date — should fall back to created_at
+          amount: null,
+          created_at: '2026-06-01T00:00:00Z',
+        },
+      ] as unknown as ProcurementDetail['rfqs'],
+    });
+
+    const events = buildProgressionTimeline(detail, PROC_ID);
+    expect(events).toHaveLength(1);
+    expect(events[0].at).toBe('2026-06-01T00:00:00Z');
+  });
 });

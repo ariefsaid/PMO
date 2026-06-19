@@ -7,9 +7,9 @@ import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline
 // buildProgressionTimeline returns events ASCENDING by time; the bento timeline
 // presents them NEWEST-FIRST with a current-state ring on the latest event.
 const ASC_EVENTS: ProgressionEvent[] = [
-  { kind: 'transition', label: 'Requested', actor: 'D. Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
-  { kind: 'transition', label: 'Ordered', actor: 'A. Reyes', at: '2026-05-06T10:00:00Z', docRef: 'PO-2026-0077', docHref: '/procurement/proc-1/documents' },
-  { kind: 'transition', label: 'Paid', actor: 'L. Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Requested', actor: 'D. Okafor', actorName: 'Diana Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Ordered', actor: 'A. Reyes', actorName: 'Ana Reyes', at: '2026-05-06T10:00:00Z', docRef: 'PO-2026-0077', docHref: '/procurement/proc-1/documents' },
+  { kind: 'transition', label: 'Paid', actor: 'L. Chen', actorName: 'Lena Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
 ];
 
 // 9 events — more than the default cap of 6
@@ -17,6 +17,7 @@ const LONG_EVENTS: ProgressionEvent[] = Array.from({ length: 9 }, (_, i) => ({
   kind: 'transition' as const,
   label: `Step ${i + 1}`,
   actor: null,
+  actorName: null,
   at: `2026-05-0${i + 1}T10:00:00Z`,
   docRef: null,
   docHref: null,
@@ -60,13 +61,31 @@ describe('ProcurementProgressionTimeline (Overview bento slot)', () => {
     expect(items[1]).not.toHaveAttribute('data-current');
   });
 
-  it('shows actor + a machine-readable <time> for each event (text, not color-only)', () => {
+  it('shows actorName (resolved full name, not UUID) + a machine-readable <time> for each event (text, not color-only)', () => {
     renderTimeline(ASC_EVENTS);
     const items = screen.getAllByRole('listitem');
-    // newest event actor
-    expect(within(items[0]).getByText(/L\. Chen/)).toBeInTheDocument();
+    // newest event actorName (resolved full name)
+    expect(within(items[0]).getByText(/Lena Chen/)).toBeInTheDocument();
     const time = within(items[0]).getByText((_, el) => el?.tagName === 'TIME');
     expect(time).toHaveAttribute('dateTime', '2026-05-14T12:00:00Z');
+  });
+
+  it('AC-PR-PROG-012: renders actorName from resolved profile, not raw UUID', () => {
+    const events: ProgressionEvent[] = [
+      {
+        kind: 'transition',
+        label: 'Requested',
+        actor: '00000000-0000-0000-0000-0000000000a2',
+        actorName: 'Aiko Tanaka',
+        at: '2025-09-10T09:00:00Z',
+        docRef: null,
+        docHref: null,
+      },
+    ];
+    renderTimeline(events);
+    // Must show the name, not the UUID
+    expect(screen.getByText(/Aiko Tanaka/)).toBeInTheDocument();
+    expect(screen.queryByText(/00000000-0000-0000-0000-0000000000a2/)).toBeNull();
   });
 
   it('AC-PR-PROG-007: renders docRef as a link (<a>) within the event row', () => {
@@ -80,7 +99,7 @@ describe('ProcurementProgressionTimeline (Overview bento slot)', () => {
 
   it('AC-PR-PROG-008: event without docRef renders the label as plain text (no link)', () => {
     const noRefEvents: ProgressionEvent[] = [
-      { kind: 'transition', label: 'Approved', actor: 'L. Marchetti', at: '2026-05-02T10:00:00Z', docRef: null, docHref: null },
+      { kind: 'transition', label: 'Approved', actor: 'L. Marchetti', actorName: 'Luigi Marchetti', at: '2026-05-02T10:00:00Z', docRef: null, docHref: null },
     ];
     renderTimeline(noRefEvents);
     // Should render "Approved" as text but NOT as a link

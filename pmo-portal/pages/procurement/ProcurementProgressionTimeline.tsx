@@ -116,11 +116,11 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
                     </>
                   )}
                 </p>
-                {/* Meta: actor + date */}
+                {/* Meta: actorName (resolved full name) + date */}
                 <div className="mt-px flex flex-wrap gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
-                  {ev.actor && (
+                  {ev.actorName && (
                     <span>
-                      by <span className="font-mono">{ev.actor}</span>
+                      by <span className="font-medium">{ev.actorName}</span>
                     </span>
                   )}
                   <time dateTime={ev.at}>{formatEventTime(ev.at)}</time>
