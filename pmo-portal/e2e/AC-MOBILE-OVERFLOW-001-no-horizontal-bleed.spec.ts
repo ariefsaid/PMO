@@ -23,6 +23,8 @@ import { signIn } from './helpers';
 
 // Known seed ids (stable across local + cloud — supabase/seed.sql).
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
+// SP2401-001 "PV Modules — Meridian 4.2 MW" — richest seeded procurement case (PR/RFQ/PO/PAY + events)
+const PROC_SHOWCASE = '61000000-0000-0000-0000-000000000001';
 
 const ROUTES: { path: string; label: string }[] = [
   { path: '/', label: 'dashboard' },
@@ -33,6 +35,8 @@ const ROUTES: { path: string; label: string }[] = [
   { path: `/projects/${MERIDIAN}/budget`, label: 'project-budget' },
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
   { path: '/procurement', label: 'procurement-list' },
+  // AC-PR-027: the records detail page (stepper + history + inline forms) must not bleed at mobile
+  { path: `/procurement/${PROC_SHOWCASE}`, label: 'procurement-detail' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
   { path: '/companies', label: 'companies' },
