@@ -1412,79 +1412,53 @@ on conflict (id) do nothing;
 --       SP2402-003 (id 61000000-...-007): Received, 1,250,000
 -- ============================================================
 
--- ── (a) Enrich backfilled purchase_requests (add reference_number + amount + date) ──
+-- ── (a) Insert purchase_requests for the 5 showcase cases ────────────────────────
+-- The migration-0038 backfill runs against zero rows (migrations execute before
+-- seed.sql); we must insert these records directly. org_id is filled by the BEFORE
+-- INSERT trigger from the parent procurement row; seed runs as superuser (RLS off).
 
-update purchase_requests set
-  reference_number = 'REQ-2025-0142',
-  amount           = 1680000,
-  date             = '2025-09-10'
-where procurement_id = '61000000-0000-0000-0000-000000000001'
-  and pr_number = 'PR-2509100001';
+insert into purchase_requests
+  (procurement_id, pr_number, reference_number, status, date, amount)
+values
+  -- SP2401-001 Paid
+  ('61000000-0000-0000-0000-000000000001',
+   'PR-2509100001', 'REQ-2025-0142', 'Approved', '2025-09-10', 1680000),
+  -- SP2402-001 Paid
+  ('61000000-0000-0000-0000-000000000005',
+   'PR-2506100001', 'REQ-2025-0209', 'Approved', '2025-06-10', 3700000),
+  -- SP2403-001 Paid
+  ('61000000-0000-0000-0000-000000000009',
+   'PR-2504010001', 'REQ-2025-0078', 'Approved', '2025-04-01', 1440000),
+  -- SP2401-002 Ordered
+  ('61000000-0000-0000-0000-000000000002',
+   'PR-2510050001', 'REQ-2025-0156', 'Approved', '2025-10-05', 680000),
+  -- SP2402-003 Received
+  ('61000000-0000-0000-0000-000000000007',
+   'PR-2508200001', 'REQ-2025-0221', 'Approved', '2025-08-20', 1250000)
+on conflict do nothing;
 
-update purchase_requests set
-  reference_number = 'REQ-2025-0209',
-  amount           = 3700000,
-  date             = '2025-06-10'
-where procurement_id = '61000000-0000-0000-0000-000000000005'
-  and pr_number = 'PR-2506100001';
+-- ── (a2) Insert purchase_orders for the 5 showcase cases ─────────────────────────
+-- Same rationale: no rows exist at seed time; insert rather than update.
 
-update purchase_requests set
-  reference_number = 'REQ-2025-0078',
-  amount           = 1440000,
-  date             = '2025-04-01'
-where procurement_id = '61000000-0000-0000-0000-000000000009'
-  and pr_number = 'PR-2504010001';
-
-update purchase_requests set
-  reference_number = 'REQ-2025-0156',
-  amount           = 680000,
-  date             = '2025-10-05'
-where procurement_id = '61000000-0000-0000-0000-000000000002'
-  and pr_number = 'PR-2510050001';
-
-update purchase_requests set
-  reference_number = 'REQ-2025-0221',
-  amount           = 1250000,
-  date             = '2025-08-20'
-where procurement_id = '61000000-0000-0000-0000-000000000007'
-  and pr_number = 'PR-2508200001';
-
--- ── (a2) Enrich backfilled purchase_orders (add reference_number + amount + date) ──
-
-update purchase_orders set
-  reference_number = 'PO-SV-2509-0142',
-  amount           = 1680000,
-  date             = '2025-09-20'
-where procurement_id = '61000000-0000-0000-0000-000000000001'
-  and po_number = 'PO-2509200001';
-
-update purchase_orders set
-  reference_number = 'PO-SV-2506-0209',
-  amount           = 3700000,
-  date             = '2025-06-20'
-where procurement_id = '61000000-0000-0000-0000-000000000005'
-  and po_number = 'PO-2506200001';
-
-update purchase_orders set
-  reference_number = 'PO-SV-2504-0078',
-  amount           = 1440000,
-  date             = '2025-04-10'
-where procurement_id = '61000000-0000-0000-0000-000000000009'
-  and po_number = 'PO-2504100001';
-
-update purchase_orders set
-  reference_number = 'PO-VE-2510-0156',
-  amount           = 680000,
-  date             = '2025-10-10'
-where procurement_id = '61000000-0000-0000-0000-000000000002'
-  and po_number = 'PO-2510100001';
-
-update purchase_orders set
-  reference_number = 'PO-RM-2508-0221',
-  amount           = 1250000,
-  date             = '2025-08-25'
-where procurement_id = '61000000-0000-0000-0000-000000000007'
-  and po_number = 'PO-2508250001';
+insert into purchase_orders
+  (procurement_id, po_number, reference_number, status, date, amount)
+values
+  -- SP2401-001 Paid
+  ('61000000-0000-0000-0000-000000000001',
+   'PO-2509200001', 'PO-SV-2509-0142', 'Issued', '2025-09-20', 1680000),
+  -- SP2402-001 Paid
+  ('61000000-0000-0000-0000-000000000005',
+   'PO-2506200001', 'PO-SV-2506-0209', 'Issued', '2025-06-20', 3700000),
+  -- SP2403-001 Paid
+  ('61000000-0000-0000-0000-000000000009',
+   'PO-2504100001', 'PO-SV-2504-0078', 'Issued', '2025-04-10', 1440000),
+  -- SP2401-002 Ordered
+  ('61000000-0000-0000-0000-000000000002',
+   'PO-2510100001', 'PO-VE-2510-0156', 'Issued', '2025-10-10', 680000),
+  -- SP2402-003 Received
+  ('61000000-0000-0000-0000-000000000007',
+   'PO-2508250001', 'PO-RM-2508-0221', 'Issued', '2025-08-25', 1250000)
+on conflict do nothing;
 
 -- ── (b) Insert rfqs (one per showcase case that sourced quotations) ───────────────
 -- Each rfq gets a stable id so we can set rfq_id on quotations in step (c).
