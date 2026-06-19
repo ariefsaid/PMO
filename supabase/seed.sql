@@ -1386,3 +1386,278 @@ on conflict (id) do nothing;
 --     (default win-probabilities for the default org). Nothing to do here.
 -- ============================================================
 
+-- ============================================================
+-- §R  Procurement record enrichment — purchase_requests / rfqs / purchase_orders /
+--     payments / procurement_status_events
+--
+--     Migration 0038 backfill already created bare purchase_requests + purchase_orders
+--     rows (pr_number, Submitted/Issued, created_at date) for every procurement that has
+--     a pr_number/po_number. Here we:
+--       (a) UPDATE those backfilled rows with reference_number + amount;
+--       (b) INSERT rfqs rows (not created by any backfill);
+--       (c) UPDATE procurement_quotations.rfq_id (same-case — trigger enforces it);
+--       (d) UPDATE procurement_receipts.po_id  (same-case);
+--       (e) UPDATE procurement_invoices.po_id  (same-case);
+--       (f) INSERT payments for Paid procurements;
+--       (g) INSERT procurement_status_events for one showcase case (full transition history).
+--
+--     Same-case invariant (0039 triggers): every FK we set here must reference a record
+--     whose procurement_id matches the child row's own procurement_id.
+--
+--     Showcase cases enriched:
+--       SP2401-001 (id 61000000-...-001): Paid, 1,680,000 — full timeline + status events
+--       SP2402-001 (id 61000000-...-005): Paid, 3,700,000
+--       SP2403-001 (id 61000000-...-009): Paid, 1,440,000
+--       SP2401-002 (id 61000000-...-002): Ordered, 680,000
+--       SP2402-003 (id 61000000-...-007): Received, 1,250,000
+-- ============================================================
+
+-- ── (a) Enrich backfilled purchase_requests (add reference_number + amount + date) ──
+
+update purchase_requests set
+  reference_number = 'REQ-2025-0142',
+  amount           = 1680000,
+  date             = '2025-09-10'
+where procurement_id = '61000000-0000-0000-0000-000000000001'
+  and pr_number = 'PR-2509100001';
+
+update purchase_requests set
+  reference_number = 'REQ-2025-0209',
+  amount           = 3700000,
+  date             = '2025-06-10'
+where procurement_id = '61000000-0000-0000-0000-000000000005'
+  and pr_number = 'PR-2506100001';
+
+update purchase_requests set
+  reference_number = 'REQ-2025-0078',
+  amount           = 1440000,
+  date             = '2025-04-01'
+where procurement_id = '61000000-0000-0000-0000-000000000009'
+  and pr_number = 'PR-2504010001';
+
+update purchase_requests set
+  reference_number = 'REQ-2025-0156',
+  amount           = 680000,
+  date             = '2025-10-05'
+where procurement_id = '61000000-0000-0000-0000-000000000002'
+  and pr_number = 'PR-2510050001';
+
+update purchase_requests set
+  reference_number = 'REQ-2025-0221',
+  amount           = 1250000,
+  date             = '2025-08-20'
+where procurement_id = '61000000-0000-0000-0000-000000000007'
+  and pr_number = 'PR-2508200001';
+
+-- ── (a2) Enrich backfilled purchase_orders (add reference_number + amount + date) ──
+
+update purchase_orders set
+  reference_number = 'PO-SV-2509-0142',
+  amount           = 1680000,
+  date             = '2025-09-20'
+where procurement_id = '61000000-0000-0000-0000-000000000001'
+  and po_number = 'PO-2509200001';
+
+update purchase_orders set
+  reference_number = 'PO-SV-2506-0209',
+  amount           = 3700000,
+  date             = '2025-06-20'
+where procurement_id = '61000000-0000-0000-0000-000000000005'
+  and po_number = 'PO-2506200001';
+
+update purchase_orders set
+  reference_number = 'PO-SV-2504-0078',
+  amount           = 1440000,
+  date             = '2025-04-10'
+where procurement_id = '61000000-0000-0000-0000-000000000009'
+  and po_number = 'PO-2504100001';
+
+update purchase_orders set
+  reference_number = 'PO-VE-2510-0156',
+  amount           = 680000,
+  date             = '2025-10-10'
+where procurement_id = '61000000-0000-0000-0000-000000000002'
+  and po_number = 'PO-2510100001';
+
+update purchase_orders set
+  reference_number = 'PO-RM-2508-0221',
+  amount           = 1250000,
+  date             = '2025-08-25'
+where procurement_id = '61000000-0000-0000-0000-000000000007'
+  and po_number = 'PO-2508250001';
+
+-- ── (b) Insert rfqs (one per showcase case that sourced quotations) ───────────────
+-- Each rfq gets a stable id so we can set rfq_id on quotations in step (c).
+
+insert into rfqs
+  (id, procurement_id, rfq_number, reference_number, status, date, amount)
+values
+  -- SP2401-001 Paid — RFQ to SunVolt for PV modules
+  ('62000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000000001',
+   'RFQ-2509110001', 'SVX-RFQ-2501', 'Closed', '2025-09-11', 1680000),
+  -- SP2402-001 Paid — RFQ to SunVolt for 6 MW modules
+  ('62000000-0000-0000-0000-000000000005',
+   '61000000-0000-0000-0000-000000000005',
+   'RFQ-2506110001', 'SVX-RFQ-2502', 'Closed', '2025-06-11', 3700000),
+  -- SP2403-001 Paid — RFQ to SunVolt for Atlas carport modules
+  ('62000000-0000-0000-0000-000000000009',
+   '61000000-0000-0000-0000-000000000009',
+   'RFQ-2504020001', 'SVX-RFQ-2503', 'Closed', '2025-04-02', 1440000),
+  -- SP2401-002 Ordered — RFQ to VoltEdge for inverters
+  ('62000000-0000-0000-0000-000000000002',
+   '61000000-0000-0000-0000-000000000002',
+   'RFQ-2510060001', 'VEI-RFQ-2501', 'Closed', '2025-10-06', 680000),
+  -- SP2402-003 Received — RFQ to RackMount for ground-mount piling
+  ('62000000-0000-0000-0000-000000000007',
+   '61000000-0000-0000-0000-000000000007',
+   'RFQ-2508210001', 'RMS-RFQ-2502', 'Closed', '2025-08-21', 1250000)
+on conflict (id) do nothing;
+
+-- ── (c) Link procurement_quotations.rfq_id (same-case; 0039 trigger guards) ─────
+-- Each update sets rfq_id to the rfqs row for the same procurement_id.
+
+update procurement_quotations set rfq_id = '62000000-0000-0000-0000-000000000001'
+  where id = '61000000-0000-0000-0000-000000002001';  -- SVX-Q-2501-01 (SP2401-001)
+
+update procurement_quotations set rfq_id = '62000000-0000-0000-0000-000000000005'
+  where id = '61000000-0000-0000-0000-000000002005';  -- SVX-Q-2502-01 (SP2402-001)
+
+update procurement_quotations set rfq_id = '62000000-0000-0000-0000-000000000009'
+  where id = '61000000-0000-0000-0000-000000002009';  -- SVX-Q-2503-01 (SP2403-001)
+
+update procurement_quotations set rfq_id = '62000000-0000-0000-0000-000000000002'
+  where id = '61000000-0000-0000-0000-000000002002';  -- VEI-Q-2501-01 (SP2401-002)
+
+update procurement_quotations set rfq_id = '62000000-0000-0000-0000-000000000007'
+  where id = '61000000-0000-0000-0000-000000002007';  -- RMS-Q-2502-01 (SP2402-003)
+
+-- ── (d) Link procurement_receipts.po_id (same-case; 0039 trigger guards) ─────────
+-- GR row → its own procurement's PO row.
+
+update procurement_receipts set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000001'
+              and po_number = 'PO-2509200001')
+where id = '61000000-0000-0000-0000-000000003001';  -- GR for SP2401-001
+
+update procurement_receipts set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000005'
+              and po_number = 'PO-2506200001')
+where id = '61000000-0000-0000-0000-000000003005';  -- GR for SP2402-001
+
+update procurement_receipts set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000007'
+              and po_number = 'PO-2508250001')
+where id = '61000000-0000-0000-0000-000000003007';  -- GR for SP2402-003
+
+update procurement_receipts set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000009'
+              and po_number = 'PO-2504100001')
+where id = '61000000-0000-0000-0000-000000003009';  -- GR for SP2403-001
+
+-- ── (e) Link procurement_invoices.po_id (same-case; 0039 trigger guards) ─────────
+
+update procurement_invoices set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000001'
+              and po_number = 'PO-2509200001')
+where id = '61000000-0000-0000-0000-000000004001';  -- VI for SP2401-001
+
+update procurement_invoices set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000005'
+              and po_number = 'PO-2506200001')
+where id = '61000000-0000-0000-0000-000000004005';  -- VI for SP2402-001
+
+update procurement_invoices set
+  po_id = (select id from purchase_orders
+            where procurement_id = '61000000-0000-0000-0000-000000000009'
+              and po_number = 'PO-2504100001')
+where id = '61000000-0000-0000-0000-000000004009';  -- VI for SP2403-001
+
+-- ── (f) Insert payments for Paid procurements ─────────────────────────────────────
+-- pay_number mirrors the PAY-prefix convention from next_procurement_doc_number.
+-- invoice_id FK must point at same-case invoice (create_payment RPC guard — same rule for direct insert).
+
+insert into payments
+  (id, procurement_id, invoice_id, pay_number, reference_number, status, date, amount)
+values
+  -- SP2401-001 Paid — settled VI-2511200001
+  ('63000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000004001',
+   'PAY-2511250001', 'TT-SV-2025-0142', 'Paid', '2025-11-25', 1680000),
+  -- SP2402-001 Paid — settled VI-2512010001
+  ('63000000-0000-0000-0000-000000000005',
+   '61000000-0000-0000-0000-000000000005',
+   '61000000-0000-0000-0000-000000004005',
+   'PAY-2512080001', 'TT-SV-2025-0209', 'Paid', '2025-12-08', 3700000),
+  -- SP2403-001 Paid — settled VI-2506150001
+  ('63000000-0000-0000-0000-000000000009',
+   '61000000-0000-0000-0000-000000000009',
+   '61000000-0000-0000-0000-000000004009',
+   'PAY-2506200001', 'TT-SV-2025-0078', 'Paid', '2025-06-20', 1440000)
+on conflict (id) do nothing;
+
+-- ── (g) procurement_status_events — full transition history for SP2401-001 ────────
+-- Direct seed insert (superuser bypasses force-RLS; no write policy on this table anyway).
+-- Actors: PM (a2) submits/orders/receives; Finance (a3) approves/invoices/pays; Exec (a1) approves.
+-- Timestamps ascend from the procurement's created_at (2025-09-10).
+
+insert into procurement_status_events
+  (id, procurement_id, from_status, to_status, actor_id, notes, created_at)
+values
+  ('64000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000000001',
+   'Draft', 'Requested',
+   '00000000-0000-0000-0000-0000000000a2',
+   'Initial request for 6,000 PV modules — Meridian Steelworks 4.2 MW rooftop.',
+   '2025-09-10T09:00:00Z'),
+  ('64000000-0000-0000-0000-000000000002',
+   '61000000-0000-0000-0000-000000000001',
+   'Requested', 'Approved',
+   '00000000-0000-0000-0000-0000000000a3',
+   'Budget verified against SP-2401 active budget version. Approved.',
+   '2025-09-11T14:30:00Z'),
+  ('64000000-0000-0000-0000-000000000003',
+   '61000000-0000-0000-0000-000000000001',
+   'Approved', 'Vendor Quoted',
+   '00000000-0000-0000-0000-0000000000a2',
+   'RFQ issued to SunVolt; quote SVX-Q-2501-01 received at 1,680,000.',
+   '2025-09-12T10:15:00Z'),
+  ('64000000-0000-0000-0000-000000000004',
+   '61000000-0000-0000-0000-000000000001',
+   'Vendor Quoted', 'Quote Selected',
+   '00000000-0000-0000-0000-0000000000a2',
+   'SunVolt quote selected — best price and certified IEC 61215.',
+   '2025-09-15T11:00:00Z'),
+  ('64000000-0000-0000-0000-000000000005',
+   '61000000-0000-0000-0000-000000000001',
+   'Quote Selected', 'Ordered',
+   '00000000-0000-0000-0000-0000000000a2',
+   'PO-2509200001 raised and sent to SunVolt. Delivery expected Dec 2025.',
+   '2025-09-20T09:45:00Z'),
+  ('64000000-0000-0000-0000-000000000006',
+   '61000000-0000-0000-0000-000000000001',
+   'Ordered', 'Received',
+   '00000000-0000-0000-0000-0000000000a4',
+   'GR-2511150001 — all 6,000 panels received and inspected at site. No damage observed.',
+   '2025-11-15T16:00:00Z'),
+  ('64000000-0000-0000-0000-000000000007',
+   '61000000-0000-0000-0000-000000000001',
+   'Received', 'Vendor Invoiced',
+   '00000000-0000-0000-0000-0000000000a3',
+   'VI-2511200001 received from SunVolt. 30-day payment terms.',
+   '2025-11-20T10:00:00Z'),
+  ('64000000-0000-0000-0000-000000000008',
+   '61000000-0000-0000-0000-000000000001',
+   'Vendor Invoiced', 'Paid',
+   '00000000-0000-0000-0000-0000000000a3',
+   'TT-SV-2025-0142 — bank transfer 1,680,000 executed. Case closed.',
+   '2025-11-25T13:30:00Z')
+on conflict (id) do nothing;
+
