@@ -161,7 +161,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vq.received_date,      // business date for quotations
         detail.created_at,     // fallback: the case's created_at (quotations have no created_at)
         vq.vq_number,
-        null,                  // quotations carry no external_reference column
+        vq.reference ?? null,  // supplier's own quote reference (e.g. "SVX-Q-2501-01")
         vq.total_amount,
         vqStatus,
       ),
@@ -185,34 +185,34 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
   }
 
   // ── 5. Goods Receipts — business date = receipt_date ─────────────────────
+  // GRs are non-financial (no amount); reference_number is the supplier delivery-note.
   for (const gr of detail.receipts ?? []) {
     rows.push(
       makeRow(
         'GR',
         gr.id,
-        gr.receipt_date,       // business date for GRs
+        gr.receipt_date,               // business date for GRs
         gr.created_at,
         gr.gr_number,
-        null,                  // receipts carry no external reference column
-        null,                  // receipts carry no amount column
+        gr.reference_number ?? null,   // supplier delivery-note (e.g. "DN-44120")
+        null,                          // GRs are non-financial — no amount
         gr.status,
       ),
     );
   }
 
   // ── 6. Vendor Invoices — business date = invoice_date ────────────────────
-  // Note: procurement_invoices in the DB has no amount or invoice_reference column
-  // (those fields live on the payment/PO respectively). We pass null for both.
+  // reference_number = supplier's own invoice number; amount = invoice total.
   for (const vi of detail.invoices ?? []) {
     rows.push(
       makeRow(
         'Invoice',
         vi.id,
-        vi.invoice_date,       // business date for invoices
+        vi.invoice_date,               // business date for invoices
         vi.created_at,
         vi.vi_number,
-        null,                  // no external reference column on invoices
-        null,                  // no amount column on procurement_invoices
+        vi.reference_number ?? null,   // supplier invoice number (e.g. "INV-SF-2291")
+        vi.amount ?? null,             // invoice total (migration 0040)
         vi.status,
       ),
     );

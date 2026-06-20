@@ -61,10 +61,10 @@ function makeDetail(overrides: Record<string, unknown> = {}): ProcurementDetail 
 // Typed helpers for each record collection (only fields buildLedgerRows actually reads)
 type PRRow = Pick<Tables<'purchase_requests'>, 'id' | 'org_id' | 'procurement_id' | 'pr_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'>;
 type RfqRow = Pick<Tables<'rfqs'>, 'id' | 'org_id' | 'procurement_id' | 'rfq_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'>;
-type QuotRow = Pick<Tables<'procurement_quotations'>, 'id' | 'org_id' | 'procurement_id' | 'vq_number' | 'vendor_id' | 'total_amount' | 'received_date' | 'is_selected'>;
+type QuotRow = Pick<Tables<'procurement_quotations'>, 'id' | 'org_id' | 'procurement_id' | 'vq_number' | 'vendor_id' | 'total_amount' | 'received_date' | 'is_selected' | 'reference'>;
 type PORow = Pick<Tables<'purchase_orders'>, 'id' | 'org_id' | 'procurement_id' | 'po_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'>;
-type GRRow = Pick<Tables<'procurement_receipts'>, 'id' | 'org_id' | 'procurement_id' | 'gr_number' | 'status' | 'receipt_date' | 'created_at' | 'po_id'>;
-type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id'>;
+type GRRow = Pick<Tables<'procurement_receipts'>, 'id' | 'org_id' | 'procurement_id' | 'gr_number' | 'status' | 'receipt_date' | 'created_at' | 'po_id' | 'reference_number'>;
+type VIRow = Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'>;
 type PayRow = Pick<Tables<'payments'>, 'id' | 'org_id' | 'procurement_id' | 'pay_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'invoice_id' | 'created_at'>;
 
 // ---------------------------------------------------------------------------
@@ -97,7 +97,7 @@ describe('AC-PR-LEDGER-002: all 7 record types each produce a row', () => {
     const vq: QuotRow = {
       id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
       vq_number: 'VQ-2026-0001', vendor_id: 'v-1',
-      total_amount: 478500, received_date: '2026-05-04', is_selected: true,
+      total_amount: 478500, received_date: '2026-05-04', is_selected: true, reference: null,
     };
     const po: PORow = {
       id: 'po-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -108,11 +108,13 @@ describe('AC-PR-LEDGER-002: all 7 record types each produce a row', () => {
       id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-2026-0001', status: 'Complete',
       receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
     };
     const vi: VIRow = {
       id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
       vi_number: 'VI-2026-0001', status: 'Received',
       invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: null,
     };
     const pay: PayRow = {
       id: 'pay-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -201,11 +203,13 @@ describe('AC-PR-LEDGER-005: multiple records per phase all appear', () => {
       id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-001', status: 'Partial',
       receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
     };
     const gr2: GRRow = {
       id: 'gr-2', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-002', status: 'Complete',
       receipt_date: '2026-05-15', created_at: '2026-05-15T08:00:00Z', po_id: null,
+      reference_number: null,
     };
 
     const detail = makeDetail({ receipts: [gr1, gr2] });
@@ -227,6 +231,7 @@ describe('AC-PR-LEDGER-006: PO-less case', () => {
       id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
       vi_number: 'VI-001', status: 'Received',
       invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: null,
     };
     const pay: PayRow = {
       id: 'pay-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -262,7 +267,7 @@ describe('AC-PR-LEDGER-007: financial flag', () => {
     const vq: QuotRow = {
       id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
       vq_number: 'VQ-001', vendor_id: 'v-1',
-      total_amount: 90000, received_date: '2026-05-04', is_selected: true,
+      total_amount: 90000, received_date: '2026-05-04', is_selected: true, reference: null,
     };
     const po: PORow = {
       id: 'po-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -273,11 +278,13 @@ describe('AC-PR-LEDGER-007: financial flag', () => {
       id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-001', status: 'Complete',
       receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
     };
     const vi: VIRow = {
       id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
       vi_number: 'VI-001', status: 'Received',
       invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: null,
     };
     const pay: PayRow = {
       id: 'pay-1', org_id: 'org-1', procurement_id: 'proc-1',
@@ -319,16 +326,18 @@ describe('AC-PR-LEDGER-008: business date uses type-specific date field', () => 
       id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-001', status: 'Complete',
       receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
     };
     const vi: VIRow = {
       id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
       vi_number: 'VI-001', status: 'Received',
       invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: null,
     };
     const vq: QuotRow = {
       id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
       vq_number: 'VQ-001', vendor_id: 'v-1',
-      total_amount: 50000, received_date: '2026-05-04', is_selected: false,
+      total_amount: 50000, received_date: '2026-05-04', is_selected: false, reference: null,
     };
 
     const detail = makeDetail({ receipts: [gr], invoices: [vi], quotations: [vq] });
@@ -347,6 +356,7 @@ describe('AC-PR-LEDGER-008: business date uses type-specific date field', () => 
       id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
       gr_number: 'GR-001', status: 'Complete',
       receipt_date: null, created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
     };
 
     const detail = makeDetail({ receipts: [gr] });
@@ -371,5 +381,111 @@ describe('AC-PR-LEDGER-009: dual-ID fields in each row', () => {
     const rows = buildLedgerRows(detail);
     expect(rows[0].systemNumber).toBe('PO-2026-0077');
     expect(rows[0].externalRef).toBe('PO/MER/0077');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-PR-LEDGER-015: Quote externalRef populates from procurement_quotations.reference
+// ---------------------------------------------------------------------------
+
+describe('AC-PR-LEDGER-015: Quote externalRef + amount from procurement_quotations', () => {
+  it('populates externalRef from vq.reference and amount from vq.total_amount', () => {
+    const vq: QuotRow = {
+      id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vq_number: 'VQ-2026-0001', vendor_id: 'v-1',
+      reference: 'VENDOR-QUOTE-007',
+      total_amount: 478500, received_date: '2026-05-04', is_selected: true,
+    };
+
+    const detail = makeDetail({ quotations: [vq] });
+    const rows = buildLedgerRows(detail);
+    const quoteRow = rows.find((r) => r.type === 'Quote');
+    expect(quoteRow?.externalRef).toBe('VENDOR-QUOTE-007');
+    expect(quoteRow?.amount).toBe(478500);
+  });
+
+  it('externalRef is null when vq.reference is null', () => {
+    const vq: QuotRow = {
+      id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vq_number: 'VQ-2026-0001', vendor_id: 'v-1',
+      total_amount: 478500, received_date: '2026-05-04', is_selected: false, reference: null,
+    };
+
+    const detail = makeDetail({ quotations: [vq] });
+    const rows = buildLedgerRows(detail);
+    const quoteRow = rows.find((r) => r.type === 'Quote');
+    expect(quoteRow?.externalRef).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-PR-LEDGER-016: GR externalRef populates from procurement_receipts.reference_number
+// ---------------------------------------------------------------------------
+
+describe('AC-PR-LEDGER-016: GR externalRef from procurement_receipts.reference_number', () => {
+  it('populates externalRef from gr.reference_number; amount stays null (non-financial)', () => {
+    const gr: GRRow & { reference_number?: string | null } = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-2026-0001', status: 'Complete',
+      receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: 'DN-44120',
+    };
+
+    const detail = makeDetail({ receipts: [gr] });
+    const rows = buildLedgerRows(detail);
+    const grRow = rows.find((r) => r.type === 'GR');
+    expect(grRow?.externalRef).toBe('DN-44120');
+    expect(grRow?.amount).toBeNull();
+  });
+
+  it('externalRef is null when gr.reference_number is null', () => {
+    const gr: GRRow = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-2026-0001', status: 'Complete',
+      receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
+    };
+
+    const detail = makeDetail({ receipts: [gr] });
+    const rows = buildLedgerRows(detail);
+    const grRow = rows.find((r) => r.type === 'GR');
+    expect(grRow?.externalRef).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices
+// ---------------------------------------------------------------------------
+
+describe('AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices', () => {
+  it('populates externalRef + amount from vi.reference_number / vi.amount', () => {
+    const vi: VIRow = {
+      id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vi_number: 'VI-2026-0001', status: 'Received',
+      invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: 'INV-SF-2291',
+      amount: 478500,
+    };
+
+    const detail = makeDetail({ invoices: [vi] });
+    const rows = buildLedgerRows(detail);
+    const viRow = rows.find((r) => r.type === 'Invoice');
+    expect(viRow?.externalRef).toBe('INV-SF-2291');
+    expect(viRow?.amount).toBe(478500);
+  });
+
+  it('both null when vi.reference_number and vi.amount are null', () => {
+    const vi: VIRow = {
+      id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vi_number: 'VI-2026-0001', status: 'Received',
+      invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: null,
+    };
+
+    const detail = makeDetail({ invoices: [vi] });
+    const rows = buildLedgerRows(detail);
+    const viRow = rows.find((r) => r.type === 'Invoice');
+    expect(viRow?.externalRef).toBeNull();
+    expect(viRow?.amount).toBeNull();
   });
 });

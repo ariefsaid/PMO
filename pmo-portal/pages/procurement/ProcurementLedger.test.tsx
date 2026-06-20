@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -52,6 +52,17 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
+
+// Stub listProcurementFiles — no Supabase in unit tests.
+// Returns [] by default; override per-test via fileRows.
+const fileRows = vi.hoisted(() => ({
+  data: [] as Array<{ id: string; file_path: string | null; title: string | null }>,
+}));
+
+vi.mock('@/src/lib/db/procurementFiles', () => ({
+  listProcurementFiles: vi.fn(async () => fileRows.data),
+  getSignedDownloadUrl: vi.fn(async (path: string) => `https://cdn.example.com/${path}`),
+}));
 
 import { ProcurementLedger } from './ProcurementLedger';
 import type { LedgerRow } from '../../src/lib/db/procurementLedger';
@@ -274,5 +285,63 @@ describe('AC-PR-LEDGER-014: ledger testid present', () => {
   it('wraps the ledger in a data-testid for targeting', () => {
     const { container } = wrap(<ProcurementLedger {...BASE_PROPS} />);
     expect(container.querySelector('[data-testid="procurement-ledger"]')).toBeInTheDocument();
+  });
+});
+
+describe('AC-PR-LEDGER-018: file link renders when record has a file', () => {
+  it('renders a View link for a row whose record has an attached file', async () => {
+    fileRows.data = [
+      { id: 'file-1', file_path: 'org-1/proc-1/receipt/file-1/receipt.pdf', title: 'Receipt' },
+    ];
+
+    const rowWithFile: LedgerRow = {
+      id: 'gr-1',
+      date: '2026-05-11',
+      type: 'GR',
+      systemNumber: 'GR-2026-0061',
+      externalRef: 'DN-44120',
+      amount: null,
+      status: 'Complete',
+      statusVariant: 'won',
+      fileHref: null,
+      financial: false,
+      recordId: 'gr-1',
+    };
+
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowWithFile]} />);
+
+    // Wait for the async file fetch + signed URL — the LedgerFileCell effect
+    // must complete (listProcurementFiles → getSignedDownloadUrl → setState).
+    // The anchor's accessible name is the aria-label (overrides inner text).
+    await waitFor(
+      () => {
+        const link = screen.getByRole('link', { name: /open file/i });
+        expect(link).toBeInTheDocument();
+        expect(link).toHaveAttribute('href', expect.stringContaining('cdn.example.com'));
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it('renders "—" in the file column when no file is attached', () => {
+    fileRows.data = [];
+
+    const rowNoFile: LedgerRow = {
+      id: 'po-1',
+      date: '2026-05-06',
+      type: 'PO',
+      systemNumber: 'PO-2026-0001',
+      externalRef: null,
+      amount: 50000,
+      status: 'Issued',
+      statusVariant: 'progress',
+      fileHref: null,
+      financial: true,
+      recordId: 'po-1',
+    };
+
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowNoFile]} />);
+    // Should not find a "View" link
+    expect(screen.queryByRole('link', { name: /view/i })).toBeNull();
   });
 });

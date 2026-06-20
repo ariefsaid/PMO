@@ -1635,3 +1635,58 @@ values
    '2025-11-25T13:30:00Z')
 on conflict (id) do nothing;
 
+-- ============================================================
+-- §S  GR reference_number + VI reference_number / amount enrichment (migration 0040).
+--     Populates the new columns for the showcase showcase cases so the ledger File
+--     column and External ref column show real data on db reset.
+--     These are plain UPDATEs — no RLS concern (seed runs as superuser).
+-- ============================================================
+
+-- ── GR delivery-note numbers ─────────────────────────────────────────────────
+update procurement_receipts set reference_number = 'DN-SVX-2025-1115'
+  where id = '61000000-0000-0000-0000-000000003001';  -- SP2401-001 GR (Complete)
+
+update procurement_receipts set reference_number = 'DN-SVX-2025-1125'
+  where id = '61000000-0000-0000-0000-000000003005';  -- SP2402-001 GR (Complete)
+
+update procurement_receipts set reference_number = 'DN-SVX-2025-0610'
+  where id = '61000000-0000-0000-0000-000000003009';  -- SP2403-001 GR (Complete)
+
+-- ── VI reference_number + amount ─────────────────────────────────────────────
+update procurement_invoices set reference_number = 'INV-SVX-2025-4201', amount = 1680000
+  where id = '61000000-0000-0000-0000-000000004001';  -- SP2401-001 VI (1,680,000)
+
+update procurement_invoices set reference_number = 'INV-SVX-2025-5092', amount = 3700000
+  where id = '61000000-0000-0000-0000-000000004005';  -- SP2402-001 VI (3,700,000)
+
+update procurement_invoices set reference_number = 'INV-SVX-2025-0781', amount = 1440000
+  where id = '61000000-0000-0000-0000-000000004009';  -- SP2403-001 VI (1,440,000)
+
+-- ── File rows for showcase case SP2401-001 ───────────────────────────────────
+-- One file per record type for the full-lifecycle SP2401-001 case so the File
+-- column renders "View" links when the Director renders the ledger. File paths
+-- use the 5-segment convention: {org_id}/{procurement_id}/{phase}/{file_id}/{filename}.
+-- org_id for the default org = '00000000-0000-0000-0000-000000000001'.
+
+-- GR file (procurement_receipt_files)
+insert into procurement_receipt_files
+  (id, org_id, receipt_id, file_path, title)
+values
+  ('65000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000003001',
+   '00000000-0000-0000-0000-000000000001/61000000-0000-0000-0000-000000000001/receipt/65000000-0000-0000-0000-000000000001/delivery-note.pdf',
+   'Delivery Note DN-SVX-2025-1115')
+on conflict (id) do nothing;
+
+-- VI file (procurement_invoice_files)
+insert into procurement_invoice_files
+  (id, org_id, invoice_id, file_path, title)
+values
+  ('65000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000001',
+   '61000000-0000-0000-0000-000000004001',
+   '00000000-0000-0000-0000-000000000001/61000000-0000-0000-0000-000000000001/invoice/65000000-0000-0000-0000-000000000002/invoice.pdf',
+   'Invoice INV-SVX-2025-4201')
+on conflict (id) do nothing;
+

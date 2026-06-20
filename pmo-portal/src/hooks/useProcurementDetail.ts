@@ -78,18 +78,20 @@ export function useProcurementMutations(id: string) {
   const createReceipt = useMutation<
     ProcurementReceiptRow,
     ProcurementError,
-    { status: 'Partial' | 'Complete'; receiptDate: string }
+    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null }
   >({
-    mutationFn: ({ status, receiptDate }) => dalCreateReceipt(id, status, receiptDate),
+    mutationFn: ({ status, receiptDate, referenceNumber }) =>
+      dalCreateReceipt(id, status, receiptDate, referenceNumber),
     onSuccess: invalidateDetail,
   });
 
   const createInvoice = useMutation<
     ProcurementInvoiceRow,
     ProcurementError,
-    { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string }
+    { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string; referenceNumber?: string | null; amount?: number | null }
   >({
-    mutationFn: ({ status, invoiceDate }) => dalCreateInvoice(id, status, invoiceDate),
+    mutationFn: ({ status, invoiceDate, referenceNumber, amount }) =>
+      dalCreateInvoice(id, status, invoiceDate, referenceNumber, amount),
     onSuccess: invalidateDetail,
   });
 

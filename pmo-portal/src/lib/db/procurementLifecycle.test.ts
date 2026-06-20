@@ -282,6 +282,7 @@ describe('createReceipt', () => {
       p_procurement_id: 'proc-1',
       p_status: 'Partial',
       p_receipt_date: '2026-06-04',
+      p_reference_number: null,
     });
     expect(result).toMatchObject({ id: 'receipt-1', gr_number: 'GR-2606040001' });
   });
@@ -311,6 +312,8 @@ describe('createInvoice', () => {
       p_procurement_id: 'proc-1',
       p_status: 'Received',
       p_invoice_date: '2026-06-04',
+      p_reference_number: null,
+      p_amount: null,
     });
     expect(result).toMatchObject({ id: 'invoice-1', vi_number: 'VI-2606040001' });
   });

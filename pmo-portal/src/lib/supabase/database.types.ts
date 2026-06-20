@@ -639,32 +639,38 @@ export type Database = {
       }
       procurement_invoices: {
         Row: {
+          amount: number | null
           created_at: string
           id: string
           invoice_date: string | null
           org_id: string
           po_id: string | null
           procurement_id: string
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number: string | null
         }
         Insert: {
+          amount?: number | null
           created_at?: string
           id?: string
           invoice_date?: string | null
           org_id?: string
           po_id?: string | null
           procurement_id: string
+          reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number?: string | null
         }
         Update: {
+          amount?: number | null
           created_at?: string
           id?: string
           invoice_date?: string | null
           org_id?: string
           po_id?: string | null
           procurement_id?: string
+          reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number?: string | null
         }
@@ -933,6 +939,7 @@ export type Database = {
           po_id: string | null
           procurement_id: string
           receipt_date: string | null
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Insert: {
@@ -943,6 +950,7 @@ export type Database = {
           po_id?: string | null
           procurement_id: string
           receipt_date?: string | null
+          reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Update: {
@@ -953,6 +961,7 @@ export type Database = {
           po_id?: string | null
           procurement_id?: string
           receipt_date?: string | null
+          reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Relationships: [

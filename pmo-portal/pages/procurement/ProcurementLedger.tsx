@@ -22,10 +22,10 @@ import {
   CardPad,
   DataTable,
   StatusPill,
-  Icon,
 } from '@/src/components/ui';
 import type { Column } from '@/src/components/ui';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
+import { LedgerFileCell } from './LedgerFileCell';
 import type { RecordKind } from './RecordCaptureForm';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -130,21 +130,13 @@ const LEDGER_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'file',
     header: 'File',
-    cell: (row) =>
-      row.fileHref ? (
-        <a
-          href={row.fileHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open file for ${row.systemNumber ?? row.type}`}
-          className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary underline-offset-4 hover:underline"
-        >
-          <Icon name="file" className="size-3.5" />
-          View
-        </a>
-      ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
-      ),
+    cell: (row) => (
+      <LedgerFileCell
+        type={row.type}
+        recordId={row.recordId}
+        systemNumber={row.systemNumber}
+      />
+    ),
   },
 ];
 

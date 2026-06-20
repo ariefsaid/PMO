@@ -101,12 +101,15 @@ type PendingConfirm =
       kind: 'createGR';
       status: 'Partial' | 'Complete';
       receiptDate: string;
+      referenceNumber: string | null;
     }
   | {
       kind: 'createVI';
       /** N1: Paid removed — Mark as Paid is the sole PR→Paid authority (AC-W3-N1). */
       status: 'Received' | 'Scheduled';
       invoiceDate: string;
+      referenceNumber: string | null;
+      amount: number | null;
     };
 
 /**
@@ -486,6 +489,7 @@ const ProcurementDetails: React.FC = () => {
         await mutations.createReceipt.mutateAsync({
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
+          referenceNumber: pendingConfirm.referenceNumber,
         });
         setShowCreateGR(false);
         toast('Goods receipt recorded', undefined, 'success');
@@ -493,6 +497,8 @@ const ProcurementDetails: React.FC = () => {
         await mutations.createInvoice.mutateAsync({
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
+          referenceNumber: pendingConfirm.referenceNumber,
+          amount: pendingConfirm.amount,
         });
         setShowCreateVI(false);
         toast('Vendor invoice recorded', undefined, 'success');
@@ -515,11 +521,16 @@ const ProcurementDetails: React.FC = () => {
   // success-then-warning pair). The inline panel is closed on BOTH paths — on a partial failure
   // (transition OK, invoice fails) the PR is at Vendor Invoiced with no invoice, so the
   // `canShowVIForm` recovery after-form (gated on `p.invoices.length === 0`) is where it's finished.
-  const submitVICapture = async (viStatus: 'Received' | 'Scheduled', invoiceDate: string) => {
+  const submitVICapture = async (
+    viStatus: 'Received' | 'Scheduled',
+    invoiceDate: string,
+    referenceNumber: string | null,
+    amount: number | null,
+  ) => {
     setMutationError(null);
     try {
       await mutations.transition.mutateAsync({ to: 'Vendor Invoiced', notes: notesInput || undefined });
-      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate });
+      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate, referenceNumber, amount });
       setNotesInput('');
       setShowVICapture(false);
       toast('Vendor invoice recorded', `Moved to ${toastStateLabel('Vendor Invoiced')}`, 'success');
@@ -871,7 +882,7 @@ const ProcurementDetails: React.FC = () => {
           {showVICapture ? (
             <VIInlineCapture
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
-              onSubmit={(viStatus, invoiceDate) => void submitVICapture(viStatus, invoiceDate)}
+              onSubmit={(viStatus, invoiceDate, referenceNumber, amount) => void submitVICapture(viStatus, invoiceDate, referenceNumber, amount)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
           ) : actions.length > 0 ? (
@@ -948,15 +959,28 @@ const ProcurementDetails: React.FC = () => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     setMutationError(null);
+                    const ref = (fd.get('gr-ref') as string).trim() || null;
                     // Stage the GR for confirmation (commit fires on Confirm).
                     setPendingConfirm({
                       kind: 'createGR',
                       status: fd.get('gr-status') as 'Partial' | 'Complete',
                       receiptDate: fd.get('gr-date') as string,
+                      referenceNumber: ref,
                     });
                   }}
                   className="flex flex-wrap items-end gap-3"
                 >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Delivery note <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      name="gr-ref"
+                      placeholder="e.g. DN-44120"
+                      maxLength={64}
+                      data-testid="gr-ref-input"
+                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
                   <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
                     Status
                     <select
@@ -1014,16 +1038,43 @@ const ProcurementDetails: React.FC = () => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     setMutationError(null);
+                    const ref = (fd.get('vi-ref') as string).trim() || null;
+                    const amtStr = (fd.get('vi-amount') as string).trim();
+                    const amt = amtStr === '' ? null : Number(amtStr.replace(/,/g, ''));
                     // Stage the VI for confirmation (commit fires on Confirm).
                     // N1: status cast excludes Paid — the select no longer offers it.
                     setPendingConfirm({
                       kind: 'createVI',
                       status: fd.get('vi-status') as 'Received' | 'Scheduled',
                       invoiceDate: fd.get('vi-date') as string,
+                      referenceNumber: ref,
+                      amount: amt,
                     });
                   }}
                   className="flex flex-wrap items-end gap-3"
                 >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Invoice # <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      name="vi-ref"
+                      placeholder="e.g. INV-2291"
+                      maxLength={64}
+                      data-testid="vi-ref-input"
+                      className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Amount <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      name="vi-amount"
+                      placeholder="0.00"
+                      data-testid="vi-amount-input"
+                      className="h-8 w-32 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
                   <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
                     Status
                     <select
@@ -1168,13 +1219,26 @@ const ProcurementDetails: React.FC = () => {
 // ---------------------------------------------------------------------------
 interface VIInlineCaptureProps {
   busy: boolean;
-  onSubmit: (status: 'Received' | 'Scheduled', invoiceDate: string) => void;
+  onSubmit: (
+    status: 'Received' | 'Scheduled',
+    invoiceDate: string,
+    referenceNumber: string | null,
+    amount: number | null,
+  ) => void;
   onCancel: () => void;
 }
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [refNum, setRefNum] = React.useState('');
+  const [amtStr, setAmtStr] = React.useState('');
+
+  const handleSubmit = () => {
+    const ref = refNum.trim() || null;
+    const amt = amtStr.trim() === '' ? null : Number(amtStr.replace(/,/g, ''));
+    onSubmit(viStatus, invoiceDate, ref, amt);
+  };
 
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
@@ -1182,6 +1246,30 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         Enter invoice details to mark as Vendor Invoiced:
       </p>
       <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Invoice # <span className="font-normal">(optional)</span>
+          <input
+            type="text"
+            value={refNum}
+            onChange={(e) => setRefNum(e.target.value)}
+            placeholder="e.g. INV-2291"
+            maxLength={64}
+            data-testid="vi-ref-input"
+            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Amount <span className="font-normal">(optional)</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amtStr}
+            onChange={(e) => setAmtStr(e.target.value)}
+            placeholder="0.00"
+            data-testid="vi-amount-input"
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Invoice status
           <select
@@ -1211,7 +1299,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           loading={busy}
           disabled={!invoiceDate}
           data-testid="btn-submit-vi-capture"
-          onClick={() => onSubmit(viStatus, invoiceDate)}
+          onClick={handleSubmit}
         >
           Confirm &amp; Mark Invoiced
         </Button>

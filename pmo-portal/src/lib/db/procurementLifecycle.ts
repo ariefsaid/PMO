@@ -225,16 +225,19 @@ export async function createQuotation(
 /**
  * Creates a goods-receipt record via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; mints GR# server-side.
+ * `referenceNumber` = supplier delivery-note number (optional, AC-PR-LEDGER-016).
  */
 export async function createReceipt(
   procurementId: string,
   status: 'Partial' | 'Complete',
   receiptDate: string,
+  referenceNumber?: string | null,
 ): Promise<ProcurementReceiptRow> {
   const { data, error } = (await supabase.rpc('create_procurement_receipt', {
     p_procurement_id: procurementId,
     p_status: status,
     p_receipt_date: receiptDate,
+    p_reference_number: referenceNumber ?? null,
   })) as unknown as { data: ProcurementReceiptRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -243,16 +246,21 @@ export async function createReceipt(
 /**
  * Creates a vendor-invoice record via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; mints VI# server-side.
+ * `referenceNumber` = supplier's invoice number; `amount` = invoice total (AC-PR-LEDGER-017).
  */
 export async function createInvoice(
   procurementId: string,
   status: 'Received' | 'Scheduled' | 'Paid',
   invoiceDate: string,
+  referenceNumber?: string | null,
+  amount?: number | null,
 ): Promise<ProcurementInvoiceRow> {
   const { data, error } = (await supabase.rpc('create_procurement_invoice', {
     p_procurement_id: procurementId,
     p_status: status,
     p_invoice_date: invoiceDate,
+    p_reference_number: referenceNumber ?? null,
+    p_amount: amount ?? null,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
