@@ -1,0 +1,312 @@
+/**
+ * AC-VQ-001 through AC-VQ-007 — VendorQuotesTab (Slice 3)
+ * Side-by-side bid comparison refactor of QuotationsSection.
+ *
+ * AC-VQ-001  empty state teaches "No vendor quotes yet"
+ * AC-VQ-002  renders N bid rows with Vendor / Amount / Valid until columns
+ * AC-VQ-003  selected row highlighted (bg-success wash) + "Selected · best value" won pill
+ * AC-VQ-004  Select button shown only when canSelect=true AND row is not selected
+ * AC-VQ-005  Select button absent when canSelect=false (read-only past Quote Selected)
+ * AC-VQ-006  clicking Select calls onSelect with the quotation id (confirm → mutation)
+ * AC-VQ-007  Add quotation affordance visible when canAdd=true; hidden when false
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+
+// ── FK option hook stubbed (Combobox in the add form calls useVendorOptions)
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useVendorOptions: () => ({ data: [{ value: 'v-1', label: 'Apex Supply', sub: 'Vendor' }] }),
+}));
+
+// ── ProcurementFilesSubsection — needs QueryClient; stub for component tests
+vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
+  ProcurementFilesSubsection: () => null,
+}));
+
+import { VendorQuotesTab } from '../procurement/VendorQuotesTab';
+import type { Tables } from '@/src/lib/supabase/database.types';
+
+type QuotationRow = Tables<'procurement_quotations'>;
+
+// ── Fixtures ─────────────────────────────────────────────────────────────────
+const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
+  id: 'q-1',
+  procurement_id: 'proc-1',
+  vendor_id: 'v-1',
+  total_amount: 148000,
+  vq_number: 'VQ-2026-0001',
+  is_selected: false,
+  reference: 'APX-Q-101',
+  received_date: '2026-05-04',
+  valid_until: '2026-05-30',
+  rfq_id: null,
+  file_url: null,
+  org_id: 'org-1',
+  ...overrides,
+});
+
+const selectedQuote = makeQuote({
+  id: 'q-lo',
+  vendor_id: 'v-1',
+  total_amount: 148000,
+  vq_number: 'VQ-2026-0001',
+  is_selected: true,
+  received_date: '2026-05-04',
+  valid_until: '2026-05-30',
+});
+
+const unselectedQuote = makeQuote({
+  id: 'q-hi',
+  vendor_id: 'v-2',
+  total_amount: 162000,
+  vq_number: 'VQ-2026-0002',
+  is_selected: false,
+  received_date: '2026-05-05',
+  valid_until: '2026-05-28',
+});
+
+const defaultProps = {
+  quotations: [],
+  selectedId: null as string | null,
+  canAdd: false,
+  canSelect: false,
+  onAdd: vi.fn().mockResolvedValue(undefined),
+  onSelect: vi.fn().mockResolvedValue(undefined),
+  onError: vi.fn(),
+  addBusy: false,
+  selectBusy: false,
+  procurementId: 'proc-1',
+  orgId: 'org-1',
+  canManageFiles: false,
+  currentUserId: 'u-alice',
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function confirmInDialog(label: string | RegExp) {
+  const dialog = await screen.findByRole('dialog').catch(() => screen.findByRole('alertdialog'));
+  await userEvent.click(within(dialog).getByRole('button', { name: label }));
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
+  it('AC-VQ-001: renders taught empty state with "No vendor quotes yet" heading', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} />);
+    expect(screen.getByText(/No vendor quotes yet/i)).toBeInTheDocument();
+    // Teaches the user what to do
+    expect(screen.getByText(/quotes are captured/i)).toBeInTheDocument();
+  });
+
+  it('AC-VQ-001: empty state still shows Add button when canAdd=true', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd />);
+    expect(screen.getByRole('button', { name: /add quotation/i })).toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-002: VendorQuotesTab — bid comparison rows', () => {
+  beforeEach(() => {
+    defaultProps.onAdd.mockClear();
+    defaultProps.onSelect.mockClear();
+    defaultProps.onError.mockClear();
+  });
+
+  it('AC-VQ-002: renders two bid rows with Amount column data', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+      />,
+    );
+    // Both rows visible via amount — getAllByText because the component renders
+    // both a desktop grid and a mobile dl-card branch (CSS-hidden on the other
+    // breakpoint), so each value appears twice in the DOM.
+    expect(screen.getAllByText('$148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$162,000').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-002: renders VQ number (vendor ID column proxy)', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+      />,
+    );
+    expect(screen.getAllByText('VQ-2026-0001').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-002: renders valid-until date when present', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+      />,
+    );
+    // formatDate('2026-05-30') → 'May 30, 2026'
+    expect(screen.getAllByText('May 30, 2026').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-002: renders em-dash for null valid_until', () => {
+    const q = makeQuote({ valid_until: null });
+    render(<VendorQuotesTab {...defaultProps} quotations={[q]} />);
+    // em-dash for missing date (both branches may render it)
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
+  it('AC-VQ-003: selected row has "Selected · best value" pill', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+      />,
+    );
+    // Both desktop + mobile branches render the pill so ≥1 match is expected
+    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-003: "Selected · best value" pill present for selected; absent for unselected', () => {
+    const { unmount } = render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+        canSelect={false}
+      />,
+    );
+    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    unmount();
+
+    // Not-selected quote does NOT have the pill
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[unselectedQuote]}
+        selectedId={null}
+        canSelect={false}
+      />,
+    );
+    expect(screen.queryByText(/Selected · best value/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-004: VendorQuotesTab — Select button gated by canSelect', () => {
+  it('AC-VQ-004: Select buttons shown for non-selected rows when canSelect=true', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        canSelect
+      />,
+    );
+    // Only the UN-selected quote gets a Select button (aria-label "Select quote VQ-…").
+    // Each row renders both desktop and mobile branches so there may be 2 buttons
+    // for that one unselected quote — but never any button for the selected row.
+    const selectBtns = screen.getAllByRole('button', { name: /select quote/i });
+    expect(selectBtns.length).toBeGreaterThanOrEqual(1);
+    // The selected row (q-lo) must contribute 0 select buttons
+    expect(selectBtns.every((btn) => !btn.getAttribute('aria-label')?.includes('VQ-2026-0001'))).toBe(true);
+  });
+
+  it('AC-VQ-004: selected row does NOT show a Select button', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+        canSelect
+      />,
+    );
+    // Already selected → no "Select quote" button on that row
+    expect(screen.queryByRole('button', { name: /select quote/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-005: VendorQuotesTab — read-only when canSelect=false', () => {
+  it('AC-VQ-005: no Select buttons when canSelect=false (past Quote Selected)', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        canSelect={false}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /select quote/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-006: VendorQuotesTab — Select confirm → mutation', () => {
+  it('AC-VQ-006: clicking Select opens confirm dialog and calls onSelect on confirm', async () => {
+    const onSelect = vi.fn().mockResolvedValue(undefined);
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        canSelect
+        onSelect={onSelect}
+      />,
+    );
+    // Click the first "Select quote" button found (desktop or mobile branch)
+    const [firstSelectBtn] = screen.getAllByRole('button', { name: /select quote/i });
+    await userEvent.click(firstSelectBtn);
+    // ConfirmDialog must appear
+    await screen.findByRole('dialog');
+    await confirmInDialog(/select quote/i);
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith('q-hi'));
+  });
+
+  it('AC-VQ-006: cancelling the confirm does NOT call onSelect', async () => {
+    const onSelect = vi.fn().mockResolvedValue(undefined);
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        canSelect
+        onSelect={onSelect}
+      />,
+    );
+    const [firstSelectBtn] = screen.getAllByRole('button', { name: /select quote/i });
+    await userEvent.click(firstSelectBtn);
+    await screen.findByRole('dialog');
+    // "Cancel" inside the dialog
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-VQ-007: VendorQuotesTab — Add quotation affordance', () => {
+  it('AC-VQ-007: Add quotation button visible when canAdd=true', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+        canAdd
+      />,
+    );
+    expect(screen.getByRole('button', { name: /add quotation/i })).toBeInTheDocument();
+  });
+
+  it('AC-VQ-007: Add quotation button absent when canAdd=false', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+        canAdd={false}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /add quotation/i })).not.toBeInTheDocument();
+  });
+});

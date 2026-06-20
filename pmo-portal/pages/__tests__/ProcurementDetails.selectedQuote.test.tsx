@@ -190,12 +190,14 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
     expect(t).not.toHaveTextContent('Pending');
   });
 
-  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected"', () => {
+  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('quotes');
-    const section = screen.getByTestId('quotations-section');
-    expect(within(section).getByText('Selected')).toBeInTheDocument();
-    // its vq number is shown alongside
-    expect(within(section).getByText('VQ-2606040001')).toBeInTheDocument();
+    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
+    const section = screen.getByTestId('vendor-quotes');
+    // Both desktop + mobile branches render the pill so at least one match expected.
+    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    // its vq number is shown alongside (may appear in both branches)
+    expect(within(section).getAllByText('VQ-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 });

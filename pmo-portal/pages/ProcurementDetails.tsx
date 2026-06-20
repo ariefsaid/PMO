@@ -32,7 +32,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { QuotationsSection } from './procurement/QuotationsSection';
+import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
 import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
@@ -793,8 +793,12 @@ const ProcurementDetails: React.FC = () => {
           </Card>
         )}
 
+        {/* ░░ Vendor quotes tab — Slice 3: VendorQuotesTab (bid comparison).
+            Refactors QuotationsSection into a side-by-side comparison layout:
+            Vendor / Amount / Valid until · selected row highlighted + won pill.
+            Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
         {tab === 'quotes' && (
-          <QuotationsSection
+          <VendorQuotesTab
             quotations={p.quotations}
             selectedId={selectedQuote?.id ?? null}
             canAdd={canAddQuote}

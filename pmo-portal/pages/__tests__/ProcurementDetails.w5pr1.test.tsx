@@ -269,18 +269,18 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1a: the quotations section appears before the decision actions in DOM order', () => {
+  it('AC-IXD-PROC-W5-1a: the vendor-quotes section appears before the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    // Quotations now live on the Vendor-quotes tab; the decision zone is outside the
-    // tabs and still follows the active panel in DOM order — the goal is preserved.
+    // VendorQuotesTab (Slice 3) lives on the Vendor-quotes tab; the decision zone is
+    // outside the tabs and still follows the active panel in DOM order — goal preserved.
     renderPage('quotes');
 
-    const quotationsSection = screen.getByTestId('quotations-section');
+    const vendorQuotes = screen.getByTestId('vendor-quotes');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
 
     expect(
-      appearsBeforeInDOM(quotationsSection, approveBtn),
-      'quotations-section must precede the Approve button in DOM order',
+      appearsBeforeInDOM(vendorQuotes, approveBtn),
+      'vendor-quotes must precede the Approve button in DOM order',
     ).toBe(true);
   });
 
@@ -548,10 +548,11 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
   });
 
-  it('non-regression: the quotations section still renders at Requested state', () => {
+  it('non-regression: the vendor-quotes section (VendorQuotesTab) still renders at Requested state', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage('quotes');
-    expect(screen.getByTestId('quotations-section')).toBeInTheDocument();
+    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
+    expect(screen.getByTestId('vendor-quotes')).toBeInTheDocument();
   });
 
   it('non-regression: Approve is still a primary blue (no regression from W5-1b)', () => {
