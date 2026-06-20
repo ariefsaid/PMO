@@ -51,9 +51,13 @@ function nextExpectedType(status: ProcurementStatus): RecordKind | null {
       return 'purchase_order';
     case 'Ordered':
     case 'Received':
-      // Goods receipt is via the action zone inline form; offer PO for the
-      // capture-any-time affordance here (the form pre-selects it)
-      return 'purchase_order';
+      // M4 (design-review): at Ordered the next step is a Goods Receipt, and at
+      // Received the next step is a Vendor Invoice — but neither GR nor VI is a
+      // RecordKind in the ledger capture (they are handled by the action-zone
+      // inline forms). Returning null here hides the ledger capture row at these
+      // stages so the row doesn't mis-prompt "Capture Purchase Order" (which is
+      // past that phase). The action zone remains the single source for GR/VI.
+      return null;
     case 'Vendor Invoiced':
       return 'payment';
     default:

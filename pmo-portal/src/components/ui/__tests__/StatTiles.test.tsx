@@ -3,10 +3,12 @@ import { render, screen } from '@testing-library/react';
 import { StatTiles, type StatTile } from '../StatTiles';
 
 // ---------------------------------------------------------------------------
-// StatTiles — the project-detail + procurement summary strip. UI-POLISH #5:
-// on a narrow (375px) viewport a fixed `repeat(N,1fr)` grid clips money values
-// mid-number. The strip must read as horizontally scrollable (peek + fade edge),
-// not broken — while the equal-width grid is restored from `sm:` up.
+// StatTiles — the project-detail + procurement summary strip.
+//
+// I6 (design-review fix): on mobile the strip MUST be a 2-col grid so all KPIs
+// are visible at a glance — the previous horizontal-scroll carousel pushed KPIs
+// off-screen. Desktop and tablet behavior is unchanged (equal-width grid via
+// gridTemplateColumns). No snap/overflow-x-auto on mobile.
 // ---------------------------------------------------------------------------
 
 const tiles: StatTile[] = [
@@ -25,29 +27,42 @@ describe('StatTiles', () => {
     expect(screen.getByText('Spend')).toBeInTheDocument();
   });
 
-  it('polish#5: the strip is a horizontal-scroll region on narrow viewports (scroll affordance)', () => {
+  it('I6: the strip renders a 2-col grid on mobile (no horizontal carousel)', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={5} />);
     const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
     expect(strip).toBeInTheDocument();
-    // It scrolls horizontally rather than crushing tiles below a legible width…
-    expect(strip.className).toContain('overflow-x-auto');
-    // …and restores the equal-width grid from the `sm:` breakpoint up.
-    expect(strip.className).toContain('sm:overflow-visible');
+    // Must be a 2-col grid on mobile — no overflow-x-auto carousel
+    expect(strip.className).toContain('grid-cols-2');
+    expect(strip.className).not.toContain('overflow-x-auto');
+    expect(strip.className).not.toContain('snap-mandatory');
   });
 
-  it('polish#5: tiles have a minimum legible width so figures never clip mid-number', () => {
+  it('I6: tile items do NOT carry snap-start or basis-[44%] carousel affordances', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={5} />);
     const firstTile = container.querySelector('[data-testid="stat-tile"]') as HTMLElement;
     expect(firstTile).toBeInTheDocument();
-    // A floored width on mobile (peek shows the next tile, signalling more to scroll).
-    expect(firstTile.className).toMatch(/min-w-\[/);
-    // The width floor is released at `sm:` so the equal grid takes over.
-    expect(firstTile.className).toContain('sm:min-w-0');
+    expect(firstTile.className).not.toContain('snap-start');
+    expect(firstTile.className).not.toContain('basis-[44%]');
   });
 
-  it('still respects the columns prop for the grid layout', () => {
+  it('I6: no horizontal overflow (overflow-x-auto) on the strip — all tiles are in-view', () => {
+    const { container } = render(<StatTiles tiles={tiles} columns={5} />);
+    const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
+    expect(strip.className).not.toContain('overflow-x-auto');
+  });
+
+  it('respects the columns prop for the sm+ grid layout (sm:grid-cols-{n} class)', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={4} />);
     const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
-    expect(strip.style.gridTemplateColumns).toContain('repeat(4');
+    // The sm:grid-cols-4 class drives the equal-width grid at tablet/desktop
+    expect(strip.className).toContain('sm:grid-cols-4');
+  });
+
+  it('renders a tile sub-text when provided', () => {
+    const tilesWithSub: StatTile[] = [
+      { label: 'PR value', value: '$85,000', sub: 'Review Project' },
+    ];
+    render(<StatTiles tiles={tilesWithSub} />);
+    expect(screen.getByText('Review Project')).toBeInTheDocument();
   });
 });

@@ -556,49 +556,71 @@ const ProcurementDetails: React.FC = () => {
     mutations.createReceipt.isPending ||
     mutations.createInvoice.isPending;
 
-  const stats: StatTile[] = [
+  // ── Stat tiles (sparse + honest — I2/I3 design-review fixes) ───────────────
+  // I3: only render a tile when its value is real (not a placeholder like
+  //     "Pending / None yet / no PO yet / awaiting delivery"). Early/Draft cases
+  //     had 4 placeholder tiles that re-introduced the empty-state noise the
+  //     revamp removed. Build the tile array conditionally then pass the live set.
+  // I2: on terminal states (Paid / Cancelled) never show "awaiting delivery" —
+  //     derive the sub-text from actual record state; omit the tile if no receipt
+  //     exists rather than asserting a falsehood.
+  const statTilesRaw: (StatTile | null)[] = [
+    // PR value — always shown (every procurement has a total_value)
     {
       label: 'PR value',
       value: formatCurrency(Number(p.total_value)),
       sub: p.project?.name ?? undefined,
     },
-    {
-      // AC-IXD-PROC-004: once a quote is selected, the tile is bound to the
-      // CHOSEN quotation — its amount + the selected vendor — through to Paid,
-      // instead of reverting to "Pending — 0 received".
-      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
-      label: 'Selected quote',
-      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
-      sub: selectedQuote
-        ? (
-          <CompanyNameLink
-            companyId={p.vendor_id}
-            name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
-            className="text-[11px]"
-          />
-        )
-        : `${p.quotations.length} received`,
-    },
-    {
-      label: 'PO committed',
-      value: p.po_number ? formatCurrency(Number(p.total_value)) : 'Pending',
-      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
-      sub: p.vendor?.name
-        ? (
-          <CompanyNameLink
-            companyId={p.vendor_id}
-            name={p.vendor.name}
-            className="text-[11px]"
-          />
-        )
-        : (p.po_number ? undefined : 'no PO yet'),
-    },
-    {
-      label: 'Goods received',
-      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : 'None yet',
-      sub: p.receipts.length > 0 ? p.receipts[p.receipts.length - 1].status : 'awaiting delivery',
-    },
+    // Selected quote — only when a quote is committed (Quote Selected onward).
+    // AC-IXD-PROC-004: the chosen quotation tile is bound through to Paid.
+    // PRD-1 (AC-JR-W3B-E1): vendor name is a CompanyNameLink.
+    selectedQuote
+      ? {
+          label: 'Selected quote',
+          value: formatCurrency(Number(selectedQuote.total_amount)),
+          sub: (
+            <CompanyNameLink
+              companyId={p.vendor_id}
+              name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
+              className="text-[11px]"
+            />
+          ),
+        }
+      : null,
+    // PO committed — only when a purchase_order record exists.
+    // I1 companion: we derive existence from the record table, not the denormalized
+    // p.po_number header column (which may be set before a PO record is captured).
+    p.purchase_orders && p.purchase_orders.length > 0
+      ? {
+          label: 'PO committed',
+          // Use the PO record's amount if available, else fall back to total_value.
+          value: formatCurrency(
+            Number((p.purchase_orders[0] as { amount?: number | null }).amount ?? p.total_value),
+          ),
+          sub: p.vendor?.name ? (
+            // PRD-1 (AC-JR-W3B-E1)
+            <CompanyNameLink
+              companyId={p.vendor_id}
+              name={p.vendor.name}
+              className="text-[11px]"
+            />
+          ) : undefined,
+        }
+      : null,
+    // Goods received — only when at least one receipt exists.
+    // I2: on terminal states, derive sub from actual receipt status (not "awaiting
+    // delivery"). If no receipt exists on a terminal case, omit the tile entirely.
+    p.receipts.length > 0
+      ? {
+          label: 'Goods received',
+          value: `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}`,
+          // Derive from actual receipt status — never assert "awaiting delivery"
+          // on a terminal case (Paid/Cancelled) where goods are already settled.
+          sub: p.receipts[p.receipts.length - 1].status,
+        }
+      : null,
   ];
+  const stats = statTilesRaw.filter((t): t is StatTile => t !== null);
 
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
@@ -704,9 +726,16 @@ const ProcurementDetails: React.FC = () => {
           <LifecycleStepper
             variant="bar"
             steps={lifecycleSteps(p.status, {
-              pr_number: p.pr_number,
+              // I1 (design-review): refs must come from ACTUAL record rows, not the
+              // denormalized header columns (p.pr_number / p.po_number). The header
+              // columns may be set even when no record exists in the ledger, causing
+              // the stepper to show a doc number that has no corresponding record in
+              // the Documents tab — a dishonest doorway. Derive each ref from the
+              // actual record arrays so the stepper can only show a ref when a record
+              // genuinely exists. GR and VI already used the record arrays.
+              pr_number: p.purchase_requests?.[0]?.pr_number ?? null,
               vq_number: selectedQuote?.vq_number,
-              po_number: p.po_number,
+              po_number: p.purchase_orders?.[0]?.po_number ?? null,
               gr_number: p.receipts[0]?.gr_number,
               vi_number: p.invoices[0]?.vi_number,
             })}

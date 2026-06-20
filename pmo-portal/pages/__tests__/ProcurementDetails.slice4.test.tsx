@@ -468,10 +468,12 @@ describe('AC-PR-S4-004 (edge case): PO-less path', () => {
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
-  it('capture row stays available at Received even when one invoice already exists', () => {
+  it('M4 (design-review): capture row is HIDDEN at Received (GR already captured; VI is action-zone)', () => {
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
-    // Received with one invoice already captured
+    // M4 fix: Received → nextExpectedType returns null → ledger capture row hidden.
+    // GR/VI are captured via the action-zone inline forms, not the ledger capture row.
+    // This prevents the ledger from mis-prompting "Capture Purchase Order" at Received.
     detailState.data = {
       ...BASE,
       status: 'Received',
@@ -480,8 +482,8 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
       ],
     };
     renderPage('proc-001', 'documents');
-    // The capture row is STILL present (multiple captures allowed — partial invoicing)
-    expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
+    // The ledger capture row is now hidden at Received (M4 fix — action zone owns this stage)
+    expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
   it('capture row stays available at Vendor Invoiced even when one payment already exists', () => {

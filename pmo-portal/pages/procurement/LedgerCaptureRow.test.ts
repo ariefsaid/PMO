@@ -4,6 +4,12 @@
  * AC-PR-S4-003: nextExpectedType returns the correct pre-selected capture kind
  * for each procurement status. These tests run without DOM rendering — pure logic.
  *
+ * M4 (design-review fix): Ordered and Received now return null so the ledger
+ * capture row is hidden at those stages. GR and VI capture are handled by the
+ * action-zone inline forms; offering "Capture Purchase Order" at Ordered/Received
+ * is past the relevant phase and produces a mis-prompt. The capture row defers to
+ * the action zone at Ordered/Received.
+ *
  * Note: nextExpectedType is tested through the exported component behavior in
  * ProcurementDetails.slice4.test.tsx as well; this file tests the mapping logic
  * directly for the 11 statuses + the terminal-null contract.
@@ -19,7 +25,10 @@ import { describe, it, expect } from 'vitest';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { RecordKind } from './RecordCaptureForm';
 
-/** Mirror of the internal nextExpectedType from LedgerCaptureRow.tsx. */
+/**
+ * Mirror of the internal nextExpectedType from LedgerCaptureRow.tsx.
+ * KEEP IN SYNC with LedgerCaptureRow.tsx when the mapping changes.
+ */
 const TERMINAL_STATUSES = new Set<ProcurementStatus>(['Paid', 'Cancelled', 'Rejected']);
 
 function nextExpectedType(status: ProcurementStatus): RecordKind | null {
@@ -37,9 +46,10 @@ function nextExpectedType(status: ProcurementStatus): RecordKind | null {
       return 'purchase_order';
     case 'Ordered':
     case 'Received':
-      // GR/Invoice captures are via the action-zone inline forms; ledger pre-selects PO
-      // for any supplementary capture at these stages (the most common need: PO amendment).
-      return 'purchase_order';
+      // M4 (design-review): GR and VI are handled by the action-zone inline forms;
+      // these stages are NOT ledger-capture stages. Return null so the ledger capture
+      // row is hidden and the action zone owns GR/VI capture exclusively.
+      return null;
     case 'Vendor Invoiced':
       return 'payment';
     default:
@@ -58,8 +68,9 @@ describe('AC-PR-S4-003: nextExpectedType — per-status mapping', () => {
     ['Approved',         'rfq'],
     ['Vendor Quoted',    'rfq'],
     ['Quote Selected',   'purchase_order'],
-    ['Ordered',          'purchase_order'],
-    ['Received',         'purchase_order'],
+    // M4: Ordered/Received → null (ledger defers to action-zone for GR/VI)
+    ['Ordered',          null],
+    ['Received',         null],
     ['Vendor Invoiced',  'payment'],
     // Terminal statuses → null (capture hidden)
     ['Paid',             null],
@@ -68,17 +79,17 @@ describe('AC-PR-S4-003: nextExpectedType — per-status mapping', () => {
   ];
 
   CASES.forEach(([status, expected]) => {
-    it(`${status} → ${expected ?? 'null (terminal)'}`, () => {
+    it(`${status} → ${expected ?? 'null (capture deferred or terminal)'}`, () => {
       expect(nextExpectedType(status)).toBe(expected);
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// AC-PR-S4-004 (edge case): terminal contract
+// AC-PR-S4-004 (edge case): null-capture contract
 // ---------------------------------------------------------------------------
 
-describe('AC-PR-S4-003: terminal contract', () => {
+describe('AC-PR-S4-003: null-capture contract', () => {
   it('returns null for all terminal statuses (Paid / Cancelled / Rejected)', () => {
     const terminals: ProcurementStatus[] = ['Paid', 'Cancelled', 'Rejected'];
     terminals.forEach((s) => {
@@ -86,12 +97,17 @@ describe('AC-PR-S4-003: terminal contract', () => {
     });
   });
 
-  it('returns a non-null kind for all non-terminal statuses', () => {
-    const nonTerminals: ProcurementStatus[] = [
+  it('M4: returns null for Ordered and Received (capture deferred to action zone)', () => {
+    expect(nextExpectedType('Ordered')).toBeNull();
+    expect(nextExpectedType('Received')).toBeNull();
+  });
+
+  it('returns a non-null kind for the non-deferred, non-terminal statuses', () => {
+    const activeCaptureStatuses: ProcurementStatus[] = [
       'Draft', 'Requested', 'Approved', 'Vendor Quoted',
-      'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced',
+      'Quote Selected', 'Vendor Invoiced',
     ];
-    nonTerminals.forEach((s) => {
+    activeCaptureStatuses.forEach((s) => {
       expect(nextExpectedType(s)).not.toBeNull();
     });
   });
