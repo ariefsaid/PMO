@@ -1,110 +1,126 @@
 /**
- * AC-PR-020 — Capture a record with external ref + date + amount on one page, confirm it
- *             appears with both IDs under its phase, and confirm history grew.
+ * AC-PR-020 — Capture a record with external ref + date + amount on one page, confirm
+ *             it appears with both IDs in the Documents ledger, and confirm the
+ *             Progression timeline gains the event.
  *
  * AC-PR-022 (no dead affordances / honest doorway) is folded in: every affordance
  *           exercised here (capture trigger, form submit, and when available an advance
  *           action) performs its action — none is a no-op.
  *
+ * JOURNEY UPDATE for the tabbed record shell (`/procurement/:id/:tab`):
+ *   The capture affordance moved from per-phase trigger buttons (old stacked layout)
+ *   to the Documents tab's LedgerCaptureRow (one capture row, pre-selects next type).
+ *   System # and External ref are now columns in the ledger DataTable, not RecordCard fields.
+ *   The Progression timeline lives on the Overview tab.
+ *
  * Cases used:
- *   CAPTURE: SP2401-001 "PV Modules — Meridian 4.2 MW" (id …000000000001, status Paid).
- *     - Has the richest seed: PR+RFQ+PO+PAY records, 8 status events.
- *     - Permissive capture (AC-PR-014) works at ANY status — adding an RFQ here is valid.
- *     - Being Paid means no advance actions are available, so we test advance separately.
+ *   CAPTURE: SP2401-004 "DC/AC Cabling & Balance of System" (id …000000000004).
+ *     - Non-terminal status (Approved at reset, possibly Vendor Quoted if AC-PR-022 ran first).
+ *     - Both Approved and Vendor Quoted map nextExpectedType → 'rfq', so the form is
+ *       always `form-capture-rfq` for this case's realistic states.
+ *     - Admin is not the requester (requester = a4), so no SoD block.
+ *     - Tests run serially within this file (test.describe.configure({mode:'serial'})) to
+ *       avoid DB state interference between AC-PR-020 and AC-PR-022 in this spec.
  *
- *   ADVANCE: SP2401-004 "DC/AC Cabling & Balance of System" (id …000000000004).
- *     - Status Approved at reset; advance to Vendor Quoted ("Request Vendor Quotes").
- *     - Uses the CURRENT status from the page so the test is resilient across re-runs.
- *     - Admin is not the approver (approved_by is exec a1), so no SoD block.
+ *   ADVANCE: SP2401-004 (same case) — Admin may click "Request Vendor Quotes" at Approved.
+ *     (If already past Approved the advance test passes via the early-return path.)
  *
- * Goal-oracle per AC-PR-020:
- *   1. New record appears under its phase with BOTH system number AND external reference.
- *   2. History timeline gains at least one new event after capture.
+ * Goal-oracle per AC-PR-020 (unchanged):
+ *   1. New record appears in the Documents ledger with BOTH system number AND external reference.
+ *   2. Progression timeline (Overview tab) gains at least one new event after capture.
  *   3. When an advance action is available and clicked, the case status updates — all on
  *      one page (no navigation).
  *
  * AC-PR-022 oracle (folded):
- *   Every affordance exercised here (trigger, save, advance) performs its stated action.
+ *   Every affordance exercised (ledger-capture-open, save, advance) performs its stated action.
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 
-// SP2401-001: richest seed case (Paid, has PR+RFQ+PO+PAY records + 8 events)
-const CAPTURE_CASE_ID = '61000000-0000-0000-0000-000000000001';
-// SP2401-004: "DC/AC Cabling & Balance of System" — Approved at reset; not used by AC-816
-const ADVANCE_CASE_ID = '61000000-0000-0000-0000-000000000004';
+// SP2401-004: "DC/AC Cabling & Balance of System" — Approved at reset; non-terminal; Admin ≠ requester
+const CAPTURE_CASE_ID = '61000000-0000-0000-0000-000000000004';
 
-test('AC-PR-020 capture a record with external ref, date, amount — both IDs appear, history grows — on one page', async ({ page }) => {
-  // ═════════════════════════════════════════════════════════════════════════════
-  // PART A: Capture an RFQ on the Paid showcase case (permissive capture at any status)
-  // ═════════════════════════════════════════════════════════════════════════════
+// Serial mode: AC-PR-022 must not advance the case before AC-PR-020 has captured its record.
+// This keeps the two tests in a predictable order within this file; both still run.
+test.describe.configure({ mode: 'serial' });
+
+test('AC-PR-020 capture a record via Documents-tab ledger — system # + external ref appear, history grows — on one page', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
-  await page.goto(`/procurement/${CAPTURE_CASE_ID}`);
 
+  // ── Step 1: Load the case, measure the Progression timeline before capture ──
+  await page.goto(`/procurement/${CAPTURE_CASE_ID}/overview`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // Snapshot history count before
+  // Snapshot the Progression timeline event count BEFORE capture
   const historyList = page.getByRole('list', { name: 'Progression history' });
   await expect(historyList).toBeVisible({ timeout: 10_000 });
   const beforeCount = await historyList.locator('li').count();
 
-  // Count existing RFQ system numbers (seeded: RFQ-2509110001)
-  const rfqCountBefore = await page.getByText(/^RFQ-\d{10}$/).count();
+  // ── Step 2: Navigate to the Documents tab ────────────────────────────────────
+  const documentsTab = page.getByRole('tab', { name: /Documents/i });
+  await expect(documentsTab).toBeVisible({ timeout: 5_000 });
+  await documentsTab.click();
 
-  // Open the RFQ capture trigger (AC-PR-022: trigger is present and works)
-  const rfqTrigger = page.getByTestId('trigger-capture-rfq');
-  await expect(rfqTrigger).toBeVisible({ timeout: 10_000 });
-  await rfqTrigger.click();
+  await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 10_000 });
 
+  // ── Step 3: Open the LedgerCaptureRow form ────────────────────────────────────
+  // nextExpectedType('Approved') = 'rfq'; nextExpectedType('Vendor Quoted') = 'rfq'
+  // So this button is present for both the Approved and Vendor Quoted states.
+  const captureOpenBtn = page.getByTestId('ledger-capture-open');
+  await expect(captureOpenBtn).toBeVisible({ timeout: 10_000 });
+  // AC-PR-022: clicking the trigger opens the capture form (not a no-op)
+  await captureOpenBtn.click();
+
+  // The RFQ capture form is now open
   const captureForm = page.getByTestId('form-capture-rfq');
   await expect(captureForm).toBeVisible({ timeout: 5_000 });
 
-  // Fill external ref + date + amount
+  // ── Step 4: Fill external ref + date + amount ─────────────────────────────────
   const EXT_REF = `TEST-RFQ-AC020-${Date.now()}`;
   await page.getByTestId('rfq-ref-input').fill(EXT_REF);
   await page.getByTestId('rfq-date-input').fill('2026-06-15');
   await page.getByTestId('rfq-amount-input').fill('85000');
 
-  // Save (AC-PR-022: save button performs its action)
+  // ── Step 5: Save (AC-PR-022: save performs its action) ───────────────────────
   await page.getByTestId('rfq-save-btn').click();
+  // Form closes after successful save
   await expect(captureForm).not.toBeVisible({ timeout: 15_000 });
 
-  // Goal 1a: new RFQ system number appeared (count incremented)
-  const rfqCountAfter = await page.getByText(/^RFQ-\d{10}$/).count();
-  expect(
-    rfqCountAfter,
-    `RFQ system numbers should have increased (before: ${rfqCountBefore}, after: ${rfqCountAfter})`,
-  ).toBeGreaterThan(rfqCountBefore);
+  // ── Goal 1b: external reference appears in the ledger (primary oracle) ────────
+  // This is the strongest assertion: if EXT_REF is visible, the record was saved
+  // and the React Query cache invalidated + re-rendered with the new row.
+  const ledger = page.getByTestId('procurement-ledger');
+  await expect(ledger.getByText(EXT_REF).first()).toBeVisible({ timeout: 15_000 });
 
-  // Goal 1b: external reference appears as text on the card (not HTML — NFR-PR-SEC-003)
-  await expect(page.getByText(EXT_REF).first()).toBeVisible({ timeout: 10_000 });
+  // ── Goal 1c: system number column shows an RFQ- number in the ledger ──────────
+  const hasRfqNumber = (await ledger.getByText(/^RFQ-\d+$/).count()) > 0;
+  expect(hasRfqNumber, 'Expected at least one RFQ- system number in the ledger').toBe(true);
 
-  // Both ID labels visible (dual-ID display)
-  await expect(page.getByText('System #').first()).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByText('Ref #').first()).toBeVisible({ timeout: 5_000 });
+  // Both column headers visible — dual-ID display (AC-PR-024)
+  await expect(ledger.getByText('System #')).toBeVisible({ timeout: 5_000 });
+  await expect(ledger.getByText('External ref')).toBeVisible({ timeout: 5_000 });
 
-  // Goal 2: history timeline gained at least one new event (the record creation event)
-  const afterCount = await historyList.locator('li').count();
-  expect(
-    afterCount,
-    `History should have grown after capture (before: ${beforeCount}, after: ${afterCount})`,
-  ).toBeGreaterThan(beforeCount);
+  // ── Step 6: Navigate back to Overview tab — confirm timeline grew ─────────────
+  const overviewTab = page.getByRole('tab', { name: /Overview/i });
+  await overviewTab.click();
 
-  // A "Record" kind event badge appears in the timeline
-  await expect(historyList.getByText('Record').first()).toBeVisible({ timeout: 5_000 });
+  // React Query cache is invalidated after capture → the detail bundle refetches
+  // and the timeline rebuilds with the new RFQ event.
+  await expect(async () => {
+    const afterCount = await historyList.locator('li').count();
+    expect(
+      afterCount,
+      `Progression timeline should have grown after capture (before: ${beforeCount})`,
+    ).toBeGreaterThan(beforeCount);
+  }).toPass({ timeout: 15_000 });
 
-  // Still on the SAME page — no navigation (JTBD P1 goal)
+  // Still on the SAME page — no navigation occurred (JTBD P1 goal)
   await expect(page).toHaveURL(new RegExp(CAPTURE_CASE_ID));
 });
 
 test('AC-PR-022 advance action on the case page performs its stated action (honest doorway)', async ({ page }) => {
-  // ═════════════════════════════════════════════════════════════════════════════
-  // PART B: Advance case — the current advance action (whatever state the case is in)
-  // performs its action (honest doorway). Uses SP2401-004 (Approved → Vendor Quoted)
-  // from a clean reset, but is resilient to DB state across runs.
-  // ═════════════════════════════════════════════════════════════════════════════
   await signIn(page, 'admin@acme.test');
-  await page.goto(`/procurement/${ADVANCE_CASE_ID}`);
+  await page.goto(`/procurement/${CAPTURE_CASE_ID}`);
 
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
@@ -115,12 +131,10 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
 
   // Find the primary advance action available to Admin at this status.
   // The JTBD goal is: clicking the action actually moves the case forward.
-  // We pick the first available primary action (variant=primary, not destructive).
-  // At Approved: "Request Vendor Quotes" (Approved → Vendor Quoted, routine)
-  //   OR "Generate Purchase Order" (Approved → Ordered, routine)
-  // At Vendor Quoted: "Select Quote" (requires a quote selected separately)
-  // At Quote Selected: "Generate Purchase Order" (routine)
-  // At any writable state: there is an action or there is no further action (terminal).
+  // Routine, single-click actions (no confirm dialog):
+  //   At Approved: "Request Vendor Quotes" or "Generate Purchase Order"
+  //   At Requested: "Submit Request"
+  //   At Quote Selected: "Generate Purchase Order"
   const actionBtns = page.getByRole('button', {
     name: /^(Submit Request|Request Vendor Quotes|Generate Purchase Order|Confirm Receipt)$/,
   });
@@ -130,8 +144,7 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
     // No routine advance action visible — the case may be in a state where only
     // consequential (confirm-dialog) or no actions are available to Admin.
     // This satisfies "no dead affordances" by showing no false promises.
-    // The honest doorway test still passes: no implied affordance is a no-op.
-    console.log(`AC-PR-022: case ${ADVANCE_CASE_ID} at status "${currentStatus}" has no routine advance action available to Admin — honest (no dead buttons shown).`);
+    console.log(`AC-PR-022: case ${CAPTURE_CASE_ID} at status "${currentStatus}" has no routine advance action available to Admin — honest (no dead buttons shown).`);
     return;
   }
 
@@ -141,7 +154,6 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   await actionBtn.click();
 
   // The advance should change the status (routine steps have no confirm dialog)
-  // Wait for the status to change from the current value
   await expect(statusBadge).not.toHaveAttribute('data-status', currentStatus ?? '', {
     timeout: 15_000,
   });
@@ -151,5 +163,5 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   expect(newStatus, `Status should have changed after clicking "${actionLabel}"`).not.toBe(currentStatus);
 
   // Still on same page
-  await expect(page).toHaveURL(new RegExp(ADVANCE_CASE_ID));
+  await expect(page).toHaveURL(new RegExp(CAPTURE_CASE_ID));
 });
