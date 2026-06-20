@@ -142,6 +142,12 @@ export function formatDocNumber(
 // DAL reads — getProcurementDetail (AC-816)
 // ---------------------------------------------------------------------------
 
+// File-presence sub-select: only the 3 fields needed for the ledger File column.
+// archived_at is null filtering is done client-side in buildLedgerRows (filePresence())
+// since PostgREST embedded `.is(archived_at, null)` filters are applied via query
+// params on the main select, not sub-selects. We fetch all and discard archived in JS.
+const FILE_FIELDS = 'title, file_path, archived_at';
+
 const DETAIL_SELECT = [
   '*',
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
@@ -152,15 +158,18 @@ const DETAIL_SELECT = [
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
   'items:procurement_items(*)',
-  'quotations:procurement_quotations(*)',
-  'receipts:procurement_receipts(*)',
-  'invoices:procurement_invoices(*)',
+  // Quotations + their files (compact — title/file_path/archived_at only).
+  `quotations:procurement_quotations(*, files:procurement_quotation_files(${FILE_FIELDS}))`,
+  // Receipts + their files.
+  `receipts:procurement_receipts(*, files:procurement_receipt_files(${FILE_FIELDS}))`,
+  // Invoices + their files.
+  `invoices:procurement_invoices(*, files:procurement_invoice_files(${FILE_FIELDS}))`,
   // Slice 6.1 — four new ERP-canonical record types + transition-event log (one bounded
   // PostgREST embed, no N+1; NFR-PR-PERF-002, [PD-7]).
-  'purchase_requests:purchase_requests(*)',
-  'rfqs:rfqs(*)',
-  'purchase_orders:purchase_orders(*)',
-  'payments:payments(*)',
+  `purchase_requests:purchase_requests(*, files:purchase_request_files(${FILE_FIELDS}))`,
+  `rfqs:rfqs(*, files:rfq_files(${FILE_FIELDS}))`,
+  `purchase_orders:purchase_orders(*, files:purchase_order_files(${FILE_FIELDS}))`,
+  `payments:payments(*, files:payment_files(${FILE_FIELDS}))`,
   // Embed the actor's profile name so the timeline can display a real name instead
   // of the raw UUID (AC-PR-PROG-012).  The FK alias must match the constraint name.
   'statusEvents:procurement_status_events(*, actor:profiles!procurement_status_events_actor_id_fkey(full_name))',

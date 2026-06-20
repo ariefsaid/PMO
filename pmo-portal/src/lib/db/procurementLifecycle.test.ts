@@ -223,17 +223,22 @@ describe('getProcurementDetail', () => {
     // Slice 6.1: DETAIL_SELECT now includes the four new record-type embeds + statusEvents.
     // The assertion captures the full shape; partial match via toContain ensures additive
     // extensions to DETAIL_SELECT stay test-visible without re-enumerating every join.
+    // The four ERP-canonical record types now include embedded file presence sub-selects
+    // (title, file_path, archived_at) — Slice 2 fix: zero per-row fetch on mount.
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('purchase_requests:purchase_requests(*)'),
+      expect.stringContaining('purchase_requests:purchase_requests('),
     );
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('rfqs:rfqs(*)'),
+      expect.stringContaining('purchase_request_files('),
     );
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('purchase_orders:purchase_orders(*)'),
+      expect.stringContaining('rfqs:rfqs('),
     );
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('payments:payments(*)'),
+      expect.stringContaining('purchase_orders:purchase_orders('),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('payments:payments('),
     );
     // statusEvents embed now includes the actor profile join for name resolution (AC-PR-PROG-012)
     expect(mockSelect).toHaveBeenCalledWith(
@@ -244,7 +249,7 @@ describe('getProcurementDetail', () => {
       expect.stringContaining('items:procurement_items(*)'),
     );
     expect(mockSelect).toHaveBeenCalledWith(
-      expect.stringContaining('receipts:procurement_receipts(*)'),
+      expect.stringContaining('receipts:procurement_receipts('),
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'proc-1');
     expect(mockSingle).toHaveBeenCalled();

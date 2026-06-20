@@ -50,13 +50,21 @@ export interface LedgerRow {
   /** StatusPill variant derived from status. */
   statusVariant: StatusVariant;
   /**
-   * File href — null until a file is attached. Placeholder for the file link/upload
-   * affordance in the File column. The actual upload lives in ProcurementFilesSubsection;
-   * this field records whether a file is known at view-model build time (for "Has file" filter).
-   * Currently null for all ledger rows (files are attached via the subsection, not a direct
-   * field on the record tables); populated when a direct file_path field becomes available.
+   * Storage path of the first non-archived file for this record (from the bundle embed).
+   * Null when no file is attached. Used for the "Has file" filter and as the lazy-sign target.
+   * Populated from embedded *_files arrays in buildLedgerRows; zero per-row network calls.
    */
   fileHref: string | null;
+  /**
+   * Display title for the first file (title column if set, else basename of file_path).
+   * Null when no file is attached.
+   */
+  fileTitle: string | null;
+  /**
+   * Count of non-archived files for this record (from the bundle embed).
+   * 0 when no files are attached.
+   */
+  fileCount: number;
   /**
    * true = this record type has a monetary commitment (PR / Quote / PO / Invoice / Payment).
    * false = process milestone without a direct financial value (RFQ / GR).
@@ -78,6 +86,36 @@ function isFinancial(type: RecordType): boolean {
   return FINANCIAL_TYPES.has(type);
 }
 
+/** Minimal shape of the file rows embedded in the bundle. */
+interface EmbeddedFileRow {
+  title?: string | null;
+  file_path?: string | null;
+  archived_at?: string | null;
+}
+
+/** Extract basename from a storage path — last segment after the final '/'. */
+function fileBasename(path: string): string {
+  const parts = path.split('/');
+  return parts[parts.length - 1] || path;
+}
+
+/**
+ * Derive file presence (href, title, count) from the embedded file rows.
+ * Filters out archived rows (archived_at != null). Zero network calls.
+ */
+function filePresence(files: EmbeddedFileRow[] | undefined): {
+  fileHref: string | null;
+  fileTitle: string | null;
+  fileCount: number;
+} {
+  const active = (files ?? []).filter((f) => f.archived_at == null && f.file_path);
+  if (active.length === 0) return { fileHref: null, fileTitle: null, fileCount: 0 };
+  const first = active[0];
+  const path = first.file_path!;
+  const title = first.title ? first.title : fileBasename(path);
+  return { fileHref: path, fileTitle: title, fileCount: active.length };
+}
+
 function makeRow(
   type: RecordType,
   recordId: string,
@@ -87,8 +125,10 @@ function makeRow(
   externalRef: string | null,
   amount: number | null | undefined,
   status: string,
+  files?: EmbeddedFileRow[],
 ): LedgerRow {
   const businessDate = date ?? createdAt;
+  const { fileHref, fileTitle, fileCount } = filePresence(files);
   return {
     id: `${type}-${recordId}`,
     date: businessDate,
@@ -98,7 +138,9 @@ function makeRow(
     amount: amount ?? null,
     status,
     statusVariant: workflowVariant(status),
-    fileHref: null, // populated per-type below when a direct field becomes available
+    fileHref,
+    fileTitle,
+    fileCount,
     financial: isFinancial(type),
     recordId,
   };
@@ -129,6 +171,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pr.reference_number,
         pr.amount,
         pr.status,
+        (pr as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -145,6 +188,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         rfq.reference_number,
         rfq.amount,
         rfq.status,
+        (rfq as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -164,6 +208,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vq.reference ?? null,  // supplier's own quote reference (e.g. "SVX-Q-2501-01")
         vq.total_amount,
         vqStatus,
+        (vq as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -180,6 +225,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         po.reference_number,
         po.amount,
         po.status,
+        (po as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -197,6 +243,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         gr.reference_number ?? null,   // supplier delivery-note (e.g. "DN-44120")
         null,                          // GRs are non-financial — no amount
         gr.status,
+        (gr as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -214,6 +261,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.reference_number ?? null,   // supplier invoice number (e.g. "INV-SF-2291")
         vi.amount ?? null,             // invoice total (migration 0040)
         vi.status,
+        (vi as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }
@@ -230,6 +278,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pay.reference_number,
         pay.amount,
         pay.status,
+        (pay as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
   }

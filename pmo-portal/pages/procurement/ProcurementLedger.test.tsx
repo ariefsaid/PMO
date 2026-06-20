@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -53,18 +53,30 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
 
-// Stub listProcurementFiles — no Supabase in unit tests.
-// Returns [] by default; override per-test via fileRows.
-const fileRows = vi.hoisted(() => ({
-  data: [] as Array<{ id: string; file_path: string | null; title: string | null }>,
+// Stub useProcurementFiles — AttachButton in LedgerFileCell calls this hook.
+// Returns a minimal shape; upload.mutate is no-op in tests.
+vi.mock('@/src/hooks/useProcurementFiles', () => ({
+  useProcurementFiles: vi.fn(() => ({
+    list: { data: [], isPending: false, isError: false },
+    upload: { mutate: vi.fn(), isPending: false },
+    archive: { mutate: vi.fn(), isPending: false },
+    download: vi.fn(async () => 'https://signed/url'),
+    progress: null,
+    uploadError: null,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  })),
 }));
 
+// Stub procurementFiles DAL — getSignedDownloadUrl used lazily by SingleFileButton.
+// listProcurementFiles is no longer called on mount (that is the whole fix).
 vi.mock('@/src/lib/db/procurementFiles', () => ({
-  listProcurementFiles: vi.fn(async () => fileRows.data),
+  listProcurementFiles: vi.fn(async () => []),
   getSignedDownloadUrl: vi.fn(async (path: string) => `https://cdn.example.com/${path}`),
 }));
 
 import { ProcurementLedger } from './ProcurementLedger';
+import * as procurementFilesModule from '@/src/lib/db/procurementFiles';
 import type { LedgerRow } from '../../src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '../../src/lib/db/procurementLifecycle';
 
@@ -114,6 +126,8 @@ const SAMPLE_ROWS: LedgerRow[] = [
     status: 'Cleared',
     statusVariant: 'won',
     fileHref: null,
+    fileTitle: null,
+    fileCount: 0,
     financial: true,
     recordId: 'pay-1',
   },
@@ -127,6 +141,8 @@ const SAMPLE_ROWS: LedgerRow[] = [
     status: 'Received',
     statusVariant: 'progress',
     fileHref: null,
+    fileTitle: null,
+    fileCount: 0,
     financial: true,
     recordId: 'vi-1',
   },
@@ -139,7 +155,9 @@ const SAMPLE_ROWS: LedgerRow[] = [
     amount: null,
     status: 'Complete',
     statusVariant: 'won',
-    fileHref: '/files/gr.pdf',
+    fileHref: 'org-1/proc-1/receipt/f1/gr.pdf',
+    fileTitle: 'GR Document',
+    fileCount: 1,
     financial: false,
     recordId: 'gr-1',
   },
@@ -153,6 +171,8 @@ const SAMPLE_ROWS: LedgerRow[] = [
     status: 'Closed',
     statusVariant: 'neutral',
     fileHref: null,
+    fileTitle: null,
+    fileCount: 0,
     financial: false,
     recordId: 'rfq-1',
   },
@@ -288,11 +308,11 @@ describe('AC-PR-LEDGER-014: ledger testid present', () => {
   });
 });
 
-describe('AC-PR-LEDGER-018: file link renders when record has a file', () => {
-  it('renders a View link for a row whose record has an attached file', async () => {
-    fileRows.data = [
-      { id: 'file-1', file_path: 'org-1/proc-1/receipt/file-1/receipt.pdf', title: 'Receipt' },
-    ];
+describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () => {
+  it('AC-PR-LEDGER-018a: renders file title button for a row with fileTitle/fileHref set (no listProcurementFiles on mount)', () => {
+    // listProcurementFiles should NOT be called — file presence comes from the bundle.
+    const listProcurementFiles = vi.mocked(procurementFilesModule.listProcurementFiles);
+    listProcurementFiles.mockClear();
 
     const rowWithFile: LedgerRow = {
       id: 'gr-1',
@@ -303,29 +323,24 @@ describe('AC-PR-LEDGER-018: file link renders when record has a file', () => {
       amount: null,
       status: 'Complete',
       statusVariant: 'won',
-      fileHref: null,
+      fileHref: 'org-1/proc-1/receipt/f1/receipt.pdf',
+      fileTitle: 'Delivery Note',
+      fileCount: 1,
       financial: false,
       recordId: 'gr-1',
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowWithFile]} />);
 
-    // Wait for the async file fetch + signed URL — the LedgerFileCell effect
-    // must complete (listProcurementFiles → getSignedDownloadUrl → setState).
-    // The anchor's accessible name is the aria-label (overrides inner text).
-    await waitFor(
-      () => {
-        const link = screen.getByRole('link', { name: /open file/i });
-        expect(link).toBeInTheDocument();
-        expect(link).toHaveAttribute('href', expect.stringContaining('cdn.example.com'));
-      },
-      { timeout: 3000 },
-    );
+    // The file title text must appear in a button (lazy — no href/link until click).
+    // getByRole('button') can't use text content when aria-label overrides; use getByText.
+    const titleEl = screen.getByText('Delivery Note');
+    expect(titleEl.closest('button')).toBeInTheDocument();
+    // NO per-row list fetch on mount
+    expect(listProcurementFiles).not.toHaveBeenCalled();
   });
 
-  it('renders "—" in the file column when no file is attached', () => {
-    fileRows.data = [];
-
+  it('AC-PR-LEDGER-018b: renders upload affordance for canWrite=true rows with no file', () => {
     const rowNoFile: LedgerRow = {
       id: 'po-1',
       date: '2026-05-06',
@@ -336,12 +351,58 @@ describe('AC-PR-LEDGER-018: file link renders when record has a file', () => {
       status: 'Issued',
       statusVariant: 'progress',
       fileHref: null,
+      fileTitle: null,
+      fileCount: 0,
       financial: true,
       recordId: 'po-1',
     };
 
-    wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowNoFile]} />);
-    // Should not find a "View" link
-    expect(screen.queryByRole('link', { name: /view/i })).toBeNull();
+    wrap(<ProcurementLedger {...BASE_PROPS} canWrite rows={[rowNoFile]} />);
+    // The "Attach" upload affordance should be present for a writer
+    expect(screen.getByRole('button', { name: /attach/i })).toBeInTheDocument();
+  });
+
+  it('AC-PR-LEDGER-018c: no upload affordance for canWrite=false', () => {
+    const rowNoFile: LedgerRow = {
+      id: 'po-1',
+      date: '2026-05-06',
+      type: 'PO',
+      systemNumber: 'PO-2026-0001',
+      externalRef: null,
+      amount: 50000,
+      status: 'Issued',
+      statusVariant: 'progress',
+      fileHref: null,
+      fileTitle: null,
+      fileCount: 0,
+      financial: true,
+      recordId: 'po-1',
+    };
+
+    wrap(<ProcurementLedger {...BASE_PROPS} canWrite={false} rows={[rowNoFile]} />);
+    expect(screen.queryByRole('button', { name: /attach/i })).toBeNull();
+    // reads "—" for no-file non-writer (may be multiple dashes for empty cols; at least one present)
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-PR-LEDGER-018d: shows "N files" count button when fileCount > 1', () => {
+    const rowMultiFile: LedgerRow = {
+      id: 'vq-1',
+      date: '2026-05-04',
+      type: 'Quote',
+      systemNumber: 'VQ-2026-0001',
+      externalRef: null,
+      amount: 478500,
+      status: 'Selected',
+      statusVariant: 'won',
+      fileHref: 'org-1/proc-1/quotation/f1/q1.pdf',
+      fileTitle: 'Main Quote',
+      fileCount: 3,
+      financial: true,
+      recordId: 'vq-1',
+    };
+
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowMultiFile]} />);
+    expect(screen.getByRole('button', { name: /3 files/i })).toBeInTheDocument();
   });
 });

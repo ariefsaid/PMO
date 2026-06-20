@@ -454,6 +454,78 @@ describe('AC-PR-LEDGER-016: GR externalRef from procurement_receipts.reference_n
 });
 
 // ---------------------------------------------------------------------------
+// AC-PR-LEDGER-019: fileTitle + fileCount populated from bundle file arrays
+// ---------------------------------------------------------------------------
+
+describe('AC-PR-LEDGER-019: fileTitle and fileCount from embedded file arrays', () => {
+  it('sets fileTitle from the first file title and fileCount=1 for a GR with one file', () => {
+    const gr = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-001', status: 'Complete',
+      receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
+      // Embedded files (the bundle embed, non-archived)
+      files: [{ title: 'Delivery Note', file_path: 'org-1/proc-1/receipt/f1/dn.pdf', archived_at: null }],
+    };
+
+    const detail = makeDetail({ receipts: [gr as unknown] });
+    const rows = buildLedgerRows(detail);
+    const grRow = rows.find((r) => r.type === 'GR');
+    expect(grRow?.fileTitle).toBe('Delivery Note');
+    expect(grRow?.fileCount).toBe(1);
+    expect(grRow?.fileHref).toBe('org-1/proc-1/receipt/f1/dn.pdf');
+  });
+
+  it('sets fileCount=2 when a record has two non-archived files', () => {
+    const po = {
+      id: 'po-1', org_id: 'org-1', procurement_id: 'proc-1',
+      po_number: 'PO-001', reference_number: null,
+      status: 'Issued', date: '2026-05-06', amount: 50000, created_at: '2026-05-06T08:00:00Z',
+      files: [
+        { title: 'Signed PO', file_path: 'org-1/proc-1/purchase_order/f1/po.pdf', archived_at: null },
+        { title: 'Amendment', file_path: 'org-1/proc-1/purchase_order/f2/amend.pdf', archived_at: null },
+      ],
+    };
+
+    const detail = makeDetail({ purchase_orders: [po as unknown] });
+    const rows = buildLedgerRows(detail);
+    const poRow = rows.find((r) => r.type === 'PO');
+    expect(poRow?.fileCount).toBe(2);
+    expect(poRow?.fileTitle).toBe('Signed PO');
+  });
+
+  it('sets fileTitle=null and fileCount=0 when no files are embedded', () => {
+    const pr = {
+      id: 'pr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      pr_number: 'PR-001', reference_number: null,
+      status: 'Approved', date: '2026-04-28', amount: 100000, created_at: '2026-04-28T08:00:00Z',
+    };
+
+    const detail = makeDetail({ purchase_requests: [pr as unknown] });
+    const rows = buildLedgerRows(detail);
+    const prRow = rows.find((r) => r.type === 'PR');
+    expect(prRow?.fileTitle).toBeNull();
+    expect(prRow?.fileCount).toBe(0);
+    expect(prRow?.fileHref).toBeNull();
+  });
+
+  it('falls back fileTitle to file_path basename when title is null', () => {
+    const rfq = {
+      id: 'rfq-1', org_id: 'org-1', procurement_id: 'proc-1',
+      rfq_number: 'RFQ-001', reference_number: null,
+      status: 'Closed', date: '2026-04-30', amount: null, created_at: '2026-04-30T08:00:00Z',
+      files: [{ title: null, file_path: 'org-1/proc-1/rfq/f1/rfq-scan.pdf', archived_at: null }],
+    };
+
+    const detail = makeDetail({ rfqs: [rfq as unknown] });
+    const rows = buildLedgerRows(detail);
+    const rfqRow = rows.find((r) => r.type === 'RFQ');
+    expect(rfqRow?.fileTitle).toBe('rfq-scan.pdf');
+    expect(rfqRow?.fileCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices
 // ---------------------------------------------------------------------------
 

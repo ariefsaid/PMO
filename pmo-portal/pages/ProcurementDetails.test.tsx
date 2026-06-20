@@ -44,6 +44,21 @@ vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
 
+// LedgerFileCell's AttachButton calls useProcurementFiles → useQuery → needs a QueryClient.
+// Stub the hook so ProcurementDetails tests stay QueryClient-free.
+vi.mock('@/src/hooks/useProcurementFiles', () => ({
+  useProcurementFiles: vi.fn(() => ({
+    list: { data: [], isPending: false, isError: false },
+    upload: { mutate: vi.fn(), isPending: false },
+    archive: { mutate: vi.fn(), isPending: false },
+    download: vi.fn(async () => 'https://signed/url'),
+    progress: null,
+    uploadError: null,
+    cancelUpload: vi.fn(),
+    clearUploadError: vi.fn(),
+  })),
+}));
+
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({

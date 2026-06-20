@@ -16,8 +16,13 @@
  * DESIGN.md tokens only; no raw hex/px. No horizontal bleed @390/360 (DataTable
  * md→card handles mobile). WCAG-AA: filter chips are keyboard-operable buttons
  * with aria-pressed; status pills are dot+label (never color-only); mono IDs.
+ *
+ * File column: zero per-row network calls on mount. File presence (fileTitle /
+ * fileCount / fileHref) is pre-built from the bundle by buildLedgerRows. The cell
+ * signs the URL lazily on click (try/catch — non-fatal) and shows an upload
+ * affordance for canWrite rows with no file.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   CardPad,
   DataTable,
@@ -67,10 +72,10 @@ const FILTER_CHIPS: FilterChipDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Column definitions
+// Static column definitions (all except File — that one needs canWrite context)
 // ---------------------------------------------------------------------------
 
-const LEDGER_COLUMNS: Column<LedgerRow>[] = [
+const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
     header: 'Date',
@@ -127,17 +132,6 @@ const LEDGER_COLUMNS: Column<LedgerRow>[] = [
       <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
     ),
   },
-  {
-    key: 'file',
-    header: 'File',
-    cell: (row) => (
-      <LedgerFileCell
-        type={row.type}
-        recordId={row.recordId}
-        systemNumber={row.systemNumber}
-      />
-    ),
-  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -185,6 +179,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
+  orgId,
+  uploadedById,
   canWrite,
   invoices = [],
 }) => {
@@ -192,6 +188,35 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
   // Mutations for the capture row (invalidate the detail query on success)
   const mutations = useProcurementRecordMutations(procurementId);
+
+  // Build the File column with the context it needs (canWrite, procurementId, etc.).
+  // useMemo: stable identity when context props don't change — avoids DataTable re-renders.
+  const fileColumn = useMemo<Column<LedgerRow>>(
+    () => ({
+      key: 'file',
+      header: 'File',
+      cell: (row) => (
+        <LedgerFileCell
+          type={row.type}
+          recordId={row.recordId}
+          systemNumber={row.systemNumber}
+          fileHref={row.fileHref}
+          fileTitle={row.fileTitle}
+          fileCount={row.fileCount}
+          canWrite={canWrite}
+          procurementId={procurementId}
+          orgId={orgId}
+          uploadedById={uploadedById}
+        />
+      ),
+    }),
+    [canWrite, procurementId, orgId, uploadedById],
+  );
+
+  const columns = useMemo<Column<LedgerRow>[]>(
+    () => [...STATIC_COLUMNS, fileColumn],
+    [fileColumn],
+  );
 
   // Apply the active filter
   const filteredRows = rows.filter((row) => {
@@ -280,7 +305,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       {/* DataTable — reuses the shared primitive with md→card mobile reflow */}
       <DataTable<LedgerRow>
         rows={filteredRows}
-        columns={LEDGER_COLUMNS}
+        columns={columns}
         rowKey={(row) => row.id}
         state={tableState}
         emptyTitle={emptyTitle}
