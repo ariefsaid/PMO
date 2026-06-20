@@ -561,3 +561,62 @@ describe('AC-PR-LEDGER-017: VI externalRef + amount from procurement_invoices', 
     expect(viRow?.amount).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// AC-PR-LEDGER-020: same-day sort stability (CQ #4 — mixed date/timestamp keys)
+// ---------------------------------------------------------------------------
+
+describe('AC-PR-LEDGER-020: same-day records with mixed date/timestamp keys sort stably', () => {
+  it('date-only and same-day timestamp records both appear; timestamp sorts before date-only (newest-first tiebreak)', () => {
+    // GR has receipt_date = "2026-05-11" (date-only); Invoice has invoice_date = "2026-05-11T08:00:00Z"
+    // Before the fix, the date-only "2026-05-11" would always sort BEFORE "2026-05-11T08:00:00Z"
+    // in descending order, regardless of business intent, because "T" > end-of-string.
+    // After the fix, both are day-equal → tiebreak by full string descending → timestamp first.
+    const gr: Pick<Tables<'procurement_receipts'>, 'id' | 'org_id' | 'procurement_id' | 'gr_number' | 'status' | 'receipt_date' | 'created_at' | 'po_id' | 'reference_number'> = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-001', status: 'Complete',
+      receipt_date: '2026-05-11',
+      created_at: '2026-05-11T06:00:00Z', po_id: null, reference_number: null,
+    };
+    const vi: Pick<Tables<'procurement_invoices'>, 'id' | 'org_id' | 'procurement_id' | 'vi_number' | 'status' | 'invoice_date' | 'created_at' | 'po_id' | 'reference_number' | 'amount'> = {
+      id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vi_number: 'VI-001', status: 'Received',
+      invoice_date: '2026-05-11T08:00:00Z',
+      created_at: '2026-05-11T08:00:00Z', po_id: null, reference_number: null, amount: null,
+    };
+
+    const detail = makeDetail({ receipts: [gr], invoices: [vi] });
+    const rows = buildLedgerRows(detail);
+
+    // Both records on the same business day — both must appear
+    expect(rows).toHaveLength(2);
+    const types = rows.map((r) => r.type);
+    expect(types).toContain('GR');
+    expect(types).toContain('Invoice');
+
+    // Timestamp ("...T08:00:00Z") > date-only ("2026-05-11") alphabetically
+    // → in descending order (newest-first), Invoice (timestamp) should sort first
+    expect(rows[0].type).toBe('Invoice');
+    expect(rows[1].type).toBe('GR');
+  });
+
+  it('two different-day records still sort correctly after normalization', () => {
+    const pr: Pick<Tables<'purchase_requests'>, 'id' | 'org_id' | 'procurement_id' | 'pr_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'created_at'> = {
+      id: 'pr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      pr_number: 'PR-001', reference_number: null,
+      status: 'Approved', date: '2026-04-28', amount: 100000, created_at: '2026-04-28T08:00:00Z',
+    };
+    const pay: Pick<Tables<'payments'>, 'id' | 'org_id' | 'procurement_id' | 'pay_number' | 'reference_number' | 'status' | 'date' | 'amount' | 'invoice_id' | 'created_at'> = {
+      id: 'pay-1', org_id: 'org-1', procurement_id: 'proc-1',
+      pay_number: 'PAY-001', reference_number: null,
+      status: 'Cleared', date: '2026-05-14T12:00:00Z', amount: 100000,
+      invoice_id: null, created_at: '2026-05-14T12:00:00Z',
+    };
+
+    const detail = makeDetail({ purchase_requests: [pr], payments: [pay] });
+    const rows = buildLedgerRows(detail);
+    // Newest first: Payment (May 14) before PR (Apr 28)
+    expect(rows[0].type).toBe('Payment');
+    expect(rows[1].type).toBe('PR');
+  });
+});

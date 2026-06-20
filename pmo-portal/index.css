@@ -27,6 +27,12 @@
   --status-won-text: 142 64% 30%;
   --status-lost-text: 0 72% 45%;
   --status-violet-text: 262 60% 42%;
+  /* --- Destructive text (WCAG-AA on white, ≥4.5:1) --- */
+  /* text-destructive (#ef4444) is 3.76:1 on white — below AA. This darker token
+     (≈ #bc1c1c, contrast ≈ 6.2:1 on white) is used for destructive text values that
+     must pass AA (budget overage numbers, negative monetary deltas). The fill/border
+     --destructive token (used for pills/buttons) is unchanged. */
+  --destructive-text: 0 73% 42%;
   /* --- Nav active text (WCAG-AA contrast fix, AC-PR-026) --- */
   /* Primary text (#2563eb) on primary/10 bg (#e9effd) = 4.48:1 — just below AA 4.5:1.
      Darken to 38% L (same hue/saturation family as --status-open-text) → 7.31:1 on #e9effd. */
@@ -72,6 +78,7 @@
   --color-ring: hsl(var(--ring));
   --color-violet: hsl(var(--violet));
   --color-nav-active-text: hsl(var(--nav-active-text));
+  --color-destructive-text: hsl(var(--destructive-text));
   --radius-lg: var(--radius);                 /* 8px */
   --radius-md: calc(var(--radius) - 2px);     /* 6px */
   --radius-sm: calc(var(--radius) - 4px);     /* 4px */

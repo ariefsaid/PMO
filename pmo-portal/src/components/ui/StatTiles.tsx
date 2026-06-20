@@ -64,7 +64,9 @@ export const StatTiles: React.FC<StatTilesProps> = ({ tiles, columns = 4, classN
             className={cn(
               'text-[17px] font-bold tracking-[-0.01em] tabular',
               t.tone === 'pos' && 'text-success',
-              t.tone === 'neg' && 'text-destructive',
+              // text-destructive (#ef4444) is 3.76:1 on white — below AA 4.5:1.
+              // text-destructive-text uses --destructive-text (≈6.2:1 on white, WCAG AA).
+              t.tone === 'neg' && 'text-destructive-text',
             )}
           >
             {t.value}

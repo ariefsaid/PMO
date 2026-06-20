@@ -284,7 +284,15 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
   }
 
   // ── Sort: newest-first (descending by business date) ─────────────────────
+  // Normalize to YYYY-MM-DD before comparing so a date-only string ("2026-05-06")
+  // and a same-day timestamped one ("2026-05-06T08:00:00Z") compare as equal at the
+  // day level. Tiebreak by the full original string (ISO timestamps sort later than
+  // date-only strings on the same day, giving timestamps the "newer" position).
   rows.sort((a, b) => {
+    const aDay = a.date.slice(0, 10);
+    const bDay = b.date.slice(0, 10);
+    if (aDay !== bDay) return aDay > bDay ? -1 : 1;
+    // Same day: full string descending (timestamp > date-only alphabetically)
     if (a.date > b.date) return -1;
     if (a.date < b.date) return 1;
     return 0;

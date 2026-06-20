@@ -529,7 +529,7 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-006 (edge case): impersonation — gates on real JWT role', () => {
-  it('Engineer impersonating Finance cannot Approve (real role gates, not impersonated)', () => {
+  it('AC-PR-018 AC-PR-S4-006: Engineer impersonating Finance cannot Approve (real role gates, not impersonated)', () => {
     // Real role is Engineer; effectiveRole (display) is Finance. The gate uses realRole.
     roleState.realRole = 'Engineer';
     roleState.effectiveRole = 'Finance'; // impersonating Finance
@@ -542,7 +542,7 @@ describe('AC-PR-S4-006 (edge case): impersonation — gates on real JWT role', (
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });
 
-  it('Finance impersonating Engineer: capture row still shows (canWrite gates on REAL role — Finance can write)', () => {
+  it('AC-PR-018 AC-PR-S4-006: Finance impersonating Engineer: capture row still shows (canWrite gates on REAL role — Finance can write)', () => {
     // Real role = Finance (can create procFile); effectiveRole = Engineer (display-only).
     // The write affordance uses usePermission() → realRole, so the capture row IS shown.
     // This is the ADR-0016 "FE gates on real role" contract — impersonation is view-only.

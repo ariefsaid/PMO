@@ -145,7 +145,14 @@ export function buildProcurementHistory(detail: ProcurementDetail): HistoryEvent
   }
 
   // ── 3. Sort ascending by timestamp (stable) ────────────────────────────────
+  // Normalize to YYYY-MM-DD before comparing so a date-only string ("2026-05-06")
+  // and a same-day timestamped one ("2026-05-06T08:00:00Z") compare as equal at the
+  // day level. Tiebreak by the full original string ascending (date-only < timestamp
+  // alphabetically, so date-only records sort before same-day timestamped ones).
   events.sort((a, b) => {
+    const aDay = a.at.slice(0, 10);
+    const bDay = b.at.slice(0, 10);
+    if (aDay !== bDay) return aDay < bDay ? -1 : 1;
     if (a.at < b.at) return -1;
     if (a.at > b.at) return 1;
     return 0;
@@ -392,7 +399,13 @@ export function buildProgressionTimeline(
   }
 
   // ── 3. Sort ascending by timestamp (stable) ────────────────────────────────
+  // Normalize to YYYY-MM-DD so date-only strings ("2026-05-06") and same-day
+  // timestamps ("2026-05-06T08:00:00Z") compare equal at the day level; tiebreak
+  // by full string ascending (date-only < timestamp alphabetically).
   events.sort((a, b) => {
+    const aDay = a.at.slice(0, 10);
+    const bDay = b.at.slice(0, 10);
+    if (aDay !== bDay) return aDay < bDay ? -1 : 1;
     if (a.at < b.at) return -1;
     if (a.at > b.at) return 1;
     return 0;

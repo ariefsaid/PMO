@@ -234,7 +234,6 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             return (
               <div
                 key={q.id}
-                aria-selected={selected}
                 className={[
                   'border-b border-border/70 last:border-b-0',
                   selected ? 'bg-success/[0.06]' : 'hover:bg-accent/60',
