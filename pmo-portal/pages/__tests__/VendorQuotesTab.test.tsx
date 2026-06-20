@@ -17,7 +17,12 @@ import React from 'react';
 
 // ── FK option hook stubbed (Combobox in the add form calls useVendorOptions)
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useVendorOptions: () => ({ data: [{ value: 'v-1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({
+    data: [
+      { value: 'v-1', label: 'Apex Supply', sub: 'Vendor' },
+      { value: 'v-2', label: 'Beta Corp', sub: 'Vendor' },
+    ],
+  }),
 }));
 
 // ── ProcurementFilesSubsection — needs QueryClient; stub for component tests
@@ -67,6 +72,12 @@ const unselectedQuote = makeQuote({
   valid_until: '2026-05-28',
 });
 
+// Vendor name map for tests (v-1 → Apex Supply, v-2 → Beta Corp)
+const testVendorMap: Record<string, string> = {
+  'v-1': 'Apex Supply',
+  'v-2': 'Beta Corp',
+};
+
 const defaultProps = {
   quotations: [],
   selectedId: null as string | null,
@@ -81,6 +92,7 @@ const defaultProps = {
   orgId: 'org-1',
   canManageFiles: false,
   currentUserId: 'u-alice',
+  vendorMap: testVendorMap,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -308,5 +320,100 @@ describe('AC-VQ-007: VendorQuotesTab — Add quotation affordance', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: /add quotation/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', () => {
+  it('AC-VQ-008: renders vendor name as primary text in each bid row when vendorMap provided', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        vendorMap={testVendorMap}
+      />,
+    );
+    // Apex Supply (v-1) and Beta Corp (v-2) must both appear
+    expect(screen.getAllByText('Apex Supply').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Beta Corp').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-008: falls back to VQ number when vendorMap is absent for that vendor', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+        vendorMap={{}} // empty map — no name for v-1
+      />,
+    );
+    // VQ number shown as fallback primary text
+    expect(screen.getAllByText('VQ-2026-0001').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () => {
+  it('AC-VQ-009: shows "Best value" pill on lowest-amount quote when canSelect=true (Vendor Quoted)', () => {
+    // q-lo ($148k) is lower than q-hi ($162k) — q-lo should get "Best value"
+    const low = makeQuote({ id: 'q-lo', vendor_id: 'v-1', total_amount: 148000, is_selected: false });
+    const high = makeQuote({ id: 'q-hi', vendor_id: 'v-2', total_amount: 162000, is_selected: false });
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[low, high]}
+        selectedId={null}
+        canSelect
+        vendorMap={testVendorMap}
+      />,
+    );
+    expect(screen.getAllByText(/best value/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-VQ-009: "Best value" pill absent when canSelect=false (not in decision mode)', () => {
+    const low = makeQuote({ id: 'q-lo', vendor_id: 'v-1', total_amount: 148000, is_selected: false });
+    const high = makeQuote({ id: 'q-hi', vendor_id: 'v-2', total_amount: 162000, is_selected: false });
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[low, high]}
+        selectedId={null}
+        canSelect={false}
+        vendorMap={testVendorMap}
+      />,
+    );
+    // No "Best value" pill when in read-only (past Quote Selected) and no selection
+    expect(screen.queryByText(/best value/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-VQ-010: VendorQuotesTab — valid a11y structure (no broken ARIA grid)', () => {
+  it('AC-VQ-010: no role="row" outside a proper table context (avoids aria-required-children violation)', () => {
+    const { container } = render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote, unselectedQuote]}
+        selectedId="q-lo"
+        vendorMap={testVendorMap}
+      />,
+    );
+    // role="row" must not appear outside a role="table"/"grid"/"treegrid" owner
+    const rows = container.querySelectorAll('[role="row"]');
+    rows.forEach((row) => {
+      const owner = row.closest('[role="table"],[role="grid"],[role="treegrid"]');
+      expect(owner).not.toBeNull();
+    });
+  });
+});
+
+describe('AC-VQ-M1: VendorQuotesTab — no dev annotation', () => {
+  it('AC-VQ-M1: "select-with-rationale" annotation is not visible in the rendered output', () => {
+    render(
+      <VendorQuotesTab
+        {...defaultProps}
+        quotations={[selectedQuote]}
+        selectedId="q-lo"
+      />,
+    );
+    expect(screen.queryByText(/select-with-rationale/i)).not.toBeInTheDocument();
   });
 });

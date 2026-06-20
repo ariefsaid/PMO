@@ -26,6 +26,7 @@ import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -246,6 +247,14 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
+
+  // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
+  // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
+  const { data: vendorOptions } = useVendorOptions();
+  const vendorMap: Record<string, string> = React.useMemo(
+    () => Object.fromEntries((vendorOptions ?? []).map((o) => [o.value, o.label])),
+    [vendorOptions],
+  );
 
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
@@ -809,6 +818,7 @@ const ProcurementDetails: React.FC = () => {
             orgId={fileOrgId}
             canManageFiles={canManageFiles}
             currentUserId={currentUserId}
+            vendorMap={vendorMap}
             onError={onMutationError}
             onAdd={async (input) => {
               await mutations.createQuotation.mutateAsync(input);

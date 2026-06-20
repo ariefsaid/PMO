@@ -19,16 +19,18 @@ import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
 
 // ---------------------------------------------------------------------------
 // VendorQuotesTab — side-by-side bid comparison (Slice 3 / JTBD P2).
-// Refactors QuotationsSection into a DataTable-style comparison view:
+// Refactors QuotationsSection into a comparison view:
 //   Vendor (VQ#) · Amount · Valid until · Select (gated)
-// Selected row: bg-success/[0.06] wash + "Selected · best value" won pill.
-// Reuses the existing selectQuote RPC path + ConfirmDialog + SoD/role gating
-// exactly as QuotationsSection did — no behaviour change, only presentation.
+//
+// A11y: The attachment sub-section (ProcurementFilesSubsection) is rendered
+// OUTSIDE any ARIA grid/table role — the component uses CSS grid for visual
+// alignment only (no role="table"/role="row"/role="cell") to avoid the
+// aria-required-children violation that arises when non-cell content is nested
+// inside role="row" (C1 fix, axe critical).
 //
 // DB shape: procurement_quotations (snake_case rows consumed directly).
 // Columns present:  vq_number, total_amount, valid_until, is_selected, vendor_id.
-// Columns absent:   lead_time, payment_terms → omitted per plan ("omit if not
-//                   present in the data").
+// Columns absent:   lead_time, payment_terms → omitted per plan.
 // ---------------------------------------------------------------------------
 
 type QuotationRow = Tables<'procurement_quotations'>;
@@ -57,6 +59,12 @@ export interface VendorQuotesTabProps {
   canManageFiles: boolean;
   /** Current user id stamped onto new file rows. */
   currentUserId: string | null;
+  /**
+   * Vendor name lookup (vendor_id → display name). Sourced from useVendorOptions
+   * in the parent and passed down so no duplicate fetch. When a vendor_id is absent
+   * from the map the VQ number is used as fallback primary text.
+   */
+  vendorMap?: Record<string, string>;
 }
 
 // ── Derived helpers ───────────────────────────────────────────────────────────
@@ -78,6 +86,18 @@ function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefi
   });
 }
 
+/**
+ * Find the id of the lowest-amount quote among all quotes (the "best value"
+ * candidate shown WHILE the buyer is deciding, i.e. when canSelect=true).
+ * Returns null when there are no quotes.
+ */
+function bestValueId(quotes: QuotationRow[]): string | null {
+  if (quotes.length === 0) return null;
+  return quotes.reduce((best, q) =>
+    (q.total_amount ?? 0) < (best.total_amount ?? 0) ? q : best,
+  ).id;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
@@ -94,6 +114,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   orgId,
   canManageFiles,
   currentUserId,
+  vendorMap = {},
 }) => {
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -148,11 +169,18 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   const sorted = sortedQuotes(quotations, selectedId);
 
+  // Best-value id: shown as a "Best value" pill while the buyer is deciding
+  // (canSelect=true / Vendor Quoted status). Once a quote is selected, the
+  // "Selected · best value" pill on the chosen row serves the same role.
+  const bestId = canSelect ? bestValueId(quotations) : null;
+
   return (
     <Card data-testid="vendor-quotes">
       <CardHead>
         Bid comparison
-        <span className="ml-2 text-[12px] font-normal text-muted-foreground">select-with-rationale</span>
+        <span className="ml-2 text-[13px] font-normal text-muted-foreground">
+          Compare and select a vendor quote
+        </span>
         <span className="flex-1" />
         {canAdd && !adding && (
           <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-quotation">
@@ -172,96 +200,100 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       )}
 
       {/* ── Bid comparison rows ─────────────────────────────────────────── */}
+      {/* A11y note: no role="table"/"row"/"cell" — CSS grid is used for visual
+          alignment only. The attachment sub-section renders inside each item
+          without breaking an ARIA grid contract (C1 fix). */}
       {quotations.length > 0 && (
-        <div role="table" aria-label="Vendor bid comparison">
-          {/* Table header — visible on desktop, sr-only acts as column headers for AT */}
+        <div aria-label="Vendor bid comparison">
+          {/* Column header strip — visual only (sr-only for AT column context) */}
           <div
-            role="row"
-            className="hidden min-[768px]:grid"
+            aria-hidden="true"
+            className="hidden min-[768px]:grid border-b border-border"
             style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto' }}
           >
-            <div
-              role="columnheader"
-              className="h-[38px] border-b border-border px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center"
-            >
+            <div className="h-[38px] px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center">
               Vendor / Quote #
             </div>
-            <div
-              role="columnheader"
-              className="h-[38px] border-b border-border px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center justify-end"
-            >
+            <div className="h-[38px] px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center justify-end">
               Amount
             </div>
-            <div
-              role="columnheader"
-              className="h-[38px] border-b border-border px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center"
-            >
+            <div className="h-[38px] px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center">
               Valid until
             </div>
-            <div
-              role="columnheader"
-              className="h-[38px] border-b border-border px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center"
-            >
+            <div className="h-[38px] px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground flex items-center">
               {/* Action column — no visible label */}
-              <span className="sr-only">Action</span>
             </div>
           </div>
 
           {sorted.map((q) => {
             const selected = isRowSelected(q, selectedId);
             const selectable = canSelect && !selected;
+            const isBestValue = bestId === q.id;
+            const vendorName = vendorMap[q.vendor_id] ?? null;
 
             return (
               <div
                 key={q.id}
-                role="row"
                 aria-selected={selected}
                 className={[
-                  // Desktop: 4-col grid; mobile: stacked dl-card
                   'border-b border-border/70 last:border-b-0',
                   selected ? 'bg-success/[0.06]' : 'hover:bg-accent/60',
                 ].join(' ')}
               >
-                {/* ── Desktop row (≥768px) ── */}
+                {/* ── Desktop row (≥768px) — pure CSS grid, no ARIA roles ── */}
                 <div
-                  className="hidden min-[768px]:grid items-center min-h-[54px]"
+                  className="hidden min-[768px]:grid items-start min-h-[54px]"
                   style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto' }}
                 >
-                  {/* Vendor / VQ# cell */}
-                  <div role="cell" className="flex flex-col gap-0.5 px-3 py-2.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {q.vq_number && (
-                        <span className="font-mono text-[12px] text-muted-foreground">{q.vq_number}</span>
-                      )}
-                      {selected && (
-                        <StatusPill variant="won">Selected · best value</StatusPill>
-                      )}
-                    </div>
+                  {/* Vendor / VQ# column */}
+                  <div className="flex flex-col gap-0.5 px-3 py-2.5">
+                    {/* Vendor name — primary axis for comparison */}
+                    {vendorName ? (
+                      <span className="text-[13.5px] font-semibold">{vendorName}</span>
+                    ) : (
+                      q.vq_number && (
+                        <span className="font-mono text-[13.5px] font-semibold">{q.vq_number}</span>
+                      )
+                    )}
+                    {/* VQ# as mono sub-text when vendor name is shown */}
+                    {vendorName && q.vq_number && (
+                      <span className="font-mono text-[11.5px] text-muted-foreground">{q.vq_number}</span>
+                    )}
+                    {/* External reference if present */}
                     {q.reference && (
                       <span className="text-[11px] text-muted-foreground">{q.reference}</span>
                     )}
+                    {/* Status pills — selected OR best-value during decision */}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      {selected && (
+                        <StatusPill variant="won">Selected · best value</StatusPill>
+                      )}
+                      {!selected && isBestValue && (
+                        <StatusPill variant="won">Best value</StatusPill>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Amount cell */}
-                  <div role="cell" className="px-3 py-2.5 text-right">
+                  {/* Amount column */}
+                  <div className="px-3 py-2.5 text-right">
                     <span className="text-[13.5px] font-semibold tabular-nums">
                       {formatCurrency(Number(q.total_amount))}
                     </span>
                   </div>
 
-                  {/* Valid until cell */}
-                  <div role="cell" className="px-3 py-2.5 text-[13.5px] text-muted-foreground">
+                  {/* Valid until column */}
+                  <div className="px-3 py-2.5 text-[13.5px] text-muted-foreground">
                     {formatDate(q.valid_until)}
                   </div>
 
-                  {/* Action cell */}
-                  <div role="cell" className="px-3 py-2.5">
+                  {/* Action column */}
+                  <div className="px-3 py-2.5">
                     {selectable && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setSelectTarget(q)}
-                        aria-label={`Select quote ${q.vq_number ?? ''}`.trim()}
+                        aria-label={`Select quote ${vendorName ?? q.vq_number ?? ''}`.trim()}
                       >
                         Select
                       </Button>
@@ -271,21 +303,35 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
                 {/* ── Mobile card (< 768px) ── */}
                 <dl className="flex flex-col gap-2 px-3 py-3 min-[768px]:hidden">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {q.vq_number && (
-                        <span className="font-mono text-[12px] text-muted-foreground">{q.vq_number}</span>
+                  {/* Header: vendor name + amount prominent */}
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="flex flex-col gap-0.5">
+                      {/* Vendor name — primary on mobile too */}
+                      {vendorName ? (
+                        <span className="text-[13.5px] font-semibold">{vendorName}</span>
+                      ) : (
+                        q.vq_number && (
+                          <span className="font-mono text-[13.5px] font-semibold">{q.vq_number}</span>
+                        )
                       )}
-                      {selected && (
-                        <StatusPill variant="won">Selected · best value</StatusPill>
+                      {vendorName && q.vq_number && (
+                        <span className="font-mono text-[11px] text-muted-foreground">{q.vq_number}</span>
                       )}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        {selected && (
+                          <StatusPill variant="won">Selected · best value</StatusPill>
+                        )}
+                        {!selected && isBestValue && (
+                          <StatusPill variant="won">Best value</StatusPill>
+                        )}
+                      </div>
                     </div>
                     {selectable && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setSelectTarget(q)}
-                        aria-label={`Select quote ${q.vq_number ?? ''}`.trim()}
+                        aria-label={`Select quote ${vendorName ?? q.vq_number ?? ''}`.trim()}
                       >
                         Select
                       </Button>
@@ -309,7 +355,8 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                   </div>
                 </dl>
 
-                {/* Per-quotation file attachments (ADR-0023) */}
+                {/* Per-quotation file attachments (ADR-0023) — outside any ARIA
+                    grid/row context so attachment DOM doesn't violate grid contract */}
                 <div className="px-3 pb-2">
                   <ProcurementFilesSubsection
                     phase="quotation"
