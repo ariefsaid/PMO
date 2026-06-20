@@ -232,6 +232,36 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
   return null;
 }
 
+/**
+ * Per-status SoD-aware ready copy for the GateNotice variant="ready".
+ * Replaces the generic "You may move this request to its next lifecycle
+ * stage below." with copy that teaches the SoD rule relevant to each stage.
+ * Display-only — no enforcement logic.
+ */
+function readyGateMessage(
+  status: ProcurementStatus,
+  isRequester: boolean,
+  isApprover: boolean,
+): string {
+  switch (status) {
+    case 'Draft':
+      // Author about to submit — teach that submission hands off to a different approver.
+      return isRequester
+        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
+        : 'Ready to submit this request for approval.';
+    case 'Requested':
+      // Approver viewing — teach that the requester cannot self-approve.
+      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
+    case 'Vendor Invoiced':
+      // Finance payer — teach SoD-b: the approver cannot also release payment.
+      return isApprover
+        ? 'Ready to advance.' // SoD-b blocks them anyway; the action won't appear
+        : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
+    default:
+      return 'Ready to advance. Select an action below to move this request to its next stage.';
+  }
+}
+
 const ProcurementDetails: React.FC = () => {
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
@@ -885,7 +915,7 @@ const ProcurementDetails: React.FC = () => {
             </GateNotice>
           ) : actions.length > 0 ? (
             <GateNotice variant="ready">
-              <b>Ready to advance.</b> You may move this request to its next lifecycle stage below.
+              {readyGateMessage(p.status, isRequester, isApprover)}
             </GateNotice>
           ) : null}
 

@@ -446,13 +446,15 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — GateNotice inside decision
     expect(within(decisionCard).queryByText(/separation-of-duties gate/i)).toBeNull();
   });
 
-  it('AC-IXD-PROC-W5-1c: SoD "ready to advance" notice is inside the decision-card when the viewer CAN act', () => {
+  it('AC-IXD-PROC-W5-1c: the ready GateNotice is inside the decision-card when the viewer CAN act', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
     const decisionCard = screen.getByTestId('decision-card');
-    // When unblocked and actions exist, the "Ready to advance" notice is inside the decision-card
-    expect(within(decisionCard).getByText(/ready to advance/i)).toBeInTheDocument();
+    // When unblocked and actions exist, a GateNotice "ready" variant is inside the decision-card.
+    // Since I5 the copy is SoD-aware ("You may approve or reject…") rather than the old generic
+    // "Ready to advance. You may move this request…" — assert the approver-context copy is present.
+    expect(within(decisionCard).getByText(/you may approve or reject|requester cannot self.?approv/i)).toBeInTheDocument();
   });
 });
 
