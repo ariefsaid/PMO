@@ -31,7 +31,6 @@ export function useProcurementFiles(
   phase: ProcPhase,
   parentId: string,
   procurementId: string,
-  orgId: string,
   uploadedById: string | null,
 ) {
   const qc = useQueryClient();
@@ -56,9 +55,7 @@ export function useProcurementFiles(
     try {
       const { signedUrl, path } = await repositories.procurementFiles.prepareUpload(
         phase,
-        parentId,
         procurementId,
-        orgId,
         file.name,
       );
       const ext = getExtension(file.name);

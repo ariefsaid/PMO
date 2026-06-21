@@ -300,8 +300,8 @@ const milestone: MilestoneRepository = {
 
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
-  prepareUpload: (phase, parentId, procurementId, orgId, fileName) =>
-    wrap(() => prepareProcurementFileUpload(phase, parentId, procurementId, orgId, fileName)),
+  prepareUpload: (phase, procurementId, fileName) =>
+    wrap(() => prepareProcurementFileUpload(phase, procurementId, fileName)),
   confirmUpload: (phase, parentId, path, title, uploadedById) =>
     wrap(() => confirmProcurementFileUpload(phase, parentId, path, title, uploadedById)),
   archive: (phase, id) => wrap(() => archiveProcurementFile(phase, id)),
