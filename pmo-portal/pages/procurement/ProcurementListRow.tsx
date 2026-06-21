@@ -72,6 +72,7 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
             projectId={detail.data.project_id}
             totalValue={detail.data.total_value}
             projectName={detail.data.project?.name}
+            status={detail.data.status}
           />
 
           {/* Line items */}

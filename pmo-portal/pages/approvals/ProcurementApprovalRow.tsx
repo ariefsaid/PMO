@@ -171,6 +171,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
                 projectId={detail.data.project_id}
                 totalValue={detail.data.total_value}
                 projectName={detail.data.project?.name}
+                status={detail.data.status}
               />
 
               {/* Line items */}

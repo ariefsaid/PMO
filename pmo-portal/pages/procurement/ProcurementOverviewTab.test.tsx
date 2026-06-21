@@ -11,6 +11,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import { ProcurementOverviewTab } from './ProcurementOverviewTab';
@@ -43,6 +44,7 @@ const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOvervie
         projectId="proj-1"
         projectName="Meridian Solar Farm"
         totalValue={486000}
+        status="Requested"
         {...props}
       />
     </MemoryRouter>,

@@ -16,6 +16,7 @@
 import React from 'react';
 import { Card, CardHead, CardPad, StatTiles, type StatTile } from '@/src/components/ui';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
+import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
 
@@ -38,6 +39,8 @@ export interface ProcurementOverviewTabProps {
   projectName: string | null | undefined;
   /** This request's total_value (the Budget signal "This request" figure). */
   totalValue: number;
+  /** The case's current status — drives the Budget signal's per-stage math + visibility. */
+  status: ProcurementStatus;
 }
 
 export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
@@ -47,6 +50,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   projectId,
   projectName,
   totalValue,
+  status,
 }) => (
   <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
     {/* ── ov-main (left 2/3) ─────────────────────────────────────────────── */}
@@ -60,6 +64,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         projectId={projectId}
         totalValue={totalValue}
         projectName={projectName ?? null}
+        status={status}
       />
 
       {/* Detail <dl> — the Field grammar (overline dt + dd). 2-col on desktop,

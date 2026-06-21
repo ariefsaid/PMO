@@ -15,16 +15,20 @@ import { MemoryRouter } from 'react-router-dom';
 // ---------------------------------------------------------------------------
 const budgetState = { data: 500000 as number | undefined, isPending: false, isError: false };
 const committedState = { data: 100000 as number | undefined, isPending: false, isError: false };
+const reservedState = { data: 0 as number | undefined, isPending: false, isError: false };
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => committedState,
+  useProjectReservedSpend: () => reservedState,
 }));
 
 import { DecisionSupportPanel } from '../DecisionSupportPanel';
 
+// Wrapper renders at status 'Requested' (a panel-visible status) so these heading /
+// link tests stay visible after the ADR-0034 visibility boundary was added.
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 beforeEach(() => {
@@ -34,6 +38,9 @@ beforeEach(() => {
   committedState.data = 100000;
   committedState.isPending = false;
   committedState.isError = false;
+  reservedState.data = 0;
+  reservedState.isPending = false;
+  reservedState.isError = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -46,6 +53,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="p1"
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     const link = screen.getByRole('link', { name: /Open Bridge Alpha/i });
@@ -59,6 +67,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="p1"
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     const openBudgetLink = screen.getByRole('link', { name: /open project/i });
@@ -72,6 +81,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="proj-42"
         totalValue={10000}
         projectName="Solar Farm"
+        status="Requested"
       />,
     );
     // Heading link
@@ -88,6 +98,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId={null}
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -100,6 +111,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="p1"
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     // Loading skeleton is rendered; no "Open project budget" link yet
@@ -115,6 +127,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="p1"
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     expect(screen.getByText(/budget unavailable/i)).toBeDefined();
@@ -128,6 +141,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         projectId="p1"
         totalValue={25000}
         projectName="Bridge Alpha"
+        status="Requested"
       />,
     );
     expect(screen.getByText(/No active budget/i)).toBeDefined();
