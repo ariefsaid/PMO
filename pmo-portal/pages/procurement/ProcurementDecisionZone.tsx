@@ -30,6 +30,7 @@ import {
   RecordActionZone,
 } from '@/src/components/ui';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
+import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import type { ProcurementStatus, ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 
@@ -346,6 +347,14 @@ ProcurementDecisionZone.displayName = 'ProcurementDecisionZone';
 // O3 (AC-W3-O3): inline VI capture — appears in the action bar when the user
 // clicks "Mark Vendor Invoiced", co-locating invoice capture with the transition.
 // N1 (AC-W3-N1): Paid is excluded from status options here too.
+//
+// ⚠ KEEP IN SYNC with RecordCaptureForm.tsx `kind="vendor_invoice"` — the OTHER
+// vendor-invoice capture entry point. Both render the SAME four VI fields and share
+// the `vi-*` testids (single-sourced in vendorInvoiceTestIds.ts). They intentionally
+// keep DISTINCT layouts + submit semantics: this path is transition-coupled (fires
+// transition → createInvoice via the "Confirm & Mark Invoiced" success button),
+// RecordCaptureForm uses the onStage/onCreate form-submit card. A change to the VI
+// FIELD SET (add/remove a field, change status options) must be made in BOTH.
 // ---------------------------------------------------------------------------
 interface VIInlineCaptureProps {
   busy: boolean;
@@ -384,7 +393,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             onChange={(e) => setRefNum(e.target.value)}
             placeholder="e.g. INV-2291"
             maxLength={64}
-            data-testid="vi-ref-input"
+            data-testid={VI_FIELD_TEST_IDS.ref}
             className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
@@ -396,7 +405,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             value={amtStr}
             onChange={(e) => setAmtStr(e.target.value)}
             placeholder="0.00"
-            data-testid="vi-amount-input"
+            data-testid={VI_FIELD_TEST_IDS.amount}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
@@ -405,7 +414,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           <select
             value={viStatus}
             onChange={(e) => setViStatus(e.target.value as 'Received' | 'Scheduled')}
-            data-testid="vi-status-select"
+            data-testid={VI_FIELD_TEST_IDS.status}
             className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <option value="Received">Received</option>
@@ -419,7 +428,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             type="date"
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
-            data-testid="vi-date-input"
+            data-testid={VI_FIELD_TEST_IDS.date}
             className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
