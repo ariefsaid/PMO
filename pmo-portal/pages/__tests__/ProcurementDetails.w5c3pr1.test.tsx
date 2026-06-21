@@ -509,14 +509,15 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
     expect(rejectBtn.className).toContain('border-input');
   });
 
-  it('non-regression: evidence (line-items) precedes decision-card in DOM order', () => {
+  it('IxD Change 1: the decision strip precedes the line-items evidence in DOM order (above the tabs)', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    // Evidence now lives on the Line-items tab; the decision card is outside the tabs
-    // and still follows the active panel in DOM order — the goal is preserved.
+    // Owner IxD reversal: the decision strip is now a compact, non-sticky strip placed
+    // directly under the stepper and ABOVE the tabs, so it precedes the active tab's
+    // evidence in DOM order.
     renderPage('items');
-    const lineItems = screen.getByTestId('line-items-section');
     const decisionCard = screen.getByTestId('decision-card');
-    const position = lineItems.compareDocumentPosition(decisionCard);
+    const lineItems = screen.getByTestId('line-items-section');
+    const position = decisionCard.compareDocumentPosition(lineItems);
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

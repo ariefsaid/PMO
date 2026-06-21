@@ -3,28 +3,29 @@
  * (refactor: procurement-detail-dedup). Lifted verbatim out of the
  * ProcurementDetails god-file to shrink it; behavior + rendered output unchanged.
  *
- * ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
- * DecisionCard anchored BELOW all evidence. Contains:
- *   • SoD GateNotice (D6) — when blocked, up-front so the viewer learns WHY
- *     before looking for missing buttons
- *   • "Ready to advance" GateNotice — when actions exist
- *   • Notes textarea (approve/reject only)
+ * ░░ DECISION STRIP — compact, non-sticky, under the stepper (IxD Change 1) ░░
+ * Owner IxD: relocated from a sticky-bottom bar to a COMPACT action strip in normal
+ * flow, directly below the lifecycle stepper and above the tabs. Minimal vertical
+ * whitespace. Contains:
+ *   • SoD hint (D6) — ONE muted inline line (condensed from a boxed GateNotice) so
+ *     the viewer learns WHY they can/can't act without a heavy banner
+ *   • Notes — PROGRESSIVE DISCLOSURE: a quiet "Add a note" link reveals the optional
+ *     textarea inline (no always-on field); approve/reject only
  *   • O3 inline VI capture (replaces "Mark Vendor Invoiced" when clicked)
  *   • Action row: ONE primary → outline secondaries → destructive LAST (D7/D8)
  *   • GR/VI capture (D17) — quiet ghost links co-located below the primary CTA
  *   • Inline mutation error (role=alert)
  *
- * CW-STICKY: On desktop (≥920px) the decision zone is sticky-bottom so the
- * advance/approve action is never below the fold (DESIGN.md §RecordActionZone:
- * "sticky on desktop"). On mobile the existing mobile-sticky-action bar handles
- * the reach affordance; the card stays in normal flow for mobile.
+ * Non-sticky: the strip sits in normal flow (RecordActionZone sticky={false}); it
+ * still renders THROUGH RecordActionZone so the `record-action-zone` enforcement
+ * contract holds. The SoD/transition state machine (gating, pendingConfirm, RPC
+ * calls, confirm dialog) is UNCHANGED — only layout + Notes disclosure changed.
  */
 import React from 'react';
 import {
   Card,
   CardPad,
   Button,
-  GateNotice,
   Icon,
   RecordActionZone,
 } from '@/src/components/ui';
@@ -132,28 +133,48 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   onActionClick,
   mutations,
 }) => {
+  // IxD Change 1: the strip is NON-STICKY and lives directly under the stepper
+  // (above the tabs). The SoD hint is condensed from a boxed GateNotice banner to a
+  // single muted inline line so the strip carries minimal vertical whitespace. The
+  // wording (and its SoD meaning) is unchanged. The Draft-author case is already
+  // covered by the `sod-pre-announce` line below, so the ready hint suppresses there
+  // to avoid two near-identical lines.
+  const showReadyHint = !gateMsg && actions.length > 0 && !(isDraft && isRequester);
+
+  // IxD Change 1 — Notes is progressive-disclosure: NOT shown at rest. When
+  // Approve/Reject is available (`showNotes`) a quiet "Add a note" link reveals the
+  // optional textarea inline, before the confirm. The note still flows through the
+  // existing notesInput → commitTransition path (SoD/transition machine untouched).
+  const [notesRevealed, setNotesRevealed] = React.useState(false);
+
   return (
-    <RecordActionZone>
-      <Card className="mb-4" data-testid="decision-card">
-        <CardPad className="flex flex-col gap-3">
-          {/* D6: SoD / readiness gate inside the DecisionCard — co-located with the
-              (absent or present) action buttons so the viewer never hunts for the
-              reason they can't act. One authoritative notice; no duplicate banners. */}
+    <RecordActionZone sticky={false} className="mb-4">
+      <Card data-testid="decision-card">
+        <CardPad className="flex flex-col gap-2.5 py-3">
+          {/* D6: SoD / readiness hint — co-located with the (absent or present) action
+              buttons so the viewer never hunts for the reason they can't act. Condensed
+              to ONE muted inline line (IxD Change 1) instead of a boxed banner. */}
           {gateMsg ? (
-            <GateNotice variant="blocked">
-              <b>Separation-of-duties gate.</b> {gateMsg}
-            </GateNotice>
-          ) : actions.length > 0 ? (
-            <GateNotice variant="ready">
+            <p
+              data-testid="sod-blocked-hint"
+              className="text-[13px] text-muted-foreground"
+            >
+              <b className="font-semibold text-foreground">Separation-of-duties gate.</b> {gateMsg}
+            </p>
+          ) : showReadyHint ? (
+            <p
+              data-testid="sod-ready-hint"
+              className="text-[13px] text-muted-foreground"
+            >
               {readyGateMessage(p.status, isRequester, isApprover)}
-            </GateNotice>
+            </p>
           ) : null}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
               The author (requester) is about to submit their own request; they need to know
               that submission hands it to a different approver — self-approval is not allowed.
-              This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD gate
-              (blocked notice at Requested) already handles the non-author blocker path. */}
+              This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD hint
+              (blocked line at Requested) already handles the non-author blocker path. */}
           {isDraft && isRequester && (
             <p
               data-testid="sod-pre-announce"
@@ -163,7 +184,22 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
             </p>
           )}
 
-          {showNotes && (
+          {/* IxD Change 1 — progressive-disclosure Notes. At rest only the quiet
+              "Add a note" link shows; clicking it reveals the optional textarea
+              inline (no always-on field taking vertical space). */}
+          {showNotes && !notesRevealed && (
+            <button
+              type="button"
+              data-testid="procurement-notes-reveal"
+              onClick={() => setNotesRevealed(true)}
+              className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <Icon name="plus" className="size-3.5" />
+              Add a note <span className="font-normal text-muted-foreground">(optional)</span>
+            </button>
+          )}
+
+          {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
               <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
                 Notes <span className="font-normal">(optional)</span>
@@ -172,6 +208,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 id="procurement-notes-input"
                 data-testid="procurement-notes-input"
                 rows={2}
+                autoFocus
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
                 placeholder="Add a note for the approval or rejection…"
