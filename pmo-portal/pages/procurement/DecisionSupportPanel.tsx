@@ -33,9 +33,9 @@ import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
-import { RESERVED_STATUSES } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
+import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
 const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
@@ -140,24 +140,19 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   }
 
   // ── Figures (three layers, ADR-0034) ─────────────────────────────────────────
+  // Interdependent budget math lives in the pure computeBudgetSignal helper so it is
+  // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
-  const available = budgetAmount - committedSpend - reserved; // FR-RB-010
-  const caseInReserved = RESERVED_STATUSES.includes(status); // FR-RB-013/014
-  // FR-RB-013 — subtract thisRequest only when the case is NOT already inside Reserved.
-  const afterRequest = available - (caseInReserved ? 0 : totalValue);
-  // FR-RB-014 — the tile shows OTHER reserved (excluding this case); headroom math above
-  // uses TOTAL reserved.
-  const otherReserved = reserved - (caseInReserved ? totalValue : 0);
+  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
+    computeBudgetSignal({
+      budget: budgetAmount,
+      committed: committedSpend,
+      reserved,
+      totalValue,
+      status,
+    });
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
-
-  // FR-RB-040: advisory only when NOT already in Reserved (Draft/Requested) AND the
-  // request exceeds available.
-  const overAvailable = !caseInReserved && totalValue > available;
-  const overAvailableAmount = overAvailable ? totalValue - available : 0;
-  // FR-RB-041: when already in Reserved, no thisRequest-based advisory; show over-budget
-  // info if the project is over-committed across all reserved+committed demand.
-  const overBudgetReserved = caseInReserved && available < 0;
 
   const tiles = [
     { label: 'This request', value: formatCurrency(totalValue) },
