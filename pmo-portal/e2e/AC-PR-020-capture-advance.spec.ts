@@ -33,6 +33,13 @@
  *
  * AC-PR-022 oracle (folded):
  *   Every affordance exercised (ledger-capture-open, save, advance) performs its stated action.
+ *
+ * HISTORY NOTE (tabbed revamp): SP2401-004 is seeded directly at Approved status with no
+ *   procurement_status_events rows and no child document records. The Progression timeline's
+ *   <ol> therefore does NOT render before any action (the component shows an empty-state <p>
+ *   instead). This is intentional — the empty-state is the correct "before" for this case.
+ *   After an RFQ capture the RFQ record appears as an orphan event in buildProgressionTimeline,
+ *   so the <ol> renders with ≥1 item. The test measures growth as: 0 → ≥1.
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
@@ -47,14 +54,19 @@ test.describe.configure({ mode: 'serial' });
 test('AC-PR-020 capture a record via Documents-tab ledger — system # + external ref appear, history grows — on one page', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
 
-  // ── Step 1: Load the case, measure the Progression timeline before capture ──
+  // ── Step 1: Load the case on the Overview tab ────────────────────────────────
   await page.goto(`/procurement/${CAPTURE_CASE_ID}/overview`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // Snapshot the Progression timeline event count BEFORE capture
+  // Snapshot the Progression timeline event count BEFORE capture.
+  // SP2401-004 is seeded directly at Approved with NO statusEvents rows and no child
+  // document records. buildProgressionTimeline therefore returns [] → the component
+  // renders an empty-state <p>, NOT an <ol>. We count the <li> elements directly:
+  // locator.count() returns 0 for a non-existent element, so beforeCount = 0 is safe
+  // without asserting the list exists (which would fail for this no-history case).
   const historyList = page.getByRole('list', { name: 'Progression history' });
-  await expect(historyList).toBeVisible({ timeout: 10_000 });
   const beforeCount = await historyList.locator('li').count();
+  // beforeCount is 0 for this freshly-seeded case; the oracle is afterCount > beforeCount.
 
   // ── Step 2: Navigate to the Documents tab ────────────────────────────────────
   const documentsTab = page.getByRole('tab', { name: /Documents/i });
@@ -105,7 +117,8 @@ test('AC-PR-020 capture a record via Documents-tab ledger — system # + externa
   await overviewTab.click();
 
   // React Query cache is invalidated after capture → the detail bundle refetches
-  // and the timeline rebuilds with the new RFQ event.
+  // and the timeline rebuilds with the new RFQ orphan-record event.
+  // For this case: beforeCount = 0, so we assert afterCount ≥ 1 (the new RFQ row).
   await expect(async () => {
     const afterCount = await historyList.locator('li').count();
     expect(
