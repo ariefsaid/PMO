@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Detail — Option A: Tabbed</title>
+<link rel="stylesheet" href="./_tokens.css">
+<style>
+  /* Option-A-local: tab bar (mirrors the app's <Tabs> — underlined active, h-44 touch). */
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid hsl(var(--border)); margin-bottom: 16px;
+    overflow-x: auto; }
+  .ptab { position: relative; height: 44px; padding: 0 14px; border: none; background: none;
+    font-size: 13.5px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer; white-space: nowrap; }
+  .ptab .cnt { margin-left: 6px; background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+    border-radius: 999px; padding: 1px 7px; font-size: 11px; }
+  .ptab.active { color: hsl(var(--primary)); font-weight: 600; }
+  .ptab.active::after { content:""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px;
+    background: hsl(var(--primary)); border-radius: 2px 2px 0 0; }
+  .panel { display: none; } .panel.on { display: block; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .dl { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 32px; }
+  .dl dt { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .dl dd { margin: 2px 0 0; font-size: 13.5px; }
+  .actionbar { position: sticky; bottom: 0; z-index: 10; background: hsl(var(--background) / 0.95);
+    backdrop-filter: blur(6px); border-top: 1px solid hsl(var(--border)); padding: 12px 0; margin-top: 16px; }
+  @media (max-width: 720px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .twocol, .dl { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="ris-portal-app">
+
+<div class="demo-bar">
+  <b>MOCKUP — Option A · Tabbed detail</b>
+  <span>Realistic data: "PV Modules — Meridian" · Paid · PR/RFQ/PO/GR/VI/Payment present</span>
+  <span class="seg" role="group" aria-label="Viewport">
+    <button class="on" onclick="vp('d')">Desktop</button>
+    <button onclick="vp('m')">390px</button>
+  </span>
+  <a href="./README.md" style="margin-left:auto">README ↗</a>
+</div>
+
+<div id="frame">
+<div class="shell">
+  <!-- Rail -->
+  <aside class="rail">
+    <div class="brand"><div class="logo">P</div><div><div style="font-weight:600">PMO Portal</div></div></div>
+    <nav>
+      <div class="group-label overline">Operate</div>
+      <a class="nav-item">Dashboard</a>
+      <a class="nav-item">Projects</a>
+      <a class="nav-item active">Procurement</a>
+      <a class="nav-item">Approvals</a>
+      <a class="nav-item">Companies</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="crumb">Procurement &nbsp;›&nbsp; <b>PV Modules — Meridian</b></span>
+    </div>
+
+    <div class="content">
+      <!-- Record header (ONE RecordHeader anatomy: icon + name + status pill + actions) -->
+      <div class="rec-head">
+        <div class="rec-icon" style="background:hsl(var(--success))">🛒</div>
+        <div>
+          <div class="rec-title">PV Modules — Meridian Solar Farm</div>
+          <div class="rec-meta"><span class="mono">PR-2026-0142</span> · Meridian Solar Farm · requested by D. Okafor</div>
+        </div>
+        <div class="rec-actions">
+          <span class="pill pill-won"><span class="dot"></span>Paid</span>
+        </div>
+      </div>
+
+      <!-- ONE progression encoding lives here: the bar stepper (the app's ONE stepper).
+           History/trail/per-phase cards are demoted INTO the Records/History tabs. -->
+      <div class="card mb-4"><div class="card-pad">
+        <div class="stepper" aria-label="Procurement lifecycle">
+          <div class="step done"><div class="jbar"></div><span class="step-label">Request</span><span class="step-meta mono">PR-0142</span></div>
+          <div class="step done"><div class="jbar"></div><span class="step-label">Quoted</span><span class="step-meta mono">VQ-0091</span></div>
+          <div class="step done"><div class="jbar"></div><span class="step-label">Ordered</span><span class="step-meta mono">PO-0077</span></div>
+          <div class="step done"><div class="jbar"></div><span class="step-label">Received</span><span class="step-meta mono">GR-0061</span></div>
+          <div class="step done"><div class="jbar"></div><span class="step-label">Invoiced</span><span class="step-meta mono">VI-0054</span></div>
+          <div class="step paid"><div class="jbar"></div><span class="step-label">Paid</span><span class="step-meta mono">PAY-0033</span></div>
+        </div>
+      </div></div>
+
+      <!-- Tabs — IDENTICAL grammar to /projects/:id/:tab -->
+      <div class="ptabs" role="tablist" aria-label="Procurement sections">
+        <button class="ptab active" role="tab" aria-selected="true" onclick="tab('overview',this)">Overview</button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('records',this)">Records <span class="cnt">6</span></button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('items',this)">Items <span class="cnt">3</span></button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('quotes',this)">Quotes <span class="cnt">3</span></button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('history',this)">History</button>
+      </div>
+
+      <!-- OVERVIEW: the one identity display + budget signal + financial summary. No record cards here. -->
+      <div class="panel on" id="overview" role="tabpanel">
+        <div class="tiles mb-4">
+          <div class="stat-tile"><div class="stat-label">PR value</div><div class="stat-value tabular">$486,000</div><div class="stat-sub">Meridian Solar Farm</div></div>
+          <div class="stat-tile"><div class="stat-label">Selected quote</div><div class="stat-value tabular">$478,500</div><div class="stat-sub">Sunforge Components</div></div>
+          <div class="stat-tile"><div class="stat-label">PO committed</div><div class="stat-value tabular">$478,500</div><div class="stat-sub">Sunforge Components</div></div>
+          <div class="stat-tile"><div class="stat-label">Paid</div><div class="stat-value tabular">$478,500</div><div class="stat-sub">PAY-2026-0033 · 14 May</div></div>
+        </div>
+
+        <div class="card mb-4"><div class="card-pad">
+          <div class="flex between center mb-3"><div class="subheading">Budget signal</div><span class="pill pill-won"><span class="dot"></span>Healthy</span></div>
+          <div class="muted body">Committed spend $478,500 of $1,250,000 project budget — 38% committed, $771,500 remaining (pending-aware, committed basis).</div>
+        </div></div>
+
+        <div class="card"><div class="card-head">Detail</div><div class="card-pad">
+          <dl class="dl">
+            <div><dt>Project</dt><dd><a style="color:hsl(var(--primary))" href="#">Meridian Solar Farm</a></dd></div>
+            <div><dt>Vendor</dt><dd><a style="color:hsl(var(--primary))" href="#">Sunforge Components</a></dd></div>
+            <div><dt>Requested by</dt><dd>D. Okafor</dd></div>
+            <div><dt>Approved by</dt><dd>L. Marchetti · 02 May</dd></div>
+            <div style="grid-column:1/-1"><dt>Description</dt><dd>540W bifacial PV modules (1,800 units) for the Meridian array, ex-works + freight to site.</dd></div>
+          </dl>
+        </div></div>
+      </div>
+
+      <!-- RECORDS: the 7 record types as ONE ledger of populated rows — dual-ID + file. Empty types omitted. -->
+      <div class="panel" id="records" role="tabpanel">
+        <div class="card"><div class="card-head">Case records <span class="muted label">system # · external ref · file</span></div>
+          <table class="dtable">
+            <thead><tr><th>Type</th><th>System #</th><th>External ref</th><th>Date</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>PR</span></td><td class="mono">PR-2026-0142</td><td class="mono">REQ/MER/0142</td><td>28 Apr</td><td class="num tabular">$486,000</td><td><span class="pill pill-neutral"><span class="dot"></span>Approved</span></td><td><a class="btn-link" href="#">pr.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>RFQ</span></td><td class="mono">RFQ-2026-0091</td><td class="mono">RFQ/MER/22</td><td>30 Apr</td><td class="num tabular">—</td><td><span class="pill pill-neutral"><span class="dot"></span>Closed</span></td><td><a class="btn-link" href="#">rfq.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>Quote</span></td><td class="mono">VQ-2026-0091</td><td class="mono">SF-Q-8841</td><td>04 May</td><td class="num tabular">$478,500</td><td><span class="pill pill-won"><span class="dot"></span>Selected</span></td><td><a class="btn-link" href="#">quote.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>PO</span></td><td class="mono">PO-2026-0077</td><td class="mono">PO/MER/0077</td><td>06 May</td><td class="num tabular">$478,500</td><td><span class="pill pill-neutral"><span class="dot"></span>Issued</span></td><td><a class="btn-link" href="#">po.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>GR</span></td><td class="mono">GR-2026-0061</td><td class="mono">DN-44120</td><td>11 May</td><td class="num tabular">—</td><td><span class="pill pill-won"><span class="dot"></span>Complete</span></td><td><a class="btn-link" href="#">gr.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>Invoice</span></td><td class="mono">VI-2026-0054</td><td class="mono">INV-SF-2291</td><td>12 May</td><td class="num tabular">$478,500</td><td><span class="pill pill-neutral"><span class="dot"></span>Received</span></td><td><a class="btn-link" href="#">inv.pdf</a></td></tr>
+              <tr><td><span class="pill pill-violet"><span class="dot"></span>Payment</span></td><td class="mono">PAY-2026-0033</td><td class="mono">TT-9930021</td><td>14 May</td><td class="num tabular">$478,500</td><td><span class="pill pill-won"><span class="dot"></span>Paid</span></td><td><a class="btn-link" href="#">remit.pdf</a></td></tr>
+            </tbody>
+          </table>
+          <div class="card-pad rnote">Capture happens inline here (the "+ Capture &lt;next record&gt;" row appears only for the active phase — see Draft note below). Empty/inactive record types are NOT rendered as cards.</div>
+        </div>
+      </div>
+
+      <div class="panel" id="items" role="tabpanel">
+        <div class="card"><div class="card-head">Line items <span class="muted label">3 items</span></div>
+          <table class="dtable">
+            <thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+              <tr><td class="muted">1</td><td>540W bifacial PV module</td><td class="num tabular">1,800</td><td class="num tabular">$255</td><td class="num tabular">$459,000</td></tr>
+              <tr><td class="muted">2</td><td>Mounting clamps (set)</td><td class="num tabular">3,600</td><td class="num tabular">$4.50</td><td class="num tabular">$16,200</td></tr>
+              <tr><td class="muted">3</td><td>Freight to site</td><td class="num tabular">1</td><td class="num tabular">$10,800</td><td class="num tabular">$10,800</td></tr>
+            </tbody>
+            <tfoot><tr><td colspan="4" style="text-align:right;font-weight:600" class="muted">Total</td><td class="num" style="font-weight:700">$486,000</td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="quotes" role="tabpanel">
+        <div class="card"><div class="card-head">Bid comparison <span class="muted label">P2 · select-with-rationale</span></div>
+          <table class="dtable">
+            <thead><tr><th>Vendor</th><th class="num">Amount</th><th>Valid until</th><th>Lead time</th><th>Terms</th><th></th></tr></thead>
+            <tbody>
+              <tr style="background:hsl(var(--success)/0.06)"><td><b>Sunforge Components</b> <span class="pill pill-won"><span class="dot"></span>Selected · best value</span></td><td class="num tabular">$478,500</td><td>30 May</td><td>3 wks</td><td>Net 30</td><td></td></tr>
+              <tr><td>Helios Trading</td><td class="num tabular">$491,200</td><td>28 May</td><td>4 wks</td><td>Net 45</td><td><button class="btn-link">Select</button></td></tr>
+              <tr><td>NorthPanel Co</td><td class="num tabular">$505,800</td><td>25 May</td><td>2 wks</td><td>Net 30</td><td><button class="btn-link">Select</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="history" role="tabpanel">
+        <div class="card"><div class="card-head">Progression history</div><div class="card-pad col gap-3">
+          <div class="flex gap-3"><span class="overline" style="width:64px">14 May</span><div><b>Paid</b> · PAY-2026-0033 — L. Chen (Finance)</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">12 May</span><div><b>Vendor invoiced</b> · VI-2026-0054 — L. Chen</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">11 May</span><div><b>Goods received</b> · GR-2026-0061 (Complete) — D. Okafor</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">06 May</span><div><b>Ordered</b> · PO-2026-0077 — A. Reyes (PM)</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">04 May</span><div><b>Quote selected</b> · Sunforge — A. Reyes</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">02 May</span><div><b>Approved</b> — L. Marchetti (Exec)</div></div>
+          <div class="flex gap-3"><span class="overline" style="width:64px">28 Apr</span><div><b>Requested</b> — D. Okafor</div></div>
+        </div></div>
+      </div>
+
+      <!-- RecordActionZone: ONE placed, sticky, never below the fold. Terminal Paid → quiet line. -->
+      <div class="actionbar" data-testid="record-action-zone">
+        <div class="card"><div class="card-pad flex between center wrap gap-3">
+          <span class="muted body">No further lifecycle actions — this case is <b>Paid</b> (terminal).</span>
+          <button class="btn btn-outline">Export case PDF</button>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+function tab(id, el){
+  document.querySelectorAll('.ptab').forEach(t=>{t.classList.remove('active');t.setAttribute('aria-selected','false');});
+  el.classList.add('active'); el.setAttribute('aria-selected','true');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+function vp(m){ const f=document.getElementById('frame');
+  document.querySelectorAll('.demo-bar .seg button').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+  if(m==='m'){ f.style.maxWidth='390px'; f.style.margin='0 auto'; f.style.borderLeft=f.style.borderRight='1px solid hsl(var(--border))'; }
+  else { f.style.maxWidth='none'; f.style.borderLeft=f.style.borderRight='none'; }
+}
+</script>
+</body>
+</html>

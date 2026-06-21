@@ -22,13 +22,24 @@ import type { Tables } from '@/src/lib/supabase/database.types';
  * UI can classify the toast via `classifyMutationError`. Deletes are SOFT (archived_at).
  */
 
-export type ProcPhase = 'quotation' | 'receipt' | 'invoice';
+export type ProcPhase =
+  | 'quotation'
+  | 'receipt'
+  | 'invoice'
+  | 'purchase_request'
+  | 'rfq'
+  | 'purchase_order'
+  | 'payment';
 
 export type ProcurementQuotationFileRow = Tables<'procurement_quotation_files'>;
 export type ProcurementReceiptFileRow = Tables<'procurement_receipt_files'>;
 export type ProcurementInvoiceFileRow = Tables<'procurement_invoice_files'>;
+export type PurchaseRequestFileRow = Tables<'purchase_request_files'>;
+export type RfqFileRow = Tables<'rfq_files'>;
+export type PurchaseOrderFileRow = Tables<'purchase_order_files'>;
+export type PaymentFileRow = Tables<'payment_files'>;
 
-/** The shared row shape returned to the UI (all three tables share these columns). */
+/** The shared row shape returned to the UI (all file tables share these columns). */
 export interface ProcurementFileRow {
   id: string;
   org_id: string;
@@ -37,15 +48,28 @@ export interface ProcurementFileRow {
   uploaded_by_id: string | null;
   created_at: string;
   archived_at: string | null;
-  /** The owning parent id (quotation_id | receipt_id | invoice_id), normalized. */
+  /** The owning parent id (quotation_id | receipt_id | invoice_id | …), normalized. */
   parent_id: string;
 }
 
 /** Phase → the parent FK column on its child table (used to normalize rows). */
-const PARENT_COL_BY_PHASE: Record<ProcPhase, 'quotation_id' | 'receipt_id' | 'invoice_id'> = {
+const PARENT_COL_BY_PHASE: Record<
+  ProcPhase,
+  | 'quotation_id'
+  | 'receipt_id'
+  | 'invoice_id'
+  | 'purchase_request_id'
+  | 'rfq_id'
+  | 'purchase_order_id'
+  | 'payment_id'
+> = {
   quotation: 'quotation_id',
   receipt: 'receipt_id',
   invoice: 'invoice_id',
+  purchase_request: 'purchase_request_id',
+  rfq: 'rfq_id',
+  purchase_order: 'purchase_order_id',
+  payment: 'payment_id',
 };
 
 const BUCKET = 'procurement-files';
@@ -152,6 +176,46 @@ export async function listProcurementFiles(
     if (error) throwWrite(error);
     return base(data);
   }
+  if (phase === 'purchase_request') {
+    const { data, error } = await supabase
+      .from('purchase_request_files')
+      .select('*')
+      .eq('purchase_request_id', parentId)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throwWrite(error);
+    return base(data);
+  }
+  if (phase === 'rfq') {
+    const { data, error } = await supabase
+      .from('rfq_files')
+      .select('*')
+      .eq('rfq_id', parentId)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throwWrite(error);
+    return base(data);
+  }
+  if (phase === 'purchase_order') {
+    const { data, error } = await supabase
+      .from('purchase_order_files')
+      .select('*')
+      .eq('purchase_order_id', parentId)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throwWrite(error);
+    return base(data);
+  }
+  if (phase === 'payment') {
+    const { data, error } = await supabase
+      .from('payment_files')
+      .select('*')
+      .eq('payment_id', parentId)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throwWrite(error);
+    return base(data);
+  }
   const { data, error } = await supabase
     .from('procurement_invoice_files')
     .select('*')
@@ -216,6 +280,42 @@ export async function confirmUpload(
     if (error) throwWrite(error);
     return normalizeRow(phase, data as Record<string, unknown>);
   }
+  if (phase === 'purchase_request') {
+    const { data, error } = await supabase
+      .from('purchase_request_files')
+      .insert({ purchase_request_id: parentId, ...common })
+      .select()
+      .single();
+    if (error) throwWrite(error);
+    return normalizeRow(phase, data as Record<string, unknown>);
+  }
+  if (phase === 'rfq') {
+    const { data, error } = await supabase
+      .from('rfq_files')
+      .insert({ rfq_id: parentId, ...common })
+      .select()
+      .single();
+    if (error) throwWrite(error);
+    return normalizeRow(phase, data as Record<string, unknown>);
+  }
+  if (phase === 'purchase_order') {
+    const { data, error } = await supabase
+      .from('purchase_order_files')
+      .insert({ purchase_order_id: parentId, ...common })
+      .select()
+      .single();
+    if (error) throwWrite(error);
+    return normalizeRow(phase, data as Record<string, unknown>);
+  }
+  if (phase === 'payment') {
+    const { data, error } = await supabase
+      .from('payment_files')
+      .insert({ payment_id: parentId, ...common })
+      .select()
+      .single();
+    if (error) throwWrite(error);
+    return normalizeRow(phase, data as Record<string, unknown>);
+  }
   const { data, error } = await supabase
     .from('procurement_invoice_files')
     .insert({ invoice_id: parentId, ...common })
@@ -238,6 +338,26 @@ export async function archiveProcurementFile(phase: ProcPhase, id: string): Prom
   }
   if (phase === 'receipt') {
     const { error } = await supabase.from('procurement_receipt_files').update(patch).eq('id', id);
+    if (error) throwWrite(error);
+    return;
+  }
+  if (phase === 'purchase_request') {
+    const { error } = await supabase.from('purchase_request_files').update(patch).eq('id', id);
+    if (error) throwWrite(error);
+    return;
+  }
+  if (phase === 'rfq') {
+    const { error } = await supabase.from('rfq_files').update(patch).eq('id', id);
+    if (error) throwWrite(error);
+    return;
+  }
+  if (phase === 'purchase_order') {
+    const { error } = await supabase.from('purchase_order_files').update(patch).eq('id', id);
+    if (error) throwWrite(error);
+    return;
+  }
+  if (phase === 'payment') {
+    const { error } = await supabase.from('payment_files').update(patch).eq('id', id);
     if (error) throwWrite(error);
     return;
   }

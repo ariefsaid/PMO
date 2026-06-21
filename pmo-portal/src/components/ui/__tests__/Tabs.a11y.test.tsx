@@ -29,6 +29,41 @@ describe('Tabs a11y wiring (G4)', () => {
     expect(panel).toHaveAttribute('aria-labelledby', tabId('proj', 'budget'));
   });
 
+  it('renders an optional count badge as text in the tab accessible name (DESIGN.md §5 Count badge)', () => {
+    render(
+      <Tabs
+        items={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'documents', label: 'Documents', count: 7 },
+        ]}
+        value="overview"
+        onChange={() => {}}
+        ariaLabel="Sections"
+        idBase="proc"
+      />,
+    );
+    // The count is part of the accessible name (read by SRs / color-blind users), not color-only.
+    expect(screen.getByRole('tab', { name: /Documents\s*7/ })).toBeInTheDocument();
+    // A tab with no count has no trailing badge text.
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+  });
+
+  it('omits the count badge when count is null/undefined (back-compat with ProjectDetail)', () => {
+    render(
+      <Tabs
+        items={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'items', label: 'Line items', count: null },
+        ]}
+        value="overview"
+        onChange={() => {}}
+        ariaLabel="Sections"
+        idBase="proc"
+      />,
+    );
+    expect(screen.getByRole('tab', { name: 'Line items' })).toBeInTheDocument();
+  });
+
   it('AC-W6-G4: id helpers are stable + collision-safe across values', () => {
     expect(tabId('proj', 'overview')).not.toBe(tabId('proj', 'budget'));
     expect(tabPanelId('proj', 'overview')).not.toBe(tabId('proj', 'overview'));

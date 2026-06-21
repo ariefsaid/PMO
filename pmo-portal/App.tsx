@@ -83,7 +83,10 @@ export const AppRoutes: React.FC = () => (
       {/* Model B: the canonical detail route is /projects/:id; /sales/:id redirects there. */}
       <Route path="/sales/:opportunityId" element={<SalesDetailRedirect />} />
       <Route path="/procurement" element={<ProcurementPage />} />
+      {/* Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id
+          keeps working (defaults to the Overview tab); :tab deep-links a panel. */}
       <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+      <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       <Route path="/timesheets" element={<TimesheetsPage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
       <Route path="/companies" element={<CompaniesPage />} />

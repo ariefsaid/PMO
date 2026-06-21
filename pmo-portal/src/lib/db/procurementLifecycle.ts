@@ -50,6 +50,13 @@ export type ProcurementDetail = ProcurementWithRefs & {
   quotations: Tables<'procurement_quotations'>[];
   receipts: ProcurementReceiptRow[];
   invoices: ProcurementInvoiceRow[];
+  // Slice 5 — new record types (loaded in Slice 6.1 DETAIL_SELECT extension)
+  purchase_requests: Tables<'purchase_requests'>[];
+  rfqs: Tables<'rfqs'>[];
+  purchase_orders: Tables<'purchase_orders'>[];
+  payments: Tables<'payments'>[];
+  /** Transition-event log ([PD-7] / FR-PR-025) loaded from procurement_status_events. */
+  statusEvents: Tables<'procurement_status_events'>[];
 };
 
 // ---------------------------------------------------------------------------
@@ -135,6 +142,12 @@ export function formatDocNumber(
 // DAL reads — getProcurementDetail (AC-816)
 // ---------------------------------------------------------------------------
 
+// File-presence sub-select: only the 3 fields needed for the ledger File column.
+// archived_at is null filtering is done client-side in buildLedgerRows (filePresence())
+// since PostgREST embedded `.is(archived_at, null)` filters are applied via query
+// params on the main select, not sub-selects. We fetch all and discard archived in JS.
+const FILE_FIELDS = 'title, file_path, archived_at';
+
 const DETAIL_SELECT = [
   '*',
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
@@ -145,9 +158,21 @@ const DETAIL_SELECT = [
   'requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
   'items:procurement_items(*)',
-  'quotations:procurement_quotations(*)',
-  'receipts:procurement_receipts(*)',
-  'invoices:procurement_invoices(*)',
+  // Quotations + their files (compact — title/file_path/archived_at only).
+  `quotations:procurement_quotations(*, files:procurement_quotation_files(${FILE_FIELDS}))`,
+  // Receipts + their files.
+  `receipts:procurement_receipts(*, files:procurement_receipt_files(${FILE_FIELDS}))`,
+  // Invoices + their files.
+  `invoices:procurement_invoices(*, files:procurement_invoice_files(${FILE_FIELDS}))`,
+  // Slice 6.1 — four new ERP-canonical record types + transition-event log (one bounded
+  // PostgREST embed, no N+1; NFR-PR-PERF-002, [PD-7]).
+  `purchase_requests:purchase_requests(*, files:purchase_request_files(${FILE_FIELDS}))`,
+  `rfqs:rfqs(*, files:rfq_files(${FILE_FIELDS}))`,
+  `purchase_orders:purchase_orders(*, files:purchase_order_files(${FILE_FIELDS}))`,
+  `payments:payments(*, files:payment_files(${FILE_FIELDS}))`,
+  // Embed the actor's profile name so the timeline can display a real name instead
+  // of the raw UUID (AC-PR-PROG-012).  The FK alias must match the constraint name.
+  'statusEvents:procurement_status_events(*, actor:profiles!procurement_status_events_actor_id_fkey(full_name))',
 ].join(', ');
 
 /**
@@ -209,16 +234,19 @@ export async function createQuotation(
 /**
  * Creates a goods-receipt record via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; mints GR# server-side.
+ * `referenceNumber` = supplier delivery-note number (optional, AC-PR-LEDGER-016).
  */
 export async function createReceipt(
   procurementId: string,
   status: 'Partial' | 'Complete',
   receiptDate: string,
+  referenceNumber?: string | null,
 ): Promise<ProcurementReceiptRow> {
   const { data, error } = (await supabase.rpc('create_procurement_receipt', {
     p_procurement_id: procurementId,
     p_status: status,
     p_receipt_date: receiptDate,
+    p_reference_number: referenceNumber ?? null,
   })) as unknown as { data: ProcurementReceiptRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -227,16 +255,21 @@ export async function createReceipt(
 /**
  * Creates a vendor-invoice record via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; mints VI# server-side.
+ * `referenceNumber` = supplier's invoice number; `amount` = invoice total (AC-PR-LEDGER-017).
  */
 export async function createInvoice(
   procurementId: string,
   status: 'Received' | 'Scheduled' | 'Paid',
   invoiceDate: string,
+  referenceNumber?: string | null,
+  amount?: number | null,
 ): Promise<ProcurementInvoiceRow> {
   const { data, error } = (await supabase.rpc('create_procurement_invoice', {
     p_procurement_id: procurementId,
     p_status: status,
     p_invoice_date: invoiceDate,
+    p_reference_number: referenceNumber ?? null,
+    p_amount: amount ?? null,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

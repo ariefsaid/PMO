@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Detail — Hybrid: Tabbed shell + single ledger</title>
+<link rel="stylesheet" href="./_tokens.css">
+<style>
+  /* ── Hybrid-local (A's tab grammar + C's ledger + capture row) ────────────────
+     No new molecules: bar stepper stays canonical (A), DataTable reflow stays
+     canonical (C). The only hybrid-local bit is the dashed "capture" ledger row.   */
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid hsl(var(--border));
+    margin-bottom: 16px; overflow-x: auto; }
+  .ptab { position: relative; height: 44px; padding: 0 14px; border: none; background: none;
+    font-size: 13.5px; font-weight: 500; color: hsl(var(--muted-foreground)); cursor: pointer; white-space: nowrap; }
+  .ptab .cnt { margin-left: 6px; background: hsl(var(--secondary)); color: hsl(var(--muted-foreground));
+    border-radius: 999px; padding: 1px 7px; font-size: 11px; }
+  .ptab.active { color: hsl(var(--primary)); font-weight: 600; }
+  .ptab.active::after { content:""; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px;
+    background: hsl(var(--primary)); border-radius: 2px 2px 0 0; }
+  .ptab:focus-visible { border-radius: 6px; }
+  .panel { display: none; } .panel.on { display: block; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .tiles.sparse { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .dl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; }
+  .dl dt { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .dl dd { margin: 2px 0 0; font-size: 13.5px; }
+
+  /* Records tab = C's ledger: filter chips + table + capture row + mobile card reflow. */
+  .filterchips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid hsl(var(--input));
+    background: hsl(var(--background)); font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground));
+    display: inline-flex; align-items: center; cursor: pointer; }
+  .chip.on { background: hsl(var(--primary) / 0.1); border-color: hsl(var(--primary) / 0.3); color: hsl(var(--nav-active-text)); }
+  .capture-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border: 1.5px dashed hsl(var(--primary) / 0.35); border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--primary) / 0.04); margin: 12px 0 0; }
+  .capture-row .cap-label { font-size: 13px; }
+  .capture-row .cap-label b { color: hsl(var(--nav-active-text)); }
+
+  /* Mobile reflow for the ledger (DataTable md→card single-render). */
+  .ledger-wide { width: 100%; }
+  .ledger-cards { display: none; }
+  .lcard { border: 1px solid hsl(var(--border)); border-radius: calc(var(--radius) - 2px); padding: 12px; margin-bottom: 8px; }
+  .lcard .lrow { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; align-items: center; }
+  .lcard .lrow .k { color: hsl(var(--muted-foreground)); }
+
+  /* RecordActionZone — A's pattern (sticky within content, no edge-bleed → no overlap on short panes). */
+  .actionbar { position: sticky; bottom: 0; z-index: 10; background: hsl(var(--background) / 0.95);
+    backdrop-filter: blur(6px); border-top: 1px solid hsl(var(--border)); padding: 12px 0; margin-top: 16px; }
+
+  .empty { display: flex; flex-direction: column; gap: 8px; padding: 36px 16px; align-items: center; text-align: center; }
+  .empty .empty-ico { width: 40px; height: 40px; border-radius: 999px; background: hsl(var(--secondary));
+    display: grid; place-items: center; font-size: 18px; color: hsl(var(--muted-foreground)); }
+  .empty .empty-title { font-size: 14px; font-weight: 600; }
+  .empty .empty-body { font-size: 13px; color: hsl(var(--muted-foreground)); max-width: 42ch; }
+
+  /* Progression timeline (Overview) — vertical dot+rail, details + links. Folds in the old History tab. */
+  .timeline { position: relative; padding-left: 26px; }
+  .timeline::before { content:""; position:absolute; left: 7px; top: 6px; bottom: 6px; width: 2px; background: hsl(var(--border)); }
+  .tl-event { position: relative; padding-bottom: 16px; }
+  .tl-event:last-child { padding-bottom: 0; }
+  .tl-dot { position:absolute; left: -26px; top: 1px; width: 16px; height: 16px; border-radius: 999px;
+    background: hsl(var(--success)); border: 2px solid hsl(var(--success)); box-sizing: border-box; }
+  .tl-event.current .tl-dot { background: hsl(var(--background)); border-color: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15); }
+  .tl-date { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .tl-title { font-size: 13.5px; font-weight: 600; margin-top: 1px; }
+  .tl-meta { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+
+  /* Overview bento: main 2/3 (tiles + budget + detail) · Progression 1/3 on the right. */
+  #frame { container-type: inline-size; }
+  .ov-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .ov-main > .tiles { grid-template-columns: repeat(2, 1fr); }
+  .ov-side { position: sticky; top: 16px; }
+
+  /* Mobile reflow driven by the FRAME width (container query) so the 390px toggle ACTUALLY reflows
+     (the old viewport @media never fired under the clamp; the rail had no collapse at all). */
+  @container (max-width: 760px) {
+    .rail { display: none; }                  /* rail goes off-canvas on mobile; the mock hides it */
+    .ov-grid { grid-template-columns: 1fr; }  /* bento stacks: Progression drops below */
+    .ov-side { position: static; }
+    .ov-main > .tiles, .tiles { grid-template-columns: repeat(2, 1fr); }
+    .dl { grid-template-columns: 1fr; }
+    .ledger-wide { display: none; }
+    .ledger-cards { display: block; }
+    .stepper { overflow-x: auto; }
+    .stepper .step { min-width: 84px; }
+    .content { padding-left: 16px; padding-right: 16px; }
+    .actionbar { position: static; backdrop-filter: none; background: hsl(var(--background)); }
+  }
+  /* Fallback for a genuinely narrow browser window (real viewport). */
+  @media (max-width: 760px) {
+    .ov-grid { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .dl { grid-template-columns: 1fr; }
+    .ledger-wide { display: none; }
+    .ledger-cards { display: block; }
+  }
+</style>
+</head>
+<body class="ris-portal-app">
+
+<div class="demo-bar">
+  <b>MOCKUP — Hybrid · Tabbed shell (A) + single ledger (C)</b>
+  <span id="scen-line">PV Modules — Meridian · Paid · 7 records</span>
+  <span class="seg" role="group" aria-label="Scenario">
+    <button class="on" onclick="scen('paid',this)">Paid case</button>
+    <button onclick="scen('draft',this)">Draft case</button>
+  </span>
+  <span class="seg" role="group" aria-label="Viewport">
+    <button class="on" onclick="vp('d',this)">Desktop</button>
+    <button onclick="vp('m',this)">390px</button>
+  </span>
+  <a href="./README.md" style="margin-left:auto">README ↗</a>
+</div>
+
+<div id="frame">
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><div class="logo">P</div><div style="font-weight:600">PMO Portal</div></div>
+    <nav>
+      <div class="group-label overline">Operate</div>
+      <a class="nav-item">Dashboard</a>
+      <a class="nav-item">Projects</a>
+      <a class="nav-item active">Procurement</a>
+      <a class="nav-item">Approvals</a>
+      <a class="nav-item">Companies</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="crumb">Procurement &nbsp;›&nbsp; <b id="crumb-name">PV Modules — Meridian</b></span>
+    </div>
+
+    <div class="content">
+      <!-- Record header: ONE identity. Rendered from data. -->
+      <div class="rec-head" id="rec-head"></div>
+
+      <!-- Progression encodings: the canonical bar stepper (DESIGN.md §5) for phase-at-a-glance, plus the
+           Overview "Progression" timeline for the dated who/what trail. Per-phase "No X yet" cards are gone;
+           the document ledger lives in the Documents tab. -->
+      <div class="card mb-4"><div class="card-pad">
+        <div class="stepper" id="stepper" aria-label="Procurement lifecycle"></div>
+      </div></div>
+
+      <!-- Tabs — identical grammar to /projects/:id/:tab. Default = Overview (status-at-a-glance: stepper + timeline). -->
+      <div class="ptabs" role="tablist" aria-label="Procurement sections">
+        <button class="ptab active" role="tab" aria-selected="true" onclick="tab('overview',this)">Overview</button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('items',this)">Line items <span class="cnt" id="cnt-items">3</span></button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('records',this)">Documents <span class="cnt" id="cnt-records">7</span></button>
+        <button class="ptab" role="tab" aria-selected="false" onclick="tab('quotes',this)">Vendor quotes <span class="cnt" id="cnt-quotes">3</span></button>
+      </div>
+
+      <!-- OVERVIEW: status-at-a-glance — summary + budget + the progression timeline (history folded in) + detail.
+           One tab answers "where is this, what happened, what's next" without leaving the page. -->
+      <div class="panel on" id="overview" role="tabpanel">
+        <div class="ov-grid">
+          <div class="ov-main">
+            <div class="tiles mb-4" id="tiles"></div>
+            <div class="card mb-4"><div class="card-pad">
+              <div class="flex between center mb-3 wrap gap-3">
+                <div class="subheading">Budget signal</div>
+                <span id="budget-pill"></span>
+              </div>
+              <div class="body" id="budget-text"></div>
+            </div></div>
+            <div class="card"><div class="card-head">Detail</div><div class="card-pad">
+              <dl class="dl" id="detail-dl"></dl>
+            </div></div>
+          </div>
+          <aside class="ov-side">
+            <div class="card"><div class="card-head">Progression</div><div class="card-pad">
+              <div class="timeline" id="timeline"></div>
+            </div></div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- RECORDS = C's ledger: one chronological table (dual-ID + file), filter chips,
+           and the one capture affordance for the active phase. Empty types have no row. -->
+      <div class="panel" id="records" role="tabpanel">
+        <div class="card">
+          <div class="card-head">
+            <span>Case ledger</span>
+            <div class="filterchips">
+              <button class="chip on">All</button>
+              <button class="chip">Financial</button>
+              <button class="chip">Has file</button>
+            </div>
+          </div>
+
+          <table class="dtable ledger-wide">
+            <thead><tr><th>Date</th><th>Type</th><th>System #</th><th>External ref</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
+            <tbody id="ledger-body"></tbody>
+          </table>
+          <div class="ledger-cards card-pad" id="ledger-cards"></div>
+
+          <div class="card-pad">
+            <div id="capture-row"></div>
+            <p class="rnote">Every record appears once, chronological. Empty record types have no row. Capture is a single affordance pre-selecting the next expected type for the active phase.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ITEMS -->
+      <div class="panel" id="items" role="tabpanel">
+        <div class="card"><div class="card-head">Line items</div>
+          <div id="items-body"></div>
+        </div>
+      </div>
+
+      <!-- QUOTES = P2 bid comparison -->
+      <div class="panel" id="quotes" role="tabpanel">
+        <div class="card"><div class="card-head">Bid comparison <span class="muted label">select-with-rationale</span></div>
+          <div id="quotes-body"></div>
+        </div>
+      </div>
+
+      <!-- (History tab removed — folded into the Overview "Progression" timeline.) -->
+
+      <!-- RecordActionZone: ONE placement, sticky, never below the fold. -->
+      <div class="actionbar" data-testid="record-action-zone">
+        <div class="card"><div class="card-pad" id="action-body"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* Two scenarios from one data shape. The empty (Draft) case is the de-dup proof point:
+   it renders 1 tile, 1 ledger row + 1 capture row, taught empty-states on Items/Quotes,
+   1 history event, and ONE live verb. Compare to today's seven "No X recorded yet" cards. */
+const P = (t) => `<span class="pill pill-violet"><span class="dot"></span>${t}</span>`;
+const money = (n) => n==null ? '—' : '$'+n.toLocaleString('en-US');
+const dmon  = (d) => `<span class="mono">${d}</span>`;
+
+const SCENARIOS = {
+  paid: {
+    line: 'PV Modules — Meridian · Paid · 7 records',
+    crumb: 'PV Modules — Meridian',
+    icon: '🛒', iconBg: 'hsl(var(--success))',
+    title: 'PV Modules — Meridian Solar Farm',
+    meta: '<span class="mono">PR-2026-0142</span> · Meridian Solar Farm · requested by D. Okafor',
+    status: '<span class="pill pill-won"><span class="dot"></span>Paid</span>',
+    steps: [
+      ['Request','done','PR-0142'],['Quoted','done','VQ-0091'],['Ordered','done','PO-0077'],
+      ['Received','done','GR-0061'],['Invoiced','done','VI-0054'],['Paid','paid','PAY-0033'],
+    ],
+    tiles: [
+      ['PR value', money(486000), 'Meridian Solar Farm'],
+      ['Selected quote', money(478500), 'Sunforge Components'],
+      ['PO committed', money(478500), 'Sunforge Components'],
+      ['Paid', money(478500), 'PAY-2026-0033 · 14 May'],
+    ],
+    budgetPill: '<span class="pill pill-won"><span class="dot"></span>Healthy</span>',
+    budgetText: 'Committed spend $478,500 of $1,250,000 project budget. 38% committed, $771,500 remaining (pending-aware, committed basis).',
+    detail: [
+      ['Project','<a style="color:hsl(var(--primary))" href="#">Meridian Solar Farm</a>'],
+      ['Vendor','<a style="color:hsl(var(--primary))" href="#">Sunforge Components</a>'],
+      ['Requested by','D. Okafor'],
+      ['Approved by','L. Marchetti · 02 May'],
+      ['Description','540W bifacial PV modules (1,800 units) for the Meridian array, ex-works plus freight to site.'],
+    ],
+    records: [
+      ['14 May','Payment','PAY-2026-0033','TT-9930021',478500,'<span class="pill pill-won"><span class="dot"></span>Paid</span>','remit.pdf'],
+      ['12 May','Invoice','VI-2026-0054','INV-SF-2291',478500,'<span class="pill pill-neutral"><span class="dot"></span>Received</span>','inv.pdf'],
+      ['11 May','GR','GR-2026-0061','DN-44120',null,'<span class="pill pill-won"><span class="dot"></span>Complete</span>','gr.pdf'],
+      ['06 May','PO','PO-2026-0077','PO/MER/0077',478500,'<span class="pill pill-neutral"><span class="dot"></span>Issued</span>','po.pdf'],
+      ['04 May','Quote','VQ-2026-0091','SF-Q-8841',478500,'<span class="pill pill-won"><span class="dot"></span>Selected</span>','quote.pdf'],
+      ['30 Apr','RFQ','RFQ-2026-0091','RFQ/MER/22',null,'<span class="pill pill-neutral"><span class="dot"></span>Closed</span>','rfq.pdf'],
+      ['28 Apr','PR','PR-2026-0142','REQ/MER/0142',486000,'<span class="pill pill-neutral"><span class="dot"></span>Approved</span>','pr.pdf'],
+    ],
+    capture: null,
+    items: [
+      ['540W bifacial PV module',1800,255,459000],
+      ['Mounting clamps (set)',3600,4.50,16200],
+      ['Freight to site',1,10800,10800],
+    ],
+    itemsTotal: 486000,
+    quotes: [
+      ['Sunforge Components',478500,'30 May','3 wks','Net 30','selected','<span class="pill pill-won"><span class="dot"></span>Selected · best value</span>'],
+      ['Helios Trading',491200,'28 May','4 wks','Net 45','select','Select'],
+      ['NorthPanel Co',505800,'25 May','2 wks','Net 30','select','Select'],
+    ],
+    history: [
+      ['14 May','Paid','PAY-2026-0033','L. Chen (Finance)'],
+      ['12 May','Vendor invoiced','VI-2026-0054','L. Chen'],
+      ['11 May','Goods received','GR-2026-0061 (Complete)','D. Okafor'],
+      ['06 May','Ordered','PO-2026-0077','A. Reyes (PM)'],
+      ['04 May','Quote selected','Sunforge','A. Reyes'],
+      ['02 May','Approved','','L. Marchetti (Exec)'],
+      ['28 Apr','Requested','','D. Okafor'],
+    ],
+    action: 'terminal',
+  },
+
+  draft: {
+    line: 'Cabling — Northline · Draft · 1 record',
+    crumb: 'Cabling — Northline',
+    icon: '🛒', iconBg: 'hsl(var(--muted-foreground) / 0.5)',
+    title: 'Cabling — Northline Substation',
+    meta: '<span class="mono">PR-2026-0151 (draft)</span> · Northline Substation Upgrade · requested by A. Reyes',
+    status: '<span class="pill pill-progress"><span class="dot"></span>Draft</span>',
+    steps: [
+      ['Request','current','PR-0151'],['Quoted','',''],['Ordered','',''],
+      ['Received','',''],['Invoiced','',''],['Paid','',''],
+    ],
+    tiles: [
+      ['PR value (estimate)', money(820000), 'Pending approval'],
+    ],
+    budgetPill: '<span class="pill pill-neutral"><span class="dot"></span>Not started</span>',
+    budgetText: 'No spend committed against the $800,000 project budget. The estimate will be refined when vendor quotes come in.',
+    detail: [
+      ['Project','<a style="color:hsl(var(--primary))" href="#">Northline Substation Upgrade</a>'],
+      ['Vendor','<span class="muted">Not yet selected</span>'],
+      ['Requested by','A. Reyes'],
+      ['Approved by','<span class="muted">Pending</span>'],
+      ['Description','33kV XLPE cable runs and terminations for the Northline substation tie-in. Quantities indicative pending design freeze.'],
+    ],
+    records: [
+      ['28 Apr','PR','PR-2026-0151','REQ/NOR/0151',820000,'<span class="pill pill-progress"><span class="dot"></span>Draft</span>','pr-draft.pdf'],
+    ],
+    capture: { type: 'RFQ', reason: 'the next record for this phase. Add the vendor list and send-out date.' },
+    items: [],
+    quotes: [],
+    history: [
+      ['28 Apr','Draft created','PR-2026-0151','A. Reyes'],
+    ],
+    action: 'gate',
+  },
+};
+
+function render(s){
+  const d = SCENARIOS[s];
+  document.getElementById('scen-line').textContent = d.line;
+  document.getElementById('crumb-name').textContent = d.crumb;
+
+  document.getElementById('rec-head').innerHTML = `
+    <div class="rec-icon" style="background:${d.iconBg}">${d.icon}</div>
+    <div>
+      <div class="rec-title">${d.title}</div>
+      <div class="rec-meta">${d.meta}</div>
+    </div>
+    <div class="rec-actions">${d.status}</div>`;
+
+  document.getElementById('stepper').innerHTML = d.steps.map(([label,state,meta]) => `
+    <div class="step ${state}">
+      <div class="jbar"></div>
+      <span class="step-label">${label}</span>
+      <span class="step-meta mono">${meta || '&nbsp;'}</span>
+    </div>`).join('');
+
+  document.getElementById('tiles').className = 'tiles mb-4' + (d.tiles.length < 3 ? ' sparse' : '');
+  document.getElementById('tiles').innerHTML = d.tiles.map(([l,v,sub]) => `
+    <div class="stat-tile"><div class="stat-label">${l}</div><div class="stat-value tabular">${v}</div><div class="stat-sub">${sub}</div></div>`).join('');
+
+  document.getElementById('budget-pill').innerHTML = d.budgetPill;
+  document.getElementById('budget-text').textContent = d.budgetText;
+
+  document.getElementById('detail-dl').innerHTML = d.detail.map(([k,v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  // Records ledger + capture row
+  document.getElementById('cnt-records').textContent = d.records.length;
+  document.getElementById('ledger-body').innerHTML = d.records.map(([date,type,sys,ext,amt,st,file]) => `
+    <tr><td>${date}</td><td>${P(type)}</td><td class="mono">${sys}</td><td class="mono">${ext}</td>
+    <td class="num tabular">${money(amt)}</td><td>${st}</td><td><a class="btn-link" href="#">${file}</a></td></tr>`).join('');
+  document.getElementById('ledger-cards').innerHTML = d.records.map(([date,type,sys,ext,amt,st,file]) => `
+    <div class="lcard">
+      <div class="lrow">${P(type)} ${st}</div>
+      <div class="lrow"><span class="k">System #</span><span class="mono">${sys}</span></div>
+      <div class="lrow"><span class="k">External</span><span class="mono">${ext}</span></div>
+      <div class="lrow"><span class="k">Amount · date</span><span class="tabular">${money(amt)} · ${date}</span></div>
+    </div>`).join('');
+  document.getElementById('capture-row').innerHTML = d.capture ? `
+    <div class="capture-row">
+      <span class="cap-label">+ Capture <b>${d.capture.type}</b> &nbsp;<span class="muted">${d.capture.reason}</span></span>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto">Capture ${d.capture.type}</button>
+    </div>` : '';
+
+  // Items
+  document.getElementById('cnt-items').textContent = d.items.length;
+  document.getElementById('items-body').innerHTML = d.items.length ? `
+    <table class="dtable"><thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+    <tbody>${d.items.map(([n,q,r,a],i)=>`<tr><td class="muted">${i+1}</td><td>${n}</td><td class="num tabular">${q.toLocaleString()}</td><td class="num tabular">$${r}</td><td class="num tabular">$${a.toLocaleString()}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="text-align:right;font-weight:600" class="muted">Total</td><td class="num" style="font-weight:700">$${d.itemsTotal.toLocaleString()}</td></tr></tfoot></table>`
+    : `<div class="empty"><div class="empty-ico">📋</div><div class="empty-title">No line items yet</div>
+         <div class="empty-body">Items are added when you capture the purchase request. Open the PR record to break the estimate into lines.</div></div>`;
+
+  // Quotes
+  document.getElementById('cnt-quotes').textContent = d.quotes.length;
+  document.getElementById('quotes-body').innerHTML = d.quotes.length ? `
+    <table class="dtable"><thead><tr><th>Vendor</th><th class="num">Amount</th><th>Valid until</th><th>Lead time</th><th>Terms</th><th></th></tr></thead>
+    <tbody>${d.quotes.map(([v,a,vu,lt,t,kind,label])=>`
+      <tr ${kind==='selected'?'style="background:hsl(var(--success)/0.06)"':''}>
+      <td><b>${v}</b> ${kind==='selected'?'<span class="pill pill-won"><span class="dot"></span>Selected · best value</span>':''}</td>
+      <td class="num tabular">$${a.toLocaleString()}</td><td>${vu}</td><td>${lt}</td><td>${t}</td>
+      <td>${kind==='select'?'<button class="btn-link">Select</button>':''}</td></tr>`).join('')}</tbody></table>`
+    : `<div class="empty"><div class="empty-ico">💬</div><div class="empty-title">No vendor quotes yet</div>
+         <div class="empty-body">Quotes are captured after the RFQ is sent. Selecting one with rationale advances the case to Ordered.</div></div>`;
+
+  // Progression timeline (Overview) — newest first; the top event is the current state. Refs link to the document.
+  document.getElementById('timeline').innerHTML = d.history.map(([date,title,ref,who], i) => `
+    <div class="tl-event ${i===0?'current':''}">
+      <span class="tl-dot"></span>
+      <div class="tl-date">${date}</div>
+      <div class="tl-title">${title}${ref?` · <a class="mono btn-link" href="#">${ref}</a>`:''}</div>
+      <div class="tl-meta">${who||''}</div>
+    </div>`).join('');
+
+  // Action zone: terminal vs gated (SoD)
+  document.getElementById('action-body').innerHTML = d.action === 'terminal'
+    ? `<div class="flex between center wrap gap-3">
+         <span class="muted body">No further lifecycle actions. This case is <b>Paid</b> (terminal).</span>
+         <button class="btn btn-outline">Export case PDF</button>
+       </div>`
+    : `<div class="flex between center wrap gap-3">
+         <div class="gate gate-ready">
+           <b>Ready to advance.</b> Submit the request for approval. SoD: the requester (A. Reyes) cannot self-approve.
+         </div>
+         <div class="flex gap-2">
+           <button class="btn btn-outline">Save draft</button>
+           <button class="btn btn-primary">Submit for approval</button>
+         </div>
+       </div>`;
+}
+
+function tab(id, el){
+  document.querySelectorAll('.ptab').forEach(t=>{t.classList.remove('active');t.setAttribute('aria-selected','false');});
+  el.classList.add('active'); el.setAttribute('aria-selected','true');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+function scen(s, el){
+  render(s);
+  document.querySelectorAll('.demo-bar .seg[aria-label="Scenario"] button').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+function vp(m, el){
+  const f=document.getElementById('frame');
+  document.querySelectorAll('.demo-bar .seg[aria-label="Viewport"] button').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  if(m==='m'){ f.style.maxWidth='390px'; f.style.margin='0 auto'; f.style.borderLeft=f.style.borderRight='1px solid hsl(var(--border))'; }
+  else { f.style.maxWidth='none'; f.style.borderLeft=f.style.borderRight='none'; }
+}
+
+render('paid');
+</script>
+</body>
+</html>

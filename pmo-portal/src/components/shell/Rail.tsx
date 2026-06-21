@@ -120,7 +120,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
             cn(
               NAV_LINK_BASE,
               overrideActive
-                ? 'bg-primary/10 font-semibold text-primary'
+                ? 'bg-primary/10 font-semibold text-nav-active-text'
                 : 'text-foreground hover:bg-accent',
             )
           }
@@ -141,7 +141,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
           cn(
             NAV_LINK_BASE,
             isActive
-              ? 'bg-primary/10 font-semibold text-primary'
+              ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
           )
         }
@@ -194,7 +194,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
               cn(
                 NAV_LINK_BASE,
                 isActive
-                  ? 'bg-primary/10 font-semibold text-primary'
+                  ? 'bg-primary/10 font-semibold text-nav-active-text'
                   : 'text-foreground hover:bg-accent'
               )
             }

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Detail — Option C: Single ledger</title>
+<link rel="stylesheet" href="./_tokens.css">
+<style>
+  /* Option-C-local: thin pipeline header + ONE chronological ledger + docked action bar.
+     The RIS-minimal lineage: everything the case "is" reads as one table. */
+  .pipe { display: flex; gap: 0; align-items: center; }
+  .pipe .seg { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 0 4px; }
+  .pipe .seg .bar { height: 5px; border-radius: 999px; background: hsl(var(--secondary)); }
+  .pipe .seg.done .bar { background: hsl(var(--success)); }
+  .pipe .seg.paid .bar { background: hsl(var(--success)); }
+  .pipe .seg .nm { font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .pipe .seg.done .nm, .pipe .seg.paid .nm { color: hsl(var(--foreground)); }
+  .summary { display: flex; gap: 28px; flex-wrap: wrap; }
+  .summary .it .k { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .summary .it .v { font-size: 17px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .actionbar { position: sticky; bottom: 0; z-index: 10; background: hsl(var(--background) / 0.95);
+    backdrop-filter: blur(6px); border-top: 1px solid hsl(var(--border)); padding: 12px 16px;
+    margin: 0 -20px -20px; }
+  .filterchips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid hsl(var(--input));
+    background: hsl(var(--background)); font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground));
+    display: inline-flex; align-items: center; cursor: pointer; }
+  .chip.on { background: hsl(var(--primary) / 0.1); border-color: hsl(var(--primary) / 0.3); color: hsl(var(--nav-active-text)); }
+  @media (max-width: 720px) {
+    .summary { gap: 16px; }
+    .ledger-wide { display: none; }     /* table → stacked cards under md (DataTable reflow) */
+    .ledger-cards { display: block; }
+  }
+  .ledger-cards { display: none; }
+  .lcard { border: 1px solid hsl(var(--border)); border-radius: calc(var(--radius) - 2px); padding: 12px; margin-bottom: 8px; }
+  .lcard .lrow { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; }
+  .lcard .lrow .k { color: hsl(var(--muted-foreground)); }
+</style>
+</head>
+<body class="ris-portal-app">
+
+<div class="demo-bar">
+  <b>MOCKUP — Option C · Single ledger</b>
+  <span>Thin pipeline header + one chronological records table + docked action bar (RIS-minimal lineage).</span>
+  <span class="seg" role="group" aria-label="Viewport">
+    <button class="on" onclick="vp('d')">Desktop</button>
+    <button onclick="vp('m')">390px</button>
+  </span>
+  <a href="./README.md" style="margin-left:auto">README ↗</a>
+</div>
+
+<div id="frame">
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><div class="logo">P</div><div style="font-weight:600">PMO Portal</div></div>
+    <nav>
+      <div class="group-label overline">Operate</div>
+      <a class="nav-item">Dashboard</a><a class="nav-item">Projects</a>
+      <a class="nav-item active">Procurement</a><a class="nav-item">Approvals</a><a class="nav-item">Companies</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar"><span class="crumb">Procurement &nbsp;›&nbsp; <b>PV Modules — Meridian</b></span></div>
+    <div class="content">
+
+      <div class="rec-head">
+        <div class="rec-icon" style="background:hsl(var(--success))">🛒</div>
+        <div>
+          <div class="rec-title">PV Modules — Meridian Solar Farm</div>
+          <div class="rec-meta"><span class="mono">PR-2026-0142</span> · Meridian Solar Farm · requested by D. Okafor</div>
+        </div>
+        <div class="rec-actions">
+          <span class="pill pill-won"><span class="dot"></span>Paid</span>
+          <button class="btn btn-outline btn-sm">Export</button>
+        </div>
+      </div>
+
+      <!-- THIN pipeline header — the ONE progression encoding, compact (no separate stepper card,
+           no history timeline, no doc trail). Plus the one identity/financial summary row. -->
+      <div class="card mb-4"><div class="card-pad">
+        <div class="pipe mb-4" aria-label="Procurement pipeline">
+          <div class="seg done"><div class="bar"></div><span class="nm">Request</span></div>
+          <div class="seg done"><div class="bar"></div><span class="nm">Source</span></div>
+          <div class="seg done"><div class="bar"></div><span class="nm">Order</span></div>
+          <div class="seg done"><div class="bar"></div><span class="nm">Receive</span></div>
+          <div class="seg done"><div class="bar"></div><span class="nm">Invoice</span></div>
+          <div class="seg paid"><div class="bar"></div><span class="nm">Pay</span></div>
+        </div>
+        <div class="summary" style="border-top:1px solid hsl(var(--border));padding-top:14px">
+          <div class="it"><div class="k">PR value</div><div class="v">$486,000</div></div>
+          <div class="it"><div class="k">Committed (PO)</div><div class="v">$478,500</div></div>
+          <div class="it"><div class="k">Paid</div><div class="v">$478,500</div></div>
+          <div class="it"><div class="k">Vendor</div><div class="v" style="font-size:13.5px;font-weight:600"><a style="color:hsl(var(--primary))" href="#">Sunforge Components</a></div></div>
+          <div class="it"><div class="k">Budget</div><div class="v" style="font-size:13.5px"><span class="pill pill-won"><span class="dot"></span>Healthy · 38% of $1.25M</span></div></div>
+        </div>
+      </div></div>
+
+      <!-- The ONE ledger: every record, chronological. Dual-ID + file in each row.
+           Empty record types simply have no row (collapse-by-construction). -->
+      <div class="card">
+        <div class="card-head">
+          <span>Case ledger</span>
+          <div class="filterchips">
+            <button class="chip on">All 7</button>
+            <button class="chip">Financial</button>
+            <button class="chip">Has file</button>
+          </div>
+        </div>
+
+        <table class="dtable ledger-wide">
+          <thead><tr><th>Date</th><th>Type</th><th>System #</th><th>External ref</th><th class="num">Amount</th><th>Status</th><th>File</th></tr></thead>
+          <tbody>
+            <tr><td>14 May</td><td><span class="pill pill-violet"><span class="dot"></span>Payment</span></td><td class="mono">PAY-2026-0033</td><td class="mono">TT-9930021</td><td class="num tabular">$478,500</td><td><span class="pill pill-won"><span class="dot"></span>Paid</span></td><td><a class="btn-link" href="#">remit.pdf</a></td></tr>
+            <tr><td>12 May</td><td><span class="pill pill-violet"><span class="dot"></span>Invoice</span></td><td class="mono">VI-2026-0054</td><td class="mono">INV-SF-2291</td><td class="num tabular">$478,500</td><td><span class="pill pill-neutral"><span class="dot"></span>Received</span></td><td><a class="btn-link" href="#">inv.pdf</a></td></tr>
+            <tr><td>11 May</td><td><span class="pill pill-violet"><span class="dot"></span>GR</span></td><td class="mono">GR-2026-0061</td><td class="mono">DN-44120</td><td class="num tabular">—</td><td><span class="pill pill-won"><span class="dot"></span>Complete</span></td><td><a class="btn-link" href="#">gr.pdf</a></td></tr>
+            <tr><td>06 May</td><td><span class="pill pill-violet"><span class="dot"></span>PO</span></td><td class="mono">PO-2026-0077</td><td class="mono">PO/MER/0077</td><td class="num tabular">$478,500</td><td><span class="pill pill-neutral"><span class="dot"></span>Issued</span></td><td><a class="btn-link" href="#">po.pdf</a></td></tr>
+            <tr><td>04 May</td><td><span class="pill pill-violet"><span class="dot"></span>Quote</span></td><td class="mono">VQ-2026-0091</td><td class="mono">SF-Q-8841</td><td class="num tabular">$478,500</td><td><span class="pill pill-won"><span class="dot"></span>Selected</span></td><td><a class="btn-link" href="#">quote.pdf</a></td></tr>
+            <tr><td>30 Apr</td><td><span class="pill pill-violet"><span class="dot"></span>RFQ</span></td><td class="mono">RFQ-2026-0091</td><td class="mono">RFQ/MER/22</td><td class="num tabular">—</td><td><span class="pill pill-neutral"><span class="dot"></span>Closed</span></td><td><a class="btn-link" href="#">rfq.pdf</a></td></tr>
+            <tr><td>28 Apr</td><td><span class="pill pill-violet"><span class="dot"></span>PR</span></td><td class="mono">PR-2026-0142</td><td class="mono">REQ/MER/0142</td><td class="num tabular">$486,000</td><td><span class="pill pill-neutral"><span class="dot"></span>Approved</span></td><td><a class="btn-link" href="#">pr.pdf</a></td></tr>
+          </tbody>
+        </table>
+
+        <!-- Mobile reflow: same rows as stacked cards (DataTable single-render pattern). -->
+        <div class="ledger-cards card-pad">
+          <div class="lcard"><div class="lrow"><span class="pill pill-violet"><span class="dot"></span>Payment</span><span class="pill pill-won"><span class="dot"></span>Paid</span></div>
+            <div class="lrow"><span class="k">System #</span><span class="mono">PAY-2026-0033</span></div>
+            <div class="lrow"><span class="k">External</span><span class="mono">TT-9930021</span></div>
+            <div class="lrow"><span class="k">Amount</span><span class="tabular">$478,500 · 14 May</span></div></div>
+          <div class="lcard"><div class="lrow"><span class="pill pill-violet"><span class="dot"></span>PR</span><span class="pill pill-neutral"><span class="dot"></span>Approved</span></div>
+            <div class="lrow"><span class="k">System #</span><span class="mono">PR-2026-0142</span></div>
+            <div class="lrow"><span class="k">External</span><span class="mono">REQ/MER/0142</span></div>
+            <div class="lrow"><span class="k">Amount</span><span class="tabular">$486,000 · 28 Apr</span></div></div>
+          <p class="rnote">…(5 more rows; truncated for the mockup)</p>
+        </div>
+
+        <div class="card-pad rnote">Items + bid-comparison open from their own rows (PR row → line items; any Quote row → side-by-side compare). Capture is a single "+ Add record" affordance that pre-selects the next expected type for the current phase.</div>
+      </div>
+
+      <!-- Docked action bar — ONE placement, sticky to the viewport bottom. P1 "advance" lives here. -->
+      <div class="actionbar" data-testid="record-action-zone">
+        <div class="flex between center wrap gap-3">
+          <span class="muted body">Case <b>Paid</b> — no further lifecycle actions.</span>
+          <div class="flex gap-2">
+            <button class="btn btn-outline">+ Add record</button>
+            <button class="btn btn-outline">Export case PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="rnote mt-4">Collapse-empty: a <b>Draft</b> case shows the thin pipeline (only Request lit) + a ledger with a single PR row (or an empty-state prompt "Capture the purchase request to start the case"). The docked bar shows the one live verb — <b>Submit request</b> (primary) — adjacent and above the fold. No empty per-phase cards ever render.</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+function vp(m){ const f=document.getElementById('frame');
+  document.querySelectorAll('.demo-bar .seg button').forEach(b=>b.classList.remove('on')); event.target.classList.add('on');
+  if(m==='m'){ f.style.maxWidth='390px'; f.style.margin='0 auto'; f.style.borderLeft=f.style.borderRight='1px solid hsl(var(--border))'; }
+  else { f.style.maxWidth='none'; f.style.borderLeft=f.style.borderRight='none'; }
+}
+</script>
+</body>
+</html>

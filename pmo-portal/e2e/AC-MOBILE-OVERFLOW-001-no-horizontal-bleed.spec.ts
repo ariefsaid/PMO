@@ -17,12 +17,19 @@
  *
  * Charts are measured AFTER a settle wait so we test the steady state, not the recharts
  * ResponsiveContainer mount-flash (tracked separately).
+ *
+ * AC-PR-027 UPDATE: the procurement-detail route is now a tabbed record shell
+ * (`/procurement/:id/:tab` — Overview · Line items · Documents · Vendor quotes).
+ * Each tab renders different content; ALL FOUR tabs must pass the no-bleed gate.
+ * The old single `/procurement/:id` entry is replaced by four explicit tab entries.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 
 // Known seed ids (stable across local + cloud — supabase/seed.sql).
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
+// SP2401-001 "PV Modules — Meridian 4.2 MW" — richest seeded procurement case (PR/RFQ/PO/PAY + events)
+const PROC_SHOWCASE = '61000000-0000-0000-0000-000000000001';
 
 const ROUTES: { path: string; label: string }[] = [
   { path: '/', label: 'dashboard' },
@@ -33,6 +40,12 @@ const ROUTES: { path: string; label: string }[] = [
   { path: `/projects/${MERIDIAN}/budget`, label: 'project-budget' },
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
   { path: '/procurement', label: 'procurement-list' },
+  // AC-PR-027: the procurement-detail tabbed shell — all four tabs swept.
+  // Each tab renders distinct content (stepper+timeline / line-items / ledger / quotes).
+  { path: `/procurement/${PROC_SHOWCASE}/overview`, label: 'procurement-detail-overview' },
+  { path: `/procurement/${PROC_SHOWCASE}/items`, label: 'procurement-detail-items' },
+  { path: `/procurement/${PROC_SHOWCASE}/documents`, label: 'procurement-detail-documents' },
+  { path: `/procurement/${PROC_SHOWCASE}/quotes`, label: 'procurement-detail-quotes' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
   { path: '/companies', label: 'companies' },

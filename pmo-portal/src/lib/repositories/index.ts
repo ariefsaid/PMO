@@ -58,6 +58,12 @@ import {
 } from '@/src/lib/db/tasks';
 import { listProcurements } from '@/src/lib/db/procurements';
 import {
+  createPurchaseRequest,
+  createRfq,
+  createPurchaseOrder,
+  createPayment,
+} from '@/src/lib/db/procurementRecords';
+import {
   getProcurementDetail,
   transitionProcurement,
   createQuotation,
@@ -237,6 +243,15 @@ const procurement: ProcurementRepository = {
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
+  // ── New ERP-canonical record creators (Slice 5.4) ──
+  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount) =>
+    wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+  createRfq: (procurementId, referenceNumber, status, date, amount) =>
+    wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
+  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount) =>
+    wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
+  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount) =>
+    wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
 const timesheet: TimesheetRepository = {

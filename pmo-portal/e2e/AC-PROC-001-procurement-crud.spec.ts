@@ -17,6 +17,11 @@ import { login } from './helpers';
  * + pgTAP 0052) are verified in per-PR CI, not locally (single shared Supabase).
  *
  * RBAC authority: docs/design/rbac-visibility.md §E/§E2.
+ *
+ * TABBED-SHELL UPDATE: Line items are now in the "Line items" tab of the detail page.
+ * The journey clicks the "Line items" tab before asserting the add-row (AC-PROC-003).
+ * The goal-oracle is unchanged: the item appears in the line-items section with its
+ * derived total.
  */
 
 test.setTimeout(120_000);
@@ -63,7 +68,13 @@ test(
     );
     await expect(page.getByRole('heading', { name: prTitle })).toBeVisible({ timeout: 10_000 });
 
-    // AC-PROC-003: add a line item via the inline add-row.
+    // AC-PROC-003: navigate to the Line items tab (tabbed-shell revamp — line items
+    // are no longer inline on the Overview; they live in the "Line items" tab).
+    const lineItemsTab = page.getByRole('tab', { name: /Line items/i });
+    await expect(lineItemsTab).toBeVisible({ timeout: 10_000 });
+    await lineItemsTab.click();
+
+    // The inline add-row is now inside the Line items tab panel.
     const addRow = page.getByTestId('line-item-add-row');
     await expect(addRow).toBeVisible({ timeout: 10_000 });
     await addRow.getByLabel(/new item description/i).fill('Welding wire 1.2mm');

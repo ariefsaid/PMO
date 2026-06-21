@@ -5,6 +5,12 @@ import { tabId, tabPanelId } from './tabIds';
 export interface TabItem<V extends string = string> {
   value: V;
   label: string;
+  /**
+   * Optional count badge rendered after the label (e.g. "Documents 7"). The count is
+   * appended to the tab's accessible name as text — never color-only (DESIGN.md §5
+   * Count badge). Omit (or pass null/undefined) for tabs that carry no count.
+   */
+  count?: number | null;
 }
 
 export interface TabsProps<V extends string = string> {
@@ -118,6 +124,14 @@ export function Tabs<V extends string = string>({
             )}
           >
             {t.label}
+            {t.count != null && (
+              // Count badge: secondary fill + muted text, full radius, text-[11px]
+              // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
+              // name (a11y: count read in label, not color-only).
+              <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+                {t.count}
+              </span>
+            )}
           </button>
         );
       })}

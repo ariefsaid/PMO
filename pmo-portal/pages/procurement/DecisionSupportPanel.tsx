@@ -138,7 +138,11 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     {
       label: 'After this request',
       value: formatCurrency(afterRequest),
-      sub: `${afterPct.toFixed(1)}% of budget`,
+      // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
+      // NOT utilization — labelling it "% of budget" reads as ~consumed, misleading
+      // a finance operator into thinking the budget is nearly exhausted when 85% is
+      // actually headroom. Relabelled to "% headroom remaining" (honest spend control).
+      sub: `${afterPct.toFixed(1)}% headroom remaining`,
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     },
   ];
