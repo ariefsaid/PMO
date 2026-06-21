@@ -65,12 +65,16 @@ function nextExpectedType(status: ProcurementStatus): RecordKind | null {
   }
 }
 
-/** Human label for the capture type (shown in the dashed row label). */
+/** Human label for the capture type (shown in the dashed row label).
+ *  GR/VI are NOT capturable here (handled by the action-zone forms — see
+ *  nextExpectedType's M4 note), so they are absent from this ledger-only map. */
 const CAPTURE_LABELS: Record<RecordKind, string> = {
   purchase_request: 'Purchase Request',
   rfq: 'RFQ',
   purchase_order: 'Purchase Order',
   payment: 'Payment',
+  goods_receipt: 'Goods Receipt',
+  vendor_invoice: 'Vendor Invoice',
 };
 
 // ---------------------------------------------------------------------------
