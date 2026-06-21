@@ -8,7 +8,13 @@ const { mockSelect, mockFrom } = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
 
-import { listProcurements, getProjectCommittedSpend } from './procurements';
+import {
+  listProcurements,
+  getProjectCommittedSpend,
+  getProjectReservedSpend,
+  COMMITTED_STATUSES,
+  RESERVED_STATUSES,
+} from './procurements';
 
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
@@ -100,5 +106,52 @@ describe('getProjectCommittedSpend', () => {
   it('throws on PostgREST error', async () => {
     makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
     await expect(getProjectCommittedSpend('proj-1')).rejects.toThrow('kaboom');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-RB-001 — getProjectReservedSpend (reserved basis, ADR-0034)
+// ---------------------------------------------------------------------------
+describe('getProjectReservedSpend', () => {
+  it('AC-RB-001: sums total_value over Approved/Vendor Quoted/Quote Selected for the project', async () => {
+    const { mockEq, mockIn } = makeChainedBuilder({
+      data: [{ total_value: 80000 }, { total_value: 40000 }, { total_value: 30000 }],
+      error: null,
+    });
+    const total = await getProjectReservedSpend('proj-1');
+    expect(mockFrom).toHaveBeenCalledWith('procurements');
+    expect(mockSelect).toHaveBeenCalledWith('total_value');
+    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
+    expect(mockIn).toHaveBeenCalledWith('status', ['Approved', 'Vendor Quoted', 'Quote Selected']);
+    expect(total).toBe(150000);
+  });
+
+  it('AC-RB-001: returns 0 when there are no reserved procurements', async () => {
+    makeChainedBuilder({ data: [], error: null });
+    await expect(getProjectReservedSpend('proj-1')).resolves.toBe(0);
+  });
+
+  it('AC-RB-001: sends no org_id (RLS scopes it)', async () => {
+    makeChainedBuilder({ data: [], error: null });
+    await getProjectReservedSpend('proj-1');
+    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+  });
+
+  it('AC-RB-001: throws on PostgREST error', async () => {
+    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('kaboom');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-RB-003 — Committed and Reserved status sets are disjoint (FR-RB-004)
+// ---------------------------------------------------------------------------
+describe('AC-RB-003: Committed and Reserved sets are disjoint', () => {
+  it('AC-RB-003: shares no status between COMMITTED_STATUSES and RESERVED_STATUSES', () => {
+    const overlap = COMMITTED_STATUSES.filter((s) => RESERVED_STATUSES.includes(s));
+    expect(overlap).toEqual([]);
+  });
+  it('AC-RB-003: COMMITTED_STATUSES is exactly Ordered/Received/Vendor Invoiced/Paid (unchanged)', () => {
+    expect(COMMITTED_STATUSES).toEqual(['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
   });
 });
