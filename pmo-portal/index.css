@@ -37,6 +37,16 @@
   /* Primary text (#2563eb) on primary/10 bg (#e9effd) = 4.48:1 — just below AA 4.5:1.
      Darken to 38% L (same hue/saturation family as --status-open-text) → 7.31:1 on #e9effd. */
   --nav-active-text: 221 75% 38%;
+  /* --- Semantic icon / surface tokens (promoted from inline hsl() literals) --- */
+  /* Warning icon: amber icon on warning/12 tint — darker than --warning (43 96% 56%)
+     so the icon itself clears AA against the tinted background. */
+  --warning-icon: 38 92% 45%;
+  /* Success text: AA-darkened green text on success/10 tint (GateNotice "ready" variant). */
+  --success-text: 142 64% 28%;
+  /* Tooltip muted: de-emphasised body text inside the dark tooltip surface. */
+  --tooltip-muted: 0 0% 80%;
+  /* Scrim: desaturated near-black overlay behind modals/drawers/command-palette (used at /0.4 alpha). */
+  --scrim: 240 10% 4%;
   /* --- Lines / fields / focus --- */
   --border: 240 5.9% 90%;            --input: 240 5.9% 90%;
   --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;
@@ -79,6 +89,10 @@
   --color-violet: hsl(var(--violet));
   --color-nav-active-text: hsl(var(--nav-active-text));
   --color-destructive-text: hsl(var(--destructive-text));
+  --color-warning-icon: hsl(var(--warning-icon));
+  --color-success-text: hsl(var(--success-text));
+  --color-tooltip-muted: hsl(var(--tooltip-muted));
+  --color-scrim: hsl(var(--scrim));
   --radius-lg: var(--radius);                 /* 8px */
   --radius-md: calc(var(--radius) - 2px);     /* 6px */
   --radius-sm: calc(var(--radius) - 4px);     /* 4px */

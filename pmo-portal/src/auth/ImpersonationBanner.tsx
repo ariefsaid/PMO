@@ -22,7 +22,7 @@ export const ImpersonationBanner: React.FC = () => {
       role="status"
       aria-live="polite"
       data-testid="impersonation-banner"
-      className="flex items-center gap-2.5 border-b border-warning/40 bg-warning/12 px-5 py-2 text-[12.5px] text-warning-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-[hsl(38_92%_45%)]"
+      className="flex items-center gap-2.5 border-b border-warning/40 bg-warning/12 px-5 py-2 text-[12.5px] text-warning-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-[hsl(var(--warning-icon))]"
     >
       <Icon name="admin" />
       <span>
