@@ -119,7 +119,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(createReceipt).toHaveBeenCalledWith('proc-1', 'Partial', '2026-06-04');
+    expect(createReceipt).toHaveBeenCalledWith('proc-1', 'Partial', '2026-06-04', undefined);
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some(
@@ -142,7 +142,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04');
+    expect(createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', undefined, undefined);
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"')),

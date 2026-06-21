@@ -161,7 +161,9 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     received_date: '2026-01-01',
     file_url: null,
     org_id: 'org-1',
-    created_at: '2026-01-01T00:00:00Z',
+    // Slice 5 — new nullable columns added by migration 0035 (rfq linkage + P2 seam)
+    rfq_id: null,
+    valid_until: null,
     ...over,
   });
 

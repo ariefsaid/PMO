@@ -40,6 +40,15 @@ const detailState = {
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
@@ -129,6 +138,12 @@ const base = {
   quotations: [],
   receipts: [],
   invoices: [],
+  // I1 (design-review): stepper refs now come from record arrays. Base has none.
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 const orderedFixture = {
@@ -193,11 +208,14 @@ const paidFixture = {
   ],
 };
 
-const renderPage = () =>
+// Tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab` deep-links the
+// panel that owns the asserted content (line items live on the Line-items tab).
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -286,8 +304,28 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(ariaLabels.some((l) => l.startsWith('Approved:'))).toBe(true);
   });
 
-  it('D9-9: the mono pr_number ref still renders under the Purchase Request node', () => {
-    detailState.data = { ...base, status: 'Requested', pr_number: 'PR-2606100001' };
+  it('D9-9: the mono pr_number ref renders under the Purchase Request node when a PR record exists (I1)', () => {
+    // I1 (design-review): the stepper now derives the PR ref from the actual
+    // purchase_request record, not the denormalized pr_number header column.
+    // A PR# only appears in the stepper when a purchase_request record exists.
+    detailState.data = {
+      ...base,
+      status: 'Requested',
+      pr_number: 'PR-2606100001',
+      purchase_requests: [
+        {
+          id: 'pr-rec-1',
+          pr_number: 'PR-2606100001',
+          status: 'Submitted',
+          date: '2026-06-10',
+          reference_number: null,
+          amount: 45000,
+          procurement_id: 'proc-001',
+          org_id: 'org-1',
+          created_at: '2026-06-10T00:00:00Z',
+        },
+      ],
+    };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     expect(within(stepper).getByText('PR-2606100001')).toBeInTheDocument();
@@ -473,7 +511,9 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
 
   it('non-regression: evidence (line-items) precedes decision-card in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // Evidence now lives on the Line-items tab; the decision card is outside the tabs
+    // and still follows the active panel in DOM order — the goal is preserved.
+    renderPage('items');
     const lineItems = screen.getByTestId('line-items-section');
     const decisionCard = screen.getByTestId('decision-card');
     const position = lineItems.compareDocumentPosition(decisionCard);

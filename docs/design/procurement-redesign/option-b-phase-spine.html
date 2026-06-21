@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Detail — Option B: Phase-as-spine</title>
+<link rel="stylesheet" href="./_tokens.css">
+<style>
+  /* Option-B-local: the stepper IS the nav. Selecting a phase reveals its records + capture. */
+  .spine .step { cursor: pointer; }
+  .spine .step.sel .step-label { color: hsl(var(--primary)); }
+  .spine .step.sel .jbar { box-shadow: 0 0 0 2px hsl(var(--ring)); }
+  .spine .step.inactive { opacity: 0.5; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .recrow { display: grid; grid-template-columns: 110px 1fr 1fr 130px 96px; gap: 12px; align-items: center;
+    padding: 12px; border-bottom: 1px solid hsl(var(--border) / 0.7); font-size: 13.5px; }
+  .recrow .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .capture { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 12px; align-items: end;
+    background: hsl(var(--primary) / 0.04); border: 1px dashed hsl(var(--primary) / 0.3);
+    border-radius: calc(var(--radius) - 2px); padding: 12px; }
+  .capture label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .actionbar { position: sticky; bottom: 0; z-index: 10; background: hsl(var(--background) / 0.95);
+    backdrop-filter: blur(6px); border-top: 1px solid hsl(var(--border)); padding: 12px 0; margin-top: 16px; }
+  @media (max-width: 720px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .spine .stepper { overflow-x: auto; }
+    .spine .step { min-width: 78px; }
+    .recrow { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .capture { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="ris-portal-app">
+
+<div class="demo-bar">
+  <b>MOCKUP — Option B · Phase-as-spine</b>
+  <span>The lifecycle stepper is the primary nav. Click a phase → its records + capture.</span>
+  <span class="seg" role="group" aria-label="Viewport">
+    <button class="on" onclick="vp('d')">Desktop</button>
+    <button onclick="vp('m')">390px</button>
+  </span>
+  <a href="./README.md" style="margin-left:auto">README ↗</a>
+</div>
+
+<div id="frame">
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><div class="logo">P</div><div style="font-weight:600">PMO Portal</div></div>
+    <nav>
+      <div class="group-label overline">Operate</div>
+      <a class="nav-item">Dashboard</a><a class="nav-item">Projects</a>
+      <a class="nav-item active">Procurement</a><a class="nav-item">Approvals</a><a class="nav-item">Companies</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar"><span class="crumb">Procurement &nbsp;›&nbsp; <b>PV Modules — Meridian</b></span></div>
+    <div class="content">
+
+      <div class="rec-head">
+        <div class="rec-icon" style="background:hsl(var(--success))">🛒</div>
+        <div>
+          <div class="rec-title">PV Modules — Meridian Solar Farm</div>
+          <div class="rec-meta"><span class="mono">PR-2026-0142</span> · Meridian Solar Farm · $486,000 · requested by D. Okafor</div>
+        </div>
+        <div class="rec-actions"><span class="pill pill-won"><span class="dot"></span>Paid</span></div>
+      </div>
+
+      <!-- The spine: the ONE stepper, now interactive. Each phase = a nav target.
+           ONE progression encoding — there is no separate history timeline or doc trail. -->
+      <div class="card mb-4 spine"><div class="card-pad">
+        <div class="stepper" role="tablist" aria-label="Procurement phases">
+          <div class="step done sel" role="tab" tabindex="0" onclick="sel(this,'p-request')"><div class="jbar"></div><span class="step-label">Request</span><span class="step-meta mono">PR-0142</span></div>
+          <div class="step done" role="tab" tabindex="0" onclick="sel(this,'p-source')"><div class="jbar"></div><span class="step-label">Source</span><span class="step-meta mono">VQ-0091</span></div>
+          <div class="step done" role="tab" tabindex="0" onclick="sel(this,'p-order')"><div class="jbar"></div><span class="step-label">Order</span><span class="step-meta mono">PO-0077</span></div>
+          <div class="step done" role="tab" tabindex="0" onclick="sel(this,'p-receive')"><div class="jbar"></div><span class="step-label">Receive</span><span class="step-meta mono">GR-0061</span></div>
+          <div class="step done" role="tab" tabindex="0" onclick="sel(this,'p-invoice')"><div class="jbar"></div><span class="step-label">Invoice</span><span class="step-meta mono">VI-0054</span></div>
+          <div class="step paid" role="tab" tabindex="0" onclick="sel(this,'p-pay')"><div class="jbar"></div><span class="step-label">Pay</span><span class="step-meta mono">PAY-0033</span></div>
+        </div>
+      </div></div>
+
+      <!-- Persistent budget signal (P3) — always above the phase pane, adjacent to action. -->
+      <div class="card mb-4"><div class="card-pad flex between center wrap gap-3">
+        <div class="flex center gap-3"><span class="overline">Budget</span><span class="pill pill-won"><span class="dot"></span>Healthy</span>
+          <span class="muted body">$478,500 committed of $1,250,000 — 38%, $771,500 left</span></div>
+        <a class="btn-link" href="#">View project budget</a>
+      </div></div>
+
+      <!-- Phase pane — only the SELECTED phase's records + capture render. -->
+      <div class="card"><div class="card-head" id="pane-title">Request phase</div><div class="card-pad" id="pane">
+        <!-- populated by JS; default = Request -->
+      </div></div>
+
+      <!-- RecordActionZone — sticky, ONE placement. -->
+      <div class="actionbar" data-testid="record-action-zone">
+        <div class="card"><div class="card-pad flex between center wrap gap-3">
+          <span class="muted body">No further lifecycle actions — case is <b>Paid</b> (terminal).</span>
+          <button class="btn btn-outline">Export case PDF</button>
+        </div></div>
+      </div>
+
+      <p class="rnote mt-4">Collapse-empty: a <b>Draft</b> case shows the same spine, but only the <b>Request</b> phase is enabled (all later phases render <code>inactive</code>/dimmed and non-clickable). The Request pane shows the line-items + the single "Capture PR" form — no "No GR/VI/Payment yet" cards exist anywhere.</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const PANES = {
+  'p-request': { title:'Request phase', rows:[
+    ['PR','PR-2026-0142','REQ/MER/0142','28 Apr','$486,000','Approved','won'] ], note:'Approved by L. Marchetti · 02 May. Line items (3) totalling $486,000.' },
+  'p-source': { title:'Source phase', rows:[
+    ['RFQ','RFQ-2026-0091','RFQ/MER/22','30 Apr','—','Closed','neutral'],
+    ['Quote','VQ-2026-0091','SF-Q-8841','04 May','$478,500','Selected · best value','won'],
+    ['Quote','VQ-2026-0092','HT-Q-5510','03 May','$491,200','Not selected','neutral'] ], note:'Bid comparison: 3 quotes received, Sunforge selected with rationale "lowest TCO incl. freight".' },
+  'p-order': { title:'Order phase', rows:[
+    ['PO','PO-2026-0077','PO/MER/0077','06 May','$478,500','Issued','neutral'] ], note:'Issued to Sunforge Components by A. Reyes.' },
+  'p-receive': { title:'Receive phase', rows:[
+    ['GR','GR-2026-0061','DN-44120','11 May','—','Complete','won'] ], note:'Goods receipt confirmed Complete by D. Okafor.' },
+  'p-invoice': { title:'Invoice phase', rows:[
+    ['Invoice','VI-2026-0054','INV-SF-2291','12 May','$478,500','Received','neutral'] ], note:'Vendor invoice recorded by L. Chen (Finance).' },
+  'p-pay': { title:'Pay phase', rows:[
+    ['Payment','PAY-2026-0033','TT-9930021','14 May','$478,500','Paid','won'] ], note:'Payment released — SoD: payer (L. Chen) ≠ approver (L. Marchetti).' },
+};
+function render(id){
+  const p = PANES[id]; document.getElementById('pane-title').textContent = p.title;
+  let h = '';
+  p.rows.forEach(r=>{
+    h += `<div class="recrow">
+      <div><span class="pill pill-violet"><span class="dot"></span>${r[0]}</span></div>
+      <div><div class="lbl">System #</div><span class="mono">${r[1]}</span></div>
+      <div><div class="lbl">External ref</div><span class="mono">${r[2]}</span></div>
+      <div><div class="lbl">${r[4]==='—'?'Date':'Amount'}</div>${r[4]==='—'?r[3]:'<span class="tabular">'+r[4]+'</span>'}</div>
+      <div><span class="pill pill-${r[6]}"><span class="dot"></span>${r[5]}</span> <a class="btn-link" href="#">file</a></div>
+    </div>`;
+  });
+  h += `<p class="rnote mt-2" style="margin-top:12px">${p.note}</p>`;
+  // Capture affordance — shown for the ACTIVE phase only (here demo on every pane for review).
+  h += `<div class="capture mt-4" style="margin-top:16px">
+    <label>External ref #<input class="field" placeholder="vendor's number"></label>
+    <label>Date<input class="field" type="date"></label>
+    <label>File<input class="field" type="file"></label>
+    <button class="btn btn-primary">Capture record</button>
+  </div>`;
+  document.getElementById('pane').innerHTML = h;
+}
+function sel(el,id){
+  document.querySelectorAll('.spine .step').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel'); render(id);
+}
+render('p-request');
+function vp(m){ const f=document.getElementById('frame');
+  document.querySelectorAll('.demo-bar .seg button').forEach(b=>b.classList.remove('on')); event.target.classList.add('on');
+  if(m==='m'){ f.style.maxWidth='390px'; f.style.margin='0 auto'; f.style.borderLeft=f.style.borderRight='1px solid hsl(var(--border))'; }
+  else { f.style.maxWidth='none'; f.style.borderLeft=f.style.borderRight='none'; }
+}
+</script>
+</body>
+</html>

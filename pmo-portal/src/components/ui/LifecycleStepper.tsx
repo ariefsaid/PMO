@@ -100,7 +100,9 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
 
   // bar variant — even-flex journey bars + the scroll-fade affordance.
   return (
-    <div className={cn('relative', className)}>
+    // min-w-0 + overflow-hidden prevent the scroll content from inflating the
+    // page scrollWidth (R3 fix: items-tab @390 caused 11px horizontal page scroll).
+    <div className={cn('relative min-w-0 overflow-hidden', className)}>
       {/* Scrollable step track */}
       <div
         data-testid="stepper-scroll-container"

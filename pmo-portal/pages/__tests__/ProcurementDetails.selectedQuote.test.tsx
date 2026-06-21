@@ -19,6 +19,15 @@ const detailState = {
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
@@ -126,11 +135,15 @@ const base = {
   invoices: [],
 };
 
-const renderPage = () =>
+// The page is a tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab`
+// deep-links the panel that owns the asserted content (the stat tiles live on the
+// default Overview tab; the quotations section lives on the Vendor-quotes tab).
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -177,12 +190,14 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
     expect(t).not.toHaveTextContent('Pending');
   });
 
-  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected"', () => {
+  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
-    renderPage();
-    const section = screen.getByTestId('quotations-section');
-    expect(within(section).getByText('Selected')).toBeInTheDocument();
-    // its vq number is shown alongside
-    expect(within(section).getByText('VQ-2606040001')).toBeInTheDocument();
+    renderPage('quotes');
+    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
+    const section = screen.getByTestId('vendor-quotes');
+    // Both desktop + mobile branches render the pill so at least one match expected.
+    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    // its vq number is shown alongside (may appear in both branches)
+    expect(within(section).getAllByText('VQ-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 });

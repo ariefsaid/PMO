@@ -363,6 +363,122 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          payment_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          payment_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          payment_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_files_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          invoice_id: string | null
+          org_id: string
+          pay_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          invoice_id?: string | null
+          org_id?: string
+          pay_number?: string | null
+          procurement_id: string
+          reference_number?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          invoice_id?: string | null
+          org_id?: string
+          pay_number?: string | null
+          procurement_id?: string
+          reference_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_stage_config: {
         Row: {
           org_id: string
@@ -414,6 +530,54 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_documents: {
+        Row: {
+          date: string | null
+          id: string
+          link: string | null
+          org_id: string
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["doc_status"]
+          type: string
+        }
+        Insert: {
+          date?: string | null
+          id?: string
+          link?: string | null
+          org_id?: string
+          procurement_id: string
+          reference_number?: string | null
+          status?: Database["public"]["Enums"]["doc_status"]
+          type: string
+        }
+        Update: {
+          date?: string | null
+          id?: string
+          link?: string | null
+          org_id?: string
+          procurement_id?: string
+          reference_number?: string | null
+          status?: Database["public"]["Enums"]["doc_status"]
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_documents_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
             referencedColumns: ["id"]
           },
         ]
@@ -473,189 +637,40 @@ export type Database = {
           },
         ]
       }
-      procurement_quotation_files: {
-        Row: {
-          archived_at: string | null
-          created_at: string
-          file_path: string | null
-          id: string
-          org_id: string
-          quotation_id: string
-          title: string | null
-          uploaded_by_id: string | null
-        }
-        Insert: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          org_id?: string
-          quotation_id: string
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Update: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          org_id?: string
-          quotation_id?: string
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_quotation_files_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_quotation_files_quotation_id_fkey"
-            columns: ["quotation_id"]
-            isOneToOne: false
-            referencedRelation: "procurement_quotations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_quotation_files_uploaded_by_id_fkey"
-            columns: ["uploaded_by_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      procurement_receipt_files: {
-        Row: {
-          archived_at: string | null
-          created_at: string
-          file_path: string | null
-          id: string
-          org_id: string
-          receipt_id: string
-          title: string | null
-          uploaded_by_id: string | null
-        }
-        Insert: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          org_id?: string
-          receipt_id: string
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Update: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          org_id?: string
-          receipt_id?: string
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_receipt_files_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_receipt_files_receipt_id_fkey"
-            columns: ["receipt_id"]
-            isOneToOne: false
-            referencedRelation: "procurement_receipts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_receipt_files_uploaded_by_id_fkey"
-            columns: ["uploaded_by_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      procurement_documents: {
-        Row: {
-          date: string | null
-          id: string
-          link: string | null
-          org_id: string
-          procurement_id: string
-          reference_number: string | null
-          status: Database["public"]["Enums"]["doc_status"]
-          type: string
-        }
-        Insert: {
-          date?: string | null
-          id?: string
-          link?: string | null
-          org_id?: string
-          procurement_id: string
-          reference_number?: string | null
-          status?: Database["public"]["Enums"]["doc_status"]
-          type: string
-        }
-        Update: {
-          date?: string | null
-          id?: string
-          link?: string | null
-          org_id?: string
-          procurement_id?: string
-          reference_number?: string | null
-          status?: Database["public"]["Enums"]["doc_status"]
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_documents_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_documents_procurement_id_fkey"
-            columns: ["procurement_id"]
-            isOneToOne: false
-            referencedRelation: "procurements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       procurement_invoices: {
         Row: {
+          amount: number | null
           created_at: string
           id: string
           invoice_date: string | null
           org_id: string
+          po_id: string | null
           procurement_id: string
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number: string | null
         }
         Insert: {
+          amount?: number | null
           created_at?: string
           id?: string
           invoice_date?: string | null
           org_id?: string
+          po_id?: string | null
           procurement_id: string
+          reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number?: string | null
         }
         Update: {
+          amount?: number | null
           created_at?: string
           id?: string
           invoice_date?: string | null
           org_id?: string
+          po_id?: string | null
           procurement_id?: string
+          reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number?: string | null
         }
@@ -665,6 +680,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoices_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
             referencedColumns: ["id"]
           },
           {
@@ -724,6 +746,61 @@ export type Database = {
           },
         ]
       }
+      procurement_quotation_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          quotation_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          quotation_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          quotation_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_quotation_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_quotation_files_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_quotation_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_quotations: {
         Row: {
           file_url: string | null
@@ -733,7 +810,9 @@ export type Database = {
           procurement_id: string
           received_date: string | null
           reference: string | null
+          rfq_id: string | null
           total_amount: number
+          valid_until: string | null
           vendor_id: string
           vq_number: string | null
         }
@@ -745,7 +824,9 @@ export type Database = {
           procurement_id: string
           received_date?: string | null
           reference?: string | null
+          rfq_id?: string | null
           total_amount?: number
+          valid_until?: string | null
           vendor_id: string
           vq_number?: string | null
         }
@@ -757,7 +838,9 @@ export type Database = {
           procurement_id?: string
           received_date?: string | null
           reference?: string | null
+          rfq_id?: string | null
           total_amount?: number
+          valid_until?: string | null
           vendor_id?: string
           vq_number?: string | null
         }
@@ -777,10 +860,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "procurement_quotations_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "procurement_quotations_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_receipt_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          receipt_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          receipt_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          receipt_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_receipt_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_receipt_files_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_receipt_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -791,8 +936,10 @@ export type Database = {
           gr_number: string | null
           id: string
           org_id: string
+          po_id: string | null
           procurement_id: string
           receipt_date: string | null
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Insert: {
@@ -800,8 +947,10 @@ export type Database = {
           gr_number?: string | null
           id?: string
           org_id?: string
+          po_id?: string | null
           procurement_id: string
           receipt_date?: string | null
+          reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Update: {
@@ -809,8 +958,10 @@ export type Database = {
           gr_number?: string | null
           id?: string
           org_id?: string
+          po_id?: string | null
           procurement_id?: string
           receipt_date?: string | null
+          reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Relationships: [
@@ -822,7 +973,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "procurement_receipts_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "procurement_receipts_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_status_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          from_status: Database["public"]["Enums"]["procurement_status"] | null
+          id: string
+          notes: string | null
+          org_id: string
+          procurement_id: string
+          to_status: Database["public"]["Enums"]["procurement_status"]
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["procurement_status"] | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          procurement_id: string
+          to_status: Database["public"]["Enums"]["procurement_status"]
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          from_status?: Database["public"]["Enums"]["procurement_status"] | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          procurement_id?: string
+          to_status?: Database["public"]["Enums"]["procurement_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_status_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_status_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_status_events_procurement_id_fkey"
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
@@ -1212,6 +1425,324 @@ export type Database = {
           },
         ]
       }
+      purchase_order_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          purchase_order_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          purchase_order_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          purchase_order_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_files_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          po_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          po_number?: string | null
+          procurement_id: string
+          reference_number?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          po_number?: string | null
+          procurement_id?: string
+          reference_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_request_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          purchase_request_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          purchase_request_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          purchase_request_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_request_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_request_files_purchase_request_id_fkey"
+            columns: ["purchase_request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_request_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_requests: {
+        Row: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          pr_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          pr_number?: string | null
+          procurement_id: string
+          reference_number?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          pr_number?: string | null
+          procurement_id?: string
+          reference_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          org_id: string
+          rfq_id: string
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          rfq_id: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          org_id?: string
+          rfq_id?: string
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_files_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfqs: {
+        Row: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          procurement_id: string
+          reference_number: string | null
+          rfq_number: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          procurement_id: string
+          reference_number?: string | null
+          rfq_number?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          org_id?: string
+          procurement_id?: string
+          reference_number?: string | null
+          rfq_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfqs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -1445,6 +1976,34 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
+      create_payment: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_invoice_id: string
+          p_procurement_id: string
+          p_reference_number: string
+          p_status: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          invoice_id: string | null
+          org_id: string
+          pay_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_procurement_invoice: {
         Args: {
           p_invoice_date: string
@@ -1456,6 +2015,7 @@ export type Database = {
           id: string
           invoice_date: string | null
           org_id: string
+          po_id: string | null
           procurement_id: string
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number: string | null
@@ -1482,7 +2042,9 @@ export type Database = {
           procurement_id: string
           received_date: string | null
           reference: string | null
+          rfq_id: string | null
           total_amount: number
+          valid_until: string | null
           vendor_id: string
           vq_number: string | null
         }
@@ -1504,6 +2066,7 @@ export type Database = {
           gr_number: string | null
           id: string
           org_id: string
+          po_id: string | null
           procurement_id: string
           receipt_date: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
@@ -1511,6 +2074,84 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "procurement_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_purchase_order: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_procurement_id: string
+          p_reference_number: string
+          p_status: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          po_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_purchase_request: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_procurement_id: string
+          p_reference_number: string
+          p_status: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          pr_number: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchase_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_rfq: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_procurement_id: string
+          p_reference_number: string
+          p_status: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          date: string | null
+          id: string
+          org_id: string
+          procurement_id: string
+          reference_number: string | null
+          rfq_number: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rfqs"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1564,6 +2205,10 @@ export type Database = {
       set_project_contract_value: {
         Args: { p_id: string; p_value: number }
         Returns: undefined
+      }
+      task_completion_proxy: {
+        Args: { created_at: string; end_date: string }
+        Returns: string
       }
       transition_document_status: {
         Args: {

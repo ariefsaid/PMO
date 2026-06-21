@@ -55,7 +55,18 @@ screen must make available adjacent to the insight (the actionability test).
 | `/approvals` (unified, `?scope=`) | PM / Finance | *When things await my decision, I want one inbox where I can preview the request and approve/reject without drilling in, so I can clear my queue.* | **Preview-in-place + approve/reject** — the canonical preview-before-drill-in paradigm every approvable object must match. |
 
 ### Procurement
-| `/procurement` + `/:id` | PM / Finance | *When I manage procurement, I want to see each item's phase + what it's waiting on, and review evidence (quotes/GR/VI), so I can advance or approve spend.* | **Same preview paradigm as approvals/timesheets** — procurement objects must be **previewable before drill-in** (anchor #1, the calibration miss); advance-phase / approve-spend adjacent. |
+
+Procurement is not one job — it is **four decision jobs** on one case (the old single "see phase + advance"
+row under-specified it, which is why the module looked rich but did little; ADR-0033). Grade each row
+against its **own** outcome. The primary screen for jobs P1–P3 is the **single procurement page** (full
+pipeline + progression history, no drilling around); P4 is shared with `/approvals`.
+
+| Screen | Primary role | Top job — job story | Expected "now-what" action (must be adjacent) |
+|---|---|---|---|
+| **P1 — Operate the case** `/procurement/:id` | Procurement admin *(operational hat: Admin/PM/Finance)* | *When I'm running a procurement, I already hold the real documents (PR, RFQ, quotes, PO, GR, invoice, payment); I want to capture each one — its real reference number **and** the file — and move the case forward, all on one page, so I don't hunt across screens.* | **Inline capture + upload of every record adjacent to its phase** on the single page; both the **system-assigned number and the external reference** shown; **advance** the case from here; the **full pipeline + historical progression** visible without navigating away. The doorway must be honest — every affordance the page implies must actually do something. |
+| **P2 — Source / choose a vendor** `/procurement/:id` | PM / Finance | *When I have competing quotes, I want to compare bids side by side and pick one with a reason, so the sourcing decision is defensible.* | **Bid-comparison view** (vendors × amount × validity × terms), best-value signalled, **select-with-rationale** adjacent — not a flat list where I compare in my head. |
+| **P3 — Control spend against budget** `/procurement/:id` | PM / Finance | *When I'm about to commit, I want to know whether this fits the project budget net of other pending commitments, so I don't over-commit.* | **Budget signal (healthy / warning / critical) adjacent to the approve/commit action**, on the committed basis (OD-BUDGET-2), pending-aware. Advisory vs blocking is an open decision (OD-W5-4/-5). |
+| **P4 — Authorize / pay** `/approvals` + `/procurement/:id` | PM (approve) · Finance (pay) | *When spend awaits my authority, I want to preview the request and approve/reject — and separately release payment — without drilling in, so I can clear my queue under SoD.* | **Preview-in-place + approve/reject** (the canonical paradigm, anchor #1) with **SoD enforced** (approver ≠ requester; payer ≠ approver). |
 
 ### Master data (CRM)
 | `/companies` + `/:id` | Finance / PM | *When I work an account, I want its record + related projects/contacts/opportunities, so I can act in context.* | Open → routable record (not a dead drawer); related objects clickable. |
@@ -101,6 +112,7 @@ one model — divergence is the exact defect class the coherence wave + the anch
 | Procurement has no preview; approvals/timesheets do. | *…review evidence so I can approve spend* — broken by inconsistent preview. | Q5 (+Q4) |
 | Calendar view on the project **list**, not clickable; not in task detail. | *…spot the off-track one so I can open it* — view with no job/scent, wrong place. | Q2 (+Q1) |
 | S-curve above the fold, actionable tabs buried. | *…know what's next and act* — analytic with no adjacent lever. | Q3 (+Q4) |
+| **Dishonest doorway — looks rich, does little.** A screen *implies* capability (polished pipeline, tabs, tiles) the module can't deliver: no bid comparison, no document upload, dual IDs absent, history not shown, capture buried off-page. | *…operate the case on one page* (P1) — the affordance the page advertises must actually work. | Q4 (+Q1) |
 
 ---
 

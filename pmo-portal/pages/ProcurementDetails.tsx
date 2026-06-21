@@ -9,33 +9,35 @@ import {
   StatusPill,
   LifecycleStepper,
   GateNotice,
-  StatTiles,
   ListState,
   Icon,
   ConfirmDialog,
   RecordActionZone,
+  Tabs,
+  tabId,
+  tabPanelId,
   useToast,
   ProjectNameLink,
   CompanyNameLink,
   type StatTile,
+  type TabItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
+import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
-import {
-  useProcurementCrudMutations,
-  useProcurementDocuments,
-} from '@/src/hooks/useProcurementCrud';
+import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
-import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { QuotationsSection } from './procurement/QuotationsSection';
-import { ProcurementDocumentsSection } from './procurement/ProcurementDocumentsSection';
-import { ProcurementFilesSubsection } from './procurement/ProcurementFilesSubsection';
+import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
+import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
+import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
   canCancel,
@@ -67,6 +69,18 @@ const canSource = (role: string) => can('create', 'quotation', { realRole: role 
 const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
+// ---------------------------------------------------------------------------
+// Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). Default tab =
+// Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
+// :tab defaults to Overview and is role-invariant (CW-7); an explicit :tab always wins.
+// ---------------------------------------------------------------------------
+type ProcTab = 'overview' | 'items' | 'documents' | 'quotes';
+const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes'];
+function tabFromParam(param: string | undefined): ProcTab {
+  if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
+  return 'overview';
+}
+
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
 /** A staged, not-yet-committed mutation awaiting the ConfirmDialog. */
@@ -88,12 +102,15 @@ type PendingConfirm =
       kind: 'createGR';
       status: 'Partial' | 'Complete';
       receiptDate: string;
+      referenceNumber: string | null;
     }
   | {
       kind: 'createVI';
       /** N1: Paid removed — Mark as Paid is the sole PR→Paid authority (AC-W3-N1). */
       status: 'Received' | 'Scheduled';
       invoiceDate: string;
+      referenceNumber: string | null;
+      amount: number | null;
     };
 
 /**
@@ -215,8 +232,40 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
   return null;
 }
 
+/**
+ * Per-status SoD-aware ready copy for the GateNotice variant="ready".
+ * Replaces the generic "You may move this request to its next lifecycle
+ * stage below." with copy that teaches the SoD rule relevant to each stage.
+ * Display-only — no enforcement logic.
+ */
+function readyGateMessage(
+  status: ProcurementStatus,
+  isRequester: boolean,
+  isApprover: boolean,
+): string {
+  switch (status) {
+    case 'Draft':
+      // Author about to submit — teach that submission hands off to a different approver.
+      return isRequester
+        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
+        : 'Ready to submit this request for approval.';
+    case 'Requested':
+      // Approver viewing — teach that the requester cannot self-approve.
+      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
+    case 'Vendor Invoiced':
+      // Finance payer — teach SoD-b: the approver cannot also release payment.
+      return isApprover
+        ? 'Ready to advance.' // SoD-b blocks them anyway; the action won't appear
+        : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
+    default:
+      return 'Ready to advance. Select an action below to move this request to its next stage.';
+  }
+}
+
 const ProcurementDetails: React.FC = () => {
-  const { procurementId } = useParams<{ procurementId: string }>();
+  const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
+  // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
+  const tab = tabFromParam(tabParam);
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole } = useEffectiveRole();
@@ -228,7 +277,14 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
-  const docsQuery = useProcurementDocuments(procurementId);
+
+  // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
+  // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
+  const { data: vendorOptions } = useVendorOptions();
+  const vendorMap: Record<string, string> = React.useMemo(
+    () => Object.fromEntries((vendorOptions ?? []).map((o) => [o.value, o.label])),
+    [vendorOptions],
+  );
 
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
@@ -250,6 +306,11 @@ const ProcurementDetails: React.FC = () => {
   // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record title from the cached list in App.tsx.
   const goBack = () => navigate('/procurement');
+
+  // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
+  // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
+  const setTab = (next: ProcTab) =>
+    navigate(`/procurement/${procurementId}/${next}`, { replace: true });
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -336,8 +397,6 @@ const ProcurementDetails: React.FC = () => {
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
   const canAddQuote = may('create', 'quotation');
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
-  // Documents: Admin·Exec·PM·Finance manage; everyone else read-only.
-  const canManageDocs = may('create', 'procDoc');
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
   const fileOrgId = currentUser?.org_id ?? '';
@@ -469,6 +528,7 @@ const ProcurementDetails: React.FC = () => {
         await mutations.createReceipt.mutateAsync({
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
+          referenceNumber: pendingConfirm.referenceNumber,
         });
         setShowCreateGR(false);
         toast('Goods receipt recorded', undefined, 'success');
@@ -476,6 +536,8 @@ const ProcurementDetails: React.FC = () => {
         await mutations.createInvoice.mutateAsync({
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
+          referenceNumber: pendingConfirm.referenceNumber,
+          amount: pendingConfirm.amount,
         });
         setShowCreateVI(false);
         toast('Vendor invoice recorded', undefined, 'success');
@@ -498,11 +560,16 @@ const ProcurementDetails: React.FC = () => {
   // success-then-warning pair). The inline panel is closed on BOTH paths — on a partial failure
   // (transition OK, invoice fails) the PR is at Vendor Invoiced with no invoice, so the
   // `canShowVIForm` recovery after-form (gated on `p.invoices.length === 0`) is where it's finished.
-  const submitVICapture = async (viStatus: 'Received' | 'Scheduled', invoiceDate: string) => {
+  const submitVICapture = async (
+    viStatus: 'Received' | 'Scheduled',
+    invoiceDate: string,
+    referenceNumber: string | null,
+    amount: number | null,
+  ) => {
     setMutationError(null);
     try {
       await mutations.transition.mutateAsync({ to: 'Vendor Invoiced', notes: notesInput || undefined });
-      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate });
+      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate, referenceNumber, amount });
       setNotesInput('');
       setShowVICapture(false);
       toast('Vendor invoice recorded', `Moved to ${toastStateLabel('Vendor Invoiced')}`, 'success');
@@ -519,55 +586,126 @@ const ProcurementDetails: React.FC = () => {
     mutations.createReceipt.isPending ||
     mutations.createInvoice.isPending;
 
-  const stats: StatTile[] = [
+  // ── Stat tiles (sparse + honest — I2/I3 design-review fixes) ───────────────
+  // I3: only render a tile when its value is real (not a placeholder like
+  //     "Pending / None yet / no PO yet / awaiting delivery"). Early/Draft cases
+  //     had 4 placeholder tiles that re-introduced the empty-state noise the
+  //     revamp removed. Build the tile array conditionally then pass the live set.
+  // I2: on terminal states (Paid / Cancelled) never show "awaiting delivery" —
+  //     derive the sub-text from actual record state; omit the tile if no receipt
+  //     exists rather than asserting a falsehood.
+  const statTilesRaw: (StatTile | null)[] = [
+    // PR value — always shown (every procurement has a total_value)
     {
       label: 'PR value',
       value: formatCurrency(Number(p.total_value)),
       sub: p.project?.name ?? undefined,
     },
-    {
-      // AC-IXD-PROC-004: once a quote is selected, the tile is bound to the
-      // CHOSEN quotation — its amount + the selected vendor — through to Paid,
-      // instead of reverting to "Pending — 0 received".
-      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
-      label: 'Selected quote',
-      value: selectedQuote ? formatCurrency(Number(selectedQuote.total_amount)) : 'Pending',
-      sub: selectedQuote
-        ? (
-          <CompanyNameLink
-            companyId={p.vendor_id}
-            name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
-            className="text-[11px]"
-          />
-        )
-        : `${p.quotations.length} received`,
-    },
-    {
-      label: 'PO committed',
-      value: p.po_number ? formatCurrency(Number(p.total_value)) : 'Pending',
-      // PRD-1 (AC-JR-W3B-E1): vendor name is now a CompanyNameLink.
-      sub: p.vendor?.name
-        ? (
-          <CompanyNameLink
-            companyId={p.vendor_id}
-            name={p.vendor.name}
-            className="text-[11px]"
-          />
-        )
-        : (p.po_number ? undefined : 'no PO yet'),
-    },
-    {
-      label: 'Goods received',
-      value: p.receipts.length > 0 ? `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}` : 'None yet',
-      sub: p.receipts.length > 0 ? p.receipts[p.receipts.length - 1].status : 'awaiting delivery',
-    },
+    // Selected quote — only when a quote is committed (Quote Selected onward).
+    // AC-IXD-PROC-004: the chosen quotation tile is bound through to Paid.
+    // PRD-1 (AC-JR-W3B-E1): vendor name is a CompanyNameLink.
+    selectedQuote
+      ? {
+          label: 'Selected quote',
+          value: formatCurrency(Number(selectedQuote.total_amount)),
+          sub: (
+            <CompanyNameLink
+              companyId={p.vendor_id}
+              name={p.vendor?.name ?? selectedQuote.vq_number ?? 'selected'}
+              className="text-[11px]"
+            />
+          ),
+        }
+      : null,
+    // PO committed — only when a purchase_order record exists.
+    // I1 companion: we derive existence from the record table, not the denormalized
+    // p.po_number header column (which may be set before a PO record is captured).
+    p.purchase_orders && p.purchase_orders.length > 0
+      ? {
+          label: 'PO committed',
+          // Use the PO record's amount if available, else fall back to total_value.
+          value: formatCurrency(
+            Number((p.purchase_orders[0] as { amount?: number | null }).amount ?? p.total_value),
+          ),
+          sub: p.vendor?.name ? (
+            // PRD-1 (AC-JR-W3B-E1)
+            <CompanyNameLink
+              companyId={p.vendor_id}
+              name={p.vendor.name}
+              className="text-[11px]"
+            />
+          ) : undefined,
+        }
+      : null,
+    // Goods received — only when at least one receipt exists.
+    // I2: on terminal states, derive sub from actual receipt status (not "awaiting
+    // delivery"). If no receipt exists on a terminal case, omit the tile entirely.
+    p.receipts.length > 0
+      ? {
+          label: 'Goods received',
+          value: `${p.receipts.length} receipt${p.receipts.length > 1 ? 's' : ''}`,
+          // Derive from actual receipt status — never assert "awaiting delivery"
+          // on a terminal case (Paid/Cancelled) where goods are already settled.
+          sub: p.receipts[p.receipts.length - 1].status,
+        }
+      : null,
   ];
+  const stats = statTilesRaw.filter((t): t is StatTile => t !== null);
 
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <span key="proj"> · <ProjectNameLink projectId={p.project_id} name={p.project.name} /></span> : null,
     p.requested_by?.full_name ? <span key="req"> · requested by {p.requested_by.full_name}</span> : null,
   ].filter(Boolean);
+
+  // Overview Detail <dl> rows (the Field grammar). Vendor / Approved-by read a muted
+  // "Not yet selected" / "Pending" while absent rather than a bare blank (G5 honesty).
+  const detailRows: DetailRow[] = [
+    {
+      label: 'Project',
+      value: p.project?.name ? (
+        <ProjectNameLink projectId={p.project_id} name={p.project.name} />
+      ) : (
+        <span className="text-muted-foreground">Not linked</span>
+      ),
+    },
+    {
+      label: 'Vendor',
+      value: p.vendor?.name ? (
+        <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
+      ) : (
+        <span className="text-muted-foreground">Not yet selected</span>
+      ),
+    },
+    {
+      label: 'Requested by',
+      value: p.requested_by?.full_name ?? (
+        <span className="text-muted-foreground">—</span>
+      ),
+    },
+    {
+      label: 'Approved by',
+      value: p.approved_by?.full_name ?? (
+        <span className="text-muted-foreground">Pending</span>
+      ),
+    },
+  ];
+
+  // Progression-history events — transition-centric merge (buildProgressionTimeline):
+  // transitions are the spine; each matching record is folded in as a docRef annotation
+  // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
+  const historyEvents = buildProgressionTimeline(p, p.id);
+
+  // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
+  // row count (all 7 record types, one row each, as built by buildLedgerRows).
+  const ledgerRows = buildLedgerRows(p);
+  const documentsCount = ledgerRows.length;
+  const procTabs: TabItem<ProcTab>[] = [
+    { value: 'overview', label: 'Overview' },
+    { value: 'items', label: 'Line items', count: p.items.length || null },
+    { value: 'documents', label: 'Documents', count: documentsCount || null },
+    { value: 'quotes', label: 'Vendor quotes', count: p.quotations.length || null },
+  ];
 
   return (
     <div>
@@ -618,9 +756,16 @@ const ProcurementDetails: React.FC = () => {
           <LifecycleStepper
             variant="bar"
             steps={lifecycleSteps(p.status, {
-              pr_number: p.pr_number,
+              // I1 (design-review): refs must come from ACTUAL record rows, not the
+              // denormalized header columns (p.pr_number / p.po_number). The header
+              // columns may be set even when no record exists in the ledger, causing
+              // the stepper to show a doc number that has no corresponding record in
+              // the Documents tab — a dishonest doorway. Derive each ref from the
+              // actual record arrays so the stepper can only show a ref when a record
+              // genuinely exists. GR and VI already used the record arrays.
+              pr_number: p.purchase_requests?.[0]?.pr_number ?? null,
               vq_number: selectedQuote?.vq_number,
-              po_number: p.po_number,
+              po_number: p.purchase_orders?.[0]?.po_number ?? null,
               gr_number: p.receipts[0]?.gr_number,
               vi_number: p.invoices[0]?.vi_number,
             })}
@@ -647,102 +792,103 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* ░░ EVIDENCE ZONE — read first (N7: AC-IXD-PROC-W5-1a) ░░
-          StatTiles → [PR-2 DecisionSupportPanel slot] → LineItems → Quotations+DocTrail
-          All evidence blocks appear ABOVE the DecisionCard in both DOM order and
-          visual order so the approver reviews facts before acting. */}
-
-      {/* Stat strip */}
-      <StatTiles tiles={stats} className="mb-4" />
-
-      {/* N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel — budget-remaining + variance.
-          Renders ONLY when project_id is set; is a pure read-only evidence block.
-          Committed spend is sourced inside the panel (useProjectCommittedSpend, the
-          honest Σ-PO-in-Ordered..Paid basis) — no widened join needed. */}
-      <DecisionSupportPanel
-        projectId={p.project_id}
-        totalValue={Number(p.total_value)}
-        projectName={p.project?.name ?? null}
+      {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
+          Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
+          progression). The other tabs home the Line items / Documents / Vendor quotes.
+          The RecordActionZone (decision zone) stays OUTSIDE the tabs — it is the ONE
+          advance/approve placement, never below the fold, at every tab. */}
+      <Tabs<ProcTab>
+        items={procTabs}
+        value={tab}
+        onChange={setTab}
+        ariaLabel="Procurement sections"
+        idBase="procurement-detail"
       />
 
-      {/* Editable line items (requester + PM/Finance/Admin while Draft) */}
-      <LineItemsSection
-        items={p.items}
-        editable={canEditItems}
-        busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
-        onError={onMutationError}
-        onAdd={async (input) => {
-          await crud.createItem.mutateAsync(input);
-          toast('Line item added', input.name, 'success');
-        }}
-        onUpdate={async (id, patch) => {
-          await crud.updateItem.mutateAsync({ id, patch });
-          toast('Line item updated', patch.name, 'success');
-        }}
-        onDelete={async (id) => {
-          await crud.deleteItem.mutateAsync(id);
-          toast('Line item removed', undefined, 'success');
-        }}
-      />
+      <div
+        role="tabpanel"
+        id={tabPanelId('procurement-detail', tab)}
+        aria-labelledby={tabId('procurement-detail', tab)}
+        data-testid={`procurement-tabpanel-${tab}`}
+      >
+        {tab === 'overview' && (
+          <ProcurementOverviewTab
+            tiles={stats}
+            detailRows={detailRows}
+            events={historyEvents}
+            projectId={p.project_id}
+            projectName={p.project?.name ?? null}
+            totalValue={Number(p.total_value)}
+          />
+        )}
 
-      {/* Quotations (add + select-quote) + document trail */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <QuotationsSection
-          quotations={p.quotations}
-          selectedId={selectedQuote?.id ?? null}
-          canAdd={canAddQuote}
-          canSelect={canSelectQuote}
-          addBusy={mutations.createQuotation.isPending}
-          selectBusy={crud.selectQuote.isPending}
-          procurementId={p.id}
-          orgId={fileOrgId}
-          canManageFiles={canManageFiles}
-          currentUserId={currentUserId}
-          onError={onMutationError}
-          onAdd={async (input) => {
-            await mutations.createQuotation.mutateAsync(input);
-            toast('Quotation added', undefined, 'success');
-          }}
-          onSelect={async (quotationId) => {
-            await crud.selectQuote.mutateAsync(quotationId);
-            toast('Quote selected', 'The request advanced to Quote Selected', 'success');
-          }}
-        />
+        {tab === 'items' && (
+          <LineItemsSection
+            items={p.items}
+            editable={canEditItems}
+            busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
+            onError={onMutationError}
+            onAdd={async (input) => {
+              await crud.createItem.mutateAsync(input);
+              toast('Line item added', input.name, 'success');
+            }}
+            onUpdate={async (id, patch) => {
+              await crud.updateItem.mutateAsync({ id, patch });
+              toast('Line item updated', patch.name, 'success');
+            }}
+            onDelete={async (id) => {
+              await crud.deleteItem.mutateAsync(id);
+              toast('Line item removed', undefined, 'success');
+            }}
+          />
+        )}
 
-        <Card>
-          <CardHead>Document trail</CardHead>
-          <CardPad className="flex flex-col gap-2">
-            <DocRow label="PR#" value={p.pr_number} />
-            {selectedQuote && <DocRow label="VQ#" value={selectedQuote.vq_number} />}
-            <DocRow label="PO#" value={p.po_number} />
-            {p.receipts.map((r) => (
-              <div key={r.id}>
-                <DocRow label="GR#" value={r.gr_number} sub={r.status} />
-                <ProcurementFilesSubsection
-                  phase="receipt"
-                  parentId={r.id}
-                  procurementId={p.id}
-                  orgId={fileOrgId}
-                  canWrite={canManageFiles}
-                  uploadedById={currentUserId}
-                />
-              </div>
-            ))}
-            {p.invoices.map((inv) => (
-              <div key={inv.id}>
-                <DocRow label="VI#" value={inv.vi_number} sub={inv.status} />
-                <ProcurementFilesSubsection
-                  phase="invoice"
-                  parentId={inv.id}
-                  procurementId={p.id}
-                  orgId={fileOrgId}
-                  canWrite={canManageFiles}
-                  uploadedById={currentUserId}
-                />
-              </div>
-            ))}
-          </CardPad>
-        </Card>
+        {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
+            All 7 record types, chronological, one row each. Filter chips: All /
+            Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
+            ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
+        {tab === 'documents' && (
+          <Card>
+            <ProcurementLedger
+              detail={p}
+              rows={ledgerRows}
+              procurementId={p.id}
+              orgId={fileOrgId}
+              uploadedById={currentUserId}
+              canWrite={canManageFiles}
+              invoices={p.invoices}
+            />
+          </Card>
+        )}
+
+        {/* ░░ Vendor quotes tab — Slice 3: VendorQuotesTab (bid comparison).
+            Refactors QuotationsSection into a side-by-side comparison layout:
+            Vendor / Amount / Valid until · selected row highlighted + won pill.
+            Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
+        {tab === 'quotes' && (
+          <VendorQuotesTab
+            quotations={p.quotations}
+            selectedId={selectedQuote?.id ?? null}
+            canAdd={canAddQuote}
+            canSelect={canSelectQuote}
+            addBusy={mutations.createQuotation.isPending}
+            selectBusy={crud.selectQuote.isPending}
+            procurementId={p.id}
+            orgId={fileOrgId}
+            canManageFiles={canManageFiles}
+            currentUserId={currentUserId}
+            vendorMap={vendorMap}
+            onError={onMutationError}
+            onAdd={async (input) => {
+              await mutations.createQuotation.mutateAsync(input);
+              toast('Quotation added', undefined, 'success');
+            }}
+            onSelect={async (quotationId) => {
+              await crud.selectQuote.mutateAsync(quotationId);
+              toast('Quote selected', 'The request advanced to Quote Selected', 'success');
+            }}
+          />
+        )}
       </div>
 
       {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
@@ -769,7 +915,7 @@ const ProcurementDetails: React.FC = () => {
             </GateNotice>
           ) : actions.length > 0 ? (
             <GateNotice variant="ready">
-              <b>Ready to advance.</b> You may move this request to its next lifecycle stage below.
+              {readyGateMessage(p.status, isRequester, isApprover)}
             </GateNotice>
           ) : null}
 
@@ -809,7 +955,7 @@ const ProcurementDetails: React.FC = () => {
           {showVICapture ? (
             <VIInlineCapture
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
-              onSubmit={(viStatus, invoiceDate) => void submitVICapture(viStatus, invoiceDate)}
+              onSubmit={(viStatus, invoiceDate, referenceNumber, amount) => void submitVICapture(viStatus, invoiceDate, referenceNumber, amount)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
           ) : actions.length > 0 ? (
@@ -886,15 +1032,28 @@ const ProcurementDetails: React.FC = () => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     setMutationError(null);
+                    const ref = (fd.get('gr-ref') as string).trim() || null;
                     // Stage the GR for confirmation (commit fires on Confirm).
                     setPendingConfirm({
                       kind: 'createGR',
                       status: fd.get('gr-status') as 'Partial' | 'Complete',
                       receiptDate: fd.get('gr-date') as string,
+                      referenceNumber: ref,
                     });
                   }}
                   className="flex flex-wrap items-end gap-3"
                 >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Delivery note <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      name="gr-ref"
+                      placeholder="e.g. DN-44120"
+                      maxLength={64}
+                      data-testid="gr-ref-input"
+                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
                   <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
                     Status
                     <select
@@ -952,16 +1111,43 @@ const ProcurementDetails: React.FC = () => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     setMutationError(null);
+                    const ref = (fd.get('vi-ref') as string).trim() || null;
+                    const amtStr = (fd.get('vi-amount') as string).trim();
+                    const amt = amtStr === '' ? null : Number(amtStr.replace(/,/g, ''));
                     // Stage the VI for confirmation (commit fires on Confirm).
                     // N1: status cast excludes Paid — the select no longer offers it.
                     setPendingConfirm({
                       kind: 'createVI',
                       status: fd.get('vi-status') as 'Received' | 'Scheduled',
                       invoiceDate: fd.get('vi-date') as string,
+                      referenceNumber: ref,
+                      amount: amt,
                     });
                   }}
                   className="flex flex-wrap items-end gap-3"
                 >
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Invoice # <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      name="vi-ref"
+                      placeholder="e.g. INV-2291"
+                      maxLength={64}
+                      data-testid="vi-ref-input"
+                      className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+                    Amount <span className="font-normal">(optional)</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      name="vi-amount"
+                      placeholder="0.00"
+                      data-testid="vi-amount-input"
+                      className="h-8 w-32 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    />
+                  </label>
                   <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
                     Status
                     <select
@@ -1005,26 +1191,6 @@ const ProcurementDetails: React.FC = () => {
         </CardPad>
       </Card>
       </RecordActionZone>
-
-      {/* Documents metadata register (over the previously-dead procurement_documents) */}
-      <ProcurementDocumentsSection
-        documents={docsQuery.data ?? []}
-        loading={docsQuery.isPending}
-        error={docsQuery.isError}
-        onRetry={() => docsQuery.refetch()}
-        editable={canManageDocs}
-        addBusy={crud.createDocument.isPending}
-        deleteBusy={crud.deleteDocument.isPending}
-        onError={onMutationError}
-        onAdd={async (input) => {
-          await crud.createDocument.mutateAsync(input);
-          toast('Document added', input.type, 'success');
-        }}
-        onDelete={async (id) => {
-          await crud.deleteDocument.mutateAsync(id);
-          toast('Document removed', undefined, 'success');
-        }}
-      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (
@@ -1126,13 +1292,26 @@ const ProcurementDetails: React.FC = () => {
 // ---------------------------------------------------------------------------
 interface VIInlineCaptureProps {
   busy: boolean;
-  onSubmit: (status: 'Received' | 'Scheduled', invoiceDate: string) => void;
+  onSubmit: (
+    status: 'Received' | 'Scheduled',
+    invoiceDate: string,
+    referenceNumber: string | null,
+    amount: number | null,
+  ) => void;
   onCancel: () => void;
 }
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [refNum, setRefNum] = React.useState('');
+  const [amtStr, setAmtStr] = React.useState('');
+
+  const handleSubmit = () => {
+    const ref = refNum.trim() || null;
+    const amt = amtStr.trim() === '' ? null : Number(amtStr.replace(/,/g, ''));
+    onSubmit(viStatus, invoiceDate, ref, amt);
+  };
 
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
@@ -1140,6 +1319,30 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         Enter invoice details to mark as Vendor Invoiced:
       </p>
       <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Invoice # <span className="font-normal">(optional)</span>
+          <input
+            type="text"
+            value={refNum}
+            onChange={(e) => setRefNum(e.target.value)}
+            placeholder="e.g. INV-2291"
+            maxLength={64}
+            data-testid="vi-ref-input"
+            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Amount <span className="font-normal">(optional)</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amtStr}
+            onChange={(e) => setAmtStr(e.target.value)}
+            placeholder="0.00"
+            data-testid="vi-amount-input"
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
           Invoice status
           <select
@@ -1169,7 +1372,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           loading={busy}
           disabled={!invoiceDate}
           data-testid="btn-submit-vi-capture"
-          onClick={() => onSubmit(viStatus, invoiceDate)}
+          onClick={handleSubmit}
         >
           Confirm &amp; Mark Invoiced
         </Button>
@@ -1183,24 +1386,6 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           Cancel
         </Button>
       </div>
-    </div>
-  );
-};
-
-/** Mono doc-reference row (PR/VQ/PO/GR/VI) with an optional status sub-label. */
-const DocRow: React.FC<{ label: string; value: string | null | undefined; sub?: string }> = ({
-  label,
-  value,
-  sub,
-}) => {
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-2.5 text-[13px]">
-      <span className="w-9 shrink-0 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="font-mono font-semibold">{value}</span>
-      {sub && <StatusPill variant="neutral" className="ml-auto">{sub}</StatusPill>}
     </div>
   );
 };

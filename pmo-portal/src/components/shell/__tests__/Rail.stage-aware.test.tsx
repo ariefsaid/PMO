@@ -17,7 +17,9 @@ import React from 'react';
  * Mechanism: `railActiveOverride` prop on <Rail>:
  *   'salesPipeline' | 'projects' | null
  *
- * The active token is `bg-primary/10 font-semibold text-primary` (DESIGN.md).
+ * The active token is `bg-primary/10 font-semibold text-nav-active-text` (DESIGN.md §nav-item-active,
+ * contrast-fixed: text-primary=#2563eb on primary/10 bg is 4.48:1 — just below AA 4.5:1;
+ * text-nav-active-text=hsl(221 75% 38%)=#1a46aa gives 7.31:1 — AC-PR-026 fix).
  */
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -39,7 +41,7 @@ const renderRail = (override: 'salesPipeline' | 'projects' | null) =>
     </MemoryRouter>,
   );
 
-const ACTIVE_CLASS_FRAGMENT = 'text-primary';
+const ACTIVE_CLASS_FRAGMENT = 'text-nav-active-text';
 
 function isActive(el: HTMLElement): boolean {
   return el.className.includes(ACTIVE_CLASS_FRAGMENT);

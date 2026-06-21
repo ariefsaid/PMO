@@ -33,6 +33,15 @@ const detailState = {
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+vi.mock('@/src/hooks/useProcurementRecords', () => ({
+  useProcurementRecordMutations: () => ({
+    createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
+    createRfq: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPayment: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
@@ -211,11 +220,15 @@ const draftWithCancelBase = {
   ],
 };
 
-const renderPage = () =>
+// Tabbed shell (`/procurement/:id/:tab?`). The decision zone (action buttons) renders
+// OUTSIDE the tabs (after the active panel in DOM), so the "evidence precedes decision"
+// goal holds on whichever tab the evidence lives. `tab` deep-links the owning panel.
+const renderPage = (tab?: string) =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -243,7 +256,9 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
 
   it('AC-IXD-PROC-W5-1a: the line-items section appears before the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // Evidence now lives on the Line-items tab; the decision zone is outside the tabs,
+    // so it still follows the active panel in DOM order — the goal is preserved.
+    renderPage('items');
 
     const lineItemsSection = screen.getByTestId('line-items-section');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
@@ -254,16 +269,18 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1a: the quotations section appears before the decision actions in DOM order', () => {
+  it('AC-IXD-PROC-W5-1a: the vendor-quotes section appears before the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    // VendorQuotesTab (Slice 3) lives on the Vendor-quotes tab; the decision zone is
+    // outside the tabs and still follows the active panel in DOM order — goal preserved.
+    renderPage('quotes');
 
-    const quotationsSection = screen.getByTestId('quotations-section');
+    const vendorQuotes = screen.getByTestId('vendor-quotes');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
 
     expect(
-      appearsBeforeInDOM(quotationsSection, approveBtn),
-      'quotations-section must precede the Approve button in DOM order',
+      appearsBeforeInDOM(vendorQuotes, approveBtn),
+      'vendor-quotes must precede the Approve button in DOM order',
     ).toBe(true);
   });
 
@@ -429,13 +446,15 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — GateNotice inside decision
     expect(within(decisionCard).queryByText(/separation-of-duties gate/i)).toBeNull();
   });
 
-  it('AC-IXD-PROC-W5-1c: SoD "ready to advance" notice is inside the decision-card when the viewer CAN act', () => {
+  it('AC-IXD-PROC-W5-1c: the ready GateNotice is inside the decision-card when the viewer CAN act', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
     const decisionCard = screen.getByTestId('decision-card');
-    // When unblocked and actions exist, the "Ready to advance" notice is inside the decision-card
-    expect(within(decisionCard).getByText(/ready to advance/i)).toBeInTheDocument();
+    // When unblocked and actions exist, a GateNotice "ready" variant is inside the decision-card.
+    // Since I5 the copy is SoD-aware ("You may approve or reject…") rather than the old generic
+    // "Ready to advance. You may move this request…" — assert the approver-context copy is present.
+    expect(within(decisionCard).getByText(/you may approve or reject|requester cannot self.?approv/i)).toBeInTheDocument();
   });
 });
 
@@ -527,14 +546,15 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
 
   it('non-regression: the line-items section still renders at Requested state', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
+    renderPage('items');
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
   });
 
-  it('non-regression: the quotations section still renders at Requested state', () => {
+  it('non-regression: the vendor-quotes section (VendorQuotesTab) still renders at Requested state', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
-    expect(screen.getByTestId('quotations-section')).toBeInTheDocument();
+    renderPage('quotes');
+    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
+    expect(screen.getByTestId('vendor-quotes')).toBeInTheDocument();
   });
 
   it('non-regression: Approve is still a primary blue (no regression from W5-1b)', () => {

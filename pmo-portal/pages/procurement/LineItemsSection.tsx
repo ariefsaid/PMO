@@ -167,7 +167,13 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           qty × unit price → line total
         </span>
       </CardHead>
-      <div className="overflow-x-auto">
+      {/* position:relative makes this div the containing block for the
+          sr-only TH span (position:absolute). Without it the span's
+          containing block is the initial viewport, placing it at left≈400px
+          and leaking into document.scrollWidth even though clip:rect(0,0,0,0)
+          hides it visually. With relative, the span is contained here and the
+          overflow-x-auto scroll container clips it correctly (AC-MOBILE-OVERFLOW-001). */}
+      <div className="relative overflow-x-auto">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
