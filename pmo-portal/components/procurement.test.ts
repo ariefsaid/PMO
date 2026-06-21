@@ -11,24 +11,25 @@ import {
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 describe('procurement helper — lifecycle model (Issue 3)', () => {
-  it('PR_STAGES is the seven-node PR→Approved→VQ→PO→GR→VI→Paid track in order', () => {
-    // Wave-1 Area-5 (PROC-002/003): Approved is its own node; Quote Selected
-    // folds into the VQ node (not PO).
-    expect(PR_STAGES.map((s) => s.key)).toEqual(['pr', 'approved', 'vq', 'po', 'gr', 'vi', 'paid']);
+  it('PR_STAGES is the six-node PR→VQ→PO→GR→VI→Paid track in order (no Approved stage)', () => {
+    // Owner directive 2026-06-21: approval is a GATE, not a stage. Approved is no
+    // longer its own node; Quote Selected folds into the VQ node (not PO).
+    expect(PR_STAGES.map((s) => s.key)).toEqual(['pr', 'vq', 'po', 'gr', 'vi', 'paid']);
   });
 
-  it('maps in-flight statuses to their stage index (Approved its own node; Quote Selected → VQ)', () => {
+  it('maps in-flight statuses to their stage index (approval advances PR→VQ; Quote Selected → VQ)', () => {
     expect(stageIndexForStatus('Draft' as ProcurementStatus)).toBe(0);
     expect(stageIndexForStatus('Requested' as ProcurementStatus)).toBe(0);
-    // PROC-002: Approved advances to its own node (was 0)
+    // PROC-002 (reversed): approval is a gate — approving advances the bar to the
+    // VQ node (the next action), it is no longer its own node.
     expect(stageIndexForStatus('Approved' as ProcurementStatus)).toBe(1);
-    expect(stageIndexForStatus('Vendor Quoted' as ProcurementStatus)).toBe(2);
-    // PROC-003: Quote Selected shares the VQ node (was 2/PO) — no PO pre-jump
-    expect(stageIndexForStatus('Quote Selected' as ProcurementStatus)).toBe(2);
-    expect(stageIndexForStatus('Ordered' as ProcurementStatus)).toBe(3);
-    expect(stageIndexForStatus('Received' as ProcurementStatus)).toBe(4);
-    expect(stageIndexForStatus('Vendor Invoiced' as ProcurementStatus)).toBe(5);
-    expect(stageIndexForStatus('Paid' as ProcurementStatus)).toBe(6);
+    expect(stageIndexForStatus('Vendor Quoted' as ProcurementStatus)).toBe(1);
+    // PROC-003: Quote Selected shares the VQ node — no PO pre-jump
+    expect(stageIndexForStatus('Quote Selected' as ProcurementStatus)).toBe(1);
+    expect(stageIndexForStatus('Ordered' as ProcurementStatus)).toBe(2);
+    expect(stageIndexForStatus('Received' as ProcurementStatus)).toBe(3);
+    expect(stageIndexForStatus('Vendor Invoiced' as ProcurementStatus)).toBe(4);
+    expect(stageIndexForStatus('Paid' as ProcurementStatus)).toBe(5);
   });
 
   it('terminal Rejected/Cancelled map to a sentinel (-1)', () => {
@@ -78,13 +79,12 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
 
 describe('procurement helper — lifecycleSteps (node + inline stepper)', () => {
   it('marks stages before current done, current current, later upcoming', () => {
-    // PROC-003: Quote Selected is the VQ node (idx 2 of the 7-node track), so the
-    // PR + Approved nodes are done and the badge has NOT pre-jumped to PO.
+    // PROC-003: Quote Selected is the VQ node (idx 1 of the 6-node track), so the
+    // PR node is done and the badge has NOT pre-jumped to PO.
     const steps = lifecycleSteps('Quote Selected' as ProcurementStatus);
     expect(steps.map((s) => s.state)).toEqual([
       'done', // PR
-      'done', // Approved
-      'current', // VQ (Quote Selected at idx 2 — NOT PO)
+      'current', // VQ (Quote Selected at idx 1 — NOT PO)
       'upcoming', // PO
       'upcoming', // GR
       'upcoming', // VI
@@ -99,9 +99,8 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
     const steps = lifecycleSteps('Quote Selected' as ProcurementStatus);
     const current = steps.find((s) => s.state === 'current')!;
     expect(current.label).toBe('Quote Selected');
-    // The earlier (done) VQ-adjacent nodes keep their canonical names; only the active node renames.
+    // The earlier (done) PR node keeps its canonical name; only the active node renames.
     expect(steps[0].label).toBe('Purchase Request');
-    expect(steps[1].label).toBe('Approved');
   });
 
   it('PROC-001: at Vendor Quoted the current node keeps its canonical "Vendor Quote" label', () => {
@@ -110,17 +109,22 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
     expect(current.label).toBe('Vendor Quote');
   });
 
-  it('PROC-002: an Approved PR sits at the Approved node (later than Requested)', () => {
+  it('PROC-002: approval is a gate — an Approved PR advances PR→done, VQ→current ("Vendor Quote"), no standalone node', () => {
     const requested = lifecycleSteps('Requested' as ProcurementStatus);
     const approved = lifecycleSteps('Approved' as ProcurementStatus);
     expect(requested.findIndex((s) => s.state === 'current')).toBe(0); // PR node
-    expect(approved.findIndex((s) => s.state === 'current')).toBe(1); // Approved node
+    // Approving advances the bar to the VQ node (the next action) — PR is now done.
+    expect(approved[0].state).toBe('done');
+    expect(approved.findIndex((s) => s.state === 'current')).toBe(1); // VQ node
+    // The current-node label reads the STAGE name ("Vendor Quote"), NOT the status
+    // ("Approved") — Approved does not canonically belong to the VQ node (label-fix).
+    expect(approved.find((s) => s.state === 'current')!.label).toBe('Vendor Quote');
   });
 
   it('a Paid procurement marks all done and the final node paid', () => {
     const steps = lifecycleSteps('Paid' as ProcurementStatus);
     expect(steps.map((s) => s.state)).toEqual([
-      'done', 'done', 'done', 'done', 'done', 'done', 'paid',
+      'done', 'done', 'done', 'done', 'done', 'paid',
     ]);
   });
 
@@ -131,17 +135,16 @@ describe('procurement helper — lifecycleSteps (node + inline stepper)', () => 
   });
 
   it('attaches doc refs to reached node steps from the procurement record', () => {
-    // 7-node track: PR(0) · Approved(1, no doc) · VQ(2) · PO(3) · GR(4) · VI(5) · Paid(6)
+    // 6-node track: PR(0) · VQ(1) · PO(2) · GR(3) · VI(4) · Paid(5)
     const steps = lifecycleSteps('Ordered' as ProcurementStatus, {
       pr_number: 'PR-2606040001',
       vq_number: 'VQ-2606040002',
       po_number: 'PO-2606040003',
     });
     expect(steps[0].ref).toBe('PR-2606040001'); // PR
-    expect(steps[1].ref).toBeUndefined(); // Approved node — no minted doc ref
-    expect(steps[2].ref).toBe('VQ-2606040002'); // VQ
-    expect(steps[3].ref).toBe('PO-2606040003'); // PO
-    expect(steps[4].ref).toBeUndefined(); // GR not yet reached
+    expect(steps[1].ref).toBe('VQ-2606040002'); // VQ
+    expect(steps[2].ref).toBe('PO-2606040003'); // PO
+    expect(steps[3].ref).toBeUndefined(); // GR not yet reached
   });
 });
 
