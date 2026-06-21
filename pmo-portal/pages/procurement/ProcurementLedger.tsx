@@ -214,6 +214,14 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     [fileColumn],
   );
 
+  // The set of record types already present in the ledger — drives the capture
+  // row's data-driven gating so it never offers a kind that already exists
+  // (the over-prompt fix). Derived from the full row set, not the filtered view.
+  const existingTypes = useMemo(
+    () => new Set(rows.map((row) => row.type)),
+    [rows],
+  );
+
   // Apply the active filter
   const filteredRows = rows.filter((row) => {
     if (filter === 'financial') return row.financial;
@@ -313,6 +321,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       <CardPad>
         <LedgerCaptureRow
           status={detail.status}
+          existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
           busy={captureBusy}

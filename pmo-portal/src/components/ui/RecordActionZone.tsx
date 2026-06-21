@@ -21,20 +21,28 @@ export interface RecordActionZoneProps {
   className?: string;
   /** Optional accessible label for the zone (passes through to the wrapper element). */
   'aria-label'?: string;
+  /**
+   * Desktop sticky-bottom behaviour. Default `true` (the canonical sticky action
+   * zone). Set `false` for record pages whose action strip lives in normal flow
+   * (e.g. Procurement's compact strip directly under the lifecycle stepper) — the
+   * `record-action-zone` testid + enforcement contract are preserved either way.
+   */
+  sticky?: boolean;
 }
 
 export const RecordActionZone: React.FC<RecordActionZoneProps> = ({
   children,
   className,
   'aria-label': ariaLabel,
+  sticky = true,
 }) => (
   <div
     data-testid="record-action-zone"
     aria-label={ariaLabel}
     className={cn(
       // Desktop: sticky bottom so advance actions never scroll below the fold.
-      'min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10',
-      'min-[920px]:bg-background/95 min-[920px]:backdrop-blur-sm',
+      sticky &&
+        'min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10 min-[920px]:bg-background/95 min-[920px]:backdrop-blur-sm',
       className,
     )}
   >

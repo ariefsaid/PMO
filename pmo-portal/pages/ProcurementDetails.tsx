@@ -760,11 +760,45 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
+      {/* ░░ DECISION STRIP — relocated (IxD Change 1) ░░
+          Owner IxD: the decision zone is a COMPACT, NON-STICKY action strip placed
+          directly below the lifecycle stepper and ABOVE the tabs. Previously it was a
+          sticky-bottom bar floating over the page; now it sits in normal flow so the
+          stage-appropriate action(s) read as the first thing after the stepper, with
+          minimal vertical whitespace. SoD hint is a single muted inline line; Notes is
+          progressive-disclosure (revealed only after Approve/Reject is clicked). The
+          GR/VI inline capture stays grouped here (transition-coupled). The decision
+          zone still renders inside RecordActionZone (enforcement contract) — only its
+          placement + sticky behaviour change; the SoD/transition machine is untouched. */}
+      <ProcurementDecisionZone
+        p={p}
+        actions={actions}
+        gateMsg={gateMsg}
+        isDraft={isDraft}
+        isRequester={isRequester}
+        isApprover={isApprover}
+        showNotes={showNotes}
+        notesInput={notesInput}
+        setNotesInput={setNotesInput}
+        showVICapture={showVICapture}
+        setShowVICapture={setShowVICapture}
+        submitVICapture={submitVICapture}
+        canShowGRForm={canShowGRForm}
+        canShowVIForm={canShowVIForm}
+        showCreateGR={showCreateGR}
+        setShowCreateGR={setShowCreateGR}
+        showCreateVI={showCreateVI}
+        setShowCreateVI={setShowCreateVI}
+        setPendingConfirm={setPendingConfirm}
+        setMutationError={setMutationError}
+        mutationError={mutationError}
+        onActionClick={onActionClick}
+        mutations={mutations}
+      />
+
       {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
           Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
-          progression). The other tabs home the Line items / Documents / Vendor quotes.
-          The RecordActionZone (decision zone) stays OUTSIDE the tabs — it is the ONE
-          advance/approve placement, never below the fold, at every tab. */}
+          progression). The other tabs home the Line items / Documents / Vendor quotes. */}
       <Tabs<ProcTab>
         items={procTabs}
         value={tab}
@@ -856,37 +890,6 @@ const ProcurementDetails: React.FC = () => {
           />
         )}
       </div>
-
-      {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
-          Extracted to ProcurementDecisionZone (refactor: procurement-detail-dedup) —
-          rendered output + behavior unchanged. The page owns the state + handlers
-          (notes / GR-VI toggles / pendingConfirm / transition commits); the zone is a
-          pure presentation+wiring shell. See that file for the D6/D8/D10/D17/O3 rationale. */}
-      <ProcurementDecisionZone
-        p={p}
-        actions={actions}
-        gateMsg={gateMsg}
-        isDraft={isDraft}
-        isRequester={isRequester}
-        isApprover={isApprover}
-        showNotes={showNotes}
-        notesInput={notesInput}
-        setNotesInput={setNotesInput}
-        showVICapture={showVICapture}
-        setShowVICapture={setShowVICapture}
-        submitVICapture={submitVICapture}
-        canShowGRForm={canShowGRForm}
-        canShowVIForm={canShowVIForm}
-        showCreateGR={showCreateGR}
-        setShowCreateGR={setShowCreateGR}
-        showCreateVI={showCreateVI}
-        setShowCreateVI={setShowCreateVI}
-        setPendingConfirm={setPendingConfirm}
-        setMutationError={setMutationError}
-        mutationError={mutationError}
-        onActionClick={onActionClick}
-        mutations={mutations}
-      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (

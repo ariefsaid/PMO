@@ -2,113 +2,128 @@
  * Unit tests for LedgerCaptureRow's nextExpectedType mapping.
  *
  * AC-PR-S4-003: nextExpectedType returns the correct pre-selected capture kind
- * for each procurement status. These tests run without DOM rendering — pure logic.
+ * for each procurement status — now DATA-DRIVEN: it offers a kind only if it is
+ * (a) unlocked by the current status AND (b) not already present in the ledger.
  *
- * M4 (design-review fix): Ordered and Received now return null so the ledger
- * capture row is hidden at those stages. GR and VI capture are handled by the
- * action-zone inline forms; offering "Capture Purchase Order" at Ordered/Received
- * is past the relevant phase and produces a mis-prompt. The capture row defers to
- * the action zone at Ordered/Received.
+ * The function is exported from ./ledgerCapture (the sibling logic module) and
+ * tested directly (no mirror — the source IS the spec, eliminating drift).
  *
- * Note: nextExpectedType is tested through the exported component behavior in
- * ProcurementDetails.slice4.test.tsx as well; this file tests the mapping logic
- * directly for the 11 statuses + the terminal-null contract.
+ * Over-prompt bug (IxD Change 2): at Requested a PR record already exists in the
+ * ledger (status Submitted), so offering "Capture Purchase Request" was wrong —
+ * the only valid forward move is the approval decision. The data-driven gate now
+ * returns null when the unlocked kind already exists.
+ *
+ * M4 (design-review fix): Ordered and Received return null so the ledger capture
+ * row is hidden at those stages — GR/VI capture is handled by the action-zone
+ * inline forms.
  */
 import { describe, it, expect } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Extract nextExpectedType via a proxy — the function is not exported from the
-// module but the LedgerCaptureRow component's behavior is the spec. We inline
-// the same logic here to unit-test the mapping without a DOM render.
-// ---------------------------------------------------------------------------
-
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import type { RecordType } from '@/src/lib/db/procurementLedger';
 import type { RecordKind } from './RecordCaptureForm';
-
-/**
- * Mirror of the internal nextExpectedType from LedgerCaptureRow.tsx.
- * KEEP IN SYNC with LedgerCaptureRow.tsx when the mapping changes.
- */
-const TERMINAL_STATUSES = new Set<ProcurementStatus>(['Paid', 'Cancelled', 'Rejected']);
-
-function nextExpectedType(status: ProcurementStatus): RecordKind | null {
-  if (TERMINAL_STATUSES.has(status)) return null;
-  switch (status) {
-    case 'Draft':
-    case 'Requested':
-      return 'purchase_request';
-    case 'Rejected': // guarded above
-      return null;
-    case 'Approved':
-    case 'Vendor Quoted':
-      return 'rfq';
-    case 'Quote Selected':
-      return 'purchase_order';
-    case 'Ordered':
-    case 'Received':
-      // M4 (design-review): GR and VI are handled by the action-zone inline forms;
-      // these stages are NOT ledger-capture stages. Return null so the ledger capture
-      // row is hidden and the action zone owns GR/VI capture exclusively.
-      return null;
-    case 'Vendor Invoiced':
-      return 'payment';
-    default:
-      return 'purchase_request';
-  }
-}
+import { nextExpectedType } from './ledgerCapture';
 
 // ---------------------------------------------------------------------------
-// AC-PR-S4-003: per-status mapping
+// AC-PR-S4-003: per-status mapping with an EMPTY ledger (no records present yet).
+// This is the "status unlocks a kind" axis in isolation.
 // ---------------------------------------------------------------------------
 
-describe('AC-PR-S4-003: nextExpectedType — per-status mapping', () => {
+describe('AC-PR-S4-003: nextExpectedType — status-unlock axis (empty ledger)', () => {
+  const NONE = new Set<RecordType>();
   const CASES: [ProcurementStatus, RecordKind | null][] = [
-    ['Draft',            'purchase_request'],
-    ['Requested',        'purchase_request'],
-    ['Approved',         'rfq'],
-    ['Vendor Quoted',    'rfq'],
-    ['Quote Selected',   'purchase_order'],
+    // Draft with NO PR yet → offer PR (the case spine has not been captured).
+    ['Draft', 'purchase_request'],
+    // Requested with NO PR present (degenerate) → PR is still the unlocked kind.
+    ['Requested', 'purchase_request'],
+    ['Approved', 'rfq'],
+    ['Vendor Quoted', 'rfq'],
+    ['Quote Selected', 'purchase_order'],
     // M4: Ordered/Received → null (ledger defers to action-zone for GR/VI)
-    ['Ordered',          null],
-    ['Received',         null],
-    ['Vendor Invoiced',  'payment'],
+    ['Ordered', null],
+    ['Received', null],
+    ['Vendor Invoiced', 'payment'],
     // Terminal statuses → null (capture hidden)
-    ['Paid',             null],
-    ['Cancelled',        null],
-    ['Rejected',         null],
+    ['Paid', null],
+    ['Cancelled', null],
+    ['Rejected', null],
   ];
 
   CASES.forEach(([status, expected]) => {
-    it(`${status} → ${expected ?? 'null (capture deferred or terminal)'}`, () => {
-      expect(nextExpectedType(status)).toBe(expected);
+    it(`${status} (empty ledger) → ${expected ?? 'null (capture deferred or terminal)'}`, () => {
+      expect(nextExpectedType(status, NONE)).toBe(expected);
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// AC-PR-S4-004 (edge case): null-capture contract
+// AC-IXD-PROC-CAPTURE-001 (the over-prompt bug fix): a kind already present in
+// the ledger is NOT offered, even when the status would otherwise unlock it.
+// ---------------------------------------------------------------------------
+
+describe('AC-IXD-PROC-CAPTURE-001: data-driven — never offer a kind that already exists', () => {
+  it('Requested + PR already in ledger ⇒ no capture offered (await approval)', () => {
+    // The canonical over-prompt: a submitted PR exists, the only forward move is
+    // the approval decision — the ledger must offer nothing.
+    expect(nextExpectedType('Requested', new Set<RecordType>(['PR']))).toBeNull();
+  });
+
+  it('Draft + PR already in ledger ⇒ no PR re-offer (the case spine exists)', () => {
+    expect(nextExpectedType('Draft', new Set<RecordType>(['PR']))).toBeNull();
+  });
+
+  it('Approved + RFQ already in ledger ⇒ no RFQ re-offer', () => {
+    expect(nextExpectedType('Approved', new Set<RecordType>(['PR', 'RFQ']))).toBeNull();
+  });
+
+  it('Vendor Quoted + RFQ already in ledger ⇒ no RFQ re-offer', () => {
+    expect(nextExpectedType('Vendor Quoted', new Set<RecordType>(['RFQ']))).toBeNull();
+  });
+
+  it('Quote Selected + PO already in ledger ⇒ no PO re-offer', () => {
+    expect(nextExpectedType('Quote Selected', new Set<RecordType>(['PO']))).toBeNull();
+  });
+
+  it('Vendor Invoiced + Payment already in ledger ⇒ no payment re-offer', () => {
+    expect(nextExpectedType('Vendor Invoiced', new Set<RecordType>(['Payment']))).toBeNull();
+  });
+
+  it('offers the absent kind when an UNRELATED kind exists', () => {
+    // Approved with only a PR present (no RFQ) ⇒ RFQ is still the right next offer.
+    expect(nextExpectedType('Approved', new Set<RecordType>(['PR']))).toBe('rfq');
+    // Quote Selected with PR+RFQ present but no PO ⇒ offer PO.
+    expect(
+      nextExpectedType('Quote Selected', new Set<RecordType>(['PR', 'RFQ'])),
+    ).toBe('purchase_order');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-PR-S4-004 (edge case): null contracts preserved.
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-003: null-capture contract', () => {
+  const NONE = new Set<RecordType>();
+
   it('returns null for all terminal statuses (Paid / Cancelled / Rejected)', () => {
     const terminals: ProcurementStatus[] = ['Paid', 'Cancelled', 'Rejected'];
     terminals.forEach((s) => {
-      expect(nextExpectedType(s)).toBeNull();
+      expect(nextExpectedType(s, NONE)).toBeNull();
     });
   });
 
   it('M4: returns null for Ordered and Received (capture deferred to action zone)', () => {
-    expect(nextExpectedType('Ordered')).toBeNull();
-    expect(nextExpectedType('Received')).toBeNull();
+    expect(nextExpectedType('Ordered', NONE)).toBeNull();
+    expect(nextExpectedType('Received', NONE)).toBeNull();
   });
 
-  it('returns a non-null kind for the non-deferred, non-terminal statuses', () => {
+  it('returns a non-null kind for the non-deferred, non-terminal statuses when the kind is absent', () => {
     const activeCaptureStatuses: ProcurementStatus[] = [
       'Draft', 'Requested', 'Approved', 'Vendor Quoted',
       'Quote Selected', 'Vendor Invoiced',
     ];
     activeCaptureStatuses.forEach((s) => {
-      expect(nextExpectedType(s)).not.toBeNull();
+      expect(nextExpectedType(s, NONE)).not.toBeNull();
     });
   });
 });

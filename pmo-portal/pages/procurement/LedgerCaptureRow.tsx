@@ -21,49 +21,11 @@ import { Icon } from '@/src/components/ui';
 import { RecordCaptureForm, type RecordKind } from './RecordCaptureForm';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-
-// ---------------------------------------------------------------------------
-// nextExpectedType: maps the current status to the record kind the user would
-// most likely want to capture next. Falls back to 'purchase_request' when no
-// specific next type is mapped (Draft: either a PR or RFQ; we offer PR first).
-// Terminal statuses return null → caller hides the row.
-// ---------------------------------------------------------------------------
-
-/** Terminal statuses where capture is not available. */
-const TERMINAL_STATUSES = new Set<ProcurementStatus>([
-  'Paid',
-  'Cancelled',
-  'Rejected',
-]);
-
-function nextExpectedType(status: ProcurementStatus): RecordKind | null {
-  if (TERMINAL_STATUSES.has(status)) return null;
-
-  switch (status) {
-    case 'Draft':
-    case 'Requested':
-    case 'Rejected': // already guarded above but TypeScript needs the case
-      return 'purchase_request';
-    case 'Approved':
-    case 'Vendor Quoted':
-      return 'rfq';
-    case 'Quote Selected':
-      return 'purchase_order';
-    case 'Ordered':
-    case 'Received':
-      // M4 (design-review): at Ordered the next step is a Goods Receipt, and at
-      // Received the next step is a Vendor Invoice — but neither GR nor VI is a
-      // RecordKind in the ledger capture (they are handled by the action-zone
-      // inline forms). Returning null here hides the ledger capture row at these
-      // stages so the row doesn't mis-prompt "Capture Purchase Order" (which is
-      // past that phase). The action zone remains the single source for GR/VI.
-      return null;
-    case 'Vendor Invoiced':
-      return 'payment';
-    default:
-      return 'purchase_request';
-  }
-}
+import type { RecordType } from '@/src/lib/db/procurementLedger';
+// nextExpectedType is the DATA-DRIVEN capture gate (status-unlock AND not-already-
+// present). Extracted to a sibling module so it stays unit-testable directly (no
+// mirror → no drift) without a react-refresh component-export lint violation.
+import { nextExpectedType } from './ledgerCapture';
 
 /** Human label for the capture type (shown in the dashed row label).
  *  GR/VI are NOT capturable here (handled by the action-zone forms — see
@@ -82,8 +44,14 @@ const CAPTURE_LABELS: Record<RecordKind, string> = {
 // ---------------------------------------------------------------------------
 
 export interface LedgerCaptureRowProps {
-  /** Current procurement status — determines which type to pre-select. */
+  /** Current procurement status — determines which type is unlocked. */
   status: ProcurementStatus;
+  /**
+   * The set of ledger RecordTypes already captured for this case. Used to gate
+   * the capture offer: a kind that already exists is never re-offered (the
+   * over-prompt fix — e.g. a submitted PR at Requested → await approval).
+   */
+  existingTypes: ReadonlySet<RecordType>;
   /** Called when a record is saved. Refreshes the ledger via React Query's invalidation. */
   onCreate: (kind: RecordKind, input: unknown) => Promise<unknown>;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
@@ -100,13 +68,14 @@ export interface LedgerCaptureRowProps {
 
 export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   status,
+  existingTypes,
   onCreate,
   invoices = [],
   canWrite,
   busy = false,
 }) => {
   const [open, setOpen] = useState(false);
-  const nextKind = nextExpectedType(status);
+  const nextKind = nextExpectedType(status, existingTypes);
 
   // Honest doorway: hide when canWrite=false OR terminal status
   if (!canWrite || nextKind === null) return null;
