@@ -131,8 +131,11 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   loading/empty/error/filter states. Fast, no stack.
 - **Integration (some):** **pgTAP** (`supabase test db`) — RLS/tenancy/role read+write contracts. This
   is the home for "in-org read allowed / cross-org blocked / role gate", NOT e2e.
-- **E2E (few, ~6–8 curated journeys):** Playwright against the live stack — real cross-stack flows only
-  (login→dashboard, sign-out guard, magic-link, session-persist, one real-data smoke per module).
+- **E2E (one curated journey per cross-stack `AC-###`, ~50 today):** Playwright against the live stack —
+  real cross-stack flows only (login→dashboard, sign-out guard, magic-link, session-persist, one real-data
+  smoke per module + per CRUD/RBAC/procure-to-pay journey). *(Re-baselined 2026-06-21 from the original
+  "~6–8" under-estimate — the charter audit confirmed all ~50 are genuine cross-stack journeys, none
+  misplaced logic that belongs at a lower layer.)*
 - **Never push an AC up a layer to satisfy a convention.** Tag the `AC-id` in the owning test's
   title/description for `grep` traceability. Adding lower-layer coverage must precede deleting any e2e.
 
