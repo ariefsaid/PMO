@@ -119,9 +119,10 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   `Where…` / conditional `While…when…`). All acceptance criteria in **Given/When/Then**.
 - **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
-  `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, ~6–8 curated journeys)
-  for real cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a
-  convention.
+  `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, **one curated journey
+  per cross-stack `AC-###`** — ~50 today; the original "6–8" was an under-estimate, re-baselined 2026-06-21
+  after the charter audit confirmed all are genuine cross-stack journeys, none misplaced) for real
+  cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a convention.
 - **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so
   `grep -r AC-XXX` finds the canonical proof at whatever layer owns it: Vitest in the `it(...)` title;
   pgTAP as the leading token of the test description; Playwright as the leading token of the `test(...)`

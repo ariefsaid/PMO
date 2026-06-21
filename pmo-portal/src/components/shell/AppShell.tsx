@@ -201,7 +201,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           {/* Scrim — desaturated near-black, low alpha (No-Pure-Black-Shadow Rule). */}
           <div
             data-testid="drawer-scrim"
-            className="absolute inset-0 bg-[hsl(240_10%_4%/0.4)]"
+            className="absolute inset-0 bg-[hsl(var(--scrim)/0.4)]"
             onClick={handleClose}
             aria-hidden
           />

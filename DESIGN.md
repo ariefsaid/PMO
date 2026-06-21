@@ -32,6 +32,11 @@ colors:
   ring: "hsl(221.2 83.2% 53.3%)"
   # --- Categorical accent (KPI/avatar/timeline only; never primary action) ---
   violet: "hsl(262 83% 58%)"
+  # --- Semantic icon / surface tokens (promoted from inline literals, 2026-06-21) ---
+  warning-icon: "hsl(38 92% 45%)"     # darker amber icon on warning/12 tint — clears AA vs the fill
+  success-text: "hsl(142 64% 28%)"    # AA-darkened green text on success/10 tint (GateNotice "ready")
+  tooltip-muted: "hsl(0 0% 80%)"      # de-emphasised body text inside the dark tooltip surface
+  scrim: "hsl(240 10% 4%)"            # desaturated near-black modal/drawer/palette overlay (used at /0.4 alpha)
 typography:
   page-title:
     fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
@@ -280,6 +285,16 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 | `--status-won-text` | `142 64% 30%` | `won` (green) | ≥4.5:1 AA |
 | `--status-lost-text` | `0 72% 45%` | `lost` (red) | ≥4.5:1 AA |
 | `--status-violet-text` | `262 60% 42%` | `violet` | 7.4:1 AA |
+
+#### Semantic icon / surface tokens (2026-06-21 — promoted from inline literals)
+Four additional named tokens close the raw-literal gap; they are defined in the same `:root` block as the status-pill tokens and mapped via `@theme inline` so `text-[hsl(var(--token))]` / `bg-[hsl(var(--scrim)/0.4)]` arbitrary Tailwind variants reference only the token pipeline, never bare HSL values.
+
+| Token | HSL value | Used by |
+|---|---|---|
+| `--warning-icon` | `38 92% 45%` | Icon color on `warning/12` tinted banners (`ImpersonationBanner`, `GateNotice` blocked) — darker than `--warning` so the icon itself clears AA on the fill |
+| `--success-text` | `142 64% 28%` | Body text on `success/10` tint (`GateNotice` ready variant) |
+| `--tooltip-muted` | `0 0% 80%` | De-emphasised body text inside the dark tooltip surface |
+| `--scrim` | `240 10% 4%` | Modal/drawer/command-palette overlay at `/0.4` alpha (desaturated near-black, per the No-Pure-Black-Shadow Rule) |
 
 ### Cards / Containers
 - **Corner Style:** 8px radius (`{rounded.md}`). When a card sits directly above a toolbar+table assembly, top corners are rounded and the seam is squared (`var(--radius) var(--radius) 0 0`).
