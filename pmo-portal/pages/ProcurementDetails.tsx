@@ -8,11 +8,9 @@ import {
   Button,
   StatusPill,
   LifecycleStepper,
-  GateNotice,
   ListState,
   Icon,
   ConfirmDialog,
-  RecordActionZone,
   Tabs,
   tabId,
   tabPanelId,
@@ -36,6 +34,7 @@ import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { ProcurementDecisionZone } from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
 import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
@@ -230,36 +229,6 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
     return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
   }
   return null;
-}
-
-/**
- * Per-status SoD-aware ready copy for the GateNotice variant="ready".
- * Replaces the generic "You may move this request to its next lifecycle
- * stage below." with copy that teaches the SoD rule relevant to each stage.
- * Display-only — no enforcement logic.
- */
-function readyGateMessage(
-  status: ProcurementStatus,
-  isRequester: boolean,
-  isApprover: boolean,
-): string {
-  switch (status) {
-    case 'Draft':
-      // Author about to submit — teach that submission hands off to a different approver.
-      return isRequester
-        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
-        : 'Ready to submit this request for approval.';
-    case 'Requested':
-      // Approver viewing — teach that the requester cannot self-approve.
-      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
-    case 'Vendor Invoiced':
-      // Finance payer — teach SoD-b: the approver cannot also release payment.
-      return isApprover
-        ? 'Ready to advance.' // SoD-b blocks them anyway; the action won't appear
-        : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
-    default:
-      return 'Ready to advance. Select an action below to move this request to its next stage.';
-  }
 }
 
 const ProcurementDetails: React.FC = () => {
@@ -889,305 +858,35 @@ const ProcurementDetails: React.FC = () => {
       </div>
 
       {/* ░░ DECISION ZONE — act last (N7: AC-IXD-PROC-W5-1a) ░░
-          DecisionCard anchored BELOW all evidence. Contains:
-            • SoD GateNotice (D6) — when blocked, up-front so the viewer
-              learns WHY before looking for missing buttons
-            • "Ready to advance" GateNotice — when actions exist
-            • Notes textarea (approve/reject only)
-            • Action row: ONE primary → outline secondaries → destructive LAST (D7/D8)
-            • Inline mutation error (role=alert)
-          CW-STICKY: On desktop (≥920px) the decision zone is sticky-bottom so the
-          advance/approve action is never below the fold (DESIGN.md §RecordActionZone:
-          "sticky on desktop"). On mobile the existing mobile-sticky-action bar handles
-          the reach affordance; the card stays in normal flow for mobile. */}
-      <RecordActionZone>
-      <Card className="mb-4" data-testid="decision-card">
-        <CardPad className="flex flex-col gap-3">
-          {/* D6: SoD / readiness gate inside the DecisionCard — co-located with the
-              (absent or present) action buttons so the viewer never hunts for the
-              reason they can't act. One authoritative notice; no duplicate banners. */}
-          {gateMsg ? (
-            <GateNotice variant="blocked">
-              <b>Separation-of-duties gate.</b> {gateMsg}
-            </GateNotice>
-          ) : actions.length > 0 ? (
-            <GateNotice variant="ready">
-              {readyGateMessage(p.status, isRequester, isApprover)}
-            </GateNotice>
-          ) : null}
-
-          {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
-              The author (requester) is about to submit their own request; they need to know
-              that submission hands it to a different approver — self-approval is not allowed.
-              This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD gate
-              (blocked notice at Requested) already handles the non-author blocker path. */}
-          {isDraft && isRequester && (
-            <p
-              data-testid="sod-pre-announce"
-              className="text-[13px] text-muted-foreground"
-            >
-              Submitting hands this to another approver — you can&apos;t approve your own request.
-            </p>
-          )}
-
-          {showNotes && (
-            <div className="flex max-w-md flex-col gap-1">
-              <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
-                Notes <span className="font-normal">(optional)</span>
-              </label>
-              <textarea
-                id="procurement-notes-input"
-                data-testid="procurement-notes-input"
-                rows={2}
-                value={notesInput}
-                onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Add a note for the approval or rejection…"
-                className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              />
-            </div>
-          )}
-
-          {/* O3 (AC-W3-O3): inline VI capture replaces the "Mark Vendor Invoiced" button
-              when the user clicks it, co-locating invoice capture with the transition action. */}
-          {showVICapture ? (
-            <VIInlineCapture
-              busy={mutations.transition.isPending || mutations.createInvoice.isPending}
-              onSubmit={(viStatus, invoiceDate, referenceNumber, amount) => void submitVICapture(viStatus, invoiceDate, referenceNumber, amount)}
-              onCancel={() => { setShowVICapture(false); setMutationError(null); }}
-            />
-          ) : actions.length > 0 ? (
-            // D8: actions are pre-sorted (primary → outline/success → destructive) by
-            // sortActions() above, so Cancel/Reject always render last in DOM order.
-            // The flex-wrap direction preserves this: the destructive action wraps
-            // below the primary on narrow layouts, never above it.
-            <div className="flex flex-wrap gap-2">
-              {actions.map((action) => {
-                // D10 (AC-W3-D10): block Draft → Requested when there are no line items.
-                // Only the Submit Request action (Draft→Requested) is gated; all other
-                // actions on later stages are unaffected.
-                const isSubmitBlocked =
-                  action.to === 'Requested' && isDraft && p.items.length === 0;
-                return (
-                  <Button
-                    key={action.to}
-                    // The solid `destructive` fill belongs ONLY inside the confirm
-                    // dialog (the system's single solid status fill) — at rest a
-                    // destructive action (Reject / Cancel) is a quiet OUTLINE so it
-                    // does not compete with the blue primary (the I4 two-solid-fills
-                    // tell). onActionClick still reads action.variant for the
-                    // dialog tone, so a kept destructive confirm stays red.
-                    variant={action.variant === 'destructive' ? 'outline' : action.variant}
-                    loading={mutations.transition.isPending}
-                    disabled={isSubmitBlocked}
-                    onClick={() => onActionClick(action)}
-                  >
-                    {action.label}
-                  </Button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">
-              No further lifecycle actions are available to you at this stage.
-            </p>
-          )}
-
-          {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
-          {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
-            <p className="text-[13px] text-muted-foreground" data-testid="line-items-gate">
-              Add at least one line item before submitting.
-            </p>
-          )}
-
-          {/* D17 (AC-IXD-PROC-W5-C3-D17): GR/VI create affordances — demoted to quiet
-              ghost links co-located inside the DecisionCard, below the primary CTA.
-              The collapsed trigger is a ghost/link (NOT solid blue) so the stage's ONE
-              primary CTA is the only blue on screen (One-Blue Rule). The separate
-              competing Card containers are removed. The create logic, gating
-              (canShowGRForm / canShowVIForm), and role/state predicates are UNCHANGED.
-              When the inline form is open, its submit is the only affordance and MAY be
-              primary/success — it is the focused task at that point. */}
-          {canShowGRForm && (
-            <div className="border-t border-border/50 pt-3">
-              {!showCreateGR ? (
-                // Ghost trigger: quiet link treatment, no solid fill — sits below primary CTA.
-                // `text-primary` link colour + hover underline reads as "and, if needed…"
-                // without competing for attention with the stage primary.
-                <button
-                  type="button"
-                  data-testid="btn-create-gr"
-                  onClick={() => setShowCreateGR(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  <Icon name="plus" className="size-3.5" />
-                  Record goods receipt
-                </button>
-              ) : (
-                <form
-                  data-testid="form-create-gr"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    setMutationError(null);
-                    const ref = (fd.get('gr-ref') as string).trim() || null;
-                    // Stage the GR for confirmation (commit fires on Confirm).
-                    setPendingConfirm({
-                      kind: 'createGR',
-                      status: fd.get('gr-status') as 'Partial' | 'Complete',
-                      receiptDate: fd.get('gr-date') as string,
-                      referenceNumber: ref,
-                    });
-                  }}
-                  className="flex flex-wrap items-end gap-3"
-                >
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Delivery note <span className="font-normal">(optional)</span>
-                    <input
-                      type="text"
-                      name="gr-ref"
-                      placeholder="e.g. DN-44120"
-                      maxLength={64}
-                      data-testid="gr-ref-input"
-                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Status
-                    <select
-                      name="gr-status"
-                      defaultValue="Complete"
-                      data-testid="gr-status-select"
-                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <option value="Partial">Partial</option>
-                      <option value="Complete">Complete</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Receipt date
-                    <input
-                      type="date"
-                      name="gr-date"
-                      defaultValue={new Date().toISOString().slice(0, 10)}
-                      data-testid="gr-date-input"
-                      className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    />
-                  </label>
-                  {/* Open-form submit: primary action while the form is focused (One-Blue
-                      is satisfied — the stage primary is not visible when the form is open
-                      since this replaces the action area's focus). */}
-                  <Button type="submit" variant="primary" size="sm" loading={mutations.createReceipt.isPending} data-testid="btn-save-gr">
-                    Save GR
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateGR(false)}>
-                    Cancel
-                  </Button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {canShowVIForm && (
-            <div className="border-t border-border/50 pt-3">
-              {!showCreateVI ? (
-                // Ghost trigger: quiet link treatment — demoted from the competing
-                // solid-blue primary it was previously. Mirrors the GR pattern exactly.
-                <button
-                  type="button"
-                  data-testid="btn-create-vi"
-                  onClick={() => setShowCreateVI(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  <Icon name="plus" className="size-3.5" />
-                  Record vendor invoice
-                </button>
-              ) : (
-                <form
-                  data-testid="form-create-vi"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const fd = new FormData(e.currentTarget);
-                    setMutationError(null);
-                    const ref = (fd.get('vi-ref') as string).trim() || null;
-                    const amtStr = (fd.get('vi-amount') as string).trim();
-                    const amt = amtStr === '' ? null : Number(amtStr.replace(/,/g, ''));
-                    // Stage the VI for confirmation (commit fires on Confirm).
-                    // N1: status cast excludes Paid — the select no longer offers it.
-                    setPendingConfirm({
-                      kind: 'createVI',
-                      status: fd.get('vi-status') as 'Received' | 'Scheduled',
-                      invoiceDate: fd.get('vi-date') as string,
-                      referenceNumber: ref,
-                      amount: amt,
-                    });
-                  }}
-                  className="flex flex-wrap items-end gap-3"
-                >
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Invoice # <span className="font-normal">(optional)</span>
-                    <input
-                      type="text"
-                      name="vi-ref"
-                      placeholder="e.g. INV-2291"
-                      maxLength={64}
-                      data-testid="vi-ref-input"
-                      className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Amount <span className="font-normal">(optional)</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      name="vi-amount"
-                      placeholder="0.00"
-                      data-testid="vi-amount-input"
-                      className="h-8 w-32 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Status
-                    <select
-                      name="vi-status"
-                      defaultValue="Received"
-                      data-testid="vi-status-select"
-                      className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <option value="Received">Received</option>
-                      <option value="Scheduled">Scheduled</option>
-                      {/* N1 (AC-W3-N1): Paid removed — Mark as Paid is the sole PR→Paid authority. */}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-                    Invoice date
-                    <input
-                      type="date"
-                      name="vi-date"
-                      defaultValue={new Date().toISOString().slice(0, 10)}
-                      data-testid="vi-date-input"
-                      className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    />
-                  </label>
-                  <Button type="submit" variant="primary" size="sm" loading={mutations.createInvoice.isPending} data-testid="btn-save-vi">
-                    Save VI
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateVI(false)}>
-                    Cancel
-                  </Button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {mutationError && (
-            <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
-              <Icon name="alert" className="mt-px size-4 shrink-0" />
-              <span>{mutationError}</span>
-            </div>
-          )}
-        </CardPad>
-      </Card>
-      </RecordActionZone>
+          Extracted to ProcurementDecisionZone (refactor: procurement-detail-dedup) —
+          rendered output + behavior unchanged. The page owns the state + handlers
+          (notes / GR-VI toggles / pendingConfirm / transition commits); the zone is a
+          pure presentation+wiring shell. See that file for the D6/D8/D10/D17/O3 rationale. */}
+      <ProcurementDecisionZone
+        p={p}
+        actions={actions}
+        gateMsg={gateMsg}
+        isDraft={isDraft}
+        isRequester={isRequester}
+        isApprover={isApprover}
+        showNotes={showNotes}
+        notesInput={notesInput}
+        setNotesInput={setNotesInput}
+        showVICapture={showVICapture}
+        setShowVICapture={setShowVICapture}
+        submitVICapture={submitVICapture}
+        canShowGRForm={canShowGRForm}
+        canShowVIForm={canShowVIForm}
+        showCreateGR={showCreateGR}
+        setShowCreateGR={setShowCreateGR}
+        showCreateVI={showCreateVI}
+        setShowCreateVI={setShowCreateVI}
+        setPendingConfirm={setPendingConfirm}
+        setMutationError={setMutationError}
+        mutationError={mutationError}
+        onActionClick={onActionClick}
+        mutations={mutations}
+      />
 
       {/* Approval / rejection notes */}
       {p.approval_notes && (
@@ -1282,109 +981,5 @@ const ProcurementDetails: React.FC = () => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// O3 (AC-W3-O3): inline VI capture — appears in the action bar when the user
-// clicks "Mark Vendor Invoiced", co-locating invoice capture with the transition.
-// N1 (AC-W3-N1): Paid is excluded from status options here too.
-// ---------------------------------------------------------------------------
-interface VIInlineCaptureProps {
-  busy: boolean;
-  onSubmit: (
-    status: 'Received' | 'Scheduled',
-    invoiceDate: string,
-    referenceNumber: string | null,
-    amount: number | null,
-  ) => void;
-  onCancel: () => void;
-}
-
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel }) => {
-  const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
-  const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [refNum, setRefNum] = React.useState('');
-  const [amtStr, setAmtStr] = React.useState('');
-
-  const handleSubmit = () => {
-    const ref = refNum.trim() || null;
-    const amt = amtStr.trim() === '' ? null : Number(amtStr.replace(/,/g, ''));
-    onSubmit(viStatus, invoiceDate, ref, amt);
-  };
-
-  return (
-    <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
-      <p className="text-[12px] font-semibold text-muted-foreground">
-        Enter invoice details to mark as Vendor Invoiced:
-      </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice # <span className="font-normal">(optional)</span>
-          <input
-            type="text"
-            value={refNum}
-            onChange={(e) => setRefNum(e.target.value)}
-            placeholder="e.g. INV-2291"
-            maxLength={64}
-            data-testid="vi-ref-input"
-            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Amount <span className="font-normal">(optional)</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={amtStr}
-            onChange={(e) => setAmtStr(e.target.value)}
-            placeholder="0.00"
-            data-testid="vi-amount-input"
-            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice status
-          <select
-            value={viStatus}
-            onChange={(e) => setViStatus(e.target.value as 'Received' | 'Scheduled')}
-            data-testid="vi-status-select"
-            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <option value="Received">Received</option>
-            <option value="Scheduled">Scheduled</option>
-            {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          Invoice date
-          <input
-            type="date"
-            value={invoiceDate}
-            onChange={(e) => setInvoiceDate(e.target.value)}
-            data-testid="vi-date-input"
-            className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </label>
-        <Button
-          variant="success"
-          size="sm"
-          loading={busy}
-          disabled={!invoiceDate}
-          data-testid="btn-submit-vi-capture"
-          onClick={handleSubmit}
-        >
-          Confirm &amp; Mark Invoiced
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          data-testid="btn-cancel-vi-capture"
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-};
 
 export default ProcurementDetails;
