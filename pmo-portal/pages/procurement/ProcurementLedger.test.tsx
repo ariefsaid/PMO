@@ -193,7 +193,6 @@ const BASE_PROPS = {
   detail: makeDetail(),
   rows: SAMPLE_ROWS,
   procurementId: 'proc-1',
-  orgId: 'org1',
   uploadedById: 'user-pm' as string | null,
   canWrite: true,
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],

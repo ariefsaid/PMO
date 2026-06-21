@@ -16,10 +16,8 @@ export interface ProcurementFilesSubsectionProps {
   phase: ProcPhase;
   /** The phase parent id (quotation_id / receipt_id / invoice_id). */
   parentId: string;
-  /** The owning procurement id — path segment 2 + the storage-RLS in-org check. */
+  /** The owning procurement id — used for storage path + query invalidation. */
   procurementId: string;
-  /** The caller's org id — path segment 1 (RLS re-verifies it). */
-  orgId: string;
   /** Whether write affordances (upload/archive) are shown. UX gate; RLS is authoritative. */
   canWrite: boolean;
   /** Current user id stamped onto new file rows (who uploaded). */
@@ -45,13 +43,12 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   phase,
   parentId,
   procurementId,
-  orgId,
   canWrite,
   uploadedById,
 }) => {
   const { toast } = useToast();
   const { list, upload, archive, download, progress, uploadError, clearUploadError } =
-    useProcurementFiles(phase, parentId, procurementId, orgId, uploadedById);
+    useProcurementFiles(phase, parentId, procurementId, uploadedById);
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingArchive, setPendingArchive] = useState<ProcurementFileRow | null>(null);
 

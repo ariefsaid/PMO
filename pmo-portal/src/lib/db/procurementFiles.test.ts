@@ -129,27 +129,44 @@ describe('AC-PF-008 listProcurementFiles', () => {
   });
 });
 
-describe('AC-PF-009 prepareUpload', () => {
-  it('AC-PF-009: returns {signedUrl, path, fileId} with a 5-segment path and uses the procurement-files bucket', async () => {
-    const res = await prepareUpload('quotation', 'q1', 'proc1', 'org1', 'My Quote.pdf');
+describe('AC-PF-009 prepareUpload (server-fetches org_id — ADR-0017 seam fix)', () => {
+  it('AC-PF-009: fetches org_id from procurements table and uses it in the storage path (never from caller)', async () => {
+    // Simulate the procurements row returning org_id = 'server-org' (server-side fetch)
+    h.result.value = { data: { org_id: 'server-org' }, error: null };
+    const res = await prepareUpload('quotation', 'proc1', 'My Quote.pdf');
     expect(res.signedUrl).toBe('https://signed/url');
     expect(h.storageCalls.bucket).toContain('procurement-files');
-    // The path passed to createSignedUploadUrl is the 5-segment path.
+    // Verify the path uses the SERVER-fetched org_id, not a caller-supplied value
     const path = h.storageCalls.createSignedUploadUrl[0] as string;
     expect(path.split('/')).toHaveLength(5);
-    expect(path.startsWith('org1/proc1/quotation/')).toBe(true); // org=seg1, proc=seg2
+    expect(path.startsWith('server-org/proc1/quotation/')).toBe(true);
     expect(path.endsWith('/my-quote.pdf')).toBe(true);
     expect(typeof res.fileId).toBe('string');
+    // Verify the DAL queried procurements table for org_id
+    expect(h.calls.from).toContain('procurements');
+    expect(h.calls.eq).toContainEqual(['id', 'proc1']);
   });
 
-  it('AC-PF-009: rejects a denied extension before touching storage', async () => {
-    await expect(prepareUpload('quotation', 'q1', 'proc1', 'org1', 'evil.exe')).rejects.toThrow();
+  it('AC-PF-009: throws AppError when procurement row is not found (no client-supplied org fallback)', async () => {
+    h.result.value = { data: null, error: null };
+    await expect(prepareUpload('quotation', 'proc-missing', 'q.pdf')).rejects.toMatchObject({
+      message: expect.stringMatching(/procurement not found/i),
+    });
+    // Storage must NOT be touched on a missing procurement
+    expect(h.storageCalls.createSignedUploadUrl).toHaveLength(0);
+  });
+
+  it('AC-PF-009: rejects a denied extension before touching the DB or storage', async () => {
+    await expect(prepareUpload('quotation', 'proc1', 'evil.exe')).rejects.toThrow();
+    // Extension validation fires first — no DB query, no storage call
+    expect(h.calls.from).toHaveLength(0);
     expect(h.storageCalls.createSignedUploadUrl).toHaveLength(0);
   });
 
   it('AC-PF-009: a storage error throws an AppError (code 42501)', async () => {
+    h.result.value = { data: { org_id: 'org-x' }, error: null };
     h.storageResult.value = { data: null, error: { message: 'no access', name: 'StorageError' } };
-    await expect(prepareUpload('receipt', 'r1', 'proc1', 'org1', 'gr.pdf')).rejects.toMatchObject({
+    await expect(prepareUpload('receipt', 'proc1', 'gr.pdf')).rejects.toMatchObject({
       code: '42501',
     });
   });

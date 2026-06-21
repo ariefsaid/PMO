@@ -399,7 +399,6 @@ const ProcurementDetails: React.FC = () => {
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
-  const fileOrgId = currentUser?.org_id ?? '';
   const currentUserId = currentUser?.id ?? null;
 
   // Shared classified-toast helper for the CRUD section mutations.
@@ -853,7 +852,6 @@ const ProcurementDetails: React.FC = () => {
               detail={p}
               rows={ledgerRows}
               procurementId={p.id}
-              orgId={fileOrgId}
               uploadedById={currentUserId}
               canWrite={canManageFiles}
               invoices={p.invoices}
@@ -874,7 +872,6 @@ const ProcurementDetails: React.FC = () => {
             addBusy={mutations.createQuotation.isPending}
             selectBusy={crud.selectQuote.isPending}
             procurementId={p.id}
-            orgId={fileOrgId}
             canManageFiles={canManageFiles}
             currentUserId={currentUserId}
             vendorMap={vendorMap}

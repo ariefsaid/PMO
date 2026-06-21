@@ -59,8 +59,6 @@ export interface LedgerFileCellProps {
   canWrite: boolean;
   /** The owning procurement id (upload path + query invalidation). */
   procurementId: string;
-  /** The caller's org id (upload path segment 1). */
-  orgId: string;
   /** Current user id stamped onto new file rows. */
   uploadedById: string | null;
   /**
@@ -138,7 +136,6 @@ interface AttachButtonProps {
   type: RecordType;
   recordId: string;
   procurementId: string;
-  orgId: string;
   uploadedById: string | null;
 }
 
@@ -146,13 +143,12 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   type,
   recordId,
   procurementId,
-  orgId,
   uploadedById,
 }) => {
   const { toast } = useToast();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload } = useProcurementFiles(phase, recordId, procurementId, orgId, uploadedById);
+  const { upload } = useProcurementFiles(phase, recordId, procurementId, uploadedById);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,7 +208,6 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   fileCount,
   canWrite,
   procurementId,
-  orgId,
   uploadedById,
   onOpenFiles,
 }) => {
@@ -249,7 +244,6 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
         type={type}
         recordId={recordId}
         procurementId={procurementId}
-        orgId={orgId}
         uploadedById={uploadedById}
       />
     );

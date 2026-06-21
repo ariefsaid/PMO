@@ -1,37 +1,22 @@
 begin;
-select plan(2);
+select plan(1);
 
--- AC-LOW-1: every one of the 16 business tables has relforcerowsecurity = true.
--- Two counts mirror the pattern in 0001_rls_enabled.test.sql: a positive count
--- (all 16 present with FORCE on) and a zero count (none missing FORCE).
+-- AC-LOW-1: catalog-driven — every public table that has RLS enabled must also
+-- have it forced. Hard-coding a list was fragile: 18 business tables added since
+-- the original 16 were listed (procurement record + file tables, migs 0035-0041)
+-- were never covered. This single assertion is self-extending: any new table that
+-- enables RLS without FORCE will fail here automatically.
 
 select is(
-  (select count(*)::int
+  (select count(*)
      from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public'
-      and c.relname = any (array[
-            'organizations','profiles','companies','projects','procurements',
-            'procurement_items','procurement_quotations','procurement_documents',
-            'budget_versions','budget_line_items','timesheets','timesheet_entries',
-            'tasks','task_dependencies','incident_reports','project_documents'])
-      and c.relforcerowsecurity = true),
-  16,
-  'AC-LOW-1: all 16 business tables have FORCE ROW LEVEL SECURITY enabled');
-
-select is(
-  (select count(*)::int
-     from pg_class c
-     join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname = any (array[
-            'organizations','profiles','companies','projects','procurements',
-            'procurement_items','procurement_quotations','procurement_documents',
-            'budget_versions','budget_line_items','timesheets','timesheet_entries',
-            'tasks','task_dependencies','incident_reports','project_documents'])
+      and c.relkind = 'r'
+      and c.relrowsecurity = true
       and c.relforcerowsecurity = false),
-  0,
-  'AC-LOW-1: no business table is missing FORCE ROW LEVEL SECURITY');
+  0::bigint,
+  'AC-LOW-1: every RLS-enabled table in public also has FORCE ROW LEVEL SECURITY');
 
 select * from finish();
 rollback;

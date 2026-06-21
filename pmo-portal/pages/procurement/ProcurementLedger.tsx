@@ -161,8 +161,6 @@ export interface ProcurementLedgerProps {
   rows: LedgerRow[];
   /** The procurement ID (for file subsection + query invalidation). */
   procurementId: string;
-  /** Current user's org ID. */
-  orgId: string;
   /** Current user's ID (stamped onto file rows). */
   uploadedById: string | null;
   /** Whether write affordances are shown. Derived from real JWT role. */
@@ -179,7 +177,6 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
-  orgId,
   uploadedById,
   canWrite,
   invoices = [],
@@ -205,12 +202,11 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           fileCount={row.fileCount}
           canWrite={canWrite}
           procurementId={procurementId}
-          orgId={orgId}
           uploadedById={uploadedById}
         />
       ),
     }),
-    [canWrite, procurementId, orgId, uploadedById],
+    [canWrite, procurementId, uploadedById],
   );
 
   const columns = useMemo<Column<LedgerRow>[]>(

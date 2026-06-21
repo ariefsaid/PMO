@@ -53,8 +53,6 @@ export interface VendorQuotesTabProps {
   selectBusy?: boolean;
   /** The owning procurement id — threaded to each quotation's file sub-section. */
   procurementId: string;
-  /** The caller's org id — file storage path segment 1 (RLS re-verifies). */
-  orgId: string;
   /** Whether file upload/archive affordances show on each quotation row (UX gate). */
   canManageFiles: boolean;
   /** Current user id stamped onto new file rows. */
@@ -111,7 +109,6 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   addBusy,
   selectBusy,
   procurementId,
-  orgId,
   canManageFiles,
   currentUserId,
   vendorMap = {},
@@ -361,7 +358,6 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                     phase="quotation"
                     parentId={q.id}
                     procurementId={procurementId}
-                    orgId={orgId}
                     canWrite={canManageFiles}
                     uploadedById={currentUserId}
                   />

@@ -314,12 +314,14 @@ export interface MilestoneRepository {
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
-  /** Prepare a signed upload URL + a minted file path (DAL validates the extension). */
+  /**
+   * Prepare a signed upload URL + a minted file path (DAL validates the extension).
+   * org_id is fetched server-side from the procurement row — never passed by the caller
+   * (ADR-0017 seam; matches the documents.ts pattern).
+   */
   prepareUpload(
     phase: ProcPhase,
-    parentId: string,
     procurementId: string,
-    orgId: string,
     fileName: string,
   ): Promise<{ signedUrl: string; path: string; fileId: string }>;
   /** Confirm an upload by inserting the child file row (org_id stamped by RLS). */
