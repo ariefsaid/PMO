@@ -72,6 +72,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,

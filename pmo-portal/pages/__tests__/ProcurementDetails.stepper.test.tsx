@@ -4,11 +4,11 @@ import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 /**
- * AC-IXD-PROC-002 — the lifecycle stepper ADVANCES when a request is Approved
- * (IxD #11). Today Approve left the stepper on step 1 (Draft/Requested/Approved
- * all mapped to the PR node), so the approval was invisible. The stepper now
- * carries an explicit "Approved" node: the current node for an Approved PR is a
- * later position than for a Requested PR.
+ * AC-IXD-PROC-002 — approval is a GATE, not a stage (owner directive 2026-06-21,
+ * reversing the prior "Approved is its own node" decision). Approval must still be
+ * VISIBLE: approving ADVANCES the bar — the PR node becomes `done` and the
+ * Vendor-Quote node becomes `current` (the next action), so an Approved PR sits at
+ * a LATER stepper node than a Requested PR. There is NO standalone "Approved" node.
  */
 
 const detailState = {
@@ -81,6 +81,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel also reads committed spend.
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import ProcurementDetails from '../ProcurementDetails';
@@ -150,14 +151,18 @@ describe('AC-IXD-PROC-002: the lifecycle stepper advances when a PR is Approved'
     expect(approvedIdx).toBeGreaterThan(requestedIdx);
   });
 
-  it('AC-IXD-PROC-002: the stepper renders an explicit "Approved" node', () => {
+  it('AC-IXD-PROC-002: approving advances PR→done + Vendor Quote→current, with NO standalone "Approved" node', () => {
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
-    // a node whose label is the canonical "Approved"
-    const labels = within(stepper)
+    const ariaLabels = within(stepper)
       .getAllByRole('listitem')
-      .map((el) => (el.getAttribute('aria-label') ?? '').split(':')[0].trim());
-    expect(labels).toContain('Approved');
+      .map((el) => el.getAttribute('aria-label') ?? '');
+    const labels = ariaLabels.map((l) => l.split(':')[0].trim());
+    // Approval is a gate, not a stage — no node is labelled "Approved".
+    expect(labels).not.toContain('Approved');
+    // The bar advanced on approval: PR done, Vendor Quote current (the next action).
+    expect(ariaLabels[0]).toBe('Purchase Request: done');
+    expect(ariaLabels[1]).toBe('Vendor Quote: current');
   });
 });

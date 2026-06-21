@@ -161,8 +161,6 @@ export interface ProcurementLedgerProps {
   rows: LedgerRow[];
   /** The procurement ID (for file subsection + query invalidation). */
   procurementId: string;
-  /** Current user's org ID. */
-  orgId: string;
   /** Current user's ID (stamped onto file rows). */
   uploadedById: string | null;
   /** Whether write affordances are shown. Derived from real JWT role. */
@@ -179,7 +177,6 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   detail,
   rows,
   procurementId,
-  orgId,
   uploadedById,
   canWrite,
   invoices = [],
@@ -205,17 +202,24 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           fileCount={row.fileCount}
           canWrite={canWrite}
           procurementId={procurementId}
-          orgId={orgId}
           uploadedById={uploadedById}
         />
       ),
     }),
-    [canWrite, procurementId, orgId, uploadedById],
+    [canWrite, procurementId, uploadedById],
   );
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS, fileColumn],
     [fileColumn],
+  );
+
+  // The set of record types already present in the ledger — drives the capture
+  // row's data-driven gating so it never offers a kind that already exists
+  // (the over-prompt fix). Derived from the full row set, not the filtered view.
+  const existingTypes = useMemo(
+    () => new Set(rows.map((row) => row.type)),
+    [rows],
   );
 
   // Apply the active filter
@@ -317,6 +321,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       <CardPad>
         <LedgerCaptureRow
           status={detail.status}
+          existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
           busy={captureBusy}

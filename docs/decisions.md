@@ -167,6 +167,13 @@ committed), `Rejected`, and `Cancelled`.
   procurement spend → budget category) is a later refinement, not MVP.
 - Before the procurement-write module ships, `spent` reads 0/seed for a project with no committed
   procurements.
+- **AMENDMENT (2026-06-21, ADR-0034 — Reserved layer).** This Committed basis is **UNCHANGED** — `spent`
+  and every dashboard/Finance surface still count only `Ordered..Paid`. ADR-0034 adds a **distinct,
+  presentation-only `Reserved`** figure (Σ `total_value` of `Approved/Vendor Quoted/Quote Selected` — the
+  approved-but-not-ordered demand) used **only** in the procurement decision-support panel, where
+  `Available = Budget − Committed − Reserved`. Reserved never enters the committed basis (no dashboard
+  ripple); it makes the approval decision honest about concurrent approved demand. UI term: "Reserved"
+  (never "encumbered").
 
 ### OD-BUDGET-3 — Who may edit budget
 Coarse write-gate for MVP: Admin / Executive / Project Manager / Finance may create/edit budget versions

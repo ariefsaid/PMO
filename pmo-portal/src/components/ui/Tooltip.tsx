@@ -40,7 +40,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, clas
           )}
         >
           {title && <span className="mb-0.5 block font-bold">{title}</span>}
-          <span className="block text-[hsl(0_0%_80%)]">{content}</span>
+          <span className="block text-[hsl(var(--tooltip-muted))]">{content}</span>
         </span>
       )}
     </span>

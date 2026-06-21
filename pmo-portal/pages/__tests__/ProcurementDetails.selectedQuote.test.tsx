@@ -79,6 +79,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel also reads committed spend.
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import ProcurementDetails from '../ProcurementDetails';

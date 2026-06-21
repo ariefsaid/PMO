@@ -22,9 +22,7 @@ const repo = vi.hoisted(() => ({
     vi.fn<
       (
         phase: string,
-        parentId: string,
         procurementId: string,
-        orgId: string,
         fileName: string,
       ) => Promise<PrepareResult>
     >(),
@@ -82,7 +80,7 @@ describe('AC-PF-009 useProcurementFiles.upload', () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
 
@@ -90,7 +88,7 @@ describe('AC-PF-009 useProcurementFiles.upload', () => {
       await result.current.upload.mutateAsync({ file });
     });
 
-    expect(repo.prepareUpload).toHaveBeenCalledWith('quotation', 'q1', 'proc-1', 'org-1', 'q.pdf');
+    expect(repo.prepareUpload).toHaveBeenCalledWith('quotation', 'proc-1', 'q.pdf');
     expect(uploadTransport.uploadWithProgress).toHaveBeenCalledTimes(1);
     // confirm fires AFTER transport, with the minted path + uploadedById = current user.
     expect(repo.confirmUpload).toHaveBeenCalledWith(
@@ -121,7 +119,7 @@ describe('AC-PF-010 useProcurementFiles.archive', () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(
-      () => useProcurementFiles('invoice', 'inv1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('invoice', 'inv1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
 
@@ -143,7 +141,7 @@ describe('AC-PF-006 useProcurementFiles.download', () => {
     repo.getSignedUrl.mockResolvedValue('https://signed/dl');
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
     const url = await result.current.download('org/proc/quotation/f/q.pdf', { download: true });
@@ -159,7 +157,7 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
     });
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
     await act(async () => {
@@ -174,7 +172,7 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
     repo.confirmUpload.mockRejectedValue({ code: '42501', message: 'denied' });
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
     await act(async () => {
@@ -194,7 +192,7 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
     });
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
     await act(async () => {
@@ -210,7 +208,7 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
     });
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(
-      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'org-1', 'user-9'),
+      () => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'),
       { wrapper: Wrapper },
     );
     await act(async () => {

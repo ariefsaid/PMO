@@ -228,21 +228,26 @@ export async function listProcurementFiles(
 
 /**
  * Prepare a signed upload URL for a procurement phase file (FR-PF-003). Mints a fresh
- * `file_id` and builds the 5-segment path; org_id/procurement_id come from the caller's
- * already-known context (the UI threads procurementId from the loaded record — the storage
- * RLS re-verifies segment-1 = caller org AND segment-2 = an in-org procurement). Validates
- * the extension before touching storage. Returns { signedUrl, path, fileId }.
+ * `file_id` and builds the 5-segment path. org_id is fetched server-side from the
+ * `procurements` row — it is NEVER accepted from the caller (matches the pattern in
+ * `documents.ts` prepareUpload; ADR-0017 seam fix). Validates the extension before
+ * touching the DB or storage. Returns { signedUrl, path, fileId }.
  */
 export async function prepareUpload(
   phase: ProcPhase,
-  _parentId: string,
   procurementId: string,
-  orgId: string,
   fileName: string,
 ): Promise<{ signedUrl: string; path: string; fileId: string }> {
   validateUploadExtension(fileName);
+  const { data: proc, error: fetchError } = await supabase
+    .from('procurements')
+    .select('org_id')
+    .eq('id', procurementId)
+    .maybeSingle();
+  if (fetchError) throwWrite(fetchError);
+  if (!proc) throw new AppError('Procurement not found');
   const fileId = crypto.randomUUID();
-  const path = buildProcurementFilePath(orgId, procurementId, phase, fileId, fileName);
+  const path = buildProcurementFilePath(proc.org_id, procurementId, phase, fileId, fileName);
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error) throwStorage(error);
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');

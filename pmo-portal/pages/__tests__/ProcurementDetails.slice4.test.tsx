@@ -121,6 +121,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import ProcurementDetails from '../ProcurementDetails';
@@ -365,8 +366,25 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
     assertCaptureRowLabel('Purchase Request');
   });
 
-  it('Requested: capture row pre-selects Purchase Request', () => {
-    detailState.data = { ...BASE, status: 'Requested' };
+  it('Requested + PR already captured: NO capture row (over-prompt fix — await approval)', () => {
+    // The realistic Requested case: a PR record already exists in the ledger
+    // (status Submitted). Data-driven gating must NOT re-offer "Capture Purchase
+    // Request" — the only valid forward move is the approval decision.
+    detailState.data = {
+      ...BASE,
+      status: 'Requested',
+      purchase_requests: [
+        { id: 'pr-1', procurement_id: 'proc-001', pr_number: 'PR-2606040001', status: 'Submitted', date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', reference_number: null, amount: 50000 },
+      ],
+    };
+    renderPage('proc-001', 'documents');
+    expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
+  });
+
+  it('Requested with NO PR row yet (degenerate): capture row still offers Purchase Request', () => {
+    // Without a captured PR the case spine is missing, so the row legitimately
+    // offers Purchase Request even at Requested.
+    detailState.data = { ...BASE, status: 'Requested', purchase_requests: [] };
     renderPage('proc-001', 'documents');
     assertCaptureRowLabel('Purchase Request');
   });
@@ -486,10 +504,13 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
-  it('capture row stays available at Vendor Invoiced even when one payment already exists', () => {
-    roleState.realRole = 'Finance';
-    roleState.effectiveRole = 'Finance';
-    // Vendor Invoiced with one payment already captured
+  it('Vendor Invoiced + Payment already captured: NO capture row (data-driven "if absent")', () => {
+    // IxD Change 2 (deliberate behavior change): the capture offer is now data-
+    // driven — "payment IF ABSENT". Once a payment exists in the ledger, the row
+    // no longer re-offers it, eliminating the over-prompt. (Domain note: this
+    // also removes ledger-row capture of additional progress payments once one
+    // payment is recorded — surfaced to the owner as a tradeoff of the "if absent"
+    // rule. The action/record flow remains the path for further payments.)
     detailState.data = {
       ...BASE,
       status: 'Vendor Invoiced',
@@ -498,7 +519,14 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
       ],
     };
     renderPage('proc-001', 'documents');
-    // Still available for a progress payment
+    expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
+  });
+
+  it('Vendor Invoiced with NO payment yet: capture row offers Payment', () => {
+    roleState.realRole = 'Finance';
+    roleState.effectiveRole = 'Finance';
+    detailState.data = { ...BASE, status: 'Vendor Invoiced', payments: [] };
+    renderPage('proc-001', 'documents');
     const captureRow = screen.getByTestId('ledger-capture-row');
     expect(captureRow).toBeInTheDocument();
     expect(captureRow.textContent).toContain('Payment');

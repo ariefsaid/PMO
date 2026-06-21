@@ -59,7 +59,6 @@ function renderSub(props?: Partial<React.ComponentProps<typeof ProcurementFilesS
       phase="quotation"
       parentId="q1"
       procurementId="proc-1"
-      orgId="org-1"
       canWrite
       uploadedById="user-9"
       {...props}

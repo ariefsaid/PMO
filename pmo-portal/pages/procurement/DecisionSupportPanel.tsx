@@ -1,21 +1,29 @@
 /**
- * AC-IXD-PROC-W5-2 — DecisionSupportPanel
+ * AC-IXD-PROC-W5-2 / AC-RB-004..014 — DecisionSupportPanel
  *
  * A read-only budget-impact card placed in the evidence zone of ProcurementDetails,
- * directly under StatTiles. Renders ONLY when p.project_id is set.
+ * directly under StatTiles. Renders ONLY when p.project_id is set AND the case status
+ * is pre-Ordered (Draft..Quote Selected) — ADR-0034 §6.
  *
- * Data (OD-W5-4 — ONE honest "spent" basis everywhere):
- *   • Budget        = useProjectBudget(projectId) — Σ Active budget-version line items.
- *   • Committed     = useProjectCommittedSpend(projectId) — Σ PO total_value in
- *                     Ordered/Received/Vendor Invoiced/Paid (the EXACT basis the
- *                     dashboards use, 0009_dashboard_margin.sql). NOT the static
- *                     projects.spent column (which is 0 in seed and contradicts the
- *                     Finance dashboard).
- * No new RPC — two focused org-scoped reads.
+ * Three budget layers (ADR-0034):
+ *   • Budget    = useProjectBudget(projectId) — Σ Active budget-version line items.
+ *   • Committed = useProjectCommittedSpend(projectId) — Σ PO total_value in
+ *                 Ordered/Received/Vendor Invoiced/Paid (the EXACT basis the dashboards
+ *                 use, 0009_dashboard_margin.sql). UNCHANGED by this feature.
+ *   • Reserved  = useProjectReservedSpend(projectId) — Σ total_value in Approved/Vendor
+ *                 Quoted/Quote Selected (approved, not yet ordered — "encumbrance").
+ * No new RPC — three focused org-scoped reads.
  *
- * The four figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
- *   This request · Remaining (budget − committed) · Project budget · After this request.
+ * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
+ *
+ * The five figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
+ *   This request · Reserved (other) · Available · Project budget · After this request.
  * Over-budget is a non-blocking advisory (approval still permitted — OD-W5-4/OD-W5-5).
+ *
+ * Per-stage "After this request" math (ADR-0034 §5 — the double-count fix): when the
+ * viewed case is itself already in Reserved (status ∈ Approved/Vendor Quoted/Quote
+ * Selected), its value is already inside `reserved`, so After == Available (do NOT
+ * subtract thisRequest again). Otherwise (Draft/Requested) After = Available − thisRequest.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -24,8 +32,19 @@ import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
-import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
+import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
+import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
+import { computeBudgetSignal } from './computeBudgetSignal';
+
+/** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
+const PANEL_VISIBLE_STATUSES: ProcurementStatus[] = [
+  'Draft',
+  'Requested',
+  'Approved',
+  'Vendor Quoted',
+  'Quote Selected',
+];
 
 export interface DecisionSupportPanelProps {
   /** The procurement's project_id. Pass null/undefined to suppress the panel. */
@@ -34,20 +53,28 @@ export interface DecisionSupportPanelProps {
   totalValue: number;
   /** Project display name (from DETAIL_SELECT join). */
   projectName: string | null | undefined;
+  /** The case's current status — drives per-stage math + the visibility boundary. */
+  status: ProcurementStatus;
 }
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectId,
   totalValue,
   projectName,
+  status,
 }) => {
-  // Hooks must be called unconditionally; both are no-ops (enabled:false) when
-  // projectId is falsy, so the early return below is safe.
+  // Hooks must be called unconditionally; all are no-ops (enabled:false) when
+  // projectId is falsy, so the early returns below are safe.
   const budget = useProjectBudget(projectId ?? '');
   const committed = useProjectCommittedSpend(projectId);
+  const reservedQ = useProjectReservedSpend(projectId);
 
-  // Bail out — no project linked.
+  // Bail out — no project linked (takes precedence over the status gate, FR-RB-020).
   if (!projectId) return null;
+
+  // Bail out — post-Ordered / terminal: the panel is a pre-decision tool only, and
+  // hiding it here makes the legacy double-count path structurally impossible.
+  if (!PANEL_VISIBLE_STATUSES.includes(status)) return null;
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
@@ -64,8 +91,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     </div>
   );
 
-  const isPending = budget.isPending || committed.isPending;
-  const isError = budget.isError || committed.isError;
+  const isPending = budget.isPending || committed.isPending || reservedQ.isPending;
+  const isError = budget.isError || committed.isError || reservedQ.isError;
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
@@ -112,36 +139,39 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     );
   }
 
-  // ── Figures (committed basis, OD-W5-4) ───────────────────────────────────────
+  // ── Figures (three layers, ADR-0034) ─────────────────────────────────────────
+  // Interdependent budget math lives in the pure computeBudgetSignal helper so it is
+  // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
-  const remaining = budgetAmount - committedSpend;
-  const afterRequest = remaining - totalValue;
+  const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
+  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
+    computeBudgetSignal({
+      budget: budgetAmount,
+      committed: committedSpend,
+      reserved,
+      totalValue,
+      status,
+    });
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
-  const isOverBudget = totalValue > remaining;
-  const overageAmount = isOverBudget ? totalValue - remaining : 0;
-
   const tiles = [
+    { label: 'This request', value: formatCurrency(totalValue) },
     {
-      label: 'This request',
-      value: formatCurrency(totalValue),
+      label: 'Reserved',
+      value: formatCurrency(otherReserved),
+      sub: 'approved, not yet ordered',
     },
     {
-      label: 'Remaining vs. committed',
-      value: formatCurrency(remaining),
-      tone: remaining < 0 ? ('neg' as const) : undefined,
+      label: 'Available',
+      value: formatCurrency(available),
+      tone: available < 0 ? ('neg' as const) : undefined,
     },
-    {
-      label: 'Project budget',
-      value: formatCurrency(budgetAmount),
-    },
+    { label: 'Project budget', value: formatCurrency(budgetAmount) },
     {
       label: 'After this request',
       value: formatCurrency(afterRequest),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
-      // NOT utilization — labelling it "% of budget" reads as ~consumed, misleading
-      // a finance operator into thinking the budget is nearly exhausted when 85% is
-      // actually headroom. Relabelled to "% headroom remaining" (honest spend control).
+      // NOT utilization — labelled "% headroom remaining" for honest spend control.
       sub: `${afterPct.toFixed(1)}% headroom remaining`,
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     },
@@ -152,24 +182,40 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <CardPad>
         {heading}
 
-        {/* Four stat tiles — text-labelled, tabular-nums (a11y: not color-only).
-            Committed spend (Σ PO total_value in Ordered..Paid) is the denominator of
-            "Remaining vs. committed" and "After this request"; no progress bar — an
-            uninformative single-segment 0% bar misreads as broken (Wave-5 I1). */}
-        <StatTiles tiles={tiles} />
+        {/* Five stat tiles — text-labelled, tabular-nums (a11y: not color-only).
+            Available (Budget − Committed − Reserved) is the over-commitment-safe
+            headroom; no progress bar — an uninformative single-segment 0% bar
+            misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
+        <StatTiles tiles={tiles} columns={3} />
 
-        {/* Over-budget advisory — non-blocking. ErrBanner is role="status" (gentle,
+        {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
             color-only). Approval is still permitted (OD-W5-4/OD-W5-5). */}
-        {isOverBudget && (
+        {overAvailable && (
           <ErrBanner
             className="mt-3 mb-0"
-            title="Over remaining budget"
+            title="Over available budget"
             sub={
               <>
-                This request exceeds remaining budget by{' '}
-                <strong className="tabular">{formatCurrency(overageAmount)}</strong>. Approval is
-                still permitted — this is an advisory only.
+                This request exceeds available budget by{' '}
+                <strong className="tabular">{formatCurrency(overAvailableAmount)}</strong>. Approval
+                is still permitted — this is an advisory only.
+              </>
+            }
+          />
+        )}
+
+        {/* Already-reserved + project over budget — no thisRequest advisory (it is
+            already counted in Reserved); surface the over-budget condition instead. */}
+        {overBudgetReserved && (
+          <ErrBanner
+            className="mt-3 mb-0"
+            title="Project over budget"
+            sub={
+              <>
+                This project is over budget by{' '}
+                <strong className="tabular">{formatCurrency(-available)}</strong> across committed
+                and reserved demand. This is an advisory only.
               </>
             }
           />

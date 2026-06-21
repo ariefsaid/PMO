@@ -100,6 +100,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel also reads committed spend.
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import ProcurementDetails from '../ProcurementDetails';
@@ -244,9 +245,17 @@ function appearsBeforeInDOM(a: Element, b: Element): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-W5-1 (a) — Evidence before decision in DOM order
+// AC-IXD-PROC-W5-1 (a) — Decision strip placement (IxD Change 1 reversal)
+//
+// Prior intent ("act last": evidence-before-decision) was deliberately REVERSED by
+// the owner: the decision strip is now a compact, non-sticky strip placed directly
+// below the lifecycle stepper and ABOVE the tabs. So the decision actions now PRECEDE
+// the active tab's evidence in DOM order. The strip still renders through the
+// RecordActionZone (enforcement contract), and the SoD/transition machine is intact —
+// only the placement changed. The lifecycle STEPPER (the case-at-a-glance) precedes
+// the strip, so the strip is not the very first thing on the page.
 // ---------------------------------------------------------------------------
-describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab order', () => {
+describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the tab evidence', () => {
   beforeEach(() => {
     mockRole = 'Finance';
     detailState.isPending = false;
@@ -254,33 +263,42 @@ describe('AC-IXD-PROC-W5-1 (a): evidence zone precedes decision zone in DOM/tab 
     detailState.error = null;
   });
 
-  it('AC-IXD-PROC-W5-1a: the line-items section appears before the decision actions in DOM order', () => {
+  it('AC-IXD-PROC-W5-1a: the lifecycle stepper precedes the decision actions in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    // Evidence now lives on the Line-items tab; the decision zone is outside the tabs,
-    // so it still follows the active panel in DOM order — the goal is preserved.
     renderPage('items');
 
-    const lineItemsSection = screen.getByTestId('line-items-section');
+    const stepper = screen.getByLabelText(/procurement lifecycle/i);
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
 
     expect(
-      appearsBeforeInDOM(lineItemsSection, approveBtn),
-      'line-items-section must precede the Approve button in DOM order',
+      appearsBeforeInDOM(stepper, approveBtn),
+      'the lifecycle stepper must precede the Approve button in DOM order',
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1a: the vendor-quotes section appears before the decision actions in DOM order', () => {
+  it('AC-IXD-PROC-W5-1a: the decision strip precedes the line-items evidence in DOM order (above the tabs)', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
-    // VendorQuotesTab (Slice 3) lives on the Vendor-quotes tab; the decision zone is
-    // outside the tabs and still follows the active panel in DOM order — goal preserved.
-    renderPage('quotes');
+    renderPage('items');
 
-    const vendorQuotes = screen.getByTestId('vendor-quotes');
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
+    const lineItemsSection = screen.getByTestId('line-items-section');
 
     expect(
-      appearsBeforeInDOM(vendorQuotes, approveBtn),
-      'vendor-quotes must precede the Approve button in DOM order',
+      appearsBeforeInDOM(approveBtn, lineItemsSection),
+      'decision strip (Approve) must precede the line-items evidence in DOM order',
+    ).toBe(true);
+  });
+
+  it('AC-IXD-PROC-W5-1a: the decision strip precedes the vendor-quotes evidence in DOM order (above the tabs)', () => {
+    detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage('quotes');
+
+    const approveBtn = screen.getByRole('button', { name: /^approve$/i });
+    const vendorQuotes = screen.getByTestId('vendor-quotes');
+
+    expect(
+      appearsBeforeInDOM(approveBtn, vendorQuotes),
+      'decision strip (Approve) must precede the vendor-quotes evidence in DOM order',
     ).toBe(true);
   });
 

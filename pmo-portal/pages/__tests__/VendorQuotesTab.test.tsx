@@ -89,7 +89,6 @@ const defaultProps = {
   addBusy: false,
   selectBusy: false,
   procurementId: 'proc-1',
-  orgId: 'org-1',
   canManageFiles: false,
   currentUserId: 'u-alice',
   vendorMap: testVendorMap,

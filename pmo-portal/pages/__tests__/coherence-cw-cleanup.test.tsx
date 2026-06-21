@@ -134,6 +134,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 // useIsDesktop — controlled per describe block
@@ -201,9 +202,15 @@ const renderPage = (id = 'proc-cw-001') =>
   );
 
 // ---------------------------------------------------------------------------
-// CW-STICKY-1: decision card sticky on desktop
+// IxD Change 1: decision strip is NON-STICKY, in normal flow under the stepper.
+//
+// Supersedes CW-STICKY-1 (which required desktop sticky-bottom). Owner IxD reversal:
+// the decision zone is a compact, non-sticky strip placed directly below the stepper
+// and above the tabs — no floating sticky bar over page content. It still renders
+// through the RecordActionZone (the enforcement contract holds), just without the
+// sticky positioning.
 // ---------------------------------------------------------------------------
-describe('CW-STICKY-1: decision card is sticky on desktop (RecordActionZone never-below-fold)', () => {
+describe('IxD Change 1: decision strip is non-sticky, in normal flow (under the stepper)', () => {
   beforeEach(() => {
     mockIsDesktop = true;
     mockEffectiveRole = 'Project Manager';
@@ -213,29 +220,20 @@ describe('CW-STICKY-1: decision card is sticky on desktop (RecordActionZone neve
     detailState.error = null;
   });
 
-  it('CW-STICKY-1: the decision card wrapper carries sticky positioning on desktop', () => {
+  it('IxD Change 1: the decision-zone wrapper carries NO sticky/bottom positioning on desktop', () => {
     renderPage();
     const card = screen.getByTestId('decision-card');
-    // The wrapper around the decision card must use sticky bottom positioning on desktop.
-    // It may be the card itself or a wrapper element.
-    const stickyEl =
-      card.closest('[class*="sticky"]') ??
-      card.closest('[data-testid="decision-zone"]') ??
-      card;
-    expect(stickyEl.className).toMatch(/sticky/);
-    expect(stickyEl.className).toMatch(/bottom-/);
+    const zone = card.closest('[data-testid="record-action-zone"]');
+    expect(zone).not.toBeNull();
+    // The strip is in normal flow — no sticky / bottom anchoring on the action zone.
+    expect(zone!.className).not.toMatch(/sticky/);
+    expect(zone!.className).not.toMatch(/bottom-/);
   });
 
-  it('CW-STICKY-1: the desktop sticky zone is NOT hidden on desktop (no max-[920px] class)', () => {
+  it('IxD Change 1: the decision strip still renders through the RecordActionZone (enforcement holds)', () => {
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    const stickyEl =
-      card.closest('[class*="sticky"]') ??
-      card.closest('[data-testid="decision-zone"]') ??
-      card;
-    // The desktop sticky treatment must NOT have the mobile-only max-[920px] class
-    // (that class hides/shows elements on mobile only).
-    expect(stickyEl.className).not.toMatch(/max-\[920px\]/);
+    const zone = screen.getByTestId('record-action-zone');
+    expect(within(zone).getByTestId('decision-card')).toBeInTheDocument();
   });
 });
 

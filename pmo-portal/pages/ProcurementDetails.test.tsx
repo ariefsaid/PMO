@@ -140,6 +140,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 // N8 (AC-IXD-PROC-W5-2): DecisionSupportPanel also reads committed spend.
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
 }));
 
 import ProcurementDetails from './ProcurementDetails';
@@ -617,6 +618,8 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
   it('AC-805: entering notes + Approve + confirm calls transition mutation with the notes argument', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
+    // IxD Change 1: Notes is progressive-disclosure — reveal the optional field first.
+    await userEvent.click(screen.getByTestId('procurement-notes-reveal'));
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Within budget — approved.');
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
     await confirmInDialog(/approve/i);
@@ -630,6 +633,8 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
   it('AC-805 / P2: entering notes + Reject opens a destructive confirm; confirm passes the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
+    // IxD Change 1: reveal the progressive-disclosure Notes field before typing.
+    await userEvent.click(screen.getByTestId('procurement-notes-reveal'));
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
     await userEvent.click(screen.getByRole('button', { name: /reject/i }));
     // Reject is destructive → alertdialog surface
@@ -647,6 +652,18 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
     expect(screen.queryByTestId('procurement-notes-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('procurement-notes-reveal')).not.toBeInTheDocument();
+  });
+
+  it('AC-805 / IxD: at rest (Approve available) the Notes textarea is hidden behind a reveal link', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    // Progressive disclosure: only the "Add a note" link shows at rest, no textarea.
+    expect(screen.queryByTestId('procurement-notes-input')).not.toBeInTheDocument();
+    const reveal = screen.getByTestId('procurement-notes-reveal');
+    expect(reveal).toBeInTheDocument();
+    await userEvent.click(reveal);
+    expect(screen.getByTestId('procurement-notes-input')).toBeInTheDocument();
   });
 });
 

@@ -24,12 +24,22 @@ const row = (over: Partial<ProcurementWithRefs>): ProcurementWithRefs =>
   }) as ProcurementWithRefs;
 
 describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
-  it('renders all seven lifecycle stage columns (Approved is its own node)', () => {
-    // Wave-1 Area-5 (PROC-002): Approved advances the visible stage → its own column.
+  it('renders all six lifecycle stage columns (no Approved column — approval is a gate)', () => {
+    // Owner directive 2026-06-21: approval is a gate, not a stage → no Approved column.
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    for (const full of ['Purchase Request', 'Approved', 'Vendor Quote', 'Purchase Order', 'Goods Receipt', 'Vendor Invoice', 'Payment']) {
+    for (const full of ['Purchase Request', 'Vendor Quote', 'Purchase Order', 'Goods Receipt', 'Vendor Invoice', 'Payment']) {
       expect(screen.getByText(full)).toBeInTheDocument();
     }
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument();
+  });
+
+  it('an approved request appears in the Vendor Quote column (the bar advanced on approval)', () => {
+    render(
+      <MemoryRouter>
+        <ProcurementBoard procurements={[row({ status: 'Approved', title: 'Approved req' })]} onOpen={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('prstage-vq')).toHaveTextContent('Approved req');
   });
 
   it('groups a request into its stage column (Ordered → Purchase Order)', () => {
@@ -65,15 +75,15 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
     const dots = Array.from(
       container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
     );
-    // one column-head dot per stage (7 stages: pr, approved, vq, po, gr, vi, paid)
-    expect(dots).toHaveLength(7);
+    // one column-head dot per stage (6 stages: pr, vq, po, gr, vi, paid)
+    expect(dots).toHaveLength(6);
     const backgrounds = dots.map((d) => d.style.background);
-    // the six upstream stages (pr, approved, vq, po, gr, vi) are quiet neutral
-    expect(backgrounds.slice(0, 6)).toEqual(
-      Array(6).fill('hsl(var(--muted-foreground))'),
+    // the five upstream stages (pr, vq, po, gr, vi) are quiet neutral
+    expect(backgrounds.slice(0, 5)).toEqual(
+      Array(5).fill('hsl(var(--muted-foreground))'),
     );
     // the terminal Payment stage is success
-    expect(backgrounds[6]).toBe('hsl(var(--success))');
+    expect(backgrounds[5]).toBe('hsl(var(--success))');
     // no blue/primary column dot remains (matches the sales board convention)
     expect(backgrounds.some((b) => b.includes('--primary'))).toBe(false);
   });

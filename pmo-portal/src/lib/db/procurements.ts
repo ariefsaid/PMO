@@ -24,7 +24,7 @@ const SELECT =
  * projects.spent (0009), and get_projects_delivery.committed_spend (0026) — MUST agree. A pgTAP
  * drift guard (0069_dashboard_at_risk_boundary.test.sql) asserts the SQL pair stays in sync.
  */
-const COMMITTED_STATUSES: ProcurementRow['status'][] = [
+export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Ordered',
   'Received',
   'Vendor Invoiced',
@@ -37,6 +37,31 @@ export async function getProjectCommittedSpend(projectId: string): Promise<numbe
     .select('total_value')
     .eq('project_id', projectId)
     .in('status', COMMITTED_STATUSES);
+  if (error) throw new Error(error.message);
+  return (data ?? []).reduce(
+    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
+    0,
+  );
+}
+
+/**
+ * Reserved-spend basis for ONE project (ADR-0034): Σ procurement total_value where status ∈
+ * {Approved, Vendor Quoted, Quote Selected} — approved-but-not-yet-ordered demand ("encumbrance").
+ * DISTINCT from Committed (which is Ordered..Paid) — RESERVED_STATUSES and COMMITTED_STATUSES are
+ * disjoint. org_id is NEVER sent — RLS scopes by org. Returns 0 when the project has none.
+ */
+export const RESERVED_STATUSES: ProcurementRow['status'][] = [
+  'Approved',
+  'Vendor Quoted',
+  'Quote Selected',
+];
+
+export async function getProjectReservedSpend(projectId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('procurements')
+    .select('total_value')
+    .eq('project_id', projectId)
+    .in('status', RESERVED_STATUSES);
   if (error) throw new Error(error.message);
   return (data ?? []).reduce(
     (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
