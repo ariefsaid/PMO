@@ -295,13 +295,20 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(ariaLabels[0]).toMatch(/^Purchase Request/i);
   });
 
-  it('D9-8: the Approved node aria-label carries "Approved:" (it is not an acronym node)', () => {
+  it('D9-8: approval is a gate — an Approved PR advances PR→done + Vendor Quote→current, with NO standalone "Approved" node', () => {
+    // Owner directive 2026-06-21: approval is a gate, not a stage. Approving moves
+    // the bar to the Vendor-Quote node (the next action); there is no Approved node.
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
     const ariaLabels = items.map((el) => el.getAttribute('aria-label') ?? '');
-    expect(ariaLabels.some((l) => l.startsWith('Approved:'))).toBe(true);
+    // No node is labelled "Approved" — it is not a stage.
+    expect(ariaLabels.some((l) => l.startsWith('Approved:'))).toBe(false);
+    // The PR node is done (the bar advanced on approval) …
+    expect(ariaLabels[0]).toBe('Purchase Request: done');
+    // … and the Vendor-Quote node is the current step (the next action).
+    expect(ariaLabels[1]).toBe('Vendor Quote: current');
   });
 
   it('D9-9: the mono pr_number ref renders under the Purchase Request node when a PR record exists (I1)', () => {
@@ -331,13 +338,13 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(within(stepper).getByText('PR-2606100001')).toBeInTheDocument();
   });
 
-  it('D9-10: the stepper contains all seven node labels (all full-word)', () => {
+  it('D9-10: the stepper contains all six node labels (all full-word)', () => {
     detailState.data = { ...paidFixture };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
-    // Seven stages: PR · Approved · VQ · PO · GR · VI · Paid
-    expect(items).toHaveLength(7);
+    // Six stages: PR · VQ · PO · GR · VI · Paid (approval is a gate, not a node)
+    expect(items).toHaveLength(6);
   });
 });
 
@@ -528,11 +535,11 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
   });
 
-  it('non-regression: stepper still has 7 nodes regardless of status', () => {
+  it('non-regression: stepper still has 6 nodes regardless of status', () => {
     detailState.data = { ...base, status: 'Requested' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
-    expect(items).toHaveLength(7);
+    expect(items).toHaveLength(6);
   });
 });

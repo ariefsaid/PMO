@@ -4,25 +4,31 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
  * IA-3 procurement lifecycle model (master plan §4.2; Wave-1 Area-5 tasks 22-24).
- * Seven visible stages — PR → Approved → VQ → PO → GR → VI → Paid — collapse the
- * eleven-value `procurements.status` enum into the operator-facing journey shown
- * in the table pips, the by-stage board, and the detail-page node stepper.
+ * Six visible stages — PR → VQ → PO → GR → VI → Paid — collapse the eleven-value
+ * `procurements.status` enum into the operator-facing journey shown in the table
+ * pips, the by-stage board, and the detail-page node stepper.
  *
- * Wave-1 corrections to the prior six-stage model (IxD #11):
- *  - **Approved is its own node** (PROC-002). It used to share the "PR" node with
- *    Draft/Requested, so an Approve left the visible stage on step 1 — the
- *    approval was invisible. It now advances the stepper/board to the Approved
- *    node.
- *  - **Quote Selected folds into the Vendor-Quote node** (PROC-003), not the PO
- *    node. Selecting a quote no longer pre-jumps the badge to "Purchase Order"
- *    before a PO genuinely exists; the PO node is reached only at Ordered.
+ * **Approval is a GATE, not a stage** (owner directive 2026-06-21, reversing the
+ * prior PROC-002 "Approved is its own node" decision). An approval is a quality
+ * gate that sits across the PR step — it does not mint a document and is not a
+ * place a request "rests". So there is NO Approved node. But approval must still
+ * be VISIBLE (the original PROC-002 concern — an Approve must not leave the bar
+ * stuck on step 1): we make it visible by **advancing the bar on approval** — at
+ * status `Approved` the PR node is `done` and the Vendor-Quote node is `current`
+ * (VQ is the next action even though no quote exists yet). The status pill
+ * ("Approved" vs "Vendor Quote") differentiates the two PR-done/VQ-current states.
+ *
+ * Other rule (unchanged): **Quote Selected folds into the Vendor-Quote node**
+ * (PROC-003), not the PO node. Selecting a quote no longer pre-jumps the badge to
+ * "Purchase Order" before a PO genuinely exists; the PO node is reached only at
+ * Ordered.
  *
  * This is presentation only — `LEGAL_TRANSITIONS` and the RPC stay the single
  * source of truth for what may actually move (never re-derived here).
  */
 export interface PrStage {
   /** Short stage key (board test-id + doc-ref prefix). */
-  key: 'pr' | 'approved' | 'vq' | 'po' | 'gr' | 'vi' | 'paid';
+  key: 'pr' | 'vq' | 'po' | 'gr' | 'vi' | 'paid';
   /** Compact label (table pip tooltip / board column short). */
   label: string;
   /** Full stage name (detail node label / status pill text). */
@@ -31,7 +37,6 @@ export interface PrStage {
 
 export const PR_STAGES: readonly PrStage[] = [
   { key: 'pr', label: 'PR', full: 'Purchase Request' },
-  { key: 'approved', label: 'Approved', full: 'Approved' },
   { key: 'vq', label: 'VQ', full: 'Vendor Quote' },
   { key: 'po', label: 'PO', full: 'Purchase Order' },
   { key: 'gr', label: 'GR', full: 'Goods Receipt' },
@@ -41,20 +46,35 @@ export const PR_STAGES: readonly PrStage[] = [
 
 /**
  * Maps every in-flight `procurements.status` to its 0-based stage index.
- * Draft/Requested → PR (0); Approved → its own node (1); Vendor Quoted AND
- * Quote Selected → the VQ node (2, PROC-003 — no PO pre-jump); Ordered → PO (3).
+ * Draft/Requested → PR (0); **Approved advances the bar to the VQ node** (1 — the
+ * approval gate moves the journey on to its next action, it is not its own node);
+ * Vendor Quoted AND Quote Selected → the VQ node (1, PROC-003 — no PO pre-jump);
+ * Ordered → PO (2).
  */
 const STATUS_TO_STAGE: Record<string, number> = {
   Draft: 0,
   Requested: 0,
   Approved: 1,
-  'Vendor Quoted': 2,
-  'Quote Selected': 2,
-  Ordered: 3,
-  Received: 4,
-  'Vendor Invoiced': 5,
-  Paid: 6,
+  'Vendor Quoted': 1,
+  'Quote Selected': 1,
+  Ordered: 2,
+  Received: 3,
+  'Vendor Invoiced': 4,
+  Paid: 5,
 };
+
+/**
+ * Statuses whose canonical user-facing label (AC-IXD-PROC-001) IS the honest name
+ * of the stage NODE they currently occupy — so when they are the active step, the
+ * current node renames to that status label instead of the generic stage name.
+ *
+ * `Quote Selected` qualifies: it sits on the VQ node (PROC-003) and "Quote
+ * Selected" is the honest sub-state of that node. `Approved` does NOT qualify: it
+ * occupies the VQ node only because approval ADVANCED the bar to the next action
+ * — the VQ node must stay labelled "Vendor Quote", never "Approved" (that would
+ * mislabel the node for a request that has no quote yet).
+ */
+const STATUS_RENAMES_CURRENT_NODE = new Set<string>(['Quote Selected']);
 
 // ---------------------------------------------------------------------------
 // AC-IXD-PROC-001 — ONE canonical user-facing label per state (IxD #13).
@@ -229,21 +249,20 @@ export interface DocRefs {
 }
 
 /**
- * Builds the seven-step lifecycle for the LifecycleStepper (node + inline variants).
+ * Builds the six-step lifecycle for the LifecycleStepper (node + inline variants).
  * Stages before the current index are `done`, the current is `current`, later are
  * `upcoming`. A Paid procurement marks the whole track done + the final node `paid`;
  * a terminal off-track procurement (Rejected/Cancelled) marks PR `current` and the
  * rest `skipped` (the lifecycle was abandoned). Doc refs decorate reached nodes.
- * The Approved node carries no minted doc ref (it is an approval state, not a
- * document) — its slot in `refByStage` is therefore `undefined`.
+ * Approval is a gate (no node) — it advances an `Approved` request to PR=done,
+ * VQ=current (visible on the bar; see the module header).
  */
 export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): LifecycleStep[] {
   const idx = stageIndexForStatus(status);
   const s = status as string;
-  // Aligned to PR_STAGES: PR · Approved · VQ · PO · GR · VI · Paid.
+  // Aligned to PR_STAGES: PR · VQ · PO · GR · VI · Paid.
   const refByStage: (string | null | undefined)[] = [
     refs?.pr_number,
-    undefined, // Approved node — no minted doc ref
     refs?.vq_number,
     refs?.po_number,
     refs?.gr_number,
@@ -269,10 +288,13 @@ export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): Lifec
 
   return PR_STAGES.map((st, i) => {
     const state: LifecycleStep['state'] = i < idx ? 'done' : i === idx ? 'current' : 'upcoming';
-    // PROC-001: the ACTIVE node names the SAME canonical state the badge + toast show. This only
-    // diverges for 'Quote Selected', which (PROC-003) shares the macro VQ node but whose honest
-    // status label is "Quote Selected" — so the current node reads that instead of "Vendor Quote".
-    const label = state === 'current' ? stageLabelForStatus(status) : st.full;
+    // PROC-001: the ACTIVE node names the SAME canonical state the badge + toast show — BUT only
+    // when that status canonically belongs to this node. 'Quote Selected' does (PROC-003: it is the
+    // honest sub-state of the VQ node → the current node reads "Quote Selected"). 'Approved' does
+    // NOT — it occupies the VQ node only because the approval gate advanced the bar, so the node
+    // must stay "Vendor Quote" (never "Approved" for a request with no quote yet).
+    const label =
+      state === 'current' && STATUS_RENAMES_CURRENT_NODE.has(s) ? stageLabelForStatus(status) : st.full;
     return {
       label,
       state,
