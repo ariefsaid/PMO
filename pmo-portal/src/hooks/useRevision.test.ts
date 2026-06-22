@@ -10,7 +10,7 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { document: repo },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'author-1' } }),
+  useAuth: () => ({ currentUser: { id: 'author-1', org_id: 'org-1' } }),
 }));
 
 import { useRevision } from './useRevision';

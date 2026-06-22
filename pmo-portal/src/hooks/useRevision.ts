@@ -19,12 +19,13 @@ export interface CreateRevisionArgs {
 export function useRevision(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
 
   const createRevision = useMutation({
     mutationFn: (args: CreateRevisionArgs) =>
       repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['project-documents', projectId] });
+      qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
     },
   });
 

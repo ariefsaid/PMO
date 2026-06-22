@@ -4,6 +4,7 @@ import { repositories } from '@/src/lib/repositories';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
+import { useAuth } from '@/src/auth/useAuth';
 
 /**
  * File upload/replace mutations for the project-documents register.
@@ -25,8 +26,10 @@ export type ReplaceArgs = UploadArgs;
 
 export function useFileUpload(projectId: string) {
   const qc = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ['project-documents', projectId] });
+    qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
 
   // Per-doc progress state
   const [progress, setProgress] = useState<Record<string, number>>({});
