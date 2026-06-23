@@ -43,6 +43,11 @@ test(
   async ({ page }) => {
     const runId = Date.now();
     const prTitle = `E2E-PR-${runId}`;
+    // Retry-isolation: the line-item description is unique per attempt too (runId is
+    // recomputed when Playwright re-runs the test body on a retry), so a Draft PR
+    // left behind by a flaked attempt-1 (shared DB, CI retries=2) can never
+    // strict-mode-collide with this attempt's line-item cell assertion.
+    const itemDesc = `Welding wire 1.2mm ${runId}`;
 
     await login(page, 'pm@acme.test');
     await page.goto('/procurement');
@@ -77,7 +82,7 @@ test(
     // The inline add-row is now inside the Line items tab panel.
     const addRow = page.getByTestId('line-item-add-row');
     await expect(addRow).toBeVisible({ timeout: 10_000 });
-    await addRow.getByLabel(/new item description/i).fill('Welding wire 1.2mm');
+    await addRow.getByLabel(/new item description/i).fill(itemDesc);
     await addRow.getByLabel(/new item quantity/i).fill('24');
     await addRow.getByLabel(/new item unit price/i).fill('86');
     await addRow.getByRole('button', { name: /add line item/i }).click();
@@ -86,7 +91,7 @@ test(
     // total ($2,064). Scope to the line-items section + its table cell so the
     // assertion is unambiguous (the name/total can echo elsewhere on the page).
     const lineItems = page.getByTestId('line-items-section');
-    await expect(lineItems.getByRole('cell', { name: 'Welding wire 1.2mm' })).toBeVisible({
+    await expect(lineItems.getByRole('cell', { name: itemDesc })).toBeVisible({
       timeout: 15_000,
     });
     await expect(lineItems.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });
