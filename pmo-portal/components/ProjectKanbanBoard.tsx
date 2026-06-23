@@ -80,9 +80,12 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
   {
     title: 'Close Out',
     statuses: ['Close Out'],
-    dotColor: 'hsl(var(--success))',
+    // violet (hsl(262 83% 58%)) is the DESIGN.md categorical accent, explicitly sanctioned
+    // for "timeline/legend dots" (DESIGN.md §2 Secondary). Distinct from Won's success-green
+    // so the two terminal columns are color-differentiable (color + label, not color-only).
+    dotColor: 'hsl(var(--violet))',
     testId: 'kanban-col-closeout',
-    stageItem: { title: 'Close Out', dotColor: 'hsl(var(--success))' },
+    stageItem: { title: 'Close Out', dotColor: 'hsl(var(--violet))' },
   },
   {
     title: 'Internal',

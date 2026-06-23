@@ -9,26 +9,32 @@ import { useAuth } from '@/src/auth/useAuth';
 
 /**
  * Per-project document register over the repository seam (ADR-0017). queryKey is
- * scoped to the project so each project's register caches independently; disabled
- * until a projectId is present. org_id is never sent (RLS scopes rows).
+ * org-scoped (orgId first) so cache is tenant-scoped — prevents cross-org bleed on
+ * impersonation / account-switch (defence-in-depth; RLS is the enforcement authority).
+ * Disabled until both orgId and projectId are present.
  */
 export function useDocuments(projectId: string) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery<ProjectDocumentRow[]>({
-    queryKey: ['project-documents', projectId],
+    queryKey: ['project-documents', orgId, projectId],
     queryFn: () => repositories.document.list(projectId),
-    enabled: Boolean(projectId),
+    enabled: Boolean(orgId && projectId),
   });
 }
 
 /**
  * Fetch the child (successor) document for lineage display.
  * Returns null when no child exists or the parent has no children.
+ * Key is org-scoped to prevent cross-org cache bleed.
  */
 export function useChildDocument(parentId: string | null) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery<ProjectDocumentRow | null>({
-    queryKey: ['project-document-child', parentId],
+    queryKey: ['project-document-child', orgId, parentId],
     queryFn: () => parentId ? repositories.document.getChild(parentId) : Promise.resolve(null),
-    enabled: Boolean(parentId),
+    enabled: Boolean(orgId && parentId),
   });
 }
 
@@ -44,17 +50,18 @@ export interface TransitionDocumentArgs {
 
 /**
  * Document create / update / status-transition / delete mutations over the repository
- * seam, scoped to one project. Each invalidates the project's `['project-documents',
- * projectId]` query on success so the register refetches. `create` stamps the CURRENT
- * USER id as `author_id` (never supplied by the form) — the basis for the approver-≠-author
- * SoD on the status workflow. Errors propagate as `AppError` (code preserved) for the
- * caller to classify via `classifyMutationError`.
+ * seam, scoped to one project. Each invalidates the project's org-scoped
+ * `['project-documents', orgId, projectId]` query on success so the register refetches.
+ * `create` stamps the CURRENT USER id as `author_id` (never supplied by the form) —
+ * the basis for the approver-≠-author SoD on the status workflow. Errors propagate as
+ * `AppError` (code preserved) for the caller to classify via `classifyMutationError`.
  */
 export function useDocumentMutations(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ['project-documents', projectId] });
+    qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
 
   const create = useMutation({
     mutationFn: (input: ProjectDocumentInput) =>

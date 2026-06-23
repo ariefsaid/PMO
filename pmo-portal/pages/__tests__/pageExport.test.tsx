@@ -125,10 +125,43 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/usePipelineView', () => ({
   usePipelineView: () => ['table', vi.fn()],
 }));
+// ── Projects mocks ────────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
+  useProjects: () => ({
+    data: [
+      { id: 'p1', name: 'Alpha Build', code: 'PRJ-001', status: 'Ongoing Project',
+        client_id: 'c1', project_manager_id: 'u1', contract_value: 1_000_000,
+        budget: 900_000, spent: 500_000, end_date: null, client: { name: 'Acme' },
+        pm: { full_name: 'Alice PM' }, customer_contract_ref: null,
+        contract_date: null, decided_at: null },
+    ],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useProjectMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+    setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
+  useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
+}));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjectView', () => ({ useProjectView: () => ['table', vi.fn()] }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+  useProjectsDelivery: () => ({ data: {} }),
+  useProjectsDeliverySummary: () => ({ data: {} }),
+}));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
+  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
+}));
+vi.mock('@/src/auth/impersonation', () => ({
+  ImpersonationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin', canImpersonate: false, viewAs: vi.fn() }),
 }));
 
 // ── render helper ─────────────────────────────────────────────────────────────
@@ -146,12 +179,14 @@ let Companies: React.ComponentType;
 let Incidents: React.ComponentType;
 let ProcurementPage: React.ComponentType;
 let SalesPipeline: React.ComponentType;
+let ProjectsPage: React.ComponentType;
 
 beforeAll(async () => {
   ({ default: Companies } = await import('../Companies'));
   ({ default: Incidents } = await import('../Incidents'));
   ({ default: ProcurementPage } = await import('../Procurement'));
   ({ default: SalesPipeline } = await import('../SalesPipeline'));
+  ({ default: ProjectsPage } = await import('../Projects'));
 });
 
 describe('Page-level Export button integration (AC-EXP-008)', () => {
@@ -181,6 +216,13 @@ describe('Page-level Export button integration (AC-EXP-008)', () => {
     const btn = screen.getByRole('button', { name: /export/i });
     expect(btn).toBeInTheDocument();
     // Key assertion: it must be ENABLED (not the disabled "arrives with Reports" stub)
+    expect(btn).not.toBeDisabled();
+  });
+
+  it('AC-EXP-008: Projects page renders a live (enabled) Export button', () => {
+    wrap(<ProjectsPage />);
+    const btn = screen.getByRole('button', { name: /export/i });
+    expect(btn).toBeInTheDocument();
     expect(btn).not.toBeDisabled();
   });
 });

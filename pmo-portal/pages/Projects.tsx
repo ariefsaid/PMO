@@ -42,6 +42,7 @@ import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { ExportButton } from '@/src/components/export';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -518,6 +519,9 @@ const Projects: React.FC = () => {
             />
           </>
         ) : undefined
+      }
+      exportAction={
+        <ExportButton rows={filtered} columns={columns} entity="Projects" />
       }
       view={
         /*

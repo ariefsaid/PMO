@@ -13,6 +13,10 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { UploadArgs } from '../useFileUpload';
 
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }),
+}));
+
 // Mock uploadWithProgress and repositories
 vi.mock('@/src/lib/uploadTransport', () => ({
   uploadWithProgress: vi.fn(),
