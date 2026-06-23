@@ -238,6 +238,28 @@ describe('ProjectKanbanBoard', () => {
     expect(within(wonCol).getByText('$1,000,000')).toBeInTheDocument();
   });
 
+  it('AC-PK-COLOR-001: "Close Out" column dot color is distinct from "Won" — no shared green (DESIGN.md token differentiation)', () => {
+    // Won uses hsl(var(--success)) — success-green.
+    // Close Out must use a DIFFERENT DESIGN.md token so the two terminal columns are
+    // visually distinguishable by color (label also differentiates, but color-redundancy
+    // is the required enhancement per backlog debt).
+    const { container } = render(<ProjectKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const wonCol = container.querySelector('[data-testid="kanban-col-won"]');
+    const closeOutCol = container.querySelector('[data-testid="kanban-col-closeout"]');
+    // Each column header contains a span[aria-hidden] that carries the dot color as
+    // an inline style background. Grab the first aria-hidden span in each column header.
+    const wonDot = wonCol?.querySelector('.kcol-head-sticky span[aria-hidden]') as HTMLElement | null;
+    const closeOutDot = closeOutCol?.querySelector('.kcol-head-sticky span[aria-hidden]') as HTMLElement | null;
+    expect(wonDot).not.toBeNull();
+    expect(closeOutDot).not.toBeNull();
+    // They must have DIFFERENT background values — the whole point of this fix.
+    expect(wonDot!.style.background).not.toBe(closeOutDot!.style.background);
+    // Won must be the success-green token.
+    expect(wonDot!.style.background).toBe('hsl(var(--success))');
+    // Close Out must NOT be the success-green token (any other DESIGN.md token is acceptable).
+    expect(closeOutDot!.style.background).not.toBe('hsl(var(--success))');
+  });
+
   // ─── A-MIN-2: first-scroll affordance ────────────────────────────────────
   // The swipe-hint chip must:
   //   - render (in DOM) at initial state so CSS md:hidden can hide it on desktop

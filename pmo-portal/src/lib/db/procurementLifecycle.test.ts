@@ -124,7 +124,9 @@ describe('canCancel', () => {
 
 describe('formatDocNumber', () => {
   it('AC-803: formatDocNumber pads width-4 — PO+2026-06-04+1 → PO-2606040001, seq 42 → PO-2606040042 (FR-PROC-010)', () => {
-    const date = new Date('2026-06-04');
+    // UTC-fixed construction: Date.UTC makes TZ-independence explicit; avoids any engine
+    // that might interpret a date-only ISO string as local midnight in non-UTC environments.
+    const date = new Date(Date.UTC(2026, 5, 4)); // 2026-06-04 UTC
     expect(formatDocNumber('PO', date, 1)).toBe('PO-2606040001');
     expect(formatDocNumber('PO', date, 42)).toBe('PO-2606040042');
     expect(formatDocNumber('PR', date, 1)).toBe('PR-2606040001');
