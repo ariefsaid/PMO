@@ -9,6 +9,10 @@ import { StatTiles, type StatTile } from '../StatTiles';
 // are visible at a glance — the previous horizontal-scroll carousel pushed KPIs
 // off-screen. Desktop and tablet behavior is unchanged (equal-width grid via
 // gridTemplateColumns). No snap/overflow-x-auto on mobile.
+//
+// AC-METRIC-TILE-CLIP-001 (metric-tile-clip-mobile fix): when tile count is odd,
+// the last tile spans the full 2-col width on mobile (col-span-2) so the bottom
+// row is never a half-empty visual "clipped" cell. sm:col-span-1 resets at tablet+.
 // ---------------------------------------------------------------------------
 
 const tiles: StatTile[] = [
@@ -64,5 +68,50 @@ describe('StatTiles', () => {
     ];
     render(<StatTiles tiles={tilesWithSub} />);
     expect(screen.getByText('Review Project')).toBeInTheDocument();
+  });
+
+  // ── AC-METRIC-TILE-CLIP-001: odd-count tile sets ─────────────────────────
+  // Given: a StatTiles strip with an odd number of tiles (5 or 3)
+  // When: rendered in a 2-col mobile grid
+  // Then: the last tile spans both columns (col-span-2) so the bottom row is
+  //       never a half-empty visual "clipped" cell; sm:col-span-1 resets at sm+.
+
+  it('AC-METRIC-TILE-CLIP-001: odd tile count (5) — last tile has col-span-2 + sm:col-span-1', () => {
+    const { container } = render(<StatTiles tiles={tiles} columns={5} />);
+    const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
+    expect(allTiles).toHaveLength(5);
+    const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
+    // Must carry col-span-2 for mobile (fills the bottom row) + sm:col-span-1 reset
+    expect(lastTile.className).toContain('col-span-2');
+    expect(lastTile.className).toContain('sm:col-span-1');
+  });
+
+  it('AC-METRIC-TILE-CLIP-001: even tile count (4) — no tile carries col-span-2', () => {
+    const evenTiles: StatTile[] = [
+      { label: 'A', value: '1' },
+      { label: 'B', value: '2' },
+      { label: 'C', value: '3' },
+      { label: 'D', value: '4' },
+    ];
+    const { container } = render(<StatTiles tiles={evenTiles} columns={4} />);
+    const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
+    expect(allTiles).toHaveLength(4);
+    allTiles.forEach((tile) => {
+      expect((tile as HTMLElement).className).not.toContain('col-span-2');
+    });
+  });
+
+  it('AC-METRIC-TILE-CLIP-001: odd tile count (3) — last tile spans full width on mobile', () => {
+    const threeTiles: StatTile[] = [
+      { label: 'This request', value: '$85,000' },
+      { label: 'Reserved', value: '$20,000' },
+      { label: 'Available', value: '$5,000' },
+    ];
+    const { container } = render(<StatTiles tiles={threeTiles} columns={3} />);
+    const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
+    expect(allTiles).toHaveLength(3);
+    const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
+    expect(lastTile.className).toContain('col-span-2');
+    expect(lastTile.className).toContain('sm:col-span-1');
   });
 });
