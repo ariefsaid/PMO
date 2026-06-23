@@ -28,6 +28,11 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentMutations: () => mutations,
 }));
 
+// The shared IncidentFormModal now reads the project FK options for its optional project link.
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+}));
+
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -272,6 +277,8 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
         severity: 'Medium',
         location: 'Site C',
         description: 'Slippery floor',
+        // No project selected → project_id is sent as null (unlinked).
+        project_id: null,
       }),
     );
   });

@@ -299,6 +299,7 @@ export type Database = {
           incident_date: string
           location: string | null
           org_id: string
+          project_id: string | null
           reported_by: string | null
           severity: Database["public"]["Enums"]["incident_severity"]
           status: Database["public"]["Enums"]["incident_status"]
@@ -311,6 +312,7 @@ export type Database = {
           incident_date: string
           location?: string | null
           org_id?: string
+          project_id?: string | null
           reported_by?: string | null
           severity: Database["public"]["Enums"]["incident_severity"]
           status?: Database["public"]["Enums"]["incident_status"]
@@ -323,6 +325,7 @@ export type Database = {
           incident_date?: string
           location?: string | null
           org_id?: string
+          project_id?: string | null
           reported_by?: string | null
           severity?: Database["public"]["Enums"]["incident_severity"]
           status?: Database["public"]["Enums"]["incident_status"]
@@ -334,6 +337,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {

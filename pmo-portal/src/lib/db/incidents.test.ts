@@ -193,6 +193,46 @@ describe('AC-IN-004 updateIncident (managers edit incident detail)', () => {
   });
 });
 
+describe('AC-IN-PROJ-009 project_id link (create/edit set it; read selects it)', () => {
+  it('AC-IN-PROJ-009: createIncident sends project_id when a project is selected', async () => {
+    h.result.value = { data: { id: 'np', project_id: 'p1' }, error: null };
+    await createIncident({
+      incident_date: '2026-06-21',
+      type: 'Spill',
+      severity: 'High',
+      project_id: 'p1',
+    });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert).toMatchObject({ project_id: 'p1' });
+    // org_id is still never sent (same-org guard + RLS are the authority)
+    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
+  });
+
+  it('AC-IN-PROJ-009: createIncident omits project_id when none is selected (persists NULL)', async () => {
+    h.result.value = { data: { id: 'np2' }, error: null };
+    await createIncident({ incident_date: '2026-06-21', type: 'Other', severity: 'Low' });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert).not.toHaveProperty('project_id');
+  });
+
+  it('AC-IN-PROJ-009: updateIncident writes project_id (null when cleared, so the link is removable)', async () => {
+    h.result.value = { data: null, error: null };
+    // Linking
+    await updateIncident('i1', {
+      incident_date: '2026-06-21',
+      type: 'Spill',
+      severity: 'High',
+      project_id: 'p2',
+    });
+    expect(h.calls.update[0]).toMatchObject({ project_id: 'p2' });
+
+    // Clearing the link writes NULL, not omitted (so an edit can unlink).
+    h.calls.update.length = 0;
+    await updateIncident('i1', { incident_date: '2026-06-21', type: 'Spill', severity: 'High' });
+    expect((h.calls.update[0] as Record<string, unknown>).project_id).toBeNull();
+  });
+});
+
 describe('AC-IN-004 transitionIncident (Open→Investigating→Closed status workflow, managers only)', () => {
   it('AC-IN-004: sets ONLY status by id, NEVER org_id', async () => {
     h.result.value = { data: null, error: null };
