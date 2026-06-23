@@ -11,11 +11,13 @@ import {
   ConfirmDialog,
   RecordActionZone,
   Icon,
+  ProjectNameLink,
   useToast,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIncident, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
@@ -41,6 +43,9 @@ const IncidentDetail: React.FC = () => {
 
   const query = useIncident(incidentId);
   const { update, transition } = useIncidentMutations();
+  // Project FK options (cached, org-scoped) resolve the linked project's display name for the
+  // click-to-open link (ADR-0028). org_id is never threaded — RLS scopes the list.
+  const { data: projectOptions } = useProjectOptions();
 
   const [editOpen, setEditOpen] = useState(false);
   const [transitionTo, setTransitionTo] = useState<AdvanceStatus | null>(null);
@@ -99,6 +104,12 @@ const IncidentDetail: React.FC = () => {
 
   const next = NEXT_STATUS[incident.status];
   const transitionCopy = transitionTo ? TRANSITION_COPY[transitionTo] : null;
+
+  // Resolve the linked project's name from the cached FK options (falls back to a generic
+  // label until the list loads — the link still targets the correct /projects/:id).
+  const linkedProjectName = incident.project_id
+    ? projectOptions?.find((o) => o.value === incident.project_id)?.label ?? 'View project'
+    : null;
 
   const onMutationError = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
@@ -182,6 +193,16 @@ const IncidentDetail: React.FC = () => {
             <Field label="Severity" value={incident.severity} />
             <Field label="Status" value={incident.status} />
             <Field label="Location" value={incident.location || '—'} />
+            <Field
+              label="Project"
+              value={
+                incident.project_id ? (
+                  <ProjectNameLink projectId={incident.project_id} name={linkedProjectName} />
+                ) : (
+                  '—'
+                )
+              }
+            />
           </dl>
         </CardPad>
       </Card>

@@ -19,6 +19,12 @@ export interface IncidentInput {
   severity: IncidentSeverity;
   location?: string;
   description?: string;
+  /**
+   * Optional link to the project the incident relates to (deep-links to /projects/:id).
+   * `null`/omitted leaves the incident unlinked. The DB same-org guard (migration 0043)
+   * rejects a cross-org project_id (42501) — org_id itself is NEVER sent (RLS authority).
+   */
+  project_id?: string | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -72,7 +78,9 @@ export async function getIncident(id: string): Promise<IncidentRow | null> {
  * `status` is NOT sent (the column default 'Open' applies); `reported_by` is stamped
  * server-side from auth.uid() by the BEFORE INSERT trigger (never sent from the client).
  * Empty optional fields (location/description) are omitted so they persist as NULL rather
- * than ''. Returns the new row. Throws an `AppError` (code preserved) on failure.
+ * than ''. An optional `project_id` links the incident to a project (omitted when none is
+ * chosen → NULL); the migration-0043 same-org guard rejects a cross-org project_id (42501).
+ * Returns the new row. Throws an `AppError` (code preserved) on failure.
  */
 export async function createIncident(input: IncidentInput): Promise<IncidentRow> {
   const insert: TablesInsert<'incident_reports'> = {
@@ -82,6 +90,8 @@ export async function createIncident(input: IncidentInput): Promise<IncidentRow>
   };
   if (input.location?.trim()) insert.location = input.location.trim();
   if (input.description?.trim()) insert.description = input.description.trim();
+  // Only sent when a project is chosen — omitting it leaves project_id NULL (unlinked).
+  if (input.project_id) insert.project_id = input.project_id;
 
   const { data, error } = await supabase
     .from('incident_reports')
@@ -105,6 +115,8 @@ export async function updateIncident(id: string, input: IncidentInput): Promise<
     severity: input.severity,
     location: input.location?.trim() || null,
     description: input.description?.trim() || null,
+    // Written explicitly (NULL when cleared) so an edit can both set AND remove the project link.
+    project_id: input.project_id ?? null,
   };
   const { error } = await supabase.from('incident_reports').update(patch).eq('id', id);
   if (error) throwWrite(error);

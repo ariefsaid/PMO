@@ -155,6 +155,14 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentMutations: () => incidentMutations,
 }));
 
+// IncidentDetail resolves the linked project's name via the project FK options. Partial-mock
+// (keep the other FK-option hooks real for ProcurementDetails) — IncidentDetail is rendered
+// without a QueryClientProvider, so its useProjectOptions is stubbed to a resolved empty list.
+vi.mock('@/src/hooks/useFkOptions', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useProjectOptions: () => ({ data: [] }) };
+});
+
 const incidentRecord = {
   id: 'i1',
   org_id: 'org-1',

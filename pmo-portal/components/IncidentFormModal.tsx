@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   EntityFormModal,
   TextField,
   TextArea,
   SelectField,
+  Combobox,
   FormSection,
   FormGrid,
   useEntityForm,
+  type ComboboxOption,
 } from '@/src/components/ui';
+import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
 
 /** Severity options for the file/edit form (the `incident_severity` enum). */
@@ -24,6 +27,7 @@ interface FormValues {
   severity: IncidentSeverity;
   location: string;
   description: string;
+  project_id: string | null;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -78,6 +82,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       severity: incident?.severity ?? 'Low',
       location: incident?.location ?? '',
       description: incident?.description ?? '',
+      project_id: incident?.project_id ?? null,
     },
     validate,
     idPrefix: 'incident-form',
@@ -90,6 +95,23 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const severityField = form.fieldProps('severity');
   const locationField = form.fieldProps('location');
   const descriptionField = form.fieldProps('description');
+
+  // Optional project link. FK options come from the cached hook (no re-fetch on popover open);
+  // the loader just hands back the already-fetched list. org_id is never threaded (RLS scopes it).
+  const { data: projectOptions } = useProjectOptions();
+  const loadProjects = useCallback(
+    async (): Promise<ComboboxOption[]> => projectOptions ?? [],
+    [projectOptions],
+  );
+  // Resolve the selected option so an edit form renders the linked project's name immediately,
+  // without waiting for loadOptions to resolve.
+  const selectedProjectOption = useMemo(
+    () =>
+      form.values.project_id
+        ? (projectOptions ?? []).find((o) => o.value === form.values.project_id) ?? null
+        : null,
+    [form.values.project_id, projectOptions],
+  );
 
   const errorSummary = [
     form.errors.incident_date ? { fieldId: dateField.id, message: form.errors.incident_date } : null,
@@ -105,6 +127,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
         severity: values.severity,
         location: values.location.trim() || undefined,
         description: values.description.trim() || undefined,
+        project_id: values.project_id,
       };
       try {
         if (isEdit && incident) await onUpdate(incident.id, input);
@@ -172,6 +195,15 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
             onBlur={locationField.onBlur}
             placeholder="e.g. Regional Site B"
             fullWidth
+          />
+          <Combobox
+            label="Project"
+            noun="project"
+            placeholder="Optional — link a project…"
+            value={form.values.project_id}
+            selectedOption={selectedProjectOption}
+            onChange={(v) => form.setValue('project_id', v)}
+            loadOptions={loadProjects}
           />
           <TextArea
             id={descriptionField.id}
