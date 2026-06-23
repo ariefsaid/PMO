@@ -38,9 +38,16 @@ const SM_COLS_CLASS: Record<number, string> = {
  * visible at a glance — the previous horizontal-scroll carousel pushed KPIs off-screen
  * (design-review I6). At the `sm:` breakpoint and above the strip switches to the
  * equal-width grid driven by the `columns` prop. No snap, no overflow-x.
+ *
+ * AC-METRIC-TILE-CLIP-001 (metric-tile-clip-mobile fix): when the tile count is odd,
+ * the last tile spans both mobile columns (col-span-2) so the bottom row is never a
+ * half-empty visual "clipped" cell — e.g. 5 tiles → 2+2+1 (orphaned) becomes 2+2+full.
+ * sm:col-span-1 resets the span at the sm+ breakpoint where the N-col grid takes over.
+ * Desktop behavior is unchanged.
  */
 export const StatTiles: React.FC<StatTilesProps> = ({ tiles, columns = 4, className }) => {
   const smColsClass = SM_COLS_CLASS[columns] ?? `sm:grid-cols-${columns}`;
+  const isOdd = tiles.length % 2 !== 0;
   return (
     <div
       data-testid="stat-tiles"
@@ -53,27 +60,36 @@ export const StatTiles: React.FC<StatTilesProps> = ({ tiles, columns = 4, classN
         className,
       )}
     >
-      {tiles.map((t, i) => (
-        <div
-          key={i}
-          data-testid="stat-tile"
-          className="bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg"
-        >
-          <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
+      {tiles.map((t, i) => {
+        // AC-METRIC-TILE-CLIP-001: the last tile of an odd-count set spans both mobile
+        // columns so the bottom row fills completely (no half-empty right cell).
+        // sm:col-span-1 resets this at the sm+ breakpoint where N-col grid takes over.
+        const isLastOdd = isOdd && i === tiles.length - 1;
+        return (
           <div
+            key={i}
+            data-testid="stat-tile"
             className={cn(
-              'text-[17px] font-bold tracking-[-0.01em] tabular',
-              t.tone === 'pos' && 'text-success',
-              // text-destructive (#ef4444) is 3.76:1 on white — below AA 4.5:1.
-              // text-destructive-text uses --destructive-text (≈6.2:1 on white, WCAG AA).
-              t.tone === 'neg' && 'text-destructive-text',
+              'bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg',
+              isLastOdd && 'col-span-2 sm:col-span-1',
             )}
           >
-            {t.value}
+            <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
+            <div
+              className={cn(
+                'text-[17px] font-bold tracking-[-0.01em] tabular',
+                t.tone === 'pos' && 'text-success',
+                // text-destructive (#ef4444) is 3.76:1 on white — below AA 4.5:1.
+                // text-destructive-text uses --destructive-text (≈6.2:1 on white, WCAG AA).
+                t.tone === 'neg' && 'text-destructive-text',
+              )}
+            >
+              {t.value}
+            </div>
+            {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
           </div>
-          {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
