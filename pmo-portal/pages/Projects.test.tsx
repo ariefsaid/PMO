@@ -107,6 +107,14 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
 
+  it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', () => {
+    renderPage('Admin');
+    const exportBtn = screen.getByRole('button', { name: /export/i });
+    expect(exportBtn).toBeInTheDocument();
+    expect(exportBtn).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument();
+  });
+
   it('AC-PK-008: the view toggle offers a Board option; selecting it renders the kanban board', async () => {
     renderPage();
     const toggle = screen.getByRole('tablist', { name: /projects view/i });

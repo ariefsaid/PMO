@@ -87,6 +87,14 @@ describe('Contacts index — shared ListPage shell (CW-5)', () => {
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Contacts' })).toBeInTheDocument();
   });
+
+  it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', () => {
+    renderPage('Admin');
+    const exportBtn = screen.getByRole('button', { name: /export/i });
+    expect(exportBtn).toBeInTheDocument();
+    expect(exportBtn).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument();
+  });
 });
 
 describe('Contacts index — rows + states (AC-CRM-030)', () => {
