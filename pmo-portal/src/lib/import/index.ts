@@ -12,4 +12,8 @@ export {
 export { parseWorkbook } from './parseWorkbook';
 export { autoMap } from './autoMap';
 export { validateRows, rowToCells } from './validateRows';
+export { makeRefLookup, refValidate, refId, type RefLookup, type RefResolution } from './refLookup';
 export { companyImportDescriptor } from './companyDescriptor';
+export { makeContactImportDescriptor } from './contactDescriptor';
+export { makeProjectImportDescriptor } from './projectDescriptor';
+export { makeProcurementImportDescriptor } from './procurementDescriptor';

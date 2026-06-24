@@ -73,6 +73,10 @@ vi.mock('@/src/hooks/useIncidents', () => ({
 }));
 
 // ── Procurement mocks ──────────────────────────────────────────────────────
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+  useVendorOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({
     data: [

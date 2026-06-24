@@ -19,6 +19,9 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
+import { ImportButton } from '@/src/components/import';
+import { makeContactImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
@@ -75,6 +78,7 @@ const Contacts: React.FC = () => {
     () => companies.map((c) => ({ value: c.id, label: c.name })),
     [companies],
   );
+  const importDescriptor = useMemo(() => makeContactImportDescriptor(companies), [companies]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -203,6 +207,20 @@ const Contacts: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          />
+        )
+      }
+      exportAction={
+        state !== 'loading' && (
+          <ExportButton rows={filtered} columns={columns} entity="Contacts" />
+        )
+      }
+      importAction={
+        state !== 'loading' && (
+          <ImportButton
+            entity="contact"
+            descriptor={importDescriptor}
+            onImported={() => void refetch()}
           />
         )
       }

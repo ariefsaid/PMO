@@ -56,6 +56,10 @@ const { procState, createState } = vi.hoisted(() => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Engineer' }),
 }));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+  useVendorOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({ useCreateProcurement: () => createState }));
 vi.mock('@/src/hooks/useProcurementView', () => ({

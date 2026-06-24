@@ -13,6 +13,9 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
+import { ImportButton } from '@/src/components/import';
+import { makeProcurementImportDescriptor } from '@/src/lib/import';
+import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -105,6 +108,17 @@ const ProcurementPage: React.FC = () => {
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
+  const { data: projectOptions = [] } = useProjectOptions();
+  const { data: vendorOptions = [] } = useVendorOptions();
+  const importDescriptor = useMemo(
+    () =>
+      makeProcurementImportDescriptor(
+        projectOptions.map((o) => ({ id: o.value, name: o.label })),
+        vendorOptions.map((o) => ({ id: o.value, name: o.label })),
+        userId ?? '',
+      ),
+    [projectOptions, vendorOptions, userId],
+  );
   const create = useCreateProcurement();
   const [view, setView] = useProcurementView();
   const [search, setSearch] = useState('');
@@ -291,6 +305,15 @@ const ProcurementPage: React.FC = () => {
       exportAction={
         state !== 'loading' && (
           <ExportButton rows={filtered} columns={columns} entity="Procurement" />
+        )
+      }
+      importAction={
+        state !== 'loading' && userId && (
+          <ImportButton
+            entity="procurement"
+            descriptor={importDescriptor}
+            onImported={() => void refetch()}
+          />
         )
       }
       view={
