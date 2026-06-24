@@ -22,10 +22,20 @@ test.setTimeout(120_000);
 
 const PROJECT_ID = '40000000-0000-0000-0000-000000000013';
 const PROJECT_NAME = 'Seabridge Terminal Delivery';
-const MILESTONE_NAME = 'Engineering design';
-const TASK_NAME = 'Detail drawings';
 
 test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done — the phase card reads 100% effective and the Projects list chip shows 100%', async ({ page }) => {
+  // Retry-isolation: the milestone + task names are unique per attempt (runId is
+  // recomputed when Playwright re-runs the body on a retry — CI retries=2 on the
+  // shared DB). A milestone/task left behind by a flaked attempt-1 therefore can
+  // never strict-mode-collide with this attempt's region/cell/phase-card assertions
+  // — each scopes to a name no prior attempt used. (The milestone-strip EMPTY-state
+  // step still requires a pristine P013, which a `supabase db reset` provides; that
+  // precondition is a seed-reset dependency unique naming cannot remove — but a
+  // leftover milestone no longer poisons the create/assert path below.)
+  const runId = Date.now();
+  const MILESTONE_NAME = `Engineering design ${runId}`;
+  const TASK_NAME = `Detail drawings ${runId}`;
+
   await login(page, 'pm@acme.test');
 
   // ── Step 1: navigate directly to P013 detail page ────────────────────────────

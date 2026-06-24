@@ -16,6 +16,9 @@ import {
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
+import { ImportButton } from '@/src/components/import';
+import { makeProjectImportDescriptor } from '@/src/lib/import';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -185,6 +188,14 @@ const Projects: React.FC = () => {
     ],
     [clientCompanies],
   );
+  const importDescriptor = useMemo(
+    () =>
+      makeProjectImportDescriptor(
+        clientCompanies,
+        projectManagers.map((m) => ({ id: m.id, name: m.full_name })),
+      ),
+    [clientCompanies, projectManagers],
+  );
   const pmFilterOptions = useMemo(
     () => [
       { value: 'All', label: 'All managers' },
@@ -251,6 +262,7 @@ const Projects: React.FC = () => {
     {
       key: 'project',
       header: 'Project',
+      exportValue: (p) => p.name,
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
@@ -294,6 +306,7 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: 'Customer',
+      exportValue: (p) => p.client?.name ?? '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
       // row's own click handler (which opens the project detail) from firing when
@@ -313,6 +326,7 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: 'PM',
+      exportValue: (p) => p.pm?.full_name ?? '',
       // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
       // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
       cell: (p) => (
@@ -330,6 +344,7 @@ const Projects: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
+      exportValue: (p) => String(p.status),
       cell: (p) => (
         <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
       ),
@@ -338,6 +353,7 @@ const Projects: React.FC = () => {
       key: 'contract',
       header: 'Contract',
       align: 'num',
+      exportValue: (p) => p.contract_value,
       cell: (p) => formatCurrency(p.contract_value),
     },
     {
@@ -519,6 +535,9 @@ const Projects: React.FC = () => {
           </>
         ) : undefined
       }
+      exportAction={
+        <ExportButton rows={filtered} columns={columns} entity="Projects" />
+      }
       view={
         /*
           A-MIN-1 (updated, AC-MOB-VT): Wave-0 hid the entire toggle below md because Table+Cards
@@ -542,6 +561,13 @@ const Projects: React.FC = () => {
           value={view}
           onChange={setView}
           ariaLabel="Projects view"
+        />
+      }
+      importAction={
+        <ImportButton
+          entity="project"
+          descriptor={importDescriptor}
+          onImported={() => void refetch()}
         />
       }
     >

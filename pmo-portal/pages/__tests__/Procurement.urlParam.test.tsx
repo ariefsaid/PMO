@@ -15,6 +15,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
 
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+  useVendorOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({
     data: [

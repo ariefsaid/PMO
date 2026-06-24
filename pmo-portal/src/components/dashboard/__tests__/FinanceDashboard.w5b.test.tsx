@@ -85,6 +85,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
 }));
 
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+  useVendorOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));

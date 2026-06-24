@@ -29,6 +29,14 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentMutations: () => mutations,
 }));
 
+// Project FK options back the project-link display name on the detail page.
+const { projectOptions } = vi.hoisted(() => ({
+  projectOptions: { data: [] as { value: string; label: string }[] },
+}));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => projectOptions,
+}));
+
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
@@ -68,6 +76,7 @@ beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   detailState.error = null;
+  projectOptions.data = [];
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.transition.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
@@ -164,6 +173,22 @@ describe('IncidentDetail', () => {
     // A classified warning toast (role=status) appears — the failure is surfaced, not swallowed.
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/don't have permission/i);
+  });
+
+  it('AC-IN-PROJ-010: a linked incident renders a click-to-open Project link to /projects/:id', () => {
+    detailState.data = { ...incident, project_id: 'p1' };
+    projectOptions.data = [{ value: 'p1', label: 'Eastfield Phase 2' }];
+    renderPage('Admin');
+    const link = screen.getByRole('link', { name: /open eastfield phase 2/i });
+    expect(link).toHaveAttribute('href', '/projects/p1');
+  });
+
+  it('AC-IN-PROJ-010: an unlinked incident shows the Project field em-dash, no link', () => {
+    detailState.data = { ...incident, project_id: null };
+    renderPage('Admin');
+    expect(screen.queryByRole('link', { name: /^open /i })).toBeNull();
+    // The Project field still renders (with its em-dash fallback).
+    expect(screen.getByText('Project')).toBeInTheDocument();
   });
 
   it('AC-INC-002: a Closed incident shows no advance action and renders an empty-description fallback', () => {

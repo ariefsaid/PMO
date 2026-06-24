@@ -13,6 +13,10 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
+import { ImportButton } from '@/src/components/import';
+import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
+import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
+import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -105,6 +109,28 @@ const ProcurementPage: React.FC = () => {
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements();
+  const { data: projectOptions = [] } = useProjectOptions();
+  const { data: vendorOptions = [] } = useVendorOptions();
+  const importDescriptor = useMemo(
+    () =>
+      makeProcurementImportDescriptor(
+        projectOptions.map((o) => ({ id: o.value, name: o.label })),
+        vendorOptions.map((o) => ({ id: o.value, name: o.label })),
+        userId ?? '',
+      ),
+    [projectOptions, vendorOptions, userId],
+  );
+
+  // M5 (ADR-0035): procurement-cycle import lookups (reuse the already-loaded FK options).
+  const cycleProjectLookup = useMemo(
+    () => makeRefLookup(projectOptions.map((o) => ({ id: o.value, name: o.label })), 'Project'),
+    [projectOptions],
+  );
+  const cycleVendorLookup = useMemo(
+    () => makeRefLookup(vendorOptions.map((o) => ({ id: o.value, name: o.label })), 'Vendor'),
+    [vendorOptions],
+  );
+
   const create = useCreateProcurement();
   const [view, setView] = useProcurementView();
   const [search, setSearch] = useState('');
@@ -116,6 +142,7 @@ const ProcurementPage: React.FC = () => {
     urlStatus && VALID_URL_STATUSES.has(urlStatus) ? urlStatus : 'All',
   );
   const [showNew, setShowNew] = useState(false);
+  const [showCycleImport, setShowCycleImport] = useState(false);
 
   // B-2: "Needs approval" prepended for approver roles.
   // AC-IXD-DASH-W5-C2B: "Vendor Invoiced" is in ALL_FILTERS for approver roles — they process
@@ -293,6 +320,25 @@ const ProcurementPage: React.FC = () => {
           <ExportButton rows={filtered} columns={columns} entity="Procurement" />
         )
       }
+      importAction={
+        state !== 'loading' && userId && (
+          <>
+            {/* ADR-0027: single-header procurement descriptor import (ImportButton has its own canCreate gate). */}
+            <ImportButton
+              entity="procurement"
+              descriptor={importDescriptor}
+              onImported={() => void refetch()}
+            />
+            {/* ADR-0035: full procurement-cycle (PR→Payment) bulk import (same canCreate gate). */}
+            {canCreate && (
+              <Button variant="outline" onClick={() => setShowCycleImport(true)}>
+                <Icon name="upload" />
+                Import cycle
+              </Button>
+            )}
+          </>
+        )
+      }
       view={
         state !== 'loading' && (
           /* A-MIN-1: below md DataTable force-renders cards (no table/board possible),
@@ -386,6 +432,19 @@ const ProcurementPage: React.FC = () => {
           onError={(err) => {
             const { headline, detail } = classifyMutationError(err);
             toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {/* ADR-0035: procurement-cycle bulk import wizard (PR→Payment, case-grouped). */}
+      {showCycleImport && userId && (
+        <ProcurementCycleImportWizard
+          requestedById={userId}
+          projectLookup={cycleProjectLookup}
+          vendorLookup={cycleVendorLookup}
+          onClose={(didImport) => {
+            setShowCycleImport(false);
+            if (didImport) void refetch();
           }}
         />
       )}

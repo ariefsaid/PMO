@@ -14,6 +14,7 @@ import React, { useState } from 'react';
 import { Button, Icon, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
+import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 
 // ---------------------------------------------------------------------------
 // Record-type config
@@ -136,6 +137,10 @@ function kindConfig(kind: RecordKind): KindConfig {
     };
   }
   if (kind === 'vendor_invoice') {
+    // ⚠ KEEP IN SYNC with VIInlineCapture in ProcurementDecisionZone.tsx — the OTHER
+    // vendor-invoice capture entry point (the transition-coupled "Mark Vendor Invoiced"
+    // path). Both render the SAME four VI fields; the `vi-*` testids are single-sourced
+    // in vendorInvoiceTestIds.ts so the two paths can never silently diverge.
     return {
       defaultStatus: 'Received',
       refLabel: 'Invoice #',
@@ -145,10 +150,10 @@ function kindConfig(kind: RecordKind): KindConfig {
       showInvoiceFk: false,
       saveLabel: 'Save VI',
       formTestId: 'form-create-vi',
-      refTestId: 'vi-ref-input',
-      statusTestId: 'vi-status-select',
-      dateTestId: 'vi-date-input',
-      amountTestId: 'vi-amount-input',
+      refTestId: VI_FIELD_TEST_IDS.ref,
+      statusTestId: VI_FIELD_TEST_IDS.status,
+      dateTestId: VI_FIELD_TEST_IDS.date,
+      amountTestId: VI_FIELD_TEST_IDS.amount,
       saveTestId: 'btn-save-vi',
       cancelTestId: 'btn-cancel-vi',
     };

@@ -30,6 +30,10 @@ const { procState, detailState } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useProjectOptions: () => ({ data: [] }),
+  useVendorOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
 }));

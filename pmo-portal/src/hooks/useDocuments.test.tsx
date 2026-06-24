@@ -42,11 +42,15 @@ beforeEach(() => {
 });
 
 describe('useDocuments', () => {
-  it("AC-DOC-001: keys by ['project-documents', projectId] and returns document rows", async () => {
-    const { result } = renderHook(() => useDocuments('p1'), { wrapper: wrap(freshClient()) });
+  it("AC-DOC-001: keys by ['project-documents', orgId, projectId] (org-scoped) and returns document rows", async () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useDocuments('p1'), { wrapper: wrap(client) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].title).toBe('Site Plan');
     expect(document.list).toHaveBeenCalledWith('p1');
+    // Verify the cache key is org-scoped so impersonation/account-switch cannot bleed cache.
+    const cacheHits = client.getQueryCache().findAll({ queryKey: ['project-documents', 'org-1', 'p1'] });
+    expect(cacheHits.length).toBe(1);
   });
 
   it('AC-DOC-001: is disabled when there is no projectId', () => {
@@ -58,7 +62,7 @@ describe('useDocuments', () => {
 });
 
 describe('useDocumentMutations', () => {
-  it('AC-DOC-003: create stamps the CURRENT USER id as author_id and invalidates the register', async () => {
+  it('AC-DOC-003: create stamps the CURRENT USER id as author_id and invalidates the org-scoped register', async () => {
     const client = freshClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useDocumentMutations('p1'), { wrapper: wrap(client) });
@@ -68,7 +72,8 @@ describe('useDocumentMutations', () => {
     });
     // author_id is the current user id (never sent by the form) — for the approver-≠-author SoD.
     expect(document.create).toHaveBeenCalledWith('p1', input, 'author-1');
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['project-documents', 'p1'] });
+    // Invalidation must include orgId so the correct tenant's cache is cleared.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', 'p1'] });
   });
 
   it('AC-DOC-004: update invokes the repository with id + input', async () => {
