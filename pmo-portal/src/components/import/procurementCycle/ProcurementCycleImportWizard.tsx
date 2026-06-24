@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom';
 import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
-import type { ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
+import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
 import {
   useProcurementCycleImport,
   CYCLE_FIELDS,
@@ -362,6 +362,7 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
   const { group, groupErrors, rows, valid } = vg;
 
   const validRowCount = rows.filter((r) => r.valid).length;
+  const sourceByRow = new Map(group.rows.map((r) => [r.rowNumber, r]));
   const caseRef = group.caseRef;
   const caseTitle = group.attrs.title ?? group.attrs.project ?? caseRef;
 
@@ -381,12 +382,12 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
           })}
         />
         <span className="min-w-0 flex-1">
-          <span className="font-mono text-[12px] font-semibold text-foreground">{caseRef}</span>
+          <span className="font-mono text-[13px] font-semibold text-foreground">{caseRef}</span>
           {caseTitle !== caseRef && (
-            <span className="ml-2 truncate text-[12px] text-muted-foreground">{caseTitle}</span>
+            <span className="ml-2 truncate text-[13px] text-muted-foreground">{caseTitle}</span>
           )}
         </span>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[12px] text-muted-foreground">
           {validRowCount}/{rows.length} records
         </span>
         {valid ? (
@@ -400,7 +401,7 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
       {groupErrors.length > 0 && (
         <div className="border-t border-border px-3 pb-2 pt-1.5">
           {groupErrors.map((e, i) => (
-            <p key={i} className="flex items-start gap-1 text-[11.5px] text-destructive">
+            <p key={i} className="flex items-start gap-1 text-[12.5px] text-destructive">
               <Icon name="alert" className="mt-px size-3.5 shrink-0" />
               {e}
             </p>
@@ -412,7 +413,7 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
       {expanded && rows.length > 0 && (
         <div className="border-t border-border">
           {rows.map((row) => (
-            <RecordRow key={row.rowNumber} row={row} />
+            <RecordRow key={row.rowNumber} row={row} source={sourceByRow.get(row.rowNumber)} />
           ))}
         </div>
       )}
@@ -420,19 +421,32 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
   );
 }
 
-/** A single record row within a case card. */
-function RecordRow({ row }: { row: ValidatedRow & { type?: string; externalRef?: string } }) {
-  // The ValidatedRow carries rowNumber + valid + errors; the raw CycleRow type/externalRef
-  // live on the parent group — we reconstruct them from the group's rows in the preview.
-  // Here we receive the enriched ValidatedRow (we'll join from parent; see CaseCard usage below).
+/** A single record row within a case card — shows what's being imported (type, ref, amount, date). */
+function RecordRow({ row, source }: { row: ValidatedRow; source: CycleRow | undefined }) {
+  // ValidatedRow carries rowNumber + valid + errors; the human-meaningful fields (what TYPE of
+  // record, its ref/amount/date) live on the joined source CycleRow so the user can review what
+  // they're about to import — not just a bare row number.
+  const type = source?.type?.trim();
+  const ref = source?.externalRef?.trim();
+  const amount = source?.amount?.trim();
+  const date = source?.date?.trim();
+  const status = source?.status?.trim();
+
   return (
     <div
       className={cn('flex items-start gap-2 border-b border-border px-3 py-2 last:border-0', {
         'opacity-60': !row.valid,
       })}
     >
-      <span className="w-5 shrink-0 text-[11px] text-muted-foreground">{row.rowNumber}</span>
+      <span className="w-5 shrink-0 text-[12px] text-muted-foreground">{row.rowNumber}</span>
       <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+          {type && <span className="font-semibold text-foreground">{type}</span>}
+          {ref && <span className="font-mono text-[12px] text-muted-foreground">{ref}</span>}
+          {status && <span className="text-muted-foreground">{status}</span>}
+          {amount && <span className="text-muted-foreground">${amount}</span>}
+          {date && <span className="text-muted-foreground">{date}</span>}
+        </div>
         {row.errors.length > 0 && (
           <ul className="mt-0.5 space-y-0.5">
             {row.errors.map((e, i) => (
@@ -515,7 +529,7 @@ function CycleResultStep({ wiz }: { wiz: Wiz }) {
             <li key={i} className="flex items-start gap-1.5">
               <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />
               <span className="text-foreground">
-                <span className="font-mono text-[11px]">{f.caseRef}</span>
+                <span className="font-mono">{f.caseRef}</span>
                 {f.rowNumber > 0 ? ` row ${f.rowNumber} (${f.type})` : ` (${f.type})`}:{' '}
                 <span className="text-muted-foreground">{f.error}</span>
               </span>
