@@ -140,8 +140,10 @@ backend. The **anon key is public-safe** (it ships in the bundle; RLS is the aut
 plaintext build env vars — no 1Password needed for the frontend.
 
 **Cloudflare Pages project settings** (project `pmo`, account `2484…1bbf`):
-- **Production branch:** `production` (the live deploy). `main` + PRs → **preview** deploys. **Release by
-  merging `main → production`.** (Set via the CF API; wrangler has no setter for an existing project.)
+- **Production branch:** `production` (the live deploy). **Preview deploys are OFF** (`preview_deployment_setting: none`,
+  CF API) — `main`/`dev`/feature branches/PRs do NOT build, to conserve the 500-builds/month free quota; only a push to
+  `production` builds. **Release by merging/pushing `main → production`.** (Set via the CF API; wrangler has no setter for
+  an existing project. Re-enable previews only if PR preview URLs are worth the build spend.)
 - **Root directory:** `pmo-portal`  ·  **Build command:** `npm run build`  ·  **Build output directory:** `dist`
 - **Node:** pinned via `pmo-portal/.node-version` (22) — no env var needed.
 - **SPA routing:** `pmo-portal/public/_redirects` (`/*  /index.html  200`) is copied into `dist/` by Vite, so
