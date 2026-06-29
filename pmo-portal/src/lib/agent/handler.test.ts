@@ -172,11 +172,21 @@ it('AC-AS-002 returns repairAttempts:1 and feeds the attempt-1 ValidationError c
   }
   expect(_createFn).toHaveBeenCalledTimes(2);
 
-  // The SECOND call's messages array must include the error code
+  // The SECOND call's messages array must include the error code in the last user message
   const secondCallArgs = _createFn.mock.calls[1][0];
   const userMessages = secondCallArgs.messages.filter((m: { role: string }) => m.role === 'user');
   const errorMessage = userMessages[userMessages.length - 1];
   expect(errorMessage.content).toContain('MISSING_REQUIRED_FILTER');
+
+  // The synthetic assistant turn must be a proper tool_use content block (not a bare string),
+  // so the Anthropic API accepts it when tool_choice is forced (Blocker 4 fix).
+  const assistantMessages = secondCallArgs.messages.filter((m: { role: string }) => m.role === 'assistant');
+  expect(assistantMessages.length).toBeGreaterThan(0);
+  const assistantTurn = assistantMessages[assistantMessages.length - 1];
+  expect(Array.isArray(assistantTurn.content)).toBe(true);
+  const toolUseBlock = (assistantTurn.content as Array<{ type: string; name: string }>)[0];
+  expect(toolUseBlock.type).toBe('tool_use');
+  expect(toolUseBlock.name).toBe('compose_view');
 });
 
 // ── Task 10 — AC-AS-003: repair exhausted → 422 ───────────────────────────────

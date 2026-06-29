@@ -36,6 +36,9 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
 
   const [prompt, setPrompt] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  // Incrementing this forces a re-render so the live hookError value is picked up
+  // after compose() resolves null (hookError is read fresh on each render cycle).
+  const [, setErrorTick] = useState(0);
 
   const { compose, status, error: hookError } = useAIComposer();
 
@@ -99,8 +102,12 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
     if (spec !== null) {
       onComposed(spec);
       onClose();
+    } else {
+      // Trigger a re-render so the live hookError value (set by the hook during compose)
+      // is picked up by the displayError = localError ?? hookError expression.
+      // The useEffect(hookError) will then sync it into localError for subsequent renders.
+      setErrorTick((t) => t + 1);
     }
-    // On null: hookError will propagate via the useEffect above
   };
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

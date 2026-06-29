@@ -625,6 +625,11 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
       el = el.parentElement;
     }
     expect(hasAriaLive).toBe(true);
+
+    // Token-fidelity: the indicator must use the design-system warning token,
+    // NOT the off-palette text-amber-600 (DESIGN.md §3, Blocker 5).
+    expect(indicator.className).toContain('text-warning-foreground');
+    expect(indicator.className).not.toContain('text-amber-600');
   });
 
   it('AC-AS-016 pressing Save calls useUserViewMutations().create with the composed spec and clears the AI-composed draft indicator', async () => {

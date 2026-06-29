@@ -47,7 +47,12 @@ export interface AnthropicCreateParams {
   model: string;
   max_tokens: number;
   system: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /**
+   * User turns carry `content: string`; synthetic assistant turns carry
+   * `content: ContentBlock[]` (a tool_use block) to satisfy the Anthropic API
+   * when tool_choice is forced. Both shapes are valid per the Messages API spec.
+   */
+  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>;
   tools: Array<{
     name: string;
     description: string;
@@ -131,7 +136,7 @@ type HandlerResult =
 async function callModel(
   anthropic: AnthropicLike,
   system: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>,
 ): Promise<{ spec: CompositionSpec; tokensUsed: number }> {
   // Tool-forcing pattern (ADR-0039 decision 6 / FR-AS-005):
   // Force the compose_view tool; the response content will be a tool_use block.
@@ -275,7 +280,7 @@ export async function composeViewHandler(
 
   // ── Model call + compile + bounded repair loop (AC-AS-001, 002, 003) ──────
   // Wrap the entire model-call section; any non-ValidationError → 502 (AC-AS-007).
-  const conversationMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+  const conversationMessages: Array<{ role: 'user' | 'assistant'; content: string | object[] }> = [
     { role: 'user', content: req.prompt },
   ];
 
@@ -335,7 +340,14 @@ export async function composeViewHandler(
           ? `Validation failed: ${err.code} — ${err.detail}. Fix and re-emit a valid CompositionSpec.`
           : `Validation failed: ${err.code}. Fix and re-emit a valid CompositionSpec.`;
 
-        conversationMessages.push({ role: 'assistant', content: '[compose_view tool call]' });
+        // Synthetic assistant turn: use a proper tool_use content block so the
+        // Anthropic API accepts the turn when tool_choice is forced (a bare string
+        // is rejected in tool-forcing mode). The id 'repair_placeholder' is a
+        // client-generated identifier; the API only validates the shape, not the id.
+        conversationMessages.push({
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'repair_placeholder', name: 'compose_view', input: {} }],
+        });
         conversationMessages.push({ role: 'user', content: repairFeedback });
 
         repairAttempts++;
@@ -343,6 +355,9 @@ export async function composeViewHandler(
     }
   } catch (err) {
     // ── Gate (6): upstream error → 502 (AC-AS-007) ─────────────────────────
+    // The only non-ValidationError that reaches here is a model call failure;
+    // the inner loop always returns 422 when repair is exhausted before callModel
+    // is called again.
     // NFR-AS-SEC-004: log only error code, never req.prompt or spec contents.
     // The raw SDK error is NEVER echoed to the client (FR-AS-008).
     console.error('[compose-view] UPSTREAM_ERROR', {
@@ -351,20 +366,6 @@ export async function composeViewHandler(
       tokensUsed: totalTokensUsed,
       // err.message intentionally NOT logged — may contain SDK internals
     });
-
-    // Check if the error was a validation error from a non-repair path (should not happen
-    // given the loop structure, but guard for safety)
-    if (lastValidationError && repairAttempts >= MAX_REPAIR_ATTEMPTS) {
-      return {
-        status: 422,
-        body: {
-          status: 422,
-          error: 'REPAIR_EXHAUSTED',
-          validationError: { code: lastValidationError.code, detail: lastValidationError.detail },
-          repairAttempts: MAX_REPAIR_ATTEMPTS,
-        },
-      };
-    }
 
     return {
       status: 502,

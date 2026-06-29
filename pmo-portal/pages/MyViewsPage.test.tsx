@@ -113,36 +113,37 @@ beforeEach(() => {
 });
 
 describe('MyViewsPage — "Compose with AI" entry (FR-AS-014)', () => {
-  it('renders a "Compose with AI" button when userViews+aiComposer are enabled', () => {
+  it('renders a "Compose view with AI" button (exact accessible name per FR-AS-014) when userViews+aiComposer are enabled', () => {
     renderMyViews();
-    expect(screen.getByRole('button', { name: /compose.*ai/i })).toBeInTheDocument();
+    // FR-AS-014: the button's accessible name must be "Compose view with AI" (not "Compose with AI")
+    expect(screen.getByRole('button', { name: /compose view with ai/i })).toBeInTheDocument();
   });
 
-  it('hides the "Compose with AI" button when userViews is false', () => {
+  it('hides the "Compose view with AI" button when userViews is false', () => {
     mockIsFeatureEnabled.mockImplementation(
       (key: string) => key === 'aiComposer', // userViews off
     );
     renderMyViews();
-    expect(screen.queryByRole('button', { name: /compose.*ai/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /compose view with ai/i })).not.toBeInTheDocument();
   });
 
-  it('hides the "Compose with AI" button when aiComposer is false', () => {
+  it('hides the "Compose view with AI" button when aiComposer is false', () => {
     mockIsFeatureEnabled.mockImplementation(
       (key: string) => key === 'userViews', // aiComposer off
     );
     renderMyViews();
-    expect(screen.queryByRole('button', { name: /compose.*ai/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /compose view with ai/i })).not.toBeInTheDocument();
   });
 
   it('opens the AIComposerModal when the button is clicked', async () => {
     renderMyViews();
-    await userEvent.click(screen.getByRole('button', { name: /compose.*ai/i }));
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
     expect(screen.getByTestId('ai-composer-modal')).toBeInTheDocument();
   });
 
   it('navigates to /views/new carrying the composed spec when onComposed fires', async () => {
     renderMyViews();
-    await userEvent.click(screen.getByRole('button', { name: /compose.*ai/i }));
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
 
     // Trigger the onComposed callback
     aiComposerModalCallbacks.onComposed?.(SAMPLE_SPEC);

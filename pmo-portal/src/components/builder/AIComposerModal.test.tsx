@@ -150,6 +150,10 @@ describe('AIComposerModal — error states', () => {
       expect(mockCompose).toHaveBeenCalled();
       expect(onComposed).not.toHaveBeenCalled();
     });
+    // AC-AS-017: the error string must be visible in the live region
+    await waitFor(() =>
+      expect(screen.getByText(/try rephrasing or being more specific/i)).toBeInTheDocument(),
+    );
   });
 
   it('AC-AS-018 shows a rate-limit error (429) and does not call onComposed', async () => {
@@ -167,6 +171,10 @@ describe('AIComposerModal — error states', () => {
     await waitFor(() => {
       expect(onComposed).not.toHaveBeenCalled();
     });
+    // AC-AS-018: the rate-limit error must be visible in the live region
+    await waitFor(() =>
+      expect(screen.getByText(/limit/i)).toBeInTheDocument(),
+    );
   });
 });
 

@@ -293,7 +293,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           {/* AI-composed draft indicator (AC-AS-015, NFR-AS-A11Y-004) */}
           <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
             {aiDraft && (
-              <span className="text-[12px] font-medium text-amber-600">
+              <span className="text-[12px] font-medium text-warning-foreground">
                 AI-composed draft — review before saving
               </span>
             )}

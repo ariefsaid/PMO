@@ -112,7 +112,11 @@ const MyViewsPage: React.FC = () => {
       primaryAction={
         <div className="flex gap-2">
           {showAIComposer && (
-            <Button variant="outline" onClick={() => setAIComposerOpen(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setAIComposerOpen(true)}
+              aria-label="Compose view with AI"
+            >
               Compose with AI
             </Button>
           )}
