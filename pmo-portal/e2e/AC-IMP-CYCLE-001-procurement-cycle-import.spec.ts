@@ -98,7 +98,8 @@ test(
     await expect(page.getByText(invoiceTitle)).not.toBeVisible({ timeout: 5_000 });
 
     // ── Step 2: open the cycle import wizard ──────────────────────────────────
-    const cycleImportBtn = page.getByRole('button', { name: /import cycle/i });
+    // E15: button label is "Import cycle data" (not bare "Import cycle")
+    const cycleImportBtn = page.getByRole('button', { name: /import cycle data/i });
     await expect(cycleImportBtn).toBeVisible({ timeout: 10_000 });
     await cycleImportBtn.click();
 
@@ -144,9 +145,41 @@ test(
     await dialog.getByRole('button', { name: /^done$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 10_000 });
 
-    // ── GOAL ORACLE: BOTH cases appear in the procurement list ────────────────
+    // ── GOAL ORACLE 1: BOTH cases appear in the procurement list ─────────────
     // The list auto-refetches on wizard close (didImport=true → onClose(true) → refetch).
     await expect(page.getByText(fullTitle)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(invoiceTitle)).toBeVisible({ timeout: 30_000 });
+
+    // ── GOAL ORACLE 2 (F18): records actually landed — verify via detail page ─
+    // Open the full case (case-001 / fullTitle) by clicking its row in the list.
+    const fullCaseRow = page.getByText(fullTitle);
+    await fullCaseRow.click();
+
+    // Wait for the detail page to load
+    await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
+
+    // Navigate to the Documents tab where the case ledger lives
+    await page.getByRole('tab', { name: /documents/i }).click();
+
+    // The PR's external ref EXT-PR-001 must appear in the ledger
+    await expect(page.getByText('EXT-PR-001')).toBeVisible({ timeout: 20_000 });
+    // The VI's external ref EXT-VI-001 must also be present
+    await expect(page.getByText('EXT-VI-001')).toBeVisible({ timeout: 10_000 });
+
+    // ── GOAL ORACLE 3 (F18): PR-less case also committed — verify via its detail ─
+    await page.goBack();
+    // goBack from documents tab goes back to overview, not index — navigate to index directly
+    await page.goto('/procurement');
+    await waitIndexReady(page);
+    const invoiceCaseRow = page.getByText(invoiceTitle);
+    await invoiceCaseRow.click();
+    await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
+
+    // Navigate to the Documents tab
+    await page.getByRole('tab', { name: /documents/i }).click();
+
+    // The PR-less case's VI + Payment must land (EXT-VI-002 and EXT-PAY-002)
+    await expect(page.getByText('EXT-VI-002')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('EXT-PAY-002')).toBeVisible({ timeout: 10_000 });
   },
 );

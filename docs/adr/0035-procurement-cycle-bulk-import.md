@@ -18,9 +18,13 @@ migration**.
 This does not fit the ADR-0027 descriptor, for reasons grounded in the existing model:
 
 - **The case is the anchor, not the PR (Model C, AC-PR-028/029).** `procurement_id` is `not null` on
-  every record table; all settlement FKs (`receipts.po_id`, `invoices.po_id`, `payments.invoice_id`)
-  are **nullable**. A case may have **no PR, no quotation, no PO** — a direct Invoice→Payment case is
-  valid and the ledger renders exactly the rows that exist. So rows cannot be grouped by PR.
+  every record table and is the sole link for receipts and invoices (they have no predecessor FK). The
+  **only** intra-record settlement FK is `payments.invoice_id` (nullable → procurement_invoices). A case
+  may have **no PR, no quotation, no PO** — a direct Invoice→Payment case is valid and the ledger renders
+  exactly the rows that exist. So rows cannot be grouped by PR.
+  *(Correction 2026-06-25: an earlier draft listed `receipts.po_id`/`invoices.po_id` as settlement FKs —
+  those columns do not exist; receipts/invoices anchor on `procurement_id` only. `commit.ts` matches the
+  real schema — only `payments.invoice_id` is resolved intra-group.)*
 - **Records of different types have different shapes and different create RPCs.** A single flat
   per-row descriptor with one `create` fn cannot dispatch across 7 record types + the case header.
 - **Numbers are already modeled (OD-PROC-3).** PMO always mints the **system number**; the
@@ -51,9 +55,9 @@ parse/lazy-exceljs seam as ADR-0024/0027; new grouping + ordered-commit logic on
    minted numbers. This collapses "ongoing entry" and "historical migration" to one write path.
 
 5. **Ordered commit within a case; settlement FKs resolved intra-group.** Per case group, commit in
-   canonical order (case → PR → RFQ → Quotation → PO → GR → VI → Payment) so predecessors exist before
-   `payments.invoice_id` / `invoices.po_id` are linked. Where a predecessor isn't in the sheet, the FK
-   is left null (Model C). A case whose header create fails skips its whole group; within a group,
+   canonical order (case → PR → RFQ → Quotation → PO → GR → VI → Payment) so the VI exists before
+   `payments.invoice_id` is linked (the only intra-record settlement FK). Where the VI isn't in the
+   sheet, `payments.invoice_id` is left null (Model C). A case whose header create fails skips its whole group; within a group,
    per-record best-effort (ADR-0027 model), failures reported per row.
 
 6. **Role-gated affordance; preview performs zero writes.** Reuses the ADR-0027 wizard's FSM shape

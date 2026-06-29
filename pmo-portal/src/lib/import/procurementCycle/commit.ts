@@ -36,6 +36,10 @@ import type {
   CommitResult,
 } from './types';
 import { CYCLE_ORDER } from './types';
+import { GR_STATUS, VI_STATUS } from './validate';
+
+type GrStatus = (typeof GR_STATUS)[number];
+type ViStatus = (typeof VI_STATUS)[number];
 
 // ─── Commit options ────────────────────────────────────────────────────────────
 
@@ -86,17 +90,17 @@ async function createRecord(
   switch (type) {
     case 'PR': {
       const result = await createPurchaseRequest(procurementId, ref, status, date, amount);
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'RFQ': {
       const result = await createRfq(procurementId, ref, status, date, amount);
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'PO': {
       const result = await createPurchaseOrder(procurementId, ref, status, date, amount);
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'Quotation': {
@@ -108,19 +112,19 @@ async function createRecord(
         amount ?? 0,
         date ?? '',
       );
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'GR': {
-      const grStatus = (status ?? '') as 'Partial' | 'Complete';
+      const grStatus = (status ?? '') as GrStatus;
       const result = await createReceipt(procurementId, grStatus, date ?? '', ref);
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'VI': {
-      const viStatus = (status ?? '') as 'Received' | 'Scheduled' | 'Paid';
+      const viStatus = (status ?? '') as ViStatus;
       const result = await createInvoice(procurementId, viStatus, date ?? '', ref, amount);
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     case 'Payment': {
@@ -132,7 +136,7 @@ async function createRecord(
         date,
         amount,
       );
-      return { id: (result as { id: string }).id };
+      return { id: result.id };
     }
 
     default:
@@ -168,7 +172,7 @@ async function commitCase(
       },
       requestedById,
     );
-    procurementId = (header as { id: string }).id;
+    procurementId = header.id;
   } catch (err) {
     const { headline, detail } = classifyMutationError(err);
     return {
@@ -253,8 +257,7 @@ export async function commitGroups(
         else failed++;
       }
     } else {
-      // Header failed — don't add to cases (caller can check separately if needed)
-      // We still track the case for reporting
+      // Header-failed cases ARE included in 'cases' so the result UI can surface the failure reason.
       cases.push(caseResult);
     }
   }
