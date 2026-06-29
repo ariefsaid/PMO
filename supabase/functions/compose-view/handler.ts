@@ -114,7 +114,11 @@ export interface HandlerDeps {
 
 type HandlerResult =
   | { status: 200; body: ComposeViewResponse }
-  | { status: number; body: ComposeViewError };
+  | { status: 400; body: ComposeViewError }
+  | { status: 401; body: ComposeViewError }
+  | { status: 422; body: ComposeViewError }
+  | { status: 429; body: ComposeViewError }
+  | { status: 502; body: ComposeViewError };
 
 // ── Model call helper (Task 13) ────────────────────────────────────────────────
 

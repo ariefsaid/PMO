@@ -396,6 +396,13 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# ── Edge Function: compose-view ───────────────────────────────────────────────
+# verify_jwt = false: the handler verifies the JWT itself to return a typed 401
+# body. Supabase's built-in JWT gate returns a non-typed 401 which would bypass
+# the handler's structured error contract (ADR-0039 decision 2, AC-AS-004).
+[functions.compose-view]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
