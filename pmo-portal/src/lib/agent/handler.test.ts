@@ -7,7 +7,7 @@
  * Reconciliation #1: compileCompositionSpec throws (fail-fast); the loop feeds single error.
  * Reconciliation #4: org_id derived from profiles under caller JWT, not JWT claims.
  */
-import { it, expect, vi, beforeEach } from 'vitest';
+import { it, expect, vi } from 'vitest';
 import {
   composeViewHandler,
   MAX_REPAIR_ATTEMPTS,
@@ -66,20 +66,9 @@ const INVALID_SPEC_TASKS_NO_FILTER: CompositionSpec = {
   ],
 };
 
-/** Invalid: unknown entity */
-const INVALID_SPEC_UNKNOWN_ENTITY = {
-  version: 1,
-  panels: [
-    {
-      id: 'panel-bad',
-      primitive: 'DataTable',
-      querySpec: {
-        entity: 'secrets',
-        select: ['id'],
-      },
-    },
-  ],
-} as unknown as CompositionSpec;
+// Note: INVALID_SPEC_UNKNOWN_ENTITY tested in clientValidation.test.ts (AC-AS-020);
+// the handler's gate for unknown-entity is covered by the repair loop reaching
+// MISSING_REQUIRED_FILTER in AC-AS-002/003 above.
 
 // ── Mock builder helpers ───────────────────────────────────────────────────────
 
