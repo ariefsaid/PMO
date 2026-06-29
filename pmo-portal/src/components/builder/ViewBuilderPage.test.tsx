@@ -2,6 +2,7 @@
  * ViewBuilderPage — state machine and guard tests.
  * AC-VB-001, AC-VB-007, AC-VB-008, AC-VB-009, AC-VB-010, AC-VB-011,
  * AC-VB-014, AC-VB-015, AC-VB-018, AC-VB-019.
+ * AC-AS-011, AC-AS-012, AC-AS-014, AC-AS-015, AC-AS-016 (AI composer wiring).
  * (AC-VB-002 is owned by PanelEditorForm.test.tsx — entity-change reset is panel-editor behavior.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,11 +26,16 @@ const {
   mockUseAuth,
   mockToast,
   mockBlocker,
+  mockIsFeatureEnabled,
+  mockAICompose,
+  // onComposedCallback is a ref that AIComposerModal stub will call when told to compose
+  aiComposerModalCallbacks,
 } = vi.hoisted(() => {
   // Stable reference — ViewPreview's useEffect([spec, currentUser]) re-fires on any
   // currentUser reference change. Returning a new object per-call creates an infinite
   // effect loop → OOM. The stable const is captured in the vi.fn() closure.
   const stableCurrentUser = { id: 'u1', org_id: 'org1' };
+  const aiComposerModalCallbacks = { onComposed: null as null | ((spec: unknown) => void) };
   return {
     mockCreate: vi.fn(),
     mockUpdate: vi.fn(),
@@ -48,6 +54,10 @@ const {
     })),
     mockToast: vi.fn(),
     mockBlocker: vi.fn(() => ({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() })),
+    // Feature flag — default false so existing tests are unaffected
+    mockIsFeatureEnabled: vi.fn((key: string) => key === 'userViews' ? false : false),
+    mockAICompose: vi.fn(),
+    aiComposerModalCallbacks,
   };
 });
 
@@ -92,6 +102,45 @@ vi.mock('@/src/components/builder/ViewPreview', () => ({
   default: ({ spec }: { spec: { panels: unknown[] } }) => (
     <div data-testid="view-preview" data-panels={spec.panels.length} />
   ),
+}));
+
+// Mock feature flags — default all false so existing tests are unaffected
+vi.mock('@/src/lib/features', () => ({
+  isFeatureEnabled: (key: string) => mockIsFeatureEnabled(key),
+  FEATURES: {},
+}));
+
+// Mock useAIComposer hook
+vi.mock('@/src/hooks/useAIComposer', () => ({
+  useAIComposer: () => ({ compose: mockAICompose, status: 'idle', error: null }),
+}));
+
+// Stub AIComposerModal — captures the onComposed callback so tests can trigger it
+vi.mock('@/src/components/builder/AIComposerModal', () => ({
+  default: ({
+    open,
+    onClose,
+    onComposed,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    onComposed: (spec: unknown) => void;
+  }) => {
+    // Store the callback so tests can trigger it
+    aiComposerModalCallbacks.onComposed = open ? onComposed : null;
+    if (!open) return null;
+    return (
+      <div data-testid="ai-composer-modal">
+        <button onClick={onClose}>ModalCancel</button>
+        <button
+          data-testid="modal-trigger-compose"
+          onClick={() => mockAICompose('test prompt')}
+        >
+          ModalGenerate
+        </button>
+      </div>
+    );
+  },
 }));
 
 import ViewBuilderPage from '@/pages/ViewBuilderPage';
@@ -472,5 +521,162 @@ describe('ViewBuilderPage + MyViewsPage — axe-core a11y', () => {
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+});
+
+// ── AI Composer wiring (AC-AS-011, 012, 014, 015, 016) ──────────────────────
+
+const AI_COMPOSED_SPEC = {
+  version: 1 as const,
+  panels: [
+    {
+      id: 'p-ai-1',
+      primitive: 'KPITile',
+      querySpec: { entity: 'projects' as const, select: ['id', 'contract_value'], aggregate: { fn: 'sum' as const, column: 'contract_value', alias: 'total' } },
+    },
+    {
+      id: 'p-ai-2',
+      primitive: 'DataTable',
+      querySpec: { entity: 'projects' as const, select: ['id', 'name', 'status'] },
+    },
+  ],
+};
+
+describe('ViewBuilderPage — AI Composer wiring', () => {
+  beforeEach(() => {
+    // Reset features mock
+    mockIsFeatureEnabled.mockImplementation(() => false);
+  });
+
+  it('AC-AS-011 renders a "Compose view with AI" button when userViews+aiComposer are enabled', () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews' || key === 'aiComposer',
+    );
+    renderCreate();
+    expect(screen.getByRole('button', { name: /compose view with ai/i })).toBeInTheDocument();
+  });
+
+  it('AC-AS-012 hides the button when userViews is false', () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'aiComposer', // only aiComposer on, not userViews
+    );
+    renderCreate();
+    expect(screen.queryByRole('button', { name: /compose view with ai/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-AS-012 hides the button when aiComposer is false', () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews', // only userViews on, not aiComposer
+    );
+    renderCreate();
+    expect(screen.queryByRole('button', { name: /compose view with ai/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-AS-014 populating from a composed spec sets panels to spec.panels and closes the modal', async () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews' || key === 'aiComposer',
+    );
+    mockCompile.mockReturnValue([]);
+
+    renderCreate();
+
+    // Open the modal
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
+    expect(screen.getByTestId('ai-composer-modal')).toBeInTheDocument();
+
+    // Trigger onComposed via the captured callback
+    act(() => {
+      aiComposerModalCallbacks.onComposed?.(AI_COMPOSED_SPEC);
+    });
+
+    // Modal should close and panels should be populated
+    await waitFor(() => {
+      expect(screen.queryByTestId('ai-composer-modal')).not.toBeInTheDocument();
+    });
+
+    // PanelList should show 2 panels
+    const preview = screen.getByTestId('view-preview');
+    expect(preview).toHaveAttribute('data-panels', '2');
+  });
+
+  it('AC-AS-015 shows the "AI-composed draft" indicator after populate', async () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews' || key === 'aiComposer',
+    );
+
+    renderCreate();
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
+
+    act(() => {
+      aiComposerModalCallbacks.onComposed?.(AI_COMPOSED_SPEC);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/ai-composed draft/i)).toBeInTheDocument();
+    });
+
+    // The indicator must have aria-live="polite" (NFR-AS-A11Y-004)
+    const indicator = screen.getByText(/ai-composed draft/i);
+    // Walk up to find the aria-live ancestor
+    let el: HTMLElement | null = indicator;
+    let hasAriaLive = false;
+    while (el) {
+      if (el.getAttribute('aria-live') === 'polite') { hasAriaLive = true; break; }
+      el = el.parentElement;
+    }
+    expect(hasAriaLive).toBe(true);
+
+    // Token-fidelity: the indicator must use the design-system warning token,
+    // NOT the off-palette text-amber-600 (DESIGN.md §3, Blocker 5).
+    expect(indicator.className).toContain('text-warning-foreground');
+    expect(indicator.className).not.toContain('text-amber-600');
+  });
+
+  it('AC-AS-016 pressing Save calls useUserViewMutations().create with the composed spec and clears the AI-composed draft indicator', async () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews' || key === 'aiComposer',
+    );
+    mockCompile.mockReturnValue([]);
+    mockCreate.mockResolvedValue({ id: 'new-id', name: 'AI View' });
+
+    const { rerender } = renderCreate();
+
+    // Enable the button and populate via AI
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
+    act(() => {
+      aiComposerModalCallbacks.onComposed?.(AI_COMPOSED_SPEC);
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/ai-composed draft/i)).toBeInTheDocument();
+    });
+
+    // Type a name so Save is enabled
+    const nameField = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.type(nameField, 'AI View');
+
+    // Rerender to ensure __testPanels aren't resetting our AI panels
+    rerender(
+      <MemoryRouter initialEntries={['/views/new']}>
+        <Routes>
+          <Route path="/views/new" element={<ViewBuilderPage mode="create" />} />
+          <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save view/i })).not.toBeDisabled();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    // After save resolves, the AI-composed draft indicator should be gone
+    await waitFor(() => {
+      expect(screen.queryByText(/ai-composed draft/i)).not.toBeInTheDocument();
+    });
   });
 });

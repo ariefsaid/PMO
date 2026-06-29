@@ -7,6 +7,10 @@
 export const FEATURES = {
   incidents: false,
   userViews: import.meta.env.VITE_FEATURES_USERVIEWS === 'true' || false,  // I3: user-view renderer; flip to true to enable (FR-VR-001)
+  // I5: AI composer sub-flag (AS-OD-003). Gated AND-wise with userViews.
+  // Allows disabling AI compose without disabling the whole User Views feature
+  // (e.g. when the function secret for the AI service is absent in an environment).
+  aiComposer: import.meta.env.VITE_FEATURES_AI_COMPOSER === 'true' || false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

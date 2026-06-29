@@ -276,6 +276,14 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
   });
 
+// ── Shared panel ceiling (FR-AS-004) ──────────────────────────────────────────
+
+/**
+ * Shared panel ceiling — builder (ViewBuilderPage), renderer, and the AI prompt all
+ * reference this (FR-AS-004). A single source of truth; do NOT redeclare locally.
+ */
+export const MAX_PANELS_PER_VIEW = 20;
+
 // ── ValidationError (FR-VC-038) ────────────────────────────────────────────────
 
 export type ValidationErrorCode =

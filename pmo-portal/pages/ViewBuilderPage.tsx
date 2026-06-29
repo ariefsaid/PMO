@@ -21,7 +21,7 @@
  * without requiring modal interaction. Undefined in production usage.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useBlocker } from 'react-router-dom';
+import { useNavigate, useParams, useBlocker, useLocation } from 'react-router-dom';
 import {
   ListState,
   ConfirmDialog,
@@ -39,14 +39,14 @@ import type { UserViewRow } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
+import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PanelSpec, CompositionSpec } from '@/src/lib/viewspec/types';
+import { isFeatureEnabled } from '@/src/lib/features';
 import PanelEditorForm from '@/src/components/builder/PanelEditorForm';
 import PanelList from '@/src/components/builder/PanelList';
 import ViewPreview from '@/src/components/builder/ViewPreview';
-
-/** Maximum panels per view — mirrors UserViewRenderer's constant (FR-VB-038). */
-const MAX_PANELS_PER_VIEW = 20;
+import AIComposerModal from '@/src/components/builder/AIComposerModal';
 
 export interface ViewBuilderPageProps {
   mode: 'create' | 'edit';
@@ -62,6 +62,7 @@ const SCOPE_OPTIONS: SelectOption[] = [
 const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels }) => {
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
+  const location = useLocation();
   const viewId = mode === 'edit' ? (params.viewId ?? '') : undefined;
 
   const { currentUser } = useAuth();
@@ -80,6 +81,22 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const [panels, setPanels] = useState<PanelSpec[]>(__testPanels ?? []);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [panelModalOpen, setPanelModalOpen] = useState(false);
+
+  // ── AI Composer state (FR-AS-014..017, AC-AS-011..016) ───────────────────
+  const [aiComposerOpen, setAIComposerOpen] = useState(false);
+  const [aiDraft, setAIDraft] = useState(false);
+
+  // ── Seed from MyViewsPage navigation state (Task 23 populate path) ───────
+  // When navigating from MyViews "Compose with AI", location.state.composedSpec
+  // carries the AI-composed spec. Seed panels + draft indicator on mount.
+  useEffect(() => {
+    const state = location.state as { composedSpec?: CompositionSpec } | null;
+    if (mode === 'create' && state?.composedSpec && __testPanels === undefined) {
+      setPanels(state.composedSpec.panels);
+      setAIDraft(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount only
 
   // ── Save error state ──────────────────────────────────────────────────────
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -180,6 +197,14 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     setEditingIndex(null);
   };
 
+  // ── AI Composer: populate panels from composed spec (FR-AS-017, AC-AS-014/015) ──
+  const handleComposed = (composedSpec: CompositionSpec) => {
+    setPanels(composedSpec.panels);
+    setAIDraft(true);
+    setAIComposerOpen(false);
+    toast('View composed', 'Review and save when ready', 'success');
+  };
+
   // ── Compile-before-save + save (FR-VB-040/041) ───────────────────────────
 
   const spec: CompositionSpec = { version: 1, panels };
@@ -214,10 +239,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     try {
       if (mode === 'create') {
         const row = await create.mutateAsync(input);
+        setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
         toast('View created', name, 'success');
         navigate(`/views/${row.id}`);
       } else if (mode === 'edit' && viewId) {
         await update.mutateAsync({ id: viewId, input });
+        setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
         toast('View updated', name, 'success');
         navigate(`/views/${viewId}`);
       }
@@ -261,8 +288,28 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     <div className="mx-auto max-w-4xl px-4 py-6">
       {/* Page header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{pageTitle}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">{pageTitle}</h1>
+          {/* AI-composed draft indicator (AC-AS-015, NFR-AS-A11Y-004) */}
+          <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
+            {aiDraft && (
+              <span className="text-[12px] font-medium text-warning-foreground">
+                AI-composed draft — review before saving
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
+          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
+            <Button
+              variant="outline"
+              onClick={() => setAIComposerOpen(true)}
+              aria-label="Compose view with AI"
+            >
+              Compose view with AI
+            </Button>
+          )}
           <Button
             variant="ghost"
             onClick={() => {
@@ -360,6 +407,15 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           setEditingIndex(null);
         }}
       />
+
+      {/* AI Composer modal (FR-AS-015, AC-AS-013, AC-AS-017, AC-AS-018) */}
+      {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
+        <AIComposerModal
+          open={aiComposerOpen}
+          onClose={() => setAIComposerOpen(false)}
+          onComposed={handleComposed}
+        />
+      )}
 
       {/* Dirty-discard confirm (FR-VB-063, OD-VB-8) */}
       <ConfirmDialog
