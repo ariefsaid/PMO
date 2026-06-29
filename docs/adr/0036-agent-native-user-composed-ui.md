@@ -1,6 +1,6 @@
 # ADR-0036 — Agent-native, user-composed UI: the deputy authorization model + declarative hydration over the existing primitive kit
 
-- **Status:** Proposed
+- **Status:** Accepted (owner-approved 2026-06-29; §9 spike gate green — claims #1/#2/#3-core all PASS)
 - **Date:** 2026-06-29
 - **Deciders:** Owner, Director
 - **Related:** ADR-0001 (org_id seam), ADR-0005 (TanStack Query), ADR-0008 (view-only impersonation), ADR-0010 (test pyramid), ADR-0016 (FE authz primitive + real-JWT), ADR-0017 (repository/API seam), ADR-0018 (soft-archive), ADR-0019 (server-enforced SoD + delete gating), ADR-0030 (QA portfolio + build-vs-buy vendoring policy).
@@ -154,10 +154,10 @@ upgradability. **Supabase remains the authority**; `agent-native` supplies runti
 > **Spike result — 2026-06-29: automated claims PASS** (CI run [`28351347117`](https://github.com/ariefsaid/PMO/actions/runs/28351347117), `spike/agent-native-rls/` on a GitHub runner against the real migrated schema + RLS).
 > - **Claim #1 — Drizzle `.rls()` RLS parity: PASS.** The `.rls()` wrapper (`set local role authenticated` + `set_config('request.jwt.claims', …, true)`) enforced PMO's `org_id` policies identically to `supabase-js`: own-org read returned the row, cross-org read returned 0, in-org default write succeeded, cross-org write was rejected `42501`, and the kill-test confirmed a non-`.rls()`/privileged connection **bypasses** RLS (the failure mode the deputy-model guard prevents).
 > - **Claim #2 — `drizzle-kit pull` introspect-only: PASS.** Mirrored 35 tables / 82 policies into types read-only; Supabase migrations remain the single schema source of truth.
-> - **Claim #3 — assistant-panel SSO (no second login): not yet run** (manual; deferred per the README — not automatable without scaffolding the agent-native app).
+> - **Claim #3 — assistant-panel SSO (no second login): core PASS** (CI run [`28353978109`](https://github.com/ariefsaid/PMO/actions/runs/28353978109), `claim3-sso.mjs`). Proved **session portability**: a second, independent supabase-js client handed PMO's session via `setSession` authenticated as the **same `auth.uid()`** and read the **same RLS-scoped data** with no re-login; a no-session control returned 0 rows. *What "SSO" means here:* PMO has **no IdP-SSO** (email/password + magic-link only) — claim #3 is purely *session sharing*. The JWT carries only `auth.uid()` (role/org come from `profiles`), so any app holding the same session gets identical RLS. **Still manual (lowest-risk):** the browser cookie-`Domain` *auto-share* UX, which needs a real parent domain (prod is on `*.pages.dev` today) and is a §8 build-time step (switch supabase-js to a cookie storage adapter with `Domain=.<parent>`).
 > - **Fidelity caveat:** the harness proves the *SQL binding* `.rls()` emits, not Drizzle's own code path (see the spike README).
 >
-> **Conclusion:** the load-bearing automated gate is green → the §8 config-over-fork sidecar path is **viable** (pending the manual SSO check). Status stays **Proposed** pending owner sign-off to move toward *Accepted* on the sidecar path. The throwaway spike + its CI lane (`.github/workflows/spike-rls.yml`) should be deleted once this result is accepted.
+> **Conclusion:** the §9 gate is green (claims #1, #2, and the #3 portability core all PASS) → the §8 config-over-fork sidecar path is **viable**, and this ADR is **Accepted** (owner, 2026-06-29). The only deferred item is the browser cookie-`Domain` SSO *UX* check, which belongs to §8 implementation (needs a real domain). The throwaway spike + CI lane (`.github/workflows/spike-rls.yml`) are **retained for now** (reusable for the §8 SSO UX check) and deleted once §8 build begins.
 
 Before any `agent-native` adoption, a time-boxed, throwaway spike (no prod touch) must prove:
 - Drizzle `.rls()` pinned to `authenticated` + per-request JWT **blocks a cross-`org_id` read and allows a legit read — identically to `supabase-js`** (assert with a pgTAP-style proof on both paths);
