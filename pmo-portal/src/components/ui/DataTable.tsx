@@ -204,7 +204,11 @@ export function DataTable<Row>({
                   </th>
                 );
               })}
-              {rowMenu && <th className="w-10 border-b border-border bg-card" aria-label="Actions" />}
+              {rowMenu && (
+                <th className="w-10 border-b border-border bg-card" scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
