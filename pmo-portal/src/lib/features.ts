@@ -6,6 +6,7 @@
 // module; it must be server-enforced before any feature becomes paid.
 export const FEATURES = {
   incidents: false,
+  userViews: import.meta.env.VITE_FEATURES_USERVIEWS === 'true' || false,  // I3: user-view renderer; flip to true to enable (FR-VR-001)
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

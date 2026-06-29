@@ -163,6 +163,19 @@ export interface CompiledQuery {
   limit?: number;
 }
 
+/**
+ * The per-panel output of compileCompositionSpec (FR-VR-010).
+ * One CompiledPanel per PanelSpec; carries everything the renderer needs
+ * to fetch data and hydrate the primitive — no further spec parsing needed.
+ */
+export interface CompiledPanel {
+  id: string;              // panel.id (stable React key)
+  primitive: string;       // validated registry name
+  compiledQuery: CompiledQuery;
+  layout?: LayoutHint;
+  props?: Record<string, unknown>;
+}
+
 // ── Entity whitelist (FR-VC-020 / FR-VC-021 / FR-VC-022) ──────────────────────
 
 export interface EntityWhitelistEntry {
@@ -274,7 +287,9 @@ export type ValidationErrorCode =
   | 'UNKNOWN_TOKEN'
   | 'MISSING_REQUIRED_FILTER'
   | 'UNRESOLVABLE_TOKEN'
-  | 'NOT_GROUPABLE_COLUMN';
+  | 'NOT_GROUPABLE_COLUMN'
+  | 'UNKNOWN_PRIMITIVE'     // compileCompositionSpec: panel.primitive not in PrimitiveRegistry
+  | 'UNSUPPORTED_VERSION';  // compileCompositionSpec: spec.version !== 1
 
 export class ValidationError extends Error {
   readonly code: ValidationErrorCode;

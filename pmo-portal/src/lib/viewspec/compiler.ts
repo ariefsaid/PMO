@@ -23,12 +23,15 @@ import type {
   QuerySpec,
   CompilerContext,
   CompiledQuery,
+  CompositionSpec,
+  CompiledPanel,
   FilterClause,
   ResolvedFilter,
   ResolvedAggregate,
   ResolvedTimeRange,
   TokenValue,
 } from './types';
+import { validatePrimitive } from './registry';
 
 // ── Token resolution (FR-VC-035) ──────────────────────────────────────────────
 
@@ -150,6 +153,18 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
       throw new ValidationError('INVALID_LIMIT', String(spec.limit));
     }
   }
+  // Default limit for aggregate / groupBy queries (OD-3, FR-VR-022).
+  // If the spec has an aggregate or groupBy but no explicit limit we cap at 500
+  // so the executor never issues an unbounded scan for in-memory aggregation.
+  // This mirrors the executor-side fallback in executeCompiledQuery; keeping the
+  // invariant here (in the compiler) ensures the CompiledQuery always carries a
+  // limit when one is needed.
+  const effectiveLimit: number | undefined =
+    spec.limit !== undefined
+      ? spec.limit
+      : spec.aggregate !== undefined || spec.groupBy !== undefined
+        ? 500
+        : undefined;
 
   // ── 3. Validate select columns (FR-VC-032) ─────────────────────────────────
   for (const col of spec.select) {
@@ -250,8 +265,61 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
     ...(resolvedAggregate !== undefined && { resolvedAggregate }),
     ...(resolvedTimeRange !== undefined && { resolvedTimeRange }),
     ...(spec.orderBy !== undefined && { resolvedOrderBy: spec.orderBy }),
-    ...(spec.limit !== undefined && { limit: spec.limit }),
+    ...(effectiveLimit !== undefined && { limit: effectiveLimit }),
   };
 
   return compiled;
+}
+
+/**
+ * Validates a CompositionSpec and compiles each panel to a CompiledPanel.
+ * Pure function: no side effects, no I/O. Fail-fast: throws on the first invalid panel.
+ *
+ * @throws ValidationError(UNSUPPORTED_VERSION)  if spec.version !== 1 (FR-VR-014)
+ * @throws ValidationError(UNKNOWN_PRIMITIVE)    if panel.primitive not in registry (FR-VR-011)
+ * @throws ValidationError from compileQuerySpec  if panel.querySpec is invalid (FR-VR-012)
+ */
+export function compileCompositionSpec(
+  spec: CompositionSpec,
+  ctx: CompilerContext,
+): CompiledPanel[] {
+  // ── Version guard (FR-VR-014) ──────────────────────────────────────────────
+  // spec.version is typed as the literal 1 in CompositionSpec, so the cast is
+  // required to make the runtime check meaningful (at runtime the value comes
+  // from opaque JSON and may be anything).
+  const version = (spec as { version: unknown }).version;
+  if (version !== 1) {
+    throw new ValidationError('UNSUPPORTED_VERSION', String(version));
+  }
+
+  return spec.panels.map((panel): CompiledPanel => {
+    // ── Primitive validation (FR-VR-011) ────────────────────────────────────
+    if (!validatePrimitive(panel.primitive)) {
+      throw new ValidationError('UNKNOWN_PRIMITIVE', panel.id);
+    }
+
+    // ── Query compilation (FR-VR-012) ───────────────────────────────────────
+    // Re-throw any ValidationError from compileQuerySpec, appending the panelId
+    // to the detail so the renderer knows which panel failed.
+    let compiledQuery;
+    try {
+      compiledQuery = compileQuerySpec(panel.querySpec, ctx);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        throw new ValidationError(
+          err.code,
+          err.detail != null ? `${err.detail} (panel: ${panel.id})` : `panel: ${panel.id}`,
+        );
+      }
+      throw err;
+    }
+
+    return {
+      id: panel.id,
+      primitive: panel.primitive,
+      compiledQuery,
+      ...(panel.layout !== undefined && { layout: panel.layout }),
+      ...(panel.props !== undefined && { props: panel.props }),
+    };
+  });
 }
