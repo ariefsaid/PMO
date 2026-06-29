@@ -55,10 +55,14 @@ jobs:
 
       # Extract the local Postgres URL the spike connects to (same env-extraction pattern
       # ci.yml uses to write .env.local). The harness reads SPIKE_DB_URL.
-      - name: Resolve local DB URL
+      - name: Resolve local DB URL + auth env
         run: |
           eval "$(supabase status -o env)"
           echo "SPIKE_DB_URL=${DB_URL}" >> "$GITHUB_ENV"
+          echo "SPIKE_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "SPIKE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "::add-mask::${SERVICE_ROLE_KEY}"
+          echo "SPIKE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
 
       - name: Install spike deps
         working-directory: spike/agent-native-rls
@@ -73,6 +77,12 @@ jobs:
       - name: Claim #2 — drizzle-kit pull is introspect-only
         working-directory: spike/agent-native-rls
         run: bash pull-check.sh
+
+      # Claim #3 — session portability (the SSO core): a second independent supabase-js client
+      # handed PMO's session authenticates as the same auth.uid() with the same RLS data, no re-login.
+      - name: Claim #3 — session portability (SSO core)
+        working-directory: spike/agent-native-rls
+        run: node claim3-sso.mjs
 
       - name: Upload spike logs on failure
         if: failure()

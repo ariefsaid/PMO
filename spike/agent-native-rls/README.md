@@ -27,7 +27,7 @@ discipline is both necessary and sufficient.
 |---|---|---|---|
 | 1 | Drizzle `.rls()` enforces RLS **identically to supabase-js** | **FULLY AUTOMATED** | `rls-parity.mjs` (5 assertions, below) |
 | 2 | `drizzle-kit pull` is **non-destructive / introspect-only** (Supabase migrations stay the single source of truth, §8) | **AUTOMATED** | `pull-check.sh` |
-| 3 | Assistant panel **SSO, no second login** | **MANUAL** (lowest risk) | manual steps, below |
+| 3 | Assistant panel **SSO, no second login** | **AUTOMATED** (portability core) + manual browser UX | `claim3-sso.mjs`; cookie-domain UX = manual, below |
 
 ### Claim #1 — RLS parity (the killer claim) — `rls-parity.mjs`
 
@@ -54,15 +54,24 @@ operation is introspect-only — Drizzle can *read* the schema without wanting t
 This keeps **Supabase migrations as the single schema source of truth** (ADR-0036 §8); Drizzle never runs
 `push`.
 
-### Claim #3 — assistant panel SSO (MANUAL — deferrable)
+### Claim #3 — session portability (the SSO core) — `claim3-sso.mjs`
 
-The only non-automated claim, and the lowest-risk — **defer it until #1 and #2 pass.** Manual steps:
+"SSO, no second login" decomposes into (a) the **substantive core** — the agent app, given PMO's
+session, is authenticated as the **same user** with the **same RLS ceiling**, no re-login — and (b) the
+**browser transport** (cookie-`Domain` auto-share) that delivers the session zero-click. `claim3-sso.mjs`
+automates (a) with real Supabase auth:
 
-1. Scaffold an `agent-native` app: `npx @agent-native/core@latest create`.
-2. Point its Drizzle config at **local Supabase** Postgres (the dev DB).
-3. Configure it to **trust the Supabase JWT** (shared signing secret / JWKS).
-4. Embed its assistant panel on a **local subdomain** (shared-cookie SSO, not iframe — ADR-0036 §8).
-5. Log into PMO, open the panel, and **confirm no second login prompt** (the PMO session is honored).
+1. **App #1 (PMO)** — `signInWithPassword` for a seeded user → real session; an own-org projects read returns the row.
+2. **App #2 (sidecar)** — a *separate, independent* supabase-js client → `setSession(App#1 tokens)` → `getUser()` is the **same `auth.uid()`** (no re-login) **and** the same own-org read returns the row (identical RLS).
+3. **App #3 (control)** — fresh client, no session → unauthenticated, projects read = 0.
+
+**Pass** = #1–#4 all hold. Handing tokens via `setSession` is exactly what a cookie/postMessage/URL-hash
+bridge feeds the second app — so this proves the mechanism headlessly.
+
+**Still manual (browser transport, lowest-risk):** the zero-code cookie-`Domain` auto-share UX, which
+needs a real parent domain (PMO prod is on `*.pages.dev` today). At §8 build time: scaffold the
+`agent-native` app, point its Drizzle at Supabase, embed its panel on `agent.<domain>` with a cookie
+storage adapter (`Domain=.<parent>`), log into PMO, and confirm no second login prompt.
 
 ## How to run
 

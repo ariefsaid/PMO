@@ -7,9 +7,11 @@
   },
   "scripts": {
     "test": "node rls-parity.mjs",
-    "pull-check": "bash pull-check.sh"
+    "pull-check": "bash pull-check.sh",
+    "claim3": "node claim3-sso.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "drizzle-orm": "^0.36.4",
     "postgres": "^3.4.5"
   },
