@@ -67,7 +67,7 @@
       place-items: center;
       flex: none;
       font-size: var(--ds-text-xs);
-      font-weight: var(--ds-weight-bold);
+      font-weight: var(--ds-weight-semibold);
       border: 2px solid var(--ds-border);
       background: var(--ds-surface-canvas);
       color: var(--ds-text-tertiary);
@@ -98,7 +98,7 @@
     .lc-step__label--active { color: var(--ds-primary); }
     .lc-step__ref {
       font-family: var(--ds-font-mono);
-      font-size: 10px;
+      font-size: var(--ds-text-xxs);
       color: var(--ds-text-tertiary);
     }
 
@@ -126,12 +126,15 @@
       flex-wrap: wrap;
     }
 
-    /* ── Overview bento: 2-col left 2fr / right 1fr ────────────────────────── */
+    /* ── Overview bento: left 1.6fr / right 1fr (side column not starved) ──── */
     .overview-bento {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
       gap: var(--ds-space-4);
       align-items: start;
+    }
+    @media (max-width: 920px) {
+      .overview-bento { grid-template-columns: 1fr; }
     }
     .overview-main { display: flex; flex-direction: column; gap: var(--ds-space-4); }
     .overview-side { display: flex; flex-direction: column; gap: var(--ds-space-4); }
@@ -202,10 +205,11 @@
     .budget-bar { height: 100%; border-radius: var(--ds-radius-pill); background: var(--ds-primary); }
     .budget-bar--warn { background: var(--ds-warning); }
 
-    /* Detail dl */
+    /* Detail dl — container-responsive: collapses to one column when the
+       side track is narrow, two when there's room (no slivered dt/dd). */
     .detail-dl {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: var(--ds-space-4) var(--ds-space-6);
     }
     .detail-dt {
@@ -254,7 +258,7 @@
     }
     .timeline-glyph--primary { background: var(--ds-primary-tint); color: var(--ds-primary); }
     .timeline-glyph--success { background: var(--ds-success-tint); color: var(--ds-success-text); }
-    .timeline-body { display: flex; flex-direction: column; gap: 1px; }
+    .timeline-body { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
     .timeline-text { font-size: var(--ds-text-sm); color: var(--ds-text-secondary); }
     .timeline-time { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
 
@@ -303,7 +307,7 @@
       align-items: center;
       justify-content: center;
       gap: var(--ds-space-3);
-      padding: var(--ds-space-12) var(--ds-space-6);
+      padding: var(--ds-space-10) var(--ds-space-6);
       color: var(--ds-text-tertiary);
       text-align: center;
     }
@@ -345,17 +349,27 @@
     /* Tab content area */
     .tab-panel { padding: var(--ds-space-4) 0; }
 
-    /* Approval notes card */
+    /* Approval notes — a quiet comment, not a status signal. Neutral
+       sunken surface + hairline; success color is reserved for the actual
+       Approved pill, not this info block. */
     .approval-notes {
       margin-top: var(--ds-space-4);
       padding: var(--ds-space-3) var(--ds-space-4);
-      background: var(--ds-success-tint);
-      border: 1px solid var(--ds-border);
+      background: var(--ds-surface-sunken);
+      border: 1px solid var(--ds-border-light);
       border-radius: var(--ds-radius-lg);
       font-size: var(--ds-text-sm);
-      color: var(--ds-success-text);
+      color: var(--ds-text-secondary);
     }
-    .approval-notes strong { display: block; font-weight: var(--ds-weight-semibold); margin-bottom: var(--ds-space-1); }
+    .approval-notes strong {
+      display: block;
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: var(--ds-tracking-wide);
+      color: var(--ds-text-tertiary);
+      margin-bottom: var(--ds-space-1);
+    }
   </style>
 </head>
 <body class="mockup-wrap">
@@ -454,7 +468,7 @@
         </div>
         <div style="flex:1; min-width:0;">
           <div class="ds-record-head__title">
-            <h1 class="ds-heading" style="font-size: var(--ds-text-xl);">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
+            <h1 class="ds-page-title">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
             <span class="ds-pill ds-pill--warning" role="status" aria-label="Status: Ordered">
               <span class="ds-pill__dot" aria-hidden="true"></span>
               Ordered
@@ -572,7 +586,7 @@
           <button class="ds-btn ds-btn--primary ds-btn--sm" aria-label="Confirm receipt of goods">
             Confirm Receipt
           </button>
-          <button class="ds-btn ds-btn--ghost ds-btn--sm" aria-label="Cancel request" style="color: var(--ds-destructive-text);">
+          <button class="ds-btn ds-btn--destructive-quiet ds-btn--sm" aria-label="Cancel request">
             Cancel request
           </button>
         </div>
@@ -829,7 +843,7 @@
               </tr>
               <tr style="background: var(--ds-surface-muted);">
                 <td colspan="3" style="text-align: right; font-weight: var(--ds-weight-semibold); padding-right: var(--ds-space-3);">Total</td>
-                <td class="is-num" style="font-weight: var(--ds-weight-bold); font-family: var(--ds-font-display);">SAR 209,300.00</td>
+                <td class="is-num ds-tnum" style="font-weight: var(--ds-weight-semibold); font-family: var(--ds-font-display);">SAR 209,300.00</td>
               </tr>
             </tbody>
           </table>
@@ -872,7 +886,7 @@
                 <td class="is-num">296,400.00</td>
                 <td>15 Sep 2024</td>
                 <td>
-                  <span class="ds-pill">Expired</span>
+                  <span class="ds-pill ds-pill--muted">Expired</span>
                 </td>
               </tr>
               <tr>
@@ -897,7 +911,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      DARK THEME
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div class="mockup-label dark" style="background: hsl(0 0% 9%); color: hsl(0 0% 50.6%); border-color: hsl(0 0% 16.5%);">Dark</div>
+<div class="mockup-label dark" style="background: var(--ds-surface-muted); color: var(--ds-text-tertiary); border-color: var(--ds-border);">Dark</div>
 <div class="dark mockup-dark-shell">
   <div class="ds-app">
     <!-- ── Rail ── -->
@@ -988,7 +1002,7 @@
         </div>
         <div style="flex:1; min-width:0;">
           <div class="ds-record-head__title">
-            <h1 class="ds-heading" style="font-size: var(--ds-text-xl);">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
+            <h1 class="ds-page-title">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
             <span class="ds-pill ds-pill--warning" role="status" aria-label="Status: Ordered">
               <span class="ds-pill__dot" aria-hidden="true"></span>
               Ordered
@@ -1094,7 +1108,7 @@
         <div class="decision-strip__actions">
           <button class="ds-btn ds-btn--secondary ds-btn--sm">Record GR</button>
           <button class="ds-btn ds-btn--primary ds-btn--sm">Confirm Receipt</button>
-          <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color: var(--ds-destructive-text);">Cancel request</button>
+          <button class="ds-btn ds-btn--destructive-quiet ds-btn--sm">Cancel request</button>
         </div>
       </div>
 
@@ -1213,55 +1227,6 @@
             </div>
           </div>
 
-          <!-- Loading skeleton state — shown in dark only as an extra illustrative state -->
-          <div style="margin-top: var(--ds-space-4);">
-            <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Loading state (skeleton)</p>
-            <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
-              <div style="padding: var(--ds-space-4); display: flex; flex-direction: column; gap: var(--ds-space-4);">
-                <div style="display: flex; align-items: center; gap: var(--ds-space-3);">
-                  <div class="skeleton" style="width: 44px; height: 44px; border-radius: var(--ds-radius-lg); flex: none;"></div>
-                  <div style="display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1;">
-                    <div class="skeleton skeleton--title"></div>
-                    <div class="skeleton skeleton--text-sm"></div>
-                  </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--ds-space-3);">
-                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
-                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
-                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
-                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
-                </div>
-                <div class="ds-table-wrap" style="border: 1px solid var(--ds-border);">
-                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 180px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
-                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 220px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
-                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 160px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Empty state — no line items (also illustrative) -->
-          <div style="margin-top: var(--ds-space-4);">
-            <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Empty state — no line items (Draft PR)</p>
-            <div class="ds-table-wrap">
-              <div class="section-head">
-                <span class="ds-label" style="color: var(--ds-text-secondary);">Line items</span>
-                <button class="ds-btn ds-btn--primary ds-btn--sm">
-                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                  Add item
-                </button>
-              </div>
-              <div class="empty-state">
-                <div class="empty-state__icon" aria-hidden="true">
-                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
-                </div>
-                <p class="empty-state__title">No line items yet</p>
-                <p class="empty-state__sub">Add at least one line item before submitting this purchase request.</p>
-                <button class="ds-btn ds-btn--secondary ds-btn--sm">Add first item</button>
-              </div>
-            </div>
-          </div>
-
         </div><!-- /overview-main dark -->
 
         <!-- ov-side dark -->
@@ -1323,6 +1288,55 @@
         </aside>
 
       </div><!-- /overview-bento dark -->
+
+      <!-- Loading skeleton state — full-width, mirrors the light frame -->
+      <div style="margin-top: var(--ds-space-4);">
+        <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Loading state (skeleton)</p>
+        <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+          <div style="padding: var(--ds-space-4); display: flex; flex-direction: column; gap: var(--ds-space-4);">
+            <div style="display: flex; align-items: center; gap: var(--ds-space-3);">
+              <div class="skeleton" style="width: 44px; height: 44px; border-radius: var(--ds-radius-lg); flex: none;"></div>
+              <div style="display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1;">
+                <div class="skeleton skeleton--title"></div>
+                <div class="skeleton skeleton--text-sm"></div>
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ds-space-3);">
+              <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+              <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+              <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+              <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+            </div>
+            <div class="ds-table-wrap" style="border: 1px solid var(--ds-border);">
+              <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 180px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+              <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 220px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+              <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 160px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state — no line items, full-width -->
+      <div style="margin-top: var(--ds-space-4);">
+        <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Empty state — no line items (Draft PR)</p>
+        <div class="ds-table-wrap">
+          <div class="section-head">
+            <span class="ds-label" style="color: var(--ds-text-secondary);">Line items</span>
+            <button class="ds-btn ds-btn--primary ds-btn--sm">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Add item
+            </button>
+          </div>
+          <div class="empty-state">
+            <div class="empty-state__icon" aria-hidden="true">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+            </div>
+            <p class="empty-state__title">No line items yet</p>
+            <p class="empty-state__sub">Add at least one line item before submitting this purchase request.</p>
+            <button class="ds-btn ds-btn--secondary ds-btn--sm">Add first item</button>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div><!-- /ds-app dark -->

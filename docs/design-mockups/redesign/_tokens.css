@@ -1,0 +1,302 @@
+/* ============================================================================
+   PMO Portal — Redesign token layer (--ds-* semantic system)
+   Self-contained; no build step. A static .html in this folder can <link> it.
+
+   - :root  = LIGHT theme (default).
+   - .dark  = DARK theme (full parity — every surface/neutral/text token overridden).
+
+   Ported NEUTRALS / SURFACES / type scale + weights / spacing / radii / elevation
+   from PMO's adopted records-workspace direction, re-expressed as PMO's OWN names.
+   The ACCENT/primary chain is PMO's existing blue hsl(221.2 83.2% 53.3%) plus
+   PMO's AA-tuned semantic tokens (warning / success / destructive + icon/text
+   variants). The kit's accent hue is NOT used.
+   ============================================================================ */
+
+/* ---- Type: Plus Jakarta Sans (display/headings) + DM Sans (body/UI) ---- */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+
+:root,
+.light {
+  /* ====================================================================
+     FONT FAMILIES
+     ==================================================================== */
+  --ds-font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;     /* body / UI / table */
+  --ds-font-display: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; /* page-title / heading / subheading */
+  --ds-font-mono: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;     /* IDs / codes / ⌘K */
+
+  /* ====================================================================
+     TYPE SCALE (rem) + WEIGHTS + LINE-HEIGHTS + TRACKING
+     Kit authority: body=1rem (16px), section-heading≈1.54rem (24.6px),
+     subheading≈1.23rem (19.7px), dense-label≈0.92rem (14.7px),
+     caption/tag≈0.85rem (13.6px), overline=0.625rem (10px),
+     page-title≈1.85rem (29.6px). Scale step ≈1.2 ratio.
+     ==================================================================== */
+  --ds-text-xxs: 0.625rem;  /* 10px  — overline / micro */
+  --ds-text-xs: 0.8125rem;  /* 13px  — captions, table th, tags, chips */
+  --ds-text-sm: 0.875rem;   /* 14px  — dense table cells, controls, nav */
+  --ds-text-md: 1rem;       /* 16px  — base body / default UI text */
+  --ds-text-lg: 1.25rem;    /* 20px  — subheading */
+  --ds-text-xl: 1.5rem;     /* 24px  — heading / card section title */
+  --ds-text-2xl: 1.875rem;  /* 30px  — page title / KPI value */
+  --ds-text-3xl: 2.25rem;   /* 36px  — hero number (exec dashboard) */
+
+  /* Three weights only — kit has 400/500/600. No 700. */
+  --ds-weight-regular: 400;
+  --ds-weight-medium: 500;
+  --ds-weight-semibold: 600;
+
+  --ds-leading-tight: 1.2;
+  --ds-leading-snug: 1.3;
+  --ds-leading-normal: 1.5;   /* raised from 1.45 — body text at 16px reads more comfortably */
+  --ds-leading-relaxed: 1.6;
+
+  --ds-tracking-tight: -0.02em;  /* page titles */
+  --ds-tracking-snug: -0.01em;   /* headings */
+  --ds-tracking-normal: 0em;     /* body / UI — explicit zero */
+  --ds-tracking-caps: 0.04em;    /* uppercase micro labels (table th) */
+  --ds-tracking-wide: 0.06em;    /* overline / uppercase */
+
+  /* ====================================================================
+     SPACING SCALE (4px base)
+     ==================================================================== */
+  --ds-space-0: 0px;
+  --ds-space-0_5: 2px;
+  --ds-space-1: 4px;
+  --ds-space-1_5: 6px;
+  --ds-space-2: 8px;
+  --ds-space-2_5: 10px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-7: 28px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+  --ds-space-12: 48px;
+  --ds-space-14: 56px;
+  --ds-space-16: 64px;
+
+  /* ====================================================================
+     RADII
+     ==================================================================== */
+  --ds-radius-xs: 2px;
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 6px;
+  --ds-radius-lg: 8px;
+  --ds-radius-xl: 10px;
+  --ds-radius-pill: 999px;   /* status pills — full radius */
+  --ds-radius-round: 100%;   /* avatars / dots */
+
+  /* ====================================================================
+     NEUTRAL RAMP (cool-warm grey, light)
+     12-step ramp: 1 = lightest surface, 12 = near-black text.
+     ==================================================================== */
+  --ds-neutral-1: hsl(0 0% 100%);
+  --ds-neutral-2: hsl(0 0% 98.8%);
+  --ds-neutral-3: hsl(0 0% 97.6%);
+  --ds-neutral-4: hsl(0 0% 94.5%);
+  --ds-neutral-5: hsl(0 0% 92.2%);
+  --ds-neutral-6: hsl(0 0% 83.9%);
+  --ds-neutral-7: hsl(0 0% 80%);
+  --ds-neutral-8: hsl(0 0% 70.2%);
+  --ds-neutral-9: hsl(0 0% 60%);
+  --ds-neutral-10: hsl(0 0% 51.4%);
+  --ds-neutral-11: hsl(0 0% 40%);
+  --ds-neutral-12: hsl(0 0% 20%);
+
+  /* ====================================================================
+     SURFACES  (records-workspace: white canvas, faint-grey rail)
+     ==================================================================== */
+  --ds-surface-canvas: var(--ds-neutral-1);      /* app/content canvas + cards (white) */
+  --ds-surface-raised: var(--ds-neutral-1);      /* cards / popovers / table body */
+  --ds-surface-sunken: var(--ds-neutral-2);      /* rail / subtle panels (faint grey) */
+  --ds-surface-muted: var(--ds-neutral-3);       /* quiet fills / count chips / tracks */
+  --ds-surface-hover: hsl(0 0% 0% / 0.039);      /* row/nav/ghost hover wash */
+  --ds-surface-pressed: hsl(0 0% 0% / 0.078);    /* pressed fill */
+  --ds-surface-selected: hsl(221.2 83.2% 53.3% / 0.08); /* selected row (primary tint) */
+  --ds-surface-overlay: hsl(240 10% 4% / 0.45);  /* modal / drawer / palette scrim */
+  --ds-surface-inverted: hsl(0 0% 12%);          /* tooltip / inverted surface */
+
+  /* ====================================================================
+     TEXT
+     Contrast verified (WCAG AA ≥4.5:1 for all normal-size text):
+       primary   (20% L) : 12.63 on white   ✓
+       secondary (40% L) :  5.74 on white   ✓
+       tertiary  (44% L) :  4.95 on white / 4.83 on sunken / 4.70 on muted ✓
+       disabled  (70.2% L): intentionally below AA — used ONLY on non-essential
+                            decorative contexts (placeholders, muted pills).
+     ==================================================================== */
+  --ds-text-primary: var(--ds-neutral-12);   /* headings, primary copy */
+  --ds-text-secondary: var(--ds-neutral-11); /* body / labels */
+  --ds-text-tertiary: hsl(0 0% 44%);         /* meta, captions, breadcrumb — AA 4.95:1 on white */
+  --ds-text-disabled: var(--ds-neutral-8);   /* placeholder / decorative-only (non-essential) */
+  --ds-text-inverted: hsl(0 0% 100%);        /* text on inverted/primary fills */
+
+  /* ====================================================================
+     BORDERS / LINES (hairline-first system)
+     ==================================================================== */
+  --ds-border-strong: var(--ds-neutral-6);
+  --ds-border: var(--ds-neutral-5);          /* default hairline (cards, fields, dividers) */
+  --ds-border-light: var(--ds-neutral-4);    /* faint inner dividers */
+  --ds-border-focus: hsl(221.2 83.2% 53.3%); /* focus ring = primary */
+
+  /* ====================================================================
+     ACCENT / PRIMARY CHAIN — PMO's KEPT blue (hsl 221.2 83.2% 53.3%)
+     ==================================================================== */
+  --ds-primary: hsl(221.2 83.2% 53.3%);
+  --ds-primary-hover: hsl(221.2 83.2% 48%);
+  --ds-primary-active: hsl(221.2 83.2% 42%);
+  --ds-primary-fg: hsl(0 0% 98%);                       /* text/icon on solid primary */
+  --ds-primary-tint: hsl(221.2 83.2% 53.3% / 0.10);     /* active nav / selected wash */
+  --ds-primary-tint-strong: hsl(221.2 83.2% 53.3% / 0.15);
+  --ds-ring: hsl(221.2 83.2% 53.3%);                    /* :focus-visible outline */
+
+  /* Categorical accent (KPI/avatar/timeline only — never an action color) */
+  --ds-violet: hsl(262 83% 58%);
+  --ds-violet-tint: hsl(262 83% 58% / 0.12);
+  --ds-violet-text: hsl(262 60% 42%);
+
+  /* ====================================================================
+     SEMANTIC STATUS — PMO's AA-tuned tokens (DESIGN.md)
+     base hue + soft tint (~10–12%) + darkened text/icon variant for AA.
+     ==================================================================== */
+  /* Destructive / negative / lost */
+  --ds-destructive: hsl(0 84.2% 60.2%);
+  --ds-destructive-hover: hsl(0 84.2% 54%);
+  --ds-destructive-fg: hsl(0 0% 98%);
+  --ds-destructive-tint: hsl(0 84.2% 60.2% / 0.12);
+  --ds-destructive-text: hsl(0 72% 45%);        /* AA text on the tint */
+
+  /* Warning / aging / caution */
+  --ds-warning: hsl(43 96% 56%);
+  --ds-warning-fg: hsl(22 78% 26%);             /* deep-brown text on amber */
+  --ds-warning-tint: hsl(43 96% 56% / 0.16);
+  --ds-warning-icon: hsl(38 92% 45%);           /* AA icon on warning tint */
+
+  /* Success / won / positive */
+  --ds-success: hsl(142 71% 45%);
+  --ds-success-fg: hsl(0 0% 98%);
+  --ds-success-tint: hsl(142 71% 45% / 0.12);
+  --ds-success-text: hsl(142 64% 28%);          /* AA text on success tint */
+
+  /* Neutral / progress workflow pill (label carries identity, not color) */
+  --ds-neutral-tint: var(--ds-neutral-3);
+  --ds-neutral-pill-text: var(--ds-neutral-11);
+
+  /* ====================================================================
+     ELEVATION — flat-by-default; shadows are a response to state / overlay.
+     Desaturated near-black at low alpha (never pure-black at high opacity).
+     ==================================================================== */
+  --ds-shadow-none: none;
+  --ds-shadow-resting: 0 1px 2px hsl(240 6% 10% / 0.06), 0 1px 3px hsl(240 6% 10% / 0.04); /* cards / KPI at rest */
+  --ds-shadow-hover: 0 2px 10px hsl(240 6% 10% / 0.08);   /* card / KPI hover lift */
+  --ds-shadow-raised: 0 4px 14px hsl(240 6% 10% / 0.10);  /* kanban / draggable */
+  --ds-shadow-primary: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.25); /* primary button seat */
+  --ds-shadow-overlay: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08); /* popover / toast */
+  --ds-shadow-tooltip: 0 8px 24px hsl(240 10% 4% / 0.4);  /* dark tooltip surface */
+
+  /* ====================================================================
+     SCOPED GRADIENT (navy-whisper — scoped accents only, never full bg)
+     ==================================================================== */
+  --ds-gradient-whisper: linear-gradient(180deg, hsl(221.2 83.2% 53.3% / 0.06) 0%, hsl(221.2 83.2% 53.3% / 0) 100%);
+  --ds-gradient-avatar: linear-gradient(135deg, hsl(221.2 83.2% 53.3%) 0%, hsl(262 83% 58%) 100%);
+
+  /* ====================================================================
+     SHELL METRICS
+     ==================================================================== */
+  --ds-rail-w: 236px;
+  --ds-content-max: 1440px; /* centered content cap — stops fixed inner tracks stranding width */
+  --ds-topbar-h: 56px;
+  --ds-control-h: 32px;     /* buttons / inputs / chips */
+  --ds-control-h-sm: 28px;  /* small buttons / nav items */
+  --ds-row-h: 48px;         /* dense table body row */
+}
+
+/* ============================================================================
+   DARK THEME — full parity. Surfaces invert, accent/status hues kept (with
+   tints re-weighted for the dark canvas). Add class="dark" to a container.
+   ============================================================================ */
+.dark {
+  /* Neutral ramp (dark): 1 = darkest canvas, 12 = lightest text */
+  --ds-neutral-1: hsl(0 0% 9%);
+  --ds-neutral-2: hsl(0 0% 10.6%);
+  --ds-neutral-3: hsl(0 0% 11.4%);
+  --ds-neutral-4: hsl(0 0% 13.3%);
+  --ds-neutral-5: hsl(0 0% 16.5%);
+  --ds-neutral-6: hsl(0 0% 22%);
+  --ds-neutral-7: hsl(0 0% 28.2%);
+  --ds-neutral-8: hsl(0 0% 40%);
+  --ds-neutral-9: hsl(0 0% 50.6%);
+  --ds-neutral-10: hsl(0 0% 60%);
+  --ds-neutral-11: hsl(0 0% 70.2%);
+  --ds-neutral-12: hsl(0 0% 92.2%);
+
+  /* Surfaces */
+  --ds-surface-canvas: hsl(0 0% 7.5%);
+  --ds-surface-raised: hsl(0 0% 10.6%);
+  --ds-surface-sunken: hsl(0 0% 9%);
+  --ds-surface-muted: hsl(0 0% 13.3%);
+  --ds-surface-hover: hsl(0 0% 100% / 0.05);
+  --ds-surface-pressed: hsl(0 0% 100% / 0.09);
+  --ds-surface-selected: hsl(221.2 83.2% 53.3% / 0.18);
+  --ds-surface-overlay: hsl(0 0% 0% / 0.72);
+  --ds-surface-inverted: hsl(0 0% 90%);
+
+  /* Text */
+  --ds-text-primary: var(--ds-neutral-12);
+  --ds-text-secondary: var(--ds-neutral-11);
+  --ds-text-tertiary: var(--ds-neutral-10);
+  --ds-text-disabled: var(--ds-neutral-8);
+  --ds-text-inverted: hsl(0 0% 9%);
+
+  /* Borders */
+  --ds-border-strong: hsl(0 0% 28.2%);
+  --ds-border: hsl(0 0% 16.5%);
+  --ds-border-light: hsl(0 0% 13.3%);
+  --ds-border-focus: hsl(221.2 83.2% 60%);
+
+  /* Accent / primary — slightly lifted L for contrast on dark */
+  --ds-primary: hsl(221.2 83.2% 60%);
+  --ds-primary-hover: hsl(221.2 83.2% 66%);
+  --ds-primary-active: hsl(221.2 83.2% 72%);
+  --ds-primary-fg: hsl(0 0% 100%);
+  --ds-primary-tint: hsl(221.2 83.2% 60% / 0.18);
+  --ds-primary-tint-strong: hsl(221.2 83.2% 60% / 0.26);
+  --ds-ring: hsl(221.2 83.2% 60%);
+
+  --ds-violet: hsl(262 83% 70%);
+  --ds-violet-tint: hsl(262 83% 70% / 0.20);
+  --ds-violet-text: hsl(262 70% 78%);
+
+  /* Status — lifted for dark canvas, tints stronger, text variants lightened */
+  --ds-destructive: hsl(0 75% 62%);
+  --ds-destructive-hover: hsl(0 75% 68%);
+  --ds-destructive-fg: hsl(0 0% 100%);
+  --ds-destructive-tint: hsl(0 75% 62% / 0.22);
+  --ds-destructive-text: hsl(0 80% 76%);
+
+  --ds-warning: hsl(43 90% 60%);
+  --ds-warning-fg: hsl(40 70% 12%);
+  --ds-warning-tint: hsl(43 90% 60% / 0.20);
+  --ds-warning-icon: hsl(43 90% 64%);
+
+  --ds-success: hsl(142 60% 52%);
+  --ds-success-fg: hsl(0 0% 100%);
+  --ds-success-tint: hsl(142 60% 52% / 0.20);
+  --ds-success-text: hsl(142 55% 70%);
+
+  --ds-neutral-tint: hsl(0 0% 16.5%);
+  --ds-neutral-pill-text: var(--ds-neutral-11);
+
+  /* Elevation — black-heavier on the dark canvas */
+  --ds-shadow-resting: 0 1px 2px hsl(0 0% 0% / 0.4), 0 1px 3px hsl(0 0% 0% / 0.3);
+  --ds-shadow-hover: 0 2px 12px hsl(0 0% 0% / 0.5);
+  --ds-shadow-raised: 0 4px 16px hsl(0 0% 0% / 0.55);
+  --ds-shadow-primary: 0 1px 2px hsl(221.2 83.2% 53.3% / 0.4);
+  --ds-shadow-overlay: 0 10px 30px hsl(0 0% 0% / 0.6), 0 2px 6px hsl(0 0% 0% / 0.4);
+  --ds-shadow-tooltip: 0 8px 24px hsl(0 0% 0% / 0.7);
+
+  /* Scoped gradients */
+  --ds-gradient-whisper: linear-gradient(180deg, hsl(221.2 83.2% 60% / 0.10) 0%, hsl(221.2 83.2% 60% / 0) 100%);
+  --ds-gradient-avatar: linear-gradient(135deg, hsl(221.2 83.2% 60%) 0%, hsl(262 83% 70%) 100%);
+}

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PMO Portal — App shell mockup (light + dark)</title>
+  <link rel="stylesheet" href="_tokens.css" />
+  <link rel="stylesheet" href="_base.css" />
+  <style>
+    /* ── Mockup page scaffold only — no colors, only layout/labels ── */
+    .mockup-page {
+      padding: 40px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 56px;
+      min-height: 100vh;
+    }
+    .mockup-label {
+      font-family: var(--ds-font-body);
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+      margin-bottom: var(--ds-space-3);
+    }
+    /* Each shell demo is a fixed-height iframe-like box */
+    .shell-frame {
+      width: 100%;
+      height: 700px;
+      border-radius: var(--ds-radius-xl);
+      overflow: hidden;
+      border: 1px solid var(--ds-border);
+      box-shadow: var(--ds-shadow-overlay);
+      position: relative;
+    }
+    /* Dark frame sits inside a .dark scope */
+    .dark-frame-wrap {
+      /* sets dark canvas behind the rounded border */
+      background: var(--ds-surface-canvas);
+      border-radius: var(--ds-radius-xl);
+    }
+
+    /* ── Project icon avatar (token-based, matches projects-list.html) ── */
+    .proj-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--ds-radius-md);
+      display: grid; place-items: center;
+      font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+      color: var(--ds-primary-fg);
+      flex: none;
+    }
+    .proj-icon--blue   { background: var(--ds-primary); }
+    .proj-icon--violet { background: var(--ds-violet); }
+    .proj-icon--amber  { background: var(--ds-warning-icon); }
+    .proj-icon--green  { background: var(--ds-success); }
+    .proj-icon--muted  { background: var(--ds-surface-muted); color: var(--ds-text-tertiary); }
+
+    /* ── ⌘K Palette overlay (shown open in mockup) ── */
+    .palette-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--ds-surface-overlay);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 80px;
+      z-index: 100;
+    }
+    .palette {
+      width: 560px;
+      background: var(--ds-surface-raised);
+      border: 1px solid var(--ds-border-strong);
+      border-radius: var(--ds-radius-lg);
+      box-shadow: var(--ds-shadow-overlay);
+      overflow: hidden;
+    }
+    .palette__input-row {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      padding: 0 var(--ds-space-3);
+      height: 48px;
+      border-bottom: 1px solid var(--ds-border);
+    }
+    .palette__icon {
+      color: var(--ds-text-tertiary);
+      flex: none;
+      width: 16px; height: 16px;
+    }
+    .palette__input {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      font-family: var(--ds-font-body);
+      font-size: var(--ds-text-md);
+      color: var(--ds-text-primary);
+      outline: none;
+    }
+    .palette__input::placeholder { color: var(--ds-text-disabled); }
+    .palette__esc {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      padding: 1px 6px;
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-sm);
+      background: var(--ds-surface-muted);
+      color: var(--ds-text-tertiary);
+    }
+    .palette__body {
+      max-height: 360px;
+      overflow-y: auto;
+      padding: var(--ds-space-1) 0;
+    }
+    .palette__group-label {
+      padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-1);
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: var(--ds-tracking-wide);
+      color: var(--ds-text-tertiary);
+    }
+    .palette__item {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      height: 40px;
+      padding: 0 var(--ds-space-3);
+      cursor: pointer;
+      transition: background 0.1s ease;
+    }
+    .palette__item:hover,
+    .palette__item.is-selected {
+      background: var(--ds-surface-hover);
+    }
+    .palette__item.is-selected {
+      background: var(--ds-surface-selected);
+    }
+    .palette__item-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--ds-radius-sm);
+      background: var(--ds-surface-muted);
+      color: var(--ds-text-secondary);
+      display: grid; place-items: center;
+      flex: none;
+    }
+    .palette__item-title {
+      flex: 1;
+      font-size: var(--ds-text-sm);
+      color: var(--ds-text-primary);
+    }
+    .palette__item-code {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .palette__item-badge {
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .palette__footer {
+      border-top: 1px solid var(--ds-border);
+      padding: var(--ds-space-2) var(--ds-space-3);
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-3);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .palette__footer kbd {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      padding: 1px 5px;
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-xs);
+      background: var(--ds-surface-muted);
+    }
+
+    /* ── Progress bar (inline, tokens only) ── */
+    .progress-track {
+      height: 4px;
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-pill);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-primary);
+    }
+    .progress-fill--warn { background: var(--ds-warning); }
+    .progress-fill--ok   { background: var(--ds-success); }
+
+    /* ── Skeleton loading rows ── */
+    .skel {
+      display: inline-block;
+      border-radius: var(--ds-radius-sm);
+      background: var(--ds-surface-muted);
+      animation: skel-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes skel-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.45; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mockup-page">
+
+    <!-- ══════════════════════════════════════════════
+         LIGHT
+         ══════════════════════════════════════════════ -->
+    <section>
+      <p class="mockup-label">Light</p>
+      <div class="shell-frame">
+        <!-- App shell grid -->
+        <div class="ds-app" style="height:100%;">
+
+          <!-- Rail -->
+          <aside class="ds-rail" aria-label="Primary navigation">
+            <div class="ds-rail__brand">
+              <span class="ds-rail__logo" aria-hidden="true">P</span>
+              PMO Portal
+            </div>
+
+            <!-- Overview group -->
+            <span class="ds-rail__group-label ds-overline">Overview</span>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              Dashboard
+            </a>
+
+            <!-- CRM group -->
+            <span class="ds-rail__group-label ds-overline">CRM</span>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v4H3z"/><path d="M3 10h18v4H3z"/><path d="M3 17h9v4H3z"/></svg>
+              Sales Pipeline
+              <span class="ds-nav-item__count">12</span>
+            </a>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16M4 9h16"/></svg>
+              Companies
+              <span class="ds-nav-item__count">34</span>
+            </a>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              Contacts
+            </a>
+
+            <!-- Delivery group -->
+            <span class="ds-rail__group-label ds-overline">Delivery</span>
+            <a href="#" class="ds-nav-item is-active" aria-current="page">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" stroke-width="1.6"/></svg>
+              Projects
+              <span class="ds-nav-item__count">18</span>
+            </a>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+              Procurement
+              <span class="ds-nav-item__count">7</span>
+            </a>
+
+            <!-- Workforce group -->
+            <span class="ds-rail__group-label ds-overline">Workforce</span>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+              Timesheets
+            </a>
+            <a href="#" class="ds-nav-item">
+              <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Approvals
+              <span class="ds-nav-item__count">3</span>
+            </a>
+
+            <!-- Rail foot: settings + user chip -->
+            <div class="ds-rail__foot">
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Administration
+              </a>
+              <div class="ds-userchip">
+                <div class="ds-avatar">AS</div>
+                <div>
+                  <div class="ds-userchip__name">Arief Said</div>
+                  <div class="ds-userchip__role">Project Manager</div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Top bar -->
+          <header class="ds-topbar" role="banner">
+            <!-- ⌘K search trigger -->
+            <button class="ds-topbar__search" aria-label="Open command palette (⌘K)" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Search or jump to…
+              <kbd class="ds-kbd">⌘K</kbd>
+            </button>
+            <span class="ds-topbar__spacer"></span>
+            <!-- Notification bell -->
+            <button class="ds-iconbtn" type="button" aria-label="Notifications (3 unread)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+            </button>
+            <!-- User chip -->
+            <div class="ds-userchip">
+              <div class="ds-avatar">AS</div>
+              <div>
+                <div class="ds-userchip__name">Arief Said</div>
+                <div class="ds-userchip__role">Project Manager</div>
+              </div>
+            </div>
+          </header>
+
+          <!-- Content area -->
+          <main class="ds-content" id="main-light">
+            <!-- Breadcrumb -->
+            <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+              <a href="#">Home</a>
+              <span class="ds-breadcrumb__sep" aria-hidden="true">›</span>
+              <span class="ds-breadcrumb__current">Projects</span>
+            </nav>
+
+            <!-- Page head -->
+            <div class="ds-page-head">
+              <h1 class="ds-page-title">Projects</h1>
+              <span class="ds-chip ds-tnum">18</span>
+              <div class="ds-page-head__actions">
+                <button class="ds-btn ds-btn--secondary ds-btn--sm" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+                  Filter
+                </button>
+                <button class="ds-btn ds-btn--primary ds-btn--sm" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  New project
+                </button>
+              </div>
+            </div>
+
+            <!-- Toolbar: segment filter + search -->
+            <div class="ds-table-wrap">
+              <div class="ds-toolbar">
+                <div style="display:flex;gap:var(--ds-space-1);border:1px solid var(--ds-border);border-radius:var(--ds-radius-md);padding:2px;background:var(--ds-surface-muted);">
+                  <button class="ds-btn ds-btn--sm" type="button" style="background:var(--ds-surface-raised);border:1px solid var(--ds-border);color:var(--ds-text-primary);">All</button>
+                  <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">My Projects</button>
+                  <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">Ongoing</button>
+                  <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">Completed</button>
+                  <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button" style="color:var(--ds-warning-icon);">At risk</button>
+                </div>
+                <span class="ds-toolbar__spacer"></span>
+                <div class="ds-control" style="gap:var(--ds-space-2);min-width:180px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <span style="color:var(--ds-text-disabled);font-size:var(--ds-text-sm);">Search projects…</span>
+                </div>
+                <button class="ds-control" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+                  Sort
+                </button>
+                <button class="ds-control" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  Table
+                </button>
+              </div>
+
+              <!-- Dense table: list of projects -->
+              <table class="ds-table" aria-label="Projects list">
+                <thead>
+                  <tr>
+                    <th style="width:36px;padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select all" style="width:14px;height:14px;accent-color:var(--ds-primary);" /></th>
+                    <th>Project</th>
+                    <th>Customer</th>
+                    <th>PM</th>
+                    <th>Status</th>
+                    <th class="is-num">Contract</th>
+                    <th>Progress</th>
+                    <th>Budget used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Row 1: at-risk -->
+                  <tr aria-selected="false">
+                    <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Meridian Offshore Hub" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="proj-icon proj-icon--blue" aria-hidden="true">M</span>
+                        <div>
+                          <div class="ds-cell-strong" style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                            Meridian Offshore Hub
+                            <span class="ds-pill ds-pill--warning" style="font-size:var(--ds-text-xxs);">At risk</span>
+                          </div>
+                          <div class="ds-cell-sub ds-mono">PRJ-0041</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Meridian Energy Corp</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                        <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">K</span>
+                        Kwame Asante
+                      </div>
+                    </td>
+                    <td><span class="ds-pill">Ongoing</span></td>
+                    <td class="is-num ds-tnum">$4,200,000</td>
+                    <td style="min-width:120px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">62%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--warn" style="width:62%;"></div></div>
+                      </div>
+                    </td>
+                    <td style="min-width:140px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">93%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--warn" style="width:93%;"></div></div>
+                        <div class="ds-cell-sub">$3.9M of $4.2M</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Row 2: selected -->
+                  <tr aria-selected="true">
+                    <td style="padding:0 var(--ds-space-3);"><input type="checkbox" checked aria-label="Select Coral Basin Subsea Pipeline" style="width:14px;height:14px;accent-color:var(--ds-primary);" /></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="proj-icon proj-icon--violet" aria-hidden="true">C</span>
+                        <div>
+                          <div class="ds-cell-strong">Coral Basin Subsea Pipeline</div>
+                          <div class="ds-cell-sub ds-mono">PRJ-0038</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Atlantic Deepwater Ltd</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                        <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">S</span>
+                        Sarah Okonkwo
+                      </div>
+                    </td>
+                    <td><span class="ds-pill">Ongoing</span></td>
+                    <td class="is-num ds-tnum">$7,850,000</td>
+                    <td style="min-width:120px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">48%</span>
+                        <div class="progress-track"><div class="progress-fill" style="width:48%;"></div></div>
+                      </div>
+                    </td>
+                    <td style="min-width:140px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">51%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:51%;"></div></div>
+                        <div class="ds-cell-sub">$4.0M of $7.9M</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Row 3 -->
+                  <tr aria-selected="false">
+                    <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Titan Onshore Processing Plant" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="proj-icon proj-icon--green" aria-hidden="true">T</span>
+                        <div>
+                          <div class="ds-cell-strong">Titan Onshore Processing Plant</div>
+                          <div class="ds-cell-sub ds-mono">PRJ-0034</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Titan Resources Group</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                        <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">R</span>
+                        Ravi Mehta
+                      </div>
+                    </td>
+                    <td><span class="ds-pill ds-pill--success">Won – KoM pending</span></td>
+                    <td class="is-num ds-tnum">$12,400,000</td>
+                    <td style="min-width:120px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">11%</span>
+                        <div class="progress-track"><div class="progress-fill" style="width:11%;"></div></div>
+                      </div>
+                    </td>
+                    <td style="min-width:140px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">8%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:8%;"></div></div>
+                        <div class="ds-cell-sub">$1.0M of $12.4M</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Row 4: on hold -->
+                  <tr aria-selected="false">
+                    <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Delta Coastal Fiber Rollout" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="proj-icon proj-icon--amber" aria-hidden="true">D</span>
+                        <div>
+                          <div class="ds-cell-strong">Delta Coastal Fiber Rollout</div>
+                          <div class="ds-cell-sub ds-mono">PRJ-0029</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>DeltaTel Infrastructure</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                        <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">A</span>
+                        Arief Said
+                      </div>
+                    </td>
+                    <td><span class="ds-pill ds-pill--warning">On hold</span></td>
+                    <td class="is-num ds-tnum">$3,600,000</td>
+                    <td style="min-width:120px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">34%</span>
+                        <div class="progress-track"><div class="progress-fill" style="width:34%;"></div></div>
+                      </div>
+                    </td>
+                    <td style="min-width:140px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">39%</span>
+                        <div class="progress-track"><div class="progress-fill" style="width:39%;"></div></div>
+                        <div class="ds-cell-sub">$1.4M of $3.6M</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Row 5: skeleton/loading row to show loading state variant -->
+                  <tr aria-selected="false" style="opacity:0.6;">
+                    <td style="padding:0 var(--ds-space-3);"></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="skel" style="width:28px;height:28px;border-radius:var(--ds-radius-md);"></span>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <span class="skel" style="width:160px;height:12px;"></span>
+                          <span class="skel" style="width:72px;height:10px;"></span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span class="skel" style="width:110px;height:12px;"></span></td>
+                    <td><span class="skel" style="width:88px;height:12px;"></span></td>
+                    <td><span class="skel" style="width:64px;height:20px;border-radius:var(--ds-radius-pill);"></span></td>
+                    <td class="is-num"><span class="skel" style="width:72px;height:12px;"></span></td>
+                    <td><span class="skel" style="width:100%;height:4px;border-radius:var(--ds-radius-pill);"></span></td>
+                    <td><span class="skel" style="width:100%;height:4px;border-radius:var(--ds-radius-pill);"></span></td>
+                  </tr>
+
+                  <!-- Row 6: completed -->
+                  <tr aria-selected="false">
+                    <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Harbour Gate Terminal Expansion" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                        <span class="proj-icon proj-icon--muted" aria-hidden="true">H</span>
+                        <div>
+                          <div class="ds-cell-strong" style="color:var(--ds-text-secondary);">Harbour Gate Terminal Expansion</div>
+                          <div class="ds-cell-sub ds-mono">PRJ-0022</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style="color:var(--ds-text-secondary);">Harbour Logistics Intl</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                        <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">S</span>
+                        Sarah Okonkwo
+                      </div>
+                    </td>
+                    <td><span class="ds-pill">Close-out</span></td>
+                    <td class="is-num ds-tnum" style="color:var(--ds-text-secondary);">$2,100,000</td>
+                    <td style="min-width:120px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">100%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:100%;"></div></div>
+                      </div>
+                    </td>
+                    <td style="min-width:140px;">
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">96%</span>
+                        <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:96%;"></div></div>
+                        <div class="ds-cell-sub">$2.0M of $2.1M</div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- table-wrap end -->
+
+            <!-- Empty state variant (shown below table as a reference) -->
+            <div class="ds-card" style="margin-top:var(--ds-space-6);text-align:center;padding:var(--ds-space-8);display:flex;flex-direction:column;align-items:center;gap:var(--ds-space-3);">
+              <div class="ds-kpi__icon" style="width:40px;height:40px;border-radius:var(--ds-radius-lg);background:var(--ds-surface-muted);color:var(--ds-text-tertiary);display:grid;place-items:center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div>
+                <p class="ds-subheading" style="margin-bottom:var(--ds-space-1);">No projects match these filters</p>
+                <p style="font-size:var(--ds-text-sm);color:var(--ds-text-tertiary);margin:0;">Try a different status, customer, or PM — or clear filters.</p>
+              </div>
+              <button class="ds-btn ds-btn--secondary ds-btn--sm" type="button">Clear filters</button>
+            </div>
+
+          </main><!-- /ds-content -->
+
+        </div><!-- /.ds-app -->
+
+        <!-- ⌘K palette overlay (shown open) -->
+        <div class="palette-overlay" role="dialog" aria-modal="true" aria-label="Command palette">
+          <div class="palette">
+            <div class="palette__input-row">
+              <svg class="palette__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="palette__input" type="text" placeholder="Search or jump to…" value="proj" aria-label="Search" />
+              <span class="palette__esc">Esc</span>
+            </div>
+            <div class="palette__body">
+              <p class="palette__group-label">Records — Projects</p>
+              <div class="palette__item is-selected">
+                <div class="palette__item-icon" style="background:var(--ds-primary-tint);color:var(--ds-primary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <span class="palette__item-title">Meridian Offshore Hub</span>
+                <span class="palette__item-code">PRJ-0041</span>
+                <span class="palette__item-badge"><span class="ds-pill ds-pill--warning" style="font-size:var(--ds-text-xxs);">At risk</span></span>
+              </div>
+              <div class="palette__item">
+                <div class="palette__item-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <span class="palette__item-title">Coral Basin Subsea Pipeline</span>
+                <span class="palette__item-code">PRJ-0038</span>
+              </div>
+              <div class="palette__item">
+                <div class="palette__item-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <span class="palette__item-title">Delta Coastal Fiber Rollout</span>
+                <span class="palette__item-code">PRJ-0029</span>
+              </div>
+              <p class="palette__group-label">Navigate</p>
+              <div class="palette__item">
+                <div class="palette__item-icon" style="background:var(--ds-primary-tint);color:var(--ds-primary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <span class="palette__item-title">Go to Projects</span>
+                <span class="palette__item-badge" style="font-size:11px;color:var(--ds-text-tertiary);">/projects</span>
+              </div>
+              <div class="palette__item">
+                <div class="palette__item-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                </div>
+                <span class="palette__item-title">Go to Procurement</span>
+                <span class="palette__item-badge" style="font-size:11px;color:var(--ds-text-tertiary);">/procurement</span>
+              </div>
+            </div>
+            <div class="palette__footer">
+              <span><kbd>↑↓</kbd> navigate</span>
+              <span><kbd>↵</kbd> open</span>
+              <span><kbd>Esc</kbd> close</span>
+            </div>
+          </div>
+        </div>
+        <!-- /palette overlay -->
+
+      </div><!-- /.shell-frame -->
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         DARK
+         ══════════════════════════════════════════════ -->
+    <section>
+      <p class="mockup-label">Dark</p>
+      <div class="dark dark-frame-wrap">
+        <div class="shell-frame" style="border-color:var(--ds-border);">
+          <!-- App shell grid -->
+          <div class="ds-app" style="height:100%;">
+
+            <!-- Rail -->
+            <aside class="ds-rail" aria-label="Primary navigation">
+              <div class="ds-rail__brand">
+                <span class="ds-rail__logo" aria-hidden="true">P</span>
+                PMO Portal
+              </div>
+
+              <span class="ds-rail__group-label ds-overline">Overview</span>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Dashboard
+              </a>
+
+              <span class="ds-rail__group-label ds-overline">CRM</span>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v4H3z"/><path d="M3 10h18v4H3z"/><path d="M3 17h9v4H3z"/></svg>
+                Sales Pipeline
+                <span class="ds-nav-item__count">12</span>
+              </a>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16M4 9h16"/></svg>
+                Companies
+                <span class="ds-nav-item__count">34</span>
+              </a>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                Contacts
+              </a>
+
+              <span class="ds-rail__group-label ds-overline">Delivery</span>
+              <a href="#" class="ds-nav-item is-active" aria-current="page">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" stroke-width="1.6"/></svg>
+                Projects
+                <span class="ds-nav-item__count">18</span>
+              </a>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                Procurement
+                <span class="ds-nav-item__count">7</span>
+              </a>
+
+              <span class="ds-rail__group-label ds-overline">Workforce</span>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+                Timesheets
+              </a>
+              <a href="#" class="ds-nav-item">
+                <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Approvals
+                <span class="ds-nav-item__count">3</span>
+              </a>
+
+              <div class="ds-rail__foot">
+                <a href="#" class="ds-nav-item">
+                  <svg class="ds-nav-item__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  Administration
+                </a>
+                <div class="ds-userchip">
+                  <div class="ds-avatar">AS</div>
+                  <div>
+                    <div class="ds-userchip__name">Arief Said</div>
+                    <div class="ds-userchip__role">Project Manager</div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Top bar -->
+            <header class="ds-topbar" role="banner">
+              <button class="ds-topbar__search" aria-label="Open command palette (⌘K)" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Search or jump to…
+                <kbd class="ds-kbd">⌘K</kbd>
+              </button>
+              <span class="ds-topbar__spacer"></span>
+              <button class="ds-iconbtn" type="button" aria-label="Notifications (3 unread)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+              </button>
+              <div class="ds-userchip">
+                <div class="ds-avatar">AS</div>
+                <div>
+                  <div class="ds-userchip__name">Arief Said</div>
+                  <div class="ds-userchip__role">Project Manager</div>
+                </div>
+              </div>
+            </header>
+
+            <!-- Content -->
+            <main class="ds-content" id="main-dark">
+              <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+                <a href="#">Home</a>
+                <span class="ds-breadcrumb__sep" aria-hidden="true">›</span>
+                <span class="ds-breadcrumb__current">Projects</span>
+              </nav>
+
+              <div class="ds-page-head">
+                <h1 class="ds-page-title">Projects</h1>
+                <span class="ds-chip ds-tnum">18</span>
+                <div class="ds-page-head__actions">
+                  <button class="ds-btn ds-btn--secondary ds-btn--sm" type="button">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M6 12h12M9 18h6"/></svg>
+                    Filter
+                  </button>
+                  <button class="ds-btn ds-btn--primary ds-btn--sm" type="button">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New project
+                  </button>
+                </div>
+              </div>
+
+              <div class="ds-table-wrap">
+                <div class="ds-toolbar">
+                  <div style="display:flex;gap:var(--ds-space-1);border:1px solid var(--ds-border);border-radius:var(--ds-radius-md);padding:2px;background:var(--ds-surface-muted);">
+                    <button class="ds-btn ds-btn--sm" type="button" style="background:var(--ds-surface-raised);border:1px solid var(--ds-border);color:var(--ds-text-primary);">All</button>
+                    <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">My Projects</button>
+                    <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">Ongoing</button>
+                    <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button">Completed</button>
+                    <button class="ds-btn ds-btn--ghost ds-btn--sm" type="button" style="color:var(--ds-warning-icon);">At risk</button>
+                  </div>
+                  <span class="ds-toolbar__spacer"></span>
+                  <div class="ds-control" style="gap:var(--ds-space-2);min-width:180px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span style="color:var(--ds-text-disabled);font-size:var(--ds-text-sm);">Search projects…</span>
+                  </div>
+                  <button class="ds-control" type="button">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+                    Sort
+                  </button>
+                  <button class="ds-control" type="button">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Table
+                  </button>
+                </div>
+
+                <table class="ds-table" aria-label="Projects list">
+                  <thead>
+                    <tr>
+                      <th style="width:36px;padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select all" style="width:14px;height:14px;accent-color:var(--ds-primary);" /></th>
+                      <th>Project</th>
+                      <th>Customer</th>
+                      <th>PM</th>
+                      <th>Status</th>
+                      <th class="is-num">Contract</th>
+                      <th>Progress</th>
+                      <th>Budget used</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr aria-selected="false">
+                      <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Meridian Offshore Hub" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                          <span class="proj-icon proj-icon--blue" aria-hidden="true">M</span>
+                          <div>
+                            <div class="ds-cell-strong" style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                              Meridian Offshore Hub
+                              <span class="ds-pill ds-pill--warning" style="font-size:var(--ds-text-xxs);">At risk</span>
+                            </div>
+                            <div class="ds-cell-sub ds-mono">PRJ-0041</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>Meridian Energy Corp</td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                          <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">K</span>
+                          Kwame Asante
+                        </div>
+                      </td>
+                      <td><span class="ds-pill">Ongoing</span></td>
+                      <td class="is-num ds-tnum">$4,200,000</td>
+                      <td style="min-width:120px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">62%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--warn" style="width:62%;"></div></div>
+                        </div>
+                      </td>
+                      <td style="min-width:140px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">93%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--warn" style="width:93%;"></div></div>
+                          <div class="ds-cell-sub">$3.9M of $4.2M</div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr aria-selected="true">
+                      <td style="padding:0 var(--ds-space-3);"><input type="checkbox" checked aria-label="Select Coral Basin Subsea Pipeline" style="width:14px;height:14px;accent-color:var(--ds-primary);" /></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                          <span class="proj-icon proj-icon--violet" aria-hidden="true">C</span>
+                          <div>
+                            <div class="ds-cell-strong">Coral Basin Subsea Pipeline</div>
+                            <div class="ds-cell-sub ds-mono">PRJ-0038</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>Atlantic Deepwater Ltd</td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                          <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">S</span>
+                          Sarah Okonkwo
+                        </div>
+                      </td>
+                      <td><span class="ds-pill">Ongoing</span></td>
+                      <td class="is-num ds-tnum">$7,850,000</td>
+                      <td style="min-width:120px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">48%</span>
+                          <div class="progress-track"><div class="progress-fill" style="width:48%;"></div></div>
+                        </div>
+                      </td>
+                      <td style="min-width:140px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">51%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:51%;"></div></div>
+                          <div class="ds-cell-sub">$4.0M of $7.9M</div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr aria-selected="false">
+                      <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Titan Onshore Processing Plant" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                          <span class="proj-icon proj-icon--green" aria-hidden="true">T</span>
+                          <div>
+                            <div class="ds-cell-strong">Titan Onshore Processing Plant</div>
+                            <div class="ds-cell-sub ds-mono">PRJ-0034</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>Titan Resources Group</td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                          <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">R</span>
+                          Ravi Mehta
+                        </div>
+                      </td>
+                      <td><span class="ds-pill ds-pill--success">Won – KoM pending</span></td>
+                      <td class="is-num ds-tnum">$12,400,000</td>
+                      <td style="min-width:120px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">11%</span>
+                          <div class="progress-track"><div class="progress-fill" style="width:11%;"></div></div>
+                        </div>
+                      </td>
+                      <td style="min-width:140px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">8%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:8%;"></div></div>
+                          <div class="ds-cell-sub">$1.0M of $12.4M</div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr aria-selected="false">
+                      <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Delta Coastal Fiber Rollout" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                          <span class="proj-icon proj-icon--amber" aria-hidden="true">D</span>
+                          <div>
+                            <div class="ds-cell-strong">Delta Coastal Fiber Rollout</div>
+                            <div class="ds-cell-sub ds-mono">PRJ-0029</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>DeltaTel Infrastructure</td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                          <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">A</span>
+                          Arief Said
+                        </div>
+                      </td>
+                      <td><span class="ds-pill ds-pill--warning">On hold</span></td>
+                      <td class="is-num ds-tnum">$3,600,000</td>
+                      <td style="min-width:120px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">34%</span>
+                          <div class="progress-track"><div class="progress-fill" style="width:34%;"></div></div>
+                        </div>
+                      </td>
+                      <td style="min-width:140px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">39%</span>
+                          <div class="progress-track"><div class="progress-fill" style="width:39%;"></div></div>
+                          <div class="ds-cell-sub">$1.4M of $3.6M</div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr aria-selected="false">
+                      <td style="padding:0 var(--ds-space-3);"><input type="checkbox" aria-label="Select Harbour Gate Terminal Expansion" style="width:14px;height:14px;accent-color:var(--ds-primary);visibility:hidden;" /></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-2);">
+                          <span class="proj-icon proj-icon--muted" aria-hidden="true">H</span>
+                          <div>
+                            <div class="ds-cell-strong" style="color:var(--ds-text-secondary);">Harbour Gate Terminal Expansion</div>
+                            <div class="ds-cell-sub ds-mono">PRJ-0022</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style="color:var(--ds-text-secondary);">Harbour Logistics Intl</td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:var(--ds-space-1_5);">
+                          <span style="width:20px;height:20px;border-radius:50%;background:var(--ds-surface-muted);display:grid;place-items:center;font-size:var(--ds-text-xxs);font-weight:var(--ds-weight-semibold);color:var(--ds-text-tertiary);flex:none;">S</span>
+                          Sarah Okonkwo
+                        </div>
+                      </td>
+                      <td><span class="ds-pill">Close-out</span></td>
+                      <td class="is-num ds-tnum" style="color:var(--ds-text-secondary);">$2,100,000</td>
+                      <td style="min-width:120px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">100%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:100%;"></div></div>
+                        </div>
+                      </td>
+                      <td style="min-width:140px;">
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                          <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary);">96%</span>
+                          <div class="progress-track"><div class="progress-fill progress-fill--ok" style="width:96%;"></div></div>
+                          <div class="ds-cell-sub">$2.0M of $2.1M</div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- /table-wrap -->
+
+            </main>
+
+          </div><!-- /.ds-app -->
+
+          <!-- ⌘K palette overlay — dark variant (no open state shown here; palette is NOT open in dark to keep the two frames clearly different) -->
+
+        </div><!-- /.shell-frame -->
+      </div><!-- /.dark -->
+    </section>
+
+  </div><!-- /.mockup-page -->
+</body>
+</html>

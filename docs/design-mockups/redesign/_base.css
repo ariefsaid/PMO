@@ -112,7 +112,7 @@ body {
   height: var(--ds-topbar-h);
   padding: 0 var(--ds-space-2);
   font-family: var(--ds-font-display);
-  font-weight: var(--ds-weight-bold);
+  font-weight: var(--ds-weight-semibold);
   letter-spacing: var(--ds-tracking-snug);
   color: var(--ds-text-primary);
 }
@@ -122,7 +122,7 @@ body {
   background: var(--ds-primary);
   color: var(--ds-primary-fg);
   display: grid; place-items: center;
-  font-weight: var(--ds-weight-bold);
+  font-weight: var(--ds-weight-semibold);
   flex: none;
 }
 .ds-rail__group-label {
@@ -225,6 +225,12 @@ body {
   overflow-y: auto;
   padding: var(--ds-space-5) var(--ds-space-6);
 }
+/* Centered measure cap on wide viewports: a grid item with max-width +
+   auto inline margins centers within its grid area, so fixed inner tracks
+   (panels, banners, label columns) grow toward the cap instead of
+   stranding surplus width as dead margin to the right. */
+.ds-content > * { max-width: var(--ds-content-max); margin-inline: auto; }
+.ds-content > .ds-bleed { max-width: none; }
 .ds-breadcrumb {
   display: flex; align-items: center; gap: var(--ds-space-2);
   font-size: var(--ds-text-sm);
@@ -291,6 +297,16 @@ body {
 }
 .ds-btn--destructive:hover { background: var(--ds-destructive-hover); }
 
+/* Quiet destructive — a real, repeatable affordance for a destructive
+   secondary action sitting beside primary/secondary peers (no ad-hoc
+   inline color). Bordered so it reads as a button, not a link. */
+.ds-btn--destructive-quiet {
+  background: var(--ds-surface-raised);
+  border-color: var(--ds-border);
+  color: var(--ds-destructive-text);
+}
+.ds-btn--destructive-quiet:hover { background: var(--ds-destructive-tint); border-color: var(--ds-destructive); }
+
 /* ============================================================================
    CARD / KPI TILE — resting shadow (the one elevation that floats at rest)
    ============================================================================ */
@@ -324,7 +340,7 @@ body {
 .ds-kpi__label { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
 .ds-kpi__value {
   font-family: var(--ds-font-display);
-  font-size: var(--ds-text-2xl);
+  font-size: var(--ds-text-3xl);   /* 36px — deliberately larger than page-title (30px) */
   font-weight: var(--ds-weight-semibold);
   line-height: 1;
   letter-spacing: var(--ds-tracking-tight);
@@ -356,6 +372,9 @@ body {
 .ds-pill--warning { background: var(--ds-warning-tint); color: var(--ds-warning-fg); }
 .ds-pill--danger  { background: var(--ds-destructive-tint); color: var(--ds-destructive-text); }
 .ds-pill--violet  { background: var(--ds-violet-tint); color: var(--ds-violet-text); }
+/* Muted/dead state (e.g. Expired) — quieter than the live neutral pill so
+   a dead status is distinguishable from a live one at a glance. */
+.ds-pill--muted   { background: var(--ds-neutral-tint); color: var(--ds-text-disabled); }
 /* neutral = default (workflow "open/active/progress"; the LABEL carries identity) */
 
 /* Soft tag (table status/category cell) — quieter than a pill, sm radius */
@@ -412,9 +431,9 @@ body {
   text-align: left;
   height: 36px; padding: 0 var(--ds-space-3);
   background: var(--ds-surface-muted);
-  color: var(--ds-text-tertiary);
+  color: var(--ds-text-secondary);
   font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
-  text-transform: uppercase; letter-spacing: 0.03em;
+  text-transform: uppercase; letter-spacing: var(--ds-tracking-caps);
   border-bottom: 1px solid var(--ds-border);
   white-space: nowrap;
 }
@@ -495,7 +514,7 @@ body {
 .ds-tab[aria-selected="true"] { color: var(--ds-text-primary); border-bottom-color: var(--ds-primary); }
 
 /* Two-column record layout: fixed details panel + flexible feed */
-.ds-record-grid { display: grid; grid-template-columns: 332px 1fr; gap: var(--ds-space-6); align-items: start; }
+.ds-record-grid { display: grid; grid-template-columns: minmax(280px, 332px) minmax(0, 1fr); gap: var(--ds-space-6); align-items: start; }
 .ds-record-panel { display: flex; flex-direction: column; gap: var(--ds-space-4); }
 .ds-field-section { display: flex; flex-direction: column; gap: var(--ds-space-2); }
 .ds-field-row { display: grid; grid-template-columns: 104px 1fr; gap: var(--ds-space-3); align-items: baseline; min-height: 30px; }

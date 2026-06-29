@@ -47,8 +47,8 @@
       border: 2px solid var(--ds-border-strong);
       display: grid; place-items: center;
       flex: none;
-      font-size: 9px;
-      font-weight: var(--ds-weight-bold);
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
       color: var(--ds-text-tertiary);
       background: var(--ds-surface-canvas);
     }
@@ -74,10 +74,16 @@
 
     /* ── Stat tiles strip ── */
     .ds-stat-strip {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: var(--ds-space-3);
       padding: var(--ds-space-3) 0 var(--ds-space-4);
-      flex-wrap: wrap;
+    }
+    @media (max-width: 920px) {
+      .ds-stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 540px) {
+      .ds-stat-strip { grid-template-columns: 1fr; }
     }
     .ds-stat-tile {
       display: flex;
@@ -87,7 +93,7 @@
       border: 1px solid var(--ds-border);
       border-radius: var(--ds-radius-md);
       background: var(--ds-surface-raised);
-      min-width: 130px;
+      min-width: 0;
     }
     .ds-stat-tile__label {
       font-size: var(--ds-text-xs);
@@ -123,23 +129,37 @@
     }
     .ds-sod-banner__value {
       font-size: var(--ds-text-md);
-      font-weight: var(--ds-weight-bold);
+      font-weight: var(--ds-weight-semibold);
       font-variant-numeric: tabular-nums;
       letter-spacing: var(--ds-tracking-snug);
     }
+    /* The note fills the row's remaining width (between value and the
+       Edit action) so the banner reads as one balanced full-width bar
+       instead of label/value/Edit clustered left with stranded space.
+       Note is ordered before the Edit button, which pins to the row end. */
     .ds-sod-banner__note {
       font-size: var(--ds-text-xs);
       color: var(--ds-text-tertiary);
-      flex-basis: 100%;
+      flex: 1 1 320px;
+      min-width: 0;
+      order: 1;
+    }
+    .ds-sod-banner .ds-btn { order: 2; }
+    @media (max-width: 768px) {
+      .ds-sod-banner__note { flex-basis: 100%; }
     }
 
     /* ── Record body: the two-column grid starts below the tab bar ── */
     .ds-record-body {
       display: grid;
-      grid-template-columns: 332px 1fr;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
       gap: 0;
       border-top: 1px solid var(--ds-border);
       margin-top: var(--ds-space-4);
+    }
+    @media (max-width: 768px) {
+      .ds-record-body { grid-template-columns: 1fr; }
+      .ds-record-details-panel { border-right: 0; border-bottom: 1px solid var(--ds-border); }
     }
     .ds-record-details-panel {
       border-right: 1px solid var(--ds-border);
@@ -277,8 +297,8 @@
       border-radius: var(--ds-radius-round);
       background: var(--ds-gradient-avatar);
       color: var(--ds-primary-fg);
-      font-size: 8px;
-      font-weight: var(--ds-weight-bold);
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
       display: grid; place-items: center; flex: none;
     }
 
@@ -304,7 +324,7 @@
       background: var(--ds-surface-muted);
       display: grid; place-items: center;
       color: var(--ds-text-secondary);
-      font-size: 12px;
+      font-size: var(--ds-text-xs);
       flex: none;
     }
     .ds-event__body { display: flex; flex-direction: column; gap: 2px; }
@@ -313,7 +333,7 @@
 
     /* S-curve stub — bounded placeholder, clearly labelled so it reads as intentional */
     .ds-chart-stub {
-      height: 180px;
+      height: 132px;
       border: 1px solid var(--ds-border);
       border-radius: var(--ds-radius-md);
       display: flex;
@@ -322,6 +342,7 @@
       justify-content: center;
       gap: var(--ds-space-1_5);
       background: var(--ds-surface-raised);
+      background-image: var(--ds-gradient-whisper);
       color: var(--ds-text-tertiary);
       font-size: var(--ds-text-xs);
       position: relative;
