@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMO Portal — Redesign mockups</title>
+  <link rel="stylesheet" href="_tokens.css" />
+  <link rel="stylesheet" href="_base.css" />
+  <style>
+    /* Index page chrome only — every color resolves from --ds-* tokens. */
+    .idx {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: var(--ds-space-12) var(--ds-space-6) var(--ds-space-16);
+    }
+    .idx__header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-2);
+      padding-bottom: var(--ds-space-6);
+      margin-bottom: var(--ds-space-6);
+      border-bottom: 1px solid var(--ds-border);
+    }
+    .idx__brand {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+    }
+    .idx__lede {
+      font-size: var(--ds-text-md);
+      color: var(--ds-text-tertiary);
+      max-width: 60ch;
+    }
+    .idx__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: var(--ds-space-4);
+    }
+    .idx-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-3);
+      text-decoration: none;
+      color: inherit;
+    }
+    .idx-card__num {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .idx-card__title {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-lg);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-snug);
+      color: var(--ds-text-primary);
+    }
+    .idx-card__desc {
+      font-size: var(--ds-text-sm);
+      color: var(--ds-text-tertiary);
+      line-height: var(--ds-leading-normal);
+    }
+    .idx-card__links {
+      margin-top: auto;
+      display: flex;
+      gap: var(--ds-space-2);
+      padding-top: var(--ds-space-2);
+    }
+    .idx-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ds-space-1_5);
+      height: var(--ds-control-h-sm);
+      padding: 0 var(--ds-space-3);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-surface-raised);
+      color: var(--ds-text-secondary);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-medium);
+      text-decoration: none;
+      transition: background 0.1s ease, border-color 0.1s ease;
+    }
+    .idx-chip:hover { background: var(--ds-surface-hover); border-color: var(--ds-border-strong); color: var(--ds-text-primary); }
+    .idx-chip__swatch {
+      width: 10px; height: 10px;
+      border-radius: var(--ds-radius-round);
+      flex: none;
+      border: 1px solid var(--ds-border-strong);
+    }
+    .idx-chip__swatch--light { background: var(--ds-neutral-1); }
+    .idx-chip__swatch--dark { background: var(--ds-surface-inverted); }
+    .idx__foot {
+      margin-top: var(--ds-space-12);
+      padding-top: var(--ds-space-6);
+      border-top: 1px solid var(--ds-border);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-1);
+    }
+  </style>
+</head>
+<body>
+  <main class="idx">
+    <header class="idx__header">
+      <div class="idx__brand">
+        <span class="ds-rail__logo" aria-hidden="true">P</span>
+        <span class="ds-overline">PMO Portal · Redesign</span>
+      </div>
+      <h1 class="ds-page-title">Design-system mockups</h1>
+      <p class="idx__lede">
+        Static, token-only mockups of the records-workspace direction across six representative
+        surfaces, each rendered in light and dark. Every surface links to its full mockup page;
+        both themes share one markup with the dark theme applied via the token override.
+      </p>
+    </header>
+
+    <div class="idx__grid">
+
+      <!-- 1 — App shell -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">01</span>
+        <h2 class="idx-card__title">App shell</h2>
+        <p class="idx-card__desc">
+          Rail + top-bar shell with grouped navigation, the ⌘K command palette (open over a scrim),
+          a breadcrumb, and a dense list — covering palette, selected, loading, and empty states.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="app-shell.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="app-shell.html#main-dark"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+      <!-- 2 — Projects list -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">02</span>
+        <h2 class="idx-card__title">Projects list</h2>
+        <p class="idx-card__desc">
+          The signature records table: light headers, soft-tag status pills, inline progress bars,
+          and a budget-used column — with a populated table and an empty-filter variant.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="projects-list.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="projects-list.html#main-content-dark"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+      <!-- 3 — Project detail -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">03</span>
+        <h2 class="idx-card__title">Project detail</h2>
+        <p class="idx-card__desc">
+          The hybrid record page: header + finance stat strip + SoD banner + milestone stepper +
+          tab strip over a two-column details/feed body with tasks, procurement, and activity.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="project-detail.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="project-detail.html#main-content-dark"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+      <!-- 4 — Executive dashboard -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">04</span>
+        <h2 class="idx-card__title">Executive dashboard</h2>
+        <p class="idx-card__desc">
+          KPI tiles (resting shadow) over budget-vs-actual, win-rate, procurement-status, and
+          pipeline-margin cards — with loading-skeleton and error states in the dark frame.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="executive-dashboard.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="executive-dashboard.html#main-dark"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+      <!-- 5 — Procurement detail -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">05</span>
+        <h2 class="idx-card__title">Procurement detail</h2>
+        <p class="idx-card__desc">
+          A richer lifecycle record: stepper + decision strip + tabs over a 2fr/1fr overview bento
+          (stat tiles, budget signal, detail list, progression timeline) plus loading and empty states.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="procurement-detail.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="procurement-detail.html#main-content-dark"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+      <!-- 6 — Login -->
+      <article class="ds-card ds-card--interactive idx-card">
+        <span class="idx-card__num">06</span>
+        <h2 class="idx-card__title">Login</h2>
+        <p class="idx-card__desc">
+          The auth shell on a navy-whisper ground: default, loading, error (with demo-persona panel),
+          and magic-link-sent states, shown side by side in light and dark panes.
+        </p>
+        <div class="idx-card__links">
+          <a class="idx-chip" href="login.html"><span class="idx-chip__swatch idx-chip__swatch--light" aria-hidden="true"></span>Light</a>
+          <a class="idx-chip" href="login.html"><span class="idx-chip__swatch idx-chip__swatch--dark" aria-hidden="true"></span>Dark</a>
+        </div>
+      </article>
+
+    </div>
+
+    <footer class="idx__foot">
+      <span>Token source: <span class="ds-mono">_tokens.css</span> (light <span class="ds-mono">:root</span> + <span class="ds-mono">.dark</span>) · base components: <span class="ds-mono">_base.css</span>.</span>
+      <span>Static mockup round — no application code. Owner sign-off gates the foundation build.</span>
+    </footer>
+  </main>
+</body>
+</html>

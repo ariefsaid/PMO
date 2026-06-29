@@ -113,7 +113,7 @@
   --ds-surface-muted: var(--ds-neutral-3);       /* quiet fills / count chips / tracks */
   --ds-surface-hover: hsl(0 0% 0% / 0.039);      /* row/nav/ghost hover wash */
   --ds-surface-pressed: hsl(0 0% 0% / 0.078);    /* pressed fill */
-  --ds-surface-selected: hsl(221.2 83.2% 53.3% / 0.08); /* selected row (primary tint) */
+  --ds-surface-selected: hsl(221.2 83.2% 53.3% / 0.06); /* selected row (primary tint) — 0.06 keeps tertiary meta AA (4.55:1) on the wash */
   --ds-surface-overlay: hsl(240 10% 4% / 0.45);  /* modal / drawer / palette scrim */
   --ds-surface-inverted: hsl(0 0% 12%);          /* tooltip / inverted surface */
 

@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMO Portal — Paradigm A: Calm Records-Workspace (Divergence)</title>
+  <link rel="stylesheet" href="../_tokens.css">
+  <style>
+    /* ============================================================================
+       PARADIGM A — CALM RECORDS-WORKSPACE
+       Same rail + table + record-page family as the rejected dense direction,
+       deliberately de-densified to prove the family CAN be calm.
+       Every color / font / size / space / radius is a --ds-* token. Zero literals.
+       ============================================================================ */
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { font-size: 16px; }
+    body {
+      margin: 0;
+      font-family: var(--ds-font-body);
+      font-size: var(--ds-text-md);
+      line-height: var(--ds-leading-normal);
+      color: var(--ds-text-primary);
+      background: var(--ds-neutral-3);
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    *:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
+    .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+    /* ── Mockup page chrome (token-only) ─────────────────────────────────── */
+    .mock-page {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-12);
+      padding: var(--ds-space-10) var(--ds-space-8) var(--ds-space-16);
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+    .mock-chrome {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-3);
+      margin-bottom: var(--ds-space-4);
+    }
+    .mock-chrome .dot {
+      width: var(--ds-space-2); height: var(--ds-space-2);
+      border-radius: var(--ds-radius-round);
+      background: var(--ds-primary);
+    }
+    .mock-chrome .lbl {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+    }
+    .mock-chrome .sub {
+      font-size: var(--ds-text-sm);
+      color: var(--ds-text-tertiary);
+    }
+    .mock-frame {
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-xl);
+      overflow: hidden;
+      box-shadow: var(--ds-shadow-resting);
+      background: var(--ds-surface-canvas);
+    }
+
+    /* ============================================================================
+       SHELL — rail + topbar + content
+       ============================================================================ */
+    .app {
+      display: grid;
+      grid-template-columns: var(--ds-rail-w) 1fr;
+      min-height: 760px;
+      background: var(--ds-surface-canvas);
+    }
+
+    /* ── Rail (grouped, calm) ─────────────────────────────────────────────── */
+    .rail {
+      background: var(--ds-surface-sunken);
+      border-right: 1px solid var(--ds-border);
+      display: flex;
+      flex-direction: column;
+      padding: var(--ds-space-5) var(--ds-space-4);
+      gap: var(--ds-space-6);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-3);
+      padding: var(--ds-space-1) var(--ds-space-2);
+    }
+    .brand .glyph {
+      width: 28px; height: 28px;
+      border-radius: var(--ds-radius-md);
+      background: var(--ds-gradient-avatar);
+      display: grid; place-items: center;
+      color: var(--ds-text-inverted);
+      font-family: var(--ds-font-display);
+      font-weight: var(--ds-weight-semibold);
+      font-size: var(--ds-text-sm);
+    }
+    .brand .name {
+      font-family: var(--ds-font-display);
+      font-weight: var(--ds-weight-semibold);
+      font-size: var(--ds-text-md);
+      letter-spacing: var(--ds-tracking-snug);
+    }
+    .nav-group { display: flex; flex-direction: column; gap: var(--ds-space-0_5); }
+    .nav-group .glabel {
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+      padding: var(--ds-space-2) var(--ds-space-2) var(--ds-space-1);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2_5);
+      /* COMFORTABLE nav rows — taller than the dense direction's 36px */
+      height: 40px;
+      padding: 0 var(--ds-space-2_5);
+      border-radius: var(--ds-radius-md);
+      border: none;
+      background: transparent;
+      color: var(--ds-text-secondary);
+      font-size: var(--ds-text-sm);
+      font-weight: var(--ds-weight-medium);
+      text-align: left;
+      width: 100%;
+    }
+    .nav-item:hover { background: var(--ds-surface-hover); color: var(--ds-text-primary); }
+    .nav-item.active {
+      background: var(--ds-primary-tint);
+      color: var(--ds-primary);
+      font-weight: var(--ds-weight-semibold);
+    }
+    .nav-item .ico {
+      width: 18px; height: 18px; flex: none;
+      color: currentColor; opacity: 0.85;
+    }
+    .nav-item .count {
+      margin-left: auto;
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-tertiary);
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-pill);
+      padding: 1px var(--ds-space-2);
+      min-width: 22px; text-align: center;
+    }
+    .nav-item.active .count { color: var(--ds-primary); background: var(--ds-primary-tint-strong); }
+    .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: var(--ds-space-2); }
+
+    /* Density chip — the visible signature of this paradigm: calm is a CHOICE */
+    .density {
+      display: flex; align-items: center; gap: var(--ds-space-2);
+      padding: var(--ds-space-2_5) var(--ds-space-3);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      background: var(--ds-surface-canvas);
+    }
+    .density .k { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+    .density .seg {
+      display: inline-flex; margin-left: auto;
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-pill);
+      padding: 2px;
+    }
+    .density .seg b, .density .seg span {
+      font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+      padding: 3px var(--ds-space-2_5); border-radius: var(--ds-radius-pill);
+      color: var(--ds-text-tertiary);
+    }
+    .density .seg b {
+      background: var(--ds-surface-canvas);
+      color: var(--ds-text-primary);
+      box-shadow: var(--ds-shadow-resting);
+    }
+
+    /* ── Topbar ───────────────────────────────────────────────────────────── */
+    .content { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      height: 60px;
+      border-bottom: 1px solid var(--ds-border);
+      display: flex; align-items: center;
+      padding: 0 var(--ds-space-7);
+      gap: var(--ds-space-4);
+      background: var(--ds-surface-canvas);
+    }
+    .crumb { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-sm); }
+    .crumb a { color: var(--ds-text-tertiary); text-decoration: none; }
+    .crumb a:hover { color: var(--ds-text-secondary); }
+    .crumb .sep { color: var(--ds-text-disabled); }
+    .crumb .here { color: var(--ds-text-primary); font-weight: var(--ds-weight-medium); }
+    .search {
+      margin-left: auto;
+      display: flex; align-items: center; gap: var(--ds-space-2);
+      height: var(--ds-control-h);
+      padding: 0 var(--ds-space-3);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      color: var(--ds-text-tertiary);
+      font-size: var(--ds-text-sm);
+      min-width: 240px;
+      background: var(--ds-surface-canvas);
+    }
+    .search .kbd {
+      margin-left: auto;
+      font-family: var(--ds-font-mono); font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      border: 1px solid var(--ds-border); border-radius: var(--ds-radius-sm);
+      padding: 0 var(--ds-space-1_5);
+    }
+    .avatar {
+      width: 30px; height: 30px; border-radius: var(--ds-radius-round);
+      background: var(--ds-gradient-avatar);
+      display: grid; place-items: center;
+      color: var(--ds-text-inverted);
+      font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+      flex: none;
+    }
+
+    /* ── Workspace canvas (generous gutters) ──────────────────────────────── */
+    .canvas {
+      padding: var(--ds-space-8) var(--ds-space-10);
+      display: flex; flex-direction: column;
+      gap: var(--ds-space-7);
+    }
+    .page-head { display: flex; align-items: flex-start; gap: var(--ds-space-4); }
+    .page-head .h1 {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-2xl);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-tight);
+      line-height: var(--ds-leading-tight);
+      margin: 0;
+    }
+    .page-head .lede {
+      margin: var(--ds-space-2) 0 0;
+      font-size: var(--ds-text-md);
+      color: var(--ds-text-tertiary);
+      max-width: 58ch;
+    }
+    .page-head .count-chip {
+      align-self: center;
+      font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-tertiary);
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-pill);
+      padding: var(--ds-space-0_5) var(--ds-space-3);
+    }
+    .page-head .actions { margin-left: auto; display: flex; gap: var(--ds-space-2); }
+
+    .btn {
+      height: var(--ds-control-h);
+      display: inline-flex; align-items: center; gap: var(--ds-space-2);
+      padding: 0 var(--ds-space-4);
+      border-radius: var(--ds-radius-lg);
+      border: 1px solid var(--ds-border);
+      background: var(--ds-surface-canvas);
+      color: var(--ds-text-secondary);
+      font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium);
+    }
+    .btn:hover { background: var(--ds-surface-hover); color: var(--ds-text-primary); }
+    .btn.primary {
+      background: var(--ds-primary); border-color: var(--ds-primary);
+      color: var(--ds-primary-fg); box-shadow: var(--ds-shadow-primary);
+    }
+    .btn.primary:hover { background: var(--ds-primary-hover); }
+    .btn .ico { width: 16px; height: 16px; }
+
+    /* ── Filter row (text chips left; quiet view control right) ───────────── */
+    .filters { display: flex; align-items: center; gap: var(--ds-space-2); flex-wrap: wrap; }
+    .chip {
+      height: var(--ds-control-h-sm);
+      display: inline-flex; align-items: center; gap: var(--ds-space-1_5);
+      padding: 0 var(--ds-space-3);
+      border-radius: var(--ds-radius-pill);
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--ds-text-tertiary);
+      font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium);
+    }
+    .chip:hover { background: var(--ds-surface-hover); color: var(--ds-text-secondary); }
+    .chip.on {
+      background: var(--ds-surface-canvas);
+      border-color: var(--ds-border-strong);
+      color: var(--ds-text-primary);
+      font-weight: var(--ds-weight-semibold);
+    }
+    .chip .n { font-size: var(--ds-text-xs); color: var(--ds-text-disabled); }
+    .chip.on .n { color: var(--ds-text-tertiary); }
+    .filters .right { margin-left: auto; display: flex; align-items: center; gap: var(--ds-space-3); }
+    .view-cols {
+      display: inline-flex; align-items: center; gap: var(--ds-space-2);
+      font-size: var(--ds-text-sm); color: var(--ds-text-tertiary);
+    }
+    .view-cols .link { color: var(--ds-primary); font-weight: var(--ds-weight-medium); }
+
+    /* ============================================================================
+       RELAXED TABLE — 4 default columns, 64px rows, soft tags, breathing room
+       ============================================================================ */
+    .table-card {
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-xl);
+      overflow: hidden;
+      background: var(--ds-surface-canvas);
+    }
+    table.list { width: 100%; border-collapse: collapse; }
+    .list thead th {
+      text-align: left;
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-caps);
+      text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+      padding: var(--ds-space-4) var(--ds-space-5);
+      border-bottom: 1px solid var(--ds-border);
+      background: var(--ds-surface-canvas);
+      white-space: nowrap;
+    }
+    .list thead th.num { text-align: right; }
+    .list tbody td {
+      padding: var(--ds-space-4) var(--ds-space-5);
+      border-bottom: 1px solid var(--ds-border-light);
+      vertical-align: middle;
+      /* COMFORTABLE rows: ~64px tall — the dense direction's were 48px */
+      height: 64px;
+    }
+    .list tbody tr:last-child td { border-bottom: none; }
+    .list tbody tr { transition: background 120ms; }
+    .list tbody tr:hover { background: var(--ds-surface-hover); cursor: pointer; }
+    .list td.num { text-align: right; }
+
+    /* Project cell — generous, two-line, soft glyph */
+    .proj { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; }
+    .proj .glyph {
+      width: 36px; height: 36px; flex: none;
+      border-radius: var(--ds-radius-md);
+      background: var(--ds-primary-tint);
+      color: var(--ds-primary);
+      display: grid; place-items: center;
+      font-weight: var(--ds-weight-semibold);
+      font-size: var(--ds-text-md);
+    }
+    .proj .nm { font-weight: var(--ds-weight-semibold); color: var(--ds-text-primary); line-height: var(--ds-leading-snug); }
+    .proj .code { font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+    .cust { color: var(--ds-text-secondary); font-size: var(--ds-text-sm); }
+    .cust .pm { display: block; color: var(--ds-text-tertiary); font-size: var(--ds-text-xs); margin-top: 2px; }
+
+    /* Soft status tags — tinted pill + dot, never a loud fill */
+    .tag {
+      display: inline-flex; align-items: center; gap: var(--ds-space-1_5);
+      height: 26px; padding: 0 var(--ds-space-2_5);
+      border-radius: var(--ds-radius-pill);
+      font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+      white-space: nowrap;
+    }
+    .tag .d { width: 6px; height: 6px; border-radius: var(--ds-radius-round); flex: none; }
+    .tag.progress { background: var(--ds-neutral-tint); color: var(--ds-neutral-pill-text); }
+    .tag.progress .d { background: var(--ds-neutral-8); }
+    .tag.won { background: var(--ds-success-tint); color: var(--ds-success-text); }
+    .tag.won .d { background: var(--ds-success); }
+    .tag.warn { background: var(--ds-warning-tint); color: var(--ds-warning-fg); }
+    .tag.warn .d { background: var(--ds-warning-icon); }
+    .tag.lost { background: var(--ds-destructive-tint); color: var(--ds-destructive-text); }
+    .tag.lost .d { background: var(--ds-destructive); }
+
+    /* Quiet progress — slim track, value beside it */
+    .prog { display: flex; align-items: center; gap: var(--ds-space-2_5); justify-content: flex-end; }
+    .prog .track {
+      width: 96px; height: 6px; border-radius: var(--ds-radius-pill);
+      background: var(--ds-surface-muted); overflow: hidden;
+    }
+    .prog .fill { height: 100%; border-radius: var(--ds-radius-pill); background: var(--ds-primary); }
+    .prog .fill.s { background: var(--ds-success); }
+    .prog .fill.w { background: var(--ds-warning); }
+    .prog .v { font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold); color: var(--ds-text-secondary); min-width: 34px; text-align: right; }
+    .money { font-weight: var(--ds-weight-semibold); color: var(--ds-text-primary); }
+    .money .sub { display: block; font-weight: var(--ds-weight-regular); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); margin-top: 2px; }
+
+    /* Table foot — calm totals */
+    .table-foot {
+      display: flex; align-items: center; gap: var(--ds-space-2);
+      padding: var(--ds-space-4) var(--ds-space-5);
+      border-top: 1px solid var(--ds-border);
+      font-size: var(--ds-text-sm); color: var(--ds-text-tertiary);
+      background: var(--ds-surface-sunken);
+    }
+    .table-foot b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+
+    /* ============================================================================
+       RECORD PAGE — two columns, wide reading column + quiet meta sidebar
+       ============================================================================ */
+    .record { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: var(--ds-space-10); align-items: start; }
+    @media (max-width: 1100px) { .record { grid-template-columns: 1fr; } }
+
+    .rec-head { display: flex; align-items: flex-start; gap: var(--ds-space-4); margin-bottom: var(--ds-space-2); }
+    .rec-head .glyph {
+      width: 48px; height: 48px; flex: none;
+      border-radius: var(--ds-radius-lg);
+      background: var(--ds-primary-tint); color: var(--ds-primary);
+      display: grid; place-items: center;
+      font-family: var(--ds-font-display);
+      font-weight: var(--ds-weight-semibold); font-size: var(--ds-text-lg);
+    }
+    .rec-head .h1 {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-xl);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-snug);
+      line-height: var(--ds-leading-tight);
+      margin: 0;
+    }
+    .rec-head .meta { margin-top: var(--ds-space-1_5); font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+    .rec-head .actions { margin-left: auto; display: flex; gap: var(--ds-space-2); }
+
+    /* Section block — the calm unit of the record body */
+    .block { margin-top: var(--ds-space-8); }
+    .block .b-head { display: flex; align-items: baseline; gap: var(--ds-space-3); margin-bottom: var(--ds-space-4); }
+    .block .b-head h2 {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-lg);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-snug);
+      margin: 0;
+    }
+    .block .b-head .hint { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+    .block .b-head .more { margin-left: auto; font-size: var(--ds-text-sm); color: var(--ds-primary); font-weight: var(--ds-weight-medium); }
+
+    /* Money strip — airy KPI row, no boxes-in-boxes */
+    .strip {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-xl);
+      overflow: hidden;
+      background: var(--ds-surface-canvas);
+    }
+    .strip .cell { padding: var(--ds-space-5); border-right: 1px solid var(--ds-border-light); }
+    .strip .cell:last-child { border-right: none; }
+    .strip .lab {
+      font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-caps); text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+    }
+    .strip .val { margin-top: var(--ds-space-2); font-size: var(--ds-text-lg); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); }
+    .strip .val.pos { color: var(--ds-success-text); }
+    .strip .val.neg { color: var(--ds-destructive-text); }
+
+    /* Delivery phases — calm horizontal bar stepper + roomy phase rows */
+    .phase-card { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); padding: var(--ds-space-6); background: var(--ds-surface-canvas); }
+    .phase-top { display: flex; align-items: center; gap: var(--ds-space-3); margin-bottom: var(--ds-space-5); }
+    .phase-top .roll { margin-left: auto; display: flex; align-items: baseline; gap: var(--ds-space-2); }
+    .phase-top .roll .v { font-size: var(--ds-text-2xl); font-weight: var(--ds-weight-semibold); line-height: 1; letter-spacing: var(--ds-tracking-tight); }
+    .phase-top .roll .k { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+    .jbar { display: flex; height: 8px; border-radius: var(--ds-radius-pill); overflow: hidden; background: var(--ds-surface-muted); margin-bottom: var(--ds-space-6); }
+    .jbar span { height: 100%; display: block; }
+    .jbar .done { background: var(--ds-success); }
+    .jbar .cur { background: var(--ds-primary); }
+    .jbar .late { background: var(--ds-warning); }
+
+    .phase-rows { display: flex; flex-direction: column; gap: var(--ds-space-1); }
+    .phase {
+      display: grid; grid-template-columns: 24px minmax(0,1fr) auto;
+      align-items: center; gap: var(--ds-space-4);
+      padding: var(--ds-space-4) var(--ds-space-2);
+      border-radius: var(--ds-radius-lg);
+    }
+    .phase:hover { background: var(--ds-surface-hover); }
+    .phase .pip { width: 10px; height: 10px; border-radius: var(--ds-radius-round); margin: 0 auto; }
+    .phase .pip.done { background: var(--ds-success); }
+    .phase .pip.cur { background: var(--ds-primary); }
+    .phase .pip.late { background: var(--ds-warning); }
+    .phase .pip.next { background: var(--ds-neutral-7); }
+    .phase .nm { font-weight: var(--ds-weight-medium); }
+    .phase .pm-meta { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); margin-top: 2px; }
+    .phase .pm-meta.late { color: var(--ds-warning-fg); font-weight: var(--ds-weight-medium); }
+    .phase .pct { font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); min-width: 48px; text-align: right; }
+
+    /* Sidebar — quiet metadata, definition rows + a sticky advance action */
+    .aside { display: flex; flex-direction: column; gap: var(--ds-space-5); }
+    .panel { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); padding: var(--ds-space-5); background: var(--ds-surface-canvas); }
+    .panel .p-title {
+      font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-caps); text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+      margin-bottom: var(--ds-space-4);
+    }
+    .dl { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+    .dl .row { display: flex; align-items: baseline; gap: var(--ds-space-3); }
+    .dl .row .k { width: 96px; flex: none; font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+    .dl .row .v { font-size: var(--ds-text-sm); color: var(--ds-text-primary); font-weight: var(--ds-weight-medium); }
+    .dl .row .v.link { color: var(--ds-primary); }
+    .person { display: flex; align-items: center; gap: var(--ds-space-2); }
+    .person .pa { width: 22px; height: 22px; border-radius: var(--ds-radius-round); background: var(--ds-surface-muted); color: var(--ds-text-secondary); display: grid; place-items: center; font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold); }
+
+    .advance {
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-xl);
+      background: var(--ds-surface-sunken);
+      padding: var(--ds-space-5);
+    }
+    .advance .lead { font-size: var(--ds-text-sm); color: var(--ds-text-secondary); margin-bottom: var(--ds-space-4); }
+    .advance .lead b { color: var(--ds-text-primary); font-weight: var(--ds-weight-semibold); }
+    .advance .btn { width: 100%; justify-content: center; }
+
+    /* Record tabs — quiet, underline-on-active */
+    .rec-tabs { display: flex; gap: var(--ds-space-1); border-bottom: 1px solid var(--ds-border); margin-bottom: var(--ds-space-2); }
+    .rec-tabs button {
+      height: 40px; padding: 0 var(--ds-space-3);
+      border: none; background: transparent;
+      color: var(--ds-text-tertiary);
+      font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .rec-tabs button:hover { color: var(--ds-text-secondary); }
+    .rec-tabs button.on { color: var(--ds-text-primary); font-weight: var(--ds-weight-semibold); border-bottom-color: var(--ds-primary); }
+  </style>
+</head>
+<body>
+  <div class="mock-page">
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 1 — PROJECTS WORKSPACE (the relaxed list)                         -->
+    <!-- ===================================================================== -->
+    <section>
+      <div class="mock-chrome">
+        <span class="dot"></span>
+        <span class="lbl">Paradigm A · View 1</span>
+        <span class="sub">Projects workspace — calm records list (4 default columns, 64px rows, "+ more")</span>
+      </div>
+
+      <div class="mock-frame">
+        <div class="app">
+
+          <!-- Rail -->
+          <aside class="rail">
+            <div class="brand">
+              <span class="glyph">P</span>
+              <span class="name">PMO Portal</span>
+            </div>
+
+            <nav class="nav-group">
+              <div class="glabel">Workspace</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Dashboard
+              </button>
+              <button class="nav-item active" aria-current="page">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                Projects
+                <span class="count">9</span>
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                Pipeline
+                <span class="count">5</span>
+              </button>
+            </nav>
+
+            <nav class="nav-group">
+              <div class="glabel">Delivery</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                My tasks
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                Timesheets
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+                Approvals
+                <span class="count">3</span>
+              </button>
+            </nav>
+
+            <nav class="nav-group">
+              <div class="glabel">Records</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>
+                Procurement
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+                Companies
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                Contacts
+              </button>
+            </nav>
+
+            <div class="rail-foot">
+              <div class="density">
+                <span class="k">Density</span>
+                <span class="seg"><b>Comfortable</b><span>Compact</span></span>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Content -->
+          <div class="content">
+            <div class="topbar">
+              <div class="crumb">
+                <a href="#">Workspace</a>
+                <span class="sep">/</span>
+                <span class="here">Projects</span>
+              </div>
+              <div class="search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                Search projects
+                <span class="kbd">⌘K</span>
+              </div>
+              <div class="avatar">DS</div>
+            </div>
+
+            <div class="canvas">
+              <div class="page-head">
+                <div>
+                  <h1 class="h1">Projects</h1>
+                  <p class="lede">Your active and completed delivery projects. Open one to drill into its budget, procurement, and phases.</p>
+                </div>
+                <span class="count-chip tnum">9 projects</span>
+                <div class="actions">
+                  <button class="btn">
+                    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v4l-6 6v6l-4-2v-4L4 8z"/></svg>
+                    Filter
+                  </button>
+                  <button class="btn primary">
+                    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    New project
+                  </button>
+                </div>
+              </div>
+
+              <div class="filters">
+                <button class="chip on">All <span class="n tnum">9</span></button>
+                <button class="chip">My projects <span class="n tnum">4</span></button>
+                <button class="chip">Ongoing <span class="n tnum">2</span></button>
+                <button class="chip">Completed <span class="n tnum">1</span></button>
+                <button class="chip">At risk <span class="n tnum">1</span></button>
+                <div class="right">
+                  <span class="view-cols">
+                    Showing 4 of 9 columns
+                    <span class="link">+ Customer, PM, Budget used, Actual, Code</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="table-card">
+                <table class="list">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Status</th>
+                      <th class="num">Contract</th>
+                      <th class="num">Progress</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">C</span>
+                          <div>
+                            <div class="nm">Cascade Foods 6.0 MW Ground-Mount PV</div>
+                            <div class="code">SP-2402 · Cascade Foods</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag warn"><span class="d"></span>At risk</span></td>
+                      <td class="num"><span class="money tnum">$7,800,000</span></td>
+                      <td class="num"><div class="prog"><div class="track"><div class="fill w" style="width:80%"></div></div><span class="v tnum">80%</span></div></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">M</span>
+                          <div>
+                            <div class="nm">Meridian Steelworks 4.2 MW Rooftop PV</div>
+                            <div class="code">SP-2401 · Meridian Steelworks</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag progress"><span class="d"></span>Ongoing</span></td>
+                      <td class="num"><span class="money tnum">$5,250,000</span></td>
+                      <td class="num"><div class="prog"><div class="track"><div class="fill" style="width:52%"></div></div><span class="v tnum">52%</span></div></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">H</span>
+                          <div>
+                            <div class="nm">Harbor Logistics 5.5 MW Rooftop PV</div>
+                            <div class="code">SP-2404 · Harbor Logistics</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag won"><span class="d"></span>Won, Pending KoM</span></td>
+                      <td class="num"><span class="money tnum">$6,400,000</span></td>
+                      <td class="num"><div class="prog"><div class="track"><div class="fill" style="width:20%"></div></div><span class="v tnum">20%</span></div></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">A</span>
+                          <div>
+                            <div class="nm">Atlas Chemicals 2.8 MW Carport PV</div>
+                            <div class="code">SP-2403 · Atlas Chemicals</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag won"><span class="d"></span>Close Out</span></td>
+                      <td class="num"><span class="money tnum">$3,600,000</span></td>
+                      <td class="num"><div class="prog"><div class="track"><div class="fill s" style="width:100%"></div></div><span class="v tnum">100%</span></div></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">N</span>
+                          <div>
+                            <div class="nm">Northgate Mills 3.5 MW Rooftop PV</div>
+                            <div class="code">SP-2405 · Northgate Mills</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag progress"><span class="d"></span>Negotiation</span></td>
+                      <td class="num"><span class="money tnum">$4,100,000</span></td>
+                      <td class="num"><span class="cust">—</span></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="proj">
+                          <span class="glyph">H</span>
+                          <div>
+                            <div class="nm">Harbor Cold Store Bid</div>
+                            <div class="code">SP-2409 · Harbor Logistics</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="tag lost"><span class="d"></span>Loss Tender</span></td>
+                      <td class="num"><span class="money tnum">$3,200,000</span></td>
+                      <td class="num"><span class="cust">—</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="table-foot">
+                  <span>6 of <b class="tnum">9</b> shown</span>
+                  <span style="margin-left:auto">Total contract <b class="tnum">$34.4M</b></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 2 — PROJECT RECORD / DETAIL (two-column, generous whitespace)     -->
+    <!-- ===================================================================== -->
+    <section>
+      <div class="mock-chrome">
+        <span class="dot"></span>
+        <span class="lbl">Paradigm A · View 2</span>
+        <span class="sub">Project record — wide reading column + quiet metadata sidebar, advance action never below the fold</span>
+      </div>
+
+      <div class="mock-frame">
+        <div class="app">
+
+          <!-- Rail (same paradigm, Projects active) -->
+          <aside class="rail">
+            <div class="brand">
+              <span class="glyph">P</span>
+              <span class="name">PMO Portal</span>
+            </div>
+            <nav class="nav-group">
+              <div class="glabel">Workspace</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Dashboard
+              </button>
+              <button class="nav-item active" aria-current="page">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                Projects
+                <span class="count">9</span>
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                Pipeline
+                <span class="count">5</span>
+              </button>
+            </nav>
+            <nav class="nav-group">
+              <div class="glabel">Delivery</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                My tasks
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                Timesheets
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+                Approvals
+                <span class="count">3</span>
+              </button>
+            </nav>
+            <nav class="nav-group">
+              <div class="glabel">Records</div>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>
+                Procurement
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+                Companies
+              </button>
+              <button class="nav-item">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                Contacts
+              </button>
+            </nav>
+            <div class="rail-foot">
+              <div class="density">
+                <span class="k">Density</span>
+                <span class="seg"><b>Comfortable</b><span>Compact</span></span>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Content -->
+          <div class="content">
+            <div class="topbar">
+              <div class="crumb">
+                <a href="#">Workspace</a>
+                <span class="sep">/</span>
+                <a href="#">Projects</a>
+                <span class="sep">/</span>
+                <span class="here">Cascade Foods 6.0 MW</span>
+              </div>
+              <div class="search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                Search
+                <span class="kbd">⌘K</span>
+              </div>
+              <div class="avatar">DS</div>
+            </div>
+
+            <div class="canvas">
+              <div class="record">
+
+                <!-- Reading column -->
+                <div>
+                  <div class="rec-head">
+                    <span class="glyph">C</span>
+                    <div>
+                      <h1 class="h1">Cascade Foods 6.0 MW Ground-Mount PV
+                        <span class="tag warn" style="margin-left:var(--ds-space-2)"><span class="d"></span>At risk</span>
+                      </h1>
+                      <div class="meta">Cascade Foods · SP-2402 · PO CF-EPC-0247 (12 May 2025)</div>
+                    </div>
+                    <div class="actions">
+                      <button class="btn">Edit</button>
+                      <button class="btn">Archive</button>
+                    </div>
+                  </div>
+
+                  <div class="rec-tabs">
+                    <button class="on">Overview</button>
+                    <button>Budget</button>
+                    <button>Procurement</button>
+                    <button>Tasks</button>
+                    <button>Documents</button>
+                  </div>
+
+                  <!-- Money strip -->
+                  <div class="block">
+                    <div class="strip">
+                      <div class="cell"><div class="lab">Contract</div><div class="val tnum">$7.80M</div></div>
+                      <div class="cell"><div class="lab">Committed</div><div class="val tnum">$6.93M</div></div>
+                      <div class="cell"><div class="lab">Actual</div><div class="val tnum">$6.93M</div></div>
+                      <div class="cell"><div class="lab">On-hand margin</div><div class="val pos tnum">$0.87M</div></div>
+                      <div class="cell"><div class="lab">Spend</div><div class="val tnum">99%</div></div>
+                    </div>
+                  </div>
+
+                  <!-- Delivery phases -->
+                  <div class="block">
+                    <div class="b-head">
+                      <h2>Delivery phases</h2>
+                      <span class="hint">4-phase EPC model · weighted rollup</span>
+                    </div>
+                    <div class="phase-card">
+                      <div class="phase-top">
+                        <span class="tag warn"><span class="d"></span>Construction behind target</span>
+                        <span class="roll"><span class="v tnum">78%</span><span class="k">delivery</span></span>
+                      </div>
+                      <div class="jbar">
+                        <span class="done" style="width:15%"></span>
+                        <span class="done" style="width:35%"></span>
+                        <span class="late" style="width:28%"></span>
+                        <span style="width:22%"></span>
+                      </div>
+                      <div class="phase-rows">
+                        <div class="phase">
+                          <span class="pip done"></span>
+                          <div><div class="nm">Engineering Design</div><div class="pm-meta">Target 15 Aug 2025 · 15% of project</div></div>
+                          <span class="pct tnum">100%</span>
+                        </div>
+                        <div class="phase">
+                          <span class="pip done"></span>
+                          <div><div class="nm">Procurement</div><div class="pm-meta">Target 30 Nov 2025 · 35% of project</div></div>
+                          <span class="pct tnum">100%</span>
+                        </div>
+                        <div class="phase">
+                          <span class="pip late"></span>
+                          <div><div class="nm">Construction</div><div class="pm-meta late">Target 16 Apr 2026 · overdue · 40% of project · View blocking tasks</div></div>
+                          <span class="pct tnum">70%</span>
+                        </div>
+                        <div class="phase">
+                          <span class="pip next"></span>
+                          <div><div class="nm">Commissioning &amp; Grid Connection</div><div class="pm-meta">Target 15 Jul 2026 · 10% of project</div></div>
+                          <span class="pct tnum">0%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Recent activity (progressive — header + "view all") -->
+                  <div class="block">
+                    <div class="b-head">
+                      <h2>Recent activity</h2>
+                      <a class="more" href="#">View all</a>
+                    </div>
+                    <div class="phase-card" style="padding:var(--ds-space-2) var(--ds-space-2)">
+                      <div class="phase">
+                        <span class="pip cur"></span>
+                        <div><div class="nm">PO CF-PILE-018 received — Ground-Mount Piling &amp; Racking</div><div class="pm-meta">2 days ago · Priya Ramanathan</div></div>
+                        <span class="tag won"><span class="d"></span>Received</span>
+                      </div>
+                      <div class="phase">
+                        <span class="pip cur"></span>
+                        <div><div class="nm">Site call logged — revised S-curve, commissioning pushed to end of April</div><div class="pm-meta">5 days ago · Diego Salvatierra</div></div>
+                        <span class="tag progress"><span class="d"></span>Note</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Quiet metadata sidebar -->
+                <aside class="aside">
+                  <div class="advance">
+                    <div class="lead">This project is <b>behind on Construction</b>. The next step is to advance it once commissioning begins.</div>
+                    <button class="btn primary">Advance to Commissioning</button>
+                  </div>
+
+                  <div class="panel">
+                    <div class="p-title">Details</div>
+                    <div class="dl">
+                      <div class="row"><span class="k">Customer</span><span class="v link">Cascade Foods</span></div>
+                      <div class="row"><span class="k">Project manager</span><span class="v"><span class="person"><span class="pa">DS</span>Diego Salvatierra</span></span></div>
+                      <div class="row"><span class="k">Status</span><span class="v"><span class="tag warn"><span class="d"></span>Ongoing</span></span></div>
+                      <div class="row"><span class="k">Start</span><span class="v tnum">1 Jun 2025</span></div>
+                      <div class="row"><span class="k">Target end</span><span class="v tnum">31 Jul 2026</span></div>
+                      <div class="row"><span class="k">Code</span><span class="v" style="font-family:var(--ds-font-mono)">SP-2402</span></div>
+                    </div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="p-title">Site</div>
+                    <div class="dl">
+                      <div class="row"><span class="k">Array</span><span class="v">6.0 MW Ground-Mount</span></div>
+                      <div class="row"><span class="k">Contract ref</span><span class="v" style="font-family:var(--ds-font-mono)">CF-EPC-0247</span></div>
+                      <div class="row"><span class="k">Client lead</span><span class="v">Lucas van den Berg</span></div>
+                    </div>
+                  </div>
+                </aside>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

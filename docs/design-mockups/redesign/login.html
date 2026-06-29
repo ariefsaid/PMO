@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMO Portal — Login (Design Mockup)</title>
+  <link rel="stylesheet" href="_tokens.css">
+  <link rel="stylesheet" href="_base.css">
+  <style>
+    /* ---- Mockup page layout only — NO colors, all surface from --ds-* ---- */
+    .mockup-page {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+    }
+    .mockup-pane {
+      display: flex;
+      flex-direction: column;
+    }
+    .mockup-label {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: var(--ds-space-1) var(--ds-space-4);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--ds-border);
+      background: var(--ds-surface-canvas);
+      color: var(--ds-text-tertiary);
+    }
+    .mockup-pane.mockup-pane--dark .mockup-label {
+      background: var(--ds-surface-canvas);
+      color: var(--ds-text-tertiary);
+      border-bottom-color: var(--ds-border);
+    }
+    .mockup-divider {
+      /* thin divider between the two panes at the page level only */
+      border-left: 1px solid;
+    }
+    /* The dark pane resets color-scheme so system elements adapt too */
+    .mockup-pane--dark {
+      color-scheme: dark;
+    }
+
+    /* ---- State variant switcher row (inside each pane) ---- */
+    .states-row {
+      display: flex;
+      gap: var(--ds-space-4);
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: var(--ds-space-6) var(--ds-space-4);
+      flex: 1;
+    }
+    .state-block {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-2);
+      align-items: center;
+    }
+    .state-tag {
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      color: var(--ds-text-tertiary);
+      align-self: flex-start;
+    }
+
+    /* ---- Auth card width override for the narrower two-up layout ---- */
+    .state-block .ds-auth__card {
+      max-width: 340px;
+    }
+  </style>
+</head>
+<body>
+<div class="mockup-page">
+
+  <!-- ================================================================== LIGHT -->
+  <div class="mockup-pane">
+    <div class="mockup-label">Light</div>
+    <div class="states-row">
+
+      <!-- State 1: Default / empty -->
+      <div class="state-block">
+        <span class="state-tag">Default</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <!-- Brand mark -->
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <!-- Email field -->
+            <div class="ds-field">
+              <label class="ds-field__label" for="l-email">Email address</label>
+              <input class="ds-input" id="l-email" type="email" autocomplete="email"
+                     placeholder="you@yourorg.example" aria-describedby="l-email-hint">
+            </div>
+
+            <!-- Password field -->
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="l-password">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="l-password" type="password" autocomplete="current-password" placeholder="••••••••">
+            </div>
+
+            <!-- Primary action -->
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <!-- Divider -->
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+
+            <!-- Magic link -->
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2.5 8.5l5-5 1.5 1.5-3.5 3.5 3.5 3.5-1.5 1.5-5-5zM8.5 5l1.5-1.5 5 5-5 5-1.5-1.5 3.5-3.5-3.5-3.5z" fill="currentColor"/>
+              </svg>
+              Send magic link
+            </button>
+
+            <!-- Terms -->
+            <p style="font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); text-align:center; margin:0;">
+              By signing in you agree to the <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Terms of Service</a> and <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Privacy Policy</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 2: Loading (busy) -->
+      <div class="state-block">
+        <span class="state-tag">Loading</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="l-email-b">Email address</label>
+              <input class="ds-input" id="l-email-b" type="email" value="pm@yourorg.example" disabled>
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="l-pw-b">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="l-pw-b" type="password" value="••••••••" disabled>
+            </div>
+
+            <!-- Loading button -->
+            <button class="ds-btn ds-btn--primary" disabled aria-busy="true" style="width:100%; justify-content:center; gap:var(--ds-space-2);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+                   style="animation: spin 0.8s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="30"/>
+              </svg>
+              Signing in…
+            </button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" disabled style="width:100%; justify-content:center;">Send magic link</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 3: Error + Demo panel -->
+      <div class="state-block">
+        <span class="state-tag">Error + Demo panel</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <!-- Error banner -->
+            <div role="alert" aria-live="assertive"
+                 style="display:flex; align-items:flex-start; gap:var(--ds-space-2);
+                        border:1px solid; border-color:var(--ds-destructive-tint);
+                        background:var(--ds-destructive-tint);
+                        border-radius:var(--ds-radius-md);
+                        padding:var(--ds-space-2) var(--ds-space-3);
+                        font-size:var(--ds-text-sm);">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                   style="flex:none; margin-top:2px; color:var(--ds-destructive);">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 5v4M8 11v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span style="color:var(--ds-destructive-text);">Invalid email or password. Check your credentials and try again.</span>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="l-email-c">Email address</label>
+              <input class="ds-input is-error" id="l-email-c" type="email" value="pm@wrongorg.example">
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="l-pw-c">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input is-error" id="l-pw-c" type="password" value="••••••••">
+            </div>
+
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">Send magic link</button>
+
+            <!-- Demo login panel -->
+            <div style="border-radius:var(--ds-radius-md); border:1px solid var(--ds-border);
+                        background:var(--ds-surface-muted); padding:var(--ds-space-3);">
+              <p class="ds-overline" style="text-align:center; margin-bottom:var(--ds-space-1);">Demo login</p>
+              <p style="text-align:center; font-family:var(--ds-font-mono); font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); margin:0 0 var(--ds-space-2);">password: Passw0rd!dev</p>
+              <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:var(--ds-space-1) var(--ds-space-3);">
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Executive</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Project Manager</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Finance</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Engineer</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Admin</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 4: Magic link sent (success notice) -->
+      <div class="state-block">
+        <span class="state-tag">Magic link sent</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <!-- Success notice -->
+            <div role="status" aria-live="polite"
+                 style="display:flex; align-items:flex-start; gap:var(--ds-space-2);
+                        border:1px solid var(--ds-success-tint);
+                        background:var(--ds-success-tint);
+                        border-radius:var(--ds-radius-md);
+                        padding:var(--ds-space-2) var(--ds-space-3);
+                        font-size:var(--ds-text-sm);">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                   style="flex:none; margin-top:2px; color:var(--ds-success-text);">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span style="color:var(--ds-success-text);">Check your email — we sent a sign-in link to <strong>pm@yourorg.example</strong>.</span>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="l-email-d">Email address</label>
+              <input class="ds-input" id="l-email-d" type="email" value="pm@yourorg.example">
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="l-pw-d">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="l-pw-d" type="password" placeholder="••••••••">
+            </div>
+
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">Resend magic link</button>
+
+            <p style="font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); text-align:center; margin:0;">
+              By signing in you agree to the <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Terms of Service</a> and <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Privacy Policy</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /states-row light -->
+  </div><!-- /light pane -->
+
+  <!-- ================================================================== DARK -->
+  <div class="mockup-pane mockup-pane--dark dark mockup-divider">
+    <div class="mockup-label">Dark</div>
+    <div class="states-row">
+
+      <!-- State 1: Default / empty (dark) -->
+      <div class="state-block">
+        <span class="state-tag">Default</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="d-email">Email address</label>
+              <input class="ds-input" id="d-email" type="email" autocomplete="email"
+                     placeholder="you@yourorg.example">
+            </div>
+
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="d-password">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="d-password" type="password" placeholder="••••••••">
+            </div>
+
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2.5 8.5l5-5 1.5 1.5-3.5 3.5 3.5 3.5-1.5 1.5-5-5zM8.5 5l1.5-1.5 5 5-5 5-1.5-1.5 3.5-3.5-3.5-3.5z" fill="currentColor"/>
+              </svg>
+              Send magic link
+            </button>
+
+            <p style="font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); text-align:center; margin:0;">
+              By signing in you agree to the <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Terms of Service</a> and <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Privacy Policy</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 2: Loading (dark) -->
+      <div class="state-block">
+        <span class="state-tag">Loading</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="d-email-b">Email address</label>
+              <input class="ds-input" id="d-email-b" type="email" value="exec@yourorg.example" disabled>
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="d-pw-b">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="d-pw-b" type="password" value="••••••••" disabled>
+            </div>
+
+            <button class="ds-btn ds-btn--primary" disabled aria-busy="true" style="width:100%; justify-content:center; gap:var(--ds-space-2);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+                   style="animation: spin 0.8s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-dashoffset="30"/>
+              </svg>
+              Signing in…
+            </button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" disabled style="width:100%; justify-content:center;">Send magic link</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 3: Error + Demo panel (dark) -->
+      <div class="state-block">
+        <span class="state-tag">Error + Demo panel</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <div role="alert" aria-live="assertive"
+                 style="display:flex; align-items:flex-start; gap:var(--ds-space-2);
+                        border:1px solid var(--ds-destructive-tint);
+                        background:var(--ds-destructive-tint);
+                        border-radius:var(--ds-radius-md);
+                        padding:var(--ds-space-2) var(--ds-space-3);
+                        font-size:var(--ds-text-sm);">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                   style="flex:none; margin-top:2px; color:var(--ds-destructive);">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 5v4M8 11v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span style="color:var(--ds-destructive-text);">Invalid email or password. Check your credentials and try again.</span>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="d-email-c">Email address</label>
+              <input class="ds-input is-error" id="d-email-c" type="email" value="pm@wrongorg.example">
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="d-pw-c">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input is-error" id="d-pw-c" type="password" value="••••••••">
+            </div>
+
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">Send magic link</button>
+
+            <div style="border-radius:var(--ds-radius-md); border:1px solid var(--ds-border);
+                        background:var(--ds-surface-muted); padding:var(--ds-space-3);">
+              <p class="ds-overline" style="text-align:center; margin-bottom:var(--ds-space-1);">Demo login</p>
+              <p style="text-align:center; font-family:var(--ds-font-mono); font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); margin:0 0 var(--ds-space-2);">password: Passw0rd!dev</p>
+              <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:var(--ds-space-1) var(--ds-space-3);">
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Executive</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Project Manager</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Finance</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Engineer</button>
+                <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color:var(--ds-primary); font-size:var(--ds-text-xs);">Admin</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- State 4: Magic link sent (dark) -->
+      <div class="state-block">
+        <span class="state-tag">Magic link sent</span>
+        <div class="ds-auth" style="min-height:0; padding: var(--ds-space-6) var(--ds-space-4); width:100%;">
+          <div class="ds-auth__card">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:var(--ds-space-1); text-align:center;">
+              <div class="ds-rail__logo" style="width:36px; height:36px; font-size:var(--ds-text-md);" aria-hidden="true">P</div>
+              <span class="ds-overline" style="margin-top:var(--ds-space-1);">PMO Portal</span>
+              <h1 class="ds-heading" style="font-size:var(--ds-text-xl); margin-top:var(--ds-space-1);">Sign in to your account</h1>
+            </div>
+
+            <div role="status" aria-live="polite"
+                 style="display:flex; align-items:flex-start; gap:var(--ds-space-2);
+                        border:1px solid var(--ds-success-tint);
+                        background:var(--ds-success-tint);
+                        border-radius:var(--ds-radius-md);
+                        padding:var(--ds-space-2) var(--ds-space-3);
+                        font-size:var(--ds-text-sm);">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                   style="flex:none; margin-top:2px; color:var(--ds-success-text);">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span style="color:var(--ds-success-text);">Check your email — we sent a sign-in link to <strong>exec@yourorg.example</strong>.</span>
+            </div>
+
+            <div class="ds-field">
+              <label class="ds-field__label" for="d-email-d">Email address</label>
+              <input class="ds-input" id="d-email-d" type="email" value="exec@yourorg.example">
+            </div>
+            <div class="ds-field">
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <label class="ds-field__label" for="d-pw-d">Password</label>
+                <a href="#" style="font-size:var(--ds-text-xs); color:var(--ds-primary); text-decoration:none; font-weight:var(--ds-weight-medium);">Forgot password?</a>
+              </div>
+              <input class="ds-input" id="d-pw-d" type="password" placeholder="••••••••">
+            </div>
+
+            <button class="ds-btn ds-btn--primary" style="width:100%; justify-content:center;">Sign in</button>
+
+            <div style="display:flex; align-items:center; gap:var(--ds-space-2);">
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+              <span class="ds-overline">or</span>
+              <span style="height:1px; flex:1; background:var(--ds-border);" aria-hidden="true"></span>
+            </div>
+            <button class="ds-btn ds-btn--secondary" style="width:100%; justify-content:center;">Resend magic link</button>
+
+            <p style="font-size:var(--ds-text-xs); color:var(--ds-text-tertiary); text-align:center; margin:0;">
+              By signing in you agree to the <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Terms of Service</a> and <a href="#" style="color:var(--ds-text-secondary); text-decoration:underline;">Privacy Policy</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /states-row dark -->
+  </div><!-- /dark pane -->
+
+</div><!-- /mockup-page -->
+
+<!-- Spinner keyframe — mockup only, no color -->
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</body>
+</html>

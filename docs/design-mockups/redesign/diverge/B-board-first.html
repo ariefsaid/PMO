@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Paradigm B — Board &amp; Dashboard-First</title>
+<link rel="stylesheet" href="../_tokens.css" />
+<style>
+  /* ============================================================================
+     PARADIGM B — BOARD & DASHBOARD-FIRST
+     Home = operational overview (KPIs) → work-as-boards (projects as a stage
+     kanban). Cards carry the signal. Table is a secondary toggle. The record
+     opens as a focused right-side sheet over a dimmed board.
+     EVERY color / font / size / space / radius comes from a --ds-* token.
+     ============================================================================ */
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ds-surface-sunken);
+    color: var(--ds-text-primary);
+    font-family: var(--ds-font-body);
+    font-size: var(--ds-text-md);
+    line-height: var(--ds-leading-normal);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--ds-font-display); margin: 0; font-weight: var(--ds-weight-semibold); }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .mono { font-family: var(--ds-font-mono); }
+
+  :focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 2px; border-radius: var(--ds-radius-sm); }
+
+  /* ---- Page scaffold for the divergence doc (two stacked views) ---- */
+  .page-wrap { max-width: 1280px; margin: 0 auto; padding: var(--ds-space-8) var(--ds-space-6) var(--ds-space-16); }
+  .doc-head { margin-bottom: var(--ds-space-6); }
+  .doc-head .kicker {
+    font-family: var(--ds-font-display);
+    font-size: var(--ds-text-xxs);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-wide);
+    text-transform: uppercase;
+    color: var(--ds-primary);
+  }
+  .doc-head h1 { font-size: var(--ds-text-2xl); letter-spacing: var(--ds-tracking-tight); margin-top: var(--ds-space-1); }
+  .doc-head p { color: var(--ds-text-secondary); font-size: var(--ds-text-sm); margin: var(--ds-space-2) 0 0; max-width: 70ch; }
+
+  /* ---- mockup-chrome label above each view ---- */
+  .chrome-label {
+    display: inline-flex; align-items: center; gap: var(--ds-space-2);
+    margin: var(--ds-space-10) 0 var(--ds-space-3);
+    padding: var(--ds-space-1) var(--ds-space-3);
+    background: var(--ds-surface-muted);
+    border: 1px solid var(--ds-border-light);
+    border-radius: var(--ds-radius-pill);
+    font-size: var(--ds-text-xs);
+    color: var(--ds-text-tertiary);
+  }
+  .chrome-label .n {
+    display: grid; place-items: center; width: 18px; height: 18px;
+    background: var(--ds-primary); color: var(--ds-primary-fg);
+    border-radius: var(--ds-radius-round);
+    font-family: var(--ds-font-display); font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+  }
+  .chrome-label strong { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+
+  /* ============================================================================
+     APP FRAME — every view rendered inside a faux app window (rail + topbar)
+     ============================================================================ */
+  .frame {
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-xl);
+    overflow: hidden;
+    background: var(--ds-surface-canvas);
+    box-shadow: var(--ds-shadow-resting);
+    position: relative;
+  }
+  .app { display: grid; grid-template-columns: var(--ds-rail-w) 1fr; min-height: 540px; }
+
+  /* ---- Rail ---- */
+  .rail { background: var(--ds-surface-sunken); border-right: 1px solid var(--ds-border); padding: var(--ds-space-3); display: flex; flex-direction: column; gap: var(--ds-space-1); }
+  .brand { display: flex; align-items: center; gap: var(--ds-space-2_5); height: var(--ds-topbar-h); padding: 0 var(--ds-space-2); margin-bottom: var(--ds-space-2); }
+  .brand .logo { width: 28px; height: 28px; border-radius: var(--ds-radius-sm); background: var(--ds-gradient-avatar); display: grid; place-items: center; color: var(--ds-primary-fg); font-family: var(--ds-font-display); font-weight: var(--ds-weight-semibold); font-size: var(--ds-text-sm); }
+  .brand .name { font-family: var(--ds-font-display); font-weight: var(--ds-weight-semibold); font-size: var(--ds-text-md); letter-spacing: var(--ds-tracking-snug); }
+  .rail-group { font-size: var(--ds-text-xxs); letter-spacing: var(--ds-tracking-wide); text-transform: uppercase; color: var(--ds-text-tertiary); padding: var(--ds-space-3) var(--ds-space-2) var(--ds-space-1); font-weight: var(--ds-weight-semibold); }
+  .nav-item { display: flex; align-items: center; gap: var(--ds-space-2_5); height: 34px; padding: 0 var(--ds-space-2_5); border-radius: var(--ds-radius-md); color: var(--ds-text-secondary); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); cursor: pointer; }
+  .nav-item:hover { background: var(--ds-surface-hover); }
+  .nav-item.active { background: var(--ds-primary-tint); color: var(--ds-primary); font-weight: var(--ds-weight-semibold); }
+  .nav-item .ico { width: 16px; height: 16px; flex: none; }
+  .nav-item .count { margin-left: auto; font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); background: var(--ds-surface-muted); border-radius: var(--ds-radius-pill); padding: 0 var(--ds-space-1_5); min-width: 20px; text-align: center; }
+  .nav-item.active .count { background: var(--ds-primary-tint-strong); color: var(--ds-primary); }
+
+  /* ---- Topbar ---- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { height: var(--ds-topbar-h); border-bottom: 1px solid var(--ds-border); display: flex; align-items: center; gap: var(--ds-space-3); padding: 0 var(--ds-space-5); background: var(--ds-surface-canvas); }
+  .crumb { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); display: flex; align-items: center; gap: var(--ds-space-1_5); }
+  .crumb b { color: var(--ds-text-primary); font-weight: var(--ds-weight-semibold); }
+  .topbar .spacer { flex: 1; }
+  .searchbox { display: flex; align-items: center; gap: var(--ds-space-2); height: var(--ds-control-h); padding: 0 var(--ds-space-2_5); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-surface-sunken); color: var(--ds-text-tertiary); font-size: var(--ds-text-sm); min-width: 188px; }
+  .searchbox .kbd { margin-left: auto; font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); background: var(--ds-surface-muted); border-radius: var(--ds-radius-xs); padding: 0 var(--ds-space-1); color: var(--ds-text-tertiary); }
+  .iconbtn { width: var(--ds-control-h); height: var(--ds-control-h); display: grid; place-items: center; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-surface-canvas); color: var(--ds-text-secondary); cursor: pointer; position: relative; }
+  .iconbtn .dot { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: var(--ds-radius-round); background: var(--ds-destructive); }
+  .user { display: flex; align-items: center; gap: var(--ds-space-2); }
+  .user .av { width: 28px; height: 28px; border-radius: var(--ds-radius-round); background: var(--ds-gradient-avatar); display: grid; place-items: center; color: var(--ds-primary-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold); }
+  .user .who { font-size: var(--ds-text-sm); line-height: var(--ds-leading-tight); }
+  .user .who .r { color: var(--ds-text-tertiary); font-size: var(--ds-text-xs); }
+
+  /* ---- SVG icon defaults (1em, override-safe) ---- */
+  svg.i { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ============================================================================
+     VIEW 1 — PROJECTS WORKSPACE (overview band → stage board)
+     ============================================================================ */
+  .canvas { padding: var(--ds-space-5); overflow: hidden; }
+
+  /* ---- Workspace head: title + view switch + actions ---- */
+  .ws-head { display: flex; align-items: flex-start; gap: var(--ds-space-4); margin-bottom: var(--ds-space-4); flex-wrap: wrap; }
+  .ws-head .titles h2 { font-size: var(--ds-text-xl); letter-spacing: var(--ds-tracking-snug); }
+  .ws-head .titles p { color: var(--ds-text-tertiary); font-size: var(--ds-text-sm); margin: var(--ds-space-0_5) 0 0; }
+  .ws-head .acts { margin-left: auto; display: flex; align-items: center; gap: var(--ds-space-2); }
+
+  .seg { display: inline-flex; background: var(--ds-surface-muted); border-radius: var(--ds-radius-md); padding: var(--ds-space-0_5); gap: var(--ds-space-0_5); }
+  .seg button { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); height: 26px; padding: 0 var(--ds-space-2_5); border: 0; background: transparent; color: var(--ds-text-tertiary); font-family: inherit; font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); border-radius: var(--ds-radius-sm); cursor: pointer; }
+  .seg button.on { background: var(--ds-surface-canvas); color: var(--ds-text-primary); box-shadow: var(--ds-shadow-resting); font-weight: var(--ds-weight-semibold); }
+
+  .btn { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); height: var(--ds-control-h); padding: 0 var(--ds-space-3); border-radius: var(--ds-radius-md); font-family: inherit; font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--ds-primary); color: var(--ds-primary-fg); box-shadow: var(--ds-shadow-primary); }
+  .btn-primary:hover { background: var(--ds-primary-hover); }
+  .btn-outline { background: var(--ds-surface-canvas); border-color: var(--ds-border); color: var(--ds-text-secondary); }
+  .btn-outline:hover { background: var(--ds-surface-hover); }
+  .btn-ghost { background: transparent; color: var(--ds-text-secondary); }
+  .btn-ghost:hover { background: var(--ds-surface-hover); }
+  .btn-sm { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2_5); font-size: var(--ds-text-xs); }
+
+  /* ---- Overview KPI band (the "dashboard-first" header) ---- */
+  .kpi-band { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ds-space-3); margin-bottom: var(--ds-space-5); }
+  .kpi { background: var(--ds-surface-canvas); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); padding: var(--ds-space-4); }
+  .kpi .top { display: flex; align-items: center; gap: var(--ds-space-2); margin-bottom: var(--ds-space-2_5); }
+  .kpi .tile { width: 26px; height: 26px; border-radius: var(--ds-radius-sm); display: grid; place-items: center; font-size: var(--ds-text-sm); }
+  .kpi .lbl { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); font-weight: var(--ds-weight-medium); }
+  .kpi .val { font-family: var(--ds-font-display); font-size: var(--ds-text-2xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-tight); line-height: var(--ds-leading-tight); }
+  .kpi .foot { display: flex; align-items: center; gap: var(--ds-space-1_5); margin-top: var(--ds-space-2); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+  .delta { display: inline-flex; align-items: center; gap: var(--ds-space-0_5); font-weight: var(--ds-weight-semibold); padding: var(--ds-space-0_5) var(--ds-space-1_5); border-radius: var(--ds-radius-pill); }
+  .delta.up { color: var(--ds-success-text); background: var(--ds-success-tint); }
+  .delta.down { color: var(--ds-destructive-text); background: var(--ds-destructive-tint); }
+  .delta.warn { color: var(--ds-warning-fg); background: var(--ds-warning-tint); }
+  .tile.blue { background: var(--ds-primary-tint); color: var(--ds-primary); }
+  .tile.green { background: var(--ds-success-tint); color: var(--ds-success-text); }
+  .tile.violet { background: var(--ds-violet-tint); color: var(--ds-violet-text); }
+  .tile.amber { background: var(--ds-warning-tint); color: var(--ds-warning-icon); }
+
+  /* ---- Filter strip above the board ---- */
+  .filterbar { display: flex; align-items: center; gap: var(--ds-space-2); margin-bottom: var(--ds-space-3); flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2_5); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-pill); background: var(--ds-surface-canvas); color: var(--ds-text-secondary); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); cursor: pointer; }
+  .chip:hover { background: var(--ds-surface-hover); }
+  .chip.active { background: var(--ds-primary-tint); border-color: transparent; color: var(--ds-primary); font-weight: var(--ds-weight-semibold); }
+  .filterbar .grow { flex: 1; }
+
+  /* ---- THE BOARD ---- */
+  .board { display: flex; gap: var(--ds-space-3); overflow-x: auto; padding-bottom: var(--ds-space-2); }
+  .col { flex: 0 0 268px; background: var(--ds-surface-sunken); border: 1px solid var(--ds-border-light); border-radius: var(--ds-radius-lg); display: flex; flex-direction: column; max-height: 560px; }
+  .col-head { display: flex; align-items: center; gap: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-2_5); position: sticky; top: 0; }
+  .col-head .swatch { width: 8px; height: 8px; border-radius: var(--ds-radius-round); flex: none; }
+  .col-head .title { font-family: var(--ds-font-display); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); }
+  .col-head .count { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); background: var(--ds-surface-muted); border-radius: var(--ds-radius-pill); padding: 0 var(--ds-space-1_5); min-width: 20px; text-align: center; }
+  .col-head .sum { margin-left: auto; font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+  .col-body { display: flex; flex-direction: column; gap: var(--ds-space-2); padding: 0 var(--ds-space-2_5) var(--ds-space-2_5); overflow-y: auto; }
+
+  /* swatches per stage (semantic, color-not-only — the column title carries identity) */
+  .sw-prep { background: var(--ds-violet); }
+  .sw-go { background: var(--ds-primary); }
+  .sw-hold { background: var(--ds-warning); }
+  .sw-close { background: var(--ds-success); }
+  .sw-loss { background: var(--ds-neutral-8); }
+
+  /* ---- THE SIGNAL CARD (the heart of paradigm B) ---- */
+  .card { background: var(--ds-surface-canvas); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); padding: var(--ds-space-3); cursor: pointer; position: relative; overflow: hidden; }
+  .card:hover { box-shadow: var(--ds-shadow-raised); border-color: var(--ds-border-strong); }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .card.h-ok::before { background: var(--ds-success); }
+  .card.h-watch::before { background: var(--ds-warning); }
+  .card.h-risk::before { background: var(--ds-destructive); }
+  .card.h-neutral::before { background: var(--ds-neutral-6); }
+  .card .row1 { display: flex; align-items: flex-start; gap: var(--ds-space-2); }
+  .card .pj-ico { width: 24px; height: 24px; border-radius: var(--ds-radius-sm); display: grid; place-items: center; color: var(--ds-primary-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold); flex: none; }
+  .card .pj-name { font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold); line-height: var(--ds-leading-snug); color: var(--ds-text-primary); }
+  .card .pj-client { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); margin-top: var(--ds-space-0_5); }
+  .card .grip { margin-left: auto; color: var(--ds-text-disabled); }
+  .card .val { font-family: var(--ds-font-display); font-size: var(--ds-text-lg); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); margin-top: var(--ds-space-2_5); }
+  .card .val .unit { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); font-family: var(--ds-font-body); font-weight: var(--ds-weight-regular); margin-left: var(--ds-space-1); }
+
+  /* progress meter on the card */
+  .meter { margin-top: var(--ds-space-2_5); }
+  .meter .lbls { display: flex; justify-content: space-between; font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); margin-bottom: var(--ds-space-1); }
+  .meter .track { height: 5px; border-radius: var(--ds-radius-pill); background: var(--ds-surface-muted); overflow: hidden; }
+  .meter .fill { height: 100%; border-radius: var(--ds-radius-pill); }
+  .fill.ok { background: var(--ds-success); }
+  .fill.watch { background: var(--ds-warning); }
+  .fill.risk { background: var(--ds-destructive); }
+  .fill.go { background: var(--ds-primary); }
+
+  /* next-milestone line + foot */
+  .nextline { display: flex; align-items: center; gap: var(--ds-space-1_5); margin-top: var(--ds-space-2_5); font-size: var(--ds-text-xs); color: var(--ds-text-secondary); }
+  .nextline .ico { color: var(--ds-text-tertiary); }
+  .card .foot { display: flex; align-items: center; gap: var(--ds-space-2); margin-top: var(--ds-space-2_5); padding-top: var(--ds-space-2_5); border-top: 1px solid var(--ds-border-light); }
+  .mini-av { width: 20px; height: 20px; border-radius: var(--ds-radius-round); background: var(--ds-surface-muted); display: grid; place-items: center; font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold); color: var(--ds-text-secondary); }
+  .pill { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: 20px; padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-pill); font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); }
+  .pill .pdot { width: 6px; height: 6px; border-radius: var(--ds-radius-round); }
+  .pill.ok { background: var(--ds-success-tint); color: var(--ds-success-text); }
+  .pill.ok .pdot { background: var(--ds-success); }
+  .pill.watch { background: var(--ds-warning-tint); color: var(--ds-warning-fg); }
+  .pill.watch .pdot { background: var(--ds-warning-icon); }
+  .pill.risk { background: var(--ds-destructive-tint); color: var(--ds-destructive-text); }
+  .pill.risk .pdot { background: var(--ds-destructive); }
+  .pill.neutral { background: var(--ds-neutral-tint); color: var(--ds-neutral-pill-text); }
+  .pill.neutral .pdot { background: var(--ds-neutral-8); }
+  .card .foot .age { margin-left: auto; font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); }
+
+  .addcard { display: flex; align-items: center; gap: var(--ds-space-1_5); padding: var(--ds-space-2) var(--ds-space-2_5); color: var(--ds-text-tertiary); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); border-radius: var(--ds-radius-md); border: 1px dashed var(--ds-border); cursor: pointer; }
+  .addcard:hover { background: var(--ds-surface-hover); color: var(--ds-text-secondary); }
+
+  /* ============================================================================
+     VIEW 2 — PROJECT RECORD as a focused RIGHT SHEET over the dimmed board
+     ============================================================================ */
+  .sheet-stage { position: relative; }
+  .scrim { position: absolute; inset: 0; background: var(--ds-surface-overlay); z-index: 1; }
+  .sheet { position: absolute; top: 0; right: 0; bottom: 0; width: 560px; max-width: 86%; background: var(--ds-surface-canvas); border-left: 1px solid var(--ds-border); box-shadow: var(--ds-shadow-overlay); z-index: 2; display: flex; flex-direction: column; }
+  .sheet-top { display: flex; align-items: center; gap: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+  .sheet-top .bc { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+  .sheet-top .spacer { flex: 1; }
+  .sheet-scroll { overflow-y: auto; padding: var(--ds-space-5); display: flex; flex-direction: column; gap: var(--ds-space-5); }
+
+  .sheet-hero { display: flex; align-items: flex-start; gap: var(--ds-space-3); }
+  .sheet-hero .pj-ico { width: 40px; height: 40px; border-radius: var(--ds-radius-md); display: grid; place-items: center; color: var(--ds-primary-fg); font-family: var(--ds-font-display); font-size: var(--ds-text-lg); font-weight: var(--ds-weight-semibold); flex: none; }
+  .sheet-hero h2 { font-size: var(--ds-text-xl); letter-spacing: var(--ds-tracking-snug); line-height: var(--ds-leading-tight); }
+  .sheet-hero .meta { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); margin-top: var(--ds-space-1); }
+  .sheet-hero .meta .mono { color: var(--ds-text-secondary); }
+
+  /* sheet finance strip */
+  .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ds-space-1); background: var(--ds-surface-sunken); border: 1px solid var(--ds-border-light); border-radius: var(--ds-radius-lg); overflow: hidden; }
+  .stat { padding: var(--ds-space-3) var(--ds-space-3); }
+  .stat + .stat { border-left: 1px solid var(--ds-border-light); }
+  .stat .l { font-size: var(--ds-text-xxs); text-transform: uppercase; letter-spacing: var(--ds-tracking-wide); color: var(--ds-text-tertiary); font-weight: var(--ds-weight-semibold); }
+  .stat .v { font-family: var(--ds-font-display); font-size: var(--ds-text-lg); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); margin-top: var(--ds-space-1); }
+  .stat .v.pos { color: var(--ds-success-text); }
+
+  /* sheet section */
+  .sec h3 { font-size: var(--ds-text-sm); text-transform: uppercase; letter-spacing: var(--ds-tracking-wide); color: var(--ds-text-tertiary); font-family: var(--ds-font-display); font-weight: var(--ds-weight-semibold); margin-bottom: var(--ds-space-3); }
+
+  /* lifecycle stepper (procurement lifecycle bar) */
+  .stepper { display: flex; gap: var(--ds-space-1); }
+  .step { flex: 1; }
+  .step .bar { height: 6px; border-radius: var(--ds-radius-pill); background: var(--ds-surface-muted); }
+  .step.done .bar { background: var(--ds-success); }
+  .step.current .bar { background: var(--ds-primary); }
+  .step .t { font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); margin-top: var(--ds-space-1_5); white-space: nowrap; }
+  .step.done .t, .step.current .t { color: var(--ds-text-secondary); font-weight: var(--ds-weight-medium); }
+
+  /* milestone list */
+  .ms { display: flex; align-items: center; gap: var(--ds-space-2_5); padding: var(--ds-space-2_5) 0; border-bottom: 1px solid var(--ds-border-light); }
+  .ms:last-child { border-bottom: 0; }
+  .ms .node { width: 18px; height: 18px; border-radius: var(--ds-radius-round); display: grid; place-items: center; flex: none; }
+  .ms .node.done { background: var(--ds-success-tint); color: var(--ds-success-text); }
+  .ms .node.now { background: var(--ds-primary-tint); color: var(--ds-primary); }
+  .ms .node.todo { background: var(--ds-surface-muted); color: var(--ds-text-tertiary); }
+  .ms .nm { font-size: var(--ds-text-sm); color: var(--ds-text-primary); }
+  .ms .dt { margin-left: auto; font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+
+  /* mini procurement table inside sheet */
+  .minitable { width: 100%; border-collapse: collapse; font-size: var(--ds-text-sm); }
+  .minitable th { text-align: left; font-size: var(--ds-text-xxs); text-transform: uppercase; letter-spacing: var(--ds-tracking-caps); color: var(--ds-text-tertiary); font-weight: var(--ds-weight-semibold); padding: 0 var(--ds-space-2) var(--ds-space-2); border-bottom: 1px solid var(--ds-border); }
+  .minitable td { padding: var(--ds-space-2_5) var(--ds-space-2); border-bottom: 1px solid var(--ds-border-light); }
+  .minitable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .minitable tr:last-child td { border-bottom: 0; }
+
+  /* sheet sticky action zone */
+  .action-zone { border-top: 1px solid var(--ds-border); padding: var(--ds-space-3) var(--ds-space-4); display: flex; align-items: center; gap: var(--ds-space-2); background: var(--ds-surface-sunken); }
+  .action-zone .ready { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); font-size: var(--ds-text-xs); color: var(--ds-success-text); }
+  .action-zone .spacer { flex: 1; }
+  .btn-success { background: var(--ds-success); color: var(--ds-success-fg); }
+
+  /* a "secondary table toggle" preview strip so the IA reads both modes */
+  .toggle-note { display: flex; align-items: center; gap: var(--ds-space-2); margin-top: var(--ds-space-4); padding: var(--ds-space-2_5) var(--ds-space-3); background: var(--ds-surface-sunken); border: 1px dashed var(--ds-border); border-radius: var(--ds-radius-md); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+  .toggle-note b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <header class="doc-head">
+    <div class="kicker">Divergence · Paradigm B</div>
+    <h1>Board &amp; Dashboard-First</h1>
+    <p>Home is an operational overview, then work-as-boards: projects live on a stage kanban where each
+       card carries the signal — client, contract value, delivery health, next milestone. The table is a
+       secondary toggle, not the default. A record opens as a focused right-side sheet over the dimmed
+       board, so you never lose your place in the portfolio. Reference class: Monday / Asana / ClickUp.</p>
+  </header>
+
+  <!-- ════════════════════════ VIEW 1 — PROJECTS WORKSPACE ════════════════════════ -->
+  <div class="chrome-label"><span class="n">1</span> <strong>Projects workspace</strong> · overview band → stage board (Board is the default view)</div>
+
+  <div class="frame">
+    <div class="app">
+      <!-- Rail -->
+      <aside class="rail">
+        <div class="brand"><div class="logo">P</div><div class="name">PMO Portal</div></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Overview</div>
+        <div class="rail-group">Work</div>
+        <div class="nav-item active"><svg class="i ico" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Projects <span class="count">24</span></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v6l9 4 9-4V7"/></svg> Pipeline <span class="count">9</span></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><path d="M3 20a6 6 0 0112 0"/><path d="M16 4a3 3 0 010 6"/></svg> Approvals <span class="count">5</span></div>
+        <div class="rail-group">Operate</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><path d="M6 2v20l6-3 6 3V2z"/></svg> Procurement</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg> Timesheets</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg> Companies</div>
+      </aside>
+
+      <!-- Main -->
+      <div class="main">
+        <div class="topbar">
+          <div class="crumb">Work <span>›</span> <b>Projects</b></div>
+          <div class="spacer"></div>
+          <div class="searchbox"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Search projects <span class="kbd">⌘K</span></div>
+          <button class="iconbtn" aria-label="Notifications"><svg class="i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot"></span></button>
+          <div class="user"><div class="av">AS</div><div class="who">Arief Said<div class="r">Executive</div></div></div>
+        </div>
+
+        <div class="canvas">
+          <!-- Workspace head -->
+          <div class="ws-head">
+            <div class="titles">
+              <h2>Projects</h2>
+              <p>Your delivery portfolio, grouped by stage. Drag a card to advance it.</p>
+            </div>
+            <div class="acts">
+              <div class="seg" role="tablist" aria-label="View">
+                <button class="on" role="tab" aria-selected="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/><rect x="19" y="3" width="2" height="18" rx="1" opacity="0"/></svg> Board</button>
+                <button role="tab" aria-selected="false"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Table</button>
+                <button role="tab" aria-selected="false"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v3M16 4v3"/></svg> Calendar</button>
+              </div>
+              <button class="btn btn-outline"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Filter</button>
+              <button class="btn btn-primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New project</button>
+            </div>
+          </div>
+
+          <!-- Overview KPI band -->
+          <div class="kpi-band" aria-label="Portfolio overview">
+            <div class="kpi">
+              <div class="top"><div class="tile green">$</div><div class="lbl">Revenue on hand</div></div>
+              <div class="val tnum">$42.8M</div>
+              <div class="foot"><span class="delta up">▲ 6.2%</span> vs last quarter</div>
+            </div>
+            <div class="kpi">
+              <div class="top"><div class="tile violet"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div><div class="lbl">Active projects</div></div>
+              <div class="val tnum">18</div>
+              <div class="foot"><span class="delta warn">3 at risk</span> needs attention</div>
+            </div>
+            <div class="kpi">
+              <div class="top"><div class="tile blue"><svg class="i" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/></svg></div><div class="lbl">Total contract value</div></div>
+              <div class="val tnum">$58.4M</div>
+              <div class="foot">across 18 ongoing projects</div>
+            </div>
+            <div class="kpi">
+              <div class="top"><div class="tile amber"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h10l2-8H6"/></svg></div><div class="lbl">Committed spend</div></div>
+              <div class="val tnum">$31.2M</div>
+              <div class="foot"><span class="delta up">53%</span> of contract value</div>
+            </div>
+          </div>
+
+          <!-- Filter strip -->
+          <div class="filterbar">
+            <button class="chip active">All</button>
+            <button class="chip">My projects</button>
+            <button class="chip">At risk <span class="pill risk" style="height:16px;padding:0 6px"><span class="pdot"></span>3</span></button>
+            <button class="chip"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg> All managers ▾</button>
+            <span class="grow"></span>
+            <button class="btn btn-ghost btn-sm"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/></svg> Sort: Health</button>
+          </div>
+
+          <!-- THE BOARD -->
+          <div class="board">
+
+            <!-- Column: Won, Pending KoM -->
+            <section class="col">
+              <header class="col-head"><span class="swatch sw-prep"></span><span class="title">Won, Pending KoM</span><span class="count">2</span><span class="sum tnum">$9.1M</span></header>
+              <div class="col-body">
+                <article class="card h-neutral">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-violet)">N</div><div><div class="pj-name">Najran 12 MW Ground-Mount</div><div class="pj-client">Saudi Power Procurement Co.</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$5.4M <span class="unit">contract</span></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg> Kick-off Meeting · <b>Jul 2</b></div>
+                  <div class="foot"><span class="mini-av">RK</span><span class="pill neutral"><span class="pdot"></span>Mobilizing</span><span class="age">4d in stage</span></div>
+                </article>
+                <article class="card h-neutral">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-violet)">T</div><div><div class="pj-name">Tabuk Rooftop C&amp;I Portfolio</div><div class="pj-client">NEOM Utilities</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$3.7M <span class="unit">contract</span></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> Contract signature · <b>pending</b></div>
+                  <div class="foot"><span class="mini-av">LM</span><span class="pill neutral"><span class="pdot"></span>Awaiting PO</span><span class="age">11d in stage</span></div>
+                </article>
+                <div class="addcard"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</div>
+              </div>
+            </section>
+
+            <!-- Column: Ongoing -->
+            <section class="col">
+              <header class="col-head"><span class="swatch sw-go"></span><span class="title">Ongoing Project</span><span class="count">3</span><span class="sum tnum">$30.7M</span></header>
+              <div class="col-body">
+                <article class="card h-risk">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-primary)">R</div><div><div class="pj-name">Riyadh Solar Park Ph. 2</div><div class="pj-client">ACWA Power</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$18.2M <span class="unit">contract</span></div>
+                  <div class="meter"><div class="lbls"><span>Budget used</span><span class="tnum">94%</span></div><div class="track"><div class="fill risk" style="width:94%"></div></div></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Inverter delivery · <b>overdue 3d</b></div>
+                  <div class="foot"><span class="mini-av">AB</span><span class="pill risk"><span class="pdot"></span>At risk</span><span class="age">62% delivered</span></div>
+                </article>
+                <article class="card h-ok">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-primary)">J</div><div><div class="pj-name">Jeddah Carport Solar</div><div class="pj-client">Red Sea Global</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$8.9M <span class="unit">contract</span></div>
+                  <div class="meter"><div class="lbls"><span>Budget used</span><span class="tnum">58%</span></div><div class="track"><div class="fill ok" style="width:58%"></div></div></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/></svg> Structural install · <b>Jul 9</b></div>
+                  <div class="foot"><span class="mini-av">SK</span><span class="pill ok"><span class="pdot"></span>On track</span><span class="age">71% delivered</span></div>
+                </article>
+                <article class="card h-watch">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-primary)">D</div><div><div class="pj-name">Dammam Industrial Rooftop</div><div class="pj-client">SABIC</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$3.6M <span class="unit">contract</span></div>
+                  <div class="meter"><div class="lbls"><span>Budget used</span><span class="tnum">79%</span></div><div class="track"><div class="fill watch" style="width:79%"></div></div></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Grid connection · <b>Jul 18</b></div>
+                  <div class="foot"><span class="mini-av">MH</span><span class="pill watch"><span class="pdot"></span>Watch</span><span class="age">45% delivered</span></div>
+                </article>
+              </div>
+            </section>
+
+            <!-- Column: On Hold -->
+            <section class="col">
+              <header class="col-head"><span class="swatch sw-hold"></span><span class="title">On Hold</span><span class="count">1</span><span class="sum tnum">$4.2M</span></header>
+              <div class="col-body">
+                <article class="card h-watch">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-warning-icon)">A</div><div><div class="pj-name">AlUla Heritage Microgrid</div><div class="pj-client">Royal Commission for AlUla</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$4.2M <span class="unit">contract</span></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Paused · <b>permit review</b></div>
+                  <div class="foot"><span class="mini-av">RK</span><span class="pill watch"><span class="pdot"></span>On hold</span><span class="age">held 19d</span></div>
+                </article>
+                <div class="addcard"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</div>
+              </div>
+            </section>
+
+            <!-- Column: Close Out -->
+            <section class="col">
+              <header class="col-head"><span class="swatch sw-close"></span><span class="title">Close Out</span><span class="count">2</span><span class="sum tnum">$12.6M</span></header>
+              <div class="col-body">
+                <article class="card h-ok">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-success-text)">Q</div><div><div class="pj-name">Qassim Agri-Solar Pumping</div><div class="pj-client">Ministry of Environment</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$7.1M <span class="unit">contract</span></div>
+                  <div class="meter"><div class="lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="track"><div class="fill ok" style="width:100%"></div></div></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Final acceptance · <b>signed</b></div>
+                  <div class="foot"><span class="mini-av">SK</span><span class="pill ok"><span class="pdot"></span>Handover</span><span class="age">retention due</span></div>
+                </article>
+                <article class="card h-ok">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-success-text)">H</div><div><div class="pj-name">Hail Utility Substation PV</div><div class="pj-client">Saudi Electricity Co.</div></div><span class="grip"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                  <div class="val tnum">$5.5M <span class="unit">contract</span></div>
+                  <div class="meter"><div class="lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="track"><div class="fill ok" style="width:100%"></div></div></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Warranty handoff · <b>done</b></div>
+                  <div class="foot"><span class="mini-av">MH</span><span class="pill ok"><span class="pdot"></span>Closed</span><span class="age">2d ago</span></div>
+                </article>
+              </div>
+            </section>
+
+            <!-- Column: Loss Tender (collapsed-feel quiet column) -->
+            <section class="col">
+              <header class="col-head"><span class="swatch sw-loss"></span><span class="title">Loss Tender</span><span class="count">1</span><span class="sum tnum">$2.9M</span></header>
+              <div class="col-body">
+                <article class="card h-neutral">
+                  <div class="row1"><div class="pj-ico" style="background:var(--ds-neutral-8)">B</div><div><div class="pj-name">Buraydah School Solar Bid</div><div class="pj-client">Tatweer Buildings Co.</div></div></div>
+                  <div class="val tnum">$2.9M <span class="unit">bid value</span></div>
+                  <div class="nextline"><svg class="i ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg> Lost on price · <b>−4%</b></div>
+                  <div class="foot"><span class="mini-av">LM</span><span class="pill neutral"><span class="pdot"></span>Archived</span><span class="age">last month</span></div>
+                </article>
+              </div>
+            </section>
+
+          </div>
+
+          <div class="toggle-note">
+            <svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            <span><b>Table</b> and <b>Calendar</b> are one tap away in the view switch — same data, same filters, denser when you need to sort columns or reconcile figures. The board is the default because portfolio health reads at a glance.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════ VIEW 2 — PROJECT RECORD (right sheet) ════════════════════════ -->
+  <div class="chrome-label"><span class="n">2</span> <strong>Project record</strong> · opens as a focused right sheet over the dimmed board — you never leave the portfolio</div>
+
+  <div class="frame">
+    <div class="app">
+      <!-- Rail (same paradigm) -->
+      <aside class="rail">
+        <div class="brand"><div class="logo">P</div><div class="name">PMO Portal</div></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Overview</div>
+        <div class="rail-group">Work</div>
+        <div class="nav-item active"><svg class="i ico" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Projects <span class="count">24</span></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v6l9 4 9-4V7"/></svg> Pipeline <span class="count">9</span></div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><path d="M3 20a6 6 0 0112 0"/><path d="M16 4a3 3 0 010 6"/></svg> Approvals <span class="count">5</span></div>
+        <div class="rail-group">Operate</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><path d="M6 2v20l6-3 6 3V2z"/></svg> Procurement</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg> Timesheets</div>
+        <div class="nav-item"><svg class="i ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg> Companies</div>
+      </aside>
+
+      <!-- Main with sheet stage -->
+      <div class="main">
+        <div class="topbar">
+          <div class="crumb">Work <span>›</span> Projects <span>›</span> <b>Riyadh Solar Park Ph. 2</b></div>
+          <div class="spacer"></div>
+          <div class="searchbox"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Search projects <span class="kbd">⌘K</span></div>
+          <div class="user"><div class="av">AS</div><div class="who">Arief Said<div class="r">Executive</div></div></div>
+        </div>
+
+        <div class="canvas sheet-stage">
+          <!-- dimmed board behind (a hint of the same board) -->
+          <div class="board" aria-hidden="true">
+            <section class="col"><header class="col-head"><span class="swatch sw-prep"></span><span class="title">Won, Pending KoM</span><span class="count">2</span></header><div class="col-body"><article class="card h-neutral"><div class="row1"><div class="pj-ico" style="background:var(--ds-violet)">N</div><div><div class="pj-name">Najran 12 MW Ground-Mount</div><div class="pj-client">Saudi Power Procurement Co.</div></div></div><div class="val tnum">$5.4M</div></article></div></section>
+            <section class="col"><header class="col-head"><span class="swatch sw-go"></span><span class="title">Ongoing Project</span><span class="count">3</span></header><div class="col-body"><article class="card h-risk"><div class="row1"><div class="pj-ico" style="background:var(--ds-primary)">R</div><div><div class="pj-name">Riyadh Solar Park Ph. 2</div><div class="pj-client">ACWA Power</div></div></div><div class="val tnum">$18.2M</div></article></div></section>
+            <section class="col"><header class="col-head"><span class="swatch sw-hold"></span><span class="title">On Hold</span><span class="count">1</span></header><div class="col-body"></div></section>
+          </div>
+
+          <div class="scrim"></div>
+
+          <!-- THE RECORD SHEET -->
+          <aside class="sheet" role="dialog" aria-label="Riyadh Solar Park Ph. 2">
+            <div class="sheet-top">
+              <button class="iconbtn" aria-label="Close sheet"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              <span class="bc">Ongoing Project</span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost btn-sm">Edit</button>
+              <button class="btn btn-outline btn-sm"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M21 3l-9 9"/><path d="M19 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6"/></svg> Open full page</button>
+            </div>
+
+            <div class="sheet-scroll">
+              <!-- Hero -->
+              <div class="sheet-hero">
+                <div class="pj-ico" style="background:var(--ds-primary)">R</div>
+                <div style="min-width:0">
+                  <h2>Riyadh Solar Park Ph. 2</h2>
+                  <div class="meta">ACWA Power · <span class="mono">PRJ-2041</span> · PO <span class="mono">4500091234</span></div>
+                  <div style="margin-top:var(--ds-space-2);display:flex;gap:var(--ds-space-2);align-items:center">
+                    <span class="pill go" style="background:var(--ds-primary-tint);color:var(--ds-primary)"><span class="pdot" style="background:var(--ds-primary)"></span>Ongoing Project</span>
+                    <span class="pill risk"><span class="pdot"></span>At risk · 94% budget</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Finance strip -->
+              <div class="stat-strip">
+                <div class="stat"><div class="l">Contract</div><div class="v tnum">$18.2M</div></div>
+                <div class="stat"><div class="l">Committed</div><div class="v tnum">$17.1M</div></div>
+                <div class="stat"><div class="l">On-hand margin</div><div class="v tnum pos">$1.1M</div></div>
+                <div class="stat"><div class="l">Spend</div><div class="v tnum">94%</div></div>
+              </div>
+
+              <!-- Procurement lifecycle stepper -->
+              <div class="sec">
+                <h3>Procurement lifecycle</h3>
+                <div class="stepper">
+                  <div class="step done"><div class="bar"></div><div class="t">Requested</div></div>
+                  <div class="step done"><div class="bar"></div><div class="t">Approved</div></div>
+                  <div class="step done"><div class="bar"></div><div class="t">Ordered</div></div>
+                  <div class="step current"><div class="bar"></div><div class="t">Received</div></div>
+                  <div class="step"><div class="bar"></div><div class="t">Invoiced</div></div>
+                  <div class="step"><div class="bar"></div><div class="t">Paid</div></div>
+                </div>
+              </div>
+
+              <!-- Delivery milestones -->
+              <div class="sec">
+                <h3>Delivery milestones</h3>
+                <div class="ms"><span class="node done"><svg class="i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span><span class="nm">Site mobilization &amp; survey</span><span class="dt">May 6 · done</span></div>
+                <div class="ms"><span class="node done"><svg class="i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span><span class="nm">Civil &amp; foundation works</span><span class="dt">Jun 1 · done</span></div>
+                <div class="ms"><span class="node now"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></span><span class="nm">Inverter delivery &amp; install</span><span class="dt" style="color:var(--ds-destructive-text)">Jun 26 · overdue 3d</span></div>
+                <div class="ms"><span class="node todo"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span><span class="nm">Grid connection &amp; testing</span><span class="dt">Jul 22</span></div>
+                <div class="ms"><span class="node todo"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg></span><span class="nm">Commissioning &amp; handover</span><span class="dt">Aug 14</span></div>
+              </div>
+
+              <!-- Open procurement (mini table) -->
+              <div class="sec">
+                <h3>Open procurement</h3>
+                <table class="minitable">
+                  <thead><tr><th>Request</th><th>Vendor</th><th>Status</th><th class="num">Amount</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="mono" style="color:var(--ds-text-tertiary)">PR-318</span> String inverters ×40</td><td>Sungrow MENA</td><td><span class="pill watch"><span class="pdot"></span>Ordered</span></td><td class="num">$2.10M</td></tr>
+                    <tr><td><span class="mono" style="color:var(--ds-text-tertiary)">PR-322</span> Mounting structures</td><td>Schletter Gulf</td><td><span class="pill ok"><span class="pdot"></span>Received</span></td><td class="num">$1.34M</td></tr>
+                    <tr><td><span class="mono" style="color:var(--ds-text-tertiary)">PR-329</span> MV switchgear</td><td>ABB Saudi</td><td><span class="pill neutral"><span class="pdot"></span>Approved</span></td><td class="num">$0.88M</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Sticky action zone (never below the fold) -->
+            <div class="action-zone">
+              <span class="ready"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg> 4 of 5 milestones on schedule</span>
+              <div class="spacer"></div>
+              <button class="btn btn-outline btn-sm">Mark on hold</button>
+              <button class="btn btn-success"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Advance stage</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

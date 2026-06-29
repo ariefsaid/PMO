@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Projects workspace — PMO Portal (converge)</title>
+<link rel="stylesheet" href="../_tokens.css" />
+<link rel="stylesheet" href="_app.css" />
+<style>
+  /* ============================================================================
+     PROJECTS WORKSPACE — converge surface.
+     Backbone = calm roomy TABLE (default) with a working Table | Board | Calendar
+     view-toggle. Both the table state AND the board (stage-kanban) state are shown
+     stacked so the toggle is visible. Filters = left chips, view-switch = right.
+     Rendered LIGHT + DARK, each labelled.
+     100% --ds-* tokens; no hex/rgb/hsl literals; no external refs.
+     ============================================================================ */
+
+  /* page scaffold (mockup-only chrome — tokened) */
+  .pgwrap { max-width: 1320px; margin: 0 auto; padding: var(--ds-space-8) var(--ds-space-6) var(--ds-space-16); }
+  .pghead { margin-bottom: var(--ds-space-2); }
+  .pghead .kicker {
+    font-family: var(--ds-font-display);
+    font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-wide); text-transform: uppercase;
+    color: var(--ds-primary-text);
+  }
+  .pghead h1 { font-family: var(--ds-font-display); font-size: var(--ds-text-2xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-tight); margin: var(--ds-space-1) 0 0; }
+  .pghead p { color: var(--ds-text-secondary); font-size: var(--ds-text-sm); margin: var(--ds-space-2) 0 0; max-width: 76ch; }
+
+  /* theme-chrome label above each rendered surface */
+  .chromelabel {
+    display: inline-flex; align-items: center; gap: var(--ds-space-2);
+    margin: var(--ds-space-12) 0 var(--ds-space-3);
+    padding: var(--ds-space-1) var(--ds-space-3);
+    background: var(--ds-surface-muted);
+    border: 1px solid var(--ds-border-light);
+    border-radius: var(--ds-radius-pill);
+    font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);
+  }
+  .chromelabel .sw { width: 10px; height: 10px; border-radius: var(--ds-radius-round); flex: none; }
+  .chromelabel .sw--light { background: var(--ds-neutral-1); border: 1px solid var(--ds-border-strong); }
+  .chromelabel .sw--dark { background: var(--ds-neutral-12); }
+  .chromelabel strong { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+
+  /* each rendered theme block is its own token context */
+  .surface { background: var(--ds-surface-sunken); border-radius: var(--ds-radius-xl); }
+  .surface.dark { color: var(--ds-text-primary); }
+
+  /* the frame already exists as .ds-frame; give the inner app a sensible min-height */
+  .ds-frame .ds-app { min-height: 600px; }
+
+  /* a calm divider note between the two view states inside one render */
+  .viewnote {
+    display: flex; align-items: center; gap: var(--ds-space-2);
+    margin: 0 0 var(--ds-space-5);
+    padding: var(--ds-space-2_5) var(--ds-space-3);
+    background: var(--ds-surface-sunken);
+    border: 1px dashed var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);
+  }
+  .viewnote b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+  .viewnote svg { width: 14px; height: 14px; flex: none; color: var(--ds-text-tertiary); }
+
+  /* small inline "section eyebrow" inside the canvas to label the two view states */
+  .stateband {
+    display: flex; align-items: center; gap: var(--ds-space-2);
+    font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-wide); text-transform: uppercase;
+    color: var(--ds-text-tertiary);
+    margin-bottom: var(--ds-space-4);
+  }
+  .stateband .ds-tag { letter-spacing: var(--ds-tracking-normal); text-transform: none; }
+</style>
+</head>
+<body>
+<div class="pgwrap">
+
+  <header class="pghead">
+    <div class="kicker">Converge · Projects workspace</div>
+    <h1>Projects — calm table by default, Board one tap away</h1>
+    <p>The backbone surface. A roomy progressive-disclosure table is the default view; the stage
+       board (kanban) and calendar live behind the same view-switch on the right, over the same data
+       and filters. Filters sit as quiet chips on the left. One blue action (New project) and one
+       calm primary verb per surface. Rendered in both light and dark with AA-contrast text on every
+       surface.</p>
+  </header>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  RENDER 1 — LIGHT                                                       ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+  <div class="chromelabel"><span class="sw sw--light"></span> <strong>Light</strong> · Projects workspace — Table (default) + Board view states stacked</div>
+
+  <div class="surface light">
+    <div class="ds-frame">
+      <div class="ds-app">
+
+        <!-- ── grouped calm RAIL ──────────────────────────────────────────── -->
+        <aside class="ds-rail">
+          <div class="ds-brand"><div class="ds-brand__glyph">P</div><div class="ds-brand__name">PMO Portal</div></div>
+
+          <nav class="ds-navgroup">
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Overview</button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Work</div>
+            <button class="ds-navitem is-active"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Projects <span class="ds-navitem__count">24</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v6l9 4 9-4V7"/></svg> Sales Pipeline <span class="ds-navitem__count">9</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Approvals <span class="ds-navitem__count">5</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Operate</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M6 2v20l6-3 6 3V2z"/></svg> Procurement</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg> Timesheets</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg> Companies</button>
+          </nav>
+
+          <div class="ds-rail__foot">
+            <div class="ds-density">
+              <span class="ds-density__k">Density</span>
+              <span class="ds-seg"><button>Compact</button><b class="is-on">Comfortable</b></span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- ── content ────────────────────────────────────────────────────── -->
+        <div class="ds-content">
+
+          <!-- topbar -->
+          <div class="ds-topbar">
+            <nav class="ds-crumb">
+              <a href="#">Work</a><span class="ds-crumb__sep">›</span>
+              <span class="ds-crumb__here">Projects</span>
+            </nav>
+            <div class="ds-search">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <span class="ds-search__ph">Search projects…</span>
+              <span class="ds-kbd">⌘K</span>
+            </div>
+            <button class="ds-iconbtn" aria-label="Notifications"><svg class="ds-i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="ds-iconbtn__dot"></span></button>
+            <div class="ds-avatar">AS</div>
+          </div>
+
+          <!-- canvas -->
+          <div class="ds-canvas">
+
+            <!-- page head -->
+            <header class="ds-pagehead">
+              <div>
+                <h1 class="ds-pagehead__h1">Projects</h1>
+                <p class="ds-pagehead__lede">Your active and completed delivery portfolio. Open one to drill into its budget, procurement, and milestones. Pre-win bids live in the Pipeline.</p>
+              </div>
+              <div class="ds-pagehead__actions">
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Import</button>
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Export</button>
+                <button class="ds-btn ds-btn--primary"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New project</button>
+              </div>
+            </header>
+
+            <!-- filter row: chips left, view-switch right -->
+            <div class="ds-filters">
+              <button class="ds-chip is-on">All <span class="ds-chip__n">24</span></button>
+              <button class="ds-chip">My projects <span class="ds-chip__n">6</span></button>
+              <button class="ds-chip">Ongoing <span class="ds-chip__n">8</span></button>
+              <button class="ds-chip">Completed <span class="ds-chip__n">7</span></button>
+              <button class="ds-chip">At risk <span class="ds-chip__n">3</span></button>
+              <div class="ds-filters__right">
+                <span class="ds-colreveal"><svg class="ds-i" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Customer · PM ▾</span>
+                <span class="ds-viewseg" role="tablist" aria-label="View">
+                  <button class="is-on" role="tab" aria-selected="true"><svg class="ds-i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Table</button>
+                  <button role="tab" aria-selected="false"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/></svg> Board</button>
+                  <button role="tab" aria-selected="false"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v3M16 4v3"/></svg> Calendar</button>
+                </span>
+              </div>
+            </div>
+
+            <!-- STATE A — TABLE (the default) -->
+            <div class="stateband"><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Table view · default</span> roomy progressive-disclosure rows</div>
+
+            <div class="ds-tablecard">
+              <table class="ds-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Customer</th>
+                    <th>PM</th>
+                    <th>Status</th>
+                    <th class="is-num">Contract</th>
+                    <th class="is-num">Progress</th>
+                    <th class="is-num ds-col-extra">Budget used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- at-risk sorted to top -->
+                  <tr class="is-selected">
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">R</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Riyadh Solar Park Ph. 2</div>
+                          <div class="ds-entity__code">PRJ-2041 · CTR-ACWA-118</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">ACWA Power</td>
+                    <td class="ds-cell-sub">Ahmed B.</td>
+                    <td><span class="ds-tag ds-tag--danger"><span class="ds-tag__dot"></span>At risk</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$18.2M<small>$17.1M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--danger" style="width:62%"></span></span><span class="ds-prog__v tnum">62%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--danger" style="width:94%"></span></span><span class="ds-prog__v tnum">94%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">D</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Dammam Industrial Rooftop</div>
+                          <div class="ds-entity__code">PRJ-2038 · CTR-SABIC-074</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">SABIC</td>
+                    <td class="ds-cell-sub">Maha H.</td>
+                    <td><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Ongoing</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$3.6M<small>$2.85M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:45%"></span></span><span class="ds-prog__v tnum">45%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:79%"></span></span><span class="ds-prog__v tnum">79%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">J</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Jeddah Carport Solar</div>
+                          <div class="ds-entity__code">PRJ-2035 · CTR-RSG-201</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Red Sea Global</td>
+                    <td class="ds-cell-sub">Sara K.</td>
+                    <td><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Ongoing</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$8.9M<small>$5.16M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:71%"></span></span><span class="ds-prog__v tnum">71%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill" style="width:58%"></span></span><span class="ds-prog__v tnum">58%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">N</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Najran 12 MW Ground-Mount</div>
+                          <div class="ds-entity__code">PRJ-2044 · CTR-SPPC-009</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Saudi Power Procurement Co.</td>
+                    <td class="ds-cell-sub">Rana K.</td>
+                    <td><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Won, Pending KoM</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$5.4M<small>not yet committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">No phases</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">A</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">AlUla Heritage Microgrid</div>
+                          <div class="ds-entity__code">PRJ-2029 · CTR-RCU-052</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Royal Commission for AlUla</td>
+                    <td class="ds-cell-sub">Rana K.</td>
+                    <td><span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>On Hold</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$4.2M<small>$1.9M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:33%"></span></span><span class="ds-prog__v tnum">33%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:45%"></span></span><span class="ds-prog__v tnum">45%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">Q</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Qassim Agri-Solar Pumping</div>
+                          <div class="ds-entity__code">PRJ-2018 · CTR-MOE-310</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Ministry of Environment</td>
+                    <td class="ds-cell-sub">Sara K.</td>
+                    <td><span class="ds-tag ds-tag--success"><span class="ds-tag__dot"></span>Close Out</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$7.1M<small>$6.9M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:100%"></span></span><span class="ds-prog__v tnum">100%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:97%"></span></span><span class="ds-prog__v tnum">97%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">B</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Buraydah School Solar Bid</div>
+                          <div class="ds-entity__code">PRJ-2012 · CTR-TBC-477</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Tatweer Buildings Co.</td>
+                    <td class="ds-cell-sub">Layla M.</td>
+                    <td><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Loss</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$2.9M<small>bid value</small></span></td>
+                    <td class="is-num"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="ds-tablefoot">
+                <span>Showing <b>7</b> of <b>24</b> projects</span>
+                <span style="margin-left:auto">Total contract value <b class="tnum">$58.4M</b> · committed <b class="tnum">$31.2M</b></span>
+              </div>
+            </div>
+
+            <!-- divider between the two demonstrated view states -->
+            <div class="viewnote">
+              <svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/></svg>
+              <span>The same data, same filters — switched to <b>Board</b> from the view-switch above. Stage columns mirror the project statuses; a card carries the signal (contract, delivery health, next milestone). Drag a card to advance its stage.</span>
+            </div>
+
+            <!-- STATE B — STAGE BOARD (the toggle) -->
+            <div class="stateband"><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Board view · toggle</span> grouped by stage</div>
+
+            <div class="ds-board">
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--prep"></span><span class="ds-col__title">Won, Pending KoM</span><span class="ds-col__count">2</span><span class="ds-col__sum tnum">$9.1M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">N</span><div style="min-width:0"><div class="ds-card__name">Najran 12 MW Ground-Mount</div><div class="ds-card__client">Saudi Power Procurement Co.</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$5.4M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg> Kick-off meeting · <b>Jul 2</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">RK</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Mobilizing</span><span class="ds-card__age">4d in stage</span></div>
+                  </article>
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">T</span><div style="min-width:0"><div class="ds-card__name">Tabuk Rooftop C&amp;I Portfolio</div><div class="ds-card__client">NEOM Utilities</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$3.7M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> Contract signature · <b>pending</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">LM</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Awaiting PO</span><span class="ds-card__age">11d in stage</span></div>
+                  </article>
+                  <button class="ds-addcard"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</button>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--go"></span><span class="ds-col__title">Ongoing</span><span class="ds-col__count">3</span><span class="ds-col__sum tnum">$30.7M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--risk">
+                    <div class="ds-card__row1"><span class="ds-card__ico">R</span><div style="min-width:0"><div class="ds-card__name">Riyadh Solar Park Ph. 2</div><div class="ds-card__client">ACWA Power</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$18.2M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">94%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--risk" style="width:94%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Inverter delivery · <b>overdue 3d</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">AB</span><span class="ds-tag ds-tag--sm ds-tag--danger"><span class="ds-tag__dot"></span>At risk</span><span class="ds-card__age">62% delivered</span></div>
+                  </article>
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">J</span><div style="min-width:0"><div class="ds-card__name">Jeddah Carport Solar</div><div class="ds-card__client">Red Sea Global</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$8.9M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">58%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:58%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/></svg> Structural install · <b>Jul 9</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">SK</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>On track</span><span class="ds-card__age">71% delivered</span></div>
+                  </article>
+                  <article class="ds-card ds-card--watch">
+                    <div class="ds-card__row1"><span class="ds-card__ico">D</span><div style="min-width:0"><div class="ds-card__name">Dammam Industrial Rooftop</div><div class="ds-card__client">SABIC</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$3.6M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">79%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--watch" style="width:79%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Grid connection · <b>Jul 18</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">MH</span><span class="ds-tag ds-tag--sm ds-tag--warn"><span class="ds-tag__dot"></span>Watch</span><span class="ds-card__age">45% delivered</span></div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--hold"></span><span class="ds-col__title">On Hold</span><span class="ds-col__count">1</span><span class="ds-col__sum tnum">$4.2M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--watch">
+                    <div class="ds-card__row1"><span class="ds-card__ico">A</span><div style="min-width:0"><div class="ds-card__name">AlUla Heritage Microgrid</div><div class="ds-card__client">Royal Commission for AlUla</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$4.2M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Paused · <b>permit review</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">RK</span><span class="ds-tag ds-tag--sm ds-tag--warn"><span class="ds-tag__dot"></span>On hold</span><span class="ds-card__age">held 19d</span></div>
+                  </article>
+                  <button class="ds-addcard"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</button>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--close"></span><span class="ds-col__title">Close Out</span><span class="ds-col__count">2</span><span class="ds-col__sum tnum">$12.6M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">Q</span><div style="min-width:0"><div class="ds-card__name">Qassim Agri-Solar Pumping</div><div class="ds-card__client">Ministry of Environment</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$7.1M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:100%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Final acceptance · <b>signed</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">SK</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>Handover</span><span class="ds-card__age">retention due</span></div>
+                  </article>
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">H</span><div style="min-width:0"><div class="ds-card__name">Hail Utility Substation PV</div><div class="ds-card__client">Saudi Electricity Co.</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$5.5M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:100%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Warranty handoff · <b>done</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">MH</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>Closed</span><span class="ds-card__age">2d ago</span></div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--loss"></span><span class="ds-col__title">Loss</span><span class="ds-col__count">1</span><span class="ds-col__sum tnum">$2.9M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">B</span><div style="min-width:0"><div class="ds-card__name">Buraydah School Solar Bid</div><div class="ds-card__client">Tatweer Buildings Co.</div></div></div>
+                    <div class="ds-card__val tnum">$2.9M <span class="ds-unit">bid value</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg> Lost on price · <b>−4%</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">LM</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Archived</span><span class="ds-card__age">last month</span></div>
+                  </article>
+                </div>
+              </section>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  RENDER 2 — DARK                                                        ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+  <div class="chromelabel"><span class="sw sw--dark"></span> <strong>Dark</strong> · same surface — every text token AA on its real dark surface (the "grey on black" fix)</div>
+
+  <div class="surface dark">
+    <div class="ds-frame">
+      <div class="ds-app">
+
+        <!-- rail -->
+        <aside class="ds-rail">
+          <div class="ds-brand"><div class="ds-brand__glyph">P</div><div class="ds-brand__name">PMO Portal</div></div>
+
+          <nav class="ds-navgroup">
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Overview</button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Work</div>
+            <button class="ds-navitem is-active"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Projects <span class="ds-navitem__count">24</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v6l9 4 9-4V7"/></svg> Sales Pipeline <span class="ds-navitem__count">9</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Approvals <span class="ds-navitem__count">5</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Operate</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M6 2v20l6-3 6 3V2z"/></svg> Procurement</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg> Timesheets</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg> Companies</button>
+          </nav>
+
+          <div class="ds-rail__foot">
+            <div class="ds-density">
+              <span class="ds-density__k">Density</span>
+              <span class="ds-seg"><button>Compact</button><b class="is-on">Comfortable</b></span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- content -->
+        <div class="ds-content">
+
+          <div class="ds-topbar">
+            <nav class="ds-crumb">
+              <a href="#">Work</a><span class="ds-crumb__sep">›</span>
+              <span class="ds-crumb__here">Projects</span>
+            </nav>
+            <div class="ds-search">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <span class="ds-search__ph">Search projects…</span>
+              <span class="ds-kbd">⌘K</span>
+            </div>
+            <button class="ds-iconbtn" aria-label="Notifications"><svg class="ds-i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="ds-iconbtn__dot"></span></button>
+            <div class="ds-avatar">AS</div>
+          </div>
+
+          <div class="ds-canvas">
+
+            <header class="ds-pagehead">
+              <div>
+                <h1 class="ds-pagehead__h1">Projects</h1>
+                <p class="ds-pagehead__lede">Your active and completed delivery portfolio. Open one to drill into its budget, procurement, and milestones. Pre-win bids live in the Pipeline.</p>
+              </div>
+              <div class="ds-pagehead__actions">
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Import</button>
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg> Export</button>
+                <button class="ds-btn ds-btn--primary"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New project</button>
+              </div>
+            </header>
+
+            <div class="ds-filters">
+              <button class="ds-chip is-on">All <span class="ds-chip__n">24</span></button>
+              <button class="ds-chip">My projects <span class="ds-chip__n">6</span></button>
+              <button class="ds-chip">Ongoing <span class="ds-chip__n">8</span></button>
+              <button class="ds-chip">Completed <span class="ds-chip__n">7</span></button>
+              <button class="ds-chip">At risk <span class="ds-chip__n">3</span></button>
+              <div class="ds-filters__right">
+                <span class="ds-colreveal"><svg class="ds-i" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Customer · PM ▾</span>
+                <span class="ds-viewseg" role="tablist" aria-label="View">
+                  <button class="is-on" role="tab" aria-selected="true"><svg class="ds-i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Table</button>
+                  <button role="tab" aria-selected="false"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/></svg> Board</button>
+                  <button role="tab" aria-selected="false"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v3M16 4v3"/></svg> Calendar</button>
+                </span>
+              </div>
+            </div>
+
+            <div class="stateband"><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Table view · default</span> roomy progressive-disclosure rows</div>
+
+            <div class="ds-tablecard">
+              <table class="ds-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Customer</th>
+                    <th>PM</th>
+                    <th>Status</th>
+                    <th class="is-num">Contract</th>
+                    <th class="is-num">Progress</th>
+                    <th class="is-num ds-col-extra">Budget used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="is-selected">
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">R</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Riyadh Solar Park Ph. 2</div>
+                          <div class="ds-entity__code">PRJ-2041 · CTR-ACWA-118</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">ACWA Power</td>
+                    <td class="ds-cell-sub">Ahmed B.</td>
+                    <td><span class="ds-tag ds-tag--danger"><span class="ds-tag__dot"></span>At risk</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$18.2M<small>$17.1M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--danger" style="width:62%"></span></span><span class="ds-prog__v tnum">62%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--danger" style="width:94%"></span></span><span class="ds-prog__v tnum">94%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">D</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Dammam Industrial Rooftop</div>
+                          <div class="ds-entity__code">PRJ-2038 · CTR-SABIC-074</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">SABIC</td>
+                    <td class="ds-cell-sub">Maha H.</td>
+                    <td><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Ongoing</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$3.6M<small>$2.85M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:45%"></span></span><span class="ds-prog__v tnum">45%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:79%"></span></span><span class="ds-prog__v tnum">79%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">J</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Jeddah Carport Solar</div>
+                          <div class="ds-entity__code">PRJ-2035 · CTR-RSG-201</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Red Sea Global</td>
+                    <td class="ds-cell-sub">Sara K.</td>
+                    <td><span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>Ongoing</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$8.9M<small>$5.16M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:71%"></span></span><span class="ds-prog__v tnum">71%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill" style="width:58%"></span></span><span class="ds-prog__v tnum">58%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">N</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Najran 12 MW Ground-Mount</div>
+                          <div class="ds-entity__code">PRJ-2044 · CTR-SPPC-009</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Saudi Power Procurement Co.</td>
+                    <td class="ds-cell-sub">Rana K.</td>
+                    <td><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Won, Pending KoM</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$5.4M<small>not yet committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">No phases</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">A</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">AlUla Heritage Microgrid</div>
+                          <div class="ds-entity__code">PRJ-2029 · CTR-RCU-052</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Royal Commission for AlUla</td>
+                    <td class="ds-cell-sub">Rana K.</td>
+                    <td><span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>On Hold</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$4.2M<small>$1.9M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:33%"></span></span><span class="ds-prog__v tnum">33%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--warn" style="width:45%"></span></span><span class="ds-prog__v tnum">45%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">Q</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Qassim Agri-Solar Pumping</div>
+                          <div class="ds-entity__code">PRJ-2018 · CTR-MOE-310</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Ministry of Environment</td>
+                    <td class="ds-cell-sub">Sara K.</td>
+                    <td><span class="ds-tag ds-tag--success"><span class="ds-tag__dot"></span>Close Out</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$7.1M<small>$6.9M committed</small></span></td>
+                    <td class="is-num"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:100%"></span></span><span class="ds-prog__v tnum">100%</span></span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog"><span class="ds-prog__track"><span class="ds-prog__fill ds-prog__fill--success" style="width:97%"></span></span><span class="ds-prog__v tnum">97%</span></span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="ds-entity">
+                        <span class="ds-entity__glyph">B</span>
+                        <div style="min-width:0">
+                          <div class="ds-entity__name">Buraydah School Solar Bid</div>
+                          <div class="ds-entity__code">PRJ-2012 · CTR-TBC-477</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="ds-cell-sub">Tatweer Buildings Co.</td>
+                    <td class="ds-cell-sub">Layla M.</td>
+                    <td><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Loss</span></td>
+                    <td class="is-num"><span class="ds-money tnum">$2.9M<small>bid value</small></span></td>
+                    <td class="is-num"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                    <td class="is-num ds-col-extra"><span class="ds-prog__v tnum" style="color:var(--ds-text-tertiary)">—</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="ds-tablefoot">
+                <span>Showing <b>7</b> of <b>24</b> projects</span>
+                <span style="margin-left:auto">Total contract value <b class="tnum">$58.4M</b> · committed <b class="tnum">$31.2M</b></span>
+              </div>
+            </div>
+
+            <div class="viewnote">
+              <svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/></svg>
+              <span>The same data, same filters — switched to <b>Board</b> from the view-switch above. Stage columns mirror the project statuses; a card carries the signal. Drag a card to advance its stage.</span>
+            </div>
+
+            <div class="stateband"><span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>Board view · toggle</span> grouped by stage</div>
+
+            <div class="ds-board">
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--prep"></span><span class="ds-col__title">Won, Pending KoM</span><span class="ds-col__count">2</span><span class="ds-col__sum tnum">$9.1M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">N</span><div style="min-width:0"><div class="ds-card__name">Najran 12 MW Ground-Mount</div><div class="ds-card__client">Saudi Power Procurement Co.</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$5.4M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg> Kick-off meeting · <b>Jul 2</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">RK</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Mobilizing</span><span class="ds-card__age">4d in stage</span></div>
+                  </article>
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">T</span><div style="min-width:0"><div class="ds-card__name">Tabuk Rooftop C&amp;I Portfolio</div><div class="ds-card__client">NEOM Utilities</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$3.7M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> Contract signature · <b>pending</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">LM</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Awaiting PO</span><span class="ds-card__age">11d in stage</span></div>
+                  </article>
+                  <button class="ds-addcard"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</button>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--go"></span><span class="ds-col__title">Ongoing</span><span class="ds-col__count">3</span><span class="ds-col__sum tnum">$30.7M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--risk">
+                    <div class="ds-card__row1"><span class="ds-card__ico">R</span><div style="min-width:0"><div class="ds-card__name">Riyadh Solar Park Ph. 2</div><div class="ds-card__client">ACWA Power</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$18.2M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">94%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--risk" style="width:94%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Inverter delivery · <b>overdue 3d</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">AB</span><span class="ds-tag ds-tag--sm ds-tag--danger"><span class="ds-tag__dot"></span>At risk</span><span class="ds-card__age">62% delivered</span></div>
+                  </article>
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">J</span><div style="min-width:0"><div class="ds-card__name">Jeddah Carport Solar</div><div class="ds-card__client">Red Sea Global</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$8.9M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">58%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:58%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 7-7"/></svg> Structural install · <b>Jul 9</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">SK</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>On track</span><span class="ds-card__age">71% delivered</span></div>
+                  </article>
+                  <article class="ds-card ds-card--watch">
+                    <div class="ds-card__row1"><span class="ds-card__ico">D</span><div style="min-width:0"><div class="ds-card__name">Dammam Industrial Rooftop</div><div class="ds-card__client">SABIC</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$3.6M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Budget used</span><span class="tnum">79%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--watch" style="width:79%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Grid connection · <b>Jul 18</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">MH</span><span class="ds-tag ds-tag--sm ds-tag--warn"><span class="ds-tag__dot"></span>Watch</span><span class="ds-card__age">45% delivered</span></div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--hold"></span><span class="ds-col__title">On Hold</span><span class="ds-col__count">1</span><span class="ds-col__sum tnum">$4.2M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--watch">
+                    <div class="ds-card__row1"><span class="ds-card__ico">A</span><div style="min-width:0"><div class="ds-card__name">AlUla Heritage Microgrid</div><div class="ds-card__client">Royal Commission for AlUla</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$4.2M <span class="ds-unit">contract</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Paused · <b>permit review</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">RK</span><span class="ds-tag ds-tag--sm ds-tag--warn"><span class="ds-tag__dot"></span>On hold</span><span class="ds-card__age">held 19d</span></div>
+                  </article>
+                  <button class="ds-addcard"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add project</button>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--close"></span><span class="ds-col__title">Close Out</span><span class="ds-col__count">2</span><span class="ds-col__sum tnum">$12.6M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">Q</span><div style="min-width:0"><div class="ds-card__name">Qassim Agri-Solar Pumping</div><div class="ds-card__client">Ministry of Environment</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$7.1M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:100%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Final acceptance · <b>signed</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">SK</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>Handover</span><span class="ds-card__age">retention due</span></div>
+                  </article>
+                  <article class="ds-card ds-card--ok">
+                    <div class="ds-card__row1"><span class="ds-card__ico">H</span><div style="min-width:0"><div class="ds-card__name">Hail Utility Substation PV</div><div class="ds-card__client">Saudi Electricity Co.</div></div><span class="ds-card__grip"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg></span></div>
+                    <div class="ds-card__val tnum">$5.5M <span class="ds-unit">contract</span></div>
+                    <div class="ds-meter"><div class="ds-meter__lbls"><span>Delivered</span><span class="tnum">100%</span></div><div class="ds-meter__track"><div class="ds-meter__fill ds-meter__fill--ok" style="width:100%"></div></div></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Warranty handoff · <b>done</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">MH</span><span class="ds-tag ds-tag--sm ds-tag--success"><span class="ds-tag__dot"></span>Closed</span><span class="ds-card__age">2d ago</span></div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="ds-col">
+                <header class="ds-col__head"><span class="ds-col__swatch ds-sw--loss"></span><span class="ds-col__title">Loss</span><span class="ds-col__count">1</span><span class="ds-col__sum tnum">$2.9M</span></header>
+                <div class="ds-col__body">
+                  <article class="ds-card">
+                    <div class="ds-card__row1"><span class="ds-card__ico">B</span><div style="min-width:0"><div class="ds-card__name">Buraydah School Solar Bid</div><div class="ds-card__client">Tatweer Buildings Co.</div></div></div>
+                    <div class="ds-card__val tnum">$2.9M <span class="ds-unit">bid value</span></div>
+                    <div class="ds-card__next"><svg class="ds-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg> Lost on price · <b>−4%</b></div>
+                    <div class="ds-card__foot"><span class="ds-miniav">LM</span><span class="ds-tag ds-tag--sm ds-tag--neutral"><span class="ds-tag__dot"></span>Archived</span><span class="ds-card__age">last month</span></div>
+                  </article>
+                </div>
+              </section>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

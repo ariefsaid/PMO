@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Approvals — Two-Pane Triage (converge)</title>
+<link rel="stylesheet" href="../_tokens.css" />
+<link rel="stylesheet" href="_app.css" />
+<style>
+  /* ============================================================================
+     PAGE-LOCAL SCAFFOLD ONLY (the unified kit lives in _app.css).
+     Everything here is token-based: this stylesheet only LAYS OUT the two
+     stacked theme demos + the small chrome label above each. No new components.
+     ============================================================================ */
+  body { background: var(--ds-surface-sunken); }
+
+  .demo-page {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: var(--ds-space-8) var(--ds-space-6) var(--ds-space-16);
+  }
+  .demo-intro { margin-bottom: var(--ds-space-6); }
+  .demo-intro h1 {
+    font-family: var(--ds-font-display);
+    font-weight: var(--ds-weight-semibold);
+    font-size: var(--ds-text-2xl);
+    letter-spacing: var(--ds-tracking-tight);
+    line-height: var(--ds-leading-tight);
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-primary);
+  }
+  .demo-intro p {
+    margin: 0; max-width: 76ch;
+    font-size: var(--ds-text-md);
+    color: var(--ds-text-secondary);
+    line-height: var(--ds-leading-relaxed);
+  }
+
+  /* token-based chrome label above each theme view */
+  .chrome {
+    display: flex; align-items: center; gap: var(--ds-space-2);
+    margin: var(--ds-space-10) 0 var(--ds-space-3);
+  }
+  .chrome__tag {
+    display: inline-flex; align-items: center; gap: var(--ds-space-1_5);
+    height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2_5);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-primary-tint); color: var(--ds-primary-text);
+    font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-caps); text-transform: uppercase;
+  }
+  .chrome__tag .dot { width: 6px; height: 6px; border-radius: var(--ds-radius-round); background: var(--ds-primary); }
+  .chrome__label { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+  .chrome__hint { margin-left: auto; font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); display: flex; align-items: center; gap: var(--ds-space-1_5); }
+
+  /* the windowed shell that holds one full two-pane surface */
+  .demo-frame {
+    height: 760px;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-xl);
+    box-shadow: var(--ds-shadow-resting);
+    overflow: hidden;
+    background: var(--ds-surface-canvas);
+  }
+  /* the dark demo paints its own canvas under the frame too */
+  .demo-frame.dark { background: var(--ds-surface-canvas); }
+  .demo-frame .ds-twopane { height: 100%; }
+</style>
+</head>
+<body>
+<div class="demo-page">
+
+  <div class="demo-intro">
+    <h1>Approvals — two-pane triage</h1>
+    <p>
+      One approver home. A persistent <b>list pane</b> of everything waiting on your decision —
+      purchase requests and timesheets — feeds a wide <b>live preview</b> that re-renders as the
+      cursor moves. Selection is not navigation; you triage the whole queue from one place with
+      the keyboard (<b>j / k</b> move, <b>enter</b> approve). Rendered in both themes below.
+    </p>
+  </div>
+
+  <!-- ============================================================= LIGHT ===== -->
+  <div class="chrome">
+    <span class="chrome__tag"><span class="dot"></span>Light</span>
+    <span class="chrome__label">Approvals queue — PR selected, budget headroom + SoD shown in the preview</span>
+    <span class="chrome__hint"><span class="ds-kbd">j</span><span class="ds-kbd">k</span> move · <span class="ds-kbd">a</span> approve · <span class="ds-kbd">r</span> return</span>
+  </div>
+
+  <div class="demo-frame light">
+    <!-- ===== shared markup, rendered once per theme ===== -->
+    <!-- LIGHT INSTANCE -->
+    <div class="ds-twopane ds-twopane--railed">
+
+      <!-- slim icon rail -->
+      <nav class="ds-iconrail" aria-label="Primary">
+        <div class="ds-iconrail__logo" aria-hidden="true"></div>
+        <button class="ds-iconrail__ic" title="Dashboard"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></button>
+        <button class="ds-iconrail__ic" title="Projects"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <button class="ds-iconrail__ic" title="Procurement"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 13h11l2-9H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></button>
+        <button class="ds-iconrail__ic is-active" title="Approvals"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-9-9"/></svg></button>
+        <button class="ds-iconrail__ic" title="Companies"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="10" height="18"/><path d="M14 8h6v13H4"/><path d="M7 7h2M7 11h2M7 15h2"/></svg></button>
+        <div class="ds-iconrail__spacer"></div>
+        <div class="ds-avatar" title="Priya Ramanathan">PR</div>
+      </nav>
+
+      <!-- LIST PANE (master) -->
+      <section class="ds-listpane" aria-label="Approvals queue">
+        <div class="ds-listpane__head">
+          <div class="ds-listpane__titlerow">
+            <h2 class="ds-listpane__title">Approvals</h2>
+            <span class="ds-listpane__count tnum">7 waiting</span>
+          </div>
+          <div class="ds-listpane__search">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span class="ds-search__ph">Search requests, requesters, codes…</span>
+            <span class="ds-kbd">/</span>
+          </div>
+        </div>
+
+        <!-- triage lenses -->
+        <div class="ds-scopes" role="tablist" aria-label="Approvals scope">
+          <button class="ds-scope is-active" role="tab" aria-selected="true">All <span class="ds-scope__n">7</span></button>
+          <button class="ds-scope" role="tab" aria-selected="false">Procurement <span class="ds-scope__n">4</span></button>
+          <button class="ds-scope" role="tab" aria-selected="false">Timesheets <span class="ds-scope__n">3</span></button>
+          <button class="ds-scope ds-scope--attn" role="tab" aria-selected="false">Over budget <span class="ds-scope__n">1</span></button>
+        </div>
+
+        <div class="ds-rows">
+          <div class="ds-rowgroup">Purchase requests</div>
+
+          <!-- cursor row — what the preview shows -->
+          <button class="ds-trow is-cursor" aria-current="true">
+            <span class="ds-trow__accent ds-acc--warn"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">HV Cabling &amp; Grid Connection Kit</span>
+                <span class="ds-trow__code">PR-2402-004</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Anika Devi · Engineer</span><span class="ds-sep">·</span><span>2 days waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--warn ds-tag--sm"><span class="ds-tag__dot"></span>Over budget</span>
+              <span class="ds-trow__val">$210K</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Central Inverters &amp; Transformers</span>
+                <span class="ds-trow__code">PR-2401-006</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Marcus Lim · PM</span><span class="ds-sep">·</span><span>6 hours waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$1.35M</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Ground-Mount Piling &amp; Racking Steel</span>
+                <span class="ds-trow__code">PR-2402-003</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Anika Devi · Engineer</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$1.25M</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">DC String Combiners &amp; Monitoring</span>
+                <span class="ds-trow__code">PR-2404-002</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Rafael Ortiz · PM</span><span class="ds-sep">·</span><span>3 days waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$98K</span>
+            </span>
+          </button>
+
+          <div class="ds-rowgroup">Timesheets</div>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--neutral"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Anika Devi — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0619</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>42.0 h · Meridian Steelworks PV</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Submitted</span>
+              <span class="ds-trow__val">42.0 h</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--neutral"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Tomas Berg — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0620</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>38.5 h · Cascade Foods PV</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Submitted</span>
+              <span class="ds-trow__val">38.5 h</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--warn"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Sofia Marenco — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0621</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>51.0 h · Harbor Logistics PV</span><span class="ds-sep">·</span><span>Overtime flagged</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--warn ds-tag--sm"><span class="ds-tag__dot"></span>Overtime</span>
+              <span class="ds-trow__val">51.0 h</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- DETAIL / PREVIEW PANE (live peek of PR-2402-004) -->
+      <section class="ds-detail" aria-label="Request preview">
+        <div class="ds-peekhead">
+          <div class="ds-peek__eyebrow">
+            <span>Approvals</span>
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            <span>Procurement</span>
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="is-cur">PR-2402-004</span>
+          </div>
+          <div class="ds-peek__titlerow">
+            <div class="ds-peek__icon" aria-hidden="true">
+              <svg class="ds-i" viewBox="0 0 24 24"><path d="M3 4h2l2 13h11l2-9H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg>
+            </div>
+            <div class="ds-peek__titleblock">
+              <h2 class="ds-peek__title">HV Cabling &amp; Grid Connection Kit</h2>
+              <div class="ds-peek__sub">
+                <span class="mono">PR-2402-004</span><span class="ds-sep">·</span>
+                <span>Cascade Foods 6.0&nbsp;MW Ground-Mount PV</span><span class="ds-sep">·</span>
+                <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>Needs approval</span>
+              </div>
+            </div>
+          </div>
+          <div class="ds-peek__actions">
+            <button class="ds-btn ds-btn--success">Approve <span class="ds-kbd">a</span></button>
+            <button class="ds-btn ds-btn--primary">Return for revision <span class="ds-kbd">r</span></button>
+            <button class="ds-btn">Open full record</button>
+            <span class="ds-grow"></span>
+            <button class="ds-iconbtn" aria-label="More actions">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="ds-peekbody">
+          <!-- SoD + budget context — what a triager needs before approving -->
+          <div class="ds-risknote">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            <div class="ds-risknote__t"><b>This commitment pushes the project over budget.</b> Committed spend would reach $6.51M against the $6.90M budget — 94% used. Requested by Anika Devi; you are not the requester, so segregation-of-duties allows you to approve.</div>
+          </div>
+
+          <!-- request value vs budget -->
+          <div class="ds-moneystrip" style="grid-auto-columns: 1fr 1fr 1fr;">
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Request value</div>
+              <div class="ds-moneycell__v">$210,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--muted">Estimate, pre-quote</div>
+            </div>
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Committed if approved</div>
+              <div class="ds-moneycell__v">$6,510,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--warn">+$210K · 94% of budget</div>
+            </div>
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Budget headroom</div>
+              <div class="ds-moneycell__v">$390,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--warn">Tight — $390K left</div>
+            </div>
+          </div>
+
+          <!-- procurement lifecycle -->
+          <div class="ds-peeksection">
+            <div class="ds-sectionh"><h3>Procurement lifecycle</h3></div>
+            <div class="ds-stepper">
+              <div class="ds-step is-done"><div class="ds-step__bar"></div><div class="ds-step__label">Requested</div><div class="ds-step__date">10 Jun</div></div>
+              <div class="ds-step is-current"><div class="ds-step__bar"></div><div class="ds-step__label">Approval</div><div class="ds-step__date">Now</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">PO issued</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Goods receipt</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Invoice</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Paid</div><div class="ds-step__date">—</div></div>
+            </div>
+          </div>
+
+          <!-- line items -->
+          <div class="ds-peeksection">
+            <div class="ds-sectionh">
+              <h3>Line items</h3>
+              <span class="ds-sectionh__meta">3 items · est.</span>
+            </div>
+            <div class="ds-minilist">
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">HV XLPE Cable, 33&nbsp;kV — drum</span> <span class="m">12 × $9,500</span></div>
+                <span class="ds-mli__val">$114,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">Grid Connection Termination Kit</span> <span class="m">1 × $64,000</span></div>
+                <span class="ds-mli__val">$64,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">HV Cable Trenching &amp; Ducting</span> <span class="m">1 lot</span></div>
+                <span class="ds-mli__val">$32,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- request details / SoD facts -->
+          <div class="ds-peeksection">
+            <div class="ds-sectionh"><h3>Request details</h3></div>
+            <div class="ds-facts">
+              <div class="ds-fact"><div class="ds-fact__l">Requested by</div><div class="ds-fact__v"><span class="ds-fact__av">AD</span>Anika Devi · Engineer</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Approver (you)</div><div class="ds-fact__v"><span class="ds-fact__av">PR</span>Priya Ramanathan · Finance</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Linked milestone</div><div class="ds-fact__v">COMM — Grid Interconnection</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Requested</div><div class="ds-fact__v tnum">10 Jun 2026</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Vendor</div><div class="ds-fact__v">Not yet selected</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Category</div><div class="ds-fact__v">Equipment</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- keyboard map footer -->
+        <div class="ds-keymap" aria-label="Keyboard shortcuts">
+          <span class="ds-keymap__k"><span class="ds-kbd">j</span><span class="ds-kbd">k</span> move</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">a</span> approve</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">r</span> return</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">o</span> open full</span>
+          <span class="ds-keymap__k ds-keymap__end"><span class="ds-kbd">⌘</span><span class="ds-kbd">K</span> command</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============================================================= DARK ====== -->
+  <div class="chrome">
+    <span class="chrome__tag"><span class="dot"></span>Dark</span>
+    <span class="chrome__label">Same surface, dark theme — every text token re-checked AA on its real dark surface</span>
+    <span class="chrome__hint"><span class="ds-kbd">j</span><span class="ds-kbd">k</span> move · <span class="ds-kbd">a</span> approve · <span class="ds-kbd">r</span> return</span>
+  </div>
+
+  <div class="demo-frame dark">
+    <div class="ds-twopane ds-twopane--railed">
+
+      <nav class="ds-iconrail" aria-label="Primary">
+        <div class="ds-iconrail__logo" aria-hidden="true"></div>
+        <button class="ds-iconrail__ic" title="Dashboard"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></button>
+        <button class="ds-iconrail__ic" title="Projects"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <button class="ds-iconrail__ic" title="Procurement"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 13h11l2-9H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></button>
+        <button class="ds-iconrail__ic is-active" title="Approvals"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-9-9"/></svg></button>
+        <button class="ds-iconrail__ic" title="Companies"><svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="10" height="18"/><path d="M14 8h6v13H4"/><path d="M7 7h2M7 11h2M7 15h2"/></svg></button>
+        <div class="ds-iconrail__spacer"></div>
+        <div class="ds-avatar" title="Priya Ramanathan">PR</div>
+      </nav>
+
+      <section class="ds-listpane" aria-label="Approvals queue">
+        <div class="ds-listpane__head">
+          <div class="ds-listpane__titlerow">
+            <h2 class="ds-listpane__title">Approvals</h2>
+            <span class="ds-listpane__count tnum">7 waiting</span>
+          </div>
+          <div class="ds-listpane__search">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span class="ds-search__ph">Search requests, requesters, codes…</span>
+            <span class="ds-kbd">/</span>
+          </div>
+        </div>
+
+        <div class="ds-scopes" role="tablist" aria-label="Approvals scope">
+          <button class="ds-scope is-active" role="tab" aria-selected="true">All <span class="ds-scope__n">7</span></button>
+          <button class="ds-scope" role="tab" aria-selected="false">Procurement <span class="ds-scope__n">4</span></button>
+          <button class="ds-scope" role="tab" aria-selected="false">Timesheets <span class="ds-scope__n">3</span></button>
+          <button class="ds-scope ds-scope--attn" role="tab" aria-selected="false">Over budget <span class="ds-scope__n">1</span></button>
+        </div>
+
+        <div class="ds-rows">
+          <div class="ds-rowgroup">Purchase requests</div>
+
+          <button class="ds-trow is-cursor" aria-current="true">
+            <span class="ds-trow__accent ds-acc--warn"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">HV Cabling &amp; Grid Connection Kit</span>
+                <span class="ds-trow__code">PR-2402-004</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Anika Devi · Engineer</span><span class="ds-sep">·</span><span>2 days waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--warn ds-tag--sm"><span class="ds-tag__dot"></span>Over budget</span>
+              <span class="ds-trow__val">$210K</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Central Inverters &amp; Transformers</span>
+                <span class="ds-trow__code">PR-2401-006</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Marcus Lim · PM</span><span class="ds-sep">·</span><span>6 hours waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$1.35M</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Ground-Mount Piling &amp; Racking Steel</span>
+                <span class="ds-trow__code">PR-2402-003</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Anika Devi · Engineer</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$1.25M</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--progress"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">DC String Combiners &amp; Monitoring</span>
+                <span class="ds-trow__code">PR-2404-002</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>Rafael Ortiz · PM</span><span class="ds-sep">·</span><span>3 days waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Requested</span>
+              <span class="ds-trow__val">$98K</span>
+            </span>
+          </button>
+
+          <div class="ds-rowgroup">Timesheets</div>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--neutral"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Anika Devi — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0619</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>42.0 h · Meridian Steelworks PV</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Submitted</span>
+              <span class="ds-trow__val">42.0 h</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--neutral"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Tomas Berg — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0620</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>38.5 h · Cascade Foods PV</span><span class="ds-sep">·</span><span>1 day waiting</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Submitted</span>
+              <span class="ds-trow__val">38.5 h</span>
+            </span>
+          </button>
+
+          <button class="ds-trow">
+            <span class="ds-trow__accent ds-acc--warn"></span>
+            <span class="ds-trow__main">
+              <span class="ds-trow__l1">
+                <span class="ds-trow__name">Sofia Marenco — week of 9 Jun</span>
+                <span class="ds-trow__code">TS-0621</span>
+              </span>
+              <span class="ds-trow__l2">
+                <span>51.0 h · Harbor Logistics PV</span><span class="ds-sep">·</span><span>Overtime flagged</span>
+              </span>
+            </span>
+            <span class="ds-trow__right">
+              <span class="ds-tag ds-tag--warn ds-tag--sm"><span class="ds-tag__dot"></span>Overtime</span>
+              <span class="ds-trow__val">51.0 h</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="ds-detail" aria-label="Request preview">
+        <div class="ds-peekhead">
+          <div class="ds-peek__eyebrow">
+            <span>Approvals</span>
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            <span>Procurement</span>
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="is-cur">PR-2402-004</span>
+          </div>
+          <div class="ds-peek__titlerow">
+            <div class="ds-peek__icon" aria-hidden="true">
+              <svg class="ds-i" viewBox="0 0 24 24"><path d="M3 4h2l2 13h11l2-9H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg>
+            </div>
+            <div class="ds-peek__titleblock">
+              <h2 class="ds-peek__title">HV Cabling &amp; Grid Connection Kit</h2>
+              <div class="ds-peek__sub">
+                <span class="mono">PR-2402-004</span><span class="ds-sep">·</span>
+                <span>Cascade Foods 6.0&nbsp;MW Ground-Mount PV</span><span class="ds-sep">·</span>
+                <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>Needs approval</span>
+              </div>
+            </div>
+          </div>
+          <div class="ds-peek__actions">
+            <button class="ds-btn ds-btn--success">Approve <span class="ds-kbd">a</span></button>
+            <button class="ds-btn ds-btn--primary">Return for revision <span class="ds-kbd">r</span></button>
+            <button class="ds-btn">Open full record</button>
+            <span class="ds-grow"></span>
+            <button class="ds-iconbtn" aria-label="More actions">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="ds-peekbody">
+          <div class="ds-risknote">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            <div class="ds-risknote__t"><b>This commitment pushes the project over budget.</b> Committed spend would reach $6.51M against the $6.90M budget — 94% used. Requested by Anika Devi; you are not the requester, so segregation-of-duties allows you to approve.</div>
+          </div>
+
+          <div class="ds-moneystrip" style="grid-auto-columns: 1fr 1fr 1fr;">
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Request value</div>
+              <div class="ds-moneycell__v">$210,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--muted">Estimate, pre-quote</div>
+            </div>
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Committed if approved</div>
+              <div class="ds-moneycell__v">$6,510,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--warn">+$210K · 94% of budget</div>
+            </div>
+            <div class="ds-moneycell">
+              <div class="ds-moneycell__l">Budget headroom</div>
+              <div class="ds-moneycell__v">$390,000</div>
+              <div class="ds-moneycell__d ds-moneycell__d--warn">Tight — $390K left</div>
+            </div>
+          </div>
+
+          <div class="ds-peeksection">
+            <div class="ds-sectionh"><h3>Procurement lifecycle</h3></div>
+            <div class="ds-stepper">
+              <div class="ds-step is-done"><div class="ds-step__bar"></div><div class="ds-step__label">Requested</div><div class="ds-step__date">10 Jun</div></div>
+              <div class="ds-step is-current"><div class="ds-step__bar"></div><div class="ds-step__label">Approval</div><div class="ds-step__date">Now</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">PO issued</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Goods receipt</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Invoice</div><div class="ds-step__date">—</div></div>
+              <div class="ds-step"><div class="ds-step__bar"></div><div class="ds-step__label">Paid</div><div class="ds-step__date">—</div></div>
+            </div>
+          </div>
+
+          <div class="ds-peeksection">
+            <div class="ds-sectionh">
+              <h3>Line items</h3>
+              <span class="ds-sectionh__meta">3 items · est.</span>
+            </div>
+            <div class="ds-minilist">
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">HV XLPE Cable, 33&nbsp;kV — drum</span> <span class="m">12 × $9,500</span></div>
+                <span class="ds-mli__val">$114,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">Grid Connection Termination Kit</span> <span class="m">1 × $64,000</span></div>
+                <span class="ds-mli__val">$64,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+              <div class="ds-mli">
+                <div class="ds-mli__name"><span class="n">HV Cable Trenching &amp; Ducting</span> <span class="m">1 lot</span></div>
+                <span class="ds-mli__val">$32,000</span>
+                <span class="ds-mli__val ds-moneycell__d--muted">est.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ds-peeksection">
+            <div class="ds-sectionh"><h3>Request details</h3></div>
+            <div class="ds-facts">
+              <div class="ds-fact"><div class="ds-fact__l">Requested by</div><div class="ds-fact__v"><span class="ds-fact__av">AD</span>Anika Devi · Engineer</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Approver (you)</div><div class="ds-fact__v"><span class="ds-fact__av">PR</span>Priya Ramanathan · Finance</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Linked milestone</div><div class="ds-fact__v">COMM — Grid Interconnection</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Requested</div><div class="ds-fact__v tnum">10 Jun 2026</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Vendor</div><div class="ds-fact__v">Not yet selected</div></div>
+              <div class="ds-fact"><div class="ds-fact__l">Category</div><div class="ds-fact__v">Equipment</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-keymap" aria-label="Keyboard shortcuts">
+          <span class="ds-keymap__k"><span class="ds-kbd">j</span><span class="ds-kbd">k</span> move</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">a</span> approve</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">r</span> return</span>
+          <span class="ds-keymap__k"><span class="ds-kbd">o</span> open full</span>
+          <span class="ds-keymap__k ds-keymap__end"><span class="ds-kbd">⌘</span><span class="ds-kbd">K</span> command</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
