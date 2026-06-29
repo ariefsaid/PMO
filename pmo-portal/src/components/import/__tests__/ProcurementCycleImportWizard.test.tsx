@@ -385,6 +385,123 @@ describe('ProcurementCycleImportWizard', () => {
     resolve();
   });
 
+  // ── A1: font size on ref ─────────────────────────────────────────────────
+
+  it('AC-IMP-CYCLE-FONT1: amount is formatted as currency (not raw string) in preview', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    // The amount 5000 should display as $5,000 (formatCurrency), not "$5000"
+    // There are two amounts in our fixture: 5000 and 2000
+    expect(screen.queryByText(/\$5000/)).not.toBeInTheDocument();
+    // Multiple elements may match — just confirm at least one "$5,000" is present
+    expect(screen.getAllByText(/\$5,000/).length).toBeGreaterThan(0);
+  });
+
+  // ── D11: committing step shows progress ──────────────────────────────────
+
+  it('AC-IMP-CYCLE-D11: committing step shows case progress "Creating case N of M" with role=status', async () => {
+    // Use a slow commitGroups to inspect the committing step text
+    let resolveCommit!: (v: unknown) => void;
+    (commitGroups as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise((r) => { resolveCommit = r; }),
+    );
+
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    await user.click(screen.getByRole('button', { name: /import \d+ record/i }));
+
+    // committing step: role=status aria-live present
+    const statusEl = await screen.findByRole('status');
+    expect(statusEl).toBeInTheDocument();
+    // The text should mention "case" and/or progress context
+    expect(statusEl).toHaveTextContent(/case|creating/i);
+
+    resolveCommit({ created: 0, failed: 0, cases: [] });
+  });
+
+  // ── D12: group errors visible when collapsed ──────────────────────────────
+
+  it('AC-IMP-CYCLE-D12: group-level errors are visible on the collapsed case header', async () => {
+    // Use a sheet with a case that has no title or project (group error) but auto-maps
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: FULL_HEADERS,
+      rows: [
+        // Case with no title or project — group error
+        ['case-err', 'PR', '', '', 'Draft', '', 'ext-e1', '', '', ''],
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderWizard();
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await screen.findByTestId('cycle-import-summary');
+
+    // The case-err row should be collapsed initially or have errors visible on header
+    // Error about missing title/project should be visible in the header area
+    expect(screen.getByText(/title|project/i)).toBeInTheDocument();
+  });
+
+  // ── D13: result step has doc attachment note ──────────────────────────────
+
+  it('AC-IMP-CYCLE-D13: result step shows doc-attachment note on success', async () => {
+    (commitGroups as ReturnType<typeof vi.fn>).mockResolvedValue({
+      created: 2,
+      failed: 0,
+      cases: [
+        {
+          caseRef: 'case-001',
+          headerStatus: 'created',
+          procurementId: 'proc-1',
+          records: [
+            { rowNumber: 2, type: 'VI', id: 'r1', status: 'created' },
+            { rowNumber: 3, type: 'Payment', id: 'r2', status: 'created' },
+          ],
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    await user.click(screen.getByRole('button', { name: /import \d+ record/i }));
+    await screen.findByTestId('cycle-result-summary');
+
+    // Note about attaching documents from the detail page
+    expect(screen.getByText(/documents.*attach|attach.*documents/i)).toBeInTheDocument();
+  });
+
+  // ── D14: expand all / collapse all ────────────────────────────────────────
+
+  it('AC-IMP-CYCLE-D14: "Collapse all" button collapses all cases; "Expand all" re-expands them', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+
+    // Expand/Collapse all button must be present
+    const collapseBtn = screen.getByRole('button', { name: /collapse all/i });
+    expect(collapseBtn).toBeInTheDocument();
+
+    // Initially expanded: record rows are visible (ext-001 etc.)
+    expect(screen.getByText('PR')).toBeInTheDocument();
+
+    // Collapse all
+    await user.click(collapseBtn);
+
+    // After collapse: record rows for case-001 should not be visible
+    expect(screen.queryByText('PR')).not.toBeInTheDocument();
+
+    // Expand all button now
+    const expandBtn = screen.getByRole('button', { name: /expand all/i });
+    await user.click(expandBtn);
+    expect(screen.getByText('PR')).toBeInTheDocument();
+  });
+
+  // ── E15: button label rename ──────────────────────────────────────────────
+
   // ── ESC / scrim ───────────────────────────────────────────────────────────
 
   it('ESC closes the wizard on upload step with onClose(false)', async () => {

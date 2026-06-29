@@ -28,10 +28,11 @@ One-sheet, case-grouped, multi-type `.xlsx` import for the whole procure-to-pay 
 
 ### M3 — Ordered committer
 - `procurementCycle/commit.ts`: per `CaseGroup` → `createProcurement` (case), then records in canonical
-  order PR→RFQ→Quotation→PO→GR→VI→Payment, dispatching `type`→the matching create fn. Resolve intra-group
-  settlement FKs (`payments.invoice_id`→the group's VI, `invoices.po_id`→the group's PO) where present, else null.
+  order PR→RFQ→Quotation→PO→GR→VI→Payment, dispatching `type`→the matching create fn. Resolve the one
+  intra-group settlement FK (`payments.invoice_id`→the group's VI) where present, else null. *(There is no
+  `invoices.po_id`/`receipts.po_id` column — invoices/receipts anchor on `procurement_id` only; corrected 2026-06-25.)*
   Per-case: header fail → skip group; per-record best-effort with `classifyMutationError`; accumulate created/failed.
-- Unit (mocked repositories): direct VI+Payment case commits with null po_id and linked invoice_id;
+- Unit (mocked repositories): direct VI+Payment case commits with linked invoice_id (and null when no VI);
   header-fail skips children; per-record failure isolates.
 
 ### M4 — Wizard UI (preview tree + commit)

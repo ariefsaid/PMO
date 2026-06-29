@@ -60,6 +60,12 @@ export interface CycleCounts {
   skippedRecords: number;
 }
 
+/** Committing progress — how many cases have been created so far. */
+export interface CycleProgress {
+  done: number;
+  total: number;
+}
+
 export interface UseProcurementCycleImport {
   step: CycleWizardStep;
   fileName: string | null;
@@ -71,6 +77,17 @@ export interface UseProcurementCycleImport {
   validatedGroups: ValidatedGroup[];
   counts: CycleCounts;
   result: CommitResult | null;
+  /** Committing step progress. null outside of the committing step. */
+  progress: CycleProgress | null;
+  /**
+   * Global expand/collapse override: true = all expanded, false = all collapsed,
+   * null = respect individual card state (default before any global toggle).
+   */
+  globalExpand: boolean | null;
+  /** Expand all case cards. */
+  expandAll: () => void;
+  /** Collapse all case cards. */
+  collapseAll: () => void;
   selectFile: (file: File) => Promise<void>;
   setFieldMapping: (fieldKey: keyof CycleRow, headerIndex: number | null) => void;
   goPreview: () => void;
@@ -146,6 +163,10 @@ export function useProcurementCycleImport(
   const [mapping, setMappingState] = useState<CycleMapping>({});
   const [parseError, setParseError] = useState<string | null>(null);
   const [result, setResult] = useState<CommitResult | null>(null);
+  const [progress, setProgress] = useState<CycleProgress | null>(null);
+  /** Controls whether all CaseCard accordions are open (true) or closed (false).
+   *  null = per-card state (individual toggles), true/false = global override. */
+  const [globalExpand, setGlobalExpand] = useState<boolean | null>(null);
 
   const allRequiredMapped = useMemo(
     () =>
@@ -191,7 +212,12 @@ export function useProcurementCycleImport(
     setMappingState({});
     setParseError(null);
     setResult(null);
+    setProgress(null);
+    setGlobalExpand(null);
   }, []);
+
+  const expandAll = useCallback(() => setGlobalExpand(true), []);
+  const collapseAll = useCallback(() => setGlobalExpand(false), []);
 
   const selectFile = useCallback(async (file: File) => {
     setParseError(null);
@@ -234,12 +260,15 @@ export function useProcurementCycleImport(
     if (validGroups.length === 0) return;
 
     setStep('committing');
+    setProgress({ done: 0, total: validGroups.length });
 
     const commitResult = await commitGroups(validGroups, {
       requestedById,
       projectLookup,
       vendorLookup,
     });
+
+    setProgress(null);
     setResult(commitResult);
     setStep('result');
   }, [validatedGroups, requestedById, projectLookup, vendorLookup]);
@@ -254,6 +283,10 @@ export function useProcurementCycleImport(
     validatedGroups,
     counts,
     result,
+    progress,
+    globalExpand,
+    expandAll,
+    collapseAll,
     selectFile,
     setFieldMapping,
     goPreview,

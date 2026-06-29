@@ -17,12 +17,14 @@ import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
 import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
+import { formatCurrency } from '@/src/lib/format';
 import {
   useProcurementCycleImport,
   CYCLE_FIELDS,
   MAX_IMPORT_ROWS,
   type CycleWizardStep,
   type CycleMapping,
+  type CycleProgress,
 } from './useProcurementCycleImport';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -46,7 +48,7 @@ const STEP_TITLE: Record<CycleWizardStep, string> = {
 };
 
 const STEP_SUBTITLE: Record<CycleWizardStep, string> = {
-  upload: `Upload an .xlsx file (up to ${MAX_IMPORT_ROWS} rows). One row per record — use a type column to mix PR, RFQ, Quotation, PO, GR, VI, and Payment.`,
+  upload: `Upload an .xlsx file (up to ${MAX_IMPORT_ROWS} rows). One row per record, grouped by case.`,
   mapping: 'Confirm which column maps to each field.',
   preview: 'Cases and their records. Invalid records are skipped — only valid records are imported.',
   committing: 'Creating procurement cases and records…',
@@ -139,7 +141,7 @@ export function ProcurementCycleImportWizard({
         tabIndex={-1}
         onKeyDown={onTrapKeyDown}
         className={cn(
-          'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[680px] flex-col rounded-lg border border-border bg-popover',
+          'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
           'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
           'origin-center motion-reduce:animate-none',
         )}
@@ -173,7 +175,7 @@ export function ProcurementCycleImportWizard({
           {wiz.step === 'upload' && <CycleUploadStep wiz={wiz} />}
           {wiz.step === 'mapping' && <CycleMappingStep wiz={wiz} />}
           {wiz.step === 'preview' && <CyclePreviewStep wiz={wiz} />}
-          {wiz.step === 'committing' && <CycleCommittingStep />}
+          {wiz.step === 'committing' && <CycleCommittingStep progress={wiz.progress} />}
           {wiz.step === 'result' && <CycleResultStep wiz={wiz} />}
         </div>
 
@@ -335,17 +337,28 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Summary line */}
-      <p className="text-[13px] text-foreground" data-testid="cycle-import-summary">
-        <b className="font-semibold">{counts.totalCases} cases</b>,{' '}
-        <b className="font-semibold">{counts.validRecords} records valid</b>,{' '}
-        {counts.skippedRecords} skipped
-      </p>
+      {/* Summary line + expand/collapse all */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[13px] text-foreground" data-testid="cycle-import-summary">
+          <b className="font-semibold tabular-nums">{counts.totalCases} cases</b>,{' '}
+          <b className="font-semibold tabular-nums">{counts.validRecords} records valid</b>,{' '}
+          <span className="tabular-nums">{counts.skippedRecords} skipped</span>
+        </p>
+        {counts.totalCases > 0 && (
+          <button
+            type="button"
+            onClick={wiz.globalExpand === false ? wiz.expandAll : wiz.collapseAll}
+            className="shrink-0 text-[12px] text-primary hover:underline"
+          >
+            {wiz.globalExpand === false ? 'Expand all' : 'Collapse all'}
+          </button>
+        )}
+      </div>
 
       {/* Case/record tree */}
       <div className="flex flex-col gap-2">
         {validatedGroups.map((vg) => (
-          <CaseCard key={vg.group.caseRef} vg={vg} />
+          <CaseCard key={vg.group.caseRef} vg={vg} globalExpand={wiz.globalExpand} />
         ))}
       </div>
 
@@ -357,8 +370,10 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
 }
 
 /** A single case with its records (expandable). */
-function CaseCard({ vg }: { vg: ValidatedGroup }) {
-  const [expanded, setExpanded] = useState(true);
+function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: boolean | null }) {
+  const [localExpanded, setLocalExpanded] = useState(true);
+  // Global override wins when set; otherwise use local state.
+  const expanded = globalExpand !== null ? globalExpand : localExpanded;
   const { group, groupErrors, rows, valid } = vg;
 
   const validRowCount = rows.filter((r) => r.valid).length;
@@ -371,7 +386,7 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
       {/* Case header row */}
       <button
         type="button"
-        onClick={() => setExpanded((x) => !x)}
+        onClick={() => setLocalExpanded((x) => !x)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-expanded={expanded}
       >
@@ -386,8 +401,15 @@ function CaseCard({ vg }: { vg: ValidatedGroup }) {
           {caseTitle !== caseRef && (
             <span className="ml-2 truncate text-[13px] text-muted-foreground">{caseTitle}</span>
           )}
+          {/* D12: surface group errors on header so they're visible even when collapsed */}
+          {!expanded && groupErrors.length > 0 && (
+            <span className="ml-2 text-[12px] text-destructive">
+              {groupErrors[0]}
+              {groupErrors.length > 1 && ` (+${groupErrors.length - 1} more)`}
+            </span>
+          )}
         </span>
-        <span className="text-[12px] text-muted-foreground">
+        <span className="tabular-nums text-[12px] text-muted-foreground">
           {validRowCount}/{rows.length} records
         </span>
         {valid ? (
@@ -442,9 +464,15 @@ function RecordRow({ row, source }: { row: ValidatedRow; source: CycleRow | unde
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
           {type && <span className="font-semibold text-foreground">{type}</span>}
-          {ref && <span className="font-mono text-[12px] text-muted-foreground">{ref}</span>}
+          {ref && <span className="font-mono text-[13px] text-muted-foreground">{ref}</span>}
           {status && <span className="text-muted-foreground">{status}</span>}
-          {amount && <span className="text-muted-foreground">${amount}</span>}
+          {amount && (
+            <span className="tabular-nums text-muted-foreground">
+              {Number.isNaN(Number(amount))
+                ? amount
+                : formatCurrency(Number(amount))}
+            </span>
+          )}
           {date && <span className="text-muted-foreground">{date}</span>}
         </div>
         {row.errors.length > 0 && (
@@ -468,7 +496,7 @@ function RecordRow({ row, source }: { row: ValidatedRow; source: CycleRow | unde
 
 // ── Committing step ───────────────────────────────────────────────────────────
 
-function CycleCommittingStep() {
+function CycleCommittingStep({ progress }: { progress: CycleProgress | null }) {
   return (
     <div
       className="flex flex-col items-center gap-2 py-6 text-center"
@@ -476,7 +504,16 @@ function CycleCommittingStep() {
       aria-live="polite"
     >
       <Icon name="refresh" className="size-5 animate-spin text-muted-foreground" />
-      <p className="text-[13px] text-foreground">Creating procurement cases and records…</p>
+      {progress && progress.total > 0 ? (
+        <p className="text-[13px] text-foreground">
+          Creating case{' '}
+          <span className="tabular-nums">{progress.done}</span>
+          {' '}of{' '}
+          <span className="tabular-nums">{progress.total}</span>…
+        </p>
+      ) : (
+        <p className="text-[13px] text-foreground">Creating procurement cases and records…</p>
+      )}
     </div>
   );
 }
@@ -519,9 +556,15 @@ function CycleResultStep({ wiz }: { wiz: Wiz }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[13px] text-foreground" data-testid="cycle-result-summary">
-        <b className="font-semibold">{r.created} created</b>
-        {r.failed > 0 && <>, {r.failed} failed</>}.
+        <b className="font-semibold tabular-nums">{r.created} created</b>
+        {r.failed > 0 && <>, <span className="tabular-nums">{r.failed} failed</span></>}.
       </p>
+
+      {r.created > 0 && (
+        <p className="text-[12.5px] text-muted-foreground">
+          Documents can be attached to each case from its procurement detail page.
+        </p>
+      )}
 
       {failedRecords.length > 0 && (
         <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-[12.5px]">
