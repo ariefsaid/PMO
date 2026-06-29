@@ -14,17 +14,13 @@
 
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
-import { compileCompositionSpec, compileQuerySpec as _unused } from '../../../pmo-portal/src/lib/viewspec/compiler';
-import { ValidationError } from '../../../pmo-portal/src/lib/viewspec/types';
-import { ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types';
+import { compileCompositionSpec } from '../../../pmo-portal/src/lib/viewspec/compiler';
+import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types';
 import { registry } from '../../../pmo-portal/src/lib/viewspec/registry';
 import { COMPOSITION_SPEC_SCHEMA } from './schema';
 import { buildSystemPrompt } from './prompt';
 import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types';
 import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
-
-// Suppress unused import warning
-void _unused;
 
 // ── Owner-decision flags ───────────────────────────────────────────────────────
 
