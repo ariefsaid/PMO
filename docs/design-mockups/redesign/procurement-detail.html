@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMO Portal — Procurement Detail (Mockup)</title>
+  <link rel="stylesheet" href="_tokens.css" />
+  <link rel="stylesheet" href="_base.css" />
+  <style>
+    /* ── Mockup page chrome only — no colors, no radii, no shadows defined here ── */
+    .mockup-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .mockup-label {
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      letter-spacing: var(--ds-tracking-wide);
+      text-transform: uppercase;
+      padding: var(--ds-space-2) var(--ds-space-4);
+      border-bottom: 1px solid var(--ds-border);
+      background: var(--ds-surface-muted);
+      color: var(--ds-text-tertiary);
+    }
+    /* Dark surface is a full self-contained block */
+    .mockup-dark-shell {
+      background: var(--ds-surface-canvas);
+    }
+
+    /* ── Lifecycle stepper ─────────────────────────────────────────────────── */
+    .lc-stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      width: 100%;
+      overflow-x: auto;
+    }
+    .lc-step {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      flex: 1;
+      min-width: 0;
+    }
+    .lc-step__bar-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      min-width: 0;
+    }
+    .lc-step__track {
+      flex: 1;
+      height: 4px;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-border);
+    }
+    .lc-step__track--done { background: var(--ds-primary); }
+    .lc-step__track--active { background: var(--ds-primary); }
+    .lc-step__node {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--ds-radius-round);
+      display: grid;
+      place-items: center;
+      flex: none;
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-bold);
+      border: 2px solid var(--ds-border);
+      background: var(--ds-surface-canvas);
+      color: var(--ds-text-tertiary);
+    }
+    .lc-step__node--done {
+      background: var(--ds-primary);
+      border-color: var(--ds-primary);
+      color: var(--ds-primary-fg);
+    }
+    .lc-step__node--active {
+      border-color: var(--ds-primary);
+      color: var(--ds-primary);
+      background: var(--ds-primary-tint);
+    }
+    .lc-step__label-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 64px;
+    }
+    .lc-step__label {
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-tertiary);
+      white-space: nowrap;
+    }
+    .lc-step__label--done { color: var(--ds-text-primary); }
+    .lc-step__label--active { color: var(--ds-primary); }
+    .lc-step__ref {
+      font-family: var(--ds-font-mono);
+      font-size: 10px;
+      color: var(--ds-text-tertiary);
+    }
+
+    /* ── Decision strip ────────────────────────────────────────────────────── */
+    .decision-strip {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-3);
+      flex-wrap: wrap;
+      padding: var(--ds-space-3) var(--ds-space-4);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      background: var(--ds-surface-raised);
+    }
+    .decision-strip__hint {
+      font-size: var(--ds-text-sm);
+      color: var(--ds-text-tertiary);
+      flex: 1;
+      min-width: 200px;
+    }
+    .decision-strip__actions {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      flex-wrap: wrap;
+    }
+
+    /* ── Overview bento: 2-col left 2fr / right 1fr ────────────────────────── */
+    .overview-bento {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      gap: var(--ds-space-4);
+      align-items: start;
+    }
+    .overview-main { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+    .overview-side { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+
+    /* Stat tiles 2×2 */
+    .stat-tiles {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--ds-space-3);
+    }
+    .stat-tile {
+      padding: var(--ds-space-3) var(--ds-space-4);
+      background: var(--ds-surface-raised);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      box-shadow: var(--ds-shadow-resting);
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-1);
+    }
+    .stat-tile__label {
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      font-weight: var(--ds-weight-medium);
+    }
+    .stat-tile__value {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-2xl);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+      line-height: 1;
+      letter-spacing: var(--ds-tracking-tight);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-tile__sub {
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+
+    /* Budget signal */
+    .budget-signal {
+      background: var(--ds-surface-raised);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      box-shadow: var(--ds-shadow-resting);
+      overflow: hidden;
+    }
+    .budget-signal__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--ds-space-3) var(--ds-space-4);
+      border-bottom: 1px solid var(--ds-border);
+    }
+    .budget-signal__body { padding: var(--ds-space-3) var(--ds-space-4); display: flex; flex-direction: column; gap: var(--ds-space-3); }
+    .budget-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: var(--ds-text-sm);
+    }
+    .budget-bar-wrap {
+      height: 6px;
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-pill);
+      overflow: hidden;
+    }
+    .budget-bar { height: 100%; border-radius: var(--ds-radius-pill); background: var(--ds-primary); }
+    .budget-bar--warn { background: var(--ds-warning); }
+
+    /* Detail dl */
+    .detail-dl {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--ds-space-4) var(--ds-space-6);
+    }
+    .detail-dt {
+      font-size: var(--ds-text-xxs);
+      font-weight: var(--ds-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: var(--ds-tracking-wide);
+      color: var(--ds-text-tertiary);
+      margin-bottom: 2px;
+    }
+    .detail-dd {
+      font-size: var(--ds-text-sm);
+      color: var(--ds-text-primary);
+    }
+
+    /* Progression timeline */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .timeline-event {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--ds-space-3);
+      padding: var(--ds-space-2) 0;
+      position: relative;
+    }
+    .timeline-event + .timeline-event::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: var(--ds-border-light);
+      z-index: 0;
+    }
+    .timeline-glyph {
+      width: 24px;
+      height: 24px;
+      border-radius: var(--ds-radius-round);
+      background: var(--ds-surface-muted);
+      display: grid;
+      place-items: center;
+      flex: none;
+      color: var(--ds-text-tertiary);
+      z-index: 1;
+      position: relative;
+    }
+    .timeline-glyph--primary { background: var(--ds-primary-tint); color: var(--ds-primary); }
+    .timeline-glyph--success { background: var(--ds-success-tint); color: var(--ds-success-text); }
+    .timeline-body { display: flex; flex-direction: column; gap: 1px; }
+    .timeline-text { font-size: var(--ds-text-sm); color: var(--ds-text-secondary); }
+    .timeline-time { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+
+    /* Line items table header override (section label) */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--ds-space-3) var(--ds-space-4);
+      border-bottom: 1px solid var(--ds-border);
+    }
+
+    /* Vendor quotes comparison */
+    .quote-row-selected td { background: var(--ds-surface-selected); }
+
+    /* Ledger */
+    .ledger-filter {
+      display: flex;
+      gap: var(--ds-space-2);
+      padding: var(--ds-space-2) var(--ds-space-4);
+      border-bottom: 1px solid var(--ds-border);
+    }
+    .ledger-filter-chip {
+      display: inline-flex;
+      align-items: center;
+      height: var(--ds-control-h-sm);
+      padding: 0 var(--ds-space-3);
+      border-radius: var(--ds-radius-pill);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-medium);
+      cursor: pointer;
+      background: var(--ds-surface-muted);
+      color: var(--ds-text-secondary);
+      border: 1px solid transparent;
+    }
+    .ledger-filter-chip.is-active {
+      background: var(--ds-primary-tint);
+      color: var(--ds-primary);
+      border-color: var(--ds-primary-tint-strong);
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--ds-space-3);
+      padding: var(--ds-space-12) var(--ds-space-6);
+      color: var(--ds-text-tertiary);
+      text-align: center;
+    }
+    .empty-state__icon {
+      width: 40px; height: 40px;
+      background: var(--ds-surface-muted);
+      border-radius: var(--ds-radius-lg);
+      display: grid;
+      place-items: center;
+    }
+    .empty-state__title { font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-secondary); }
+    .empty-state__sub { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); max-width: 320px; }
+
+    /* Loading skeleton */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skeleton {
+      border-radius: var(--ds-radius-sm);
+      background: linear-gradient(
+        90deg,
+        var(--ds-surface-muted) 25%,
+        var(--ds-border-light) 50%,
+        var(--ds-surface-muted) 75%
+      );
+      background-size: 400px 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+    .skeleton--text { height: 14px; width: 140px; }
+    .skeleton--text-sm { height: 12px; width: 100px; }
+    .skeleton--title { height: 22px; width: 220px; }
+    .skeleton--bar { height: 4px; border-radius: var(--ds-radius-pill); }
+    .skeleton-row { display: flex; align-items: center; gap: var(--ds-space-3); padding: 0 var(--ds-space-3); height: var(--ds-row-h); border-bottom: 1px solid var(--ds-border-light); }
+
+    /* SVG icons — inline micro set */
+    .icon { display: inline-flex; align-items: center; justify-content: center; width: 1em; height: 1em; }
+
+    /* Tab content area */
+    .tab-panel { padding: var(--ds-space-4) 0; }
+
+    /* Approval notes card */
+    .approval-notes {
+      margin-top: var(--ds-space-4);
+      padding: var(--ds-space-3) var(--ds-space-4);
+      background: var(--ds-success-tint);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      font-size: var(--ds-text-sm);
+      color: var(--ds-success-text);
+    }
+    .approval-notes strong { display: block; font-weight: var(--ds-weight-semibold); margin-bottom: var(--ds-space-1); }
+  </style>
+</head>
+<body class="mockup-wrap">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     LIGHT THEME
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="mockup-label">Light</div>
+<div class="light">
+  <div class="ds-app">
+    <!-- ── Rail ── -->
+    <nav class="ds-rail" aria-label="Main navigation">
+      <div class="ds-rail__brand">
+        <div class="ds-rail__logo" aria-hidden="true">P</div>
+        PMO Portal
+      </div>
+
+      <div class="ds-overline ds-rail__group-label">Workspace</div>
+      <a class="ds-nav-item" href="#" aria-label="Dashboard">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Projects">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+        Projects
+      </a>
+      <a class="ds-nav-item is-active" href="#" aria-current="page" aria-label="Procurement">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        Procurement
+        <span class="ds-nav-item__count">12</span>
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Timesheets">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Timesheets
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Approvals">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Approvals
+        <span class="ds-chip">3</span>
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Companies">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M3 21h18M3 7v14M17 7v14M7 3h10l2 4H5l2-4z"/><path d="M9 21v-6h6v6"/></svg>
+        Companies
+      </a>
+
+      <div class="ds-rail__foot">
+        <a class="ds-nav-item" href="#" aria-label="Settings">
+          <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </a>
+        <div class="ds-userchip">
+          <div class="ds-avatar" aria-hidden="true">AS</div>
+          <div>
+            <div class="ds-userchip__name">Arief Said</div>
+            <div class="ds-userchip__role">Project Manager</div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── Top bar ── -->
+    <header class="ds-topbar" role="banner">
+      <button class="ds-topbar__search" aria-label="Search or open command palette">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Search…
+        <kbd class="ds-kbd">⌘K</kbd>
+      </button>
+      <span class="ds-topbar__spacer"></span>
+      <button class="ds-iconbtn" aria-label="Notifications">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+      </button>
+      <div class="ds-userchip">
+        <div class="ds-avatar" aria-hidden="true">AS</div>
+        <div>
+          <div class="ds-userchip__name">Arief Said</div>
+          <div class="ds-userchip__role">Project Manager</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Main content ── -->
+    <main class="ds-content" id="main-content" tabindex="-1">
+
+      <!-- Breadcrumb -->
+      <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+        <a href="#">Procurement</a>
+        <span class="ds-breadcrumb__sep" aria-hidden="true">/</span>
+        <span class="ds-breadcrumb__current">PRQ-2024-0047</span>
+      </nav>
+
+      <!-- Record header -->
+      <div class="ds-record-head">
+        <div class="ds-record-head__icon" aria-hidden="true">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div class="ds-record-head__title">
+            <h1 class="ds-heading" style="font-size: var(--ds-text-xl);">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
+            <span class="ds-pill ds-pill--warning" role="status" aria-label="Status: Ordered">
+              <span class="ds-pill__dot" aria-hidden="true"></span>
+              Ordered
+            </span>
+          </div>
+          <div class="ds-record-head__meta">
+            <span class="ds-mono">PRQ-2024-0047</span>
+            &nbsp;·&nbsp; Jubail Expansion Phase 2
+            &nbsp;·&nbsp; requested by Fatima Al-Rashid
+          </div>
+        </div>
+        <div class="ds-record-head__actions">
+          <button class="ds-btn ds-btn--secondary ds-btn--sm" aria-label="Edit procurement header">Edit</button>
+        </div>
+      </div>
+
+      <!-- Lifecycle stepper -->
+      <div class="ds-card" style="margin-bottom: var(--ds-space-4); box-shadow: var(--ds-shadow-resting);">
+        <div style="padding: var(--ds-space-3) var(--ds-space-4);">
+          <div class="lc-stepper" role="list" aria-label="Procurement lifecycle">
+            <!-- PR -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">PR</span>
+                <span class="lc-step__ref">PRQ-2024-0047</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--done"></div>
+              </div>
+            </div>
+            <!-- Approval -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">Approval</span>
+                <span class="lc-step__ref">by Khalid Hassan</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--done"></div>
+              </div>
+            </div>
+            <!-- RFQ -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">RFQ</span>
+                <span class="lc-step__ref">VQ-2024-0031</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--active"></div>
+              </div>
+            </div>
+            <!-- PO -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--active">PO</span>
+                <span class="lc-step__ref">PO-2024-0019</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--active" aria-label="Current step" aria-current="step">PO</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <!-- GR -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">GR</span>
+                <span class="lc-step__ref">—</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node" aria-label="Pending">GR</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <!-- Invoice -->
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">Invoice</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node" aria-label="Pending">VI</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <!-- Paid -->
+            <div class="lc-step" role="listitem" style="flex: none;">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">Paid</span>
+              </div>
+              <div class="lc-step__node" aria-label="Pending">
+                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decision strip — "Ordered" stage: Confirm Receipt is the primary CTA -->
+      <div class="decision-strip" style="margin-bottom: var(--ds-space-4);" role="region" aria-label="Lifecycle actions">
+        <p class="decision-strip__hint">
+          Ready to advance. Confirm receipt of goods to move to Goods Receipt.
+        </p>
+        <div class="decision-strip__actions">
+          <button class="ds-btn ds-btn--secondary ds-btn--sm" aria-label="Record a goods receipt">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            Record GR
+          </button>
+          <button class="ds-btn ds-btn--primary ds-btn--sm" aria-label="Confirm receipt of goods">
+            Confirm Receipt
+          </button>
+          <button class="ds-btn ds-btn--ghost ds-btn--sm" aria-label="Cancel request" style="color: var(--ds-destructive-text);">
+            Cancel request
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab strip -->
+      <div class="ds-tabs" role="tablist" aria-label="Procurement sections" style="margin-bottom: var(--ds-space-4);">
+        <button class="ds-tab" role="tab" aria-selected="true" id="tab-overview" aria-controls="panel-overview">Overview</button>
+        <button class="ds-tab" role="tab" aria-selected="false" id="tab-items" aria-controls="panel-items">
+          Line items <span class="ds-chip" style="margin-left: var(--ds-space-1);">6</span>
+        </button>
+        <button class="ds-tab" role="tab" aria-selected="false" id="tab-documents" aria-controls="panel-documents">
+          Documents <span class="ds-chip" style="margin-left: var(--ds-space-1);">4</span>
+        </button>
+        <button class="ds-tab" role="tab" aria-selected="false" id="tab-quotes" aria-controls="panel-quotes">
+          Vendor quotes <span class="ds-chip" style="margin-left: var(--ds-space-1);">3</span>
+        </button>
+      </div>
+
+      <!-- Tab panels — Overview is active -->
+      <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+        <div class="overview-bento">
+
+          <!-- ov-main: stat tiles + budget signal + detail dl -->
+          <div class="overview-main">
+
+            <!-- Stat tiles 2×2 -->
+            <div class="stat-tiles">
+              <div class="stat-tile">
+                <span class="stat-tile__label">PR value</span>
+                <span class="stat-tile__value ds-tnum">SAR 284,500</span>
+                <span class="stat-tile__sub">Jubail Expansion Phase 2</span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-tile__label">Selected quote</span>
+                <span class="stat-tile__value ds-tnum">SAR 278,200</span>
+                <span class="stat-tile__sub" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-tile__label">PO committed</span>
+                <span class="stat-tile__value ds-tnum">SAR 278,200</span>
+                <span class="stat-tile__sub" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-tile__label">Goods received</span>
+                <span class="stat-tile__value">—</span>
+                <span class="stat-tile__sub">Awaiting delivery</span>
+              </div>
+            </div>
+
+            <!-- Budget signal card -->
+            <div class="budget-signal">
+              <div class="budget-signal__head">
+                <span class="ds-label" style="color: var(--ds-text-secondary);">Budget signal — Jubail Expansion Phase 2</span>
+                <span class="ds-pill ds-pill--warning">
+                  <span class="ds-pill__dot"></span>
+                  At risk
+                </span>
+              </div>
+              <div class="budget-signal__body">
+                <div class="budget-row">
+                  <span style="color: var(--ds-text-secondary);">Project budget</span>
+                  <span class="ds-tnum" style="font-weight: var(--ds-weight-semibold);">SAR 2,400,000</span>
+                </div>
+                <div class="budget-row">
+                  <span style="color: var(--ds-text-secondary);">Committed to date</span>
+                  <span class="ds-tnum" style="font-weight: var(--ds-weight-semibold);">SAR 2,180,000</span>
+                </div>
+                <div>
+                  <div class="budget-bar-wrap">
+                    <div class="budget-bar budget-bar--warn" style="width: 91%;"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; margin-top: var(--ds-space-1);">
+                    <span style="font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);">91% committed</span>
+                    <span style="font-size: var(--ds-text-xs); color: var(--ds-warning-icon);">SAR 220,000 remaining</span>
+                  </div>
+                </div>
+                <div class="budget-row" style="padding-top: var(--ds-space-2); border-top: 1px solid var(--ds-border-light);">
+                  <span style="color: var(--ds-text-secondary);">This request</span>
+                  <span class="ds-tnum" style="color: var(--ds-warning-icon); font-weight: var(--ds-weight-semibold);">SAR 278,200</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detail dl -->
+            <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+              <div class="section-head">
+                <span class="ds-label" style="color: var(--ds-text-secondary);">Detail</span>
+              </div>
+              <div style="padding: var(--ds-space-4);">
+                <dl class="detail-dl">
+                  <div>
+                    <dt class="detail-dt">Project</dt>
+                    <dd class="detail-dd" style="color: var(--ds-primary);">Jubail Expansion Phase 2</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">Vendor</dt>
+                    <dd class="detail-dd" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">Requested by</dt>
+                    <dd class="detail-dd">Fatima Al-Rashid</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">Approved by</dt>
+                    <dd class="detail-dd">Khalid Hassan</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">PR number</dt>
+                    <dd class="detail-dd ds-mono">PRQ-2024-0047</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">PO number</dt>
+                    <dd class="detail-dd ds-mono">PO-2024-0019</dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">Category</dt>
+                    <dd class="detail-dd">
+                      <span class="ds-tag">Consumables &amp; PPE</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="detail-dt">Date submitted</dt>
+                    <dd class="detail-dd">14 Aug 2024</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+          </div><!-- /overview-main -->
+
+          <!-- ov-side: progression timeline (sticky) -->
+          <aside style="position: sticky; top: var(--ds-space-4);">
+            <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+              <div class="section-head">
+                <span class="ds-label" style="color: var(--ds-text-secondary);">Progression</span>
+              </div>
+              <div style="padding: var(--ds-space-3) var(--ds-space-4);">
+                <ol class="timeline" aria-label="Lifecycle events">
+                  <li class="timeline-event">
+                    <div class="timeline-glyph timeline-glyph--primary" aria-hidden="true">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    </div>
+                    <div class="timeline-body">
+                      <span class="timeline-text"><strong>Purchase Order issued</strong> — PO-2024-0019</span>
+                      <span class="timeline-time">2 Sep 2024 · Arief Said</span>
+                    </div>
+                  </li>
+                  <li class="timeline-event">
+                    <div class="timeline-glyph timeline-glyph--success" aria-hidden="true">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                    </div>
+                    <div class="timeline-body">
+                      <span class="timeline-text"><strong>Quote selected</strong> — Gulf Industrial Supplies Co. · SAR 278,200</span>
+                      <span class="timeline-time">28 Aug 2024 · Arief Said</span>
+                    </div>
+                  </li>
+                  <li class="timeline-event">
+                    <div class="timeline-glyph" aria-hidden="true">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                    </div>
+                    <div class="timeline-body">
+                      <span class="timeline-text">RFQ sent to 3 vendors — VQ-2024-0031</span>
+                      <span class="timeline-time">22 Aug 2024 · Arief Said</span>
+                    </div>
+                  </li>
+                  <li class="timeline-event">
+                    <div class="timeline-glyph timeline-glyph--success" aria-hidden="true">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                    </div>
+                    <div class="timeline-body">
+                      <span class="timeline-text"><strong>Approved</strong> by Khalid Hassan</span>
+                      <span class="timeline-time">19 Aug 2024 · Khalid Hassan</span>
+                    </div>
+                  </li>
+                  <li class="timeline-event">
+                    <div class="timeline-glyph" aria-hidden="true">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                    </div>
+                    <div class="timeline-body">
+                      <span class="timeline-text">Request submitted</span>
+                      <span class="timeline-time">14 Aug 2024 · Fatima Al-Rashid</span>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </aside>
+
+        </div><!-- /overview-bento -->
+
+        <!-- Approval notes -->
+        <div class="approval-notes" style="margin-top: var(--ds-space-4);">
+          <strong>Approval notes</strong>
+          Approved — budget confirmed with Finance. Ensure GR is logged within 5 working days of delivery.
+        </div>
+
+      </div><!-- /panel-overview -->
+
+      <!-- Hidden tab panels (shown for completeness as visible content below) -->
+
+      <!-- Line items panel (shown collapsed as illustrative example) -->
+      <div style="margin-top: var(--ds-space-6); border-top: 1px solid var(--ds-border); padding-top: var(--ds-space-4);">
+        <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Line items tab — read-only view (status: Ordered)</p>
+        <div class="ds-table-wrap">
+          <div class="section-head">
+            <span class="ds-label" style="color: var(--ds-text-secondary);">Line items <span class="ds-chip">6</span></span>
+          </div>
+          <table class="ds-table" aria-label="Procurement line items">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="is-num">Qty</th>
+                <th class="is-num">Unit rate (SAR)</th>
+                <th class="is-num">Line total (SAR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ds-cell-strong">Safety Helmets (EN 397)</span></td>
+                <td class="is-num">120</td>
+                <td class="is-num">85.00</td>
+                <td class="is-num">10,200.00</td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Safety Harness — Full Body</span></td>
+                <td class="is-num">60</td>
+                <td class="is-num">320.00</td>
+                <td class="is-num">19,200.00</td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Drill Bit Set — 12-piece (Tungsten)</span></td>
+                <td class="is-num">24</td>
+                <td class="is-num">4,800.00</td>
+                <td class="is-num">115,200.00</td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">High-Vis Vest — Class 3</span></td>
+                <td class="is-num">200</td>
+                <td class="is-num">45.00</td>
+                <td class="is-num">9,000.00</td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Cutting Compound — 5L</span></td>
+                <td class="is-num">40</td>
+                <td class="is-num">280.00</td>
+                <td class="is-num">11,200.00</td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Hydraulic Lubricant (ISO 46) — 20L drum</span></td>
+                <td class="is-num">50</td>
+                <td class="is-num">890.00</td>
+                <td class="is-num">44,500.00</td>
+              </tr>
+              <tr style="background: var(--ds-surface-muted);">
+                <td colspan="3" style="text-align: right; font-weight: var(--ds-weight-semibold); padding-right: var(--ds-space-3);">Total</td>
+                <td class="is-num" style="font-weight: var(--ds-weight-bold); font-family: var(--ds-font-display);">SAR 209,300.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Vendor quotes comparison panel -->
+      <div style="margin-top: var(--ds-space-6); border-top: 1px solid var(--ds-border); padding-top: var(--ds-space-4);">
+        <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Vendor quotes tab — Quote Selected state</p>
+        <div class="ds-table-wrap">
+          <div class="section-head">
+            <span class="ds-label" style="color: var(--ds-text-secondary);">Vendor quotes <span class="ds-chip">3</span></span>
+          </div>
+          <table class="ds-table" aria-label="Vendor quotes comparison">
+            <thead>
+              <tr>
+                <th>Vendor</th>
+                <th>Quote ref</th>
+                <th class="is-num">Amount (SAR)</th>
+                <th>Valid until</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="quote-row-selected" aria-selected="true">
+                <td><span class="ds-cell-strong">Gulf Industrial Supplies Co.</span></td>
+                <td class="ds-mono" style="font-size: var(--ds-text-xs);">VQ-2024-0031-A</td>
+                <td class="is-num ds-cell-strong">278,200.00</td>
+                <td>30 Oct 2024</td>
+                <td>
+                  <span class="ds-pill ds-pill--success">
+                    <span class="ds-pill__dot"></span>
+                    Selected
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Arabian Safety &amp; Equipment</span></td>
+                <td class="ds-mono" style="font-size: var(--ds-text-xs);">VQ-2024-0031-B</td>
+                <td class="is-num">296,400.00</td>
+                <td>15 Sep 2024</td>
+                <td>
+                  <span class="ds-pill">Expired</span>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="ds-cell-strong">Nexus Industrial Trading</span></td>
+                <td class="ds-mono" style="font-size: var(--ds-text-xs);">VQ-2024-0031-C</td>
+                <td class="is-num">301,750.00</td>
+                <td>1 Oct 2024</td>
+                <td>
+                  <span class="ds-pill">Pending</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main><!-- /ds-content -->
+  </div><!-- /ds-app -->
+</div><!-- /light -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DARK THEME
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="mockup-label dark" style="background: hsl(0 0% 9%); color: hsl(0 0% 50.6%); border-color: hsl(0 0% 16.5%);">Dark</div>
+<div class="dark mockup-dark-shell">
+  <div class="ds-app">
+    <!-- ── Rail ── -->
+    <nav class="ds-rail" aria-label="Main navigation">
+      <div class="ds-rail__brand">
+        <div class="ds-rail__logo" aria-hidden="true">P</div>
+        PMO Portal
+      </div>
+
+      <div class="ds-overline ds-rail__group-label">Workspace</div>
+      <a class="ds-nav-item" href="#" aria-label="Dashboard">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Projects">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+        Projects
+      </a>
+      <a class="ds-nav-item is-active" href="#" aria-current="page" aria-label="Procurement">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        Procurement
+        <span class="ds-nav-item__count">12</span>
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Timesheets">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Timesheets
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Approvals">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Approvals
+        <span class="ds-chip">3</span>
+      </a>
+      <a class="ds-nav-item" href="#" aria-label="Companies">
+        <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M3 21h18M3 7v14M17 7v14M7 3h10l2 4H5l2-4z"/><path d="M9 21v-6h6v6"/></svg>
+        Companies
+      </a>
+
+      <div class="ds-rail__foot">
+        <a class="ds-nav-item" href="#" aria-label="Settings">
+          <svg class="ds-nav-item__icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </a>
+        <div class="ds-userchip">
+          <div class="ds-avatar" aria-hidden="true">AS</div>
+          <div>
+            <div class="ds-userchip__name">Arief Said</div>
+            <div class="ds-userchip__role">Project Manager</div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── Top bar ── -->
+    <header class="ds-topbar" role="banner">
+      <button class="ds-topbar__search" aria-label="Search or open command palette">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Search…
+        <kbd class="ds-kbd">⌘K</kbd>
+      </button>
+      <span class="ds-topbar__spacer"></span>
+      <button class="ds-iconbtn" aria-label="Notifications">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+      </button>
+      <div class="ds-userchip">
+        <div class="ds-avatar" aria-hidden="true">AS</div>
+        <div>
+          <div class="ds-userchip__name">Arief Said</div>
+          <div class="ds-userchip__role">Project Manager</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Main content ── -->
+    <main class="ds-content" id="main-content-dark" tabindex="-1">
+
+      <!-- Breadcrumb -->
+      <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+        <a href="#">Procurement</a>
+        <span class="ds-breadcrumb__sep" aria-hidden="true">/</span>
+        <span class="ds-breadcrumb__current">PRQ-2024-0047</span>
+      </nav>
+
+      <!-- Record header -->
+      <div class="ds-record-head">
+        <div class="ds-record-head__icon" aria-hidden="true">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div class="ds-record-head__title">
+            <h1 class="ds-heading" style="font-size: var(--ds-text-xl);">Drilling Consumables &amp; Safety PPE — Q3 2024</h1>
+            <span class="ds-pill ds-pill--warning" role="status" aria-label="Status: Ordered">
+              <span class="ds-pill__dot" aria-hidden="true"></span>
+              Ordered
+            </span>
+          </div>
+          <div class="ds-record-head__meta">
+            <span class="ds-mono">PRQ-2024-0047</span>
+            &nbsp;·&nbsp; Jubail Expansion Phase 2
+            &nbsp;·&nbsp; requested by Fatima Al-Rashid
+          </div>
+        </div>
+        <div class="ds-record-head__actions">
+          <button class="ds-btn ds-btn--secondary ds-btn--sm" aria-label="Edit procurement header">Edit</button>
+        </div>
+      </div>
+
+      <!-- Lifecycle stepper — dark -->
+      <div class="ds-card" style="margin-bottom: var(--ds-space-4); box-shadow: var(--ds-shadow-resting);">
+        <div style="padding: var(--ds-space-3) var(--ds-space-4);">
+          <div class="lc-stepper" role="list" aria-label="Procurement lifecycle">
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">PR</span>
+                <span class="lc-step__ref">PRQ-2024-0047</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--done"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">Approval</span>
+                <span class="lc-step__ref">by Khalid Hassan</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--done"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--done">RFQ</span>
+                <span class="lc-step__ref">VQ-2024-0031</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--done" aria-label="Completed">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div class="lc-step__track lc-step__track--active"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label lc-step__label--active">PO</span>
+                <span class="lc-step__ref">PO-2024-0019</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node lc-step__node--active" aria-label="Current step" aria-current="step">PO</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">GR</span>
+                <span class="lc-step__ref">—</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node" aria-label="Pending">GR</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">Invoice</span>
+              </div>
+              <div class="lc-step__bar-wrap">
+                <div class="lc-step__node" aria-label="Pending">VI</div>
+                <div class="lc-step__track"></div>
+              </div>
+            </div>
+            <div class="lc-step" role="listitem" style="flex: none;">
+              <div class="lc-step__label-wrap">
+                <span class="lc-step__label">Paid</span>
+              </div>
+              <div class="lc-step__node" aria-label="Pending">
+                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decision strip — dark -->
+      <div class="decision-strip" style="margin-bottom: var(--ds-space-4);" role="region" aria-label="Lifecycle actions">
+        <p class="decision-strip__hint">
+          Ready to advance. Confirm receipt of goods to move to Goods Receipt.
+        </p>
+        <div class="decision-strip__actions">
+          <button class="ds-btn ds-btn--secondary ds-btn--sm">Record GR</button>
+          <button class="ds-btn ds-btn--primary ds-btn--sm">Confirm Receipt</button>
+          <button class="ds-btn ds-btn--ghost ds-btn--sm" style="color: var(--ds-destructive-text);">Cancel request</button>
+        </div>
+      </div>
+
+      <!-- Tab strip — dark -->
+      <div class="ds-tabs" role="tablist" aria-label="Procurement sections" style="margin-bottom: var(--ds-space-4);">
+        <button class="ds-tab" role="tab" aria-selected="true">Overview</button>
+        <button class="ds-tab" role="tab" aria-selected="false">
+          Line items <span class="ds-chip" style="margin-left: var(--ds-space-1);">6</span>
+        </button>
+        <button class="ds-tab" role="tab" aria-selected="false">
+          Documents <span class="ds-chip" style="margin-left: var(--ds-space-1);">4</span>
+        </button>
+        <button class="ds-tab" role="tab" aria-selected="false">
+          Vendor quotes <span class="ds-chip" style="margin-left: var(--ds-space-1);">3</span>
+        </button>
+      </div>
+
+      <!-- Overview bento — dark -->
+      <div class="overview-bento">
+        <div class="overview-main">
+          <div class="stat-tiles">
+            <div class="stat-tile">
+              <span class="stat-tile__label">PR value</span>
+              <span class="stat-tile__value ds-tnum">SAR 284,500</span>
+              <span class="stat-tile__sub">Jubail Expansion Phase 2</span>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile__label">Selected quote</span>
+              <span class="stat-tile__value ds-tnum">SAR 278,200</span>
+              <span class="stat-tile__sub" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</span>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile__label">PO committed</span>
+              <span class="stat-tile__value ds-tnum">SAR 278,200</span>
+              <span class="stat-tile__sub" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</span>
+            </div>
+            <div class="stat-tile">
+              <span class="stat-tile__label">Goods received</span>
+              <span class="stat-tile__value">—</span>
+              <span class="stat-tile__sub">Awaiting delivery</span>
+            </div>
+          </div>
+
+          <div class="budget-signal">
+            <div class="budget-signal__head">
+              <span class="ds-label" style="color: var(--ds-text-secondary);">Budget signal — Jubail Expansion Phase 2</span>
+              <span class="ds-pill ds-pill--warning">
+                <span class="ds-pill__dot"></span>
+                At risk
+              </span>
+            </div>
+            <div class="budget-signal__body">
+              <div class="budget-row">
+                <span style="color: var(--ds-text-secondary);">Project budget</span>
+                <span class="ds-tnum" style="font-weight: var(--ds-weight-semibold);">SAR 2,400,000</span>
+              </div>
+              <div class="budget-row">
+                <span style="color: var(--ds-text-secondary);">Committed to date</span>
+                <span class="ds-tnum" style="font-weight: var(--ds-weight-semibold);">SAR 2,180,000</span>
+              </div>
+              <div>
+                <div class="budget-bar-wrap">
+                  <div class="budget-bar budget-bar--warn" style="width: 91%;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top: var(--ds-space-1);">
+                  <span style="font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);">91% committed</span>
+                  <span style="font-size: var(--ds-text-xs); color: var(--ds-warning-icon);">SAR 220,000 remaining</span>
+                </div>
+              </div>
+              <div class="budget-row" style="padding-top: var(--ds-space-2); border-top: 1px solid var(--ds-border-light);">
+                <span style="color: var(--ds-text-secondary);">This request</span>
+                <span class="ds-tnum" style="color: var(--ds-warning-icon); font-weight: var(--ds-weight-semibold);">SAR 278,200</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+            <div class="section-head">
+              <span class="ds-label" style="color: var(--ds-text-secondary);">Detail</span>
+            </div>
+            <div style="padding: var(--ds-space-4);">
+              <dl class="detail-dl">
+                <div>
+                  <dt class="detail-dt">Project</dt>
+                  <dd class="detail-dd" style="color: var(--ds-primary);">Jubail Expansion Phase 2</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">Vendor</dt>
+                  <dd class="detail-dd" style="color: var(--ds-primary);">Gulf Industrial Supplies Co.</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">Requested by</dt>
+                  <dd class="detail-dd">Fatima Al-Rashid</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">Approved by</dt>
+                  <dd class="detail-dd">Khalid Hassan</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">PR number</dt>
+                  <dd class="detail-dd ds-mono">PRQ-2024-0047</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">PO number</dt>
+                  <dd class="detail-dd ds-mono">PO-2024-0019</dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">Category</dt>
+                  <dd class="detail-dd"><span class="ds-tag">Consumables &amp; PPE</span></dd>
+                </div>
+                <div>
+                  <dt class="detail-dt">Date submitted</dt>
+                  <dd class="detail-dd">14 Aug 2024</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          <!-- Loading skeleton state — shown in dark only as an extra illustrative state -->
+          <div style="margin-top: var(--ds-space-4);">
+            <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Loading state (skeleton)</p>
+            <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+              <div style="padding: var(--ds-space-4); display: flex; flex-direction: column; gap: var(--ds-space-4);">
+                <div style="display: flex; align-items: center; gap: var(--ds-space-3);">
+                  <div class="skeleton" style="width: 44px; height: 44px; border-radius: var(--ds-radius-lg); flex: none;"></div>
+                  <div style="display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1;">
+                    <div class="skeleton skeleton--title"></div>
+                    <div class="skeleton skeleton--text-sm"></div>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--ds-space-3);">
+                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+                  <div class="skeleton" style="height: 64px; border-radius: var(--ds-radius-lg);"></div>
+                </div>
+                <div class="ds-table-wrap" style="border: 1px solid var(--ds-border);">
+                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 180px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 220px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+                  <div class="skeleton-row"><div class="skeleton skeleton--text" style="width: 160px;"></div><div class="skeleton skeleton--text-sm" style="margin-left: auto; width: 80px;"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state — no line items (also illustrative) -->
+          <div style="margin-top: var(--ds-space-4);">
+            <p class="ds-overline" style="margin-bottom: var(--ds-space-3); color: var(--ds-text-tertiary);">Empty state — no line items (Draft PR)</p>
+            <div class="ds-table-wrap">
+              <div class="section-head">
+                <span class="ds-label" style="color: var(--ds-text-secondary);">Line items</span>
+                <button class="ds-btn ds-btn--primary ds-btn--sm">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Add item
+                </button>
+              </div>
+              <div class="empty-state">
+                <div class="empty-state__icon" aria-hidden="true">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+                </div>
+                <p class="empty-state__title">No line items yet</p>
+                <p class="empty-state__sub">Add at least one line item before submitting this purchase request.</p>
+                <button class="ds-btn ds-btn--secondary ds-btn--sm">Add first item</button>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /overview-main dark -->
+
+        <!-- ov-side dark -->
+        <aside style="position: sticky; top: var(--ds-space-4);">
+          <div class="ds-card" style="box-shadow: var(--ds-shadow-resting);">
+            <div class="section-head">
+              <span class="ds-label" style="color: var(--ds-text-secondary);">Progression</span>
+            </div>
+            <div style="padding: var(--ds-space-3) var(--ds-space-4);">
+              <ol class="timeline" aria-label="Lifecycle events">
+                <li class="timeline-event">
+                  <div class="timeline-glyph timeline-glyph--primary" aria-hidden="true">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  </div>
+                  <div class="timeline-body">
+                    <span class="timeline-text"><strong>Purchase Order issued</strong> — PO-2024-0019</span>
+                    <span class="timeline-time">2 Sep 2024 · Arief Said</span>
+                  </div>
+                </li>
+                <li class="timeline-event">
+                  <div class="timeline-glyph timeline-glyph--success" aria-hidden="true">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                  </div>
+                  <div class="timeline-body">
+                    <span class="timeline-text"><strong>Quote selected</strong> — Gulf Industrial Supplies Co. · SAR 278,200</span>
+                    <span class="timeline-time">28 Aug 2024 · Arief Said</span>
+                  </div>
+                </li>
+                <li class="timeline-event">
+                  <div class="timeline-glyph" aria-hidden="true">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                  </div>
+                  <div class="timeline-body">
+                    <span class="timeline-text">RFQ sent to 3 vendors — VQ-2024-0031</span>
+                    <span class="timeline-time">22 Aug 2024 · Arief Said</span>
+                  </div>
+                </li>
+                <li class="timeline-event">
+                  <div class="timeline-glyph timeline-glyph--success" aria-hidden="true">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                  </div>
+                  <div class="timeline-body">
+                    <span class="timeline-text"><strong>Approved</strong> by Khalid Hassan</span>
+                    <span class="timeline-time">19 Aug 2024 · Khalid Hassan</span>
+                  </div>
+                </li>
+                <li class="timeline-event">
+                  <div class="timeline-glyph" aria-hidden="true">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                  </div>
+                  <div class="timeline-body">
+                    <span class="timeline-text">Request submitted</span>
+                    <span class="timeline-time">14 Aug 2024 · Fatima Al-Rashid</span>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </aside>
+
+      </div><!-- /overview-bento dark -->
+
+    </main>
+  </div><!-- /ds-app dark -->
+</div><!-- /dark -->
+
+</body>
+</html>

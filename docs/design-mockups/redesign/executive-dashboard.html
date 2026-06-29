@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PMO Portal — Executive Dashboard (design mockup)</title>
+  <link rel="stylesheet" href="_tokens.css" />
+  <link rel="stylesheet" href="_base.css" />
+  <!--
+    Icons are inline SVG (stroke=currentColor), matching the other mockups.
+    No external assets — fully self-contained.
+  -->
+  <style>
+    /* Inline-SVG icon sizing (replaces the old icon-font font-size hooks) */
+    .ds-icon { display: inline-flex; }
+    .ds-icon svg { display: block; }
+    /* ======================================================================
+       MOCKUP-PAGE LAYOUT ONLY — no color values here; all surface colors
+       come from --ds-* tokens in _tokens.css and _base.css.
+       ====================================================================== */
+
+    /* Page scaffold: two themed panels stacked */
+    .mockup-page {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background: var(--ds-surface-canvas);
+    }
+
+    /* Theme label banners */
+    .mockup-label {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      padding: var(--ds-space-1_5) var(--ds-space-4);
+      background: var(--ds-surface-inverted);
+      color: var(--ds-text-inverted);
+      font-family: var(--ds-font-mono);
+      font-size: var(--ds-text-xs);
+      letter-spacing: 0.08em;
+    }
+    .mockup-label__dot {
+      width: 8px; height: 8px;
+      border-radius: var(--ds-radius-round);
+      background: var(--ds-primary);
+    }
+
+    /* Dark panel resets background so tokens are applied correctly */
+    .dark {
+      background: var(--ds-surface-canvas);
+    }
+
+    /* ====================================================================
+       DASHBOARD-SPECIFIC LAYOUT: chart grid + BvA table + win-rate card
+       ==================================================================== */
+
+    /* Chart section: two columns on wide, stacked on narrow */
+    .dash-chart-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--ds-space-4);
+      margin-top: var(--ds-space-4);
+    }
+    @media (max-width: 860px) {
+      .dash-chart-row { grid-template-columns: 1fr; }
+    }
+
+    /* At-risk row: sits below the KPI band, inline */
+    .dash-at-risk {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-1);
+      font-size: var(--ds-text-sm);
+      margin-top: calc(var(--ds-space-2) * -1);
+    }
+    .dash-at-risk__link {
+      font-weight: var(--ds-weight-medium);
+      color: var(--ds-warning-icon);
+      text-decoration: none;
+    }
+    .dash-at-risk__link:hover { text-decoration: underline; }
+
+    /* Approval-shortcut banner — slim action prompt, not a metric tile */
+    .dash-approval-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ds-space-3);
+      padding: var(--ds-space-2) var(--ds-space-3);
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-lg);
+      background: var(--ds-surface-raised);
+      box-shadow: var(--ds-shadow-resting);
+      text-decoration: none;
+      color: var(--ds-text-primary);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+      max-width: 400px;
+    }
+    .dash-approval-banner:hover {
+      box-shadow: var(--ds-shadow-hover);
+      border-color: var(--ds-border-strong);
+    }
+    .dash-approval-banner__badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 var(--ds-space-1_5);
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-warning-tint);
+      color: var(--ds-warning-icon);
+      font-size: var(--ds-text-sm);
+      font-weight: var(--ds-weight-bold);
+      font-variant-numeric: tabular-nums;
+      flex: none;
+    }
+    .dash-approval-banner__label {
+      font-size: var(--ds-text-sm);
+      font-weight: var(--ds-weight-medium);
+      color: var(--ds-text-primary);
+    }
+    .dash-approval-banner__sub {
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .dash-approval-banner__arrow {
+      margin-left: var(--ds-space-2);
+      color: var(--ds-text-tertiary);
+    }
+
+    /* BvA project rows */
+    .bva-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-2);
+      padding: var(--ds-space-3) 0;
+      border-bottom: 1px solid var(--ds-border-light);
+    }
+    .bva-row:last-child { border-bottom: 0; }
+    .bva-row__top {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      flex-wrap: wrap;
+    }
+    .bva-dot {
+      width: 6px; height: 6px;
+      border-radius: var(--ds-radius-round);
+      flex: none;
+    }
+    .bva-name {
+      font-size: var(--ds-text-sm);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+      min-width: 0;
+    }
+    .bva-money {
+      margin-left: auto;
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    /* Progress track */
+    .bva-track {
+      height: 8px;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-surface-muted);
+      overflow: hidden;
+    }
+    .bva-fill {
+      height: 100%;
+      border-radius: var(--ds-radius-pill);
+    }
+    .bva-fill--ok     { background: var(--ds-primary); }
+    .bva-fill--risk   { background: var(--ds-warning); }
+    .bva-fill--over   { background: var(--ds-destructive); }
+
+    /* Win-rate card internals */
+    .win-rate-meta {
+      display: flex;
+      align-items: baseline;
+      gap: var(--ds-space-2);
+      margin-bottom: var(--ds-space-3);
+    }
+    .win-rate-value {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-3xl);
+      font-weight: var(--ds-weight-semibold);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .win-rate-sub { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+    .win-rate-track {
+      height: 12px;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-surface-muted);
+      overflow: hidden;
+      margin-bottom: var(--ds-space-2);
+    }
+    .win-rate-fill {
+      height: 100%;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-success);
+    }
+    .win-rate-legend {
+      display: flex;
+      gap: var(--ds-space-4);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .win-rate-legend__item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ds-space-1_5);
+    }
+    .win-rate-legend__dot {
+      width: 6px; height: 6px;
+      border-radius: var(--ds-radius-round);
+      flex: none;
+    }
+    .win-rate-legend__dot--won   { background: var(--ds-success); }
+    .win-rate-legend__dot--lost  { background: var(--ds-neutral-7); }
+
+    /* Period toggle strip */
+    .period-strip {
+      display: flex;
+      gap: var(--ds-space-1);
+      margin-bottom: var(--ds-space-3);
+      flex-wrap: wrap;
+    }
+    .period-btn {
+      appearance: none;
+      border: 1px solid var(--ds-border);
+      border-radius: var(--ds-radius-sm);
+      background: var(--ds-surface-raised);
+      color: var(--ds-text-secondary);
+      font-family: var(--ds-font-body);
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-medium);
+      padding: 2px var(--ds-space-2);
+      cursor: pointer;
+    }
+    .period-btn.is-active {
+      background: var(--ds-primary-tint);
+      border-color: var(--ds-primary);
+      color: var(--ds-text-primary);
+    }
+
+    /* Procurement status bar chart (CSS-only bars) */
+    .proc-chart { display: flex; flex-direction: column; gap: var(--ds-space-2); }
+    .proc-bar-row { display: flex; align-items: center; gap: var(--ds-space-3); }
+    .proc-bar-label {
+      width: 84px;
+      flex: none;
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .proc-bar-track {
+      flex: 1;
+      height: 20px;
+      border-radius: var(--ds-radius-sm);
+      background: var(--ds-surface-muted);
+      overflow: hidden;
+      position: relative;
+    }
+    .proc-bar-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      border-radius: var(--ds-radius-sm);
+    }
+    .proc-bar-count {
+      width: 28px;
+      flex: none;
+      text-align: right;
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .proc-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--ds-space-3);
+      margin-top: var(--ds-space-3);
+      padding-top: var(--ds-space-3);
+      border-top: 1px solid var(--ds-border-light);
+    }
+    .proc-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ds-space-1_5);
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+      text-decoration: none;
+    }
+    .proc-legend-item:hover { color: var(--ds-text-primary); }
+    .proc-legend-dot {
+      width: 6px; height: 6px;
+      border-radius: var(--ds-radius-round);
+      flex: none;
+    }
+    .proc-legend-count {
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+    }
+
+    /* Pipeline margin bars */
+    .margin-hero { margin-bottom: var(--ds-space-4); }
+    .margin-pct {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-3xl);
+      font-weight: var(--ds-weight-semibold);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .margin-sub { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); margin-top: var(--ds-space-1); }
+    .pipeline-bars { display: flex; flex-direction: column; gap: var(--ds-space-1_5); }
+    .pipeline-bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-2);
+      padding: 4px var(--ds-space-2);
+      border-radius: var(--ds-radius-sm);
+      text-decoration: none;
+      transition: background 0.1s ease;
+    }
+    .pipeline-bar-row:hover { background: var(--ds-surface-hover); }
+    .pipeline-bar-stage {
+      width: 88px;
+      flex: none;
+      font-size: var(--ds-text-xs);
+      color: var(--ds-text-tertiary);
+    }
+    .pipeline-bar-track {
+      flex: 1;
+      height: 9px;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-surface-muted);
+      overflow: hidden;
+    }
+    .pipeline-bar-fill {
+      height: 100%;
+      border-radius: var(--ds-radius-pill);
+      background: var(--ds-primary);
+    }
+    .pipeline-bar-value {
+      width: 72px;
+      flex: none;
+      text-align: right;
+      font-size: var(--ds-text-xs);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Card section header */
+    .card-head {
+      font-family: var(--ds-font-display);
+      font-size: var(--ds-text-md);
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-primary);
+      margin-bottom: var(--ds-space-3);
+    }
+
+    /* Skeleton shimmer (loading state) */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skel {
+      border-radius: var(--ds-radius-sm);
+      animation: shimmer 1.4s ease infinite;
+      background: linear-gradient(
+        90deg,
+        var(--ds-surface-muted) 0%,
+        var(--ds-surface-hover) 40%,
+        var(--ds-surface-muted) 80%
+      );
+      background-size: 800px 100%;
+    }
+
+    /* Empty-state card */
+    .dash-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--ds-space-2);
+      padding: var(--ds-space-8) var(--ds-space-4);
+      color: var(--ds-text-tertiary);
+      font-size: var(--ds-text-sm);
+      text-align: center;
+    }
+    .dash-empty__icon {
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      border-radius: var(--ds-radius-round);
+      background: var(--ds-surface-muted);
+      font-size: 18px;
+      color: var(--ds-text-disabled);
+    }
+    .dash-empty__title {
+      font-weight: var(--ds-weight-semibold);
+      color: var(--ds-text-secondary);
+    }
+
+    /* Section margin helpers (dashboard-specific vertical rhythm) */
+    .mt-4  { margin-top: var(--ds-space-4); }
+    .mt-3  { margin-top: var(--ds-space-3); }
+    .mt-2  { margin-top: var(--ds-space-2); }
+    .mb-4  { margin-bottom: var(--ds-space-4); }
+    .mb-3  { margin-bottom: var(--ds-space-3); }
+  </style>
+</head>
+<body class="mockup-page">
+
+  <!-- ======================================================================
+       LIGHT THEME
+       ====================================================================== -->
+  <div class="mockup-label">
+    <span class="mockup-label__dot"></span>
+    LIGHT
+  </div>
+
+  <div class="ds-app">
+    <!-- Rail -->
+    <aside class="ds-rail">
+      <div class="ds-rail__brand">
+        <div class="ds-rail__logo">P</div>
+        PMO Portal
+      </div>
+
+      <div class="ds-rail__group-label ds-overline">Main</div>
+      <a class="ds-nav-item is-active" href="#" aria-current="page">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
+        Dashboard
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+        Projects
+        <span class="ds-nav-item__count">14</span>
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><polyline points="7 14 11 10 14 13 20 6"/></svg></span>
+        Sales pipeline
+        <span class="ds-nav-item__count">8</span>
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span>
+        Procurement
+        <span class="ds-nav-item__count">23</span>
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
+        Timesheets
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 12 10 18 20 6"/></svg></span>
+        Approvals
+        <span class="ds-nav-item__count">5</span>
+      </a>
+
+      <div class="ds-rail__group-label ds-overline" style="margin-top:var(--ds-space-2)">Admin</div>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></svg></span>
+        Companies
+      </a>
+      <a class="ds-nav-item" href="#">
+        <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M21 20c0-2.6-1.7-4.8-4-5.6"/></svg></span>
+        Contacts
+      </a>
+
+      <div class="ds-rail__foot">
+        <div class="ds-nav-item" style="cursor:pointer">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          Settings
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--ds-space-2);padding:var(--ds-space-2) var(--ds-space-2) 0">
+          <div class="ds-avatar">AS</div>
+          <div>
+            <div class="ds-userchip__name">Arief Said</div>
+            <div class="ds-userchip__role">Executive</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Top bar -->
+    <header class="ds-topbar">
+      <div class="ds-topbar__search" role="button" aria-label="Search — press ⌘K to open">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Search
+        <span class="ds-kbd">⌘K</span>
+      </div>
+      <div class="ds-topbar__spacer"></div>
+      <button class="ds-iconbtn" aria-label="Notifications">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+      </button>
+      <div class="ds-userchip">
+        <div class="ds-avatar">AS</div>
+        <div>
+          <div class="ds-userchip__name">Arief Said</div>
+          <div class="ds-userchip__role">Executive</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="ds-content" id="main-light">
+
+      <!-- Breadcrumb -->
+      <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+        <a href="#">Home</a>
+        <span class="ds-breadcrumb__sep" aria-hidden="true">/</span>
+        <span class="ds-breadcrumb__current">Executive Dashboard</span>
+      </nav>
+
+      <!-- Page head -->
+      <div class="ds-page-head">
+        <div>
+          <h1 class="ds-page-title">Executive Dashboard</h1>
+          <p style="margin:var(--ds-space-1) 0 0;font-size:var(--ds-text-sm);color:var(--ds-text-tertiary);">
+            Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.
+          </p>
+        </div>
+        <div class="ds-page-head__actions">
+          <button class="ds-btn ds-btn--secondary" disabled aria-label="Board pack export (coming soon)" title="Board pack export arrives with Reports">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Board pack
+          </button>
+        </div>
+      </div>
+
+      <!-- ── KPI band (6 portfolio metrics in a balanced 3×2 grid) ── -->
+      <section aria-label="Portfolio KPIs" class="ds-kpi-grid">
+
+        <!-- Revenue on hand -->
+        <div class="ds-kpi">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="21"/><path d="M16 7.5C16 5.6 14.2 4 12 4S8 5.6 8 7.5 9.8 11 12 11s4 1.6 4 3.5S14.2 18 12 18s-4-1.6-4-3.5"/></svg>
+            </span>
+            <span class="ds-kpi__label">Revenue on hand</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--ds-text-disabled);cursor:help" title="Booked revenue on active + closed-out contracts. Realized margin ratio shown below.">?</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">$4,812,500</div>
+          <div style="display:flex;align-items:center;gap:var(--ds-space-2)">
+            <span class="ds-kpi__delta ds-kpi__delta--up">↑ 8.3%</span>
+            <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">38.7% realized</span>
+          </div>
+        </div>
+
+        <!-- Pipeline weighted -->
+        <a class="ds-kpi" href="#" aria-label="Open the sales pipeline" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer" onmouseover="this.style.boxShadow='var(--ds-shadow-hover)'" onmouseout="this.style.boxShadow='var(--ds-shadow-resting)'">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon ds-kpi__icon--violet">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><polyline points="7 14 11 10 14 13 20 6"/></svg>
+            </span>
+            <span class="ds-kpi__label">Pipeline (weighted)</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">$2,340,000</div>
+          <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">of $5,100,000 gross</div>
+        </a>
+
+        <!-- Pipeline forecast margin -->
+        <div class="ds-kpi">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+            </span>
+            <span class="ds-kpi__label">Pipeline forecast margin</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--ds-text-disabled);cursor:help" title="Probability-adjusted projected margin across the open pipeline.">?</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">24.1%</div>
+          <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">probability-weighted</div>
+        </div>
+
+        <!-- Active projects -->
+        <a class="ds-kpi" href="#" aria-label="Open the active projects list" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer" onmouseover="this.style.boxShadow='var(--ds-shadow-hover)'" onmouseout="this.style.boxShadow='var(--ds-shadow-resting)'">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon ds-kpi__icon--violet">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </span>
+            <span class="ds-kpi__label">Active projects</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">14</div>
+          <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">3 at-risk</div>
+        </a>
+
+        <!-- Total contract value -->
+        <a class="ds-kpi" href="#" aria-label="Open active projects to see total contract value" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer" onmouseover="this.style.boxShadow='var(--ds-shadow-hover)'" onmouseout="this.style.boxShadow='var(--ds-shadow-resting)'">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon ds-kpi__icon--warning">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </span>
+            <span class="ds-kpi__label">Total contract value</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">$12,440,000</div>
+          <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">active projects</div>
+        </a>
+
+        <!-- Total project spend -->
+        <a class="ds-kpi" href="#" aria-label="Open active projects to see spend breakdown" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer" onmouseover="this.style.boxShadow='var(--ds-shadow-hover)'" onmouseout="this.style.boxShadow='var(--ds-shadow-resting)'">
+          <div class="ds-kpi__head">
+            <span class="ds-kpi__icon" style="background:var(--ds-destructive-tint);color:var(--ds-destructive-text)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            </span>
+            <span class="ds-kpi__label">Total project spend</span>
+          </div>
+          <div class="ds-kpi__value ds-tnum">$7,218,300</div>
+          <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">actual to date</div>
+        </a>
+      </section>
+
+      <!-- At-risk inline link -->
+      <div class="dash-at-risk mt-2">
+        <a href="#" class="dash-at-risk__link">3 at-risk →</a>
+        <span style="color:var(--ds-text-tertiary);font-size:var(--ds-text-xs)">View at-risk project list</span>
+      </div>
+
+      <!-- Approval action prompt — slim banner, not a portfolio metric -->
+      <div class="mt-3">
+        <a class="dash-approval-banner" href="#" aria-label="Open approvals inbox — 5 items awaiting your decision">
+          <span class="ds-kpi__icon ds-kpi__icon--warning" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 12 10 18 20 6"/></svg>
+          </span>
+          <span class="dash-approval-banner__badge">5</span>
+          <span class="dash-approval-banner__label">Awaiting your approval</span>
+          <span class="dash-approval-banner__sub">Purchase requests &amp; timesheets</span>
+          <span class="dash-approval-banner__arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <!-- ── Charts row 1: Budget vs Actual + Win Rate ── -->
+      <div class="dash-chart-row mt-4">
+
+        <!-- Budget vs Actual -->
+        <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+          <div class="card-head">Budget vs Actual — Active Projects</div>
+          <div role="group" aria-label="Budget vs actual by project">
+
+            <div class="bva-row">
+              <div class="bva-row__top">
+                <span class="bva-dot" style="background:var(--ds-primary)"></span>
+                <a href="#" class="bva-name">Aurora Offshore Platform Phase 2</a>
+                <span class="bva-money">$1,240,000 / $3,200,000</span>
+              </div>
+              <div class="bva-track">
+                <div class="bva-fill bva-fill--ok" style="width:39%"></div>
+              </div>
+            </div>
+
+            <div class="bva-row">
+              <div class="bva-row__top">
+                <span class="bva-dot" style="background:var(--ds-violet)"></span>
+                <a href="#" class="bva-name">Meridian Pipeline Inspection</a>
+                <span class="ds-pill ds-pill--warning" style="font-size:10px">At risk</span>
+                <span class="bva-money">$890,000 / $1,050,000</span>
+              </div>
+              <div class="bva-track">
+                <div class="bva-fill bva-fill--risk" style="width:85%"></div>
+              </div>
+            </div>
+
+            <div class="bva-row">
+              <div class="bva-row__top">
+                <span class="bva-dot" style="background:var(--ds-warning-icon)"></span>
+                <a href="#" class="bva-name">Coastal Refinery Upgrade</a>
+                <span class="bva-money">$2,108,000 / $4,500,000</span>
+              </div>
+              <div class="bva-track">
+                <div class="bva-fill bva-fill--ok" style="width:47%"></div>
+              </div>
+            </div>
+
+            <div class="bva-row">
+              <div class="bva-row__top">
+                <span class="bva-dot" style="background:var(--ds-success)"></span>
+                <a href="#" class="bva-name">Northgate Substation Rewire</a>
+                <span class="ds-pill ds-pill--warning" style="font-size:10px">At risk</span>
+                <span class="bva-money">$560,000 / $620,000</span>
+              </div>
+              <div class="bva-track">
+                <div class="bva-fill bva-fill--risk" style="width:90%"></div>
+              </div>
+            </div>
+
+            <div class="bva-row">
+              <div class="bva-row__top">
+                <span class="bva-dot" style="background:var(--ds-destructive)"></span>
+                <a href="#" class="bva-name">Drydock Hull Inspection Series B</a>
+                <span class="bva-money">$420,300 / $380,000</span>
+                <span class="ds-pill ds-pill--danger" style="font-size:10px">Over budget</span>
+              </div>
+              <div class="bva-track">
+                <div class="bva-fill bva-fill--over" style="width:100%"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Win Rate -->
+        <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+          <div style="display:flex;align-items:center;gap:var(--ds-space-2);margin-bottom:var(--ds-space-3)">
+            <span class="card-head" style="margin:0">Win Rate</span>
+            <div style="margin-left:auto;display:flex;gap:var(--ds-space-1)">
+              <button class="period-btn is-active">By count</button>
+              <button class="period-btn">By value</button>
+            </div>
+          </div>
+
+          <div class="period-strip">
+            <button class="period-btn is-active">All time</button>
+            <button class="period-btn">YTD</button>
+            <button class="period-btn">Last quarter</button>
+            <button class="period-btn">Trailing 12 mo</button>
+          </div>
+
+          <div class="win-rate-meta">
+            <span class="win-rate-value" aria-live="polite">68.4%</span>
+            <span class="win-rate-sub">13 won of 19 closed</span>
+          </div>
+
+          <div class="win-rate-track"
+               role="progressbar"
+               aria-label="Win rate 68.4%"
+               aria-valuenow="68"
+               aria-valuemin="0"
+               aria-valuemax="100">
+            <div class="win-rate-fill" style="width:68.4%"></div>
+          </div>
+
+          <div class="win-rate-legend">
+            <span class="win-rate-legend__item">
+              <span class="win-rate-legend__dot win-rate-legend__dot--won" aria-hidden="true"></span>
+              Won
+            </span>
+            <span class="win-rate-legend__item">
+              <span class="win-rate-legend__dot win-rate-legend__dot--lost" aria-hidden="true"></span>
+              Lost
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Charts row 2: Procurement by Status + Pipeline Margin ── -->
+      <div class="dash-chart-row">
+
+        <!-- Procurement by Status -->
+        <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+          <div class="card-head">Procurement by Status</div>
+          <figure role="img" aria-label="Procurement by status, 67 requests, most in Draft." style="margin:0">
+            <div class="proc-chart">
+              <div class="proc-bar-row">
+                <span class="proc-bar-label">Requested</span>
+                <div class="proc-bar-track">
+                  <div class="proc-bar-fill" style="width:100%;background:var(--ds-primary-tint);border:1px solid var(--ds-primary)"></div>
+                </div>
+                <span class="proc-bar-count">24</span>
+              </div>
+              <div class="proc-bar-row">
+                <span class="proc-bar-label">Draft</span>
+                <div class="proc-bar-track">
+                  <div class="proc-bar-fill" style="width:75%;background:var(--ds-neutral-tint)"></div>
+                </div>
+                <span class="proc-bar-count">18</span>
+              </div>
+              <div class="proc-bar-row">
+                <span class="proc-bar-label">Approved</span>
+                <div class="proc-bar-track">
+                  <div class="proc-bar-fill" style="width:54%;background:var(--ds-success-tint)"></div>
+                </div>
+                <span class="proc-bar-count">13</span>
+              </div>
+              <div class="proc-bar-row">
+                <span class="proc-bar-label">Ordered</span>
+                <div class="proc-bar-track">
+                  <div class="proc-bar-fill" style="width:33%;background:var(--ds-violet-tint)"></div>
+                </div>
+                <span class="proc-bar-count">8</span>
+              </div>
+              <div class="proc-bar-row">
+                <span class="proc-bar-label">Received</span>
+                <div class="proc-bar-track">
+                  <div class="proc-bar-fill" style="width:17%;background:var(--ds-warning-tint)"></div>
+                </div>
+                <span class="proc-bar-count">4</span>
+              </div>
+            </div>
+            <figcaption class="proc-chart-legend">
+              <a href="#" class="proc-legend-item">
+                <span class="proc-legend-dot" style="background:var(--ds-primary)"></span>
+                Requested <span class="proc-legend-count">24</span>
+              </a>
+              <a href="#" class="proc-legend-item">
+                <span class="proc-legend-dot" style="background:var(--ds-neutral-9)"></span>
+                Draft <span class="proc-legend-count">18</span>
+              </a>
+              <a href="#" class="proc-legend-item">
+                <span class="proc-legend-dot" style="background:var(--ds-success)"></span>
+                Approved <span class="proc-legend-count">13</span>
+              </a>
+              <a href="#" class="proc-legend-item">
+                <span class="proc-legend-dot" style="background:var(--ds-violet)"></span>
+                Ordered <span class="proc-legend-count">8</span>
+              </a>
+              <a href="#" class="proc-legend-item">
+                <span class="proc-legend-dot" style="background:var(--ds-warning)"></span>
+                Received <span class="proc-legend-count">4</span>
+              </a>
+            </figcaption>
+          </figure>
+        </div>
+
+        <!-- Pipeline forecast margin -->
+        <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+          <div class="card-head">Pipeline forecast margin</div>
+          <div role="group" aria-label="Pipeline projected margin">
+            <div class="margin-hero">
+              <div class="margin-pct ds-tnum">24.1%</div>
+              <div class="margin-sub">probability-adjusted across 4 open stages</div>
+            </div>
+            <div class="pipeline-bars">
+              <a href="#" class="pipeline-bar-row">
+                <span class="pipeline-bar-stage">Proposal</span>
+                <span class="pipeline-bar-track" role="progressbar" aria-label="Proposal: $1,440,000 weighted" aria-valuenow="1440000" aria-valuemin="0" aria-valuemax="1440000">
+                  <span class="pipeline-bar-fill" style="width:100%"></span>
+                </span>
+                <span class="pipeline-bar-value">$1,440,000</span>
+              </a>
+              <a href="#" class="pipeline-bar-row">
+                <span class="pipeline-bar-stage">Qualified</span>
+                <span class="pipeline-bar-track" role="progressbar" aria-label="Qualified: $520,000 weighted" aria-valuenow="520000" aria-valuemin="0" aria-valuemax="1440000">
+                  <span class="pipeline-bar-fill" style="width:36%"></span>
+                </span>
+                <span class="pipeline-bar-value">$520,000</span>
+              </a>
+              <a href="#" class="pipeline-bar-row">
+                <span class="pipeline-bar-stage">Negotiation</span>
+                <span class="pipeline-bar-track" role="progressbar" aria-label="Negotiation: $310,000 weighted" aria-valuenow="310000" aria-valuemin="0" aria-valuemax="1440000">
+                  <span class="pipeline-bar-fill" style="width:22%"></span>
+                </span>
+                <span class="pipeline-bar-value">$310,000</span>
+              </a>
+              <a href="#" class="pipeline-bar-row">
+                <span class="pipeline-bar-stage">Discovery</span>
+                <span class="pipeline-bar-track" role="progressbar" aria-label="Discovery: $70,000 weighted" aria-valuenow="70000" aria-valuemin="0" aria-valuemax="1440000">
+                  <span class="pipeline-bar-fill" style="width:5%"></span>
+                </span>
+                <span class="pipeline-bar-value">$70,000</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- end charts row 2 -->
+
+    </main>
+  </div>
+  <!-- end LIGHT -->
+
+
+  <!-- ======================================================================
+       DARK THEME
+       ====================================================================== -->
+  <div class="mockup-label dark" style="margin-top:var(--ds-space-8)">
+    <span class="mockup-label__dot"></span>
+    DARK
+  </div>
+
+  <div class="dark">
+    <div class="ds-app">
+      <!-- Rail -->
+      <aside class="ds-rail">
+        <div class="ds-rail__brand">
+          <div class="ds-rail__logo">P</div>
+          PMO Portal
+        </div>
+
+        <div class="ds-rail__group-label ds-overline">Main</div>
+        <a class="ds-nav-item is-active" href="#" aria-current="page">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
+          Dashboard
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+          Projects
+          <span class="ds-nav-item__count">14</span>
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><polyline points="7 14 11 10 14 13 20 6"/></svg></span>
+          Sales pipeline
+          <span class="ds-nav-item__count">8</span>
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span>
+          Procurement
+          <span class="ds-nav-item__count">23</span>
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
+          Timesheets
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 12 10 18 20 6"/></svg></span>
+          Approvals
+          <span class="ds-nav-item__count">5</span>
+        </a>
+
+        <div class="ds-rail__group-label ds-overline" style="margin-top:var(--ds-space-2)">Admin</div>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></svg></span>
+          Companies
+        </a>
+        <a class="ds-nav-item" href="#">
+          <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M21 20c0-2.6-1.7-4.8-4-5.6"/></svg></span>
+          Contacts
+        </a>
+
+        <div class="ds-rail__foot">
+          <div class="ds-nav-item" style="cursor:pointer">
+            <span class="ds-nav-item__icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            Settings
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--ds-space-2);padding:var(--ds-space-2) var(--ds-space-2) 0">
+            <div class="ds-avatar">AS</div>
+            <div>
+              <div class="ds-userchip__name">Arief Said</div>
+              <div class="ds-userchip__role">Executive</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Top bar -->
+      <header class="ds-topbar">
+        <div class="ds-topbar__search" role="button" aria-label="Search — press ⌘K to open">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Search
+          <span class="ds-kbd">⌘K</span>
+        </div>
+        <div class="ds-topbar__spacer"></div>
+        <button class="ds-iconbtn" aria-label="Notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="ds-iconbtn__dot" aria-hidden="true"></span>
+        </button>
+        <div class="ds-userchip">
+          <div class="ds-avatar">AS</div>
+          <div>
+            <div class="ds-userchip__name">Arief Said</div>
+            <div class="ds-userchip__role">Executive</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content (dark) -->
+      <main class="ds-content" id="main-dark">
+
+        <!-- Breadcrumb -->
+        <nav class="ds-breadcrumb" aria-label="Breadcrumb">
+          <a href="#">Home</a>
+          <span class="ds-breadcrumb__sep" aria-hidden="true">/</span>
+          <span class="ds-breadcrumb__current">Executive Dashboard</span>
+        </nav>
+
+        <!-- Page head -->
+        <div class="ds-page-head">
+          <div>
+            <h1 class="ds-page-title">Executive Dashboard</h1>
+            <p style="margin:var(--ds-space-1) 0 0;font-size:var(--ds-text-sm);color:var(--ds-text-tertiary);">
+              Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.
+            </p>
+          </div>
+          <div class="ds-page-head__actions">
+            <button class="ds-btn ds-btn--secondary" disabled aria-label="Board pack export (coming soon)" title="Board pack export arrives with Reports">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Board pack
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI band (loading skeleton state shown as second KPI for reference) -->
+        <section aria-label="Portfolio KPIs" class="ds-kpi-grid">
+
+          <!-- Revenue on hand -->
+          <div class="ds-kpi">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="21"/><path d="M16 7.5C16 5.6 14.2 4 12 4S8 5.6 8 7.5 9.8 11 12 11s4 1.6 4 3.5S14.2 18 12 18s-4-1.6-4-3.5"/></svg>
+              </span>
+              <span class="ds-kpi__label">Revenue on hand</span>
+            </div>
+            <div class="ds-kpi__value ds-tnum">$4,812,500</div>
+            <div style="display:flex;align-items:center;gap:var(--ds-space-2)">
+              <span class="ds-kpi__delta ds-kpi__delta--up">↑ 8.3%</span>
+              <span style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">38.7% realized</span>
+            </div>
+          </div>
+
+          <!-- Skeleton state demo (loading) -->
+          <div class="ds-kpi" aria-busy="true" aria-label="Loading KPI">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon ds-kpi__icon--violet">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><polyline points="7 14 11 10 14 13 20 6"/></svg>
+              </span>
+              <span class="ds-kpi__label">Pipeline (weighted)</span>
+            </div>
+            <div class="skel" style="height:30px;width:66%"></div>
+            <div class="skel" style="height:14px;width:50%;margin-top:2px"></div>
+          </div>
+
+          <!-- Pipeline forecast margin -->
+          <div class="ds-kpi">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+              </span>
+              <span class="ds-kpi__label">Pipeline forecast margin</span>
+            </div>
+            <div class="ds-kpi__value ds-tnum">24.1%</div>
+            <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">probability-weighted</div>
+          </div>
+
+          <!-- Active projects -->
+          <a class="ds-kpi" href="#" aria-label="Open the active projects list" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon ds-kpi__icon--violet">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <span class="ds-kpi__label">Active projects</span>
+            </div>
+            <div class="ds-kpi__value ds-tnum">14</div>
+            <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">3 at-risk</div>
+          </a>
+
+          <!-- Total contract value -->
+          <a class="ds-kpi" href="#" aria-label="Open active projects to see total contract value" style="text-decoration:none;transition:box-shadow 0.15s ease;cursor:pointer">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon ds-kpi__icon--warning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </span>
+              <span class="ds-kpi__label">Total contract value</span>
+            </div>
+            <div class="ds-kpi__value ds-tnum">$12,440,000</div>
+            <div style="font-size:var(--ds-text-xs);color:var(--ds-text-tertiary)">active projects</div>
+          </a>
+
+          <!-- Total project spend — error state -->
+          <div class="ds-kpi">
+            <div class="ds-kpi__head">
+              <span class="ds-kpi__icon" style="background:var(--ds-destructive-tint);color:var(--ds-destructive-text)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+              </span>
+              <span class="ds-kpi__label">Total project spend</span>
+            </div>
+            <!-- Error state: em dash -->
+            <div class="ds-kpi__value ds-tnum" style="color:var(--ds-text-tertiary)">—</div>
+            <div style="font-size:var(--ds-text-xs);color:var(--ds-destructive-text)">unavailable — check connection</div>
+          </div>
+
+        </section>
+
+        <!-- At-risk inline link -->
+        <div class="dash-at-risk mt-2">
+          <a href="#" class="dash-at-risk__link">3 at-risk →</a>
+          <span style="color:var(--ds-text-tertiary);font-size:var(--ds-text-xs)">View at-risk project list</span>
+        </div>
+
+        <!-- Approval action prompt — slim banner, not a portfolio metric -->
+        <div class="mt-3">
+          <a class="dash-approval-banner" href="#" aria-label="Open approvals inbox — 5 items awaiting your decision">
+            <span class="ds-kpi__icon ds-kpi__icon--warning" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 12 10 18 20 6"/></svg>
+            </span>
+            <span class="dash-approval-banner__badge">5</span>
+            <span class="dash-approval-banner__label">Awaiting your approval</span>
+            <span class="dash-approval-banner__sub">Purchase requests &amp; timesheets</span>
+            <span class="dash-approval-banner__arrow" aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <!-- Charts row 1 -->
+        <div class="dash-chart-row mt-4">
+
+          <!-- Budget vs Actual -->
+          <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+            <div class="card-head">Budget vs Actual — Active Projects</div>
+            <div role="group" aria-label="Budget vs actual by project">
+
+              <div class="bva-row">
+                <div class="bva-row__top">
+                  <span class="bva-dot" style="background:var(--ds-primary)"></span>
+                  <a href="#" class="bva-name">Aurora Offshore Platform Phase 2</a>
+                  <span class="bva-money">$1,240,000 / $3,200,000</span>
+                </div>
+                <div class="bva-track"><div class="bva-fill bva-fill--ok" style="width:39%"></div></div>
+              </div>
+
+              <div class="bva-row">
+                <div class="bva-row__top">
+                  <span class="bva-dot" style="background:var(--ds-violet)"></span>
+                  <a href="#" class="bva-name">Meridian Pipeline Inspection</a>
+                  <span class="ds-pill ds-pill--warning" style="font-size:10px">At risk</span>
+                  <span class="bva-money">$890,000 / $1,050,000</span>
+                </div>
+                <div class="bva-track"><div class="bva-fill bva-fill--risk" style="width:85%"></div></div>
+              </div>
+
+              <div class="bva-row">
+                <div class="bva-row__top">
+                  <span class="bva-dot" style="background:var(--ds-warning-icon)"></span>
+                  <a href="#" class="bva-name">Coastal Refinery Upgrade</a>
+                  <span class="bva-money">$2,108,000 / $4,500,000</span>
+                </div>
+                <div class="bva-track"><div class="bva-fill bva-fill--ok" style="width:47%"></div></div>
+              </div>
+
+              <div class="bva-row">
+                <div class="bva-row__top">
+                  <span class="bva-dot" style="background:var(--ds-success)"></span>
+                  <a href="#" class="bva-name">Northgate Substation Rewire</a>
+                  <span class="ds-pill ds-pill--warning" style="font-size:10px">At risk</span>
+                  <span class="bva-money">$560,000 / $620,000</span>
+                </div>
+                <div class="bva-track"><div class="bva-fill bva-fill--risk" style="width:90%"></div></div>
+              </div>
+
+              <!-- Empty-state variant within the card (for demo: "no 5th project") -->
+              <div class="dash-empty">
+                <div class="dash-empty__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2"/><path d="M9 3h2l2 3h7a2 2 0 0 1 2 2v7"/></svg></div>
+                <div class="dash-empty__title">No further active projects</div>
+                <div>Add a project to see it in the portfolio view</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Win Rate -->
+          <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+            <div style="display:flex;align-items:center;gap:var(--ds-space-2);margin-bottom:var(--ds-space-3)">
+              <span class="card-head" style="margin:0">Win Rate</span>
+              <div style="margin-left:auto;display:flex;gap:var(--ds-space-1)">
+                <button class="period-btn is-active">By count</button>
+                <button class="period-btn">By value</button>
+              </div>
+            </div>
+
+            <div class="period-strip">
+              <button class="period-btn is-active">All time</button>
+              <button class="period-btn">YTD</button>
+              <button class="period-btn">Last quarter</button>
+              <button class="period-btn">Trailing 12 mo</button>
+            </div>
+
+            <div class="win-rate-meta">
+              <span class="win-rate-value" aria-live="polite">68.4%</span>
+              <span class="win-rate-sub">13 won of 19 closed</span>
+            </div>
+
+            <div class="win-rate-track"
+                 role="progressbar"
+                 aria-label="Win rate 68.4%"
+                 aria-valuenow="68"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+              <div class="win-rate-fill" style="width:68.4%"></div>
+            </div>
+
+            <div class="win-rate-legend">
+              <span class="win-rate-legend__item">
+                <span class="win-rate-legend__dot win-rate-legend__dot--won" aria-hidden="true"></span>
+                Won
+              </span>
+              <span class="win-rate-legend__item">
+                <span class="win-rate-legend__dot win-rate-legend__dot--lost" aria-hidden="true"></span>
+                Lost
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts row 2 -->
+        <div class="dash-chart-row">
+
+          <!-- Procurement by Status -->
+          <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+            <div class="card-head">Procurement by Status</div>
+            <figure role="img" aria-label="Procurement by status, 67 requests, most in Requested." style="margin:0">
+              <div class="proc-chart">
+                <div class="proc-bar-row">
+                  <span class="proc-bar-label">Requested</span>
+                  <div class="proc-bar-track">
+                    <div class="proc-bar-fill" style="width:100%;background:var(--ds-primary-tint)"></div>
+                  </div>
+                  <span class="proc-bar-count">24</span>
+                </div>
+                <div class="proc-bar-row">
+                  <span class="proc-bar-label">Draft</span>
+                  <div class="proc-bar-track">
+                    <div class="proc-bar-fill" style="width:75%;background:var(--ds-neutral-tint)"></div>
+                  </div>
+                  <span class="proc-bar-count">18</span>
+                </div>
+                <div class="proc-bar-row">
+                  <span class="proc-bar-label">Approved</span>
+                  <div class="proc-bar-track">
+                    <div class="proc-bar-fill" style="width:54%;background:var(--ds-success-tint)"></div>
+                  </div>
+                  <span class="proc-bar-count">13</span>
+                </div>
+                <div class="proc-bar-row">
+                  <span class="proc-bar-label">Ordered</span>
+                  <div class="proc-bar-track">
+                    <div class="proc-bar-fill" style="width:33%;background:var(--ds-violet-tint)"></div>
+                  </div>
+                  <span class="proc-bar-count">8</span>
+                </div>
+                <div class="proc-bar-row">
+                  <span class="proc-bar-label">Received</span>
+                  <div class="proc-bar-track">
+                    <div class="proc-bar-fill" style="width:17%;background:var(--ds-warning-tint)"></div>
+                  </div>
+                  <span class="proc-bar-count">4</span>
+                </div>
+              </div>
+              <figcaption class="proc-chart-legend">
+                <a href="#" class="proc-legend-item">
+                  <span class="proc-legend-dot" style="background:var(--ds-primary)"></span>
+                  Requested <span class="proc-legend-count">24</span>
+                </a>
+                <a href="#" class="proc-legend-item">
+                  <span class="proc-legend-dot" style="background:var(--ds-neutral-9)"></span>
+                  Draft <span class="proc-legend-count">18</span>
+                </a>
+                <a href="#" class="proc-legend-item">
+                  <span class="proc-legend-dot" style="background:var(--ds-success)"></span>
+                  Approved <span class="proc-legend-count">13</span>
+                </a>
+                <a href="#" class="proc-legend-item">
+                  <span class="proc-legend-dot" style="background:var(--ds-violet)"></span>
+                  Ordered <span class="proc-legend-count">8</span>
+                </a>
+                <a href="#" class="proc-legend-item">
+                  <span class="proc-legend-dot" style="background:var(--ds-warning)"></span>
+                  Received <span class="proc-legend-count">4</span>
+                </a>
+              </figcaption>
+            </figure>
+          </div>
+
+          <!-- Pipeline margin -->
+          <div class="ds-card" style="box-shadow:var(--ds-shadow-resting)">
+            <div class="card-head">Pipeline forecast margin</div>
+            <div role="group" aria-label="Pipeline projected margin">
+              <div class="margin-hero">
+                <div class="margin-pct ds-tnum">24.1%</div>
+                <div class="margin-sub">probability-adjusted across 4 open stages</div>
+              </div>
+              <div class="pipeline-bars">
+                <a href="#" class="pipeline-bar-row">
+                  <span class="pipeline-bar-stage">Proposal</span>
+                  <span class="pipeline-bar-track" role="progressbar" aria-label="Proposal: $1,440,000 weighted">
+                    <span class="pipeline-bar-fill" style="width:100%"></span>
+                  </span>
+                  <span class="pipeline-bar-value">$1,440,000</span>
+                </a>
+                <a href="#" class="pipeline-bar-row">
+                  <span class="pipeline-bar-stage">Qualified</span>
+                  <span class="pipeline-bar-track" role="progressbar" aria-label="Qualified: $520,000 weighted">
+                    <span class="pipeline-bar-fill" style="width:36%"></span>
+                  </span>
+                  <span class="pipeline-bar-value">$520,000</span>
+                </a>
+                <a href="#" class="pipeline-bar-row">
+                  <span class="pipeline-bar-stage">Negotiation</span>
+                  <span class="pipeline-bar-track" role="progressbar" aria-label="Negotiation: $310,000 weighted">
+                    <span class="pipeline-bar-fill" style="width:22%"></span>
+                  </span>
+                  <span class="pipeline-bar-value">$310,000</span>
+                </a>
+                <a href="#" class="pipeline-bar-row">
+                  <span class="pipeline-bar-stage">Discovery</span>
+                  <span class="pipeline-bar-track" role="progressbar" aria-label="Discovery: $70,000 weighted">
+                    <span class="pipeline-bar-fill" style="width:5%"></span>
+                  </span>
+                  <span class="pipeline-bar-value">$70,000</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <!-- end charts row 2 dark -->
+
+      </main>
+    </div>
+  </div>
+  <!-- end DARK -->
+
+</body>
+</html>
