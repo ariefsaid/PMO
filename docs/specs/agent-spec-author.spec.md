@@ -34,7 +34,7 @@ This spec covers **I5 only**: the agent that *authors* a `CompositionSpec` from 
 The system SHALL implement a Supabase Edge Function at path `supabase/functions/compose-view/index.ts` (Deno runtime) as the sole server-side call site for the Anthropic API.
 
 **FR-AS-002** (event-driven)  
-When the edge function receives a POST request, it SHALL authenticate the caller by verifying the `Authorization: Bearer <supabase-jwt>` header using the Supabase service-role JWT verifier, reject with HTTP 401 if absent or invalid, and extract `user_id` and `org_id` from the verified claims before performing any LLM call.
+When the edge function receives a POST request, it SHALL authenticate the caller by verifying the `Authorization: Bearer <supabase-jwt>` header using the Supabase service-role JWT verifier, reject with HTTP 401 if absent or invalid, and extract `user_id` (= `auth.uid()`) from the verified claims before performing any LLM call. **`org_id` is NOT in the MVP JWT** (the JWT carries only `auth.uid()`); the function derives `org_id` from `profiles` **under the caller's JWT** (deputy auth, matching the live `auth_org_id()` RLS function — `0002_rls.sql`), never via `service_role`. *(Director reconciliation #4, plan 2026-06-29.)*
 
 **FR-AS-003** (ubiquitous)  
 The system SHALL store the Anthropic API key exclusively in Supabase function secrets (`ANTHROPIC_API_KEY`) and NEVER expose it to the client bundle, environment variables accessible to the browser, or version control.
@@ -54,7 +54,7 @@ The system SHALL use model `claude-opus-4-8` with `thinking: { type: "adaptive" 
 When the model returns a `tool_use` block for `compose_view`, the edge function SHALL immediately run `compileCompositionSpec(spec, { userId, orgId })` (the I2 pure validator, imported from shared DSL source). If validation passes, the function SHALL return HTTP 200 with `{ spec: CompositionSpec, repairAttempts: number }`. If validation fails, the function SHALL proceed to the bounded repair loop (FR-AS-007).
 
 **FR-AS-007** (state-driven)  
-While validation errors remain and repair attempts are fewer than `MAX_REPAIR_ATTEMPTS` (owner decision — see §6 flag AS-OD-001), the edge function SHALL send the validation error codes and messages back to the model as a follow-up user message, re-invoke the model with `compose_view` tool forced, re-validate the new spec, and increment the attempt counter. If the attempt limit is reached without a valid spec, the function SHALL return HTTP 422 with `{ error: "REPAIR_EXHAUSTED", validationErrors: ValidationError[], repairAttempts: number }`.
+While the last compile threw a `ValidationError` and repair attempts are fewer than `MAX_REPAIR_ATTEMPTS` (owner decision — see §6 flag AS-OD-001), the edge function SHALL send the single caught error's `code` (and `detail`) back to the model as a follow-up user message, re-invoke the model with `compose_view` tool forced, re-validate the new spec, and increment the attempt counter. If the attempt limit is reached without a valid spec, the function SHALL return HTTP 422 with `{ error: "REPAIR_EXHAUSTED", validationError: { code, detail }, repairAttempts: number }`. *(`compileCompositionSpec` is fail-fast — it THROWS the first `ValidationError`, not an array; the loop feeds one error per round — Director reconciliation #1.)*
 
 **FR-AS-008** (event-driven)  
 When the model call fails (Anthropic API error, timeout, or network failure), the edge function SHALL return HTTP 502 with `{ error: "UPSTREAM_ERROR", detail: string }` and log the error to Supabase edge function logs. It SHALL NOT expose the raw Anthropic error body to the client.
@@ -201,12 +201,12 @@ Then the edge function handler returns `{ spec, repairAttempts: 0 }` and calls t
 **AC-AS-002** (Unit — Vitest, mocked Anthropic SDK)  
 Given a valid JWT and a well-formed prompt  
 When the mocked model returns an invalid spec on attempt 1 and a valid spec on attempt 2  
-Then the edge function handler returns `{ spec, repairAttempts: 1 }` and the repair message sent to the model includes the `ValidationError` codes from attempt 1
+Then the edge function handler returns `{ spec, repairAttempts: 1 }` and the repair message sent to the model includes the (single, fail-fast) `ValidationError` `code` (and `detail`) from attempt 1
 
 **AC-AS-003** (Unit — Vitest, mocked Anthropic SDK)  
 Given a valid JWT and a well-formed prompt  
 When the mocked model returns an invalid spec on every attempt up to `MAX_REPAIR_ATTEMPTS`  
-Then the edge function handler returns `{ error: "REPAIR_EXHAUSTED", validationErrors: [...], repairAttempts: MAX_REPAIR_ATTEMPTS }`
+Then the edge function handler returns `{ error: "REPAIR_EXHAUSTED", validationError: { code, detail }, repairAttempts: MAX_REPAIR_ATTEMPTS }` (the last caught error, singular)
 
 **AC-AS-004** (Unit — Vitest, mocked Anthropic SDK)  
 Given a request with no `Authorization` header  
@@ -292,17 +292,17 @@ Then a rate-limit error message appears in the modal and the builder panels are 
 **AC-AS-019** (Unit — Vitest, client-side)  
 Given the edge function returns a spec that passes server-side validation  
 When the client receives it  
-Then the client re-runs `compileCompositionSpec` and only populates the builder if the result has zero validation errors
+Then the client calls `compileCompositionSpec` inside `try/catch` and only populates the builder if it does **not throw** (the compiler is fail-fast — Director reconciliation #1)
 
 **AC-AS-020** (Unit — Vitest, client-side)  
 Given a composed spec that references an unknown entity (simulated tampered response)  
 When the client runs `compileCompositionSpec`  
-Then it returns a `ValidationError` with code `UNKNOWN_ENTITY` and the builder is NOT populated
+Then it **throws** a `ValidationError` with code `UNKNOWN_ENTITY` and the builder is NOT populated
 
 **AC-AS-021** (Unit — Vitest, client-side)  
 Given a composed spec with a `tasks` panel that has no `project_id` filter  
 When the client runs `compileCompositionSpec`  
-Then it returns a `ValidationError` with code `MISSING_REQUIRED_FILTER` and the builder is NOT populated
+Then it **throws** a `ValidationError` with code `MISSING_REQUIRED_FILTER` and the builder is NOT populated
 
 ### End-to-End Journey
 
