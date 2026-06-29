@@ -59,6 +59,8 @@ const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
+const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
+const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -114,9 +116,24 @@ export const AppRoutes: React.FC = () => (
       <Route path="/my-tasks" element={<MyTasksPage />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
-      {/* User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
+      {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
+      <Route
+        path="/views"
+        element={<FeatureRoute feature="userViews" element={<MyViewsPage />} />}
+      />
+      {/* I4: Create builder — literal 'new' before /:viewId param */}
+      <Route
+        path="/views/new"
+        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="create" />} />}
+      />
+      {/* I4: Edit builder — /:viewId/edit is more specific than /:viewId alone */}
+      <Route
+        path="/views/:viewId/edit"
+        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="edit" />} />}
+      />
+      {/* I3: User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
           FeatureRoute redirects to / when FEATURES.userViews is false.
-          Only this one route under /views/; a bare /views 404s via the * route. */}
+          Declared after /views/new and /views/:viewId/edit to avoid wildcard collision. */}
       <Route
         path="/views/:viewId"
         element={<FeatureRoute feature="userViews" element={<UserViewRenderer />} />}

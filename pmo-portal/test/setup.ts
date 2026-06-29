@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import 'jest-axe/extend-expect';
 
 // jsdom implements no layout/scroll APIs. Element.scrollIntoView is used by
 // keyboard-driven list components (e.g. Combobox active-option tracking); shim
