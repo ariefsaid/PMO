@@ -79,6 +79,8 @@ pipeline + progression history, no drilling around); P4 is shared with `/approva
 
 ### Personal / composed views (ADR-0036 — user/agent-composed UI)
 | `/views/:viewId` User-composed view | Any role | *When I've saved a composed view (dashboard), I want to open it and see it rendered with my live data, so I can monitor what matters to me without waiting for a built-in screen.* | Open from **"My Views"** (Rail group / ⌘K "Views"); each panel hydrates a real primitive from the saved spec, **re-executed under my own JWT** (never the author's cached rows — the deputy model); loading/empty/error/permission states are honest — no dead doorway. *(Renderer = I3; manual builder = I4; agent author = I5.)* |
+| `/views` My Views | Any role | *When I want to manage the views I've made, I want to see them all and open/edit/archive any one, so I can curate what I monitor.* | List of **own** views (open → render, edit → builder, archive confirmed). Reachable from the "My Views" nav group. |
+| `/views/new` + `/views/:id/edit` View builder | Any role | *When the built-in screens don't show exactly what I track, I want to compose my own view — pick a chart/table and point it at my data — and preview before saving, so I get the dashboard I need without waiting on engineering.* | Add panel → pick a registry primitive → configure a whitelisted query → **live preview** → save; **compile-before-save** blocks invalid specs; saves only my own view (RLS). *(Manual = I4; the agent composing it for me = I5.)* |
 
 ---
 

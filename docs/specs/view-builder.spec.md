@@ -608,7 +608,7 @@ with its name "Test View" and the DataTable panel with companies data;
 | AC | Requirement(s) | Owning layer | Planned test file |
 |---|---|---|---|
 | AC-VB-001 | FR-VB-030, FR-VB-042, FR-VB-023 | Vitest/RTL | `src/components/builder/ViewBuilderPage.test.tsx` |
-| AC-VB-002 | FR-VB-033 | Vitest/RTL | `src/components/builder/ViewBuilderPage.test.tsx` |
+| AC-VB-002 | FR-VB-033 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` |
 | AC-VB-003 | FR-VB-032, NFR-VB-SEC-001 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` |
 | AC-VB-004 | FR-VB-032 §5, NFR-VB-SEC-001 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` |
 | AC-VB-005 | FR-VB-032 §6 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` |

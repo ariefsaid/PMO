@@ -20,12 +20,13 @@
  * Test-only escape hatch: __testPanels?: PanelSpec[] — seeds the panel list in RTL tests
  * without requiring modal interaction. Undefined in production usage.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useBlocker } from 'react-router-dom';
 import {
   ListState,
   ConfirmDialog,
   TextField,
+  TextArea,
   SelectField,
   FormGrid,
   FormSection,
@@ -84,16 +85,23 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // ── Original values ref — populated when edit mode loads (for dirty detection) ──
+  const initialValuesRef = useRef({ name: '', description: '', scope: 'private' as 'private' | 'shared_org', panels: [] as PanelSpec[] });
+
   // ── Pre-populate in edit mode (FR-VB-070) ────────────────────────────────
   useEffect(() => {
     if (mode !== 'edit' || !existingView) return;
-    setName(existingView.name);
-    setDescription(existingView.description ?? '');
-    setScope((existingView.scope as 'private' | 'shared_org') ?? 'private');
+    const loadedName = existingView.name;
+    const loadedDesc = existingView.description ?? '';
+    const loadedScope = (existingView.scope as 'private' | 'shared_org') ?? 'private';
     const raw = existingView.spec as unknown as CompositionSpec;
-    if (raw && Array.isArray(raw.panels)) {
-      setPanels(raw.panels);
-    }
+    const loadedPanels = raw && Array.isArray(raw.panels) ? raw.panels : [];
+    setName(loadedName);
+    setDescription(loadedDesc);
+    setScope(loadedScope);
+    setPanels(loadedPanels);
+    // Capture initial values so isDirty comparison can detect real changes
+    initialValuesRef.current = { name: loadedName, description: loadedDesc, scope: loadedScope, panels: loadedPanels };
   }, [mode, existingView]);
 
   // ── Seed test panels when __testPanels changes ────────────────────────────
@@ -104,7 +112,16 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   }, [__testPanels]);
 
   // ── Dirty detection for useBlocker ───────────────────────────────────────
-  const isDirty = name !== '' || panels.length > 0 || description !== '';
+  // In create mode: any non-empty field or panel counts as dirty.
+  // In edit mode: compare against the values loaded from the existing view so
+  // navigating away from an unmodified form does NOT trigger the discard dialog.
+  const isDirty =
+    mode === 'create'
+      ? name !== '' || panels.length > 0 || description !== ''
+      : name !== initialValuesRef.current.name ||
+        description !== initialValuesRef.current.description ||
+        scope !== initialValuesRef.current.scope ||
+        JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
 
   // useBlocker fires when the user navigates away with unsaved changes (OD-VB-8)
   const blocker = useBlocker(isDirty && !isSaving);
@@ -287,7 +304,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             onChange={setName}
             maxLength={120}
           />
-          <TextField
+          <TextArea
             label="Description"
             value={description}
             onChange={setDescription}

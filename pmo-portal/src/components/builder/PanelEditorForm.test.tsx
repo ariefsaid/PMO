@@ -1,5 +1,6 @@
 /**
  * PanelEditorForm — whitelist-constraint tests.
+ * AC-VB-002: entity change resets entity-dependent fields (selectedColumns, filters, groupBy).
  * AC-VB-003: column options = ENTITY_WHITELIST['incidents'].allowedColumns exactly.
  * AC-VB-004: groupBy options = groupableColumns only.
  * AC-VB-005: aggregate column for sum = numericColumns only.
@@ -41,6 +42,55 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('AC-VB-002: entity change resets entity-dependent fields (selectedColumns, filters, groupBy)', async () => {
+    const user = userEvent.setup();
+    openForm();
+
+    // Select entity = projects
+    const entitySelect = screen.getByRole('combobox', { name: /entity/i });
+    await user.selectOptions(entitySelect, 'projects');
+
+    // Select some columns for projects
+    const statusCheckbox = screen.getByRole('checkbox', { name: 'status' });
+    await user.click(statusCheckbox);
+    const nameCheckbox = screen.getByRole('checkbox', { name: 'name' });
+    await user.click(nameCheckbox);
+    // Verify they are checked
+    expect(statusCheckbox).toBeChecked();
+    expect(nameCheckbox).toBeChecked();
+
+    // Add a filter
+    const addFilterBtn = screen.getByRole('button', { name: /add filter/i });
+    await user.click(addFilterBtn);
+    // A filter row should now exist
+    expect(screen.getAllByRole('combobox', { name: /filter column/i })).toHaveLength(1);
+
+    // Set groupBy
+    const groupBySelect = screen.getByRole('combobox', { name: /group by/i });
+    await user.selectOptions(groupBySelect, 'status');
+    expect(groupBySelect).toHaveValue('status');
+
+    // Now change entity to companies — all entity-dependent fields must reset
+    await user.selectOptions(entitySelect, 'companies');
+
+    // No project column checkboxes should remain checked
+    // (the companies whitelist has: id, name, type, created_at)
+    const companyCols = Array.from(ENTITY_WHITELIST.companies.allowedColumns).sort();
+    for (const col of companyCols) {
+      expect(screen.getByRole('checkbox', { name: col })).not.toBeChecked();
+    }
+    // projects-only columns (budget, status, etc.) must be gone
+    expect(screen.queryByRole('checkbox', { name: 'budget' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'status' })).not.toBeInTheDocument();
+
+    // No filter rows remain
+    expect(screen.queryAllByRole('combobox', { name: /filter column/i })).toHaveLength(0);
+
+    // groupBy is reset to '' (no option selected — select reverts to '— none —')
+    const groupByAfter = screen.getByRole('combobox', { name: /group by/i });
+    expect(groupByAfter).toHaveValue('');
+  });
+
   it('AC-VB-003: incidents column options equal exactly ENTITY_WHITELIST["incidents"].allowedColumns', async () => {
     const user = userEvent.setup();
     openForm();

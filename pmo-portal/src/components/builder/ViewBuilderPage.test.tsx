@@ -1,7 +1,8 @@
 /**
  * ViewBuilderPage — state machine and guard tests.
- * AC-VB-001, AC-VB-002, AC-VB-007, AC-VB-008, AC-VB-009, AC-VB-010, AC-VB-011,
+ * AC-VB-001, AC-VB-007, AC-VB-008, AC-VB-009, AC-VB-010, AC-VB-011,
  * AC-VB-014, AC-VB-015, AC-VB-018, AC-VB-019.
+ * (AC-VB-002 is owned by PanelEditorForm.test.tsx — entity-change reset is panel-editor behavior.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
@@ -216,6 +217,34 @@ describe('ViewBuilderPage — guard states', () => {
 });
 
 describe('ViewBuilderPage — compile-before-save', () => {
+  it('AC-VB-007b: navigating away from an unmodified edit view does NOT trigger the discard dialog', () => {
+    // blocker stays unblocked (its condition isDirty must be false when nothing has changed)
+    mockBlocker.mockReturnValue({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() });
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v1',
+        name: 'Q2 Projects',
+        description: 'A view',
+        scope: 'private',
+        spec: { version: 1, panels: [PANEL_A] },
+        archived_at: null,
+        org_id: 'org1',
+        user_id: 'u1',
+        created_at: '2026-06-01T00:00:00Z',
+        updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: false,
+    });
+    renderEdit('v1');
+    // With no user changes, the discard dialog must not be present
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    // Verify the blocker was called with isDirty=false (i.e. first arg is false).
+    // The shouldBlock arg passed to useBlocker must be false for an unmodified edit view.
+    const lastBlockerArg = (mockBlocker.mock.calls as unknown as [boolean, ...unknown[]][]).at(-1)?.[0];
+    expect(lastBlockerArg).toBe(false);
+  });
+
   it('AC-VB-007: ValidationError from compile blocks mutate call; error code displayed', async () => {
     mockCompile.mockImplementation(() => {
       throw new ValidationError('UNKNOWN_ENTITY', 'companies');
@@ -271,6 +300,53 @@ describe('ViewBuilderPage — compile-before-save', () => {
     expect(callArg).toHaveProperty('scope');
     expect(callArg).not.toHaveProperty('org_id');
     expect(callArg).not.toHaveProperty('user_id');
+  });
+
+  it('AC-VB-008: update mode calls update with {id, input: {name,spec,scope}} — no org_id/user_id', async () => {
+    mockCompile.mockReturnValue([]);
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v1',
+        name: 'Old Name',
+        description: null,
+        scope: 'private',
+        spec: { version: 1, panels: [PANEL_A] },
+        archived_at: null,
+        org_id: 'org1',
+        user_id: 'u1',
+        created_at: '2026-06-01T00:00:00Z',
+        updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: false,
+    });
+    const { rerender } = renderEdit('v1');
+    // Clear the pre-populated name and type a new one
+    const nameField = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.clear(nameField);
+    await userEvent.type(nameField, 'Updated Name');
+    // Seed a panel via __testPanels prop
+    rerender(
+      <MemoryRouter initialEntries={['/views/v1/edit']}>
+        <Routes>
+          <Route
+            path="/views/:viewId/edit"
+            element={<ViewBuilderPage mode="edit" __testPanels={[PANEL_A]} />}
+          />
+          <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const updateBtn = screen.getByRole('button', { name: /update view/i });
+    await userEvent.click(updateBtn);
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    const callArg = mockUpdate.mock.calls[0][0] as { id: string; input: Record<string, unknown> };
+    expect(callArg).toHaveProperty('id', 'v1');
+    expect(callArg.input).toHaveProperty('name');
+    expect(callArg.input).toHaveProperty('spec');
+    expect(callArg.input).toHaveProperty('scope');
+    expect(callArg.input).not.toHaveProperty('org_id');
+    expect(callArg.input).not.toHaveProperty('user_id');
   });
 
   it('AC-VB-009: save error surfaces classifyMutationError headline; panel list preserved', async () => {
@@ -361,6 +437,9 @@ describe('ViewBuilderPage + MyViewsPage — axe-core a11y', () => {
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+    // FR-VB-021: description field must be a <textarea> (multiline), not a single-line input
+    const descriptionField = screen.getByRole('textbox', { name: /description/i });
+    expect(descriptionField.tagName).toBe('TEXTAREA');
   });
 
   it('AC-VB-018: no a11y violations on MyViewsPage (one view in list)', async () => {

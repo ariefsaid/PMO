@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ListPage,
+  ListState,
   DataTable,
   ConfirmDialog,
   Button,
@@ -101,15 +102,12 @@ const MyViewsPage: React.FC = () => {
       }
     >
       {isError ? (
-        <div
-          role="alert"
-          className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5 text-[13px] text-destructive"
-        >
-          Could not load views. A network or server error occurred.
-          <Button variant="outline" size="sm" onClick={() => refetch?.()}>
-            Retry
-          </Button>
-        </div>
+        <ListState
+          variant="error"
+          title="Could not load views."
+          sub="A network or server error occurred."
+          onRetry={refetch}
+        />
       ) : isPending ? (
         <DataTable
           columns={columns}
@@ -118,15 +116,15 @@ const MyViewsPage: React.FC = () => {
           state="loading"
         />
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
-          <div className="text-[15px] font-semibold">No views yet.</div>
-          <Link
-            to="/views/new"
-            className="font-medium text-primary hover:underline"
-          >
-            Create your first view
-          </Link>
-        </div>
+        <ListState
+          variant="empty"
+          title="No views yet."
+          sub={
+            <Link to="/views/new" className="font-medium text-primary hover:underline">
+              Create your first view
+            </Link>
+          }
+        />
       ) : (
         <DataTable
           columns={columns}

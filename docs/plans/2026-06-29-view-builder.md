@@ -109,7 +109,7 @@ In `App.tsx`'s `<AppRoutes>`, the three new `<FeatureRoute>` entries are inserte
 | AC | Requirement(s) | Owning layer | Test file | Task(s) |
 |---|---|---|---|---|
 | AC-VB-001 | FR-VB-030, FR-VB-042, FR-VB-023 | Vitest/RTL | `src/components/builder/ViewBuilderPage.test.tsx` | T-08 |
-| AC-VB-002 | FR-VB-033 | Vitest/RTL | `src/components/builder/ViewBuilderPage.test.tsx` | T-08 |
+| AC-VB-002 | FR-VB-033 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` | T-06 |
 | AC-VB-003 | FR-VB-032, NFR-VB-SEC-001 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` | T-06 |
 | AC-VB-004 | FR-VB-032 §5, NFR-VB-SEC-001 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` | T-06 |
 | AC-VB-005 | FR-VB-032 §6 | Vitest/RTL | `src/components/builder/PanelEditorForm.test.tsx` | T-06 |
