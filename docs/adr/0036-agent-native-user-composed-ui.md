@@ -150,6 +150,15 @@ trusted renderer (§4c), not inside the panel. Staying config-over-fork preserve
 upgradability. **Supabase remains the authority**; `agent-native` supplies runtime + spec-authoring only.
 
 ### 9. **Spike gate** — the decision in §8 is contingent; this gate decides it. **[PMO]**
+
+> **Spike result — 2026-06-29: automated claims PASS** (CI run [`28351347117`](https://github.com/ariefsaid/PMO/actions/runs/28351347117), `spike/agent-native-rls/` on a GitHub runner against the real migrated schema + RLS).
+> - **Claim #1 — Drizzle `.rls()` RLS parity: PASS.** The `.rls()` wrapper (`set local role authenticated` + `set_config('request.jwt.claims', …, true)`) enforced PMO's `org_id` policies identically to `supabase-js`: own-org read returned the row, cross-org read returned 0, in-org default write succeeded, cross-org write was rejected `42501`, and the kill-test confirmed a non-`.rls()`/privileged connection **bypasses** RLS (the failure mode the deputy-model guard prevents).
+> - **Claim #2 — `drizzle-kit pull` introspect-only: PASS.** Mirrored 35 tables / 82 policies into types read-only; Supabase migrations remain the single schema source of truth.
+> - **Claim #3 — assistant-panel SSO (no second login): not yet run** (manual; deferred per the README — not automatable without scaffolding the agent-native app).
+> - **Fidelity caveat:** the harness proves the *SQL binding* `.rls()` emits, not Drizzle's own code path (see the spike README).
+>
+> **Conclusion:** the load-bearing automated gate is green → the §8 config-over-fork sidecar path is **viable** (pending the manual SSO check). Status stays **Proposed** pending owner sign-off to move toward *Accepted* on the sidecar path. The throwaway spike + its CI lane (`.github/workflows/spike-rls.yml`) should be deleted once this result is accepted.
+
 Before any `agent-native` adoption, a time-boxed, throwaway spike (no prod touch) must prove:
 - Drizzle `.rls()` pinned to `authenticated` + per-request JWT **blocks a cross-`org_id` read and allows a legit read — identically to `supabase-js`** (assert with a pgTAP-style proof on both paths);
 - `drizzle-kit pull` mirrors the existing schema **without wanting to own/migrate it**;
