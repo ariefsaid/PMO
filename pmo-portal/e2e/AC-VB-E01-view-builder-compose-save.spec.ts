@@ -6,10 +6,12 @@
  * Feature flag: VITE_FEATURES_USERVIEWS=true in .env.test.
  */
 import { test, expect } from '@playwright/test';
+import { signIn } from './helpers';
 
 test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
   test.beforeEach(async ({ page }) => {
-    // Authenticate (reuse auth state from playwright.config.ts storageState)
+    // Authenticate per-test — this repo has no global storageState; every e2e signs in.
+    await signIn(page, 'admin@acme.test');
     await page.goto('/views/new');
     await expect(page).toHaveURL(/\/views\/new/);
   });
