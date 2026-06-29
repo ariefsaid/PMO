@@ -312,3 +312,102 @@ describe('validateGroups — AC-CYCLE-VAL-010: bad date → row error', () => {
     expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
   });
 });
+
+// ─── AC-CYCLE-VAL-011: calendrically-impossible dates rejected (B6) ───────────
+
+describe('validateGroups — AC-CYCLE-VAL-011: calendrically-impossible dates are rejected', () => {
+  it('rejects 2025-13-45 (month 13 does not exist)', () => {
+    const rows: CycleRow[] = [
+      row({
+        caseRef: 'CASE-BADDATE1',
+        type: 'GR',
+        title: 'Bad Calendar Date',
+        status: 'Partial',
+        date: '2025-13-45',
+        rowNumber: 1,
+      }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(false);
+    expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
+  });
+
+  it('rejects 2025-02-30 (February has no 30th)', () => {
+    const rows: CycleRow[] = [
+      row({
+        caseRef: 'CASE-BADDATE2',
+        type: 'GR',
+        title: 'Feb 30',
+        status: 'Partial',
+        date: '2025-02-30',
+        rowNumber: 1,
+      }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(false);
+    expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
+  });
+
+  it('accepts 2025-03-15 (valid calendar date)', () => {
+    const rows: CycleRow[] = [
+      row({
+        caseRef: 'CASE-GOODDATE',
+        type: 'GR',
+        title: 'Good Date',
+        status: 'Complete',
+        date: '2025-03-15',
+        rowNumber: 1,
+      }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(true);
+  });
+});
+
+// ─── AC-CYCLE-VAL-012: validateOptionalDate skips blank, validates non-blank (B7) ─
+
+describe('validateGroups — AC-CYCLE-VAL-012: optional dates validated on non-blank', () => {
+  it('PR row with no date passes (blank optional date is fine)', () => {
+    const rows: CycleRow[] = [
+      row({ caseRef: 'CASE-OPT-OK', type: 'PR', title: 'Optional Date OK', rowNumber: 1 }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(true);
+  });
+
+  it('PR row with a calendrically-impossible optional date is rejected', () => {
+    const rows: CycleRow[] = [
+      row({
+        caseRef: 'CASE-OPT-BAD',
+        type: 'PR',
+        title: 'Optional Date Bad',
+        date: '2025-13-01',
+        rowNumber: 1,
+      }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(false);
+    expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
+  });
+
+  it('Payment row with a calendrically-impossible optional date is rejected', () => {
+    const rows: CycleRow[] = [
+      row({
+        caseRef: 'CASE-PAY-BAD',
+        type: 'Payment',
+        title: 'Payment Bad Date',
+        date: '2025-02-30',
+        rowNumber: 1,
+      }),
+    ];
+    const group = makeGroup(rows);
+    const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[0].valid).toBe(false);
+    expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
+  });
+});

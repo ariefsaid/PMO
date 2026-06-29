@@ -22,13 +22,32 @@ export interface ValidateLookups {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns null if the string is a valid ISO YYYY-MM-DD date, else an error message. */
+/**
+ * Returns null if the string is a valid, calendrically-possible ISO YYYY-MM-DD date,
+ * else an error message. Rejects format mismatches AND impossible dates like 2025-13-45
+ * or 2025-02-30 that would cause cryptic DB errors.
+ */
 function validateDate(raw: string | undefined, label: string): string | null {
   if (!raw?.trim()) return `${label} is required.`;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+  const trimmed = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${label} must be a valid date (YYYY-MM-DD).`;
+  }
+  // Calendrical validity check: parse as UTC midnight and round-trip the ISO string.
+  const d = new Date(trimmed + 'T00:00:00Z');
+  if (isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== trimmed) {
     return `${label} must be a valid date (YYYY-MM-DD).`;
   }
   return null;
+}
+
+/**
+ * Returns null if blank/absent (optional — absence is fine) or a valid
+ * calendrically-possible date; returns an error message for non-blank invalid dates.
+ */
+function validateOptionalDate(raw: string | undefined, label: string): string | null {
+  if (!raw?.trim()) return null; // blank is fine for optional dates
+  return validateDate(raw, label);
 }
 
 /** Returns null if blank/absent or a valid non-negative number; error message otherwise. */
@@ -49,7 +68,7 @@ function validateRequiredAmount(raw: string | undefined): string | null {
   return null;
 }
 
-function validateEnum(raw: string | undefined, allowed: string[], label: string): string | null {
+function validateEnum(raw: string | undefined, allowed: readonly string[], label: string): string | null {
   if (!raw?.trim()) return `${label} is required. Must be one of: ${allowed.join(', ')}.`;
   if (!allowed.includes(raw.trim())) {
     return `${label} must be one of: ${allowed.join(', ')}.`;
@@ -59,8 +78,8 @@ function validateEnum(raw: string | undefined, allowed: string[], label: string)
 
 // ─── Per-type row validation ──────────────────────────────────────────────────
 
-const GR_STATUS = ['Partial', 'Complete'];
-const VI_STATUS = ['Received', 'Scheduled', 'Paid'];
+export const GR_STATUS = ['Partial', 'Complete'] as const;
+export const VI_STATUS = ['Received', 'Scheduled', 'Paid'] as const;
 
 /**
  * Validates a single CycleRow's type-specific fields. Returns list of error strings
@@ -85,10 +104,8 @@ function validateRowFields(
     case 'RFQ':
     case 'PO': {
       // Optional fields: status (any string), date (YYYY-MM-DD if present), amount (≥ 0 if present)
-      if (row.date?.trim()) {
-        const err = validateDate(row.date, 'Date');
-        if (err && !err.includes('required')) errors.push(err);
-      }
+      const dateErr = validateOptionalDate(row.date, 'Date');
+      if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
       if (amtErr) errors.push(amtErr);
       break;
@@ -130,10 +147,8 @@ function validateRowFields(
 
     case 'Payment': {
       // Optional: status (any string), date, amount
-      if (row.date?.trim()) {
-        const err = validateDate(row.date, 'Date');
-        if (err && !err.includes('required')) errors.push(err);
-      }
+      const dateErr = validateOptionalDate(row.date, 'Date');
+      if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
       if (amtErr) errors.push(amtErr);
       break;
