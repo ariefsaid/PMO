@@ -11,7 +11,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`decisions.md`** | Every locked owner decision (`OD-*`) — the binding product/scope calls. Grep by id. |
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
 | **`pi-delegation.md`** | **How role-agent work is currently dispatched** — the pi CLI (GLM/codex) trial: model routing, invocation, dispatch mechanics, resource isolation, rendered-UI verification. |
-| **`adr/`** | Architecture Decision Records `0001–0036` (no 0013; no 0026 — the 0026 migration was a bug-fix RPC, below the ADR threshold). Latest: `0034`/`0035` procurement (reserved budget, cycle import) — both **Proposed**; `0036` agent-native user-composed UI (deputy authz + declarative hydration) — **Accepted**. The durable "why" of every architectural choice. `0006` (hosting) is **ACCEPTED** (deployed). |
+| **`adr/`** | Architecture Decision Records `0001–0037` (no 0013; no 0026 — the 0026 migration was a bug-fix RPC, below the ADR threshold). Latest: `0036` agent-native user-composed UI (deputy authz + declarative hydration) — **Accepted**; `0037` view-composition query-spec DSL + RLS-scoped compiler (the trusted core, ADR-0036 §4) — **Accepted**. The durable "why" of every architectural choice. `0006` (hosting) is **ACCEPTED** (deployed). |
 
 ## Durable reference (the contracts the code follows)
 | Path | Holds |
