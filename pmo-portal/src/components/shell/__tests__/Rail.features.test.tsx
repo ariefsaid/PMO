@@ -29,6 +29,12 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
   return { ...real };
 });
 
+// useUserViews calls useAuth internally; mock the whole hook so Rail tests
+// that predate the My Views group don't need an AuthProvider.
+vi.mock('@/src/hooks/useUserViews', () => ({
+  useUserViews: () => ({ data: [], isPending: false, isError: false }),
+}));
+
 import { Rail } from '../Rail';
 import * as features from '@/src/lib/features';
 

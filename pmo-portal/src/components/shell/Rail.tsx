@@ -5,6 +5,7 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { isFeatureEnabled, type FeatureKey } from '@/src/lib/features';
+import { useUserViews } from '@/src/hooks/useUserViews';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -69,6 +70,9 @@ const ALL_ITEMS: NavItem[] = [
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Workforce'];
 
+/** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
+const MAX_NAV_VIEWS = 8;
+
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
   'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
@@ -94,11 +98,21 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
+  // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
+  const { data: userViews } = useUserViews();
+
   if (!role) return null;
 
   const items = ALL_ITEMS.filter(
     (i) => i.roles.includes(role) && (!i.feature || isFeatureEnabled(i.feature)),
   );
+  const showMyViews =
+    isFeatureEnabled('userViews') &&
+    Array.isArray(userViews) &&
+    userViews.length > 0;
+  const myViewsItems = showMyViews
+    ? (userViews ?? []).slice(0, MAX_NAV_VIEWS)
+    : [];
 
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
@@ -183,6 +197,31 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
             </React.Fragment>
           );
         })}
+        {showMyViews && (
+          <div role="group" aria-label="My Views">
+            <div className="px-2 pb-1.5 pt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              My Views
+            </div>
+            {myViewsItems.map((view) => (
+              <NavLink
+                key={view.id}
+                to={`/views/${view.id}`}
+                onClick={onNavigate}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    NAV_LINK_BASE,
+                    isActive
+                      ? 'bg-primary/10 font-semibold text-nav-active-text'
+                      : 'text-foreground hover:bg-accent',
+                  )
+                }
+              >
+                <Icon name="grid" />
+                <span className="truncate">{view.name}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
       </nav>
 
       {(role === UserRole.Executive || role === UserRole.Admin) && (

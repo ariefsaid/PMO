@@ -202,6 +202,15 @@ export function breadcrumbForPath(
   const placeholderTitle = PLACEHOLDER_TITLES[pathname];
   if (placeholderTitle) return [{ label: placeholderTitle }];
 
+  // User-view detail route → [My Views (link to /) > <view.name>] (OD-4, FR-VR-053)
+  if (pathname.startsWith('/views/')) {
+    const viewCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+    return [
+      { label: 'My Views', onClick: () => navigate?.('/') },
+      { label: viewCrumb },
+    ];
+  }
+
   for (const m of MODULES) {
     // Detail route → [module link > record]. The dashboard has no detail route.
     if (m.detail) {
@@ -248,6 +257,8 @@ export interface RecordLists {
   companies?: { id: string; name: string }[];
   /** CW-4b: contacts — the record name is its `full_name`. */
   contacts?: { id: string; full_name: string }[];
+  /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
+  userViews?: { id: string; name: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -369,6 +380,10 @@ export function recordLabelForPath(
 
   const contactId = idFrom('/contacts');
   if (contactId) return lists.contacts?.find((c) => c.id === contactId)?.full_name;
+
+  // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
+  const viewId = idFrom('/views');
+  if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
 
   return undefined;
 }

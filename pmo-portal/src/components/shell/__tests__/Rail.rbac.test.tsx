@@ -25,6 +25,12 @@ vi.mock('@/src/auth/impersonation', () => ({
   }),
 }));
 
+// useUserViews calls useAuth internally; mock the whole hook so Rail tests
+// that predate the My Views group don't need an AuthProvider.
+vi.mock('@/src/hooks/useUserViews', () => ({
+  useUserViews: () => ({ data: [], isPending: false, isError: false }),
+}));
+
 let testRole: string = 'Project Manager';
 
 import { Rail } from '../Rail';
