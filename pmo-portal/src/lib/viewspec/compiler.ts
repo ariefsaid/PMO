@@ -153,6 +153,18 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
       throw new ValidationError('INVALID_LIMIT', String(spec.limit));
     }
   }
+  // Default limit for aggregate / groupBy queries (OD-3, FR-VR-022).
+  // If the spec has an aggregate or groupBy but no explicit limit we cap at 500
+  // so the executor never issues an unbounded scan for in-memory aggregation.
+  // This mirrors the executor-side fallback in executeCompiledQuery; keeping the
+  // invariant here (in the compiler) ensures the CompiledQuery always carries a
+  // limit when one is needed.
+  const effectiveLimit: number | undefined =
+    spec.limit !== undefined
+      ? spec.limit
+      : spec.aggregate !== undefined || spec.groupBy !== undefined
+        ? 500
+        : undefined;
 
   // ── 3. Validate select columns (FR-VC-032) ─────────────────────────────────
   for (const col of spec.select) {
@@ -253,7 +265,7 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
     ...(resolvedAggregate !== undefined && { resolvedAggregate }),
     ...(resolvedTimeRange !== undefined && { resolvedTimeRange }),
     ...(spec.orderBy !== undefined && { resolvedOrderBy: spec.orderBy }),
-    ...(spec.limit !== undefined && { limit: spec.limit }),
+    ...(effectiveLimit !== undefined && { limit: effectiveLimit }),
   };
 
   return compiled;

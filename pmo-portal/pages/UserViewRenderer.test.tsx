@@ -3,6 +3,9 @@
  * AC-VR-001 (loading), AC-VR-002 (not-found), AC-VR-003 (archived),
  * AC-VR-004 (spec-invalid), AC-VR-005 (empty-spec), AC-VR-018 (feature-off redirect).
  * AC-VR-006..010 (data states), AC-VR-012 (axe a11y).
+ * AC-VR-019 (network-error page-level state with retry).
+ * AC-VR-020 (VITE_APP_ENV=prod hides dev-disclosure details block).
+ * AC-VR-021 (ready state renders correctly after two-tick delay).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -131,6 +134,32 @@ describe('UserViewRenderer — guard states', () => {
     expect(screen.getByText(/this view has no panels yet/i)).toBeInTheDocument();
   });
 
+  it('AC-VR-019: renders page-level error state with retry when useUserView returns isError=true', () => {
+    mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true });
+    renderRenderer();
+    expect(screen.getByText(/could not load this view/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    // Must not show not-found copy (isError should not fall through to not-found guard)
+    expect(screen.queryByText(/this view was not found/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-VR-020: dev-disclosure <details> is absent when VITE_APP_ENV is "prod"', async () => {
+    vi.stubEnv('VITE_APP_ENV', 'prod');
+    mockUseUserView.mockReturnValue({
+      data: { id: 'abc', name: 'Bad View', spec: { version: 1, panels: [{ id: 'p1', primitive: 'PieChart', querySpec: { entity: 'projects', select: ['id'] } }] }, archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1', description: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+      isPending: false,
+      isError: false,
+    });
+    mockCompile.mockImplementation(() => {
+      throw new ValidationError('UNKNOWN_PRIMITIVE', 'p1');
+    });
+    renderRenderer();
+    // The spec-invalid state should render but not expose the developer <details> block
+    expect(screen.getByText(/this view's definition is invalid/i)).toBeInTheDocument();
+    expect(document.querySelector('details')).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
   it('AC-VR-018: FeatureRoute does not render UserViewRenderer when userViews feature is off', async () => {
     // FeatureRoute uses isFeatureEnabled — already mocked above via vi.mock('@/src/lib/features').
     // When feature is off the route renders <Navigate to="/"> instead of the element.
@@ -195,13 +224,15 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     });
   });
 
-  it('AC-VR-007: per-panel loading state while query is pending (heading already visible)', async () => {
+  it('AC-VR-007: per-panel loading state while query is pending (heading visible after compile)', async () => {
     // executeCompiledQuery never resolves in this test
     mockExecute.mockReturnValue(new Promise(() => {}));
     renderRenderer();
-    // Page heading IS rendered (row has resolved)
-    expect(screen.getByRole('heading', { name: 'My KPI' })).toBeInTheDocument();
-    // Panel ChartFrame is in loading state
+    // Wait for compilation to complete: heading appears once compiling=false
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'My KPI' })).toBeInTheDocument();
+    });
+    // Panel ChartFrame is in loading state (per-panel queries still pending)
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });
 
@@ -235,6 +266,20 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
       const wrappers = document.querySelectorAll('[style*="grid-column: span 2"]');
       expect(wrappers.length).toBe(1);
     });
+  });
+
+  it('AC-VR-021: ready state renders correctly after two-tick delay (view resolves → compiledPanels resolves → data resolves)', async () => {
+    // Simulate the full timing path: view data is available, effect fires to compile,
+    // queries resolve. The ready state (heading + KPI value) must appear after all settle.
+    mockExecute.mockResolvedValue([{ total: 5555 }]);
+    renderRenderer();
+    // After all effects settle and queries resolve, heading and KPI value appear
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'My KPI' })).toBeInTheDocument();
+      expect(screen.getByText('5555')).toBeInTheDocument();
+    });
+    // No loading skeleton remains in the steady state
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
   });
 });
 

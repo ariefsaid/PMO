@@ -94,8 +94,10 @@ function HydratedPrimitive({
       // For primitives not yet wired with a specific hydration case,
       // render the data as a JSON debug table (fallback for I3 scope).
       // TODO I4: wire remaining primitives (DataTable, StatTiles, Funnel, StatusBarChart, ProgressBar, Card)
+      // Note: the panel card surface (rounded-lg border border-border bg-card p-4) is applied
+      // by the colSpan wrapper div in the ready-state renderer — no duplicate border here.
       return (
-        <pre className="overflow-auto rounded border border-border p-3 text-[12px]">
+        <pre className="overflow-auto rounded p-3 text-[12px]">
           {JSON.stringify(data, null, 2)}
         </pre>
       );
@@ -111,18 +113,23 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   const viewId = viewIdProp ?? params.viewId ?? '';
 
   const { currentUser } = useAuth();
-  const { data: view, isPending } = useUserView(viewId);
+  const { data: view, isPending, isError } = useUserView(viewId);
 
   // Per-panel query state (FR-VR-036..038, FR-VR-042)
   const [panelStates, setPanelStates] = useState<PanelState[]>([]);
   const [compiledPanels, setCompiledPanels] = useState<CompiledPanel[] | null>(null);
   const [specError, setSpecError] = useState<ValidationError | Error | null>(null);
+  // `compiling` is true from when view data arrives until compiledPanels or specError is set.
+  // Merged with isPending in the loading guard so we never show a FOUC between the two
+  // skeleton variants (view-loading skeleton vs. still-compiling skeleton).
+  const [compiling, setCompiling] = useState(false);
 
   useEffect(() => {
     // Reset when viewId changes
     setCompiledPanels(null);
     setPanelStates([]);
     setSpecError(null);
+    setCompiling(false);
   }, [viewId]);
 
   useEffect(() => {
@@ -132,23 +139,34 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     if (view === null || view.archived_at !== null) {
       setCompiledPanels(null);
       setSpecError(null);
+      setCompiling(false);
       return;
     }
+
+    // Null guard: currentUser may be null during reauthentication or session expiry.
+    // This mirrors the pattern used elsewhere in the codebase (e.g. project detail effects).
+    if (!currentUser) return;
+
+    // Mark compilation in-flight so the unified skeleton stays visible (no FOUC).
+    setCompiling(true);
 
     // Panel count guard (OD-9)
     const rawSpec = view.spec as unknown;
     const specAsObj = rawSpec as { version?: unknown; panels?: unknown[] };
     if (Array.isArray(specAsObj?.panels) && specAsObj.panels.length > MAX_PANELS_PER_VIEW) {
       setSpecError(new Error(`This view exceeds the maximum of ${MAX_PANELS_PER_VIEW} panels.`));
+      setCompiling(false);
       return;
     }
 
     // Compile (NFR-VR-SEC-004: always compile before execute)
+    let cancelled = false;
     try {
-      const ctx = { userId: currentUser!.id, orgId: currentUser!.org_id };
+      const ctx = { userId: currentUser.id, orgId: currentUser.org_id };
       const panels = compileCompositionSpec(rawSpec as CompositionSpec, ctx);
       setCompiledPanels(panels);
       setSpecError(null);
+      setCompiling(false);
 
       // Initialize per-panel loading state (FR-VR-036)
       setPanelStates(panels.map(() => ({ loading: true, data: null, error: null })));
@@ -157,33 +175,65 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
       Promise.allSettled(
         panels.map((panel) => executeCompiledQuery(panel.compiledQuery))
       ).then((results) => {
-        setPanelStates(
-          results.map((r) =>
-            r.status === 'fulfilled'
-              ? { loading: false, data: r.value as unknown[], error: null }
-              : { loading: false, data: null, error: r.reason as Error }
-          )
-        );
+        // Guard against stale updates when the view or viewId changed while
+        // queries were in-flight (prevents overwriting a newer view's panel states).
+        if (!cancelled) {
+          setPanelStates(
+            results.map((r) =>
+              r.status === 'fulfilled'
+                ? { loading: false, data: r.value as unknown[], error: null }
+                : { loading: false, data: null, error: r.reason as Error }
+            )
+          );
+        }
       });
     } catch (err) {
       setSpecError(err instanceof Error ? err : new Error(String(err)));
       setCompiledPanels(null);
+      setCompiling(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, isPending, viewId]);
 
-  // ── Loading state (FR-VR-031) ───────────────────────────────────────────
-  if (isPending) {
+    return () => {
+      cancelled = true;
+    };
+  }, [view, isPending, viewId, currentUser]);
+
+  // ── Loading / compiling skeleton (FR-VR-031) ───────────────────────────
+  // Unified: covers both the initial useUserView fetch and the brief compile tick
+  // (view resolved → compiledPanels resolves). A single skeleton avoids the FOUC
+  // that arose when the "still compiling" branch rendered a structurally different
+  // skeleton without a heading (design-review finding, I3).
+  // §7 skel pattern: two-line DashPageHead placeholder (title + sub), matching the
+  // real DashPageHead's h1 + p layout so the page doesn't jump on ready.
+  if (isPending || compiling) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        {/* DashPageHead skeleton */}
-        <div aria-hidden="true" className="skel h-8 w-1/3 rounded" />
+        {/* DashPageHead skeleton — mirrors h1 + p two-line structure (DESIGN.md §7) */}
+        <div aria-hidden="true" className="flex flex-col gap-1">
+          <div className="skel h-7 w-2/5 rounded" />
+          <div className="skel skel-line w-3/5" />
+        </div>
         {/* ChartFrame loading placeholders */}
         <DashGrid>
           <ChartFrame state="loading">{null}</ChartFrame>
           <ChartFrame state="loading">{null}</ChartFrame>
         </DashGrid>
       </div>
+    );
+  }
+
+  // ── Network / fetch error (AC-VR-019) ───────────────────────────────────
+  // When useUserView returns isError=true the data is undefined. Without this guard
+  // the renderer falls through to the not-found state — indistinguishable from a
+  // genuine RLS null and offers no retry affordance (design-review finding, I3).
+  if (isError) {
+    return (
+      <ListState
+        variant="error"
+        title="Could not load this view."
+        sub="A network or server error occurred. Please try again."
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
@@ -209,8 +259,8 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           title="This view's definition is invalid."
           sub="The view cannot be rendered because its specification is invalid."
         />
-        {/* OD-2: dev/non-prod disclosure */}
-        {import.meta.env.VITE_APP_ENV !== 'production' && isValidationError && (
+        {/* OD-2: dev/non-prod disclosure — VITE_APP_ENV=prod in production (docs/environments.md §3) */}
+        {import.meta.env.VITE_APP_ENV !== 'prod' && isValidationError && (
           <details className="rounded border border-border p-3 text-[12px]">
             <summary className="cursor-pointer font-semibold text-muted-foreground">
               Developer detail (hidden in production)
@@ -242,17 +292,11 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   }
 
   // ── Ready: render compiled panels (FR-VR-036..042) ─────────────────────
-  if (compiledPanels === null || panelStates.length === 0) {
-    // Still compiling or state not yet initialized — show skeleton
-    return (
-      <div className="flex flex-col gap-6 p-6">
-        <div aria-hidden="true" className="skel h-8 w-1/3 rounded" />
-        <DashGrid>
-          <ChartFrame state="loading">{null}</ChartFrame>
-        </DashGrid>
-      </div>
-    );
-  }
+  // compiledPanels is guaranteed non-null here: the empty-spec guard above handles
+  // compiledPanels.length === 0, and the loading/compiling guard above covers the
+  // null / still-initializing case. The panelStates.length check is a safety net
+  // in case of a React render cycle race.
+  if (!compiledPanels || panelStates.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -266,7 +310,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           const panelStyle = colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
 
           return (
-            <div key={panel.id} style={panelStyle}>
+            <div key={panel.id} style={panelStyle} className="rounded-lg border border-border bg-card p-4">
               <ChartFrame
                 state={
                   state.loading

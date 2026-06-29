@@ -77,6 +77,9 @@ pipeline + progression history, no drilling around); P4 is shared with `/approva
 | `/administration` | Admin | *When onboarding/offboarding, I want to manage users + roles, so access is correct.* | Create/edit user; assign role; archive. |
 | `/reports` | Exec / Finance | *When I need to report out, I want to export/compose the numbers, so I can share them.* | Export (xlsx) / compose — *(placeholder today; job recorded for when built).* |
 
+### Personal / composed views (ADR-0036 — user/agent-composed UI)
+| `/views/:viewId` User-composed view | Any role | *When I've saved a composed view (dashboard), I want to open it and see it rendered with my live data, so I can monitor what matters to me without waiting for a built-in screen.* | Open from **"My Views"** (Rail group / ⌘K "Views"); each panel hydrates a real primitive from the saved spec, **re-executed under my own JWT** (never the author's cached rows — the deputy model); loading/empty/error/permission states are honest — no dead doorway. *(Renderer = I3; manual builder = I4; agent author = I5.)* |
+
 ---
 
 ## 3. Cross-cutting interaction paradigms (the "5 record verbs" + preview)

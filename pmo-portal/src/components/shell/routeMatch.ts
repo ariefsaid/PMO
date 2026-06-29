@@ -203,10 +203,16 @@ export function breadcrumbForPath(
   if (placeholderTitle) return [{ label: placeholderTitle }];
 
   // User-view detail route → [My Views (link to /) > <view.name>] (OD-4, FR-VR-053)
+  // OD-4 note: 'My Views' currently links to '/' (Dashboard) because there is no
+  // /views index route yet. The label is accurate (the section IS called My Views) but
+  // the destination is unexpected for a screen-reader user — WCAG 2.4.6 (descriptive
+  // link labels). To mitigate the mismatch the crumb carries an aria-label spelling out
+  // the destination, consistent with option (a) of OD-4. When a /views index route ships
+  // (I4/I5), update onClick to navigate('/views') and drop the aria-label override.
   if (pathname.startsWith('/views/')) {
     const viewCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
     return [
-      { label: 'My Views', onClick: () => navigate?.('/') },
+      { label: 'My Views', onClick: () => navigate?.('/'), ariaLabel: 'My Views — back to Dashboard' },
       { label: viewCrumb },
     ];
   }

@@ -131,10 +131,10 @@ export async function executeCompiledQuery(compiled: CompiledQuery): Promise<unk
     });
   }
 
-  // Apply limit (FR-VR-023). The compiler enforces 1–500; the executor trusts it.
-  if (compiled.limit !== undefined) {
-    chain = chain.limit(compiled.limit);
-  }
+  // Apply limit (FR-VR-023). The compiler enforces 1–500; default to 500 as a
+  // belt-and-suspenders guard so no call ever issues an unbounded PostgREST scan
+  // regardless of what the compiler did (OD-3, FR-VR-022).
+  chain = chain.limit(compiled.limit ?? 500);
 
   const { data, error } = await chain;
   if (error) {
