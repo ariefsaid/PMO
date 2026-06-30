@@ -39,7 +39,6 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
       fnUrl: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-chat`,
     });
     // sessionRef is stable (useRef returns the same object); no deps needed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openPanel = useCallback(() => setOpen(true), []);

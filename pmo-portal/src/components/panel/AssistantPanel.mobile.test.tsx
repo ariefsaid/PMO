@@ -157,7 +157,7 @@ describe('AssistantPanel — mobile modal path (D-A2-1, design-plan §1.2/§5.2)
 
   it('mobile scrim click closes the panel', async () => {
     const user = userEvent.setup();
-    const { setOpen } = renderMobilePanel({ open: true });
+    renderMobilePanel({ open: true });
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).not.toHaveAttribute('inert');
