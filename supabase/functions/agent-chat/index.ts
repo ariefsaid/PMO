@@ -122,6 +122,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           userId,
           // A3: injectable can() for deputy re-auth (FR-AW-010)
           can: agentCan,
+          // A4: enable compose_view tool (Task 8b / FR-CV-024 / D7).
+          // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
+          // so enabling the tool here is harmless when the SPA never renders an artifact
+          // (OQ-A4-2 recommendation — default true; add a function secret if needed).
+          composeEnabled: true,
           // rateGuard: undefined (AR-OD-002 default — disabled in v1)
         })) {
           controller.enqueue(enc.encode(encodeSse(ev)));
