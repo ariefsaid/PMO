@@ -131,8 +131,102 @@ If A is chosen, the build splits into a mini-epic (each its own SDD → plan →
 - **A3** — **write** tools through repositories/RPCs with the **approve/deny** confirmation UX (SoD/RLS enforced).
 - **A4** — `compose_view` tool wired to the I3 renderer artifact slot (folds the I5 composer into the conversation).
 
+## Decision (refined per owner direction, 2026-06-30) — Option A behind a B-shaped agent-runtime seam
+
+The choice is **not** "A *or* B" but **A now, B-ready by construction**. Build the panel ourselves (Option A,
+inspired by `code-agents-ui`), but place a **ports-and-adapters / anti-corruption seam** between PMO and the
+**agent runtime**, deliberately shaped to `agent-native`'s contracts. PMO code depends only on the **PMO-owned
+port**; the runtime is a swappable **adapter**. So we run our deputy edge-fn today, can drop in the
+`agent-native` sidecar later **without a rewrite**, and absorb upstream protocol churn in one adapter file.
+
+Grounded in `agent-native`'s actual public type surface (`@agent-native/code-agents-ui` types), which models an
+agent as **Runs + a Transcript of events + control commands**, not a plain chat: `CodeAgentRun { id, title,
+status, progress }` · `CodeAgentRunStatus` (queued | running | paused | **needs-approval** | completed |
+errored) · `CodeAgentTranscriptEvent { id, runId, type, text, createdAt }` (type ∈ {user, system, artifact,
+status}) · `CodeAgentFollowUpRequest` (multi-turn) · `CodeAgentControlCommand` (pause/resume/cancel) ·
+`CodeAgentRemoteConnector*` (the remote-runtime hook). Note `needs-approval` ≙ PMO's agent-proposes/
+user-disposes; `artifact` events ≙ generative UI → the I3 renderer.
+
+### The seam (PMO-owned port — a clean *superset* of the above)
+
+```ts
+// src/lib/agent/runtime/port.ts  — PMO owns this; nothing else imports an adapter directly.
+type AgentRunStatus = 'queued'|'running'|'paused'|'needs-approval'|'completed'|'errored';
+interface AgentRun     { id: string; title: string; status: AgentRunStatus; progress?: number }
+type AgentEventType = 'user'|'assistant'|'tool'|'artifact'|'status'|'system';   // ⊇ their set
+interface AgentEvent   { id: string; runId: string; type: AgentEventType; text?: string; payload?: unknown; createdAt: string }
+
+interface AgentRuntime {                       // the PORT
+  createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun>;
+  followUp(runId: string, message: string): Promise<void>;
+  control(runId: string, cmd: 'pause'|'resume'|'cancel'|'approve'|'reject'): Promise<void>;
+  subscribe(runId: string): AsyncIterable<AgentEvent>;        // SSE/stream of transcript events
+}
+```
+
+```ts
+// One action definition, both runtimes — defineAction-compatible (their idiom), deputy-bound (ours).
+interface AgentAction<I> {
+  name: string;
+  description: string;
+  schema: ZodType<I>;                          // identical to agent-native defineAction `schema`
+  surfaces?: ('ui'|'agent'|'mcp'|'cli')[];
+  confirm?: boolean;                           // true → emits a `needs-approval` event (approve/deny chip)
+  run: (input: I, ctx: DeputyContext) => Promise<unknown>;   // ctx ALWAYS carries the caller JWT
+}
+```
+
+### Two adapters behind the one port
+
+```
+  AssistantPanel ── depends only on ──►  AgentRuntime (PORT) ◄── implemented by ──┐
+  (PMO UI, our build)                                                            │
+                                            ┌──────────────────────────────┐    │
+   TODAY  ─────────────────────────────────►│ PmoNativeRuntime              │◄───┤
+                                            │  → Deno `agent-chat` edge fn  │    │
+                                            │  caller JWT · RLS ceiling ·   │    │
+                                            │  repo/RPC actions · SSE        │    │
+                                            └──────────────────────────────┘    │
+                                            ┌──────────────────────────────┐    │
+   LATER (no rewrite) ──────────────────────►│ AgentNativeRuntime            │◄───┘
+                                            │  → sidecar via CodeAgentRemote │
+                                            │  Connector; maps AgentRun↔     │
+                                            │  CodeAgentRun, AgentEvent↔     │
+                                            │  TranscriptEvent, control↔     │
+                                            │  ControlCommand; SSO + .rls()  │
+                                            └──────────────────────────────┘
+```
+
+- **`PmoNativeRuntime`** (ships in A): POSTs to the Deno `agent-chat` edge fn — multi-turn deputy loop, the
+  `AgentAction`s exposed as Anthropic tools, transcript streamed as `AgentEvent`s. Caller JWT, RLS ceiling;
+  `confirm` actions surface as `needs-approval`.
+- **`AgentNativeRuntime`** (later, isolated): a field-mapping onto `CodeAgentCreateRunRequest` /
+  `FollowUpRequest` / `TranscriptSubscriptionBatch` / `ControlCommand` via the `RemoteConnector`; the same
+  `AgentAction`s registered through their `defineAction`. Auth rides the SSO cookie + the `.rls()` discipline.
+
+### Why this satisfies the directive
+- **Maximise their capability without hindrance:** the port is a *superset* of their Run/Transcript/Action
+  model — adopting the sidecar exposes their full surface through the same panel; nothing in PMO blocks it.
+- **Follow upstream with abstraction:** PMO/panel import only the PMO-owned port + the `AgentAction` contract.
+  All `agent-native` coupling lives in `AgentNativeRuntime` (one file); their v0.x churn is absorbed there, a
+  **contract test** pins the mapping, a version bump = update one adapter, not the app.
+- **Deputy invariant in both:** `DeputyContext` always carries the real caller JWT; neither adapter ever
+  touches `service_role`; RLS caps both runtimes identically.
+- **No premature cost:** A ships with `PmoNativeRuntime` only — zero second service, zero domain dependency.
+  `AgentNativeRuntime` is built when/if a custom domain + the sidecar are green-lit; the panel is untouched.
+
+### Build order (refined)
+- **A1** — the **port** (`AgentRuntime` + `AgentAction`) + `PmoNativeRuntime` + the `agent-chat` edge fn with a
+  read-only tool over 1–2 repositories (deputy, row-capped), streamed as `AgentEvent`s. *Contract tests on the
+  port are written here* so any future adapter must satisfy them.
+- **A2** — the `AssistantPanel` drawer (⌘J, transcript list, streaming, model/budget guard) against the port.
+- **A3** — write `AgentAction`s (repo/RPC) with `confirm:true` → `needs-approval` approve/deny UX.
+- **A4** — `compose_view` as an `AgentAction`; `artifact` events render via the I3 renderer.
+- **B-adapter (deferred)** — `AgentNativeRuntime` + a contract-test suite proving it satisfies the same port;
+  gated on a custom domain + the §8 sidecar decision. **No app/panel change required to add it.**
+
 ## Open questions for the owner
-1. **Approach:** confirm A vs B (this ADR recommends A).
+1. **Approach:** confirm A-with-the-seam (this ADR now recommends exactly that).
 2. **Write scope for v1:** start **read-only** (explore + compose), add write-actions (A3) in a follow-up? (Recommended — smallest safe first cut.)
 3. **Entry point:** ⌘J + a Rail "Assistant" item, or a floating button? (Recommended: ⌘J + Rail, matching the existing CommandPalette idiom.)
 4. **Domain (only if B):** is a custom domain on the near-term roadmap? Without it, B's SSO cannot be exercised.
