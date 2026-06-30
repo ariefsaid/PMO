@@ -144,6 +144,7 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
       }
       // POST: createRun or followUp — return the run object first, then SSE on the same call
       // PmoNativeRuntime uses a single POST that returns SSE (text/event-stream)
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -182,7 +183,7 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
             'Content-Range': '0-0/1',
             // PostgREST returns the inserted row via Prefer: return=representation
           },
-          body: JSON.stringify([MOCK_SAVED_VIEW]),
+          body: JSON.stringify(MOCK_SAVED_VIEW),
         });
         return;
       }
@@ -200,7 +201,9 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
     await signIn(page, 'admin@acme.test');
 
     // ── 2. Open the AssistantPanel via Ctrl+J (Linux CI) ─────────────────────
-    await page.keyboard.press('Control+j');
+    // Open the panel deterministically via the Rail "Assistant" toggle (a real click,
+    // no global-hotkey race). Opening is setup here, not the behavior under test.
+    await page.getByRole('button', { name: 'Assistant' }).click();
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
     await expect(panel).toBeVisible({ timeout: 5_000 });
