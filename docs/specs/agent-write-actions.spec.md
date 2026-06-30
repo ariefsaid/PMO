@@ -57,6 +57,26 @@ approve/deny (A3)."
 
 ## 2. The Approve/Deny Lifecycle (the spec's spine)
 
+> **⚑ DIRECTOR RECONCILIATION D-A3-1 (BINDING — supersedes the Option-A wording in §2, §3.1, §3.5,
+> NFR-AW-SEC-007 and AW-OD-004 below).** The build follows the **stateless re-POST** model, **not** a
+> server-held `waitForApproval` promise or a separate `agent-approve` endpoint:
+> - The handler does **not** block on an injected `waitForApproval`. When the model emits a `confirm:true`
+>   tool_use, the handler emits the `needs-approval` AgentEvent (carrying `{ toolUseId, actionName,
+>   structuredArgs, server-composed humanSummary }`) and **ends the stream** with run status
+>   `needs-approval`. No promise is held server-side; the function returns.
+> - **Approve/Deny is a normal `followUp` re-POST to `agent-chat`** carrying a `decision` for that
+>   `toolUseId` (no second endpoint). On approve, the handler **re-validates `structuredArgs` against the
+>   action `inputSchema` and re-derives authorization (`org`/role + `can()`), then executes under the
+>   poster's caller JWT** — RLS/SoD is the ceiling (D-A3-2: a tampered decision cannot escalate beyond
+>   what the user could already do in the UI). On deny, a `tool_result` "user declined" is appended and
+>   the model acknowledges.
+> - Idempotency/"already consumed" is **positional** (the trailing unresolved `tool_use` in the replayed
+>   transcript) + the UI chip-disable, not an in-memory `consumed` set. AW-OD-005's expiry is realized as
+>   chip-disable + graceful "stale decision → rejected", not a server timer.
+>
+> **The authoritative behavior + tests are in `docs/plans/2026-06-30-agent-write-actions.md` §5. Treat the
+> prose below as the lifecycle intent; where it names `waitForApproval`/`agent-approve`, read the plan.**
+
 The entire A3 design pivots on this protocol. Every other requirement is a consequence of it.
 
 ```
@@ -526,12 +546,15 @@ Test file: `pmo-portal/src/lib/agent/agentChatHandler.test.ts`
 
 ### SoD / RLS proof — write cannot exceed caller permission (Integration — pgTAP)
 
-**AC-AW-009** (Integration — pgTAP) — *RLS denies write for under-privileged role.*
-Given user A has role `engineer` in org X, and `create_activity` is invoked under user A's JWT
-calling `crm_activities` INSERT
+**AC-AW-009** (Integration — pgTAP) — *RLS gates `create_activity` to writer roles; denies the under-privileged role.*
+*(Reconciliation R-A3-7: `crm_activities` write is gated to Admin/Exec/PM/Finance — an Engineer is **denied**,
+per AC-CRM-012. The success case therefore uses a **PM**, and the Engineer is the under-privileged-denied case.)*
+Given a **PM** (user A) and an **Engineer** (user C) both in org X, with `create_activity` invoked under each
+user's own JWT calling `crm_activities` INSERT
 When the underlying Supabase operation runs (the exact call path the write action uses)
-Then the INSERT succeeds for contacts within org X (Engineer is in MASTER_DATA roles)
-AND a cross-tenant INSERT (org Y contact) returns ZERO rows inserted (RLS `WITH CHECK` blocks it).
+Then the PM's INSERT **succeeds** for a contact within org X;
+AND the Engineer's INSERT **returns ZERO rows** (RLS denies the non-writer role);
+AND the PM's **cross-tenant** INSERT (an org Y contact) returns ZERO rows (RLS `WITH CHECK` blocks it).
 Test file: `supabase/tests/agent_write_create_activity_rls.test.sql`
 
 **AC-AW-010** (Integration — pgTAP) — *`update_task_status` is column-pinned to assignee for Engineer.*
