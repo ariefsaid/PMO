@@ -97,9 +97,15 @@ export interface RailProps {
    * Only rendered when isFeatureEnabled('agentAssistant') is true; absent when flag is off.
    */
   onOpenAssistant?: () => void;
+  /**
+   * Whether the AssistantPanel is currently open. Used for aria-pressed on the
+   * toggle button (WCAG 4.1.2 name/role/value; D-A2-1, Blocker 5/9).
+   * Defaults to false when not provided.
+   */
+  assistantPanelOpen?: boolean;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant }) => {
+export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen }) => {
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
@@ -236,7 +242,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <button
             type="button"
-            aria-pressed={false}
+            aria-pressed={assistantPanelOpen ?? false}
             onClick={() => {
               onOpenAssistant?.();
               onNavigate?.();

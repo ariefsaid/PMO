@@ -158,7 +158,7 @@ const ShellChrome: React.FC = () => {
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.
-  const { togglePanel, openPanel } = useAgentRuntimeContext();
+  const { togglePanel, openPanel, open: assistantOpen } = useAgentRuntimeContext();
 
   // A2: Register ⌘J / Ctrl+J global hotkey — flag-gated (FR-AP-004).
   useAssistantHotkey({
@@ -328,6 +328,8 @@ const ShellChrome: React.FC = () => {
             railActiveOverride={railActiveOverride}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
             onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
+            // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).
+            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
           />
         }
         header={

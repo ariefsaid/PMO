@@ -106,4 +106,25 @@ describe('Rail — agentAssistant flag gate for the "Assistant" entry (AC-AP-004
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /projects/i })).toBeInTheDocument();
   });
+
+  // ── aria-pressed tracks open state (WCAG 4.1.2, Blocker 5/9) ─────────────
+
+  it('AC-AP-004 aria-pressed=false when assistantPanelOpen=false (panel closed)', () => {
+    spy = vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) =>
+      key === 'agentAssistant' ? true : features.FEATURES[key],
+    );
+    renderRail({ assistantPanelOpen: false });
+    const btn = screen.getByRole('button', { name: /assistant/i });
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('AC-AP-004 aria-pressed=true when assistantPanelOpen=true (panel open)', () => {
+    spy = vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) =>
+      key === 'agentAssistant' ? true : features.FEATURES[key],
+    );
+    renderRail({ assistantPanelOpen: true });
+    const btn = screen.getByRole('button', { name: /assistant/i });
+    // aria-pressed must reflect the actual open state — not hardcoded false
+    expect(btn).toHaveAttribute('aria-pressed', 'true');
+  });
 });
