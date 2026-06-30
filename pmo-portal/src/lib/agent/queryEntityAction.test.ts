@@ -181,6 +181,52 @@ it('requiredFilter entity would be refused when filter is absent (proves the bra
   expect((res as { error?: string }).error).toBeUndefined();
 });
 
+// ── Blocker 6: filter column must be in allowedColumns (column-whitelist bypass) ─────
+
+it('AC-AR-006 filter on a non-whitelisted column returns structured error with no DB read (Blocker 6)', async () => {
+  // RED: old code validated select columns but not the filter.column.
+  // A prompt-injected tool call filtering on 'password_hash' or any other excluded
+  // column would reach ctx.supabase.eq('password_hash', ...) — a boolean oracle attack.
+  const fromSpy = vi.fn();
+  const ctx = {
+    jwt: 'j',
+    userId: 'u',
+    orgId: 'o',
+    supabase: { from: fromSpy },
+  } as unknown as DeputyContext;
+
+  const res = await runQueryEntity(
+    {
+      entity: 'projects',
+      columns: ['id', 'name'],
+      filter: { column: 'secret_internal_column', op: 'eq', value: 'guess' },
+    },
+    ctx,
+  ) as { error: string };
+
+  expect(res.error).toMatch(/unknown filter column/i);
+  expect(fromSpy).not.toHaveBeenCalled(); // no DB read attempted
+});
+
+it('filter on a whitelisted column is allowed to proceed (control — no false positives)', async () => {
+  // The fix must only block non-whitelisted filter columns.
+  // A filter on 'id' (which IS in allowedColumns for projects) must reach the DB.
+  const ctx = mockCtx([{ id: '1', name: 'proj' }]);
+
+  const res = await runQueryEntity(
+    {
+      entity: 'projects',
+      columns: ['id', 'name'],
+      filter: { column: 'id', op: 'eq', value: '1' },
+    },
+    ctx,
+  ) as { rowCount: number };
+
+  expect(res.rowCount).toBe(1);
+  // fromSpy WAS called (the DB was reached for a valid filter column)
+  expect((ctx.supabase.from as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0);
+});
+
 // ── Blocker 1: in-filter with multi-value list calls .in() directly (not .eq().in()) ──
 
 it('in-filter with multiple values calls .in() directly on the builder — not .eq().in()', async () => {

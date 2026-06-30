@@ -85,7 +85,16 @@ export async function runQueryEntity(
     }
   }
 
-  // ── Step 3: requiredFilter check (R3 / built for A3) ─────────────────────
+  // ── Step 3: filter column whitelist check (Blocker 6 / NFR-AR-SEC-004) ──────
+  // The SELECT projection is whitelisted in step 2. The FILTER column must also
+  // be in allowedColumns — otherwise a prompt-injected tool call could filter on
+  // any real column of the table (including intentionally excluded ones) and use
+  // the result rowCount as a boolean oracle to probe hidden values.
+  if (inp.filter && !entry.allowedColumns.has(inp.filter.column)) {
+    return { error: `unknown filter column: ${inp.filter.column} on entity ${entityKey}` };
+  }
+
+  // ── Step 4: requiredFilter check (R3 / built for A3) ─────────────────────
   if (
     entry.requiredFilter &&
     (!inp.filter || inp.filter.column !== entry.requiredFilter)
@@ -95,7 +104,7 @@ export async function runQueryEntity(
     };
   }
 
-  // ── Step 4: build the query (AC-AR-007, AC-AR-008) ───────────────────────
+  // ── Step 5: build the query (AC-AR-007, AC-AR-008) ───────────────────────
   const effLimit = Math.min(inp.limit ?? AGENT_READ_ROW_CAP, AGENT_READ_ROW_CAP);
   const colsStr = requestedCols.join(',');
   const builder = ctx.supabase.from(entry.table).select(colsStr);
@@ -118,7 +127,7 @@ export async function runQueryEntity(
     query = builder.limit(effLimit);
   }
 
-  // ── Step 5: race against timeout (D6) ─────────────────────────────────────
+  // ── Step 6: race against timeout (D6) ─────────────────────────────────────
   let result: { data: unknown[] | null; error: unknown };
   try {
     result = await Promise.race([
