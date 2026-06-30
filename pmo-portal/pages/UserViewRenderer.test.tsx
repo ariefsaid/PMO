@@ -304,6 +304,69 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     expect(screen.getByText('Globex')).toBeInTheDocument();
   });
+
+  // ── Remaining primitives wired (category→metric hydration) ──────────────────
+  function setupGrouped(primitive: string, props: Record<string, unknown> = {}) {
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'abc', name: 'Grouped', description: null,
+        spec: { version: 1, panels: [{ id: 'p1', primitive, querySpec: { entity: 'projects', select: ['status'], groupBy: 'status', aggregate: { fn: 'count', column: 'id', alias: 'cnt' } }, props }] },
+        archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1',
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      isPending: false, isError: false,
+    });
+    mockCompile.mockReturnValue([{
+      id: 'p1', primitive,
+      compiledQuery: { entity: 'projects', repositoryMethod: 'project.list', resolvedFilters: [], resolvedSelect: ['status', 'cnt'], resolvedGroupBy: 'status', resolvedAggregate: { fn: 'count', column: 'id', alias: 'cnt' } },
+      props,
+    }]);
+  }
+
+  it('AC-VR-011b: StatTiles hydrates one tile per grouped row (label + metric)', async () => {
+    setupGrouped('StatTiles');
+    mockExecute.mockResolvedValue([{ status: 'Active', cnt: 5 }, { status: 'Closed', cnt: 2 }]);
+    renderRenderer();
+    await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument());
+    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('AC-VR-011c: Funnel hydrates one stage per grouped row', async () => {
+    setupGrouped('Funnel');
+    mockExecute.mockResolvedValue([{ status: 'Lead', cnt: 10 }, { status: 'Won', cnt: 3 }]);
+    renderRenderer();
+    await waitFor(() => expect(screen.getByText('Lead')).toBeInTheDocument());
+    expect(screen.getByText('Won')).toBeInTheDocument();
+  });
+
+  it('AC-VR-011d: StatusBarChart hydrates an aria summary + legend from grouped rows', async () => {
+    setupGrouped('StatusBarChart');
+    mockExecute.mockResolvedValue([{ status: 'Open', cnt: 4 }, { status: 'Done', cnt: 6 }]);
+    renderRenderer();
+    // figure role=img with the aria summary "<entity>, <total> records, most in <top>."
+    await waitFor(() => expect(screen.getByRole('img', { name: /10 records/i })).toBeInTheDocument());
+    expect(screen.getByRole('img', { name: /most in Done/i })).toBeInTheDocument();
+  });
+
+  it('AC-VR-011e: ProgressBar hydrates a scalar value from the first row', async () => {
+    setupGrouped('ProgressBar', { 'aria-label': 'Utilization' });
+    mockExecute.mockResolvedValue([{ status: 'x', cnt: 42 }]);
+    renderRenderer();
+    await waitFor(() => {
+      const bar = screen.getByRole('progressbar', { name: 'Utilization' });
+      expect(bar).toHaveAttribute('aria-valuenow', '42');
+    });
+  });
+
+  it('AC-VR-011f: Card hydrates a definition list from the first row columns', async () => {
+    setupGrouped('Card');
+    mockExecute.mockResolvedValue([{ status: 'Active', cnt: 9 }]);
+    renderRenderer();
+    await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument());
+    expect(screen.getByText('9')).toBeInTheDocument();
+  });
 });
 
 // ── Axe a11y (AC-VR-012, NFR-VR-A11Y-001..004) ───────────────────────────────
