@@ -4,9 +4,7 @@
  * FR-AP-004: flag-gated
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { fireEvent } from '@testing-library/react';
-import React from 'react';
+import { renderHook, fireEvent } from '@testing-library/react';
 
 // Import AFTER potential module mock
 let useAssistantHotkey: (opts: { enabled: boolean; onToggle: () => void }) => void;

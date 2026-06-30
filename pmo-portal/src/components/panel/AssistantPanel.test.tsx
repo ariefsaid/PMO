@@ -240,10 +240,18 @@ describe('AssistantPanel', () => {
   });
 
   it('AC-AP-009 while streaming: textarea + Send disabled; Stop enabled', async () => {
-    // Create a runtime that never resolves subscribe (keeps streaming)
+    // Create a runtime that never resolves subscribe (keeps streaming).
+    // We use an explicit iterator (not a generator) to avoid the require-yield lint rule.
     const neverEndingIterable: AsyncIterable<AgentEvent> = {
-      [Symbol.asyncIterator]: async function* () {
-        await new Promise<void>(() => {}); // Never resolves
+      [Symbol.asyncIterator]() {
+        return {
+          next(): Promise<IteratorResult<AgentEvent>> {
+            return new Promise<IteratorResult<AgentEvent>>(() => {}); // Never resolves
+          },
+          return(): Promise<IteratorResult<AgentEvent>> {
+            return Promise.resolve({ value: undefined as unknown as AgentEvent, done: true });
+          },
+        };
       },
     };
 
