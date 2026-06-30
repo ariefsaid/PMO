@@ -29,7 +29,7 @@ import type { IconName } from '@/src/components/ui/icons';
  * The group-by is the category; the aggregate alias (or the first non-category select)
  * is the metric. Scalar primitives (ProgressBar) read the metric column from the first row.
  */
-export function categoryMetricCols(panel: CompiledPanel): { labelCol: string; valueCol: string } {
+function categoryMetricCols(panel: CompiledPanel): { labelCol: string; valueCol: string } {
   const q = panel.compiledQuery;
   const labelCol = q.resolvedGroupBy ?? q.resolvedSelect[0];
   const valueCol =
