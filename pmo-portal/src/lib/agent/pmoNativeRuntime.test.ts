@@ -121,7 +121,7 @@ it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs wi
   const secondBody = [toolResultEvent, completedEvent];
 
   let callCount = 0;
-  const fetchImpl = vi.fn().mockImplementation(() => {
+  const fetchMock = vi.fn().mockImplementation(() => {
     callCount++;
     if (callCount === 1) {
       return Promise.resolve({
@@ -133,12 +133,12 @@ it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs wi
       ok: true,
       body: readableFrom(secondBody.map(encodeSse).join('')),
     });
-  }) as unknown as typeof fetch;
+  });
 
   const runtime = new PmoNativeRuntime({
     getJwt: () => 'caller-jwt',
     fnUrl: 'http://x/functions/v1/agent-chat',
-    fetchImpl,
+    fetchImpl: fetchMock as unknown as typeof fetch,
   });
 
   const run = await runtime.createRun({ goal: 'log a call' });
@@ -158,8 +158,8 @@ it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs wi
   }
 
   // The second POST must carry decision.verdict === 'approve'
-  expect(fetchImpl).toHaveBeenCalledTimes(2);
-  const secondCall = fetchImpl.mock.calls[1];
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
   const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
   expect(body.decision).toEqual({ pendingId: 'p1', verdict: 'approve' });
 
@@ -191,7 +191,7 @@ it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs wit
   };
 
   let callCount = 0;
-  const fetchImpl = vi.fn().mockImplementation(() => {
+  const fetchMock2 = vi.fn().mockImplementation(() => {
     callCount++;
     if (callCount === 1) {
       return Promise.resolve({
@@ -203,12 +203,12 @@ it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs wit
       ok: true,
       body: readableFrom(encodeSse(completedEvent)),
     });
-  }) as unknown as typeof fetch;
+  });
 
   const runtime = new PmoNativeRuntime({
     getJwt: () => 'caller-jwt',
     fnUrl: 'http://x/functions/v1/agent-chat',
-    fetchImpl,
+    fetchImpl: fetchMock2 as unknown as typeof fetch,
   });
 
   const run = await runtime.createRun({ goal: 'log a call' });
@@ -217,7 +217,7 @@ it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs wit
   await runtime.control(run.id, 'reject');
   for await (const _ of runtime.subscribe(run.id)) { /* drain second */ }
 
-  const secondCall = fetchImpl.mock.calls[1];
-  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
-  expect(body.decision).toEqual({ pendingId: 'p2', verdict: 'reject' });
+  const secondCall2 = fetchMock2.mock.calls[1] as [string, RequestInit];
+  const body2 = JSON.parse(secondCall2[1].body as string) as AgentChatRequest;
+  expect(body2.decision).toEqual({ pendingId: 'p2', verdict: 'reject' });
 });
