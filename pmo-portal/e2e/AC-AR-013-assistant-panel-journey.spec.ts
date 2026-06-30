@@ -68,38 +68,22 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
     // Intercept agent-chat SSE calls before any navigation.
     // The mock returns the pre-scripted SSE frames; no live Anthropic call is made.
     await page.route('**/functions/v1/agent-chat', async (route) => {
-      // Mock the createRun POST → return a run object
-      const request = route.request();
-      const url = request.url();
-
-      // createRun = POST /agent-chat (no runId param)
-      // subscribe = GET /agent-chat?runId=...
-      if (request.method() === 'GET' || url.includes('subscribe')) {
-        // Streaming subscribe response
-        await route.fulfill({
-          status: 200,
-          contentType: 'text/event-stream',
-          headers: {
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-          },
-          body: SSE_FRAMES,
-        });
-      } else {
-        // POST createRun / followUp → JSON with run object
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            id: RUN_ID,
-            title: 'How many active projects?',
-            status: 'running',
-            orgId: 'org-test',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }),
-        });
-      }
+      // PmoNativeRuntime uses a SINGLE POST whose RESPONSE BODY is the SSE stream
+      // (createRun + followUp are client-side only; the one network call is the
+      // subscribe POST in _doSubscribe, read via fetch + getReader → decodeSseStream).
+      // So the POST must be fulfilled with text/event-stream, NOT a JSON run object —
+      // returning JSON here makes decodeSseStream yield a bogus event and the tool /
+      // assistant / completed frames never arrive (the failure the integration gate
+      // caught). The GET branch is defensive only; it is never exercised by the adapter.
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+        body: SSE_FRAMES,
+      });
     });
   });
 
