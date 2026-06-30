@@ -492,6 +492,50 @@ exception is forever.
 date-fns vendored for date parsing/arithmetic (pinned exact, MIT) so no one hand-rolls
 timezone-stable date parsing again.
 
+### ENG-A2-1 — AssistantPanel dual-mode contract requires both-mode coverage (2026-06-30)
+
+The AssistantPanel has two fundamentally different a11y modes (D-A2-1):
+- **Desktop (≥1024px):** `role="complementary"`, NON-modal, no focus-trap, no scrim, background NOT inert.
+- **Mobile (<1024px):** `role="dialog" aria-modal`, full focus-trap, scrim, background inert.
+
+**Rule:** Both modes MUST have automated test coverage. jsdom's `matchMedia` default returns `true` for
+all `min-width` queries, so standard tests only exercise the desktop branch. Any test file exercising
+the mobile branch MUST stub `matchMedia` to return `false` (via `vi.stubGlobal`). Failing to cover
+both modes means a regression in the focus-trap or background-inert logic would ship green.
+
+**Canonical coverage file:** `src/components/panel/AssistantPanel.mobile.test.tsx` stubs mobile
+viewport and asserts role/aria-modal, scrim click-close, #main inert on open, scroll-lock, axe.
+
+**Graduated from:** design-review Discover finding, Blocker 10 (2026-06-30 A2 review).
+
+---
+
+### ENG-A2-2 — agent runtime getJwt must read session via ref, never a memo-captured value (2026-06-30)
+
+Supabase silently refreshes access tokens every ~55 minutes via `onAuthStateChange`. If `getJwt` is
+constructed inside a `useMemo([])` closure capturing the `session` React state value, it will return the
+stale token from the first render for the entire session lifetime — every agent-chat POST after the first
+token refresh gets a 401.
+
+**Fix pattern (binding):** keep a `useRef` updated on every render:
+```tsx
+const sessionRef = useRef(session);
+sessionRef.current = session; // runs every render, no dep-array lint issue
+// inside useMemo:
+getJwt: () => sessionRef.current?.access_token ?? ''
+```
+
+This is the standard React pattern for stable callbacks that need the latest state — same as
+`runIdRef.current` in `useAssistantPanel.ts`. The `eslint-disable-next-line react-hooks/exhaustive-deps`
+comment is not needed when using this pattern (the ref is stable).
+
+**Canonical test:** `AgentRuntimeProvider.test.tsx` — the "stale JWT closure" test re-renders with a
+new session object and asserts `getJwt()` returns the updated token.
+
+**Graduated from:** design-review Discover finding, Blockers 3/7/8 (2026-06-30 A2 review).
+
+---
+
 ### OD-DATE-1 — Date math uses date-fns (UTC-stable); never hand-roll T00:00:00Z parsing
 All date parsing/arithmetic uses **date-fns** (`parseISO`), pinned exact (MIT). Two conventions,
 both preserved: **UTC-midnight** — `parseISO('${iso}T00:00:00Z')` — for time-axis coordinates /
@@ -500,3 +544,82 @@ for the calendar grid + xlsx cells (monthMatrix, `toWorkbookBuffer`). Do NOT han
 `new Date(\`${iso}T00:00:00Z\`)` / manual `getUTC*` / `getFullYear` string-building. Two
 intentional native exceptions stay (would need `date-fns-tz`, not worth a 2nd dep):
 `formatDocNumber` (UTC parts) and `formatSCurveAxisDate` (Intl UTC formatter).
+
+---
+
+## OD-A3 — Agent write-actions (A3) design decisions (graduated from Discover pass, 2026-06-30)
+
+### OD-A3-CHIP — Approval chip state MUST be keyed by `pendingId`, not a single global atom
+
+**Decision (structural correctness):** `ChipStateMap = Record<string, ApprovalChipState>` replaces the former single `approvalChipState` atom in `useAssistantPanel`. Each chip looks up its own state by `pendingId`.
+
+**Why:** A single global resets to `pending` when the second proposal arrives, which re-enables Approve/Deny on any earlier resolved chip — allowing the user to double-approve a write action or approve an action the agent has moved past. This is a UX correctness failure, not cosmetic. The per-`pendingId` map isolates each chip's lifecycle: once `approved` or `denied`, it stays resolved even as new proposals arrive.
+
+**Enforced by:** `AssistantPanel.test.tsx` — "two sequential needs-approval events: first chip shows Approved after approval even when second chip is pending."
+
+**Canonical implementation:** `src/hooks/useAssistantPanel.ts` exports `ChipStateMap`; threaded via `Transcript` → `TranscriptItem` → `ApprovalChip`. The active `pendingId` is tracked with a `useRef` so `approve()` / `deny()` update only the current chip.
+
+**See also:** DESIGN.md §5 ApprovalChip — "Per-chip state keyed by pendingId" note.
+
+---
+
+## OD-A4 — Agent compose-view (A4) design decisions (graduated from Discover pass, 2026-06-30)
+
+### OD-A4-SAVED-TOKEN — Blocker-6 success-text token rule extends to ArtifactSlot "Saved" label
+
+**Decision:** Any future success-green text in the AssistantPanel or its child components MUST use
+`text-[hsl(var(--success-text))]` (the AA-darkened `--success-text: 142 64% 28%` token), NEVER a raw
+Tailwind literal such as `text-green-600`. This rule, already enforced on `ApprovalChip`'s "Approved ✓"
+label (DESIGN.md §5 Blocker-6), extends to every success-state label in the panel — including
+`ArtifactSlot`'s "Saved" label.
+
+**Why:** `text-green-600` bypasses the token pipeline (different L value), fails AA contrast on tinted
+fills, and breaks dark-mode. The `--success-text` token is explicitly designed for AA compliance.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-1 Saved label does NOT use raw text-green-600 class."
+
+### OD-A4-CONTROL-HEIGHT — Blocker-9 control height rule applies to ArtifactSlot Save + Open-view controls
+
+**Decision:** `ArtifactSlot`'s Save button and Open-view link chip MUST be `h-8` (32px), matching the
+app-wide control height rule (DESIGN.md §5 Buttons "32px tall"). Using `py-1.5` or `py-1` alone yields
+~28-30px and violates the rule. The `h-8` height class is authoritative; `py-0` prevents override.
+
+**Why:** Parity with every other panel control (ApprovalChip Approve/Deny are `h-8`). Consistent target
+size across the panel interaction surface.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-2 Save button has h-8 class" and "Blocker-2 Open-view
+link chip has h-8 class."
+
+### OD-A4-RETRY — Per-panel onRetry parity with I3 UserViewRenderer (FR-VR-038)
+
+**Decision:** `ArtifactSlot` per-panel error states carry `onRetry` parity with the I3 `UserViewRenderer`
+(FR-VR-038). A transient `executeCompiledQuery` failure (RLS hiccup, network blip) in a composed-view
+panel MUST show a Retry button — composed-view panels are never a dead doorway. The per-panel retry
+re-fires `executeCompiledQuery` for only that panel index and updates `panelStates[idx]`.
+
+**Why:** The agent-assistant compose job (jtbd §81) and the view-render honest-states job (§82, "no dead
+doorway") both demand recoverable error states. The artifact slot is the one place a freshly-composed live
+view is most likely to be re-checked; it must not leave the user needing to burn another model call to
+recover from a transient error.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-3 per-panel error state shows a Retry button that
+re-fires the query."
+
+### OD-A4-RENAME — CV-OD-002 "rename on Save" is a real affordance, not just rationale
+
+**Decision:** `ArtifactSlot` exposes an editable name `<input>` pre-filled with `payload.title`
+(the CV-OD-002-derived prompt-truncation title) before Save. The user MUST be able to edit the name
+before committing. `save(name)` receives the edited string — never `payload.title` directly. Default
+scope is `'private'` (CV-OD-005).
+
+**Why:** CV-OD-002 rationale explicitly says "the user can rename on Save" as the honest fallback for
+choosing prompt-truncation over a model-supplied title. Without an editable name field, a user composing
+"Show me active projects by status" commits a view literally named that fragment, with no chance to
+rename it before it lands in My Views. The inline input (option a from the Discover recommendation)
+keeps the stay-in-panel mental model consistent with the I4 builder's name-before-save flow.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-4 ArtifactSlot renders an editable name input
+pre-filled with payload.title" and "Blocker-4 Save calls create.mutateAsync with the EDITED name."
+
+**Spec note:** FR-CV-018 ("save(name)") is fulfilled; this decision closes the CV-OD-002 honest-fallback
+gap.

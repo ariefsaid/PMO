@@ -23,7 +23,13 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = (query: string): MediaQueryList =>
     ({
-      matches: /min-width:\s*768px/.test(query),
+      // Return true for any min-width query with a value ≤ the default desktop viewport
+    // (≥768px queries all pass in a desktop jsdom context). The 1440 cap matches the
+    // AssistantPanel 1024px threshold and any other responsive breakpoint we use.
+    matches: (() => {
+      const m = /min-width:\s*(\d+)px/.exec(query);
+      return m ? parseInt(m[1], 10) <= 1440 : false;
+    })(),
       media: query,
       onchange: null,
       addEventListener: () => {},

@@ -403,6 +403,12 @@ deno_version = 2
 [functions.compose-view]
 verify_jwt = false
 
+# ── Edge Function: agent-chat ─────────────────────────────────────────────────
+# verify_jwt = false: the handler verifies the JWT itself to return a typed 401
+# and to stream a typed terminal `status` event (ADR-0040 A1, FR-AR-013).
+[functions.agent-chat]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
