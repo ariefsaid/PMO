@@ -208,6 +208,49 @@ it('AC-AR-004 stops after MAX_TOOL_ROUNDS when the model never finalises, comple
   });
 });
 
+// ── Blocker 3: loop termination uses stop_reason !== 'tool_use'; max_tokens handled ──
+
+it('terminates on stop_reason end_turn even when a tool_use block is accidentally present', async () => {
+  // OLD CODE: `if (!toolBlock || resp.stop_reason === 'end_turn')` — the OR lets this complete
+  // but the OLD code would also trigger completion even if there IS a toolBlock when
+  // stop_reason is end_turn, silently skipping the tool. The correct sentinel is
+  // stop_reason !== 'tool_use'.
+  //
+  // This test ensures: when stop_reason is 'end_turn' AND content has both text + a
+  // spurious tool_use block, we complete (not dispatch the tool).
+  const create = vi.fn().mockResolvedValue({
+    stop_reason: 'end_turn',
+    content: [
+      { type: 'text', text: 'Final answer.' },
+      // Spurious tool_use block with end_turn — model API won't do this, but if it did,
+      // old code would complete (correct result via OR branch), new code does too (via !=tool_use).
+      { type: 'tool_use', id: 'tu1', name: 'query_entity', input: { entity: 'projects' } },
+    ],
+    usage: {},
+  });
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ anthropic: { messages: { create } } })));
+  // Must complete after 1 SDK call — do not dispatch tool on end_turn
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+});
+
+it('stop_reason max_tokens emits completed with truncation note (not silent)', async () => {
+  // OLD CODE would emit a generic 'completed' indistinguishable from a real answer.
+  // Fixed: emit completed with text 'response truncated'.
+  const create = vi.fn().mockResolvedValue({
+    stop_reason: 'max_tokens',
+    content: [{ type: 'text', text: 'Partial answer...' }],
+    usage: {},
+  });
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ anthropic: { messages: { create } } })));
+  expect(create).toHaveBeenCalledTimes(1);
+  const last = events.at(-1)!;
+  expect(last).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+  expect(last.text).toMatch(/truncated/i);
+});
+
 // ── Blocker 2: no module-level mutable _runId (cross-request isolation) ──────
 
 it('concurrent runs produce distinct runIds (no module-level _runId contamination)', async () => {

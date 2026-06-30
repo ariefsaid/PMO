@@ -224,11 +224,20 @@ export async function* agentChatHandler(
         }
       }
 
-      // Check for tool_use blocks
+      // Blocker 3: use the API's own sentinel — stop_reason !== 'tool_use' means
+      // no tool dispatch needed, regardless of whether content happens to contain
+      // a tool_use block. Also handle max_tokens explicitly.
+      if (resp.stop_reason === 'max_tokens') {
+        // Token budget exhausted — complete with a truncation note so the caller
+        // can distinguish this from a real final answer.
+        yield statusEvent('completed', {}, 'response truncated');
+        return;
+      }
+
       const toolBlock = resp.content.find((b) => b.type === 'tool_use');
 
-      if (!toolBlock || resp.stop_reason === 'end_turn') {
-        // No tool call — final answer
+      if (resp.stop_reason !== 'tool_use') {
+        // No tool call — final answer (end_turn or any other non-tool stop reason)
         yield statusEvent('completed');
         return;
       }
