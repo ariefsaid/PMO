@@ -1,14 +1,22 @@
 /**
  * QUERY_ENTITY_SCHEMA — JSON Schema for the query_entity tool input_schema.
+ * COMPOSE_VIEW_INPUT_SCHEMA — JSON Schema for the compose_view tool input_schema (A4).
  *
  * D3/R1: plain JSON Schema object, NOT Zod. Mirrors compose-view/schema.ts style.
  * Enum is built from AGENT_READ_ENTITIES (projects, companies — D5).
  * Importable in both Deno (edge function) and Node/Vitest (co-located tests).
  *
  * FR-AR-009: the schema constrains the model's tool inputs; the action validates them.
+ * FR-CV-001 / Task 5 NOTE: the compose_view TOOL input schema is { prompt: string }
+ * (what the model fills in when it calls the tool). COMPOSITION_SPEC_SCHEMA is the
+ * schema the model uses INSIDE composeSpec when tool-forcing the inner compose call.
+ * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
 import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './actions';
+
+// Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
+export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema';
 
 // ── Write action schemas (A3) ─────────────────────────────────────────────────
 
@@ -81,6 +89,27 @@ export const QUERY_ENTITY_SCHEMA = {
       minimum: 1,
       maximum: AGENT_READ_ROW_CAP,
       description: `Maximum rows to return. Hard cap is ${AGENT_READ_ROW_CAP}.`,
+    },
+  },
+};
+
+/**
+ * COMPOSE_VIEW_INPUT_SCHEMA — the tool input schema the model sees when it decides to call
+ * the compose_view tool. The model fills in { prompt } with the user's request for a view.
+ *
+ * NOTE: This is NOT COMPOSITION_SPEC_SCHEMA. COMPOSITION_SPEC_SCHEMA is the inner schema
+ * used by composeSpec when tool-forcing the Anthropic model to produce a CompositionSpec.
+ * These are two different schemas at two different layers (FR-CV-001 / Task 5 NOTE / D-A4-1).
+ */
+export const COMPOSE_VIEW_INPUT_SCHEMA = {
+  type: 'object' as const,
+  required: ['prompt'] as string[],
+  additionalProperties: false,
+  properties: {
+    prompt: {
+      type: 'string' as const,
+      description: "The user's natural-language request describing the dashboard view to compose.",
+      maxLength: 2000,
     },
   },
 };

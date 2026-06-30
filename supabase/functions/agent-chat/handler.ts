@@ -21,6 +21,8 @@ import {
   queryEntityAction,
   createActivityAction,
   updateTaskStatusAction,
+  composeViewAction,
+  runComposeView,
   AGENT_READ_ENTITIES,
   AGENT_READ_ROW_CAP,
 } from './actions';
@@ -35,9 +37,13 @@ export const MAX_TOOL_ROUNDS = 8;
 
 // ── Action registry (A3) ──────────────────────────────────────────────────────
 
-/** All registered actions. The dispatch gate checks action.confirm before calling run. */
-const ACTIONS: AgentAction[] = [queryEntityAction, createActivityAction, updateTaskStatusAction];
-const ACTION_BY_NAME = new Map<string, AgentAction>(ACTIONS.map((a) => [a.name, a]));
+/** Base read+write actions (always registered). */
+const BASE_ACTIONS: AgentAction[] = [queryEntityAction, createActivityAction, updateTaskStatusAction];
+const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
+
+// ACTIONS and ACTION_BY_NAME are built per-call based on composeEnabled (Task 7/FR-CV-024).
+// They are kept as module-level variables for the runLoop/handleDecision helpers which
+// don't receive composeEnabled directly; the handler passes the right map to helpers.
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
@@ -125,6 +131,13 @@ export interface HandlerDeps {
    * Production: pass `can` from src/auth/policy.ts.
    */
   can?: CanFn;
+  /**
+   * A4: flag-gated compose_view tool registration (FR-CV-024, D7).
+   * The AND-result of (agentAssistant && aiComposer) is computed by the caller
+   * (SPA → index.ts) and passed here, because Deno can't read Vite FEATURES.
+   * When undefined/false, compose_view is absent from the tool catalog (AC-CV-002).
+   */
+  composeEnabled?: boolean;
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
@@ -307,6 +320,24 @@ export async function* agentChatHandler(
           : (m.content as object[]),
     }));
 
+  // ── Build tool catalog (A4: flag-gated compose_view, FR-CV-024, D7) ─────────
+  // compose_view is included only when deps.composeEnabled is true.
+  const tools: Array<{ name: string; description: string; input_schema: object }> =
+    BASE_ACTIONS.map((a) => ({
+      name: a.name,
+      description: a.description,
+      input_schema: a.inputSchema,
+    }));
+  if (deps.composeEnabled) {
+    tools.push({
+      name: composeViewAction.name,
+      description: composeViewAction.description,
+      input_schema: composeViewAction.inputSchema,
+    });
+  }
+  // Per-call action lookup map (includes compose_view when enabled)
+  const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
+
   // ── Tool-use loop (AC-AR-001, AC-AR-004) ──────────────────────────────────
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -315,11 +346,7 @@ export async function* agentChatHandler(
         max_tokens: 2048,
         system,
         messages,
-        tools: ACTIONS.map((a) => ({
-          name: a.name,
-          description: a.description,
-          input_schema: a.inputSchema,
-        })),
+        tools,
       });
 
       // Emit any text blocks as assistant events
@@ -348,7 +375,73 @@ export async function* agentChatHandler(
       const toolId = toolBlock!.id ?? 'tool-use-id';
       const toolName = toolBlock!.name ?? '';
 
-      const action = ACTION_BY_NAME.get(toolName);
+      // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
+      // The handler owns the anthropic client; it curries it into runComposeView.
+      // composeViewAction.run is a guard stub and is NEVER called here (ADR-0041).
+      if (toolName === 'compose_view' && deps.composeEnabled) {
+        const out = await runComposeView(
+          toolInput as { prompt: string },
+          { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
+          { anthropic: deps.anthropic },
+        );
+
+        if ('error' in out) {
+          // Compose failed — emit user-facing assistant error (FR-CV-006)
+          yield emit('assistant', {
+            text: "I wasn't able to compose a valid view — try rephrasing your request.",
+          });
+          // Feed a tool_result so the conversation loop can continue/close
+          messages.push({
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
+          });
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: JSON.stringify({ error: out.error, code: out.code }),
+              },
+            ],
+          });
+        } else {
+          // Compose succeeded — emit artifact event (FR-CV-007/008)
+          yield emit('artifact', {
+            payload: {
+              kind: 'compose_view',
+              spec: out.spec,
+              repairAttempts: out.repairAttempts,
+              title: out.title,
+              tokensUsed: out.tokensUsed,
+            },
+          });
+          yield emit('tool', {
+            payload: {
+              name: toolName,
+              input: toolInput,
+              result: { ok: true, panels: out.spec.panels.length },
+            },
+          });
+          messages.push({
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
+          });
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: toolId,
+                content: JSON.stringify({ ok: true, panels: out.spec.panels.length }),
+              },
+            ],
+          });
+        }
+        continue;
+      }
+
+      const action = actionByName.get(toolName);
       if (!action) {
         // Unknown action — return structured error to model
         messages.push({
@@ -503,7 +596,7 @@ async function* handleDecision(
   }
 
   const { toolId, toolName, toolInput } = trailingToolUse;
-  const action = ACTION_BY_NAME.get(toolName);
+  const action = BASE_ACTION_BY_NAME.get(toolName);
 
   if (!action || !action.confirm) {
     // Action not found or not a confirm action → no-op
@@ -684,7 +777,7 @@ async function* runLoop(
         max_tokens: 2048,
         system,
         messages,
-        tools: ACTIONS.map((a) => ({
+        tools: BASE_ACTIONS.map((a) => ({
           name: a.name,
           description: a.description,
           input_schema: a.inputSchema,
@@ -717,7 +810,7 @@ async function* runLoop(
       const toolName = toolBlock.name ?? '';
       const toolInput = toolBlock.input;
 
-      const action = ACTION_BY_NAME.get(toolName);
+      const action = BASE_ACTION_BY_NAME.get(toolName);
       if (!action || action.confirm) {
         // Unknown action or confirm action called from runLoop — return error to model
         messages.push({
@@ -798,8 +891,8 @@ function findTrailingConfirmToolUse(
     const toolUseBlock = [...content].reverse().find(
       (b: { type?: string; name?: string }) =>
         b.type === 'tool_use' &&
-        ACTION_BY_NAME.has(b.name ?? '') &&
-        (ACTION_BY_NAME.get(b.name ?? '')?.confirm === true),
+        BASE_ACTION_BY_NAME.has(b.name ?? '') &&
+        (BASE_ACTION_BY_NAME.get(b.name ?? '')?.confirm === true),
     ) as { type: string; id?: string; name: string; input?: unknown } | undefined;
 
     if (!toolUseBlock) continue;

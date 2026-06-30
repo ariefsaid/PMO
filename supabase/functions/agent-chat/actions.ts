@@ -14,7 +14,10 @@
 // No @-alias (Deno has no Vite alias).
 import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
 import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port';
-import { QUERY_ENTITY_SCHEMA, CREATE_ACTIVITY_SCHEMA, UPDATE_TASK_STATUS_SCHEMA } from './schema';
+import { QUERY_ENTITY_SCHEMA, CREATE_ACTIVITY_SCHEMA, UPDATE_TASK_STATUS_SCHEMA, COMPOSE_VIEW_INPUT_SCHEMA } from './schema';
+import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec';
+import type { AnthropicLike } from '../compose-view/composeSpec';
+import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
 
@@ -273,5 +276,79 @@ export const updateTaskStatusAction: AgentAction & {
       .eq('id', v.value.taskId);
     if (error) return { error: 'update_task_status db error', code: (error as { code?: string }).code };
     return { taskId: v.value.taskId, status: v.value.status };
+  },
+};
+
+// ── compose_view action (A4) ──────────────────────────────────────────────────
+// ADR-0041: model-calling action seam. composeViewAction.run is a guard stub;
+// the handler dispatches compose_view by calling runComposeView(input, ctx, {anthropic})
+// directly, injecting the Anthropic client as a typed ComposeActionDeps bag.
+
+/** Extra deps for the model-calling compose action (ADR-0041). */
+export interface ComposeActionDeps {
+  /** The Anthropic-like client, curried in by the handler at dispatch. */
+  anthropic: AnthropicLike;
+}
+
+export type ComposeResult =
+  | { spec: CompositionSpec; repairAttempts: number; tokensUsed: number; title: string }
+  | { error: string; code: 'REPAIR_EXHAUSTED' | 'UPSTREAM_ERROR' };
+
+/**
+ * Derive a short, human-readable view title from the user's prompt (CV-OD-002).
+ * Trims, capitalizes the first character, and truncates to ≤60 chars.
+ * No model round-trip — the user's own words are the best view name.
+ */
+export function deriveTitle(prompt: string): string {
+  const trimmed = prompt.trim();
+  if (!trimmed) return '';
+  const capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return capitalized.slice(0, 60);
+}
+
+/**
+ * Run the compose_view action with injected anthropic deps (ADR-0041 / D1).
+ * Called by the handler's dispatch branch with { anthropic: deps.anthropic }.
+ * Returns a structured result (never throws to the handler).
+ */
+export async function runComposeView(
+  input: { prompt: string },
+  ctx: DeputyContext,
+  deps: ComposeActionDeps,
+): Promise<ComposeResult> {
+  try {
+    const { spec, repairAttempts, tokensUsed } = await composeSpec(
+      input.prompt,
+      ctx.orgId,
+      { anthropic: deps.anthropic, userId: ctx.userId },
+    );
+    return { spec, repairAttempts, tokensUsed, title: deriveTitle(input.prompt) };
+  } catch (e) {
+    const code =
+      e instanceof ComposeSpecError ? e.code : 'UPSTREAM_ERROR';
+    return { error: 'compose failed', code };
+  }
+}
+
+/**
+ * composeViewAction — the catalog entry for the compose_view tool (FR-CV-001).
+ *
+ * - name: 'compose_view'
+ * - inputSchema: { prompt: string } (the ACTION tool input — what the model fills)
+ * - surfaces: ['agent']
+ * - confirm: false (composing a spec is non-destructive; Save is the user-dispose gate)
+ * - run: guard stub — the handler NEVER calls this via dispatchAction; it calls
+ *        runComposeView(input, ctx, {anthropic}) directly (ADR-0041 model-calling seam).
+ */
+export const composeViewAction: AgentAction = {
+  name: 'compose_view',
+  description: "Compose a validated dashboard view from the user's natural-language request.",
+  inputSchema: COMPOSE_VIEW_INPUT_SCHEMA,
+  surfaces: ['agent'],
+  confirm: false,
+  run: () => {
+    throw new Error(
+      'compose_view is dispatched by the handler with injected anthropic deps (ADR-0041); never call run() directly',
+    );
   },
 };
