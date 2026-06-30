@@ -2,11 +2,13 @@
  * Unit tests for PmoNativeRuntime.
  * FR-AR-022/023/024: adapter correctness.
  * Blocker 4: _runs Map is cleaned up after stream terminates (no memory leak).
+ * A3 (Task 19): control('approve'/'reject') stashes decision → re-POST carries decision.
  */
 import { it, expect, vi } from 'vitest';
 import { PmoNativeRuntime } from './runtime/pmoNativeRuntime';
 import { encodeSse } from './runtime/transport';
-import type { AgentEvent } from './runtime/port';
+import type { AgentEvent, NeedsApprovalPayload } from './runtime/port';
+import type { AgentChatRequest } from './runtime/transport';
 
 /** Convert a string body into a ReadableStream<Uint8Array>. */
 function readableFrom(body: string): ReadableStream<Uint8Array> {
@@ -80,4 +82,142 @@ it('Blocker 4: _runs Map entry is deleted even when the fetch fails (error path 
 
   // Map entry must be cleaned up even on the error path
   expect(runsMap.has(run.id)).toBe(false);
+});
+
+// ── Task 19 (RED→GREEN): A3 approve/reject control sends decision on re-POST ──
+
+it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs with decision.verdict=approve', async () => {
+  // First subscribe: emits needs-approval event with pendingId:'p1', then ends
+  const needsApprovalEvent: AgentEvent = {
+    id: 'na-1',
+    runId: 'r1',
+    type: 'status',
+    payload: {
+      status: 'needs-approval',
+      pendingId: 'p1',
+      actionName: 'create_activity',
+      humanSummary: 'Log a call',
+      structuredArgs: { contactId: 'c1', kind: 'call', subject: 'Follow-up' },
+    } satisfies NeedsApprovalPayload,
+    createdAt: new Date().toISOString(),
+  };
+
+  const toolResultEvent: AgentEvent = {
+    id: 'tr-1',
+    runId: 'r1',
+    type: 'tool',
+    payload: { name: 'create_activity', pendingId: 'p1', result: { id: 'act-1' } },
+    createdAt: new Date().toISOString(),
+  };
+  const completedEvent: AgentEvent = {
+    id: 'comp-1',
+    runId: 'r1',
+    type: 'status',
+    payload: { status: 'completed' },
+    createdAt: new Date().toISOString(),
+  };
+
+  const firstBody = needsApprovalEvent;
+  const secondBody = [toolResultEvent, completedEvent];
+
+  let callCount = 0;
+  const fetchImpl = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({
+        ok: true,
+        body: readableFrom(encodeSse(firstBody)),
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      body: readableFrom(secondBody.map(encodeSse).join('')),
+    });
+  }) as unknown as typeof fetch;
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl,
+  });
+
+  const run = await runtime.createRun({ goal: 'log a call' });
+
+  // First subscribe → drain → see needs-approval, stream ends
+  const events1: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) {
+    events1.push(ev);
+  }
+  expect(events1.some((e) => (e.payload as { status?: string })?.status === 'needs-approval')).toBe(true);
+
+  // Stash approve decision and re-subscribe
+  await runtime.control(run.id, 'approve');
+  const events2: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) {
+    events2.push(ev);
+  }
+
+  // The second POST must carry decision.verdict === 'approve'
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  const secondCall = fetchImpl.mock.calls[1];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(body.decision).toEqual({ pendingId: 'p1', verdict: 'approve' });
+
+  // The second subscribe should see the tool and completed events
+  expect(events2.some((e) => e.type === 'tool')).toBe(true);
+  expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
+});
+
+it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs with verdict=reject', async () => {
+  const needsApprovalEvent: AgentEvent = {
+    id: 'na-2',
+    runId: 'r2',
+    type: 'status',
+    payload: {
+      status: 'needs-approval',
+      pendingId: 'p2',
+      actionName: 'create_activity',
+      humanSummary: 'Log a call',
+      structuredArgs: {},
+    } satisfies NeedsApprovalPayload,
+    createdAt: new Date().toISOString(),
+  };
+  const completedEvent: AgentEvent = {
+    id: 'comp-2',
+    runId: 'r2',
+    type: 'status',
+    payload: { status: 'completed' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchImpl = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({
+        ok: true,
+        body: readableFrom(encodeSse(needsApprovalEvent)),
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      body: readableFrom(encodeSse(completedEvent)),
+    });
+  }) as unknown as typeof fetch;
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl,
+  });
+
+  const run = await runtime.createRun({ goal: 'log a call' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain first */ }
+
+  await runtime.control(run.id, 'reject');
+  for await (const _ of runtime.subscribe(run.id)) { /* drain second */ }
+
+  const secondCall = fetchImpl.mock.calls[1];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(body.decision).toEqual({ pendingId: 'p2', verdict: 'reject' });
 });
