@@ -11,9 +11,15 @@ import { TranscriptItem } from './TranscriptItem';
 
 interface TranscriptProps {
   transcript: TranscriptEntry[];
+  /**
+   * Optional slot rendered when transcript is empty (e.g. EmptyState).
+   * Lives inside the role="log" container so the live region is always present
+   * in the DOM regardless of transcript state (AC-AP-021).
+   */
+  emptySlot?: React.ReactNode;
 }
 
-export const Transcript: React.FC<TranscriptProps> = ({ transcript }) => {
+export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -43,6 +49,7 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript }) => {
       className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3"
       onScroll={handleScroll}
     >
+      {transcript.length === 0 && emptySlot}
       {transcript.map((entry) => (
         <TranscriptItem key={entry.key} entry={entry} />
       ))}

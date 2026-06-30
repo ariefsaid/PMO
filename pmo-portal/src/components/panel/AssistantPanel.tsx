@@ -283,23 +283,14 @@ export const AssistantPanel: React.FC = () => {
         </div>
 
         {/* ── Transcript region ────────────────────────────────────────── */}
-        {/* Always render the log region so aria-live="polite" is always in the DOM
-            (AC-AP-021; NFR-AP-A11Y-003). EmptyState lives inside the log so
-            assistive tech observes the correct region regardless of transcript state. */}
-        <div
-          role="log"
-          aria-label="Conversation"
-          aria-live="polite"
-          aria-relevant="additions"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          {isEmpty ? (
-            <div className="flex-1 overflow-y-auto">
-              <EmptyState onPick={handleChipPick} />
-            </div>
-          ) : (
-            <Transcript transcript={transcript} />
-          )}
+        {/* The Transcript always renders its role="log" aria-live="polite" container so
+            the live region is always present in the DOM (AC-AP-021; NFR-AP-A11Y-003).
+            EmptyState is rendered inside Transcript when transcript is empty. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <Transcript
+            transcript={transcript}
+            emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
+          />
 
           {/* Streaming indicator — shows while run is active */}
           {phase === 'running' && <StreamingIndicator />}
