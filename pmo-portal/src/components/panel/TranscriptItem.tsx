@@ -9,7 +9,10 @@ import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload } from '@/s
 import { ChatBubble } from './ChatBubble';
 import { ToolCallCard } from './ToolCallCard';
 import { ApprovalChip } from './ApprovalChip';
+import { ArtifactSlot } from './ArtifactSlot';
+import type { ArtifactSlotPayload } from './ArtifactSlot';
 import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
+import { isFeatureEnabled } from '@/src/lib/features';
 
 interface TranscriptItemProps {
   entry: TranscriptEntry;
@@ -107,13 +110,14 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       );
     }
 
-    case 'artifact':
-      // A4 reserved: defensive stub, never crash.
-      return (
-        <div className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-          A view is ready
-        </div>
-      );
+    case 'artifact': {
+      // A4: route compose_view artifacts to ArtifactSlot (FR-CV-013/025).
+      const artifactPayload = event.payload as { kind?: string } | undefined;
+      if (artifactPayload?.kind !== 'compose_view') return null;
+      // Flag guard (FR-CV-025): both flags must be on; silently skip if either is off.
+      if (!isFeatureEnabled('agentAssistant') || !isFeatureEnabled('aiComposer')) return null;
+      return <ArtifactSlot payload={event.payload as ArtifactSlotPayload} />;
+    }
 
     default:
       return null;
