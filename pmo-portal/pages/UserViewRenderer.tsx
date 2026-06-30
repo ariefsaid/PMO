@@ -34,6 +34,7 @@ import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { DashGrid, DashPageHead } from '@/src/components/dashboard/layout';
 import { ListState } from '@/src/components/ui/ListState';
 import { KPITile } from '@/src/components/ui/KPITile';
+import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import type { IconName } from '@/src/components/ui/icons';
 
 /** Maximum panels per view (OD-9, FR-VR-010 extension). */
@@ -90,10 +91,29 @@ function HydratedPrimitive({
         />
       );
     }
+    case 'DataTable': {
+      const rows = data as Record<string, unknown>[];
+      const columns: Column<Record<string, unknown>>[] =
+        panel.compiledQuery.resolvedSelect.map((col) => ({
+          key: col,
+          header: col,
+          cell: (row) => {
+            const v = row[col];
+            return v == null ? '' : String(v);
+          },
+        }));
+      return (
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(row) => String(row.id ?? JSON.stringify(row))}
+        />
+      );
+    }
     default:
       // For primitives not yet wired with a specific hydration case,
-      // render the data as a JSON debug table (fallback for I3 scope).
-      // TODO I4: wire remaining primitives (DataTable, StatTiles, Funnel, StatusBarChart, ProgressBar, Card)
+      // render the data as a JSON debug table (interim fallback).
+      // TODO: wire remaining primitives (StatTiles, Funnel, StatusBarChart, ProgressBar, Card)
       // Note: the panel card surface (rounded-lg border border-border bg-card p-4) is applied
       // by the colSpan wrapper div in the ready-state renderer — no duplicate border here.
       return (

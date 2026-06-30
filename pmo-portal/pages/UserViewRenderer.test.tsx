@@ -281,6 +281,29 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     // No loading skeleton remains in the steady state
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
   });
+
+  it('AC-VR-011: DataTable panel hydrates a real <table> from the query rows (not a JSON dump)', async () => {
+    const dtView = {
+      id: 'abc', name: 'Companies', description: null,
+      spec: { version: 1, panels: [{ id: 'p1', primitive: 'DataTable', querySpec: { entity: 'companies', select: ['id', 'name'] } }] },
+      archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1',
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    };
+    mockUseUserView.mockReturnValue({ data: dtView, isPending: false, isError: false });
+    mockCompile.mockReturnValue([{
+      id: 'p1', primitive: 'DataTable',
+      compiledQuery: { entity: 'companies', repositoryMethod: 'company.list', resolvedFilters: [], resolvedSelect: ['id', 'name'] },
+      props: {},
+    }]);
+    mockExecute.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
+    renderRenderer();
+    await waitFor(() => {
+      // A real semantic table, not the JSON <pre> debug fallback.
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('Globex')).toBeInTheDocument();
+  });
 });
 
 // ── Axe a11y (AC-VR-012, NFR-VR-A11Y-001..004) ───────────────────────────────
