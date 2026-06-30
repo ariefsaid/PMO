@@ -8,12 +8,15 @@ import { useState, useCallback, useRef } from 'react';
 import type { AgentEvent } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 
-export type RunPhase = 'idle' | 'running' | 'error';
+export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
 
 export interface TranscriptEntry {
   key: string;
   event: AgentEvent;
 }
+
+/** A3: chip state for the pending write approval chip. */
+export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
 
 export interface UseAssistantPanel {
   open: boolean;
@@ -21,6 +24,11 @@ export interface UseAssistantPanel {
   phase: RunPhase;
   lastGoal: string | null;
   runId: string | null;
+  /**
+   * A3: current state of the pending write approval chip.
+   * Only meaningful when phase === 'needs-approval' or 'running' (after click).
+   */
+  approvalChipState: ApprovalChipState;
   openPanel(): void;
   closePanel(): void;
   togglePanel(): void;
@@ -28,6 +36,10 @@ export interface UseAssistantPanel {
   stop(): Promise<void>;
   retry(): Promise<void>;
   newConversation(): void;
+  /** A3: approve the pending write action — re-POSTs with verdict:'approve'. */
+  approve(): Promise<void>;
+  /** A3: deny the pending write action — re-POSTs with verdict:'reject'. */
+  deny(): Promise<void>;
 }
 
 function makeKey(): string {
@@ -64,6 +76,8 @@ export function useAssistantPanel(): UseAssistantPanel {
   const [phase, setPhase] = useState<RunPhase>('idle');
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  // A3: tracks the chip state for the pending approval (pending → approving → approved/denied)
+  const [approvalChipState, setApprovalChipState] = useState<ApprovalChipState>('pending');
 
   // Ref so the drain loop can read the latest runId without stale closure
   const runIdRef = useRef<string | null>(null);
@@ -94,11 +108,22 @@ export function useAssistantPanel(): UseAssistantPanel {
               continue;
             }
 
+            if (payload?.status === 'needs-approval') {
+              // A3: pause the run — user must approve/deny before it continues.
+              setPhase('needs-approval');
+              setApprovalChipState('pending');
+              // Append the event so TranscriptItem renders the ApprovalChip.
+              setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
+              // The stream ends here (handler returned after emitting needs-approval).
+              // Don't break — let the for-await loop finish naturally.
+              continue;
+            }
+
             if (payload?.status === 'errored') {
+              setPhase('idle');
               if (payload.error === 'TURN_CAP') {
                 // Step-cap notice: informational, not an error state.
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
-                setPhase('idle');
               } else {
                 // Other errors → error state (FR-AP-018 / AC-AP-015).
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
@@ -107,9 +132,29 @@ export function useAssistantPanel(): UseAssistantPanel {
               continue;
             }
 
-            // Queued/running/paused/needs-approval status events appended as-is.
+            // Queued/running/paused status events appended as-is.
             setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
             continue;
+          }
+
+          // A3: tool event with pendingId → write was approved and executed.
+          if (ev.type === 'tool') {
+            const toolPayload = ev.payload as { pendingId?: string } | undefined;
+            if (toolPayload?.pendingId) {
+              setApprovalChipState('approved');
+            }
+          }
+
+          // A3: system write_resolved → update chip state from resolved decision.
+          if (ev.type === 'system') {
+            const sysPayload = ev.payload as { event?: string; decision?: string } | undefined;
+            if (sysPayload?.event === 'write_resolved') {
+              if (sysPayload.decision === 'approved') {
+                setApprovalChipState('approved');
+              } else {
+                setApprovalChipState('denied');
+              }
+            }
           }
 
           // All other event types (tool, system, artifact, user echo) append directly.
@@ -180,6 +225,29 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('idle');
   }, [runtime]);
 
+  // ── approve / deny (A3) ─────────────────────────────────────────────────────
+  // Called by the ApprovalChip. Signals the adapter, transitions to 'running',
+  // and re-subscribes so the decision re-POST flows through _doSubscribe.
+  const approve = useCallback(async () => {
+    if (!runtime || !runIdRef.current) return;
+    const activeRunId = runIdRef.current;
+    setApprovalChipState('approving');
+    await runtime.control(activeRunId, 'approve');
+    setPhase('running');
+    const iterable = runtime.subscribe(activeRunId);
+    await drain(iterable, activeRunId);
+  }, [runtime, drain]);
+
+  const deny = useCallback(async () => {
+    if (!runtime || !runIdRef.current) return;
+    const activeRunId = runIdRef.current;
+    setApprovalChipState('approving');
+    await runtime.control(activeRunId, 'reject');
+    setPhase('running');
+    const iterable = runtime.subscribe(activeRunId);
+    await drain(iterable, activeRunId);
+  }, [runtime, drain]);
+
   // ── retry ───────────────────────────────────────────────────────────────────
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
@@ -220,6 +288,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setTranscript([]);
     setPhase('idle');
     setLastGoal(null);
+    setApprovalChipState('pending');
   }, [runtime]);
 
   return {
@@ -228,6 +297,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     phase,
     lastGoal,
     runId,
+    approvalChipState,
     openPanel,
     closePanel,
     togglePanel,
@@ -235,5 +305,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     stop,
     retry,
     newConversation,
+    approve,
+    deny,
   };
 }

@@ -94,6 +94,9 @@ export const AssistantPanel: React.FC = () => {
     stop,
     retry,
     newConversation,
+    approve,
+    deny,
+    approvalChipState,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -174,7 +177,8 @@ export const AssistantPanel: React.FC = () => {
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
-    if (!composerValue.trim() || phase === 'running') return;
+    // Block send while running or awaiting an approval decision (A3).
+    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval') return;
     const text = composerValue;
     setComposerValue('');
     void send(text);
@@ -290,10 +294,13 @@ export const AssistantPanel: React.FC = () => {
           <Transcript
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
+            approvalChipState={approvalChipState}
+            onApprove={() => void approve()}
+            onDeny={() => void deny()}
           />
 
-          {/* Streaming indicator — shows while run is active */}
-          {phase === 'running' && <StreamingIndicator />}
+          {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}
+          {(phase === 'running') && <StreamingIndicator />}
 
           {/* Error card */}
           {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
@@ -305,7 +312,7 @@ export const AssistantPanel: React.FC = () => {
           onChange={setComposerValue}
           onSend={handleSend}
           onStop={handleStop}
-          running={phase === 'running'}
+          running={phase === 'running' || phase === 'needs-approval'}
         />
       </section>
     </>
