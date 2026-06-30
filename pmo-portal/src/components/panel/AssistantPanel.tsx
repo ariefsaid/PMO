@@ -96,7 +96,7 @@ export const AssistantPanel: React.FC = () => {
     newConversation,
     approve,
     deny,
-    approvalChipState,
+    chipStateMap,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -294,13 +294,26 @@ export const AssistantPanel: React.FC = () => {
           <Transcript
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
-            approvalChipState={approvalChipState}
+            chipStateMap={chipStateMap}
             onApprove={() => void approve()}
             onDeny={() => void deny()}
           />
 
           {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}
           {(phase === 'running') && <StreamingIndicator />}
+
+          {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
+              streaming "Working…" indicator. SR users learn WHY input is blocked. */}
+          {phase === 'needs-approval' && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="px-4 py-1 text-xs text-muted-foreground"
+            >
+              A write action awaits your decision
+            </div>
+          )}
 
           {/* Error card */}
           {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
@@ -313,6 +326,7 @@ export const AssistantPanel: React.FC = () => {
           onSend={handleSend}
           onStop={handleStop}
           running={phase === 'running' || phase === 'needs-approval'}
+          needsApproval={phase === 'needs-approval'}
         />
       </section>
     </>

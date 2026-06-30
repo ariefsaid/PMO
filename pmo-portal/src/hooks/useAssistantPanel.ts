@@ -15,8 +15,15 @@ export interface TranscriptEntry {
   event: AgentEvent;
 }
 
-/** A3: chip state for the pending write approval chip. */
+/** A3: chip state for a pending write approval chip. */
 export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
+
+/**
+ * A3: chip state keyed by pendingId (not a single global) to support sequential
+ * proposals in one run without one chip's state corrupting another.
+ * Decisions note: docs/decisions.md "A3 chip state is keyed by pendingId."
+ */
+export type ChipStateMap = Record<string, ApprovalChipState>;
 
 export interface UseAssistantPanel {
   open: boolean;
@@ -25,10 +32,10 @@ export interface UseAssistantPanel {
   lastGoal: string | null;
   runId: string | null;
   /**
-   * A3: current state of the pending write approval chip.
-   * Only meaningful when phase === 'needs-approval' or 'running' (after click).
+   * A3: chip state keyed by pendingId.
+   * Each needs-approval event has its own entry; resolved via the matching pendingId.
    */
-  approvalChipState: ApprovalChipState;
+  chipStateMap: ChipStateMap;
   openPanel(): void;
   closePanel(): void;
   togglePanel(): void;
@@ -76,8 +83,11 @@ export function useAssistantPanel(): UseAssistantPanel {
   const [phase, setPhase] = useState<RunPhase>('idle');
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-  // A3: tracks the chip state for the pending approval (pending → approving → approved/denied)
-  const [approvalChipState, setApprovalChipState] = useState<ApprovalChipState>('pending');
+  // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
+  // docs/decisions.md: "A3 chip state is keyed by pendingId."
+  const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
+  // Track the currently active pendingId for approve/deny/approving transitions
+  const activePendingIdRef = useRef<string | null>(null);
 
   // Ref so the drain loop can read the latest runId without stale closure
   const runIdRef = useRef<string | null>(null);
@@ -110,8 +120,12 @@ export function useAssistantPanel(): UseAssistantPanel {
 
             if (payload?.status === 'needs-approval') {
               // A3: pause the run — user must approve/deny before it continues.
+              const naPayload = ev.payload as { status: string; pendingId?: string } | undefined;
+              const pendingId = naPayload?.pendingId ?? makeKey();
+              activePendingIdRef.current = pendingId;
               setPhase('needs-approval');
-              setApprovalChipState('pending');
+              // Key the chip state by pendingId (Blocker-8: not a single global atom).
+              setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
               // Append the event so TranscriptItem renders the ApprovalChip.
               setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
               // The stream ends here (handler returned after emitting needs-approval).
@@ -141,19 +155,18 @@ export function useAssistantPanel(): UseAssistantPanel {
           if (ev.type === 'tool') {
             const toolPayload = ev.payload as { pendingId?: string } | undefined;
             if (toolPayload?.pendingId) {
-              setApprovalChipState('approved');
+              const pid = toolPayload.pendingId;
+              setChipStateMap((prev) => ({ ...prev, [pid]: 'approved' }));
             }
           }
 
-          // A3: system write_resolved → update chip state from resolved decision.
+          // A3: system write_resolved → update chip state for the specific pendingId.
           if (ev.type === 'system') {
-            const sysPayload = ev.payload as { event?: string; decision?: string } | undefined;
-            if (sysPayload?.event === 'write_resolved') {
-              if (sysPayload.decision === 'approved') {
-                setApprovalChipState('approved');
-              } else {
-                setApprovalChipState('denied');
-              }
+            const sysPayload = ev.payload as { event?: string; decision?: string; pendingId?: string } | undefined;
+            if (sysPayload?.event === 'write_resolved' && sysPayload.pendingId) {
+              const pid = sysPayload.pendingId;
+              const newState: ApprovalChipState = sysPayload.decision === 'approved' ? 'approved' : 'denied';
+              setChipStateMap((prev) => ({ ...prev, [pid]: newState }));
             }
           }
 
@@ -231,7 +244,8 @@ export function useAssistantPanel(): UseAssistantPanel {
   const approve = useCallback(async () => {
     if (!runtime || !runIdRef.current) return;
     const activeRunId = runIdRef.current;
-    setApprovalChipState('approving');
+    const pid = activePendingIdRef.current;
+    if (pid) setChipStateMap((prev) => ({ ...prev, [pid]: 'approving' }));
     await runtime.control(activeRunId, 'approve');
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
@@ -241,7 +255,8 @@ export function useAssistantPanel(): UseAssistantPanel {
   const deny = useCallback(async () => {
     if (!runtime || !runIdRef.current) return;
     const activeRunId = runIdRef.current;
-    setApprovalChipState('approving');
+    const pid = activePendingIdRef.current;
+    if (pid) setChipStateMap((prev) => ({ ...prev, [pid]: 'approving' }));
     await runtime.control(activeRunId, 'reject');
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
@@ -284,11 +299,12 @@ export function useAssistantPanel(): UseAssistantPanel {
     }
     // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
     runIdRef.current = null;
+    activePendingIdRef.current = null;
     setRunId(null);
     setTranscript([]);
     setPhase('idle');
     setLastGoal(null);
-    setApprovalChipState('pending');
+    setChipStateMap({});
   }, [runtime]);
 
   return {
@@ -297,7 +313,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     phase,
     lastGoal,
     runId,
-    approvalChipState,
+    chipStateMap,
     openPanel,
     closePanel,
     togglePanel,

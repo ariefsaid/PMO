@@ -13,7 +13,7 @@
 --
 -- Uses unique UUID namespace 00AW0010-… to avoid collisions.
 begin;
-select plan(3);
+select plan(4);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 -- Use the default org (00000000-…-0001) so org_id defaults satisfy RLS without sending it.

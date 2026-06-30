@@ -53,7 +53,7 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
 
       {/* Resolved states */}
       {state === 'approved' && (
-        <p className="text-xs font-medium text-green-600">Approved ✓</p>
+        <p className="text-xs font-medium text-[hsl(var(--success-text))]">Approved ✓</p>
       )}
       {state === 'denied' && (
         <p className="text-xs font-medium text-muted-foreground">Denied</p>
@@ -78,7 +78,8 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
             disabled={disabled}
             aria-label="Approve"
             className={[
-              'rounded-md border border-transparent px-3 py-1 text-xs font-medium',
+              // h-8 = 32px: DESIGN.md §5 Buttons "32px tall" rule (Blocker-9).
+              'h-8 rounded-md border border-transparent px-3 py-0 text-xs font-medium',
               'bg-primary text-primary-foreground',
               'hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-50',
@@ -92,7 +93,8 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
             disabled={disabled}
             aria-label="Deny"
             className={[
-              'rounded-md border border-border px-3 py-1 text-xs font-medium',
+              // h-8 = 32px: DESIGN.md §5 Buttons "32px tall" rule (Blocker-9).
+              'h-8 rounded-md border border-border px-3 py-0 text-xs font-medium',
               'text-foreground',
               'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-50',

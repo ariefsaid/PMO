@@ -168,6 +168,78 @@ it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs wi
   expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
 });
 
+// ── Blocker 5: adapter must replay tool_use block in transcript so handler can find it ──
+// Without this, findTrailingConfirmToolUse returns null and approve is a silent no-op.
+it('Blocker-5 AC-AW-adapter: on needs-approval, re-POST messages include assistant tool_use block', async () => {
+  const structuredArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
+  const pendingId = 'p1-b5';
+
+  const needsApprovalEvent: AgentEvent = {
+    id: 'na-b5',
+    runId: 'r-b5',
+    type: 'status',
+    payload: {
+      status: 'needs-approval',
+      pendingId,
+      actionName: 'create_activity',
+      humanSummary: 'Log a call',
+      structuredArgs,
+    } satisfies NeedsApprovalPayload,
+    createdAt: new Date().toISOString(),
+  };
+  const completedEvent: AgentEvent = {
+    id: 'comp-b5',
+    runId: 'r-b5',
+    type: 'status',
+    payload: { status: 'completed' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchMockB5 = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(needsApprovalEvent)) });
+    }
+    return Promise.resolve({ ok: true, body: readableFrom(encodeSse(completedEvent)) });
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMockB5 as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'log a call' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain first */ }
+
+  await runtime.control(run.id, 'approve');
+  for await (const _ of runtime.subscribe(run.id)) { /* drain second */ }
+
+  const secondCall = fetchMockB5.mock.calls[1] as [string, RequestInit];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+
+  // The re-POST messages MUST contain an assistant turn with a tool_use content block
+  // for create_activity, so findTrailingConfirmToolUse in handler.ts can find it.
+  // Without this block, approve is a silent no-op (Blocker-5).
+  const assistantMsg = body.messages.find(
+    (m) =>
+      m.role === 'assistant' &&
+      Array.isArray(m.content) &&
+      (m.content as Array<{ type?: string; name?: string }>).some(
+        (b) => b.type === 'tool_use' && b.name === 'create_activity',
+      ),
+  );
+  expect(assistantMsg).toBeDefined();
+
+  // The tool_use block must carry the pendingId as its id so handler can match it
+  const toolUseBlock = (assistantMsg!.content as Array<{ type?: string; name?: string; id?: string; input?: unknown }>).find(
+    (b) => b.type === 'tool_use',
+  );
+  expect(toolUseBlock?.id).toBe(pendingId);
+  expect(toolUseBlock?.input).toEqual(structuredArgs);
+});
+
 it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs with verdict=reject', async () => {
   const needsApprovalEvent: AgentEvent = {
     id: 'na-2',

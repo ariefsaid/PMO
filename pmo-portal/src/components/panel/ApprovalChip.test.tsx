@@ -121,4 +121,30 @@ describe('ApprovalChip', () => {
     const liveEl = container.querySelector('[aria-live="assertive"]');
     expect(liveEl).toBeInTheDocument();
   });
+
+  // ── Blocker-6: off-palette raw Tailwind literal must not appear on approved text ──
+  // DESIGN.md §2 defines --success-text token; text-green-600 bypasses the token pipeline.
+
+  it('Blocker-6 approved state paragraph does NOT use raw text-green-600 class (must use success-text token)', () => {
+    const { container } = render(<ApprovalChip {...defaultProps} state="approved" />);
+    // Check ALL <p> elements — no paragraph should use the off-palette raw green literal
+    const paras = container.querySelectorAll('p');
+    paras.forEach((para) => {
+      expect(para.className).not.toContain('text-green-600');
+    });
+  });
+
+  // ── Blocker-9: DESIGN.md §5 Buttons height = 32px (h-8). py-1 gives ~24-28px. ──
+
+  it('Blocker-9 Approve button has h-8 class (32px DESIGN.md control height rule)', () => {
+    render(<ApprovalChip {...defaultProps} state="pending" />);
+    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    expect(approveBtn.className).toContain('h-8');
+  });
+
+  it('Blocker-9 Deny button has h-8 class (32px DESIGN.md control height rule)', () => {
+    render(<ApprovalChip {...defaultProps} state="pending" />);
+    const denyBtn = screen.getByRole('button', { name: /deny/i });
+    expect(denyBtn.className).toContain('h-8');
+  });
 });

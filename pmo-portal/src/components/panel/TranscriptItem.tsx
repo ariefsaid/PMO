@@ -9,12 +9,15 @@ import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload } from '@/s
 import { ChatBubble } from './ChatBubble';
 import { ToolCallCard } from './ToolCallCard';
 import { ApprovalChip } from './ApprovalChip';
-import type { TranscriptEntry, ApprovalChipState } from '@/src/hooks/useAssistantPanel';
+import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
 
 interface TranscriptItemProps {
   entry: TranscriptEntry;
-  /** A3: chip state for needs-approval events (pending/approving/approved/denied). */
-  approvalChipState?: ApprovalChipState;
+  /**
+   * A3: chip state keyed by pendingId (Blocker-8: not a single global).
+   * Each needs-approval chip looks up its own state by pendingId.
+   */
+  chipStateMap?: ChipStateMap;
   /** A3: called when user clicks Approve. */
   onApprove?: () => void;
   /** A3: called when user clicks Deny. */
@@ -23,7 +26,7 @@ interface TranscriptItemProps {
 
 export const TranscriptItem: React.FC<TranscriptItemProps> = ({
   entry,
-  approvalChipState = 'pending',
+  chipStateMap = {},
   onApprove,
   onDeny,
 }) => {
@@ -55,11 +58,13 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
 
       if (payload.status === 'needs-approval') {
         // A3: render the approve/deny chip for this pending write action.
+        // Look up chip state by pendingId so each chip has independent state (Blocker-8).
         const naPayload = event.payload as NeedsApprovalPayload;
+        const chipState = chipStateMap[naPayload.pendingId] ?? 'pending';
         return (
           <ApprovalChip
             humanSummary={naPayload.humanSummary}
-            state={approvalChipState}
+            state={chipState}
             onApprove={onApprove ?? (() => {})}
             onDeny={onDeny ?? (() => {})}
           />

@@ -196,12 +196,32 @@ export class PmoNativeRuntime implements AgentRuntime {
         }
 
         // A3: stash pendingId from needs-approval events for the next control() call.
+        // Also push the assistant tool_use block into state.messages so the re-POST
+        // transcript contains the trailing confirm-action tool_use block that
+        // findTrailingConfirmToolUse() in handler.ts needs to locate.
+        // Without this block, approve is a silent no-op (Blocker-5).
         if (
           ev.type === 'status' &&
           (ev.payload as NeedsApprovalPayload | undefined)?.status === 'needs-approval'
         ) {
-          state.pendingId = (ev.payload as NeedsApprovalPayload).pendingId;
+          const payload = ev.payload as NeedsApprovalPayload;
+          state.pendingId = payload.pendingId;
           endedInNeedsApproval = true;
+
+          // Reconstruct the assistant tool_use block from the needs-approval payload.
+          // The pendingId doubles as the tool_use id so the handler's tool_result
+          // (appended on approve/reject) references the correct tool_use_id.
+          state.messages.push({
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: payload.pendingId,
+                name: payload.actionName,
+                input: payload.structuredArgs,
+              },
+            ],
+          });
         } else if (ev.type === 'status') {
           // Any other status (completed, errored) means the run is no longer paused.
           endedInNeedsApproval = false;

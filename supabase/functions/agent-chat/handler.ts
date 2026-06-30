@@ -282,7 +282,7 @@ export async function* agentChatHandler(
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
   if (req.decision) {
-    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, orgId, initialRole, now);
+    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx);
     return;
   }
 
@@ -472,9 +472,6 @@ async function* handleDecision(
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   canFn: CanFn,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
-  _orgId: string,
-  _initialRole: string | null,
-  _now: () => Date,
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!;
   const { pendingId, verdict } = decision;

@@ -14,6 +14,12 @@ export interface ComposerProps {
   onStop: () => void;
   /** True while a run is in flight (FR-AP-010). */
   running: boolean;
+  /**
+   * True when the panel is in needs-approval phase (A3).
+   * Adds aria-disabled="true" to the textarea so screen readers can distinguish
+   * "blocked awaiting decision" from "blocked streaming" (NFR-AW-A11Y-003).
+   */
+  needsApproval?: boolean;
   /** Ref passed in so the parent can focus the textarea on open (NFR-AP-A11Y-002). */
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
@@ -24,6 +30,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onSend,
   onStop,
   running,
+  needsApproval = false,
   textareaRef,
 }) => {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -61,6 +68,9 @@ export const Composer: React.FC<ComposerProps> = ({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={running}
+          // NFR-AW-A11Y-003: explicit aria-disabled in needs-approval phase so screen
+          // readers can distinguish "awaiting decision" from "streaming" (Blocker-7).
+          aria-disabled={needsApproval ? 'true' : undefined}
           maxLength={2000}
           rows={1}
           placeholder="Ask a question…"
