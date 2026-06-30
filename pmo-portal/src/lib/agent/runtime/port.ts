@@ -67,11 +67,12 @@ export interface SupabaseLike {
         value: string,
       ): PromiseLike<{ data: unknown[] | null; error: unknown }> & {
         limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
-        in(
-          column: string,
-          values: string[],
-        ): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
       };
+      /** Direct .in() on the select builder — correct path for in-filter (not .eq().in()). */
+      in(
+        column: string,
+        values: string[],
+      ): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
       limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
     };
   };

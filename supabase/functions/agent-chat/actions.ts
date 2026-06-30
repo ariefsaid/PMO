@@ -110,7 +110,7 @@ export async function runQueryEntity(
       const vals = Array.isArray(value)
         ? value.map(String)
         : [String(value)];
-      query = builder.eq(column, vals[0]).in(column, vals).limit(effLimit);
+      query = builder.in(column, vals).limit(effLimit);
     } else {
       return { error: `unsupported filter op: ${op}` };
     }

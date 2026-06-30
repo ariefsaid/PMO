@@ -180,3 +180,40 @@ it('requiredFilter entity would be refused when filter is absent (proves the bra
   const res = await runQueryEntity({ entity: 'projects' }, ctx);
   expect((res as { error?: string }).error).toBeUndefined();
 });
+
+// ── Blocker 1: in-filter with multi-value list calls .in() directly (not .eq().in()) ──
+
+it('in-filter with multiple values calls .in() directly on the builder — not .eq().in()', async () => {
+  // RED: the old code called builder.eq(col, vals[0]).in(col, vals).limit(n)
+  // which AND-constrains to just the first value for multi-element lists.
+  // Correct path: builder.in(col, vals).limit(n)
+  const inSpy = vi.fn().mockReturnValue({
+    limit: vi.fn().mockResolvedValue({ data: [{ id: '1' }, { id: '2' }], error: null }),
+  });
+  const eqSpy = vi.fn();
+  const ctx = {
+    jwt: 'j',
+    userId: 'u',
+    orgId: 'o',
+    supabase: {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          in: inSpy,
+          eq: eqSpy,
+          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      }),
+    },
+  } as unknown as DeputyContext;
+
+  const res = await runQueryEntity(
+    { entity: 'projects', columns: ['id'], filter: { column: 'id', op: 'in', value: ['1', '2'] } },
+    ctx,
+  ) as { rowCount: number; rows: unknown[] };
+
+  // .in() must be called directly (not chained after .eq())
+  expect(inSpy).toHaveBeenCalledWith('id', ['1', '2']);
+  // .eq() must NOT have been called at all (would AND-constrain)
+  expect(eqSpy).not.toHaveBeenCalled();
+  expect(res.rowCount).toBe(2);
+});
