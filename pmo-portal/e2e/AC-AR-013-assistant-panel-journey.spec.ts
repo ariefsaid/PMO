@@ -75,6 +75,7 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
       // returning JSON here makes decodeSseStream yield a bogus event and the tool /
       // assistant / completed frames never arrive (the failure the integration gate
       // caught). The GET branch is defensive only; it is never exercised by the adapter.
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -92,6 +93,11 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
   }) => {
     // ── 1. Authenticate ───────────────────────────────────────────────────────
     await signIn(page, 'admin@acme.test');
+
+    // Ensure the shell + ⌘J hotkey listener are mounted before pressing — the
+    // listener attaches in a useEffect, so pressing too early misses it. The Rail
+    // "Assistant" toggle renders only once the shell is mounted with the flag on.
+    await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
 
     // ── 2. Open the AssistantPanel via ⌘J / Ctrl+J ───────────────────────────
     // On Linux CI, ControlOrMeta resolves to Control.
