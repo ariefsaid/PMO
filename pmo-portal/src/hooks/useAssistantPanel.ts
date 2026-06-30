@@ -74,6 +74,12 @@ export function useAssistantPanel(): UseAssistantPanel {
     async (iterable: AsyncIterable<AgentEvent>, drainRunId: string) => {
       try {
         for await (const ev of iterable) {
+          // Guard: if the runId has changed (newConversation reset it), stop
+          // draining — the current run is no longer the active conversation.
+          // This prevents events from a stale/cancelled run from polluting a
+          // fresh transcript after newConversation() is called.
+          if (drainRunId !== runIdRef.current) break;
+
           if (ev.type === 'assistant') {
             setTranscript((prev) => mergeAssistantEvent(prev, ev));
             continue;
@@ -112,7 +118,6 @@ export function useAssistantPanel(): UseAssistantPanel {
       } catch {
         // Stream aborted (e.g. via stop()) — handled by stop().
       }
-      void drainRunId; // suppress unused warning; kept for potential future use
     },
     [],
   );
@@ -204,12 +209,18 @@ export function useAssistantPanel(): UseAssistantPanel {
 
   // ── newConversation ──────────────────────────────────────────────────────────
   const newConversation = useCallback(() => {
-    setRunId(null);
+    // Cancel any in-flight run so the drain loop stops producing events.
+    // The drain guard (drainRunId !== runIdRef.current) will then break the loop.
+    if (runIdRef.current && runtime) {
+      void runtime.control(runIdRef.current, 'cancel');
+    }
+    // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
     runIdRef.current = null;
+    setRunId(null);
     setTranscript([]);
     setPhase('idle');
     setLastGoal(null);
-  }, []);
+  }, [runtime]);
 
   return {
     open,

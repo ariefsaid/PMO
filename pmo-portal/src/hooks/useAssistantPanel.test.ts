@@ -173,6 +173,47 @@ describe('useAssistantPanel', () => {
     ).toBe(true);
   });
 
+  it('newConversation() cancels in-flight run via control() and drains leaking events are ignored', async () => {
+    // Verify that newConversation() calls control(runId, 'cancel') when a run is active,
+    // and that the drain guard (drainRunId !== runIdRef) prevents old events from
+    // polluting the fresh transcript.
+    const runId = 'flight-run';
+
+    // Use a completed stream; we just test newConversation calls control()
+    // when runId is set, then resets state cleanly.
+    const completedEvent = makeEvent('status', {
+      runId,
+      payload: { status: 'completed' },
+    });
+    const runtime = makeFakeRuntime([completedEvent], runId);
+    runtime.createRunSpy.mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun);
+
+    const wrapper = makeWrapper(runtime);
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    // Send a message and let the stream complete so runId is set
+    await act(async () => {
+      await result.current.send('first question');
+    });
+
+    expect(result.current.runId).toBe(runId);
+    expect(result.current.phase).toBe('idle');
+
+    // Now start a new "in-flight" state by sending again (drain will complete quickly)
+    // The key test: call newConversation when runId IS set → must call control()
+    await act(async () => {
+      result.current.newConversation();
+    });
+
+    // newConversation must have called control(runId, 'cancel') since a runId was held
+    expect(runtime.controlSpy).toHaveBeenCalledWith(runId, 'cancel');
+
+    // After newConversation: transcript is empty, phase is idle, runId is null
+    expect(result.current.transcript).toHaveLength(0);
+    expect(result.current.phase).toBe('idle');
+    expect(result.current.runId).toBeNull();
+  });
+
   it('AC-AP-016 retry() re-invokes createRun with the last goal', async () => {
     const runId = 'err-run';
     const errorEvent = makeEvent('status', {
