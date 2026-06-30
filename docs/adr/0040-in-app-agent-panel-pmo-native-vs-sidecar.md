@@ -137,6 +137,41 @@ If A is chosen, the build splits into a mini-epic (each its own SDD → plan →
 3. **Entry point:** ⌘J + a Rail "Assistant" item, or a floating button? (Recommended: ⌘J + Rail, matching the existing CommandPalette idiom.)
 4. **Domain (only if B):** is a custom domain on the near-term roadmap? Without it, B's SSO cannot be exercised.
 
+## Addendum (2026-06-30) — Can Option A reuse `agent-native`'s chat UI / template app? (owner question)
+
+Investigated the published packages directly:
+
+- **`@agent-native/code-agents-ui`** (the chat panel) — **public, v0.1.75**, `react`/`react-dom ^19` *peer* deps
+  (PMO is React 19), UI-only direct deps (Radix, Tabler icons, sonner). On its own it looks droppable into a
+  Vite SPA. **But** it has a **peer dependency on `@agent-native/core` (>=0.1.0)**.
+- **`@agent-native/core`** (the runtime) — **v0.80.10**, ESM, and a **full-stack server framework**: depends on
+  **nitro, h3, better-sqlite3, drizzle-orm, @libsql/client, @neondatabase/serverless** (+ express/node-pty in
+  dev). It has conditional `browser`/`./client/*` exports, but the package is fundamentally **not
+  browser/Vite-safe**.
+
+**Conclusions:**
+1. **"Use the template app" = Option B.** The `create` "Chat" template scaffolds a whole **Nitro** app (frame +
+   code-agents-ui + core). It assumes it *owns* the app (server-first, Drizzle data). It is **not** a drop-in for
+   PMO's existing Vite/Cloudflare SPA — taking it means running it as the sidecar service. So "use their
+   template" is literally the §8 sidecar path, with its domain/SSO + second-deployable costs.
+2. **The chat UI *component* is technically public but impractical to vendor into Option A.** Consuming
+   `code-agents-ui` drags in the `core` server runtime as a peer, its own transport/protocol expectations, and a
+   **v0.x, fast-moving API** (UI 0.1.75 vs core 0.80.10 — divergent release lines = high churn). Bolting it into
+   PMO would mean shimming/forking around the server peer dep — which **forfeits the very upstream-upgradability
+   that motivates reuse**, and lands us in the worst-of-both (their churn + our integration burden + a
+   server framework in a browser bundle).
+3. **Is Option A "still upstream-upgradable"? No — and that's by design.** Option A **does not depend on
+   `agent-native` at all**, so there is no upstream to track: it cannot drift or break under their churn, but it
+   also won't inherit their UI work for free. Upstream-upgradability of the agent UI is the distinguishing
+   benefit of **Option B**, not something A can bolt on cleanly.
+
+**Net recommendation refinement.** If **owning a stable, dependency-free agent surface now** is the priority →
+**Option A** (mirror `code-agents-ui`'s UX patterns as *inspiration*, not as a dependency — it's open source).
+If **inheriting Builder.io's evolving agent UI/runtime** is the priority → that is **Option B** (the template/
+sidecar), and it should be taken whole (config-over-fork) once PMO has a **custom domain** for the SSO cookie.
+A "hybrid" (their UI component + our edge-fn backend) is **not recommended** — the `core` server-runtime peer
+dep + v0.x churn make it high-friction and self-defeating on the upgradability goal.
+
 ## Verification (of this ADR)
 - Owner selects A or B; `docs/README.md` ADR range/Latest updated to include 0040.
 - On selection, the chosen option's §"build splits" become SDD specs → plans → TDD issues; the deputy-invariant test (agent path carries the real JWT, denied a cross-tenant read/write) is a required gate on the first issue.
