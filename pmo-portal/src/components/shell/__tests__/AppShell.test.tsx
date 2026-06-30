@@ -129,7 +129,7 @@ describe('AppShell', () => {
   // AC-AP-002 — when an assistant node is passed (flag on), it is rendered as
   // a sibling of <main> (NOT inside <main>), and is inert when closed.
   it('AC-AP-002 flag on → assistant slot rendered as sibling of main, inert when closed', () => {
-    const { container } = wrap(
+    wrap(
       <AppShell
         rail={null}
         header={null}

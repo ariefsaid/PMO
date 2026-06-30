@@ -42,6 +42,31 @@ export default tseslint.config(
       }],
     },
   },
+  // ── A2 port isolation: PmoNativeRuntime adapter only importable from its own dir ──
+  // AC-AP-024 / NFR-AP-SEC-003: the concrete adapter may only be imported inside
+  // src/lib/agent/ (the provider + its tests). Panel, hooks, and all other app
+  // code must import ONLY from port.ts (the abstract interface) or AgentRuntimeContext.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    // Exempt the agent runtime directory (provider + adapter) AND the co-located
+    // adapter test files (pmoNativeRuntime.test.ts, port.contract.test.ts) which
+    // legitimately test the concrete implementation.
+    ignores: ['src/lib/agent/runtime/**', 'src/lib/agent/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/pmoNativeRuntime', '**/pmoNativeRuntime.ts'],
+            message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
+          },
+          {
+            group: ['@/src/lib/agent/runtime/pmoNativeRuntime', '@/src/lib/agent/runtime/pmoNativeRuntime.ts'],
+            message: 'Import only the AgentRuntime port / AgentRuntimeContext. The concrete PmoNativeRuntime adapter may be imported only inside src/lib/agent/ (the provider/tests).',
+          },
+        ],
+      }],
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
