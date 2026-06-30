@@ -544,3 +544,19 @@ for the calendar grid + xlsx cells (monthMatrix, `toWorkbookBuffer`). Do NOT han
 `new Date(\`${iso}T00:00:00Z\`)` / manual `getUTC*` / `getFullYear` string-building. Two
 intentional native exceptions stay (would need `date-fns-tz`, not worth a 2nd dep):
 `formatDocNumber` (UTC parts) and `formatSCurveAxisDate` (Intl UTC formatter).
+
+---
+
+## OD-A3 — Agent write-actions (A3) design decisions (graduated from Discover pass, 2026-06-30)
+
+### OD-A3-CHIP — Approval chip state MUST be keyed by `pendingId`, not a single global atom
+
+**Decision (structural correctness):** `ChipStateMap = Record<string, ApprovalChipState>` replaces the former single `approvalChipState` atom in `useAssistantPanel`. Each chip looks up its own state by `pendingId`.
+
+**Why:** A single global resets to `pending` when the second proposal arrives, which re-enables Approve/Deny on any earlier resolved chip — allowing the user to double-approve a write action or approve an action the agent has moved past. This is a UX correctness failure, not cosmetic. The per-`pendingId` map isolates each chip's lifecycle: once `approved` or `denied`, it stays resolved even as new proposals arrive.
+
+**Enforced by:** `AssistantPanel.test.tsx` — "two sequential needs-approval events: first chip shows Approved after approval even when second chip is pending."
+
+**Canonical implementation:** `src/hooks/useAssistantPanel.ts` exports `ChipStateMap`; threaded via `Transcript` → `TranscriptItem` → `ApprovalChip`. The active `pendingId` is tracked with a `useRef` so `approve()` / `deny()` update only the current chip.
+
+**See also:** DESIGN.md §5 ApprovalChip — "Per-chip state keyed by pendingId" note.

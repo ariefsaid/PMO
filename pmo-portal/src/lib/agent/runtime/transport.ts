@@ -23,6 +23,14 @@ export interface ContentBlock {
   [key: string]: unknown;
 }
 
+/** A3: approve/reject decision carried on re-POST (D-A3-1, AW-OD-004 Option B). */
+export interface AgentDecision {
+  /** The pendingId from the needs-approval event; used for audit/chip bookkeeping. */
+  pendingId: string;
+  /** 'approve' → execute the write; 'reject' → decline + model acknowledges. */
+  verdict: 'approve' | 'reject';
+}
+
 /** The JSON body POSTed to agent-chat for both createRun and followUp (D8/R5). */
 export interface AgentChatRequest {
   /** Present on followUp; omitted on createRun (adapter mints it client-side). */
@@ -31,6 +39,8 @@ export interface AgentChatRequest {
   messages: ConversationMessage[];
   /** Optional UI context hints. */
   context?: RunContext;
+  /** A3: present on an approve/deny re-POST (D-A3-1, AW-OD-004 Option B). */
+  decision?: AgentDecision;
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */

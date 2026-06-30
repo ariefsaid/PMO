@@ -13,8 +13,8 @@
 // Relative imports — no .ts extension (Deno + Node/Vitest both resolve these).
 // No @-alias (Deno has no Vite alias).
 import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
-import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port';
-import { QUERY_ENTITY_SCHEMA } from './schema';
+import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port';
+import { QUERY_ENTITY_SCHEMA, CREATE_ACTIVITY_SCHEMA, UPDATE_TASK_STATUS_SCHEMA } from './schema';
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
 
@@ -159,4 +159,119 @@ export const queryEntityAction: AgentAction = {
   surfaces: ['agent'],
   confirm: false,
   run: (input: unknown, ctx: DeputyContext) => runQueryEntity(input, ctx),
+};
+
+// ── Write actions (A3) ────────────────────────────────────────────────────────
+
+/** Map from the agent-facing lowercase kind to the DB title-case enum (R-A3-6). */
+const ACTIVITY_KIND_MAP: Record<string, 'Call' | 'Email' | 'Meeting' | 'Note'> = {
+  call: 'Call',
+  email: 'Email',
+  meeting: 'Meeting',
+  note: 'Note',
+};
+
+export interface CreateActivityInput {
+  contactId: string;
+  kind: keyof typeof ACTIVITY_KIND_MAP;
+  subject: string;
+  body?: string;
+  occurredAt?: string;
+}
+
+function validateCreateActivity(
+  input: unknown,
+): { ok: true; value: CreateActivityInput } | { ok: false; error: string } {
+  const i = input as Partial<CreateActivityInput>;
+  if (typeof i?.contactId !== 'string' || !i.contactId)
+    return { ok: false, error: 'contactId is required' };
+  if (typeof i?.kind !== 'string' || !(i.kind in ACTIVITY_KIND_MAP))
+    return { ok: false, error: 'kind must be call|email|meeting|note' };
+  if (typeof i?.subject !== 'string' || !i.subject || i.subject.length > 200)
+    return { ok: false, error: 'subject is required (max 200 chars)' };
+  if (i.body !== undefined && (typeof i.body !== 'string' || i.body.length > 2000))
+    return { ok: false, error: 'body must be a string (max 2000 chars)' };
+  if (i.occurredAt !== undefined && typeof i.occurredAt !== 'string')
+    return { ok: false, error: 'occurredAt must be an ISO-8601 string' };
+  return { ok: true, value: i as CreateActivityInput };
+}
+
+export const createActivityAction: AgentAction & {
+  validate: (input: unknown) => { ok: true; value: CreateActivityInput } | { ok: false; error: string };
+  summarize: (input: CreateActivityInput) => string;
+} = {
+  name: 'create_activity',
+  description: 'Log a CRM activity (call/email/meeting/note) on a contact. Requires user approval.',
+  inputSchema: CREATE_ACTIVITY_SCHEMA,
+  surfaces: ['agent'],
+  confirm: true,
+  validate: validateCreateActivity,
+  summarize: (i) => `Log a ${i.kind} activity on contact ${i.contactId}: "${i.subject}"`,
+  run: async (input: unknown, ctx: DeputyContext) => {
+    const v = validateCreateActivity(input);
+    if (v.ok === false) return { error: v.error };
+    // Type cast: write actions receive a SupabaseLikeWithWrites client (NFR-AW-SEC-002).
+    const sb = ctx.supabase as unknown as SupabaseLikeWithWrites;
+    const { contactId, kind, subject, body, occurredAt } = v.value;
+    const { data, error } = await sb
+      .from('crm_activities')
+      .insert({
+        contact_id: contactId,
+        kind: ACTIVITY_KIND_MAP[kind],
+        subject,
+        body: body ?? null,
+        occurred_at: occurredAt ?? new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (error) return { error: 'create_activity db error', code: (error as { code?: string }).code };
+    return { id: (data as { id?: string }).id };
+  },
+};
+
+const TASK_STATUSES = ['To Do', 'In Progress', 'Done', 'Blocked'] as const;
+type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export interface UpdateTaskStatusInput {
+  taskId: string;
+  status: TaskStatus;
+}
+
+function validateUpdateTaskStatus(
+  input: unknown,
+): { ok: true; value: UpdateTaskStatusInput } | { ok: false; error: string } {
+  const i = input as Partial<UpdateTaskStatusInput>;
+  if (typeof i?.taskId !== 'string' || !i.taskId)
+    return { ok: false, error: 'taskId is required' };
+  if (
+    typeof i?.status !== 'string' ||
+    !(TASK_STATUSES as readonly string[]).includes(i.status)
+  )
+    return { ok: false, error: 'status must be one of To Do|In Progress|Done|Blocked' };
+  return { ok: true, value: i as UpdateTaskStatusInput };
+}
+
+export const updateTaskStatusAction: AgentAction & {
+  validate: (input: unknown) => { ok: true; value: UpdateTaskStatusInput } | { ok: false; error: string };
+  summarize: (input: UpdateTaskStatusInput) => string;
+} = {
+  name: 'update_task_status',
+  description: "Advance a task's status. Requires user approval; RLS restricts engineers to their own tasks.",
+  inputSchema: UPDATE_TASK_STATUS_SCHEMA,
+  surfaces: ['agent'],
+  confirm: true,
+  validate: validateUpdateTaskStatus,
+  summarize: (i) => `Set task ${i.taskId} status to "${i.status}"`,
+  run: async (input: unknown, ctx: DeputyContext) => {
+    const v = validateUpdateTaskStatus(input);
+    if (v.ok === false) return { error: v.error };
+    // Type cast: write actions receive a SupabaseLikeWithWrites client (NFR-AW-SEC-002).
+    const sb = ctx.supabase as unknown as SupabaseLikeWithWrites;
+    const { error } = await sb
+      .from('tasks')
+      .update({ status: v.value.status })
+      .eq('id', v.value.taskId);
+    if (error) return { error: 'update_task_status db error', code: (error as { code?: string }).code };
+    return { taskId: v.value.taskId, status: v.value.status };
+  },
 };

@@ -8,7 +8,7 @@
  * FR-AP-013.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import type { TranscriptEntry } from '@/src/hooks/useAssistantPanel';
+import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
 import { TranscriptItem } from './TranscriptItem';
 
 /** NFR-AP-PERF-003: maximum number of visible transcript entries before the cap kicks in. */
@@ -22,9 +22,18 @@ interface TranscriptProps {
    * in the DOM regardless of transcript state (AC-AP-021).
    */
   emptySlot?: React.ReactNode;
+  /**
+   * A3: chip state keyed by pendingId — each needs-approval chip has its own state.
+   * Blocker-8 fix: not a single global atom; supports sequential proposals in one run.
+   */
+  chipStateMap?: ChipStateMap;
+  /** A3: approve callback threaded down. */
+  onApprove?: () => void;
+  /** A3: deny callback threaded down. */
+  onDeny?: () => void;
 }
 
-export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot }) => {
+export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -82,7 +91,13 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot })
       )}
 
       {visibleEntries.map((entry) => (
-        <TranscriptItem key={entry.key} entry={entry} />
+        <TranscriptItem
+          key={entry.key}
+          entry={entry}
+          chipStateMap={chipStateMap}
+          onApprove={onApprove}
+          onDeny={onDeny}
+        />
       ))}
       <div ref={bottomRef} aria-hidden />
     </div>

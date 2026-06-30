@@ -10,6 +10,39 @@
 
 import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './actions';
 
+// ── Write action schemas (A3) ─────────────────────────────────────────────────
+
+export const CREATE_ACTIVITY_SCHEMA = {
+  type: 'object' as const,
+  required: ['contactId', 'kind', 'subject'] as string[],
+  additionalProperties: false,
+  properties: {
+    contactId: { type: 'string' as const, description: "Parent contact id (the caller's own org)." },
+    kind: {
+      type: 'string' as const,
+      enum: ['call', 'email', 'meeting', 'note'] as string[],
+      description: 'Activity kind.',
+    },
+    subject: { type: 'string' as const, maxLength: 200, description: 'Short subject line.' },
+    body: { type: 'string' as const, maxLength: 2000, description: 'Optional detail.' },
+    occurredAt: { type: 'string' as const, description: 'ISO-8601; defaults to now if omitted.' },
+  },
+};
+
+export const UPDATE_TASK_STATUS_SCHEMA = {
+  type: 'object' as const,
+  required: ['taskId', 'status'] as string[],
+  additionalProperties: false,
+  properties: {
+    taskId: { type: 'string' as const, description: "Task id (the caller's own org)." },
+    status: {
+      type: 'string' as const,
+      enum: ['To Do', 'In Progress', 'Done', 'Blocked'] as string[],
+      description: 'New task status.',
+    },
+  },
+};
+
 export const QUERY_ENTITY_SCHEMA = {
   type: 'object' as const,
   required: ['entity'] as string[],

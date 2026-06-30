@@ -107,3 +107,44 @@ export interface AgentRuntime {
   ): Promise<void>;
   subscribe(runId: string): AsyncIterable<AgentEvent>;
 }
+
+// ── A3: needs-approval / write_resolved event payload types ──────────────────
+
+/** Payload shape for AgentEvent{type:'status', payload:NeedsApprovalPayload} (FR-AW-012). */
+export interface NeedsApprovalPayload {
+  status: 'needs-approval';
+  pendingId: string;
+  actionName: string;
+  /** Server-composed human-readable summary — NOT model-generated (D-A3-5). */
+  humanSummary: string;
+  /** Validated tool input (the args the model supplied, post-schema check). */
+  structuredArgs: object;
+}
+
+/** Payload shape for AgentEvent{type:'system', payload:WriteResolvedPayload} (FR-AW-013). */
+export interface WriteResolvedPayload {
+  event: 'write_resolved';
+  decision: 'approved' | 'rejected';
+  actionName: string;
+  /** Echo of the pendingId from the chip for UI correlation. */
+  pendingId: string;
+}
+
+/** Extended SupabaseLike that also supports write operations (A3 write actions). */
+export interface SupabaseLikeWithWrites extends SupabaseLike {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: string): PromiseLike<{ data: unknown[] | null; error: unknown }> & {
+        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
+      };
+      in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
+      limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
+    };
+    insert(row: object): {
+      select(): { single(): PromiseLike<{ data: unknown; error: unknown }> };
+    };
+    update(patch: object): {
+      eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>;
+    };
+  };
+}

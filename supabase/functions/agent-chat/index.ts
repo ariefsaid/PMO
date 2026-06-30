@@ -26,6 +26,10 @@ import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
+import {
+  AGENT_MASTER_DATA_ROLES,
+  AGENT_DELIVERY_WITH_ENGINEER_ROLES,
+} from '../../../pmo-portal/src/auth/agentRoles.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,6 +95,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── A3: Shared can() role sets for v1 write actions (FR-AW-010, ADR-0016) ────
+  // Role sets imported from agentRoles.ts — single source of truth shared with policy.ts.
+  // Drift guard: agentRoles.test.ts asserts these match the policy.ts RBAC expectations.
+  // RLS/SoD is the enforcement authority; this is a UX preflight only (ADR-0016).
+  const MASTER_DATA_SET = new Set(AGENT_MASTER_DATA_ROLES);
+  const DELIVERY_WITH_ENGINEER_SET = new Set(AGENT_DELIVERY_WITH_ENGINEER_ROLES);
+  const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
+    const role = ctx.realRole;
+    if (!role) return false;
+    if (entity === 'contactActivity' && action === 'create') return MASTER_DATA_SET.has(role);
+    if (entity === 'taskStatus' && action === 'edit') return DELIVERY_WITH_ENGINEER_SET.has(role);
+    return false;
+  };
+
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
@@ -102,6 +120,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // Cast: real callerClient satisfies HandlerSupabaseLike
           supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
           userId,
+          // A3: injectable can() for deputy re-auth (FR-AW-010)
+          can: agentCan,
           // rateGuard: undefined (AR-OD-002 default — disabled in v1)
         })) {
           controller.enqueue(enc.encode(encodeSse(ev)));

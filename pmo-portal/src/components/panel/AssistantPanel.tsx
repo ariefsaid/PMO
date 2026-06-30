@@ -94,6 +94,9 @@ export const AssistantPanel: React.FC = () => {
     stop,
     retry,
     newConversation,
+    approve,
+    deny,
+    chipStateMap,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -174,7 +177,8 @@ export const AssistantPanel: React.FC = () => {
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
-    if (!composerValue.trim() || phase === 'running') return;
+    // Block send while running or awaiting an approval decision (A3).
+    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval') return;
     const text = composerValue;
     setComposerValue('');
     void send(text);
@@ -290,10 +294,26 @@ export const AssistantPanel: React.FC = () => {
           <Transcript
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
+            chipStateMap={chipStateMap}
+            onApprove={() => void approve()}
+            onDeny={() => void deny()}
           />
 
-          {/* Streaming indicator — shows while run is active */}
-          {phase === 'running' && <StreamingIndicator />}
+          {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}
+          {(phase === 'running') && <StreamingIndicator />}
+
+          {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
+              streaming "Working…" indicator. SR users learn WHY input is blocked. */}
+          {phase === 'needs-approval' && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="px-4 py-1 text-xs text-muted-foreground"
+            >
+              A write action awaits your decision
+            </div>
+          )}
 
           {/* Error card */}
           {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
@@ -305,7 +325,8 @@ export const AssistantPanel: React.FC = () => {
           onChange={setComposerValue}
           onSend={handleSend}
           onStop={handleStop}
-          running={phase === 'running'}
+          running={phase === 'running' || phase === 'needs-approval'}
+          needsApproval={phase === 'needs-approval'}
         />
       </section>
     </>

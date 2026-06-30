@@ -528,6 +528,20 @@ The run-phase status ("Working…", "Done.") is the `badge-status` molecule appl
 
 The empty-state example questions reuse the `button-outline`/control-chip idiom (`rounded.md`, `label` type). Tapping fills the composer (does not auto-send — user reviews, then sends).
 
+#### `ApprovalChip` (write-action approve/deny widget) — A3 Discover graduation
+
+Inline chip rendered in the transcript when the agent proposes a write action (`needs-approval` status event). Graduated findings from the A3 design-Discover pass (2026-06-30):
+
+**Token rule — approved-state text (Blocker-6):** The "Approved ✓" paragraph MUST use `text-[hsl(var(--success-text))]`, the AA-darkened green text token defined in §2 / §4 (`--success-text: 142 64% 28%`). Using the raw Tailwind literal `text-green-600` bypasses the token pipeline (different L — fails AA on the chip's `secondary/40` fill and breaks dark-mode). This is enforced by a Vitest test in `ApprovalChip.test.tsx`.
+
+**Control height rule (Blocker-9):** Approve (primary) and Deny (outline) buttons MUST be `h-8` (32px), matching the app-wide control height rule (§5 Buttons, DESIGN.md "32px tall"). Using `py-1` alone yields ~28-30px and violates the rule. Use `h-8 py-0` so the height class is authoritative. Enforced by Vitest test.
+
+**Chip shape:** `rounded.md` border, `secondary/40` bg, `px-3 py-2` inset — matches `ToolCallCard` recessed style. Summary text: 12px `foreground` (server-composed, never model-generated, truncated to 120 chars). Approve button: `primary` fill, `primary-foreground` text, `h-8`. Deny button: `border` outline, `foreground` text, `h-8`. Resolved states (approved/denied) remove the buttons; "Approved ✓" in `success-text` token, "Denied" in `muted-foreground`.
+
+**Accessibility (NFR-AW-A11Y-001/003 — Blocker-7):** The chip container carries `aria-live="assertive"` so AT announces the proposal immediately. When `phase === 'needs-approval'`, `AssistantPanel` MUST render a distinct `role="status" aria-live="polite"` region with the text "A write action awaits your decision" — separate from the "Working…" streaming indicator so SR users learn WHY composer input is blocked. The Composer textarea MUST carry `aria-disabled="true"` (via `needsApproval` prop) in this phase.
+
+**Per-chip state keyed by `pendingId` (Blocker-8):** Each approval proposal has a unique `pendingId`. Chip display state MUST be a `ChipStateMap = Record<string, ApprovalChipState>` keyed by `pendingId` — NOT a single global atom. A single global state corrupts earlier chips when sequential proposals arrive in one run (e.g. second proposal arrives while first is `approved` → global resets to `pending`, re-enabling the first chip's buttons). This is a structural correctness requirement, not cosmetic. See `docs/decisions.md` OD-A3-CHIP.
+
 ### Icon: `message` (chat bubble outline)
 
 Added to `src/components/ui/iconPaths.tsx` as `IconName = ... | 'message'`. A simple speech-bubble outline at stroke-2, 24×24, same family as all existing icons. Used by the Rail "Assistant" entry and future header trigger.

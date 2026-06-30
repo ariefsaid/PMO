@@ -767,6 +767,416 @@ describe('AssistantPanel', () => {
     expect(screen.getByText(/ask your agent/i)).toBeInTheDocument();
   });
 
+  // ── A3 Approve/Deny chip (Tasks 23) — AC-AW-013..017 ─────────────────────
+
+  it('AC-AW-013 needs-approval event → chip renders with humanSummary; composer Send disabled', async () => {
+    const user = userEvent.setup();
+    const runId = 'aw-run-1';
+    const events: AgentEvent[] = [
+      makeEvent('status', {
+        runId,
+        payload: {
+          status: 'needs-approval',
+          pendingId: 'p1',
+          actionName: 'create_activity',
+          humanSummary: 'Log a call activity on contact XYZ',
+          structuredArgs: { contactId: 'c1', kind: 'call', subject: 'Follow-up' },
+        },
+      }),
+    ];
+    const runtime = makeFakeRuntime(events, runId);
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Log a call activity on contact XYZ/i)).toBeInTheDocument();
+    });
+
+    // Approve and Deny buttons visible
+    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /deny/i })).toBeInTheDocument();
+
+    // Composer is disabled while in needs-approval phase:
+    // either no Send button (replaced by Stop) OR Send button is disabled.
+    await waitFor(() => {
+      const sendBtn = screen.queryByRole('button', { name: /send message/i });
+      const stopBtn = screen.queryByRole('button', { name: /stop generating/i });
+      // One of: Send absent (running=true → Stop shown) OR Send present+disabled
+      const composerDisabled = !sendBtn || stopBtn !== null;
+      expect(composerDisabled).toBe(true);
+    });
+  });
+
+  it('AC-AW-014 clicking Approve calls runtime.control(runId, "approve"); chip resolves on subsequent tool event', async () => {
+    const user = userEvent.setup();
+    const runId = 'aw-run-2';
+
+    // First subscribe: needs-approval stream
+    // Second subscribe (after approve): tool event + completed
+    let callCount = 0;
+    const runtime = makeFakeRuntime([], runId);
+    runtime.createRunSpy.mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun);
+    runtime.subscribeSpy.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeAsyncIterable([
+          makeEvent('status', {
+            runId,
+            payload: {
+              status: 'needs-approval',
+              pendingId: 'p2',
+              actionName: 'create_activity',
+              humanSummary: 'Log a call activity on contact ABC',
+              structuredArgs: {},
+            },
+          }),
+        ]);
+      }
+      return makeAsyncIterable([
+        makeEvent('tool', { runId, payload: { name: 'create_activity', pendingId: 'p2', result: { id: 'act-1' } } }),
+        makeEvent('assistant', { runId, text: "Done - I've logged the call." }),
+        makeEvent('status', { runId, payload: { status: 'completed' } }),
+      ]);
+    });
+
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    // Wait for chip to appear
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    });
+
+    // Click Approve
+    await user.click(screen.getByRole('button', { name: /approve/i }));
+
+    // runtime.control called with approve
+    await waitFor(() => {
+      expect(runtime.controlSpy).toHaveBeenCalledWith(runId, 'approve');
+    });
+
+    // After second stream: chip should resolve to approved state
+    await waitFor(() => {
+      expect(screen.getByText(/Approved/i)).toBeInTheDocument();
+    });
+  });
+
+  it('AC-AW-015 clicking Deny calls runtime.control(runId, "reject"); chip shows Denied; composer re-enables', async () => {
+    const user = userEvent.setup();
+    const runId = 'aw-run-3';
+
+    let callCount = 0;
+    const runtime = makeFakeRuntime([], runId);
+    runtime.createRunSpy.mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun);
+    runtime.subscribeSpy.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeAsyncIterable([
+          makeEvent('status', {
+            runId,
+            payload: {
+              status: 'needs-approval',
+              pendingId: 'p3',
+              actionName: 'create_activity',
+              humanSummary: 'Log a call activity on contact DEF',
+              structuredArgs: {},
+            },
+          }),
+        ]);
+      }
+      return makeAsyncIterable([
+        makeEvent('system', { runId, payload: { event: 'write_resolved', decision: 'rejected', actionName: 'create_activity', pendingId: 'p3' } }),
+        makeEvent('assistant', { runId, text: 'Understood, I will not log that.' }),
+        makeEvent('status', { runId, payload: { status: 'completed' } }),
+      ]);
+    });
+
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /deny/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /deny/i }));
+
+    await waitFor(() => {
+      expect(runtime.controlSpy).toHaveBeenCalledWith(runId, 'reject');
+    });
+
+    // After second stream: chip shows Denied (exact text in chip p element)
+    await waitFor(() => {
+      // Look for any element containing "Denied" — either the chip state or the notice
+      const deniedEls = screen.queryAllByText(/denied/i);
+      expect(deniedEls.length).toBeGreaterThan(0);
+    });
+
+    // Composer re-enables after completed
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /stop generating/i })).not.toBeInTheDocument();
+      const sendBtn = screen.queryByRole('button', { name: /send message/i });
+      expect(sendBtn).toBeInTheDocument();
+    });
+  });
+
+  it('AC-AW-016 after chip approved: no enabled Approve/Deny buttons (no re-approval)', async () => {
+    const user = userEvent.setup();
+    const runId = 'aw-run-4';
+
+    let callCount = 0;
+    const runtime = makeFakeRuntime([], runId);
+    runtime.createRunSpy.mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun);
+    runtime.subscribeSpy.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeAsyncIterable([
+          makeEvent('status', {
+            runId,
+            payload: {
+              status: 'needs-approval',
+              pendingId: 'p4',
+              actionName: 'create_activity',
+              humanSummary: 'Log a meeting on contact GHI',
+              structuredArgs: {},
+            },
+          }),
+        ]);
+      }
+      return makeAsyncIterable([
+        makeEvent('tool', { runId, payload: { name: 'create_activity', pendingId: 'p4', result: { id: 'act-2' } } }),
+        makeEvent('status', { runId, payload: { status: 'completed' } }),
+      ]);
+    });
+
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a meeting');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /approve/i }));
+
+    // After resolution, no active Approve/Deny buttons
+    await waitFor(() => {
+      const approveBtn = screen.queryByRole('button', { name: /^approve$/i });
+      if (approveBtn) {
+        expect(approveBtn).toBeDisabled();
+      }
+    });
+  });
+
+  it('AC-AW-017 axe-core zero blocking violations when chip is visible', async () => {
+    const user = userEvent.setup();
+    const runId = 'aw-axe-run';
+    const events: AgentEvent[] = [
+      makeEvent('status', {
+        runId,
+        payload: {
+          status: 'needs-approval',
+          pendingId: 'paxe',
+          actionName: 'create_activity',
+          humanSummary: 'Log a call activity on contact XYZ',
+          structuredArgs: {},
+        },
+      }),
+    ];
+    const runtime = makeFakeRuntime(events, runId);
+    const { container } = renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Log a call activity on contact XYZ/i)).toBeInTheDocument();
+    });
+
+    const { blocking } = await axeViolations(container);
+    if (blocking.length > 0) console.error('Axe violations (needs-approval chip):', blocking);
+    expect(blocking).toEqual([]);
+  });
+
+  // ── Blocker 7: NFR-AW-A11Y-003 — needs-approval accessibility ─────────────
+  // When in needs-approval phase, a role="status" region must announce the blocking
+  // reason ("A write action awaits your decision") distinct from the streaming indicator.
+  // The textarea must have aria-disabled="true" so SR users know WHY input is blocked.
+
+  it('NFR-AW-A11Y-003 needs-approval phase: role=status element contains descriptive awaiting text', async () => {
+    const user = userEvent.setup();
+    const runId = 'a11y-run-1';
+    const events: AgentEvent[] = [
+      makeEvent('status', {
+        runId,
+        payload: {
+          status: 'needs-approval',
+          pendingId: 'pa1',
+          actionName: 'create_activity',
+          humanSummary: 'Log a call on contact XYZ',
+          structuredArgs: {},
+        },
+      }),
+    ];
+    const runtime = makeFakeRuntime(events, runId);
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Log a call on contact XYZ/i)).toBeInTheDocument();
+    });
+
+    // A role=status element must be present with the approval-awaiting text
+    await waitFor(() => {
+      const statusEl = screen.getByRole('status');
+      expect(statusEl.textContent).toMatch(/write action awaits your decision/i);
+    });
+  });
+
+  it('NFR-AW-A11Y-003 needs-approval phase: textarea has aria-disabled="true"', async () => {
+    const user = userEvent.setup();
+    const runId = 'a11y-run-2';
+    const events: AgentEvent[] = [
+      makeEvent('status', {
+        runId,
+        payload: {
+          status: 'needs-approval',
+          pendingId: 'pa2',
+          actionName: 'create_activity',
+          humanSummary: 'Log a meeting on contact ABC',
+          structuredArgs: {},
+        },
+      }),
+    ];
+    const runtime = makeFakeRuntime(events, runId);
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a meeting');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Log a meeting on contact ABC/i)).toBeInTheDocument();
+    });
+
+    // The textarea must have aria-disabled="true" in needs-approval state
+    await waitFor(() => {
+      const ta = screen.getByRole('textbox', { name: /ask a question/i });
+      expect(ta).toHaveAttribute('aria-disabled', 'true');
+    });
+  });
+
+  // ── Blocker 8: chip state keyed by pendingId — multi-proposal support ───────
+  // A single global approvalChipState causes corruption when two sequential proposals
+  // appear in one conversation. Test asserts the first chip stays 'pending' while the
+  // second arrives, and approving the second doesn't corrupt the first.
+
+  it('Blocker-8 two sequential needs-approval events: first chip shows Approved after approval even when second chip is pending', async () => {
+    const user = userEvent.setup();
+    const runId = 'b8-run';
+    let callCount = 0;
+
+    const runtime = makeFakeRuntime([], runId);
+    runtime.createRunSpy.mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun);
+    runtime.subscribeSpy.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First subscribe: first proposal
+        return makeAsyncIterable([
+          makeEvent('status', {
+            runId,
+            payload: {
+              status: 'needs-approval',
+              pendingId: 'first-p',
+              actionName: 'create_activity',
+              humanSummary: 'First proposal summary',
+              structuredArgs: {},
+            },
+          }),
+        ]);
+      }
+      if (callCount === 2) {
+        // After approving first: tool event resolving first, then second proposal
+        return makeAsyncIterable([
+          // write_resolved for first chip
+          makeEvent('system', {
+            runId,
+            payload: { event: 'write_resolved', decision: 'approved', actionName: 'create_activity', pendingId: 'first-p' },
+          }),
+          // second proposal
+          makeEvent('status', {
+            runId,
+            payload: {
+              status: 'needs-approval',
+              pendingId: 'second-p',
+              actionName: 'update_task_status',
+              humanSummary: 'Second proposal summary',
+              structuredArgs: {},
+            },
+          }),
+        ]);
+      }
+      return makeAsyncIterable([
+        makeEvent('status', { runId, payload: { status: 'completed' } }),
+      ]);
+    });
+
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'do two things');
+    await user.keyboard('{Enter}');
+
+    // First chip appears
+    await waitFor(() => {
+      expect(screen.getByText(/First proposal summary/i)).toBeInTheDocument();
+    });
+
+    // Approve first chip
+    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    await user.click(approveBtn);
+
+    // Second chip appears in same conversation
+    await waitFor(() => {
+      expect(screen.getByText(/Second proposal summary/i)).toBeInTheDocument();
+    });
+
+    // The second chip must have active Deny/Approve buttons (it is still pending).
+    // With a global approvalChipState, when the second needs-approval resets it to 'pending',
+    // the FIRST chip also reverts to showing active Approve/Deny buttons — even though it was
+    // already approved. We detect this: if chip state is correctly keyed by pendingId,
+    // the first chip stays disabled (no enabled Approve button for 'First proposal summary').
+    //
+    // The second chip should have active Deny and Approve buttons.
+    const denyBtns = screen.queryAllByRole('button', { name: /deny/i });
+    const activeDeny = denyBtns.find((b) => !b.hasAttribute('disabled'));
+    expect(activeDeny).toBeDefined();
+
+    // With per-pendingId state: the first chip (already approved) must NOT have an
+    // enabled Approve button — it should show "Approved ✓" resolved state.
+    // With global state bug: the first chip would show an enabled Approve button again.
+    // We check: at most ONE enabled Approve button exists (only on the second chip).
+    const approveBtns = screen.queryAllByRole('button', { name: /^approve$/i });
+    const enabledApprove = approveBtns.filter((b) => !b.hasAttribute('disabled'));
+    // With correct per-id state: 0 or 1 enabled Approve (only the second chip's).
+    // With global-state bug: 2 enabled Approve buttons (both chips show pending again).
+    expect(enabledApprove.length).toBeLessThanOrEqual(1);
+  });
+
   // ── Panel keep-mounted (D-A2-6) ────────────────────────────────────────────
 
   it('AC-AP-007 panel DOM is present even when closed (keep-mounted)', () => {

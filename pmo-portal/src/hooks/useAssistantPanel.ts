@@ -8,12 +8,22 @@ import { useState, useCallback, useRef } from 'react';
 import type { AgentEvent } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 
-export type RunPhase = 'idle' | 'running' | 'error';
+export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
 
 export interface TranscriptEntry {
   key: string;
   event: AgentEvent;
 }
+
+/** A3: chip state for a pending write approval chip. */
+export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
+
+/**
+ * A3: chip state keyed by pendingId (not a single global) to support sequential
+ * proposals in one run without one chip's state corrupting another.
+ * Decisions note: docs/decisions.md "A3 chip state is keyed by pendingId."
+ */
+export type ChipStateMap = Record<string, ApprovalChipState>;
 
 export interface UseAssistantPanel {
   open: boolean;
@@ -21,6 +31,11 @@ export interface UseAssistantPanel {
   phase: RunPhase;
   lastGoal: string | null;
   runId: string | null;
+  /**
+   * A3: chip state keyed by pendingId.
+   * Each needs-approval event has its own entry; resolved via the matching pendingId.
+   */
+  chipStateMap: ChipStateMap;
   openPanel(): void;
   closePanel(): void;
   togglePanel(): void;
@@ -28,6 +43,10 @@ export interface UseAssistantPanel {
   stop(): Promise<void>;
   retry(): Promise<void>;
   newConversation(): void;
+  /** A3: approve the pending write action — re-POSTs with verdict:'approve'. */
+  approve(): Promise<void>;
+  /** A3: deny the pending write action — re-POSTs with verdict:'reject'. */
+  deny(): Promise<void>;
 }
 
 function makeKey(): string {
@@ -64,6 +83,11 @@ export function useAssistantPanel(): UseAssistantPanel {
   const [phase, setPhase] = useState<RunPhase>('idle');
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
+  // docs/decisions.md: "A3 chip state is keyed by pendingId."
+  const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
+  // Track the currently active pendingId for approve/deny/approving transitions
+  const activePendingIdRef = useRef<string | null>(null);
 
   // Ref so the drain loop can read the latest runId without stale closure
   const runIdRef = useRef<string | null>(null);
@@ -94,11 +118,26 @@ export function useAssistantPanel(): UseAssistantPanel {
               continue;
             }
 
+            if (payload?.status === 'needs-approval') {
+              // A3: pause the run — user must approve/deny before it continues.
+              const naPayload = ev.payload as { status: string; pendingId?: string } | undefined;
+              const pendingId = naPayload?.pendingId ?? makeKey();
+              activePendingIdRef.current = pendingId;
+              setPhase('needs-approval');
+              // Key the chip state by pendingId (Blocker-8: not a single global atom).
+              setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
+              // Append the event so TranscriptItem renders the ApprovalChip.
+              setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
+              // The stream ends here (handler returned after emitting needs-approval).
+              // Don't break — let the for-await loop finish naturally.
+              continue;
+            }
+
             if (payload?.status === 'errored') {
+              setPhase('idle');
               if (payload.error === 'TURN_CAP') {
                 // Step-cap notice: informational, not an error state.
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
-                setPhase('idle');
               } else {
                 // Other errors → error state (FR-AP-018 / AC-AP-015).
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
@@ -107,9 +146,28 @@ export function useAssistantPanel(): UseAssistantPanel {
               continue;
             }
 
-            // Queued/running/paused/needs-approval status events appended as-is.
+            // Queued/running/paused status events appended as-is.
             setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
             continue;
+          }
+
+          // A3: tool event with pendingId → write was approved and executed.
+          if (ev.type === 'tool') {
+            const toolPayload = ev.payload as { pendingId?: string } | undefined;
+            if (toolPayload?.pendingId) {
+              const pid = toolPayload.pendingId;
+              setChipStateMap((prev) => ({ ...prev, [pid]: 'approved' }));
+            }
+          }
+
+          // A3: system write_resolved → update chip state for the specific pendingId.
+          if (ev.type === 'system') {
+            const sysPayload = ev.payload as { event?: string; decision?: string; pendingId?: string } | undefined;
+            if (sysPayload?.event === 'write_resolved' && sysPayload.pendingId) {
+              const pid = sysPayload.pendingId;
+              const newState: ApprovalChipState = sysPayload.decision === 'approved' ? 'approved' : 'denied';
+              setChipStateMap((prev) => ({ ...prev, [pid]: newState }));
+            }
           }
 
           // All other event types (tool, system, artifact, user echo) append directly.
@@ -180,6 +238,31 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('idle');
   }, [runtime]);
 
+  // ── approve / deny (A3) ─────────────────────────────────────────────────────
+  // Called by the ApprovalChip. Signals the adapter, transitions to 'running',
+  // and re-subscribes so the decision re-POST flows through _doSubscribe.
+  const approve = useCallback(async () => {
+    if (!runtime || !runIdRef.current) return;
+    const activeRunId = runIdRef.current;
+    const pid = activePendingIdRef.current;
+    if (pid) setChipStateMap((prev) => ({ ...prev, [pid]: 'approving' }));
+    await runtime.control(activeRunId, 'approve');
+    setPhase('running');
+    const iterable = runtime.subscribe(activeRunId);
+    await drain(iterable, activeRunId);
+  }, [runtime, drain]);
+
+  const deny = useCallback(async () => {
+    if (!runtime || !runIdRef.current) return;
+    const activeRunId = runIdRef.current;
+    const pid = activePendingIdRef.current;
+    if (pid) setChipStateMap((prev) => ({ ...prev, [pid]: 'approving' }));
+    await runtime.control(activeRunId, 'reject');
+    setPhase('running');
+    const iterable = runtime.subscribe(activeRunId);
+    await drain(iterable, activeRunId);
+  }, [runtime, drain]);
+
   // ── retry ───────────────────────────────────────────────────────────────────
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
@@ -216,10 +299,12 @@ export function useAssistantPanel(): UseAssistantPanel {
     }
     // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
     runIdRef.current = null;
+    activePendingIdRef.current = null;
     setRunId(null);
     setTranscript([]);
     setPhase('idle');
     setLastGoal(null);
+    setChipStateMap({});
   }, [runtime]);
 
   return {
@@ -228,6 +313,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     phase,
     lastGoal,
     runId,
+    chipStateMap,
     openPanel,
     closePanel,
     togglePanel,
@@ -235,5 +321,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     stop,
     retry,
     newConversation,
+    approve,
+    deny,
   };
 }
