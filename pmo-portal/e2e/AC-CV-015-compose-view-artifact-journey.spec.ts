@@ -243,8 +243,11 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
     await saveButton.click();
 
     // ── 10. "Saved" indicator appears + "Open view" link ─────────────────────
-    // The ArtifactSlot replaces the Save button with "Saved" text and an "Open view →" link
-    await expect(artifactSlot.getByText(/saved/i)).toBeVisible({ timeout: 10_000 });
+    // The ArtifactSlot replaces the Save button with "Saved" text and an "Open view →" link.
+    // Match the visible badge exactly ('Saved') so we don't also catch the sr-only
+    // aria-live status "View saved successfully" (also contains "saved") — that
+    // ambiguity is a strict-mode violation.
+    await expect(artifactSlot.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 });
     const openViewLink = artifactSlot.getByRole('link', { name: /open view/i });
     await expect(openViewLink).toBeVisible({ timeout: 5_000 });
 

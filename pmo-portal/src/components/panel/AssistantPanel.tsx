@@ -251,7 +251,13 @@ export const AssistantPanel: React.FC = () => {
         // inert when closed (D-A2-6). React 19 maps boolean true → bare `inert`.
         inert={open ? undefined : true}
         onKeyDown={!isDesktop ? onTrapKeyDown : undefined}
-        className={panelClasses}
+        // Keep-mounted (D-A2-6) but VISUALLY hidden when closed: `inert` alone only
+        // removes interactivity — the fixed 400px (desktop) / full-screen (mobile)
+        // overlay would otherwise stay on screen after close. `hidden` (display:none)
+        // removes it from layout + the a11y tree while preserving the mounted React
+        // tree (transcript state). Closed-state unit tests query via querySelector, so
+        // display:none does not hide it from them.
+        className={open ? panelClasses : `${panelClasses} hidden`}
       >
         {/* ── Header ───────────────────────────────────────────────────── */}
         <div
