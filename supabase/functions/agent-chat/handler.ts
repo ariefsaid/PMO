@@ -89,8 +89,6 @@ export interface HandlerDeps {
 
 // ── Event builders ─────────────────────────────────────────────────────────────
 
-let _runId: string | undefined;
-
 function makeId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -131,7 +129,6 @@ export async function* agentChatHandler(
 ): AsyncIterable<AgentEvent> {
   const now = deps.now ?? (() => new Date());
   const runId = req.runId ?? makeId();
-  _runId = runId;
 
   const emit = (
     type: AgentEvent['type'],

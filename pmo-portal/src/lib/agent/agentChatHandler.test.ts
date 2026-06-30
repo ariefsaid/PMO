@@ -208,6 +208,32 @@ it('AC-AR-004 stops after MAX_TOOL_ROUNDS when the model never finalises, comple
   });
 });
 
+// ── Blocker 2: no module-level mutable _runId (cross-request isolation) ──────
+
+it('concurrent runs produce distinct runIds (no module-level _runId contamination)', async () => {
+  // If _runId were a module-level mutable shared across calls, events from concurrent
+  // runs could carry the wrong runId. The runId used in events must come solely from
+  // the local variable inside the generator, not from module scope.
+  const makeCreate = (text: string) =>
+    vi.fn().mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text }],
+      usage: {},
+    });
+
+  const req1: AgentChatRequest = { runId: 'run-A', messages: [{ role: 'user', content: 'q1' }] };
+  const req2: AgentChatRequest = { runId: 'run-B', messages: [{ role: 'user', content: 'q2' }] };
+
+  const [evs1, evs2] = await Promise.all([
+    collect(agentChatHandler(req1, baseDeps({ anthropic: { messages: { create: makeCreate('ans1') } } }))),
+    collect(agentChatHandler(req2, baseDeps({ anthropic: { messages: { create: makeCreate('ans2') } } }))),
+  ]);
+
+  // Every event from run-A must carry runId 'run-A' and vice versa
+  for (const ev of evs1) expect(ev.runId).toBe('run-A');
+  for (const ev of evs2) expect(ev.runId).toBe('run-B');
+});
+
 // ── Task 13: AC-AR-005 upstream error scrubbed ────────────────────────────────
 
 it('AC-AR-005 scrubs the raw SDK error to UPSTREAM_ERROR and logs no prompt/data rows', async () => {
