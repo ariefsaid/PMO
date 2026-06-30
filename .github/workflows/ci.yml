@@ -165,6 +165,10 @@ jobs:
           # The view e2e journeys (AC-VR-020, AC-VB-E01, AC-AS-022) need them ON in CI.
           echo "VITE_FEATURES_USERVIEWS=true" >> pmo-portal/.env.local
           echo "VITE_FEATURES_AI_COMPOSER=true" >> pmo-portal/.env.local
+          # A2–A4 (ADR-0040): the in-app agent AssistantPanel (⌘J) is feature-flagged off by
+          # default; the panel + its journeys only render when this is 'true'. The agent e2e
+          # journeys (AC-AR-013, AC-AW-012, AC-CV-015) need it ON in CI.
+          echo "VITE_FEATURES_AGENT_ASSISTANT=true" >> pmo-portal/.env.local
           # The ownership e2e (AC-VR-020) seeds two users via an admin client, reading these
           # from process.env (the local-stack service-role key is the well-known demo key —
           # ephemeral, not a production secret). Exported to GITHUB_ENV for the Playwright step.
