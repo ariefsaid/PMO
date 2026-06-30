@@ -95,7 +95,8 @@ test.describe('AC-AS-022: AI compose → populate builder → save', () => {
     // ── 3. Click "Compose with AI" on the My Views list ──────────────────────
     // The button is gated on FEATURES.userViews && FEATURES.aiComposer.
     // In CI integration job, both env vars are set to 'true'.
-    const composeButton = page.getByRole('button', { name: /compose with ai/i });
+    // Accessible name is the aria-label "Compose view with AI" (visible text "Compose with AI").
+    const composeButton = page.getByRole('button', { name: /compose view with ai/i });
     await expect(composeButton).toBeVisible({ timeout: 10_000 });
     await composeButton.click();
 
