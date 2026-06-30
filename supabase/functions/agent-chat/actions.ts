@@ -100,12 +100,12 @@ export async function runQueryEntity(
   const colsStr = requestedCols.join(',');
   const builder = ctx.supabase.from(entry.table).select(colsStr);
 
-  let query: Promise<{ data: unknown[] | null; error: unknown }>;
+  let query: PromiseLike<{ data: unknown[] | null; error: unknown }>;
 
   if (inp.filter) {
     const { column, op, value } = inp.filter;
     if (op === 'eq') {
-      query = (builder.eq(column, String(value)) as { limit(n: number): Promise<{ data: unknown[] | null; error: unknown }> }).limit(effLimit);
+      query = builder.eq(column, String(value)).limit(effLimit);
     } else if (op === 'in') {
       const vals = Array.isArray(value)
         ? value.map(String)
@@ -122,7 +122,8 @@ export async function runQueryEntity(
   let result: { data: unknown[] | null; error: unknown };
   try {
     result = await Promise.race([
-      query,
+      // Cast to Promise since PromiseLike doesn't have .finally/.catch but is awaitable
+      Promise.resolve(query),
       timeoutPromise<{ data: unknown[] | null; error: unknown }>(READ_TIMEOUT_MS),
     ]);
   } catch (err) {
