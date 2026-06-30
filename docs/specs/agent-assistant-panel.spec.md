@@ -108,8 +108,8 @@ restore to the element that had focus before the panel opened (the trigger or th
 element in the page), exactly as `AIComposerModal` and the mobile rail drawer implement this.
 
 **FR-AP-007** (event-driven)
-When the user presses Escape while the panel is focused (and no run is in flight — see
-NFR-AP-A11Y-001), the panel SHALL close and focus SHALL restore to the trigger.
+When the user presses Escape while the panel is focused, the panel SHALL close and focus SHALL restore to
+the trigger — **regardless of run state** (D-A2-4; cancelling a run is the separate Stop control, never Escape).
 
 ### 2.3 Message Composer `[COMPOSER]`
 
@@ -239,13 +239,16 @@ service-role key or the `ANTHROPIC_API_KEY` to `PmoNativeRuntime`
 
 ### Accessibility — `NFR-AP-A11Y-###`
 
-**NFR-AP-A11Y-001** — **Landmark role for the drawer.**
-`AssistantPanel` SHALL be rendered as `<aside role="complementary" aria-label="Agent assistant">`.
-Using `complementary` (rather than `dialog`) is correct here: the panel is a persistent, persistent
-sidebar that complements the main content, not a modal flow that interrupts it. If a future
-owner-decision (AP-OD-006) moves it to a modal-overlay mode, switch to `role="dialog" aria-modal`.
-Escape SHALL close the panel when focus is within it and no run is in flight; while a run is in
-flight, Escape cancels the run (calls `control('cancel')`) rather than closing the panel.
+**NFR-AP-A11Y-001** — **Landmark role for the drawer (dual focus contract — D-A2-1).**
+The panel's role is **viewport-dependent**:
+- **Desktop (≥1024px):** `<aside role="complementary" aria-label="Agent assistant">` — **non-modal**: NO
+  focus-trap, the main content is NOT `inert`, and Tab freely exits to `<main>`. The panel complements the
+  app so the user can reference/click app content while conversing with the agent.
+- **Mobile (<1024px):** `role="dialog" aria-modal="true"` with a **full focus-trap + scrim + the background
+  marked `inert`** (reuse the existing focus-trap util, as the mobile Rail drawer does).
+**Escape always CLOSES the panel** (focus restores to the trigger) — regardless of whether a run is in
+flight (D-A2-4). Cancelling a run is the **separate, explicit Stop control** (`control('cancel')`), never
+Escape — single-purpose and discoverable.
 
 **NFR-AP-A11Y-002** — **Focus management (open/close).**
 When the panel opens: focus SHALL move to the composer textarea (if transcript is non-empty) or to
@@ -269,11 +272,11 @@ SHALL be: transcript (scroll region, not interactive) → composer textarea → 
 any other controls. No interactive element within the panel SHALL be keyboard-unreachable while
 the panel is open.
 
-**NFR-AP-A11Y-005** — **`inert` when closed.**
-When the panel is closed, its DOM (if kept mounted for persistence) SHALL be marked `inert` so
-it is invisible to the Tab sequence and screen-reader tree. When open, the main content area is
-NOT made `inert` (the panel is complementary, not modal — the user may freely Tab back to the
-main content).
+**NFR-AP-A11Y-005** — **`inert` rules (closed + the dual mode).**
+When the panel is **closed**, its DOM (kept mounted for persistence — D-A2-6) SHALL be marked `inert`
+so it is invisible to the Tab sequence and screen-reader tree. When **open on desktop (≥1024px)** the main
+content is **NOT** `inert` (complementary, non-modal — the user may freely Tab back to `<main>`). When
+**open on mobile (<1024px)** the panel is modal: the background **IS** `inert` + scrim (D-A2-1).
 
 **NFR-AP-A11Y-006** — **Colour/motion.**
 All panel states (empty, streaming, error, tool card) SHALL meet WCAG AA contrast ratios using
@@ -561,7 +564,7 @@ CI gate: PR→`dev` (`verify` lane — Playwright with `--project=chromium` agai
 |---|---|---|---|
 | **AP-OD-001** | Drawer side: right vs left | **Right** | Consistent with industry convention for assistant/sidebar drawers; does not compete with the left Rail. |
 | **AP-OD-002** | Open shortcut | **⌘J / Ctrl+J** | Mirrors ADR-0040 recommendation; ⌘K is the CommandPalette (existing); ⌘J is adjacent and unoccupied. |
-| **AP-OD-003** | Panel width on desktop | **360px** (design-plan owns the exact token) | Wide enough for readable assistant bubbles; leaves ≥900px for main content on a 1280px viewport. Collapsible to zero when closed (CSS transition). |
+| **AP-OD-003** | Panel width on desktop | **400px** (D-A2-3; design-plan owns the token) | Wide enough for readable assistant prose; leaves ≥880px for main content on a 1280px viewport. Mobile (<1024px) is a full-screen sheet. Collapsible to zero when closed (CSS transition). |
 | **AP-OD-004** | Rail "Assistant" entry visible to all roles | **Yes — all roles** | The agent's job story in `jtbd.md` is "Any role." No role gate on the Rail entry (the flag gate is sufficient). |
 | **AP-OD-005** | Persist open-state across page reloads | **No** (React state only, not `localStorage`) | Avoids the panel being unexpectedly open on first load. If the owner wants persistence, add a `localStorage` key later without changing behavior. |
 | **AP-OD-006** | "New conversation" control | **Yes — a "New" button** in the panel header, visible when a transcript exists | Resets `runId` + transcript to empty state. Keeps the panel open. |
