@@ -6,6 +6,12 @@ export interface BreadcrumbPart {
   label: string;
   /** When present, the part is a clickable link; the last part omits it (current). */
   onClick?: () => void;
+  /**
+   * Optional accessible name override for the clickable crumb button when the label
+   * alone does not describe the destination (WCAG 2.4.6). Used for the 'My Views'
+   * crumb that links to '/' (Dashboard) until a /views index route ships (OD-4, I4/I5).
+   */
+  ariaLabel?: string;
 }
 
 export interface BreadcrumbProps {
@@ -53,6 +59,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => (
             <button
               type="button"
               onClick={part.onClick}
+              aria-label={part.ariaLabel}
               className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[921px]:hidden"
             >
               {part.label}

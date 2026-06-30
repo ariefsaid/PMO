@@ -142,3 +142,40 @@ describe('breadcrumbForPath / recordLabelForPath — company + contact detail (C
     ).toBeUndefined();
   });
 });
+
+// ── /views/:viewId breadcrumb and recordLabel (FR-VR-053, FR-VR-082) ─────────
+import { vi } from 'vitest';
+
+describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
+  const navigate = vi.fn();
+
+  it('recordLabelForPath resolves view name from userViews cache', () => {
+    const label = recordLabelForPath('/views/v1', {
+      userViews: [{ id: 'v1', name: 'Revenue View' }],
+    });
+    expect(label).toBe('Revenue View');
+  });
+
+  it('recordLabelForPath returns undefined when view not in cache', () => {
+    const label = recordLabelForPath('/views/v1', { userViews: [] });
+    expect(label).toBeUndefined();
+  });
+
+  it('breadcrumbForPath for /views/:viewId returns [My Views, <name>]', () => {
+    const crumbs = breadcrumbForPath('/views/v1', 'Revenue View', navigate);
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('My Views');
+    expect(typeof crumbs[0].onClick).toBe('function');
+    expect(crumbs[1].label).toBe('Revenue View');
+  });
+
+  it('breadcrumbForPath shows Loading… when record not yet resolved', () => {
+    const crumbs = breadcrumbForPath('/views/v1', undefined, navigate, false);
+    expect(crumbs[1].label).toBe('Loading…');
+  });
+
+  it('breadcrumbForPath shows Not found when resolved but absent', () => {
+    const crumbs = breadcrumbForPath('/views/v1', undefined, navigate, true);
+    expect(crumbs[1].label).toBe('Not found');
+  });
+});

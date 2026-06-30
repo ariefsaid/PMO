@@ -35,6 +35,9 @@ import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
+import { useUserViews } from '@/src/hooks/useUserViews';
+import { isFeatureEnabled } from '@/src/lib/features';
+import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -55,6 +58,9 @@ const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
+const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
+const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
+const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -110,6 +116,28 @@ export const AppRoutes: React.FC = () => (
       <Route path="/my-tasks" element={<MyTasksPage />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
+      {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
+      <Route
+        path="/views"
+        element={<FeatureRoute feature="userViews" element={<MyViewsPage />} />}
+      />
+      {/* I4: Create builder — literal 'new' before /:viewId param */}
+      <Route
+        path="/views/new"
+        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="create" />} />}
+      />
+      {/* I4: Edit builder — /:viewId/edit is more specific than /:viewId alone */}
+      <Route
+        path="/views/:viewId/edit"
+        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="edit" />} />}
+      />
+      {/* I3: User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
+          FeatureRoute redirects to / when FEATURES.userViews is false.
+          Declared after /views/new and /views/:viewId/edit to avoid wildcard collision. */}
+      <Route
+        path="/views/:viewId"
+        element={<FeatureRoute feature="userViews" element={<UserViewRenderer />} />}
+      />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   </Suspense>
@@ -149,6 +177,7 @@ const ShellChrome: React.FC = () => {
   // read here only to resolve the crumb (no new query).
   const { data: companies, isPending: companiesPending } = useCompanies();
   const { data: contacts, isPending: contactsPending } = useContacts();
+  const { data: userViewsList, isPending: userViewsPending } = useUserViews();
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -189,6 +218,7 @@ const ShellChrome: React.FC = () => {
       incidents,
       companies,
       contacts,
+      userViews: userViewsList?.map((v) => ({ id: v.id, name: v.name })),
     });
     // Model B (AC-IXD-PROJ-005): a /projects/:id detail crumb's ancestry follows the record's
     // STAGE — resolve its status group from the cached lists (the pipeline list carries pre-win
@@ -213,7 +243,8 @@ const ShellChrome: React.FC = () => {
       (pathname.startsWith('/incidents/') && !incidentsPending) ||
       (pathname.startsWith('/companies/') && !companiesPending) ||
       (pathname.startsWith('/contacts/') && !contactsPending) ||
-      (pathname.startsWith('/sales/') && !pipelinePending);
+      (pathname.startsWith('/sales/') && !pipelinePending) ||
+      (pathname.startsWith('/views/') && !userViewsPending);  // I3 (FR-VR-053)
     return breadcrumbForPath(pathname, recordLabel, navigate, recordResolved, recordStatusGroup);
   }, [
     pathname,
@@ -225,6 +256,7 @@ const ShellChrome: React.FC = () => {
     incidents,
     companies,
     contacts,
+    userViewsList,
     projectsPending,
     procurementsPending,
     pipelinePending,
@@ -232,6 +264,7 @@ const ShellChrome: React.FC = () => {
     incidentsPending,
     companiesPending,
     contactsPending,
+    userViewsPending,
   ]);
 
   // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.
@@ -263,8 +296,12 @@ const ShellChrome: React.FC = () => {
         icon: m.icon,
         run: () => navigate(m.path),
       })),
+      // "Views" group — appended after "Navigate" when the feature is on (FR-VR-070..071)
+      ...(isFeatureEnabled('userViews')
+        ? buildViewsPaletteItems(userViewsList, navigate)
+        : []),
     ],
-    [navigate, recordSearch.records, realRole]
+    [navigate, recordSearch.records, realRole, userViewsList]
   );
 
   return (

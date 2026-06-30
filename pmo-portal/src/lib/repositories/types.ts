@@ -79,6 +79,7 @@ import type {
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
+import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 
 export interface ProjectRepository {
   list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
@@ -367,6 +368,21 @@ export interface ContactRepository {
   deleteActivity(id: string): Promise<void>;
 }
 
+export interface UserViewRepository {
+  /** The caller's non-archived visible views (owner + shared_org in-org), newest write first. */
+  list(): Promise<UserViewRow[]>;
+  /** A single view by id, or null when not found / not readable (RLS-scoped out). */
+  get(id: string): Promise<UserViewRow | null>;
+  /** Create a view (org_id + user_id stamped by RLS, never sent; spec is opaque). */
+  create(input: UserViewInput): Promise<UserViewRow>;
+  /** Update a view's editable fields (owner or Admin at the RLS layer). */
+  update(id: string, input: UserViewInput): Promise<void>;
+  /** Soft-archive a view (stamps archived_at; ADR-0018). */
+  archive(id: string): Promise<void>;
+  /** Hard-delete a view (owner or Admin at the RLS layer). */
+  delete(id: string): Promise<void>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface Repositories {
   project: ProjectRepository;
@@ -381,4 +397,5 @@ export interface Repositories {
   milestone: MilestoneRepository;
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
+  userView: UserViewRepository;
 }

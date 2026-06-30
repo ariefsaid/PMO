@@ -48,7 +48,8 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'contact'
-  | 'contactActivity';
+  | 'contactActivity'
+  | 'userView';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -234,6 +235,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
+  },
+  userView: {
+    // Any authenticated user may create, edit, and archive their OWN views.
+    // RLS is the real authority (user_views_insert/update/delete, I1).
+    create: allow(ALL),
+    edit: allow(ALL),
+    archive: allow(ALL),
   },
 };
 

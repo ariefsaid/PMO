@@ -141,6 +141,14 @@ import {
   deleteContact,
 } from '@/src/lib/db/contacts';
 import { listActivities, listActivitiesForContacts, createActivity, updateActivity, deleteActivity } from '@/src/lib/db/crmActivities';
+import {
+  listUserViews,
+  getUserView,
+  createUserView,
+  updateUserView,
+  archiveUserView,
+  deleteUserView,
+} from '@/src/lib/db/userViews';
 import type {
   Repositories,
   ProjectRepository,
@@ -155,6 +163,7 @@ import type {
   MilestoneRepository,
   ProcurementFileRepository,
   ContactRepository,
+  UserViewRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -324,6 +333,15 @@ const contact: ContactRepository = {
   deleteActivity: (id) => wrap(() => deleteActivity(id)),
 };
 
+const userView: UserViewRepository = {
+  list: () => wrap(() => listUserViews()),
+  get: (id) => wrap(() => getUserView(id)),
+  create: (input) => wrap(() => createUserView(input)),
+  update: (id, input) => wrap(() => updateUserView(id, input)),
+  archive: (id) => wrap(() => archiveUserView(id)),
+  delete: (id) => wrap(() => deleteUserView(id)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -338,6 +356,7 @@ export const repositories: Repositories = {
   milestone,
   procurementFiles,
   contact,
+  userView,
 };
 
 export type {
@@ -354,4 +373,5 @@ export type {
   MilestoneRepository,
   ProcurementFileRepository,
   ContactRepository,
+  UserViewRepository,
 } from './types';

@@ -150,7 +150,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet'].sort(),
+      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'userView'].sort(),
     );
   });
 

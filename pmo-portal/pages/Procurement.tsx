@@ -111,24 +111,30 @@ const ProcurementPage: React.FC = () => {
   const { data, isPending, isError, refetch } = useProcurements();
   const { data: projectOptions = [] } = useProjectOptions();
   const { data: vendorOptions = [] } = useVendorOptions();
+
+  // E16: shared ref arrays used by both the single-header descriptor and cycle lookups.
+  const projectRefs = useMemo(
+    () => projectOptions.map((o) => ({ id: o.value, name: o.label })),
+    [projectOptions],
+  );
+  const vendorRefs = useMemo(
+    () => vendorOptions.map((o) => ({ id: o.value, name: o.label })),
+    [vendorOptions],
+  );
+
   const importDescriptor = useMemo(
-    () =>
-      makeProcurementImportDescriptor(
-        projectOptions.map((o) => ({ id: o.value, name: o.label })),
-        vendorOptions.map((o) => ({ id: o.value, name: o.label })),
-        userId ?? '',
-      ),
-    [projectOptions, vendorOptions, userId],
+    () => makeProcurementImportDescriptor(projectRefs, vendorRefs, userId ?? ''),
+    [projectRefs, vendorRefs, userId],
   );
 
   // M5 (ADR-0035): procurement-cycle import lookups (reuse the already-loaded FK options).
   const cycleProjectLookup = useMemo(
-    () => makeRefLookup(projectOptions.map((o) => ({ id: o.value, name: o.label })), 'Project'),
-    [projectOptions],
+    () => makeRefLookup(projectRefs, 'Project'),
+    [projectRefs],
   );
   const cycleVendorLookup = useMemo(
-    () => makeRefLookup(vendorOptions.map((o) => ({ id: o.value, name: o.label })), 'Vendor'),
-    [vendorOptions],
+    () => makeRefLookup(vendorRefs, 'Vendor'),
+    [vendorRefs],
   );
 
   const create = useCreateProcurement();
@@ -333,7 +339,7 @@ const ProcurementPage: React.FC = () => {
             {canCreate && (
               <Button variant="outline" onClick={() => setShowCycleImport(true)}>
                 <Icon name="upload" />
-                Import cycle
+                Import cycle data
               </Button>
             )}
           </>

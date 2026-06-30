@@ -1,0 +1,93 @@
+# THROWAWAY CI lane — runs the ADR-0036 §9 spike (spike/agent-native-rls/) on a GitHub
+# runner, where the Supabase container images are reachable. Proves claim #1 (Drizzle
+# `.rls()` enforces RLS identically to supabase-js) and claim #2 (`drizzle-kit pull` is
+# introspect-only). Delete this file together with spike/agent-native-rls/ once the gate
+# verdict is recorded in docs/adr/0036-agent-native-user-composed-ui.md §9.
+#
+# Deliberately a SEPARATE workflow (not a job in ci.yml): CLAUDE.md keeps PR->dev as a
+# `verify`-only fast lane, so we must not add a permanent Supabase job to ci.yml. This is
+# path-filtered (runs only when the spike changes) + manually dispatchable.
+name: Spike — agent-native RLS (ADR-0036 §9)
+
+on:
+  pull_request:
+    paths:
+      - 'spike/agent-native-rls/**'
+      - '.github/workflows/spike-rls.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: spike-rls-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  spike-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: . # supabase CLI must run from repo root (supabase/config.toml)
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.105.0 # pin to match ci.yml's integration job
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+
+      # Mirror ci.yml's integration job: Docker is pre-installed on ubuntu-latest; exclude
+      # the CI-unused containers (studio web UI, realtime, vector log shipper) to shave
+      # stack-up time. The spike only needs db + the auth GUC helpers (auth_org_id/auth_role).
+      - name: Start local Supabase stack
+        run: supabase start -x studio,realtime,vector
+
+      # Apply every migration in order + seed, so RLS policies + helpers exist on a clean DB.
+      - name: Reset DB (migrations + seed)
+        run: supabase db reset --yes
+
+      # Extract the local Postgres URL the spike connects to (same env-extraction pattern
+      # ci.yml uses to write .env.local). The harness reads SPIKE_DB_URL.
+      - name: Resolve local DB URL + auth env
+        run: |
+          eval "$(supabase status -o env)"
+          echo "SPIKE_DB_URL=${DB_URL}" >> "$GITHUB_ENV"
+          echo "SPIKE_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "SPIKE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "::add-mask::${SERVICE_ROLE_KEY}"
+          echo "SPIKE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+
+      - name: Install spike deps
+        working-directory: spike/agent-native-rls
+        run: npm install
+
+      # Claim #1 — exits non-zero on FAIL; prints "SPIKE CLAIM #1: PASS|FAIL".
+      - name: Claim #1 — Drizzle .rls() RLS parity
+        working-directory: spike/agent-native-rls
+        run: node rls-parity.mjs
+
+      # Claim #2 — drizzle-kit pull mirrors the schema read-only (migrations stay the SoT).
+      - name: Claim #2 — drizzle-kit pull is introspect-only
+        working-directory: spike/agent-native-rls
+        run: bash pull-check.sh
+
+      # Claim #3 — session portability (the SSO core): a second independent supabase-js client
+      # handed PMO's session authenticates as the same auth.uid() with the same RLS data, no re-login.
+      - name: Claim #3 — session portability (SSO core)
+        working-directory: spike/agent-native-rls
+        run: node claim3-sso.mjs
+
+      - name: Upload spike logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: spike-rls-logs
+          path: spike/agent-native-rls/
+          retention-days: 7

@@ -427,6 +427,25 @@ by one rulebook. Build plan + per-phase migration order: `docs/plans/2026-06-14-
 
 ---
 
+### Skeleton loading pattern (page-head + panel)
+- **Page-head skeleton:** two `skel` divs mirroring the `DashPageHead` structure (h1 + p two-line layout).
+  ```
+  <div aria-hidden="true" className="flex flex-col gap-1">
+    <div className="skel h-7 w-2/5 rounded" />   {/* h1 stand-in */}
+    <div className="skel skel-line w-3/5" />      {/* sub/p stand-in */}
+  </div>
+  ```
+  Never use a single-div `skel h-8 w-1/3 rounded` in place of a page head — it collapses the two-line
+  structure into one and creates a layout jump on ready. The `skel-line` utility provides the line height +
+  bottom gap inherited by the design system's `skel` stylesheet.
+- **Panel skeleton:** delegate to `<ChartFrame state="loading">` — it renders a `ListState variant='loading'`
+  which emits `data-testid="liststate-loading"` and handles both the accessibility announcement and the row
+  skeleton. Never hand-roll a panel spinner.
+- **Unified loading guard:** components that have a brief "compile/init" tick after data resolves should
+  unify both states (data-loading and still-compiling) under ONE `isPending || compiling` guard so the
+  user sees a single, stable skeleton with no FOUC between a skeleton-with-heading and a skeleton-without.
+  See `UserViewRenderer` (I3) for the reference implementation.
+
 ### FE design battery — 4 lenses, run twice
 
 Every UI issue passes a **4-lens design battery** run twice (mockup round 1, built-UI round 2 per

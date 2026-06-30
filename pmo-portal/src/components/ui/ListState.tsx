@@ -12,8 +12,8 @@ export interface ListStateProps {
   variant: 'loading' | 'empty' | 'error';
   /** Empty/error heading. */
   title?: string;
-  /** Empty/error supporting copy (≤44ch). */
-  sub?: string;
+  /** Empty/error supporting copy (≤44ch). String or ReactNode (e.g. a Link). */
+  sub?: React.ReactNode;
   /** Empty-state icon (defaults to `inbox`). */
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
