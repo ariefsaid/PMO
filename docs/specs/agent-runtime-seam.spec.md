@@ -352,11 +352,14 @@ Given the `profiles` org lookup returns an error/no row under the caller JWT
 When the handler is invoked
 Then it returns **400 `BAD_REQUEST`** (`detail: 'orgId'`) and the Anthropic SDK is **not** called.
 
-**AC-AR-004** (Unit) — *Turn cap enforced.*
+**AC-AR-004** (Unit) — *Turn/step cap enforced (graceful, not an error).*
 Given the mocked model emits a `query_entity` tool call on **every** turn (never a final answer)
 When the loop runs
-Then the handler stops after `MAX_AGENT_TURNS` model calls, emits a terminal `errored` status
-(reason `TURN_CAP`), and the SDK is called exactly `MAX_AGENT_TURNS` times (no more).
+Then the handler stops after `MAX_TOOL_ROUNDS` (=8) model calls, emits a non-error `status`
+AgentEvent ("reached step limit") followed by a terminal **`completed`** run status, and the SDK is
+called exactly `MAX_TOOL_ROUNDS` times (no more).
+*(Director decision D7, reconciliation R4: hitting the step cap is a bounded stop the user can `followUp`
+to continue — not a failure — so the run ends `completed` with a status note, never `errored`.)*
 
 **AC-AR-005** (Unit) — *Upstream error scrubbed → 502.*
 Given the mocked Anthropic SDK throws `Error('SECRET upstream body')`
