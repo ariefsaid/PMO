@@ -21,7 +21,7 @@
  * without requiring modal interaction. Undefined in production usage.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useBlocker, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ListState,
   ConfirmDialog,
@@ -140,15 +140,21 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         scope !== initialValuesRef.current.scope ||
         JSON.stringify(panels) !== JSON.stringify(initialValuesRef.current.panels);
 
-  // useBlocker fires when the user navigates away with unsaved changes (OD-VB-8)
-  const blocker = useBlocker(isDirty && !isSaving);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
+  // Guard unsaved changes (OD-VB-8). The app uses BrowserRouter (not a data
+  // router), so react-router's useBlocker is unavailable — it throws at render.
+  // Browser-level exits (tab close / refresh) warn via beforeunload; in-app exit
+  // is guarded explicitly by the Cancel button + the discard dialog below.
   useEffect(() => {
-    if (blocker.state === 'blocked') {
-      setShowDiscardDialog(true);
-    }
-  }, [blocker.state]);
+    if (!(isDirty && !isSaving)) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty, isSaving]);
 
   // ── Panel operations ──────────────────────────────────────────────────────
 
@@ -427,12 +433,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         cancelLabel="Keep editing"
         onConfirm={() => {
           setShowDiscardDialog(false);
-          if (blocker.state === 'blocked') blocker.proceed?.();
-          else navigate('/views');
+          navigate('/views');
         }}
         onCancel={() => {
           setShowDiscardDialog(false);
-          if (blocker.state === 'blocked') blocker.reset?.();
         }}
       />
     </div>
