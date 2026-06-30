@@ -98,49 +98,64 @@ export class PmoNativeRuntime implements AgentRuntime {
     };
   }
 
+  /**
+   * Internal generator that performs one SSE request and yields events.
+   *
+   * Lifecycle: the _runs entry is created by createRun and deleted in the `finally`
+   * block here, so it lives exactly as long as the stream. This prevents unbounded
+   * growth in long-lived SPA sessions (Blocker 4 / A1 review).
+   *
+   * @param runId — the run whose state entry to subscribe and clean up.
+   */
   private async *_doSubscribe(runId: string): AsyncGenerator<AgentEvent> {
     const state = this._runs.get(runId);
     if (!state) return;
 
-    const jwt = await this._opts.getJwt();
-    const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
+    try {
+      const jwt = await this._opts.getJwt();
+      const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
 
-    const body: AgentChatRequest = {
-      runId,
-      messages: state.messages,
-      context: state.context,
-    };
-
-    const resp = await fetchImpl(this._opts.fnUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${jwt}`,
-      },
-      body: JSON.stringify(body),
-      signal: state.controller.signal,
-    });
-
-    if (!resp.ok || !resp.body) {
-      // Yield an error status event and stop
-      yield {
-        id: crypto.randomUUID(),
+      const body: AgentChatRequest = {
         runId,
-        type: 'status',
-        payload: { status: 'errored', error: 'UPSTREAM_ERROR' },
-        createdAt: new Date().toISOString(),
-      } satisfies AgentEvent;
-      return;
-    }
+        messages: state.messages,
+        context: state.context,
+      };
 
-    const reader = resp.body.getReader();
+      const resp = await fetchImpl(this._opts.fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(body),
+        signal: state.controller.signal,
+      });
 
-    for await (const ev of decodeSseStream(reader)) {
-      // Accumulate assistant/tool events into the transcript for followUp (D8)
-      if (ev.type === 'assistant' && ev.text) {
-        state.messages.push({ role: 'assistant', content: ev.text });
+      if (!resp.ok || !resp.body) {
+        // Yield an error status event and stop
+        yield {
+          id: crypto.randomUUID(),
+          runId,
+          type: 'status',
+          payload: { status: 'errored', error: 'UPSTREAM_ERROR' },
+          createdAt: new Date().toISOString(),
+        } satisfies AgentEvent;
+        return;
       }
-      yield ev;
+
+      const reader = resp.body.getReader();
+
+      for await (const ev of decodeSseStream(reader)) {
+        // Accumulate assistant/tool events into the transcript for followUp (D8)
+        if (ev.type === 'assistant' && ev.text) {
+          state.messages.push({ role: 'assistant', content: ev.text });
+        }
+        yield ev;
+      }
+    } finally {
+      // Clean up the run entry when the stream terminates (normal or error path).
+      // Prevents unbounded Map growth in long-lived SPA sessions (Blocker 4).
+      this._runs.delete(runId);
     }
   }
 }
