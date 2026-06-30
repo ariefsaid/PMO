@@ -112,4 +112,45 @@ describe('AppShell', () => {
     ).filter((el) => !el.closest('.rail-persistent'));
     expect(drawerRails.length).toBe(1);
   });
+
+  // AC-AP-001 — when no assistant prop is passed (flag off), no complementary
+  // landmark with the "Agent assistant" label should be rendered.
+  it('AC-AP-001 flag off → no assistant slot rendered', () => {
+    wrap(
+      <AppShell rail={null} header={null}>
+        <div>x</div>
+      </AppShell>
+    );
+    expect(
+      screen.queryByRole('complementary', { name: /agent assistant/i })
+    ).not.toBeInTheDocument();
+  });
+
+  // AC-AP-002 — when an assistant node is passed (flag on), it is rendered as
+  // a sibling of <main> (NOT inside <main>), and is inert when closed.
+  it('AC-AP-002 flag on → assistant slot rendered as sibling of main, inert when closed', () => {
+    wrap(
+      <AppShell
+        rail={null}
+        header={null}
+        assistant={
+          <aside
+            role="complementary"
+            aria-label="Agent assistant"
+            inert
+            data-testid="asst"
+          />
+        }
+      >
+        <div>x</div>
+      </AppShell>
+    );
+    const asst = screen.getByTestId('asst');
+    expect(asst).toBeInTheDocument();
+    // Must NOT be inside <main>
+    const main = screen.getByRole('main');
+    expect(main.contains(asst)).toBe(false);
+    // Must have the inert attribute (closed state)
+    expect(asst).toHaveAttribute('inert');
+  });
 });

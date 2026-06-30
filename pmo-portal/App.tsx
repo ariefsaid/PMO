@@ -38,6 +38,11 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
+// A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
+import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
+import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
+import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
+import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -143,13 +148,23 @@ export const AppRoutes: React.FC = () => (
   </Suspense>
 );
 
-// ── Shell chrome (inside the workspace provider) ───────────────────────────
+// ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 const ShellChrome: React.FC = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
+
+  // A2: Read panel open-state controls from AgentRuntimeProvider context.
+  // These are stable callbacks (never change identity), safe to use here.
+  const { togglePanel, openPanel, open: assistantOpen } = useAgentRuntimeContext();
+
+  // A2: Register ⌘J / Ctrl+J global hotkey — flag-gated (FR-AP-004).
+  useAssistantHotkey({
+    enabled: isFeatureEnabled('agentAssistant'),
+    onToggle: togglePanel,
+  });
 
   // Cached index lists — already fetched by the index pages; read here only to
   // resolve a detail route's human record name for the breadcrumb (no new
@@ -307,7 +322,16 @@ const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
-        rail={<Rail onNavigate={() => setRailOpen(false)} railActiveOverride={railActiveOverride} />}
+        rail={
+          <Rail
+            onNavigate={() => setRailOpen(false)}
+            railActiveOverride={railActiveOverride}
+            // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
+            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
+            // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).
+            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
+          />
+        }
         header={
           <ContextBar
             breadcrumb={breadcrumb}
@@ -318,6 +342,8 @@ const ShellChrome: React.FC = () => {
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
+        // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
+        assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
       >
         <AppRoutes />
       </AppShell>
@@ -340,7 +366,13 @@ const Shell: React.FC = () => {
   return (
     <ImpersonationProvider realRole={role}>
       <ToastProvider>
-        <ShellChrome />
+        {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
+            so the runtime + open state survive route changes. It is the SOLE
+            importer of PmoNativeRuntime (port isolation, AC-AP-024).
+            Flag-off: provides runtime=null, open=false — zero overhead. */}
+        <AgentRuntimeProvider>
+          <ShellChrome />
+        </AgentRuntimeProvider>
       </ToastProvider>
     </ImpersonationProvider>
   );

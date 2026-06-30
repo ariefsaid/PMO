@@ -461,7 +461,7 @@ round 1. Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`.
 
 The source ships these as **shadcn-vue HSL custom properties on `:root`**, consumed via `hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Preserve that pipeline in the React/Tailwind app:
 
-1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus `--radius: 0.5rem`, `--rail-w: 224px`, `--header-h: 56px`. The frontmatter lists them pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works.
+1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus `--radius: 0.5rem`, `--rail-w: 224px`, `--header-h: 56px`, `--agent-panel-w: 400px`, `--agent-panel-breakpoint: 1024px` (see §5 AssistantPanel). The frontmatter lists them pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works.
 2. **Map Tailwind theme** to the vars. This app is **Tailwind v4**, so map them in a CSS `@theme inline` block where each `--color-*` value is a **resolvable** color — `@theme inline { --color-background: hsl(var(--background)); --color-primary: hsl(var(--primary)); --color-primary-foreground: hsl(var(--primary-foreground)); … }` — and `--radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px)`. **Do NOT append the v3 `/ <alpha-value>` placeholder** — v4 does not substitute it, so it emits invalid CSS the browser discards and every token utility silently renders nothing. The bare-triplet `:root` form (point 1) is what makes this work: v4 generates the `/<alpha>` modifier (`bg-primary/10`, `border-border/70`) automatically via `color-mix()` from the bare color. Add `warning`/`warning-foreground`, `success`/`success-foreground`, and the categorical `violet` — these are RIS additions beyond stock shadcn.
 3. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
 4. **Numbers:** add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric.
@@ -478,3 +478,56 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 - **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
 - **Keyboard:** tab order follows DOM (rail → header → main); custom checkboxes are `tabindex="0"`. Overlays (popover/toast/tooltip) are non-focus-trapping in the mockup — real implementations must add focus management and `Esc`-to-close (a build-time gap, not a token gap).
 - **Coherence-Wave a11y invariants:** every new record page (Company/Contact/Incident) carries a focus-managed page heading + breadcrumb + Back; the `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay dot+label (never color-only) so the freed-blue→neutral remap never relies on color alone.
+
+---
+
+## A2 · AssistantPanel design additions (ADR-0040, 2026-06-30)
+
+### Layout tokens (add to `:root`)
+
+| Token | Value | Why |
+|---|---|---|
+| `--agent-panel-w` | `400px` | Fixed desktop drawer width — a layout constant alongside `--rail-w: 224px` / `--header-h: 56px`. |
+| `--agent-panel-breakpoint` | `1024px` | The panel's modal-sheet threshold — distinct from the 920px rail-collapse and 768px table-reflow breakpoints (design-plan §1.5). |
+
+### New component entries (§5)
+
+#### `AssistantPanel` (persistent companion drawer surface)
+
+A new surface archetype: a **right-side companion drawer** mounted as a sibling of `<main>` via a fixed-position overlay (NOT a grid column). Inherits `card` bg + left `border` + the `Overlay` shadow on desktop; becomes a full-screen modal sheet below `--agent-panel-breakpoint`.
+
+**Dual focus contract (D-A2-1) — the most important a11y rule for this component:**
+- **Desktop (≥ `--agent-panel-breakpoint`):** `role="complementary" aria-label="Agent assistant"`. NON-modal: **no focus-trap, no background `inert`, no scrim.** Tab exits freely to `<main>` (the "keep working while you ask" job). Focus moves into the composer on open; restores to the trigger on close.
+- **Mobile (< `--agent-panel-breakpoint`):** `role="dialog" aria-modal="true"`. Full modal contract: focus-trap (`useFocusTrap`), background `inert`, scrim (`bg-foreground/40`), body-scroll-lock. Mirrors the `AppShell` mobile rail drawer exactly.
+
+**Do:** open with ⌘J (toggle), the Rail "Assistant" button (non-destination, `aria-pressed`), or the Close ×. Esc always closes (never cancels). Stop cancels (`runtime.control(runId,'cancel')`).
+**Do:** the Rail "Assistant" entry is a toggle — `aria-pressed` MUST track the actual `open` state from `AgentRuntimeContext`. Hardcoding `aria-pressed={false}` violates WCAG 4.1.2 (name/role/value) and lies to AT users when the panel is open. Thread `assistantPanelOpen={open}` from the context consumer to `<Rail>`.
+**Don't:** trap focus or scrim the background on desktop — a companion drawer is non-modal. Never use `role="dialog"` on desktop.
+
+Keep-mounted + `inert` when closed (no unmount) so transcript state survives route changes (D-A2-6).
+
+#### `ChatBubble` (user message)
+
+Right-aligned user message bubble. `secondary` bg, `foreground` text, `rounded.md` (one corner squared toward the rail edge), max-width ~85%, `body` type. Includes an SR-only "You said: " prefix so the `role="log"` transcript is unambiguous to screen readers.
+
+**Must be `secondary` (quiet grey) — NEVER `primary` blue.** A sent message is not an action (One-Blue Rule). Blue is reserved for the Send button only.
+
+#### `ToolCallCard` (agent evidence card)
+
+Compact recessed card showing what the agent looked up. Derives the human label from `payload`:
+- `payload.entity` present: `"Looked up <entity> · N rows"` (count in `tabular-nums`)
+- Fallback: `"Checking your data…"`
+
+`card` bg + 1px `border`, `rounded.md`, `label`/12px `muted-foreground` text. Leading status glyph (✓ / spinner / !) is `aria-hidden` — the visible label IS the accessible name. Never renders raw `payload` JSON. Never blue.
+
+#### Status chip (transient) — usage note
+
+The run-phase status ("Working…", "Done.") is the `badge-status` molecule applied to a transient live-region. Not a new component — record as a usage note. Announces via `aria-live="polite" aria-atomic="true"` in a separate region from the transcript so status doesn't interleave with the streamed answer.
+
+#### Example-question chip (empty state) — usage note
+
+The empty-state example questions reuse the `button-outline`/control-chip idiom (`rounded.md`, `label` type). Tapping fills the composer (does not auto-send — user reviews, then sends).
+
+### Icon: `message` (chat bubble outline)
+
+Added to `src/components/ui/iconPaths.tsx` as `IconName = ... | 'message'`. A simple speech-bubble outline at stroke-2, 24×24, same family as all existing icons. Used by the Rail "Assistant" entry and future header trigger.

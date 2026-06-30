@@ -14,6 +14,14 @@ export interface AppShellProps {
   /** Mobile drawer open state (controlled by the shell consumer / ContextBar). */
   railOpen?: boolean;
   onCloseRail?: () => void;
+  /**
+   * Agent AssistantPanel — rendered as a sibling of <main> when the
+   * agentAssistant feature flag is on (FR-AP-002, AC-AP-001/002, D-A2-6).
+   * The panel owns its own positioning (fixed overlay); AppShell simply mounts
+   * it outside <main> so it is never inside the main landmark.
+   * When undefined (flag off), nothing is rendered and the layout is unchanged.
+   */
+  assistant?: React.ReactNode;
 }
 
 /**
@@ -38,6 +46,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   banner,
   railOpen = false,
   onCloseRail,
+  assistant,
 }) => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
@@ -176,6 +185,13 @@ export const AppShell: React.FC<AppShellProps> = ({
           {children}
         </div>
       </main>
+
+      {/* FR-AP-002 / AC-AP-001/002: AssistantPanel is mounted outside <main> as
+          a sibling so it is never inside the main landmark. When the assistant
+          prop is undefined (flag off) nothing is rendered and the layout is
+          byte-identical. The panel owns its own fixed-position overlay; no
+          grid track is added here (design-plan §1.1, D-A2-6). */}
+      {assistant}
 
       {/* C3: Mobile rail drawer overlay (≤920px) — proper modal dialog.
           - role=dialog aria-modal for AT

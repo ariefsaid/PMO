@@ -492,6 +492,50 @@ exception is forever.
 date-fns vendored for date parsing/arithmetic (pinned exact, MIT) so no one hand-rolls
 timezone-stable date parsing again.
 
+### ENG-A2-1 — AssistantPanel dual-mode contract requires both-mode coverage (2026-06-30)
+
+The AssistantPanel has two fundamentally different a11y modes (D-A2-1):
+- **Desktop (≥1024px):** `role="complementary"`, NON-modal, no focus-trap, no scrim, background NOT inert.
+- **Mobile (<1024px):** `role="dialog" aria-modal`, full focus-trap, scrim, background inert.
+
+**Rule:** Both modes MUST have automated test coverage. jsdom's `matchMedia` default returns `true` for
+all `min-width` queries, so standard tests only exercise the desktop branch. Any test file exercising
+the mobile branch MUST stub `matchMedia` to return `false` (via `vi.stubGlobal`). Failing to cover
+both modes means a regression in the focus-trap or background-inert logic would ship green.
+
+**Canonical coverage file:** `src/components/panel/AssistantPanel.mobile.test.tsx` stubs mobile
+viewport and asserts role/aria-modal, scrim click-close, #main inert on open, scroll-lock, axe.
+
+**Graduated from:** design-review Discover finding, Blocker 10 (2026-06-30 A2 review).
+
+---
+
+### ENG-A2-2 — agent runtime getJwt must read session via ref, never a memo-captured value (2026-06-30)
+
+Supabase silently refreshes access tokens every ~55 minutes via `onAuthStateChange`. If `getJwt` is
+constructed inside a `useMemo([])` closure capturing the `session` React state value, it will return the
+stale token from the first render for the entire session lifetime — every agent-chat POST after the first
+token refresh gets a 401.
+
+**Fix pattern (binding):** keep a `useRef` updated on every render:
+```tsx
+const sessionRef = useRef(session);
+sessionRef.current = session; // runs every render, no dep-array lint issue
+// inside useMemo:
+getJwt: () => sessionRef.current?.access_token ?? ''
+```
+
+This is the standard React pattern for stable callbacks that need the latest state — same as
+`runIdRef.current` in `useAssistantPanel.ts`. The `eslint-disable-next-line react-hooks/exhaustive-deps`
+comment is not needed when using this pattern (the ref is stable).
+
+**Canonical test:** `AgentRuntimeProvider.test.tsx` — the "stale JWT closure" test re-renders with a
+new session object and asserts `getJwt()` returns the updated token.
+
+**Graduated from:** design-review Discover finding, Blockers 3/7/8 (2026-06-30 A2 review).
+
+---
+
 ### OD-DATE-1 — Date math uses date-fns (UTC-stable); never hand-roll T00:00:00Z parsing
 All date parsing/arithmetic uses **date-fns** (`parseISO`), pinned exact (MIT). Two conventions,
 both preserved: **UTC-midnight** — `parseISO('${iso}T00:00:00Z')` — for time-axis coordinates /

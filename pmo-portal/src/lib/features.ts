@@ -11,6 +11,8 @@ export const FEATURES = {
   // Allows disabling AI compose without disabling the whole User Views feature
   // (e.g. when the function secret for the AI service is absent in an environment).
   aiComposer: import.meta.env.VITE_FEATURES_AI_COMPOSER === 'true' || false,
+  // A2 (ADR-0040): the in-app agent AssistantPanel + ⌘J. UI-hide-first; off by default.
+  agentAssistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
