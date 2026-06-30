@@ -501,6 +501,7 @@ A new surface archetype: a **right-side companion drawer** mounted as a sibling 
 - **Mobile (< `--agent-panel-breakpoint`):** `role="dialog" aria-modal="true"`. Full modal contract: focus-trap (`useFocusTrap`), background `inert`, scrim (`bg-foreground/40`), body-scroll-lock. Mirrors the `AppShell` mobile rail drawer exactly.
 
 **Do:** open with ⌘J (toggle), the Rail "Assistant" button (non-destination, `aria-pressed`), or the Close ×. Esc always closes (never cancels). Stop cancels (`runtime.control(runId,'cancel')`).
+**Do:** the Rail "Assistant" entry is a toggle — `aria-pressed` MUST track the actual `open` state from `AgentRuntimeContext`. Hardcoding `aria-pressed={false}` violates WCAG 4.1.2 (name/role/value) and lies to AT users when the panel is open. Thread `assistantPanelOpen={open}` from the context consumer to `<Rail>`.
 **Don't:** trap focus or scrim the background on desktop — a companion drawer is non-modal. Never use `role="dialog"` on desktop.
 
 Keep-mounted + `inert` when closed (no unmount) so transcript state survives route changes (D-A2-6).
