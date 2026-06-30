@@ -18,47 +18,47 @@ begin;
 select plan(3);
 
 -- ── Fixtures (inserted as table owner — bypasses RLS) ──────────────────────
--- Use a unique UUID namespace (00AW0009-…) to avoid collisions with other test files.
+-- Use a unique UUID namespace (00AD0009-…) to avoid collisions with other test files.
 insert into organizations (id, name) values
-  ('00aw0009-0000-0000-0000-000000000001','AW-009 Org A'),
-  ('00aw0009-0000-0000-0000-000000000002','AW-009 Org B');
+  ('00ad0009-0000-0000-0000-000000000001','AW-009 Org A'),
+  ('00ad0009-0000-0000-0000-000000000002','AW-009 Org B');
 
 insert into auth.users (id, email) values
-  ('00aw0009-0000-0000-0000-0000000000a1','aw009-pm-a@example.com'),
-  ('00aw0009-0000-0000-0000-0000000000a2','aw009-eng-a@example.com');
+  ('00ad0009-0000-0000-0000-0000000000a1','aw009-pm-a@example.com'),
+  ('00ad0009-0000-0000-0000-0000000000a2','aw009-eng-a@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
-  ('00aw0009-0000-0000-0000-0000000000a1','00aw0009-0000-0000-0000-000000000001',
+  ('00ad0009-0000-0000-0000-0000000000a1','00ad0009-0000-0000-0000-000000000001',
    'AW009 PM A','aw009-pm-a@example.com','Project Manager'),
-  ('00aw0009-0000-0000-0000-0000000000a2','00aw0009-0000-0000-0000-000000000001',
+  ('00ad0009-0000-0000-0000-0000000000a2','00ad0009-0000-0000-0000-000000000001',
    'AW009 Eng A','aw009-eng-a@example.com','Engineer');
 
 -- A company + contact in each org (the activity's parent).
 insert into companies (id, org_id, name, type) values
-  ('00aw0009-0000-0000-0000-000000000050','00aw0009-0000-0000-0000-000000000001','AW009 Co A','Client'),
-  ('00aw0009-0000-0000-0000-000000000051','00aw0009-0000-0000-0000-000000000002','AW009 Co B','Client');
+  ('00ad0009-0000-0000-0000-000000000050','00ad0009-0000-0000-0000-000000000001','AW009 Co A','Client'),
+  ('00ad0009-0000-0000-0000-000000000051','00ad0009-0000-0000-0000-000000000002','AW009 Co B','Client');
 insert into contacts (id, org_id, company_id, full_name) values
-  ('00aw0009-0000-0000-0000-000000000060','00aw0009-0000-0000-0000-000000000001',
-   '00aw0009-0000-0000-0000-000000000050','AW009 Contact A'),
-  ('00aw0009-0000-0000-0000-000000000061','00aw0009-0000-0000-0000-000000000002',
-   '00aw0009-0000-0000-0000-000000000051','AW009 Contact B');
+  ('00ad0009-0000-0000-0000-000000000060','00ad0009-0000-0000-0000-000000000001',
+   '00ad0009-0000-0000-0000-000000000050','AW009 Contact A'),
+  ('00ad0009-0000-0000-0000-000000000061','00ad0009-0000-0000-0000-000000000002',
+   '00ad0009-0000-0000-0000-000000000051','AW009 Contact B');
 
 -- ── AC-AW-009-a: PM in org A CAN INSERT a crm_activity on an org-A contact ──
 -- This is the success path for createActivityAction.run under a PM caller JWT.
 -- org_id is NOT sent — the BEFORE INSERT trigger inherits it from the parent contact.
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"00aw0009-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"00ad0009-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select lives_ok(
   $$ insert into crm_activities (contact_id, kind, subject)
-       values ('00aw0009-0000-0000-0000-000000000060','Call','Agent-proposed follow-up') $$,
+       values ('00ad0009-0000-0000-0000-000000000060','Call','Agent-proposed follow-up') $$,
   'AC-AW-009-a: PM in org A can INSERT a crm_activity on an org-A contact (agent write path, org stamped from parent)');
 
 -- ── AC-AW-009-b: PM cross-org INSERT (org-B contact) → 42501 (parent-org guard) ──
 -- Proves the agent path cannot be used to write activities on another org's contacts.
 select throws_ok(
   $$ insert into crm_activities (contact_id, kind, subject)
-       values ('00aw0009-0000-0000-0000-000000000061','Email','Cross-org graft') $$,
+       values ('00ad0009-0000-0000-0000-000000000061','Email','Cross-org graft') $$,
   '42501', null,
   'AC-AW-009-b: PM cross-org INSERT on an org-B contact denied (42501, parent-org guard)');
 
@@ -68,11 +68,11 @@ reset role;
 -- R-A3-7: Engineer is NOT in the crm_activities write gate (Admin/Exec/PM/Finance only).
 -- This is the denied-role path for the agent under an Engineer caller JWT.
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"00aw0009-0000-0000-0000-0000000000a2","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"00ad0009-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select throws_ok(
   $$ insert into crm_activities (contact_id, kind, subject)
-       values ('00aw0009-0000-0000-0000-000000000060','Note','Engineer attempt') $$,
+       values ('00ad0009-0000-0000-0000-000000000060','Note','Engineer attempt') $$,
   '42501', null,
   'AC-AW-009-c: Engineer INSERT into crm_activities blocked (4-role write gate → 42501)');
 

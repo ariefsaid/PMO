@@ -19,17 +19,17 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org A has a project and a company.
 insert into projects (id, org_id, name, status, project_manager_id)
-  values ('00900000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','Org A Project','active','00900000-0000-0000-0000-0000000000a1');
+  values ('00900000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','Org A Project','Ongoing Project','00900000-0000-0000-0000-0000000000a1');
 
 insert into companies (id, org_id, name, type)
-  values ('00900000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001','Org A Company','client');
+  values ('00900000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001','Org A Company','Client');
 
 -- Org B also has a project and a company.
 insert into projects (id, org_id, name, status, project_manager_id)
-  values ('00900000-0000-0000-0000-000000000011','00900000-0000-0000-0000-000000000002','Org B Project','active','00900000-0000-0000-0000-0000000000b1');
+  values ('00900000-0000-0000-0000-000000000011','00900000-0000-0000-0000-000000000002','Org B Project','Ongoing Project','00900000-0000-0000-0000-0000000000b1');
 
 insert into companies (id, org_id, name, type)
-  values ('00900000-0000-0000-0000-000000000021','00900000-0000-0000-0000-000000000002','Org B Company','client');
+  values ('00900000-0000-0000-0000-000000000021','00900000-0000-0000-0000-000000000002','Org B Company','Client');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Switch to Alice (org A) via the authenticated role (simulates the caller-JWT path).
