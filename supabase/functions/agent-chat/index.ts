@@ -91,6 +91,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── A3: Inline can() for v1 write actions (FR-AW-010, ADR-0016) ─────────────
+  // policy.ts uses @/ Vite alias and cannot be imported in Deno directly.
+  // This encodes the same RBAC rules for the two v1 actions.
+  // RLS/SoD is the enforcement authority; this is a UX preflight only (ADR-0016).
+  const MASTER_DATA = new Set(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  const DELIVERY = new Set(['Admin', 'Executive', 'Project Manager']);
+  const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
+    const role = ctx.realRole;
+    if (!role) return false;
+    if (entity === 'contactActivity' && action === 'create') return MASTER_DATA.has(role);
+    if (entity === 'taskStatus' && action === 'edit') return DELIVERY.has(role) || role === 'Engineer';
+    return false;
+  };
+
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
@@ -102,6 +116,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // Cast: real callerClient satisfies HandlerSupabaseLike
           supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
           userId,
+          // A3: injectable can() for deputy re-auth (FR-AW-010)
+          can: agentCan,
           // rateGuard: undefined (AR-OD-002 default — disabled in v1)
         })) {
           controller.enqueue(enc.encode(encodeSse(ev)));
