@@ -286,12 +286,10 @@ describe('ViewBuilderPage — compile-before-save', () => {
       isError: false,
     });
     renderEdit('v1');
-    // With no user changes, the discard dialog must not be present
+    // With no user changes the discard dialog must not be present (isDirty=false ⇒
+    // no beforeunload guard armed, no dialog). The dirty-guard no longer depends on
+    // react-router's useBlocker — the app uses BrowserRouter (a non-data router).
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    // Verify the blocker was called with isDirty=false (i.e. first arg is false).
-    // The shouldBlock arg passed to useBlocker must be false for an unmodified edit view.
-    const lastBlockerArg = (mockBlocker.mock.calls as unknown as [boolean, ...unknown[]][]).at(-1)?.[0];
-    expect(lastBlockerArg).toBe(false);
   });
 
   it('AC-VB-007: ValidationError from compile blocks mutate call; error code displayed', async () => {
