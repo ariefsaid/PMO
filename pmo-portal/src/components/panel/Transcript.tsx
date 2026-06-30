@@ -3,11 +3,16 @@
  * role="log" aria-live="polite": AT announces new additions without refocusing.
  * Auto-scrolls to the latest entry unless the user has scrolled up.
  * NFR-AP-PERF-002: keyed entries prevent full-list re-render on each token.
+ * NFR-AP-PERF-003: capped at TRANSCRIPT_CAP visible entries; a "Show earlier"
+ *   affordance expands to show all when the cap is exceeded.
  * FR-AP-013.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { TranscriptEntry } from '@/src/hooks/useAssistantPanel';
 import { TranscriptItem } from './TranscriptItem';
+
+/** NFR-AP-PERF-003: maximum number of visible transcript entries before the cap kicks in. */
+export const TRANSCRIPT_CAP = 200;
 
 interface TranscriptProps {
   transcript: TranscriptEntry[];
@@ -23,6 +28,13 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot })
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // NFR-AP-PERF-003: when true, all entries are shown (user clicked "Show earlier")
+  const [showAll, setShowAll] = useState(false);
+
+  // Reset showAll when a new conversation clears the transcript
+  useEffect(() => {
+    if (transcript.length === 0) setShowAll(false);
+  }, [transcript.length]);
 
   // Track whether the user has scrolled up manually
   const handleScroll = useCallback(() => {
@@ -39,6 +51,11 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot })
     }
   }, [transcript, atBottom]);
 
+  // NFR-AP-PERF-003: apply the cap unless the user has expanded ("Show earlier")
+  const isCapped = !showAll && transcript.length > TRANSCRIPT_CAP;
+  const visibleEntries = isCapped ? transcript.slice(-TRANSCRIPT_CAP) : transcript;
+  const hiddenCount = transcript.length - visibleEntries.length;
+
   return (
     <div
       ref={containerRef}
@@ -50,7 +67,21 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot })
       onScroll={handleScroll}
     >
       {transcript.length === 0 && emptySlot}
-      {transcript.map((entry) => (
+
+      {/* "Show earlier" affordance — appears at the top when entries are hidden */}
+      {isCapped && (
+        <div className="text-center text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="rounded px-2 py-1 underline hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            Show earlier ({hiddenCount} hidden)
+          </button>
+        </div>
+      )}
+
+      {visibleEntries.map((entry) => (
         <TranscriptItem key={entry.key} entry={entry} />
       ))}
       <div ref={bottomRef} aria-hidden />
