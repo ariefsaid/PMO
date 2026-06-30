@@ -287,4 +287,161 @@ describe('ArtifactSlot', () => {
       expect(region).toBeInTheDocument();
     });
   });
+
+  // ── Blocker-1: success-text token rule (graduated from Discover pass 2026-06-30) ──
+  // DESIGN.md §5 ApprovalChip Token rule (Blocker-6): success-green text MUST use
+  // text-[hsl(var(--success-text))] — the AA-darkened --success-text token.
+  // Using raw text-green-600 bypasses the token pipeline (different L, fails AA, breaks dark-mode).
+
+  it('Blocker-1 Saved label does NOT use raw text-green-600 class (must use success-text token)', async () => {
+    const user = userEvent.setup();
+    mockMutateAsync.mockResolvedValueOnce({ id: 'saved-view-id', name: 'Test' });
+
+    const { container } = renderSlot();
+
+    await waitFor(() => {
+      expect(screen.getByText('7')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    await act(async () => {
+      await user.click(saveBtn);
+    });
+
+    // Wait for saved state
+    await waitFor(() => {
+      expect(screen.queryAllByText(/saved/i).length).toBeGreaterThan(0);
+    });
+
+    // No element should use the off-palette raw green literal
+    const allEls = Array.from(container.querySelectorAll('*'));
+    allEls.forEach((el) => {
+      const cls = (el as HTMLElement).className ?? '';
+      if (typeof cls === 'string' && /saved/i.test(el.textContent ?? '')) {
+        expect(cls).not.toContain('text-green-600');
+      }
+    });
+    // More directly: assert the success-text token IS used on the saved span
+    const savedSpan = Array.from(container.querySelectorAll('span')).find(
+      (s) => /^saved$/i.test(s.textContent?.trim() ?? ''),
+    );
+    if (savedSpan) {
+      expect(savedSpan.className).not.toContain('text-green-600');
+      expect(savedSpan.className).toContain('success-text');
+    }
+  });
+
+  // ── Blocker-2: control height 32px / h-8 rule (graduated from Discover pass 2026-06-30) ──
+  // DESIGN.md §5 Buttons: ALL interactive controls 32px (h-8). Using py-1.5/py-1 alone gives ~28-30px.
+
+  it('Blocker-2 Save button has h-8 class (32px DESIGN.md control height rule)', async () => {
+    renderSlot();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    expect(saveBtn.className).toContain('h-8');
+  });
+
+  it('Blocker-2 Open-view link chip has h-8 class (32px DESIGN.md control height rule)', async () => {
+    const user = userEvent.setup();
+    mockMutateAsync.mockResolvedValueOnce({ id: 'saved-view-id', name: 'Test' });
+
+    const { container } = renderSlot();
+
+    await waitFor(() => {
+      expect(screen.getByText('7')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    await act(async () => {
+      await user.click(saveBtn);
+    });
+
+    await waitFor(() => {
+      const link = container.querySelector('a[href*="/views/"]');
+      expect(link).toBeInTheDocument();
+    });
+
+    const link = container.querySelector('a[href*="/views/"]') as HTMLElement;
+    expect(link.className).toContain('h-8');
+  });
+
+  // ── Blocker-3: per-panel onRetry parity with I3 UserViewRenderer (graduated 2026-06-30) ──
+  // FR-VR-038 + jtbd §82: every panel in an artifact slot must carry a Retry affordance on error.
+  // A transient executeCompiledQuery failure must not leave the user with a dead doorway.
+
+  it('Blocker-3 per-panel error state shows a Retry button that re-fires the query', async () => {
+    const user = userEvent.setup();
+
+    // Reject once, then resolve
+    mockExecuteCompiledQuery
+      .mockRejectedValueOnce(new Error('network blip'))
+      .mockResolvedValueOnce([{ count: 42 }]);
+
+    renderSlot();
+
+    // Error state: Retry button should appear
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    });
+
+    // Click Retry
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /retry/i }));
+    });
+
+    // After retry resolves, data should render
+    await waitFor(() => {
+      expect(screen.getByText('42')).toBeInTheDocument();
+    });
+  });
+
+  // ── Blocker-4: editable name input before Save (graduated from Discover pass 2026-06-30) ──
+  // CV-OD-002 / FR-CV-018: "user can rename on Save" must be a REAL affordance,
+  // not just rationale. The slot must expose an editable name field pre-filled with payload.title.
+
+  it('Blocker-4 ArtifactSlot renders an editable name input pre-filled with payload.title', async () => {
+    renderSlot();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    // Name input must be present and pre-filled with the title
+    const nameInput = screen.getByRole('textbox', { name: /view name/i });
+    expect(nameInput).toBeInTheDocument();
+    expect((nameInput as HTMLInputElement).value).toBe(VALID_PAYLOAD.title);
+  });
+
+  it('Blocker-4 Save calls create.mutateAsync with the EDITED name, not the original payload.title', async () => {
+    const user = userEvent.setup();
+    mockMutateAsync.mockResolvedValueOnce({ id: 'saved-view-id', name: 'My custom name' });
+
+    renderSlot();
+
+    await waitFor(() => {
+      expect(screen.getByText('7')).toBeInTheDocument();
+    });
+
+    // Edit the name
+    const nameInput = screen.getByRole('textbox', { name: /view name/i });
+    await user.clear(nameInput);
+    await user.type(nameInput, 'My custom name');
+
+    const saveBtn = screen.getByRole('button', { name: /save/i });
+    await act(async () => {
+      await user.click(saveBtn);
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'My custom name',
+        spec: VALID_SPEC,
+        scope: 'private',
+      }),
+    );
+  });
 });

@@ -560,3 +560,66 @@ intentional native exceptions stay (would need `date-fns-tz`, not worth a 2nd de
 **Canonical implementation:** `src/hooks/useAssistantPanel.ts` exports `ChipStateMap`; threaded via `Transcript` → `TranscriptItem` → `ApprovalChip`. The active `pendingId` is tracked with a `useRef` so `approve()` / `deny()` update only the current chip.
 
 **See also:** DESIGN.md §5 ApprovalChip — "Per-chip state keyed by pendingId" note.
+
+---
+
+## OD-A4 — Agent compose-view (A4) design decisions (graduated from Discover pass, 2026-06-30)
+
+### OD-A4-SAVED-TOKEN — Blocker-6 success-text token rule extends to ArtifactSlot "Saved" label
+
+**Decision:** Any future success-green text in the AssistantPanel or its child components MUST use
+`text-[hsl(var(--success-text))]` (the AA-darkened `--success-text: 142 64% 28%` token), NEVER a raw
+Tailwind literal such as `text-green-600`. This rule, already enforced on `ApprovalChip`'s "Approved ✓"
+label (DESIGN.md §5 Blocker-6), extends to every success-state label in the panel — including
+`ArtifactSlot`'s "Saved" label.
+
+**Why:** `text-green-600` bypasses the token pipeline (different L value), fails AA contrast on tinted
+fills, and breaks dark-mode. The `--success-text` token is explicitly designed for AA compliance.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-1 Saved label does NOT use raw text-green-600 class."
+
+### OD-A4-CONTROL-HEIGHT — Blocker-9 control height rule applies to ArtifactSlot Save + Open-view controls
+
+**Decision:** `ArtifactSlot`'s Save button and Open-view link chip MUST be `h-8` (32px), matching the
+app-wide control height rule (DESIGN.md §5 Buttons "32px tall"). Using `py-1.5` or `py-1` alone yields
+~28-30px and violates the rule. The `h-8` height class is authoritative; `py-0` prevents override.
+
+**Why:** Parity with every other panel control (ApprovalChip Approve/Deny are `h-8`). Consistent target
+size across the panel interaction surface.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-2 Save button has h-8 class" and "Blocker-2 Open-view
+link chip has h-8 class."
+
+### OD-A4-RETRY — Per-panel onRetry parity with I3 UserViewRenderer (FR-VR-038)
+
+**Decision:** `ArtifactSlot` per-panel error states carry `onRetry` parity with the I3 `UserViewRenderer`
+(FR-VR-038). A transient `executeCompiledQuery` failure (RLS hiccup, network blip) in a composed-view
+panel MUST show a Retry button — composed-view panels are never a dead doorway. The per-panel retry
+re-fires `executeCompiledQuery` for only that panel index and updates `panelStates[idx]`.
+
+**Why:** The agent-assistant compose job (jtbd §81) and the view-render honest-states job (§82, "no dead
+doorway") both demand recoverable error states. The artifact slot is the one place a freshly-composed live
+view is most likely to be re-checked; it must not leave the user needing to burn another model call to
+recover from a transient error.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-3 per-panel error state shows a Retry button that
+re-fires the query."
+
+### OD-A4-RENAME — CV-OD-002 "rename on Save" is a real affordance, not just rationale
+
+**Decision:** `ArtifactSlot` exposes an editable name `<input>` pre-filled with `payload.title`
+(the CV-OD-002-derived prompt-truncation title) before Save. The user MUST be able to edit the name
+before committing. `save(name)` receives the edited string — never `payload.title` directly. Default
+scope is `'private'` (CV-OD-005).
+
+**Why:** CV-OD-002 rationale explicitly says "the user can rename on Save" as the honest fallback for
+choosing prompt-truncation over a model-supplied title. Without an editable name field, a user composing
+"Show me active projects by status" commits a view literally named that fragment, with no chance to
+rename it before it lands in My Views. The inline input (option a from the Discover recommendation)
+keeps the stay-in-panel mental model consistent with the I4 builder's name-before-save flow.
+
+**Enforced by:** `ArtifactSlot.test.tsx` — "Blocker-4 ArtifactSlot renders an editable name input
+pre-filled with payload.title" and "Blocker-4 Save calls create.mutateAsync with the EDITED name."
+
+**Spec note:** FR-CV-018 ("save(name)") is fulfilled; this decision closes the CV-OD-002 honest-fallback
+gap.
