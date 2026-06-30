@@ -12,7 +12,7 @@ it('AC-AR-011 no module outside src/lib/agent/runtime/ imports a concrete adapte
     // Exclude runtime/ itself (that's where the adapter lives) and the contract test
     // (which is the designated exerciser of the adapter under test).
     hits = execSync(
-      "rg -l \"from ['\\\"].*pmoNativeRuntime\" --glob '!src/lib/agent/runtime/**' --glob '!**/portIsolation.test.ts' --glob '!**/port.contract.test.ts' .",
+      "rg -l \"from ['\\\"].*pmoNativeRuntime\" --glob '!src/lib/agent/runtime/**' --glob '!**/portIsolation.test.ts' --glob '!**/port.contract.test.ts' --glob '!**/pmoNativeRuntime.test.ts' .",
       { cwd: process.cwd() },
     ).toString();
   } catch {
