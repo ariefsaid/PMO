@@ -41,7 +41,11 @@ test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
 
     // ── 4. App navigates to /views/:newViewId — renderer shows the view ────
     await expect(page).toHaveURL(/\/views\/[^/]+$/);
-    await expect(page.getByText('Test View')).toBeVisible();
+    // Scope to <main>: the view name also appears in the rail's "My Views" nav
+    // group (links) and a save toast (status), so an unscoped getByText is ambiguous.
+    await expect(
+      page.getByRole('main').getByRole('heading', { name: 'Test View' }),
+    ).toBeVisible({ timeout: 10_000 });
     // The DataTable panel should render (companies data or empty state)
     await expect(
       page.getByRole('table').or(page.getByText(/no data/i)),
@@ -52,7 +56,8 @@ test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
     await expect(page).toHaveURL('/views');
 
     // ── 6. "Test View" appears in the list with an Edit affordance ──────────
-    await expect(page.getByRole('link', { name: 'Test View' })).toBeVisible();
+    // Scope to <main> so the list link is matched, not the rail's "My Views" nav links.
+    await expect(page.getByRole('main').getByRole('link', { name: 'Test View' })).toBeVisible();
     // Row action menu should have an Edit entry
     await page.getByRole('button', { name: /row actions/i }).first().click();
     await expect(page.getByRole('menuitem', { name: /edit/i })).toBeVisible();
