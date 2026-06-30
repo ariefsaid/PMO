@@ -15,6 +15,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { AgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import type { AgentEvent, AgentRuntime, AgentRun } from '@/src/lib/agent/runtime/port';
 import { AssistantPanel } from './AssistantPanel';
+import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { axeViolations } from '../__tests__/axe';
 
 // ── Scripted fake runtime ─────────────────────────────────────────────────────
@@ -659,6 +660,82 @@ describe('AssistantPanel', () => {
       console.error('Axe violations:', blocking);
     }
     expect(blocking).toEqual([]);
+  });
+
+  // ── Integrated hotkey + Rail open (Tasks 20/23, Blocker 1) ────────────────
+  // AC-AP-003: ⌘J → panel not inert; ⌘J again → panel inert (panel-level boundary test).
+  // These complement the hook-isolation tests in useAssistantHotkey.test.tsx.
+
+  it('AC-AP-003 ⌘J toggles the panel open then closed (integrated panel boundary)', async () => {
+    // PanelWithHotkey: a wrapper that integrates useAssistantHotkey with the panel context,
+    // mirroring what App.tsx does — so ⌘J fires togglePanel and the panel's inert state changes.
+    const PanelWithHotkey: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+      const [isOpen, setIsOpen] = React.useState(false);
+      const togglePanel = React.useCallback(() => setIsOpen((o) => !o), []);
+      // Register the global hotkey (mirrors App.tsx wiring)
+      useAssistantHotkey({ enabled: true, onToggle: togglePanel });
+      return React.createElement(
+        AgentRuntimeContext.Provider,
+        {
+          value: {
+            runtime: makeFakeRuntime([makeEvent('status', { payload: { status: 'completed' } })]),
+            open: isOpen,
+            openPanel: () => setIsOpen(true),
+            closePanel: () => setIsOpen(false),
+            togglePanel,
+          },
+        },
+        children,
+      );
+    };
+
+    render(
+      <PanelWithHotkey>
+        <MemoryRouter>
+          <AssistantPanel />
+        </MemoryRouter>
+      </PanelWithHotkey>,
+    );
+
+    const panel = document.querySelector('[aria-label="Agent assistant"]');
+    expect(panel).toBeInTheDocument();
+
+    // Initially closed: panel is inert
+    expect(panel).toHaveAttribute('inert');
+
+    // Fire ⌘J → panel opens (not inert)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, bubbles: true }));
+    });
+
+    await waitFor(() => {
+      expect(panel).not.toHaveAttribute('inert');
+    });
+
+    // Fire ⌘J again → panel closes (inert)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, bubbles: true }));
+    });
+
+    await waitFor(() => {
+      expect(panel).toHaveAttribute('inert');
+    });
+  });
+
+  it('AC-AP-004 the Rail Assistant entry opens the panel (via openPanel in context)', async () => {
+    // Verifies that calling openPanel (the same callback the Rail button invokes)
+    // causes the panel to become visible (not inert). Panel-level boundary test.
+    const { setOpen } = renderPanel({ open: false });
+
+    const panel = document.querySelector('[aria-label="Agent assistant"]');
+    expect(panel).toHaveAttribute('inert');
+
+    // Simulate Rail button click: call openPanel (which is setOpen(true) in our wrapper)
+    act(() => setOpen(true));
+
+    await waitFor(() => {
+      expect(panel).not.toHaveAttribute('inert');
+    });
   });
 
   // ── New conversation (FR-AP-023) ────────────────────────────────────────────
