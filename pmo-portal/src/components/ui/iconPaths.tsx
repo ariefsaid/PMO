@@ -41,7 +41,8 @@ export type IconName =
   | 'upload'
   | 'file'
   | 'download'
-  | 'eye';
+  | 'eye'
+  | 'message';
 
 /** Raw <path>/<rect>/<circle> children per icon, stroke-2 throughout. */
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -206,6 +207,12 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  // Chat-bubble outline — used for the AssistantPanel Rail entry + header trigger (A2, FR-AP-005).
+  message: (
+    <>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </>
   ),
 };
