@@ -6,7 +6,7 @@
  * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/ANTHROPIC key.
  * FR-AP-024/025.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { AgentRuntimeContext } from './AgentRuntimeContext';
 import type { AgentRuntime } from './port';
 import { PmoNativeRuntime } from './pmoNativeRuntime';
@@ -21,28 +21,38 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
   const { session } = useAuth();
   const [open, setOpen] = useState(false);
 
+  // Keep a mutable ref to the current session so getJwt always reads the latest
+  // token even after Supabase silently refreshes it (~55 min interval).
+  // Standard React pattern for stable callbacks that need the latest state
+  // without the callback itself being re-created (see useAssistantPanel runIdRef).
+  const sessionRef = useRef(session);
+  sessionRef.current = session; // updated every render — no dep-array issue
+
   // Construct the runtime once (memoised) — only when the flag is on.
   // This is the ONLY place in the SPA that imports PmoNativeRuntime (port isolation).
   const runtime = useMemo<AgentRuntime | null>(() => {
     if (!isFeatureEnabled('agentAssistant')) return null;
     return new PmoNativeRuntime({
-      getJwt: () => session?.access_token ?? '',
+      // Read via the ref: always returns the current session token, never a
+      // stale closure value from the first render (NFR-AP-SEC-001, FR-AP-025).
+      getJwt: () => sessionRef.current?.access_token ?? '',
       fnUrl: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-chat`,
     });
-    // session intentionally NOT in deps: we use a getter so the JWT stays fresh.
-    // The runtime is constructed once per app lifetime; the getter closes over the
-    // session ref via the component closure which is stable.
+    // sessionRef is stable (useRef returns the same object); no deps needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openPanel = () => setOpen(true);
-  const closePanel = () => setOpen(false);
-  const togglePanel = () => setOpen((o) => !o);
+  const openPanel = useCallback(() => setOpen(true), []);
+  const closePanel = useCallback(() => setOpen(false), []);
+  const togglePanel = useCallback(() => setOpen((o) => !o), []);
+
+  const ctxValue = useMemo(
+    () => ({ runtime, open, openPanel, closePanel, togglePanel }),
+    [runtime, open, openPanel, closePanel, togglePanel],
+  );
 
   return (
-    <AgentRuntimeContext.Provider
-      value={{ runtime, open, openPanel, closePanel, togglePanel }}
-    >
+    <AgentRuntimeContext.Provider value={ctxValue}>
       {children}
     </AgentRuntimeContext.Provider>
   );

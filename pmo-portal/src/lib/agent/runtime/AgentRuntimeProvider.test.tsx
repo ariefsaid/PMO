@@ -3,14 +3,19 @@
  * FR-AP-024/025; D-A2-5; AC-AP-024.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 
-// ── Module mocks (hoisted) ────────────────────────────────────────────────────
+// ── Controllable useAuth mock (for stale-JWT test) ────────────────────────────
+// The mock factory is called once per module scope; tests mutate `authState`
+// to control what useAuth() returns on each render cycle.
+const authState = {
+  access_token: 'initial-jwt',
+};
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({
-    session: { access_token: 'test-jwt' },
+    session: { access_token: authState.access_token },
     currentUser: null,
     role: null,
     loading: false,
@@ -28,13 +33,18 @@ const mockRuntimeMethods = {
   subscribe: vi.fn(),
 };
 
+// Captured getJwt from the most recent PmoNativeRuntime constructor call.
+let capturedGetJwt: (() => string) | null = null;
+
 vi.mock('./pmoNativeRuntime', () => {
   class PmoNativeRuntime {
     createRun = mockRuntimeMethods.createRun;
     followUp = mockRuntimeMethods.followUp;
     control = mockRuntimeMethods.control;
     subscribe = mockRuntimeMethods.subscribe;
-    constructor(_opts: unknown) {}
+    constructor(opts: { getJwt: () => string }) {
+      capturedGetJwt = opts.getJwt;
+    }
   }
   return { PmoNativeRuntime };
 });
@@ -123,6 +133,41 @@ describe('AgentRuntimeProvider', () => {
     // Toggle
     fireEvent.click(screen.getByTestId('toggle-btn'));
     expect(screen.getByTestId('open-state').textContent).toBe('open');
+  });
+});
+
+describe('AgentRuntimeProvider — stale JWT closure (FR-AP-025 / NFR-AP-SEC-001)', () => {
+  it('getJwt returns the current session token after a token refresh (ref pattern, not stale closure)', () => {
+    // Simulate: initial render with token A; Supabase refreshes to token B.
+    // The runtime is constructed once; getJwt must read the LATEST token.
+    capturedGetJwt = null;
+    authState.access_token = 'token-A';
+
+    const { rerender } = render(
+      <AgentRuntimeProvider>
+        <div />
+      </AgentRuntimeProvider>,
+    );
+
+    // getJwt should return the initial token at construction time
+    expect(capturedGetJwt).not.toBeNull();
+    expect(capturedGetJwt!()).toBe('token-A');
+
+    // Simulate Supabase token refresh: AuthProvider calls setSession with new token.
+    // In our mock, we mutate authState and force a re-render.
+    authState.access_token = 'token-B';
+    act(() => {
+      rerender(
+        <AgentRuntimeProvider>
+          <div />
+        </AgentRuntimeProvider>,
+      );
+    });
+
+    // getJwt must return the NEW token, not the stale 'token-A' from the first render.
+    // This fails before the fix (closure captures `session` at mount) and passes after
+    // the fix (sessionRef is updated each render).
+    expect(capturedGetJwt!()).toBe('token-B');
   });
 });
 
