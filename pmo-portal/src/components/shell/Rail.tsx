@@ -92,9 +92,14 @@ export interface RailProps {
    *   null            → both items fall back to NavLink URL-based behaviour (unchanged)
    */
   railActiveOverride?: 'salesPipeline' | 'projects' | null;
+  /**
+   * Callback fired when the flag-gated "Assistant" toggle button is clicked (FR-AP-005).
+   * Only rendered when isFeatureEnabled('agentAssistant') is true; absent when flag is off.
+   */
+  onOpenAssistant?: () => void;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) => {
+export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant }) => {
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
@@ -223,6 +228,26 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride }) =>
           </div>
         )}
       </nav>
+
+      {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.
+          Not a NavLink (routes nowhere) — a <button> with aria-pressed (toggle
+          semantics). Placed above the Administration footer. */}
+      {isFeatureEnabled('agentAssistant') && (
+        <div className="flex-shrink-0 border-t border-border p-2.5">
+          <button
+            type="button"
+            aria-pressed={false}
+            onClick={() => {
+              onOpenAssistant?.();
+              onNavigate?.();
+            }}
+            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
+          >
+            <Icon name="message" />
+            <span>Assistant</span>
+          </button>
+        </div>
+      )}
 
       {(role === UserRole.Executive || role === UserRole.Admin) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
