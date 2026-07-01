@@ -38,7 +38,10 @@
 > `<AgentSidebar>`, NOT the mis-scoped `code-agents-ui`); BYOA `auth()` hook is the Supabase-JWT seam; **but**
 > it runs its own Drizzle Postgres schema (2nd data layer), the deputy invariant is hand-built (RLS stays the
 > ceiling), and churn is extreme (core 0.84.7, 509 releases since March → pin hard). Gate = a deputy-invariant
-> test (cross-tenant read+write denied) in a local/VPS pilot. Awaiting owner go/no-go.
+> test (cross-tenant read+write denied) in a local/VPS pilot. **Turnkey pilot plan for a LOCAL agent to
+> execute: `docs/plans/2026-07-01-agent-native-sidecar-pilot.md`** (pin-exact, dedicated schema, BYOA JWT
+> verify, one deputy-bound action, embed `<AgentSidebar>`, the gate test, churn measurement → adopt-whole /
+> cherry-pick / stop). Awaiting owner go/no-go; the pilot itself runs locally (this container can't host Nitro).
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
