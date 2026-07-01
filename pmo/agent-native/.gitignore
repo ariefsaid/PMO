@@ -1,0 +1,11 @@
+# Local-only — never commit secrets.
+.env
+.env.*
+!.env.example
+
+# Nitro / node build artifacts
+node_modules/
+.output/
+.nitro/
+.cache/
+dist/

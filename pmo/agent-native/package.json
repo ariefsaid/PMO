@@ -1,0 +1,35 @@
+{
+  "name": "agent-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PMO agent-native sidecar (Nitro) — BYOA Supabase auth + deputy AsyncLocalStorage seam",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "dev": "nitro dev --port 8100",
+    "build": "nitro build",
+    "start": "node .output/server/index.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-native/core": "0.84.8",
+    "@supabase/supabase-js": "2.110.0",
+    "@tanstack/react-query": "5.101.2",
+    "postgres": "3.4.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "h3": "2.0.1-rc.22",
+    "nitro": "3.0.260415-beta",
+    "typescript": "6.0.3",
+    "vite": "8.1.2",
+    "vitest": "4.1.9"
+  },
+  "//": "@agent-native/core is PINNED EXACT (churns ~4x/day pre-1.0; bump deliberately, never ^/latest). h3 + nitro are pre-release/beta pins — bump deliberately too."
+}
