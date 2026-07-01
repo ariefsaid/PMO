@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-07-01) — agent-native assistant SHIPPED to `main`; versioning adopted
+## ▶ Current state (2026-07-01) — agent-native assistant SHIPPED to `main`; whole-UI `agent-native` adoption decided; versioning adopted
 
 > **RESUME ENTRY POINT.** **`production`(prod) UNCHANGED at `fc312eb` / Cloud DB migration 0041 = the
 > `v0.1.0` versioning baseline (ADR-0042). `main`=`1c0f747` (agent-native epic A1–A4 promoted, PR #200,
@@ -30,18 +30,23 @@
 > (`[edge_runtime] enabled=false`) → agent e2e are mocked; **live end-to-end test needs a local session**
 > (`docs/environments.md` → Edge Functions).
 >
-> **▶ NEXT DECISION (owner) — agent-native sidecar spike:** should PMO adopt Builder.io **agent-native**
-> whole (colocated `pmo/agent-native/`, config-over-fork) for a first-class **agent-citizen** surface
-> beyond today's edge-fn chatbot? Investigation spike done: **`docs/spikes/2026-07-01-agent-native-sidecar.md`**.
-> Verdict: **feasible but a scoped PILOT, not adopt-whole** — Node-VPS + same-origin CF proxy is first-class
-> (Workers ✗ — hard `better-sqlite3` dep); chat UI embeds as in-tree React (`@agent-native/core/client`
-> `<AgentSidebar>`, NOT the mis-scoped `code-agents-ui`); BYOA `auth()` hook is the Supabase-JWT seam; **but**
-> it runs its own Drizzle Postgres schema (2nd data layer), the deputy invariant is hand-built (RLS stays the
-> ceiling), and churn is extreme (core 0.84.7, 509 releases since March → pin hard). Gate = a deputy-invariant
-> test (cross-tenant read+write denied) in a local/VPS pilot. **Turnkey pilot plan for a LOCAL agent to
-> execute: `docs/plans/2026-07-01-agent-native-sidecar-pilot.md`** (pin-exact, dedicated schema, BYOA JWT
-> verify, one deputy-bound action, embed `<AgentSidebar>`, the gate test, churn measurement → adopt-whole /
-> cherry-pick / stop). Awaiting owner go/no-go; the pilot itself runs locally (this container can't host Nitro).
+> **▶ NEXT DECISION — RESOLVED (2026-07-01):** PMO adopts Builder.io **`agent-native` whole — engine + UI**,
+> colocated at `pmo/agent-native/`, **config-over-fork**, embedded via **`<AgentNativeEmbedded>`** and themed to
+> PMO’s monochrome-calm token system. The prior edge-function assistant remains live only as the **staged**
+> fallback until parity. Decision of record: **`docs/adr/0040-in-app-agent-panel-pmo-native-vs-sidecar.md`**
+> (`## Decision (2026-07-01)`). Program plan: **`docs/plans/2026-07-01-agent-native-adoption-epic.md`**.
+>
+> Why it resolved: the **pilot gate is GREEN** and the findings note is authoritative:
+> **`docs/spikes/2026-07-01-agent-native-sidecar-findings.md`**. Load-bearing facts: the deputy-invariant gate
+> passed 5/5; the embed is same-origin bearer-token based (`ensureEmbedAuthFetchInterceptor`) so no second
+> domain is required; the public headless/runtime seam is real (`createAgentNativeChatRuntime()` →
+> `AgentChatRuntime`); the first-class-citizen capability lives in the shipped UI layer; and the new
+> monochrome-calm reskin is token-compatible with agent-native’s theming seam.
+>
+> Sequencing: **parallel with the reskin**, against the shared token contract in
+> `/Users/ariefsaid/Coding/PMO/.claude/worktrees/reskin-port/DESIGN.md`. Remaining execution is the staged
+> E1–E8 epic (Foundation → Domain bridge → Embed → Context/nav bridge → Live loop → Security substrate port →
+> `compose_view` parity-check → retire A + deploy).
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
