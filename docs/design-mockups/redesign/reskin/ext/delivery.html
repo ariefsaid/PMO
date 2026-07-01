@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project Delivery — PMO Portal (reskin · monochrome-calm · S-curve + Gantt)</title>
+<link rel="stylesheet" href="../../_tokens.css" />
+<link rel="stylesheet" href="../_app.css" />
+<style>
+  /* ============================================================================
+     PROJECT DELIVERY — RESKIN surface (monochrome-calm · the S-CURVE + the GANTT).
+     Goal of this mockup: lock TWO flagged widgets that the records/dashboard mockups
+     never exercised (inventory §C ⚠️ rows + §H.2/H.1) —
+       (1) the cumulative S-CURVE  (planned-vs-actual line, today marker), and
+       (2) the GANTT timeline     (sticky task column + horizontal bars, ONE scroll).
+
+     THE TREATMENT (monochrome-calm, consistent with the locked chart family):
+       • Quiet neutral chrome — hairline axes/gridlines (--ds-border*), tertiary tick
+         labels, NO heavy chart box. Cards carry the resting shadow; charts are flat.
+       • S-CURVE: PLANNED = a quiet dashed neutral line (--ds-neutral-9); ACTUAL = the
+         single emphasized SOLID line (--ds-neutral-12, the darkest mark = the accent).
+         "single-accent" is weight + darkness, never a hue — PMO blue stays reserved
+         for the one primary action + the focus ring, so NO line is blue. Both lines
+         legible in light AND dark.
+       • GANTT: bars are monochrome with a quiet STATUS-TINT (done / on-track / behind
+         from the status tokens); status is ALSO a dot + label in the sticky column +
+         a legend, so colour is never the only channel. Today = a dashed vertical;
+         milestones = on-axis diamonds coloured by their own status dot.
+       • tabular-nums on every figure; AA on every text token in BOTH themes.
+
+     100% --ds-* tokens. No hex/rgb/hsl literals. No @import / no remote URLs here
+     (Inter is imported by ../_app.css, which this file links). New shades (the curve
+     series + the gantt bar tints) are declared as --ds-* tokens below, the same §0
+     pattern as ../_app.css — color-mix over existing status/neutral tokens so they
+     auto-adapt to .dark with no per-theme override needed.
+     ============================================================================ */
+
+  /* §0 — delivery-widget tokens (the only new colors; restrained, dark-adaptive). */
+  :root {
+    /* S-curve series — monochrome hierarchy: grid(faint) < planned(quiet dashed) < actual(strong solid) */
+    --ds-curve-grid:     var(--ds-border-light);   /* horizontal gridlines */
+    --ds-curve-axis:     var(--ds-border);          /* x baseline */
+    --ds-curve-tick:     var(--ds-text-tertiary);   /* tick + axis labels */
+    --ds-curve-planned:  var(--ds-neutral-9);       /* the quiet dashed planned line */
+    --ds-curve-actual:   var(--ds-neutral-12);      /* the strong solid actual line */
+    --ds-curve-today:    var(--ds-neutral-8);       /* subtle dashed today vertical */
+
+    /* Gantt bar status tints — quiet washes (color-mix over the status tokens) */
+    --ds-gantt-done-fill:    color-mix(in srgb, var(--ds-success) 20%, transparent);
+    --ds-gantt-done-prog:    color-mix(in srgb, var(--ds-success) 42%, transparent);
+    --ds-gantt-done-edge:    var(--ds-success-dot);
+
+    --ds-gantt-behind-fill:  color-mix(in srgb, var(--ds-warning) 26%, transparent);
+    --ds-gantt-behind-prog:  color-mix(in srgb, var(--ds-warning) 50%, transparent);
+    --ds-gantt-behind-edge:  var(--ds-warn-dot);
+
+    --ds-gantt-track-fill:   color-mix(in srgb, var(--ds-neutral-9) 14%, transparent);
+    --ds-gantt-track-prog:   color-mix(in srgb, var(--ds-neutral-9) 32%, transparent);
+    --ds-gantt-track-edge:   var(--ds-neutral-dot);
+
+    /* gantt chrome */
+    --ds-gantt-gridx:        var(--ds-border-light);   /* month verticals */
+    --ds-gantt-lanebg:       var(--ds-surface-sunken); /* lane-header tint */
+    --ds-gantt-lanebg-2:     color-mix(in srgb, var(--ds-surface-sunken) 60%, var(--ds-surface-canvas));
+  }
+
+  /* ── page scaffold (mockup-only chrome — tokened, mirrors ext/dashboard.html) ── */
+  .pgwrap { max-width: 1320px; margin: 0 auto; padding: var(--ds-space-10) var(--ds-space-6) var(--ds-space-16); }
+  .pghead { margin-bottom: var(--ds-space-2); }
+  .pghead .kicker {
+    font-family: var(--ds-font-display);
+    font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-wide); text-transform: uppercase;
+    color: var(--ds-text-tertiary);
+  }
+  .pghead h1 { font-family: var(--ds-font-display); font-size: var(--ds-text-2xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-tight); margin: var(--ds-space-1) 0 0; }
+  .pghead p { color: var(--ds-text-secondary); font-size: var(--ds-text-sm); margin: var(--ds-space-2) 0 0; max-width: 78ch; }
+
+  .chromelabel {
+    display: inline-flex; align-items: center; gap: var(--ds-space-2);
+    margin: var(--ds-space-12) 0 var(--ds-space-4);
+    padding: var(--ds-space-1) var(--ds-space-3);
+    background: var(--ds-surface-muted);
+    border: 1px solid var(--ds-border-light);
+    border-radius: var(--ds-radius-pill);
+    font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);
+  }
+  .chromelabel .sw { width: 10px; height: 10px; border-radius: var(--ds-radius-round); flex: none; }
+  .chromelabel .sw--light { background: var(--ds-neutral-1); border: 1px solid var(--ds-border-strong); }
+  .chromelabel .sw--dark { background: var(--ds-neutral-12); }
+  .chromelabel strong { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+
+  .surface { background: var(--ds-surface-sunken); border-radius: var(--ds-radius-2xl); }
+  .surface.dark { color: var(--ds-text-primary); }
+  .ds-frame .ds-app { min-height: 640px; }
+
+  /* ── delivery card (shared by the S-curve + the Gantt) ───────────────────── */
+  .ds-chartcard { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-surface-canvas); box-shadow: var(--ds-shadow-resting); overflow: hidden; }
+  .ds-chartcard__head { display: flex; align-items: flex-start; gap: var(--ds-space-4); padding: var(--ds-space-5) var(--ds-space-6) var(--ds-space-3); flex-wrap: wrap; }
+  .ds-chartcard__head h2 { font-family: var(--ds-font-display); font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-snug); color: var(--ds-text-primary); }
+  .ds-chartcard__hint { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); display: block; margin-top: 2px; }
+  .ds-chartcard__head > .ds-delivroll { margin-left: auto; }
+  .ds-chartcard__body { padding: 0 var(--ds-space-6) var(--ds-space-6); }
+
+  /* the headline figure + on/behind chip that sits in the S-curve card head */
+  .ds-delivroll { display: inline-flex; align-items: center; gap: var(--ds-space-3); flex-wrap: wrap; }
+  .ds-delivroll__v { font-size: 30px; font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-tight); color: var(--ds-text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+  .ds-delivroll__k { font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+  .ds-delivroll__sep { width: 1px; height: 26px; background: var(--ds-border); margin: 0 var(--ds-space-1); }
+
+  /* chart svg responsive + flat (no shadow on the marks themselves) */
+  .ds-chart { width: 100%; height: auto; display: block; font-family: var(--ds-font-body); }
+
+  /* ── chart internal classes — ALL color via tokens ───────────────────────── */
+  .ax-grid    { stroke: var(--ds-curve-grid); stroke-width: 1; shape-rendering: crispEdges; }
+  .ax-line    { stroke: var(--ds-curve-axis); stroke-width: 1; shape-rendering: crispEdges; }
+  .ax-tick    { fill: var(--ds-curve-tick); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ax-xtick   { fill: var(--ds-curve-tick); font-size: 11px; }
+  .ax-xmark   { stroke: var(--ds-curve-axis); stroke-width: 1; }
+  .ln-planned { fill: none; stroke: var(--ds-curve-planned); stroke-width: 2; stroke-dasharray: 6 4; stroke-linejoin: round; stroke-linecap: round; }
+  .ln-actual  { fill: none; stroke: var(--ds-curve-actual);  stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .ln-today   { stroke: var(--ds-curve-today); stroke-width: 1; stroke-dasharray: 3 3; }
+  .dot-actual { fill: var(--ds-curve-actual); }
+  .dot-plan-h { fill: var(--ds-surface-canvas); stroke: var(--ds-curve-planned); stroke-width: 1.5; }
+  .lbl-v      { fill: var(--ds-text-secondary); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lbl-today  { fill: var(--ds-text-secondary); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .ax-foot    { fill: var(--ds-text-tertiary); font-size: 10px; }
+
+  /* chart legend — swatch + label, colour-not-only */
+  .ds-chartlegend { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); margin-top: var(--ds-space-3_5); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); align-items: center; }
+  .ds-chartlegend__item { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); }
+  .ds-chartlegend b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); font-variant-numeric: tabular-nums; }
+  .ds-cl-dash  { width: 22px; height: 0; border-top: 2px dashed var(--ds-curve-planned); flex: none; }
+  .ds-cl-solid { width: 22px; height: 2.5px; border-radius: 2px; background: var(--ds-curve-actual); flex: none; }
+  .ds-cl-today { width: 0; height: 16px; border-left: 1px dashed var(--ds-curve-today); flex: none; }
+
+  .ds-chartcaveat { margin: var(--ds-space-3) 0 0; font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE GANTT — ONE scroll container; sticky task column (left) + sticky axis
+     (top); horizontal bars in a wide timeline. Mirrors the React component's
+     MS-Project split (src/lib/gantt/ganttLayout.ts) but in pure CSS.
+     ══════════════════════════════════════════════════════════════════════════ */
+  .ds-gantt {
+    border: 1px solid var(--ds-border);
+    border-top: none;                                  /* card head carries the top border */
+  }
+  .ds-gantt__scroll {                                  /* the ONE scroll unit (both axes) */
+    overflow: auto;
+    max-height: 520px;
+    position: relative;
+    background: var(--ds-surface-canvas);
+  }
+  .ds-gantt__layout { display: flex; width: max-content; min-width: 100%; }
+
+  /* ── LEFT: the task TABLE — sticky left so it never scrolls away horizontally ─ */
+  .ds-gantt__table {
+    position: sticky; left: 0; z-index: 30;
+    flex: none; width: 296px;
+    background: var(--ds-surface-canvas);
+    border-right: 1px solid var(--ds-border);
+  }
+  .ds-gantt__corner {                                   /* sticky top-AND-left (the corner) */
+    position: sticky; top: 0; z-index: 50;
+    height: 40px; display: flex; align-items: center;
+    padding: 0 var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-border);
+    background: var(--ds-surface-canvas);
+    font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-wide); text-transform: uppercase;
+    color: var(--ds-text-tertiary);
+  }
+  .ds-gantt__lane-hd {                                  /* milestone group header row */
+    display: flex; align-items: center; gap: var(--ds-space-2);
+    height: 36px; padding: 0 var(--ds-space-4);
+    background: var(--ds-gantt-lanebg);
+    border-bottom: 1px solid var(--ds-border-light);
+    font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+    color: var(--ds-text-secondary);
+  }
+  .ds-gantt__lane-hd .ds-tag__dot { box-shadow: none; }
+  .ds-gantt__lane-hd__date { margin-left: auto; font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-medium); color: var(--ds-text-tertiary); font-variant-numeric: tabular-nums; font-family: var(--ds-font-mono); }
+  .ds-gantt__trow {                                      /* a task row (aligns 1:1 with the timeline lane) */
+    display: flex; align-items: center; gap: var(--ds-space-2_5);
+    height: 44px; padding: 0 var(--ds-space-4);
+    border-bottom: 1px solid var(--ds-border-light);
+  }
+  .ds-gantt__trow:last-child { border-bottom: none; }
+  .ds-gantt__trow__dot { width: 8px; height: 8px; border-radius: var(--ds-radius-round); flex: none; }
+  .ds-gantt__trow__nm { font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); color: var(--ds-text-primary); min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ds-gantt__trow__dt { font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); font-variant-numeric: tabular-nums; font-family: var(--ds-font-mono); white-space: nowrap; }
+  .ds-dot--done   { background: var(--ds-success-dot); }
+  .ds-dot--track  { background: var(--ds-neutral-dot); }
+  .ds-dot--behind { background: var(--ds-warn-dot); }
+
+  /* ── RIGHT: the TIMELINE — sticky axis (top); bars positioned in % of the span ─ */
+  .ds-gantt__timeline { flex: none; width: 1060px; position: relative; }
+  .ds-gantt__axis {                                      /* sticky top: month axis */
+    position: sticky; top: 0; z-index: 40;
+    height: 40px; position: sticky;
+    background: var(--ds-surface-canvas);
+    border-bottom: 1px solid var(--ds-border);
+  }
+  .ds-gantt__axislbl { position: absolute; top: 13px; transform: translateX(4px); font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ds-gantt__axistick { position: absolute; top: 0; width: 1px; height: 40px; background: var(--ds-gantt-gridx); }
+
+  .ds-gantt__lanes { position: relative; }               /* the bar/gridline stacking context */
+  .ds-gantt__laneband {                                  /* a milestone lane band (matches the left header height) */
+    height: 36px; background: var(--ds-gantt-lanebg); border-bottom: 1px solid var(--ds-border-light);
+    position: relative;
+  }
+  .ds-gantt__laneband:last-child { border-bottom: none; }
+  .ds-gantt__lanelab { position: absolute; top: 50%; transform: translate(-50%,-50%); display: inline-flex; align-items: center; gap: 6px; font-size: var(--ds-text-xxs); color: var(--ds-text-tertiary); white-space: nowrap; }
+  .ds-gantt__diamond { width: 9px; height: 9px; transform: rotate(45deg); flex: none; }
+  .ds-diamond--done { background: var(--ds-success-dot); }
+  .ds-diamond--behind { background: var(--ds-warn-dot); }
+  .ds-diamond--track { background: var(--ds-neutral-dot); }
+  .ds-gantt__lanelab__d { font-family: var(--ds-font-mono); font-size: 10px; }
+
+  .ds-gantt__rowband {                                   /* a task lane band (44px, matches left row) */
+    height: 44px; border-bottom: 1px solid var(--ds-border-light); position: relative;
+  }
+  .ds-gantt__rowband:last-child { border-bottom: none; }
+
+  /* gridline + today overlay spanning ALL lanes (z: above lane bgs, below bars) */
+  .ds-gantt__gridx { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .ds-gantt__gridx .v { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ds-gantt-gridx); }
+  .ds-gantt__todayline {                                 /* today vertical — above bars so always visible */
+    position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--ds-curve-today); z-index: 8; pointer-events: none;
+  }
+
+  /* the bar */
+  .ds-gbar { position: absolute; top: 50%; transform: translateY(-50%); height: 22px; min-width: 3px; border-radius: var(--ds-radius-sm); overflow: hidden; display: flex; align-items: center; z-index: 10; border: 1px solid; }
+  .ds-gbar__prog { position: absolute; left: 0; top: 0; bottom: 0; }
+  .ds-gbar__lab { position: relative; z-index: 2; padding: 0 var(--ds-space-2); font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold); color: var(--ds-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .ds-gbar--done   { background: var(--ds-gantt-done-fill);   border-color: var(--ds-gantt-done-edge); }
+  .ds-gbar--done   .ds-gbar__prog { background: var(--ds-gantt-done-prog); }
+  .ds-gbar--behind { background: var(--ds-gantt-behind-fill); border-color: var(--ds-gantt-behind-edge); }
+  .ds-gbar--behind .ds-gbar__prog { background: var(--ds-gantt-behind-prog); }
+  .ds-gbar--track  { background: var(--ds-gantt-track-fill);  border-color: var(--ds-gantt-track-edge); }
+  .ds-gbar--track  .ds-gbar__prog { background: var(--ds-gantt-track-prog); }
+
+  /* gantt status legend (colour-not-only) */
+  .ds-ganttlegend { display: flex; flex-wrap: wrap; gap: var(--ds-space-5); padding: var(--ds-space-3) var(--ds-space-6); border-top: 1px solid var(--ds-border); background: var(--ds-surface-sunken); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); align-items: center; }
+  .ds-ganttlegend__item { display: inline-flex; align-items: center; gap: var(--ds-space-2); }
+  .ds-ganttlegend__bar { width: 22px; height: 10px; border-radius: 2px; flex: none; border: 1px solid; }
+  .ds-ganttlegend__bar--done { background: var(--ds-gantt-done-fill); border-color: var(--ds-gantt-done-edge); }
+  .ds-ganttlegend__bar--track { background: var(--ds-gantt-track-fill); border-color: var(--ds-gantt-track-edge); }
+  .ds-ganttlegend__bar--behind { background: var(--ds-gantt-behind-fill); border-color: var(--ds-gantt-behind-edge); }
+  .ds-ganttlegend__dia { width: 9px; height: 9px; transform: rotate(45deg); flex: none; background: var(--ds-neutral-dot); }
+  .ds-ganttlegend__today { width: 0; height: 12px; border-left: 1px dashed var(--ds-curve-today); flex: none; }
+
+  /* note callout — what this mockup locks */
+  .ds-treatmentnote {
+    display: flex; gap: var(--ds-space-3); align-items: flex-start;
+    padding: var(--ds-space-4) var(--ds-space-5);
+    border: 1px dashed var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface-sunken);
+    font-size: var(--ds-text-sm); color: var(--ds-text-secondary);
+  }
+  .ds-treatmentnote svg { width: 16px; height: 16px; flex: none; color: var(--ds-text-tertiary); margin-top: 2px; }
+  .ds-treatmentnote b { color: var(--ds-text-primary); font-weight: var(--ds-weight-semibold); }
+  .ds-treatmentnote code { font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); }
+</style>
+</head>
+<body>
+<div class="pgwrap">
+
+  <header class="pghead">
+    <div class="kicker">Reskin · Monochrome-calm · Delivery widgets</div>
+    <h1>Project Delivery — the S-curve + the Gantt, in monochrome-calm</h1>
+    <p>Two flagged widgets the records/dashboard mockups never exercised. The cumulative progress curve
+       (planned = quiet dashed neutral, actual = the single solid accent line, a subtle today marker)
+       and the Gantt timeline (a sticky task column + horizontal bars in ONE scroll container). PMO blue
+       stays reserved for the one primary action — no line or bar is blue; status is always a dot + label.</p>
+  </header>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  RENDER 1 — LIGHT                                                       ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+  <div class="chromelabel"><span class="sw sw--light"></span> <strong>Light</strong> · Cascade Foods 6.0 MW Ground-Mount PV — Progress curve + Gantt timeline</div>
+
+  <div class="surface light">
+    <div class="ds-frame">
+      <div class="ds-app">
+
+        <!-- ── calm grouped rail ──────────────────────────────────────────── -->
+        <aside class="ds-rail">
+          <div class="ds-brand"><div class="ds-brand__glyph">P</div><div class="ds-brand__name">PMO Portal</div></div>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Workspace</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Dashboard</button>
+            <button class="ds-navitem is-active"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Projects <span class="ds-navitem__count tnum">9</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg> Pipeline <span class="ds-navitem__count tnum">5</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Delivery</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> My tasks</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg> Timesheets</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg> Approvals <span class="ds-navitem__count tnum">3</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Records</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg> Procurement</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg> Companies</button>
+          </nav>
+
+          <div class="ds-rail__foot">
+            <div class="ds-density">
+              <span class="ds-density__k">Density</span>
+              <span class="ds-seg"><b>Comfortable</b><button>Compact</button></span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- ── content ────────────────────────────────────────────────────── -->
+        <div class="ds-content">
+
+          <!-- topbar -->
+          <div class="ds-topbar">
+            <nav class="ds-crumb">
+              <a href="#">Workspace</a><span class="ds-crumb__sep">/</span>
+              <a href="#">Projects</a><span class="ds-crumb__sep">/</span>
+              <span class="ds-crumb__here">Cascade Foods 6.0 MW — Delivery</span>
+            </nav>
+            <div class="ds-search">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+              <span class="ds-search__ph">Search tasks, milestones…</span>
+              <span class="ds-kbd">⌘K</span>
+            </div>
+            <div class="ds-avatar">DS</div>
+          </div>
+
+          <!-- canvas -->
+          <div class="ds-canvas">
+
+            <!-- page head — the ONE blue action lives here (Advance) -->
+            <header class="ds-pagehead">
+              <div>
+                <h1 class="ds-pagehead__h1">Delivery</h1>
+                <p class="ds-pagehead__lede">Cumulative progress against plan and the task timeline for Cascade Foods 6.0 MW Ground-Mount PV — a 4-phase EPC build (Engineering · Procurement · Construction · Commissioning), 1 Jun 2025 → 31 Jul 2026.</p>
+              </div>
+              <div class="ds-pagehead__actions">
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export</button>
+                <button class="ds-btn ds-btn--primary">Advance to Commissioning <svg class="ds-i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              </div>
+            </header>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 1. THE S-CURVE — cumulative % over time; planned (dashed) vs
+                    actual (solid); hairline grid + axes; subtle today marker;
+                    headline delivery % + on/behind-target chip; legend.
+                 ════════════════════════════════════════════════════════════════ -->
+            <section class="ds-chartcard" aria-label="Progress curve">
+              <header class="ds-chartcard__head">
+                <div>
+                  <h2>Progress curve</h2>
+                  <span class="ds-chartcard__hint">cumulative % complete · planned vs actual · weighted across the 4 delivery phases</span>
+                </div>
+                <div class="ds-delivroll">
+                  <span class="ds-delivroll__v tnum">78%</span>
+                  <span class="ds-delivroll__k">delivered to date</span>
+                  <span class="ds-delivroll__sep" aria-hidden="true"></span>
+                  <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>Behind target · −13 pp</span>
+                </div>
+              </header>
+
+              <div class="ds-chartcard__body">
+                <svg class="ds-chart" viewBox="0 0 760 300" role="img" aria-label="Cumulative progress curve, 1 June 2025 to 31 July 2026. Actual to date 78 percent against a planned 91 percent by today, 27 April 2026 — 13 percentage points behind target. Engineering and Procurement phases complete on plan; Construction is behind.">
+                  <!-- horizontal gridlines + y ticks (0/25/50/75/100) -->
+                  <line class="ax-grid" x1="48" y1="20"  x2="744" y2="20"/>
+                  <line class="ax-grid" x1="48" y1="76"  x2="744" y2="76"/>
+                  <line class="ax-grid" x1="48" y1="132" x2="744" y2="132"/>
+                  <line class="ax-grid" x1="48" y1="188" x2="744" y2="188"/>
+                  <line class="ax-line" x1="48" y1="244" x2="744" y2="244"/>
+                  <text class="ax-tick" x="42" y="248" text-anchor="end">0%</text>
+                  <text class="ax-tick" x="42" y="192" text-anchor="end">25%</text>
+                  <text class="ax-tick" x="42" y="136" text-anchor="end">50%</text>
+                  <text class="ax-tick" x="42" y="80"  text-anchor="end">75%</text>
+                  <text class="ax-tick" x="42" y="24"  text-anchor="end">100%</text>
+
+                  <!-- x-axis month labels + tick marks -->
+                  <line class="ax-xmark" x1="48"  y1="244" x2="48"  y2="248"/>
+                  <line class="ax-xmark" x1="199" y1="244" x2="199" y2="248"/>
+                  <line class="ax-xmark" x1="348" y1="244" x2="348" y2="248"/>
+                  <line class="ax-xmark" x1="495" y1="244" x2="495" y2="248"/>
+                  <line class="ax-xmark" x1="646" y1="244" x2="646" y2="248"/>
+                  <line class="ax-xmark" x1="718" y1="244" x2="718" y2="248"/>
+                  <text class="ax-xtick" x="48"  y="262" text-anchor="middle">Jun ’25</text>
+                  <text class="ax-xtick" x="199" y="262" text-anchor="middle">Sep ’25</text>
+                  <text class="ax-xtick" x="348" y="262" text-anchor="middle">Dec ’25</text>
+                  <text class="ax-xtick" x="495" y="262" text-anchor="middle">Mar ’26</text>
+                  <text class="ax-xtick" x="646" y="262" text-anchor="middle">Jun ’26</text>
+                  <text class="ax-xtick" x="718" y="262" text-anchor="middle">Jul ’26</text>
+
+                  <!-- subtle today marker (27 Apr 2026 → x=588) -->
+                  <line class="ln-today" x1="588" y1="16" x2="588" y2="244"/>
+                  <text class="lbl-today" x="588" y="11" text-anchor="middle">Today</text>
+
+                  <!-- PLANNED — quiet dashed neutral. Origin 0% → 15 (Eng) → 50 (Proc) → 90 (Constr) → 100 (Comm), held to end. -->
+                  <polyline class="ln-planned" points="48,244 164,210 340,132 570,42 718,20 744,20"/>
+                  <!-- planned-at-today hollow marker (≈91%) -->
+                  <circle class="dot-plan-h" cx="588" cy="40" r="4"/>
+                  <text class="lbl-v" x="598" y="36">91%</text>
+
+                  <!-- ACTUAL — solid single-accent (darkest). 0% → 15 (Eng, on plan) → 50 (Proc, on plan) → 64 (construction ramp) → 78 today. -->
+                  <polyline class="ln-actual" points="48,244 164,210 340,132 449,101 588,69"/>
+                  <circle class="dot-actual" cx="164" r="0.1" cy="210" fill="none"/>
+                  <circle class="dot-actual" cx="340" cy="132" r="2.5"/>
+                  <circle class="dot-actual" cx="449" cy="101" r="2.5"/>
+                  <circle class="dot-actual" cx="588" cy="69" r="4"/>
+                  <text class="lbl-v" x="598" y="73">78%</text>
+
+                  <text class="ax-foot" x="396" y="288" text-anchor="middle">cumulative % complete · weighted across Engineering · Procurement · Construction · Commissioning</text>
+                </svg>
+
+                <div class="ds-chartlegend">
+                  <span class="ds-chartlegend__item"><span class="ds-cl-dash"></span> Planned (target)</span>
+                  <span class="ds-chartlegend__item"><span class="ds-cl-solid"></span> Actual to date <b>78%</b></span>
+                  <span class="ds-chartlegend__item"><span class="ds-cl-today"></span> Today · 27 Apr 2026</span>
+                </div>
+                <p class="ds-chartcaveat">Plan expected <b style="color:var(--ds-text-secondary);font-weight:600">91%</b> complete by today. Completion before today is estimated from task tracking; live progress starts now.</p>
+              </div>
+            </section>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 2. THE GANTT — sticky task/milestone column + horizontal bars,
+                    ONE scroll container. Bars monochrome + status tint; today
+                    line; quiet month axis; on-axis milestone diamonds.
+                 ════════════════════════════════════════════════════════════════ -->
+            <section class="ds-chartcard" aria-label="Delivery timeline">
+              <header class="ds-chartcard__head">
+                <div>
+                  <h2>Delivery timeline</h2>
+                  <span class="ds-chartcard__hint">15 dated tasks across the 4 phases · month scale · today 27 Apr 2026</span>
+                </div>
+                <div class="ds-delivroll" style="margin-left:auto">
+                  <span class="ds-tag ds-tag--success"><span class="ds-tag__dot"></span>9 done</span>
+                  <span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>3 on track</span>
+                  <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>1 behind</span>
+                  <span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>2 scheduled</span>
+                </div>
+              </header>
+
+              <div class="ds-gantt">
+                <!-- ONE scroll unit (both axes) — sticky column (left) + sticky axis (top) -->
+                <div class="ds-gantt__scroll">
+                  <div class="ds-gantt__layout">
+
+                    <!-- LEFT: sticky task table -->
+                    <div class="ds-gantt__table" role="grid" aria-label="Task table">
+                      <div class="ds-gantt__corner">Task</div>
+
+                      <!-- Engineering lane -->
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--done" aria-hidden="true"></span>
+                        <span>Engineering Design</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 11 Aug ’25</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Site Survey &amp; Geotechnical">Site Survey &amp; Geotechnical</span>
+                        <span class="ds-gantt__trow__dt">1–20 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Single-Line &amp; Civil Design">Single-Line &amp; Civil Design</span>
+                        <span class="ds-gantt__trow__dt">16 Jun – 15 Jul</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Structural Stamp &amp; Permit Set">Structural Stamp &amp; Permit Set</span>
+                        <span class="ds-gantt__trow__dt">14 Jul – 11 Aug</span>
+                      </div>
+
+                      <!-- Procurement lane -->
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--done" aria-hidden="true"></span>
+                        <span>Procurement</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 26 Nov ’25</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Piling &amp; Racking PO">Piling &amp; Racking PO</span>
+                        <span class="ds-gantt__trow__dt">18 Aug – 5 Sep</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="PV Modules (bifacial) PO">PV Modules (bifacial) PO</span>
+                        <span class="ds-gantt__trow__dt">25 Aug – 12 Oct</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Inverters &amp; Combiners PO">Inverters &amp; Combiners PO</span>
+                        <span class="ds-gantt__trow__dt">1 Sep – 20 Oct</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="MV Switchgear &amp; Transformer PO">MV Switchgear &amp; Transformer PO</span>
+                        <span class="ds-gantt__trow__dt">15 Sep – 26 Nov</span>
+                      </div>
+
+                      <!-- Construction lane -->
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--behind" aria-hidden="true"></span>
+                        <span>Construction</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 16 Apr ’26</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Site Prep &amp; Access Roads">Site Prep &amp; Access Roads</span>
+                        <span class="ds-gantt__trow__dt">1–20 Dec</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="DC Pile Driving">DC Pile Driving</span>
+                        <span class="ds-gantt__trow__dt">15 Dec – 28 Feb</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--behind" title="Behind"></span>
+                        <span class="ds-gantt__trow__nm" title="Racking &amp; Module Install">Racking &amp; Module Install</span>
+                        <span class="ds-gantt__trow__dt">1 Mar – 30 Apr</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="On track"></span>
+                        <span class="ds-gantt__trow__nm" title="Trenching &amp; DC Cabling">Trenching &amp; DC Cabling</span>
+                        <span class="ds-gantt__trow__dt">10 Mar – 25 Apr</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="On track"></span>
+                        <span class="ds-gantt__trow__nm" title="MV Equipment Set &amp; Wire">MV Equipment Set &amp; Wire</span>
+                        <span class="ds-gantt__trow__dt">1 Apr – 10 May</span>
+                      </div>
+
+                      <!-- Commissioning lane -->
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--track" aria-hidden="true"></span>
+                        <span>Commissioning &amp; Grid Connection</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 15 Jul ’26</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Continuity / Megger Testing">Continuity / Megger Testing</span>
+                        <span class="ds-gantt__trow__dt">12 May – 1 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Inverter Energization">Inverter Energization</span>
+                        <span class="ds-gantt__trow__dt">5–20 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Grid Sync &amp; Performance Test">Grid Sync &amp; Performance Test</span>
+                        <span class="ds-gantt__trow__dt">25 Jun – 15 Jul</span>
+                      </div>
+                    </div>
+
+                    <!-- RIGHT: the timeline -->
+                    <div class="ds-gantt__timeline">
+                      <!-- sticky month axis -->
+                      <div class="ds-gantt__axis">
+                        <span class="ds-gantt__axistick" style="left:0%"></span>
+                        <span class="ds-gantt__axislbl" style="left:0%">Jun ’25</span>
+                        <span class="ds-gantt__axistick" style="left:7.06%"></span>
+                        <span class="ds-gantt__axislbl" style="left:7.06%">Jul ’25</span>
+                        <span class="ds-gantt__axistick" style="left:14.35%"></span>
+                        <span class="ds-gantt__axislbl" style="left:14.35%">Aug ’25</span>
+                        <span class="ds-gantt__axistick" style="left:21.65%"></span>
+                        <span class="ds-gantt__axislbl" style="left:21.65%">Sep ’25</span>
+                        <span class="ds-gantt__axistick" style="left:28.71%"></span>
+                        <span class="ds-gantt__axislbl" style="left:28.71%">Oct ’25</span>
+                        <span class="ds-gantt__axistick" style="left:36.00%"></span>
+                        <span class="ds-gantt__axislbl" style="left:36.00%">Nov ’25</span>
+                        <span class="ds-gantt__axistick" style="left:43.06%"></span>
+                        <span class="ds-gantt__axislbl" style="left:43.06%">Dec ’25</span>
+                        <span class="ds-gantt__axistick" style="left:50.35%"></span>
+                        <span class="ds-gantt__axislbl" style="left:50.35%">Jan ’26</span>
+                        <span class="ds-gantt__axistick" style="left:57.65%"></span>
+                        <span class="ds-gantt__axislbl" style="left:57.65%">Feb ’26</span>
+                        <span class="ds-gantt__axistick" style="left:64.24%"></span>
+                        <span class="ds-gantt__axislbl" style="left:64.24%">Mar ’26</span>
+                        <span class="ds-gantt__axistick" style="left:71.53%"></span>
+                        <span class="ds-gantt__axislbl" style="left:71.53%">Apr ’26</span>
+                        <span class="ds-gantt__axistick" style="left:78.59%"></span>
+                        <span class="ds-gantt__axislbl" style="left:78.59%">May ’26</span>
+                        <span class="ds-gantt__axistick" style="left:85.88%"></span>
+                        <span class="ds-gantt__axislbl" style="left:85.88%">Jun ’26</span>
+                        <span class="ds-gantt__axistick" style="left:92.94%"></span>
+                        <span class="ds-gantt__axislbl" style="left:92.94%">Jul ’26</span>
+                      </div>
+
+                      <!-- lanes: lane band + task row bands; gridline + today overlay spans all -->
+                      <div class="ds-gantt__lanes">
+                        <!-- month gridlines (span all lanes) -->
+                        <div class="ds-gantt__gridx" aria-hidden="true">
+                          <span class="v" style="left:7.06%"></span><span class="v" style="left:14.35%"></span>
+                          <span class="v" style="left:21.65%"></span><span class="v" style="left:28.71%"></span>
+                          <span class="v" style="left:36.00%"></span><span class="v" style="left:43.06%"></span>
+                          <span class="v" style="left:50.35%"></span><span class="v" style="left:57.65%"></span>
+                          <span class="v" style="left:64.24%"></span><span class="v" style="left:71.53%"></span>
+                          <span class="v" style="left:78.59%"></span><span class="v" style="left:85.88%"></span>
+                          <span class="v" style="left:92.94%"></span>
+                        </div>
+
+                        <!-- Engineering lane band: diamond at 16.71% -->
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:16.71%">
+                            <span class="ds-gantt__diamond ds-diamond--done" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">11 Aug ’25</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Site Survey &amp; Geotechnical — Done" style="left:0%;width:4.47%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Single-Line &amp; Civil Design — Done" style="left:3.53%;width:6.82%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Civil design</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Structural Stamp &amp; Permit Set — Done" style="left:10.12%;width:6.59%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Permit set</span></div>
+                        </div>
+
+                        <!-- Procurement lane band: diamond at 41.88% -->
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:41.88%">
+                            <span class="ds-gantt__diamond ds-diamond--done" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">26 Nov ’25</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Piling &amp; Racking PO — Done" style="left:18.35%;width:4.24%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="PV Modules (bifacial) PO — Done" style="left:20.00%;width:11.29%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">PV modules</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Inverters &amp; Combiners PO — Done" style="left:21.65%;width:11.53%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Inverters</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="MV Switchgear &amp; Transformer PO — Done" style="left:24.94%;width:16.94%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">MV switchgear &amp; transformer</span></div>
+                        </div>
+
+                        <!-- Construction lane band: diamond at 75.06% (behind) -->
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:75.06%">
+                            <span class="ds-gantt__diamond ds-diamond--behind" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">16 Apr ’26</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Site Prep &amp; Access Roads — Done" style="left:43.06%;width:4.47%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="DC Pile Driving — Done" style="left:46.35%;width:17.65%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">DC pile driving</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--behind" title="Racking &amp; Module Install — Behind (55%)" style="left:64.24%;width:14.12%"><span class="ds-gbar__prog" style="width:55%"></span><span class="ds-gbar__lab">Racking &amp; modules · 55%</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Trenching &amp; DC Cabling — On track (70%)" style="left:66.35%;width:10.82%"><span class="ds-gbar__prog" style="width:70%"></span><span class="ds-gbar__lab">Trenching · 70%</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="MV Equipment Set &amp; Wire — On track (45%)" style="left:71.53%;width:9.18%"><span class="ds-gbar__prog" style="width:45%"></span><span class="ds-gbar__lab">MV set · 45%</span></div>
+                        </div>
+
+                        <!-- Commissioning lane band: diamond at 96.24% (upcoming) -->
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:96.24%">
+                            <span class="ds-gantt__diamond ds-diamond--track" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">15 Jul ’26</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Continuity / Megger Testing — Scheduled" style="left:81.18%;width:4.71%"></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Inverter Energization — Scheduled" style="left:86.82%;width:3.53%"></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Grid Sync &amp; Performance Test — Scheduled" style="left:91.53%;width:4.71%"></div>
+                        </div>
+
+                        <!-- today line (above bars) -->
+                        <div class="ds-gantt__todayline" style="left:77.65%" title="Today · 27 Apr 2026"></div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <!-- status legend (colour-not-only) -->
+                <div class="ds-ganttlegend">
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--done"></span> Done</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--track"></span> On track</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--behind"></span> Behind</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__dia"></span> Milestone (target date)</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__today"></span> Today · 27 Apr 2026</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- treatment note — what this mockup locks -->
+            <div class="ds-treatmentnote">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+              <span><b>Two widgets, locked.</b> S-curve: hairline <code>--ds-border</code> grid, planned = a quiet dashed <code>--ds-neutral-9</code> line, actual = the single solid <code>--ds-neutral-12</code> accent line — no blue, both legible in light &amp; dark. Gantt: ONE scroll unit with a sticky task column + sticky axis; bars are monochrome with a quiet status-tint, and status is always repeated as a dot + label (column + legend) so colour is never the only channel. Milestones are on-axis diamonds; today is a dashed vertical.</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║  RENDER 2 — DARK (identical markup, .dark scope — full parity)         ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+  <div class="chromelabel"><span class="sw sw--dark"></span> <strong>Dark</strong> · same surface — premium near-black; every curve line + every bar tint AA on the dark canvas</div>
+
+  <div class="surface dark">
+    <div class="ds-frame">
+      <div class="ds-app">
+
+        <aside class="ds-rail">
+          <div class="ds-brand"><div class="ds-brand__glyph">P</div><div class="ds-brand__name">PMO Portal</div></div>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Workspace</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Dashboard</button>
+            <button class="ds-navitem is-active"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Projects <span class="ds-navitem__count tnum">9</span></button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg> Pipeline <span class="ds-navitem__count tnum">5</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Delivery</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> My tasks</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg> Timesheets</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg> Approvals <span class="ds-navitem__count tnum">3</span></button>
+          </nav>
+
+          <nav class="ds-navgroup">
+            <div class="ds-navgroup__label">Records</div>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg> Procurement</button>
+            <button class="ds-navitem"><svg class="ds-i ds-navitem__ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg> Companies</button>
+          </nav>
+
+          <div class="ds-rail__foot">
+            <div class="ds-density">
+              <span class="ds-density__k">Density</span>
+              <span class="ds-seg"><b>Comfortable</b><button>Compact</button></span>
+            </div>
+          </div>
+        </aside>
+
+        <div class="ds-content">
+
+          <div class="ds-topbar">
+            <nav class="ds-crumb">
+              <a href="#">Workspace</a><span class="ds-crumb__sep">/</span>
+              <a href="#">Projects</a><span class="ds-crumb__sep">/</span>
+              <span class="ds-crumb__here">Cascade Foods 6.0 MW — Delivery</span>
+            </nav>
+            <div class="ds-search">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+              <span class="ds-search__ph">Search tasks, milestones…</span>
+              <span class="ds-kbd">⌘K</span>
+            </div>
+            <div class="ds-avatar">DS</div>
+          </div>
+
+          <div class="ds-canvas">
+
+            <header class="ds-pagehead">
+              <div>
+                <h1 class="ds-pagehead__h1">Delivery</h1>
+                <p class="ds-pagehead__lede">Cumulative progress against plan and the task timeline for Cascade Foods 6.0 MW Ground-Mount PV — a 4-phase EPC build (Engineering · Procurement · Construction · Commissioning), 1 Jun 2025 → 31 Jul 2026.</p>
+              </div>
+              <div class="ds-pagehead__actions">
+                <button class="ds-btn"><svg class="ds-i" viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export</button>
+                <button class="ds-btn ds-btn--primary">Advance to Commissioning <svg class="ds-i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              </div>
+            </header>
+
+            <!-- 1. S-CURVE (dark) -->
+            <section class="ds-chartcard" aria-label="Progress curve">
+              <header class="ds-chartcard__head">
+                <div>
+                  <h2>Progress curve</h2>
+                  <span class="ds-chartcard__hint">cumulative % complete · planned vs actual · weighted across the 4 delivery phases</span>
+                </div>
+                <div class="ds-delivroll">
+                  <span class="ds-delivroll__v tnum">78%</span>
+                  <span class="ds-delivroll__k">delivered to date</span>
+                  <span class="ds-delivroll__sep" aria-hidden="true"></span>
+                  <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>Behind target · −13 pp</span>
+                </div>
+              </header>
+
+              <div class="ds-chartcard__body">
+                <svg class="ds-chart" viewBox="0 0 760 300" role="img" aria-label="Cumulative progress curve, 1 June 2025 to 31 July 2026. Actual to date 78 percent against a planned 91 percent by today, 27 April 2026 — 13 percentage points behind target. Engineering and Procurement phases complete on plan; Construction is behind.">
+                  <line class="ax-grid" x1="48" y1="20"  x2="744" y2="20"/>
+                  <line class="ax-grid" x1="48" y1="76"  x2="744" y2="76"/>
+                  <line class="ax-grid" x1="48" y1="132" x2="744" y2="132"/>
+                  <line class="ax-grid" x1="48" y1="188" x2="744" y2="188"/>
+                  <line class="ax-line" x1="48" y1="244" x2="744" y2="244"/>
+                  <text class="ax-tick" x="42" y="248" text-anchor="end">0%</text>
+                  <text class="ax-tick" x="42" y="192" text-anchor="end">25%</text>
+                  <text class="ax-tick" x="42" y="136" text-anchor="end">50%</text>
+                  <text class="ax-tick" x="42" y="80"  text-anchor="end">75%</text>
+                  <text class="ax-tick" x="42" y="24"  text-anchor="end">100%</text>
+
+                  <line class="ax-xmark" x1="48"  y1="244" x2="48"  y2="248"/>
+                  <line class="ax-xmark" x1="199" y1="244" x2="199" y2="248"/>
+                  <line class="ax-xmark" x1="348" y1="244" x2="348" y2="248"/>
+                  <line class="ax-xmark" x1="495" y1="244" x2="495" y2="248"/>
+                  <line class="ax-xmark" x1="646" y1="244" x2="646" y2="248"/>
+                  <line class="ax-xmark" x1="718" y1="244" x2="718" y2="248"/>
+                  <text class="ax-xtick" x="48"  y="262" text-anchor="middle">Jun ’25</text>
+                  <text class="ax-xtick" x="199" y="262" text-anchor="middle">Sep ’25</text>
+                  <text class="ax-xtick" x="348" y="262" text-anchor="middle">Dec ’25</text>
+                  <text class="ax-xtick" x="495" y="262" text-anchor="middle">Mar ’26</text>
+                  <text class="ax-xtick" x="646" y="262" text-anchor="middle">Jun ’26</text>
+                  <text class="ax-xtick" x="718" y="262" text-anchor="middle">Jul ’26</text>
+
+                  <line class="ln-today" x1="588" y1="16" x2="588" y2="244"/>
+                  <text class="lbl-today" x="588" y="11" text-anchor="middle">Today</text>
+
+                  <polyline class="ln-planned" points="48,244 164,210 340,132 570,42 718,20 744,20"/>
+                  <circle class="dot-plan-h" cx="588" cy="40" r="4"/>
+                  <text class="lbl-v" x="598" y="36">91%</text>
+
+                  <polyline class="ln-actual" points="48,244 164,210 340,132 449,101 588,69"/>
+                  <circle class="dot-actual" cx="340" cy="132" r="2.5"/>
+                  <circle class="dot-actual" cx="449" cy="101" r="2.5"/>
+                  <circle class="dot-actual" cx="588" cy="69" r="4"/>
+                  <text class="lbl-v" x="598" y="73">78%</text>
+
+                  <text class="ax-foot" x="396" y="288" text-anchor="middle">cumulative % complete · weighted across Engineering · Procurement · Construction · Commissioning</text>
+                </svg>
+
+                <div class="ds-chartlegend">
+                  <span class="ds-chartlegend__item"><span class="ds-cl-dash"></span> Planned (target)</span>
+                  <span class="ds-chartlegend__item"><span class="ds-cl-solid"></span> Actual to date <b>78%</b></span>
+                  <span class="ds-chartlegend__item"><span class="ds-cl-today"></span> Today · 27 Apr 2026</span>
+                </div>
+                <p class="ds-chartcaveat">Plan expected <b style="color:var(--ds-text-secondary);font-weight:600">91%</b> complete by today. Completion before today is estimated from task tracking; live progress starts now.</p>
+              </div>
+            </section>
+
+            <!-- 2. GANTT (dark) -->
+            <section class="ds-chartcard" aria-label="Delivery timeline">
+              <header class="ds-chartcard__head">
+                <div>
+                  <h2>Delivery timeline</h2>
+                  <span class="ds-chartcard__hint">15 dated tasks across the 4 phases · month scale · today 27 Apr 2026</span>
+                </div>
+                <div class="ds-delivroll" style="margin-left:auto">
+                  <span class="ds-tag ds-tag--success"><span class="ds-tag__dot"></span>9 done</span>
+                  <span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>3 on track</span>
+                  <span class="ds-tag ds-tag--warn"><span class="ds-tag__dot"></span>1 behind</span>
+                  <span class="ds-tag ds-tag--neutral"><span class="ds-tag__dot"></span>2 scheduled</span>
+                </div>
+              </header>
+
+              <div class="ds-gantt">
+                <div class="ds-gantt__scroll">
+                  <div class="ds-gantt__layout">
+
+                    <div class="ds-gantt__table" role="grid" aria-label="Task table">
+                      <div class="ds-gantt__corner">Task</div>
+
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--done" aria-hidden="true"></span>
+                        <span>Engineering Design</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 11 Aug ’25</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Site Survey &amp; Geotechnical">Site Survey &amp; Geotechnical</span>
+                        <span class="ds-gantt__trow__dt">1–20 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Single-Line &amp; Civil Design">Single-Line &amp; Civil Design</span>
+                        <span class="ds-gantt__trow__dt">16 Jun – 15 Jul</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Structural Stamp &amp; Permit Set">Structural Stamp &amp; Permit Set</span>
+                        <span class="ds-gantt__trow__dt">14 Jul – 11 Aug</span>
+                      </div>
+
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--done" aria-hidden="true"></span>
+                        <span>Procurement</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 26 Nov ’25</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Piling &amp; Racking PO">Piling &amp; Racking PO</span>
+                        <span class="ds-gantt__trow__dt">18 Aug – 5 Sep</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="PV Modules (bifacial) PO">PV Modules (bifacial) PO</span>
+                        <span class="ds-gantt__trow__dt">25 Aug – 12 Oct</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Inverters &amp; Combiners PO">Inverters &amp; Combiners PO</span>
+                        <span class="ds-gantt__trow__dt">1 Sep – 20 Oct</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="MV Switchgear &amp; Transformer PO">MV Switchgear &amp; Transformer PO</span>
+                        <span class="ds-gantt__trow__dt">15 Sep – 26 Nov</span>
+                      </div>
+
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--behind" aria-hidden="true"></span>
+                        <span>Construction</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 16 Apr ’26</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="Site Prep &amp; Access Roads">Site Prep &amp; Access Roads</span>
+                        <span class="ds-gantt__trow__dt">1–20 Dec</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--done" title="Done"></span>
+                        <span class="ds-gantt__trow__nm" title="DC Pile Driving">DC Pile Driving</span>
+                        <span class="ds-gantt__trow__dt">15 Dec – 28 Feb</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--behind" title="Behind"></span>
+                        <span class="ds-gantt__trow__nm" title="Racking &amp; Module Install">Racking &amp; Module Install</span>
+                        <span class="ds-gantt__trow__dt">1 Mar – 30 Apr</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="On track"></span>
+                        <span class="ds-gantt__trow__nm" title="Trenching &amp; DC Cabling">Trenching &amp; DC Cabling</span>
+                        <span class="ds-gantt__trow__dt">10 Mar – 25 Apr</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="On track"></span>
+                        <span class="ds-gantt__trow__nm" title="MV Equipment Set &amp; Wire">MV Equipment Set &amp; Wire</span>
+                        <span class="ds-gantt__trow__dt">1 Apr – 10 May</span>
+                      </div>
+
+                      <div class="ds-gantt__lane-hd" role="row">
+                        <span class="ds-tag__dot ds-dot--track" aria-hidden="true"></span>
+                        <span>Commissioning &amp; Grid Connection</span>
+                        <span class="ds-gantt__lane-hd__date">◆ 15 Jul ’26</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Continuity / Megger Testing">Continuity / Megger Testing</span>
+                        <span class="ds-gantt__trow__dt">12 May – 1 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Inverter Energization">Inverter Energization</span>
+                        <span class="ds-gantt__trow__dt">5–20 Jun</span>
+                      </div>
+                      <div class="ds-gantt__trow" role="row">
+                        <span class="ds-gantt__trow__dot ds-dot--track" title="Scheduled"></span>
+                        <span class="ds-gantt__trow__nm" title="Grid Sync &amp; Performance Test">Grid Sync &amp; Performance Test</span>
+                        <span class="ds-gantt__trow__dt">25 Jun – 15 Jul</span>
+                      </div>
+                    </div>
+
+                    <div class="ds-gantt__timeline">
+                      <div class="ds-gantt__axis">
+                        <span class="ds-gantt__axistick" style="left:0%"></span>
+                        <span class="ds-gantt__axislbl" style="left:0%">Jun ’25</span>
+                        <span class="ds-gantt__axistick" style="left:7.06%"></span>
+                        <span class="ds-gantt__axislbl" style="left:7.06%">Jul ’25</span>
+                        <span class="ds-gantt__axistick" style="left:14.35%"></span>
+                        <span class="ds-gantt__axislbl" style="left:14.35%">Aug ’25</span>
+                        <span class="ds-gantt__axistick" style="left:21.65%"></span>
+                        <span class="ds-gantt__axislbl" style="left:21.65%">Sep ’25</span>
+                        <span class="ds-gantt__axistick" style="left:28.71%"></span>
+                        <span class="ds-gantt__axislbl" style="left:28.71%">Oct ’25</span>
+                        <span class="ds-gantt__axistick" style="left:36.00%"></span>
+                        <span class="ds-gantt__axislbl" style="left:36.00%">Nov ’25</span>
+                        <span class="ds-gantt__axistick" style="left:43.06%"></span>
+                        <span class="ds-gantt__axislbl" style="left:43.06%">Dec ’25</span>
+                        <span class="ds-gantt__axistick" style="left:50.35%"></span>
+                        <span class="ds-gantt__axislbl" style="left:50.35%">Jan ’26</span>
+                        <span class="ds-gantt__axistick" style="left:57.65%"></span>
+                        <span class="ds-gantt__axislbl" style="left:57.65%">Feb ’26</span>
+                        <span class="ds-gantt__axistick" style="left:64.24%"></span>
+                        <span class="ds-gantt__axislbl" style="left:64.24%">Mar ’26</span>
+                        <span class="ds-gantt__axistick" style="left:71.53%"></span>
+                        <span class="ds-gantt__axislbl" style="left:71.53%">Apr ’26</span>
+                        <span class="ds-gantt__axistick" style="left:78.59%"></span>
+                        <span class="ds-gantt__axislbl" style="left:78.59%">May ’26</span>
+                        <span class="ds-gantt__axistick" style="left:85.88%"></span>
+                        <span class="ds-gantt__axislbl" style="left:85.88%">Jun ’26</span>
+                        <span class="ds-gantt__axistick" style="left:92.94%"></span>
+                        <span class="ds-gantt__axislbl" style="left:92.94%">Jul ’26</span>
+                      </div>
+
+                      <div class="ds-gantt__lanes">
+                        <div class="ds-gantt__gridx" aria-hidden="true">
+                          <span class="v" style="left:7.06%"></span><span class="v" style="left:14.35%"></span>
+                          <span class="v" style="left:21.65%"></span><span class="v" style="left:28.71%"></span>
+                          <span class="v" style="left:36.00%"></span><span class="v" style="left:43.06%"></span>
+                          <span class="v" style="left:50.35%"></span><span class="v" style="left:57.65%"></span>
+                          <span class="v" style="left:64.24%"></span><span class="v" style="left:71.53%"></span>
+                          <span class="v" style="left:78.59%"></span><span class="v" style="left:85.88%"></span>
+                          <span class="v" style="left:92.94%"></span>
+                        </div>
+
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:16.71%">
+                            <span class="ds-gantt__diamond ds-diamond--done" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">11 Aug ’25</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Site Survey &amp; Geotechnical — Done" style="left:0%;width:4.47%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Single-Line &amp; Civil Design — Done" style="left:3.53%;width:6.82%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Civil design</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Structural Stamp &amp; Permit Set — Done" style="left:10.12%;width:6.59%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Permit set</span></div>
+                        </div>
+
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:41.88%">
+                            <span class="ds-gantt__diamond ds-diamond--done" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">26 Nov ’25</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Piling &amp; Racking PO — Done" style="left:18.35%;width:4.24%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="PV Modules (bifacial) PO — Done" style="left:20.00%;width:11.29%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">PV modules</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Inverters &amp; Combiners PO — Done" style="left:21.65%;width:11.53%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">Inverters</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="MV Switchgear &amp; Transformer PO — Done" style="left:24.94%;width:16.94%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">MV switchgear &amp; transformer</span></div>
+                        </div>
+
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:75.06%">
+                            <span class="ds-gantt__diamond ds-diamond--behind" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">16 Apr ’26</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="Site Prep &amp; Access Roads — Done" style="left:43.06%;width:4.47%"><span class="ds-gbar__prog" style="width:100%"></span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--done" title="DC Pile Driving — Done" style="left:46.35%;width:17.65%"><span class="ds-gbar__prog" style="width:100%"></span><span class="ds-gbar__lab">DC pile driving</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--behind" title="Racking &amp; Module Install — Behind (55%)" style="left:64.24%;width:14.12%"><span class="ds-gbar__prog" style="width:55%"></span><span class="ds-gbar__lab">Racking &amp; modules · 55%</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Trenching &amp; DC Cabling — On track (70%)" style="left:66.35%;width:10.82%"><span class="ds-gbar__prog" style="width:70%"></span><span class="ds-gbar__lab">Trenching · 70%</span></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="MV Equipment Set &amp; Wire — On track (45%)" style="left:71.53%;width:9.18%"><span class="ds-gbar__prog" style="width:45%"></span><span class="ds-gbar__lab">MV set · 45%</span></div>
+                        </div>
+
+                        <div class="ds-gantt__laneband">
+                          <span class="ds-gantt__lanelab" style="left:96.24%">
+                            <span class="ds-gantt__diamond ds-diamond--track" aria-hidden="true"></span>
+                            <span class="ds-gantt__lanelab__d">15 Jul ’26</span>
+                          </span>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Continuity / Megger Testing — Scheduled" style="left:81.18%;width:4.71%"></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Inverter Energization — Scheduled" style="left:86.82%;width:3.53%"></div>
+                        </div>
+                        <div class="ds-gantt__rowband">
+                          <div class="ds-gbar ds-gbar--track" title="Grid Sync &amp; Performance Test — Scheduled" style="left:91.53%;width:4.71%"></div>
+                        </div>
+
+                        <div class="ds-gantt__todayline" style="left:77.65%" title="Today · 27 Apr 2026"></div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div class="ds-ganttlegend">
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--done"></span> Done</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--track"></span> On track</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__bar ds-ganttlegend__bar--behind"></span> Behind</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__dia"></span> Milestone (target date)</span>
+                  <span class="ds-ganttlegend__item"><span class="ds-ganttlegend__today"></span> Today · 27 Apr 2026</span>
+                </div>
+              </div>
+            </section>
+
+            <div class="ds-treatmentnote">
+              <svg class="ds-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+              <span><b>Two widgets, locked.</b> S-curve: hairline <code>--ds-border</code> grid, planned = a quiet dashed <code>--ds-neutral-9</code> line, actual = the single solid <code>--ds-neutral-12</code> accent line — no blue, both legible in light &amp; dark. Gantt: ONE scroll unit with a sticky task column + sticky axis; bars are monochrome with a quiet status-tint, and status is always repeated as a dot + label (column + legend) so colour is never the only channel. Milestones are on-axis diamonds; today is a dashed vertical.</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

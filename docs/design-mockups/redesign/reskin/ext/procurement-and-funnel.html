@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PMO Portal — Reskin · Vertical progression timeline &amp; sales funnel (monochrome-calm)</title>
+<!--
+  Two flagged widgets in the monochrome-calm reskin, light AND dark.
+    1. VERTICAL PROGRESSION TIMELINE  — procurement lifecycle history (PR → RFQ →
+       Quote → PO → Goods Receipt → Invoice → Payment). Vertical rail of status
+       nodes: completed = success ring, current = primary ring + soft halo (the
+       ONE blue), pending = hollow neutral ring on a dashed future path.
+    2. SALES FUNNEL                   — stage funnel narrowing by value. Monochrome
+       neutral bars; Negotiation = the single primary accent; Won = success tint.
+  Built on reskin/_app.css (the design system) + redesign/_tokens.css (the base
+  --ds-* layer). Every color below is a --ds-* token — ZERO hex/rgb/hsl literals.
+  Page-local styles are scaffold + the two widgets' component classes, all token-pure.
+-->
+<link rel="stylesheet" href="../../_tokens.css" />
+<link rel="stylesheet" href="../_app.css" />
+<style>
+  /* ============================================================================
+     PAGE SCAFFOLD — follows reskin/approvals.html + reskin/record.html.
+     Token-pure; the widgets themselves are 100% --ds-* tokens.
+     ============================================================================ */
+  body { background: var(--ds-surface-sunken); }
+
+  .demo-page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: var(--ds-space-10) var(--ds-space-8) var(--ds-space-16);
+  }
+  .demo-intro { margin-bottom: var(--ds-space-2); }
+  .demo-intro h1 {
+    font-family: var(--ds-font-display);
+    font-weight: var(--ds-weight-semibold);
+    font-size: var(--ds-text-2xl);
+    letter-spacing: var(--ds-tracking-tight);
+    line-height: var(--ds-leading-tight);
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-primary);
+  }
+  .demo-intro p {
+    margin: 0; max-width: 66ch;
+    font-size: var(--ds-text-md);
+    color: var(--ds-text-tertiary);
+    line-height: var(--ds-leading-relaxed);
+  }
+  .demo-intro p b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-semibold); }
+
+  /* page-level section header (sits on the light page, above each widget pair) */
+  .demo-section-h {
+    font-family: var(--ds-font-display);
+    font-size: var(--ds-text-lg);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-snug);
+    color: var(--ds-text-primary);
+    margin: var(--ds-space-12) 0 0;
+  }
+  .demo-section-h .num { color: var(--ds-text-tertiary); font-weight: var(--ds-weight-medium); margin-right: var(--ds-space-2); }
+
+  /* theme chrome label above each frame — quiet, token-based (auto-flips in dark) */
+  .chrome {
+    display: flex; align-items: center; gap: var(--ds-space-2_5);
+    margin: var(--ds-space-5) 0 var(--ds-space-3);
+    flex-wrap: wrap;
+  }
+  .chrome__tag {
+    display: inline-flex; align-items: center; gap: var(--ds-space-1_5);
+    height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2_5);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-muted); color: var(--ds-text-secondary);
+    font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-caps); text-transform: uppercase;
+  }
+  .chrome__tag .dot {
+    width: 7px; height: 7px; border-radius: var(--ds-radius-round);
+    background: var(--ds-neutral-9);
+    box-shadow: inset 0 0 0 2px var(--ds-surface-muted);
+  }
+  .chrome__tag.is-dark .dot { background: var(--ds-neutral-12); box-shadow: none; }
+  .chrome__label { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); }
+
+  /* the windowed surface holding one widget in real chrome */
+  .demo-frame {
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-2xl);
+    box-shadow: var(--ds-shadow-resting);
+    overflow: hidden;
+    background: var(--ds-surface-canvas);
+  }
+
+  /* dark section wrapper — flips every --ds-* token under it (record.html pattern) */
+  .demo-sec--dark { background: var(--ds-neutral-1); border-radius: var(--ds-radius-2xl); padding: var(--ds-space-5); margin-top: var(--ds-space-5); }
+  .demo-sec--dark .chrome { margin-top: 0; }
+
+  /* ============================================================================
+     WIDGET 1 — VERTICAL PROGRESSION TIMELINE (procurement lifecycle history)
+     A vertical rail of status nodes. Completed = quiet success ring; the current
+     stage = primary ring + soft halo (the ONE blue accent); pending = hollow
+     neutral ring. The traveled path is a solid hairline; the future path dashed.
+     Status is ALWAYS a dot/ring + a text label (WCAG AA — never color alone).
+     ============================================================================ */
+  .ds-vtl { list-style: none; margin: 0; padding: 0; position: relative; }
+  .ds-vtl__item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: var(--ds-space-4);
+    padding-bottom: var(--ds-space-6);          /* generous vertical rhythm */
+  }
+  .ds-vtl__item:last-child { padding-bottom: 0; }
+
+  /* node column = the rail connector + the status dot/ring */
+  .ds-vtl__node { position: relative; display: flex; justify-content: center; }
+  .ds-vtl__rail {
+    position: absolute;
+    left: 50%; top: 18px; bottom: -10px;
+    width: 2px; transform: translateX(-50%);
+    background: var(--ds-border);               /* traveled path = solid hairline */
+  }
+  .ds-vtl__item:last-child .ds-vtl__rail { display: none; }
+  /* the future path (out of the current node + between pending nodes) is dashed */
+  .ds-vtl__item.is-current .ds-vtl__rail,
+  .ds-vtl__item.is-pending .ds-vtl__rail {
+    background: transparent;
+    border-left: 2px dashed var(--ds-border-strong);
+    width: 0;
+  }
+
+  /* the status dot/ring — quiet treatment, never a loud slab */
+  .ds-vtl__dot {
+    position: relative; z-index: 1;
+    width: 14px; height: 14px; margin-top: 4px;
+    border-radius: var(--ds-radius-round);
+    box-sizing: border-box;
+  }
+  /* completed = success ring (the kit's hollow-ring quiet-status signature) */
+  .ds-vtl__item.is-done .ds-vtl__dot {
+    background: var(--ds-success);
+    box-shadow: inset 0 0 0 2.5px var(--ds-surface-canvas);
+  }
+  /* current = hollow primary ring + a soft primary halo — the ONE accent */
+  .ds-vtl__item.is-current .ds-vtl__dot {
+    background: var(--ds-surface-canvas);
+    border: 2px solid var(--ds-primary);
+    box-shadow: 0 0 0 4px var(--ds-primary-tint);
+  }
+  /* pending = hollow neutral ring (quiet) */
+  .ds-vtl__item.is-pending .ds-vtl__dot {
+    background: var(--ds-surface-canvas);
+    border: 2px solid var(--ds-border-strong);
+  }
+
+  .ds-vtl__body { min-width: 0; }
+  .ds-vtl__stage { display: flex; align-items: center; gap: var(--ds-space-2); flex-wrap: wrap; }
+  .ds-vtl__label {
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    color: var(--ds-text-primary);
+    letter-spacing: var(--ds-tracking-snug);
+    line-height: var(--ds-leading-snug);
+  }
+  .ds-vtl__item.is-pending .ds-vtl__label { color: var(--ds-text-tertiary); font-weight: var(--ds-weight-medium); }
+  .ds-vtl__ref { font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); color: var(--ds-primary-text); text-decoration: none; }
+  .ds-vtl__ref:hover { text-decoration: underline; }
+  .ds-vtl__ref.is-muted { color: var(--ds-text-tertiary); }
+  .ds-vtl__meta {
+    margin-top: var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-tertiary);
+    display: flex; align-items: center; gap: var(--ds-space-2); flex-wrap: wrap;
+  }
+  .ds-vtl__meta .ds-sep { color: var(--ds-border-strong); }
+  .ds-vtl__meta b { color: var(--ds-text-secondary); font-weight: var(--ds-weight-medium); }
+  .ds-vtl__time { font-variant-numeric: tabular-nums; }
+  .ds-vtl__note {
+    margin: var(--ds-space-1_5) 0 0;
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-secondary);
+    line-height: var(--ds-leading-snug);
+    max-width: 60ch;
+  }
+  .ds-vtl__item.is-pending .ds-vtl__note { color: var(--ds-text-tertiary); }
+
+  /* legend — quiet pip + label, reaffirms the three states in text */
+  .ds-vtl__legend {
+    display: flex; align-items: center; gap: var(--ds-space-5); flex-wrap: wrap;
+    padding-top: var(--ds-space-5);
+    border-top: 1px solid var(--ds-border-light);
+    margin-top: var(--ds-space-6);
+    font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);
+  }
+  .ds-vtl__legend .lg { display: inline-flex; align-items: center; gap: var(--ds-space-1_5); }
+  .ds-vtl__legend .pip { width: 11px; height: 11px; border-radius: var(--ds-radius-round); box-sizing: border-box; flex: none; }
+  .ds-vtl__legend .pip--done { background: var(--ds-success); box-shadow: inset 0 0 0 2px var(--ds-surface-canvas); }
+  .ds-vtl__legend .pip--cur  { background: var(--ds-surface-canvas); border: 2px solid var(--ds-primary); box-shadow: 0 0 0 3px var(--ds-primary-tint); }
+  .ds-vtl__legend .pip--pend { background: var(--ds-surface-canvas); border: 2px solid var(--ds-border-strong); }
+
+  /* ============================================================================
+     WIDGET 2 — SALES FUNNEL (horizontal narrowing bars)
+     Monochrome neutral bars narrowing by total value; Negotiation carries the
+     single primary accent (closest-to-close); Won is the success status-tint
+     outcome. Quiet labels, tabular figures, weighted-forecast footer.
+     ============================================================================ */
+  .ds-funnel { display: flex; flex-direction: column; gap: var(--ds-space-3); }
+  .ds-funnel__row {
+    display: grid;
+    grid-template-columns: minmax(150px, 196px) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--ds-space-5);
+  }
+  .ds-funnel__name {
+    display: flex; align-items: center; gap: var(--ds-space-2);
+    font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold);
+    color: var(--ds-text-primary); letter-spacing: var(--ds-tracking-snug);
+  }
+  .ds-funnel__fdot { width: 8px; height: 8px; border-radius: var(--ds-radius-round); flex: none; background: var(--ds-neutral-dot); }
+  .ds-funnel__row.is-active .ds-funnel__fdot { background: var(--ds-primary); }
+  .ds-funnel__row.is-won .ds-funnel__fdot { background: var(--ds-success); }
+  .ds-funnel__count {
+    margin-left: var(--ds-space-1);
+    font-size: var(--ds-text-xs); color: var(--ds-text-tertiary);
+    font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums;
+  }
+
+  /* the bar — track holds a narrowing fill (the funnel silhouette) */
+  .ds-funnel__track {
+    height: 28px; border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-muted); overflow: hidden;
+  }
+  .ds-funnel__fill {
+    height: 100%; border-radius: var(--ds-radius-md);
+    background: var(--ds-neutral-9);            /* monochrome default */
+    transition: width var(--ds-ease);
+  }
+  .ds-funnel__row.is-active .ds-funnel__fill { background: var(--ds-primary); }   /* the ONE accent */
+  .ds-funnel__row.is-won .ds-funnel__fill { background: var(--ds-success); }       /* status tint */
+
+  .ds-funnel__figs {
+    display: flex; align-items: baseline; gap: var(--ds-space-5);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .ds-funnel__val { font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-primary); min-width: 72px; text-align: right; }
+  .ds-funnel__wt  { font-size: var(--ds-text-sm); color: var(--ds-text-tertiary); min-width: 86px; text-align: right; }
+  .ds-funnel__prob{ font-size: var(--ds-text-xs); color: var(--ds-text-tertiary); min-width: 34px; text-align: right; }
+  .ds-funnel__row.is-active .ds-funnel__prob { color: var(--ds-primary-text); font-weight: var(--ds-weight-semibold); }
+  .ds-funnel__row.is-won .ds-funnel__prob { color: var(--ds-success-text); font-weight: var(--ds-weight-semibold); }
+
+  /* column caption row above the bars — quiet tnum column hints */
+  .ds-funnel__cols {
+    display: grid;
+    grid-template-columns: minmax(150px, 196px) minmax(0, 1fr) auto;
+    gap: var(--ds-space-5);
+    font-size: var(--ds-text-xxs); font-weight: var(--ds-weight-semibold);
+    letter-spacing: var(--ds-tracking-caps); text-transform: uppercase;
+    color: var(--ds-text-tertiary);
+    margin-bottom: var(--ds-space-1);
+  }
+  .ds-funnel__cols .c-figs { display: flex; gap: var(--ds-space-5); justify-content: flex-end; }
+  .ds-funnel__cols .c-figs span { min-width: 72px; text-align: right; }
+  .ds-funnel__cols .c-figs .c-wt { min-width: 86px; }
+  .ds-funnel__cols .c-figs .c-pr { min-width: 34px; }
+
+  /* forecast footer + closed-won outcome */
+  .ds-funnel__foot {
+    display: flex; align-items: center; gap: var(--ds-space-2); flex-wrap: wrap;
+    margin-top: var(--ds-space-5); padding-top: var(--ds-space-4);
+    border-top: 1px solid var(--ds-border-light);
+    font-size: var(--ds-text-sm); color: var(--ds-text-tertiary);
+  }
+  .ds-funnel__foot b { color: var(--ds-text-primary); font-weight: var(--ds-weight-semibold); font-variant-numeric: tabular-nums; }
+  .ds-funnel__won {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: var(--ds-space-2);
+    font-size: var(--ds-text-sm); color: var(--ds-success-text);
+  }
+  .ds-funnel__won .wdot { width: 8px; height: 8px; border-radius: var(--ds-radius-round); background: var(--ds-success); flex: none; }
+  .ds-funnel__won b { color: var(--ds-success-text); font-weight: var(--ds-weight-semibold); font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 760px) {
+    .ds-funnel__row { grid-template-columns: 1fr; gap: var(--ds-space-1_5); }
+    .ds-funnel__cols { display: none; }
+    .ds-funnel__figs { width: 100%; justify-content: space-between; }
+    .ds-vtl__note { max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div class="demo-page">
+
+  <div class="demo-intro">
+    <h1>Vertical progression timeline &amp; sales funnel</h1>
+    <p>
+      Two flagged widgets in the monochrome-calm reskin, each rendered in <b>light</b> and <b>dark</b>.
+      The <b>vertical timeline</b> traces a procurement package through its lifecycle — completed
+      stages as quiet success rings, the current stage emphasised with the one blue, and pending
+      stages as hollow neutral rings on a dashed future path. The <b>sales funnel</b> narrows by
+      value in monochrome, with the active stage carrying the single accent and closed-won tinted
+      success. Status is always a dot or ring paired with a text label.
+    </p>
+  </div>
+
+
+  <!-- ===================================================================== -->
+  <!-- 1 · VERTICAL PROGRESSION TIMELINE                                      -->
+  <!-- ===================================================================== -->
+  <h2 class="demo-section-h"><span class="num">1</span>Vertical progression timeline</h2>
+
+  <!-- ── LIGHT ─────────────────────────────────────────────────────────────── -->
+  <div class="chrome">
+    <span class="chrome__tag"><span class="dot"></span>Light</span>
+    <span class="chrome__label">Procurement history — Central Inverters &amp; Step-Up Transformers, currently at Goods Receipt</span>
+  </div>
+  <div class="demo-frame">
+    <div class="ds-content">
+      <div class="ds-topbar">
+        <div class="ds-crumb">
+          <a href="#">Records</a>
+          <span class="ds-crumb__sep">/</span>
+          <a href="#">Procurement</a>
+          <span class="ds-crumb__sep">/</span>
+          <span class="ds-crumb__here">PO-2026-0077</span>
+        </div>
+        <div class="ds-search">
+          <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span class="ds-search__ph">Search</span>
+          <span class="ds-kbd">⌘K</span>
+        </div>
+        <div class="ds-avatar">ML</div>
+      </div>
+
+      <div class="ds-canvas">
+        <div class="ds-rechead">
+          <span class="ds-rechead__glyph">CI</span>
+          <div>
+            <h1 class="ds-rechead__h1">
+              Central Inverters &amp; Step-Up Transformers
+              <span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>In progress</span>
+            </h1>
+            <div class="ds-rechead__meta">Cascade Foods 6.0&nbsp;MW Ground-Mount PV · <span class="mono">PO-2026-0077</span> · $1.35M · 5 of 7 lifecycle steps cleared</div>
+          </div>
+        </div>
+
+        <div class="ds-block" style="margin-top:var(--ds-space-8)">
+          <div class="ds-block__head">
+            <h2>Lifecycle history</h2>
+            <span class="ds-block__hint">PR → RFQ → Quote → PO → Goods Receipt → Invoice → Payment</span>
+          </div>
+          <div class="ds-phasecard">
+            <ol class="ds-vtl" aria-label="Procurement lifecycle history">
+
+              <li class="ds-vtl__item is-done">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Purchase Request raised</span>
+                    <a class="ds-vtl__ref" href="#">PR-2026-0021</a>
+                    <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    by <b>Anika Devi</b> · Electrical Engineer
+                    <span class="ds-sep">·</span>
+                    <time class="ds-vtl__time" datetime="2026-03-24">24 Mar 2026</time>
+                  </div>
+                  <p class="ds-vtl__note">3 × 3.4 MVA central inverters and 2 × 33 kV step-up transformers scoped against a $1.42M budget envelope.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-done">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">RFQ issued to vendors</span>
+                    <a class="ds-vtl__ref" href="#">RFQ-2026-0044</a>
+                    <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    by <b>Procurement</b>
+                    <span class="ds-sep">·</span>
+                    <time class="ds-vtl__time" datetime="2026-04-02">2 Apr 2026</time>
+                  </div>
+                  <p class="ds-vtl__note">Sent to four pre-qualified inverter OEMs; bids closed 12 April.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-done">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Quote selected</span>
+                    <a class="ds-vtl__ref" href="#">VQ-2026-041</a>
+                    <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    by <b>Marcus Lim</b> · Project Manager
+                    <span class="ds-sep">·</span>
+                    <time class="ds-vtl__time" datetime="2026-04-14">14 Apr 2026</time>
+                  </div>
+                  <p class="ds-vtl__note">Lowest compliant bid — 11% under budget, with a 14-week manufacturing lead time.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-done">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Purchase Order issued</span>
+                    <a class="ds-vtl__ref" href="#">PO-2026-0077</a>
+                    <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    by <b>Marcus Lim</b> · Project Manager
+                    <span class="ds-sep">·</span>
+                    <time class="ds-vtl__time" datetime="2026-04-22">22 Apr 2026</time>
+                  </div>
+                  <p class="ds-vtl__note">$1.35M fixed price · ex-works Incoterms · milestone draws at 30 / 40 / 30 percent.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-current">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Goods Received</span>
+                    <a class="ds-vtl__ref" href="#">GR-2026-0088</a>
+                    <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Current</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    by <b>Priya Ramanathan</b> · QC Lead
+                    <span class="ds-sep">·</span>
+                    <time class="ds-vtl__time" datetime="2026-06-09">9 Jun 2026</time>
+                  </div>
+                  <p class="ds-vtl__note">Inverters landed at the Tracy laydown yard and transformers cleared customs — awaiting incoming inspection sign-off before release to site.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-pending">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Vendor Invoice</span>
+                    <span class="ds-vtl__ref is-muted">VI pending</span>
+                    <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Pending</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    <span class="ds-vtl__time">expected on despatch</span>
+                  </div>
+                  <p class="ds-vtl__note">Vendor invoice due against PO-2026-0077 once the 40% milestone is accepted.</p>
+                </div>
+              </li>
+
+              <li class="ds-vtl__item is-pending">
+                <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                <div class="ds-vtl__body">
+                  <div class="ds-vtl__stage">
+                    <span class="ds-vtl__label">Payment</span>
+                    <span class="ds-vtl__ref is-muted">PAY pending</span>
+                    <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Pending</span>
+                  </div>
+                  <div class="ds-vtl__meta">
+                    <span class="ds-vtl__time">Net-30 on invoice acceptance</span>
+                  </div>
+                  <p class="ds-vtl__note">Final 30% balance released against accepted invoice and delivery documentation.</p>
+                </div>
+              </li>
+
+            </ol>
+
+            <div class="ds-vtl__legend" aria-hidden="true">
+              <span class="lg"><span class="pip pip--done"></span>Completed</span>
+              <span class="lg"><span class="pip pip--cur"></span>Current</span>
+              <span class="lg"><span class="pip pip--pend"></span>Pending</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DARK ──────────────────────────────────────────────────────────────── -->
+  <section class="dark demo-sec--dark">
+    <div class="chrome">
+      <span class="chrome__tag is-dark"><span class="dot"></span>Dark</span>
+      <span class="chrome__label">Same surface, premium dark — every text token re-checked AA on its dark surface</span>
+    </div>
+    <div class="demo-frame">
+      <div class="ds-content">
+        <div class="ds-topbar">
+          <div class="ds-crumb">
+            <a href="#">Records</a>
+            <span class="ds-crumb__sep">/</span>
+            <a href="#">Procurement</a>
+            <span class="ds-crumb__sep">/</span>
+            <span class="ds-crumb__here">PO-2026-0077</span>
+          </div>
+          <div class="ds-search">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="ds-search__ph">Search</span>
+            <span class="ds-kbd">⌘K</span>
+          </div>
+          <div class="ds-avatar">ML</div>
+        </div>
+
+        <div class="ds-canvas">
+          <div class="ds-rechead">
+            <span class="ds-rechead__glyph">CI</span>
+            <div>
+              <h1 class="ds-rechead__h1">
+                Central Inverters &amp; Step-Up Transformers
+                <span class="ds-tag ds-tag--progress"><span class="ds-tag__dot"></span>In progress</span>
+              </h1>
+              <div class="ds-rechead__meta">Cascade Foods 6.0&nbsp;MW Ground-Mount PV · <span class="mono">PO-2026-0077</span> · $1.35M · 5 of 7 lifecycle steps cleared</div>
+            </div>
+          </div>
+
+          <div class="ds-block" style="margin-top:var(--ds-space-8)">
+            <div class="ds-block__head">
+              <h2>Lifecycle history</h2>
+              <span class="ds-block__hint">PR → RFQ → Quote → PO → Goods Receipt → Invoice → Payment</span>
+            </div>
+            <div class="ds-phasecard">
+              <ol class="ds-vtl" aria-label="Procurement lifecycle history">
+
+                <li class="ds-vtl__item is-done">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Purchase Request raised</span>
+                      <a class="ds-vtl__ref" href="#">PR-2026-0021</a>
+                      <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      by <b>Anika Devi</b> · Electrical Engineer
+                      <span class="ds-sep">·</span>
+                      <time class="ds-vtl__time" datetime="2026-03-24">24 Mar 2026</time>
+                    </div>
+                    <p class="ds-vtl__note">3 × 3.4 MVA central inverters and 2 × 33 kV step-up transformers scoped against a $1.42M budget envelope.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-done">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">RFQ issued to vendors</span>
+                      <a class="ds-vtl__ref" href="#">RFQ-2026-0044</a>
+                      <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      by <b>Procurement</b>
+                      <span class="ds-sep">·</span>
+                      <time class="ds-vtl__time" datetime="2026-04-02">2 Apr 2026</time>
+                    </div>
+                    <p class="ds-vtl__note">Sent to four pre-qualified inverter OEMs; bids closed 12 April.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-done">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Quote selected</span>
+                      <a class="ds-vtl__ref" href="#">VQ-2026-041</a>
+                      <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      by <b>Marcus Lim</b> · Project Manager
+                      <span class="ds-sep">·</span>
+                      <time class="ds-vtl__time" datetime="2026-04-14">14 Apr 2026</time>
+                    </div>
+                    <p class="ds-vtl__note">Lowest compliant bid — 11% under budget, with a 14-week manufacturing lead time.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-done">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Purchase Order issued</span>
+                      <a class="ds-vtl__ref" href="#">PO-2026-0077</a>
+                      <span class="ds-tag ds-tag--success ds-tag--sm"><span class="ds-tag__dot"></span>Completed</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      by <b>Marcus Lim</b> · Project Manager
+                      <span class="ds-sep">·</span>
+                      <time class="ds-vtl__time" datetime="2026-04-22">22 Apr 2026</time>
+                    </div>
+                    <p class="ds-vtl__note">$1.35M fixed price · ex-works Incoterms · milestone draws at 30 / 40 / 30 percent.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-current">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Goods Received</span>
+                      <a class="ds-vtl__ref" href="#">GR-2026-0088</a>
+                      <span class="ds-tag ds-tag--progress ds-tag--sm"><span class="ds-tag__dot"></span>Current</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      by <b>Priya Ramanathan</b> · QC Lead
+                      <span class="ds-sep">·</span>
+                      <time class="ds-vtl__time" datetime="2026-06-09">9 Jun 2026</time>
+                    </div>
+                    <p class="ds-vtl__note">Inverters landed at the Tracy laydown yard and transformers cleared customs — awaiting incoming inspection sign-off before release to site.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-pending">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Vendor Invoice</span>
+                      <span class="ds-vtl__ref is-muted">VI pending</span>
+                      <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Pending</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      <span class="ds-vtl__time">expected on despatch</span>
+                    </div>
+                    <p class="ds-vtl__note">Vendor invoice due against PO-2026-0077 once the 40% milestone is accepted.</p>
+                  </div>
+                </li>
+
+                <li class="ds-vtl__item is-pending">
+                  <div class="ds-vtl__node"><span class="ds-vtl__rail" aria-hidden="true"></span><span class="ds-vtl__dot" aria-hidden="true"></span></div>
+                  <div class="ds-vtl__body">
+                    <div class="ds-vtl__stage">
+                      <span class="ds-vtl__label">Payment</span>
+                      <span class="ds-vtl__ref is-muted">PAY pending</span>
+                      <span class="ds-tag ds-tag--neutral ds-tag--sm"><span class="ds-tag__dot"></span>Pending</span>
+                    </div>
+                    <div class="ds-vtl__meta">
+                      <span class="ds-vtl__time">Net-30 on invoice acceptance</span>
+                    </div>
+                    <p class="ds-vtl__note">Final 30% balance released against accepted invoice and delivery documentation.</p>
+                  </div>
+                </li>
+
+              </ol>
+
+              <div class="ds-vtl__legend" aria-hidden="true">
+                <span class="lg"><span class="pip pip--done"></span>Completed</span>
+                <span class="lg"><span class="pip pip--cur"></span>Current</span>
+                <span class="lg"><span class="pip pip--pend"></span>Pending</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===================================================================== -->
+  <!-- 2 · SALES FUNNEL                                                       -->
+  <!-- ===================================================================== -->
+  <h2 class="demo-section-h"><span class="num">2</span>Sales funnel</h2>
+
+  <!-- ── LIGHT ─────────────────────────────────────────────────────────────── -->
+  <div class="chrome">
+    <span class="chrome__tag"><span class="dot"></span>Light</span>
+    <span class="chrome__label">Solar-EPC pipeline — 46 open opportunities, $11.7M weighted forecast; Negotiation carries the single accent</span>
+  </div>
+  <div class="demo-frame">
+    <div class="ds-content">
+      <div class="ds-topbar">
+        <div class="ds-crumb">
+          <a href="#">Workspace</a>
+          <span class="ds-crumb__sep">/</span>
+          <span class="ds-crumb__here">Pipeline</span>
+        </div>
+        <div class="ds-search">
+          <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span class="ds-search__ph">Search</span>
+          <span class="ds-kbd">⌘K</span>
+        </div>
+        <div class="ds-avatar">EH</div>
+      </div>
+
+      <div class="ds-canvas">
+        <div class="ds-pagehead">
+          <div>
+            <h1 class="ds-pagehead__h1">Pipeline</h1>
+            <p class="ds-pagehead__lede">Track solar-EPC opportunities from first lead to won, and forecast weighted revenue across the open stages.</p>
+          </div>
+          <div class="ds-pagehead__actions">
+            <button class="ds-btn">Export</button>
+            <button class="ds-btn ds-btn--primary">New project</button>
+          </div>
+        </div>
+
+        <div class="ds-block" style="margin-top:var(--ds-space-2)">
+          <div class="ds-block__head">
+            <h2>Stage funnel</h2>
+            <span class="ds-block__hint">Open stages · bar width ∝ total value · weighted by win probability</span>
+          </div>
+          <div class="ds-phasecard">
+            <div class="ds-funnel" role="list" aria-label="Sales pipeline by stage">
+
+              <div class="ds-funnel__cols" aria-hidden="true">
+                <span>Stage</span>
+                <span></span>
+                <span class="c-figs"><span>Value</span><span class="c-wt">Weighted</span><span class="c-pr">Win</span></span>
+              </div>
+
+              <div class="ds-funnel__row" role="listitem">
+                <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Leads<span class="ds-funnel__count">18</span></div>
+                <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:100%"></div></div>
+                <div class="ds-funnel__figs">
+                  <span class="ds-funnel__val">$14.2M</span>
+                  <span class="ds-funnel__wt">$0.7M</span>
+                  <span class="ds-funnel__prob">5%</span>
+                </div>
+              </div>
+
+              <div class="ds-funnel__row" role="listitem">
+                <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Pre-Qualified<span class="ds-funnel__count">12</span></div>
+                <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:83%"></div></div>
+                <div class="ds-funnel__figs">
+                  <span class="ds-funnel__val">$11.8M</span>
+                  <span class="ds-funnel__wt">$1.8M</span>
+                  <span class="ds-funnel__prob">15%</span>
+                </div>
+              </div>
+
+              <div class="ds-funnel__row" role="listitem">
+                <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Quotation<span class="ds-funnel__count">8</span></div>
+                <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:66%"></div></div>
+                <div class="ds-funnel__figs">
+                  <span class="ds-funnel__val">$9.4M</span>
+                  <span class="ds-funnel__wt">$2.8M</span>
+                  <span class="ds-funnel__prob">30%</span>
+                </div>
+              </div>
+
+              <div class="ds-funnel__row" role="listitem">
+                <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Tender<span class="ds-funnel__count">5</span></div>
+                <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:50%"></div></div>
+                <div class="ds-funnel__figs">
+                  <span class="ds-funnel__val">$7.1M</span>
+                  <span class="ds-funnel__wt">$3.2M</span>
+                  <span class="ds-funnel__prob">45%</span>
+                </div>
+              </div>
+
+              <div class="ds-funnel__row is-active" role="listitem" aria-current="true">
+                <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Negotiation<span class="ds-funnel__count">3</span></div>
+                <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:32%"></div></div>
+                <div class="ds-funnel__figs">
+                  <span class="ds-funnel__val">$4.6M</span>
+                  <span class="ds-funnel__wt">$3.2M</span>
+                  <span class="ds-funnel__prob">70%</span>
+                </div>
+              </div>
+
+              <div class="ds-funnel__foot">
+                <span>Weighted pipeline forecast <b>$11.7M</b> across 46 open opportunities</span>
+                <span class="ds-funnel__won"><span class="wdot"></span>Won this quarter <b>11</b> · <b>$18.9M</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DARK ──────────────────────────────────────────────────────────────── -->
+  <section class="dark demo-sec--dark">
+    <div class="chrome">
+      <span class="chrome__tag is-dark"><span class="dot"></span>Dark</span>
+      <span class="chrome__label">Same funnel, dark theme — monochrome bars hold, the single accent and success tint lift for the dark canvas</span>
+    </div>
+    <div class="demo-frame">
+      <div class="ds-content">
+        <div class="ds-topbar">
+          <div class="ds-crumb">
+            <a href="#">Workspace</a>
+            <span class="ds-crumb__sep">/</span>
+            <span class="ds-crumb__here">Pipeline</span>
+          </div>
+          <div class="ds-search">
+            <svg class="ds-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="ds-search__ph">Search</span>
+            <span class="ds-kbd">⌘K</span>
+          </div>
+          <div class="ds-avatar">EH</div>
+        </div>
+
+        <div class="ds-canvas">
+          <div class="ds-pagehead">
+            <div>
+              <h1 class="ds-pagehead__h1">Pipeline</h1>
+              <p class="ds-pagehead__lede">Track solar-EPC opportunities from first lead to won, and forecast weighted revenue across the open stages.</p>
+            </div>
+            <div class="ds-pagehead__actions">
+              <button class="ds-btn">Export</button>
+              <button class="ds-btn ds-btn--primary">New project</button>
+            </div>
+          </div>
+
+          <div class="ds-block" style="margin-top:var(--ds-space-2)">
+            <div class="ds-block__head">
+              <h2>Stage funnel</h2>
+              <span class="ds-block__hint">Open stages · bar width ∝ total value · weighted by win probability</span>
+            </div>
+            <div class="ds-phasecard">
+              <div class="ds-funnel" role="list" aria-label="Sales pipeline by stage">
+
+                <div class="ds-funnel__cols" aria-hidden="true">
+                  <span>Stage</span>
+                  <span></span>
+                  <span class="c-figs"><span>Value</span><span class="c-wt">Weighted</span><span class="c-pr">Win</span></span>
+                </div>
+
+                <div class="ds-funnel__row" role="listitem">
+                  <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Leads<span class="ds-funnel__count">18</span></div>
+                  <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:100%"></div></div>
+                  <div class="ds-funnel__figs">
+                    <span class="ds-funnel__val">$14.2M</span>
+                    <span class="ds-funnel__wt">$0.7M</span>
+                    <span class="ds-funnel__prob">5%</span>
+                  </div>
+                </div>
+
+                <div class="ds-funnel__row" role="listitem">
+                  <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Pre-Qualified<span class="ds-funnel__count">12</span></div>
+                  <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:83%"></div></div>
+                  <div class="ds-funnel__figs">
+                    <span class="ds-funnel__val">$11.8M</span>
+                    <span class="ds-funnel__wt">$1.8M</span>
+                    <span class="ds-funnel__prob">15%</span>
+                  </div>
+                </div>
+
+                <div class="ds-funnel__row" role="listitem">
+                  <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Quotation<span class="ds-funnel__count">8</span></div>
+                  <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:66%"></div></div>
+                  <div class="ds-funnel__figs">
+                    <span class="ds-funnel__val">$9.4M</span>
+                    <span class="ds-funnel__wt">$2.8M</span>
+                    <span class="ds-funnel__prob">30%</span>
+                  </div>
+                </div>
+
+                <div class="ds-funnel__row" role="listitem">
+                  <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Tender<span class="ds-funnel__count">5</span></div>
+                  <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:50%"></div></div>
+                  <div class="ds-funnel__figs">
+                    <span class="ds-funnel__val">$7.1M</span>
+                    <span class="ds-funnel__wt">$3.2M</span>
+                    <span class="ds-funnel__prob">45%</span>
+                  </div>
+                </div>
+
+                <div class="ds-funnel__row is-active" role="listitem" aria-current="true">
+                  <div class="ds-funnel__name"><span class="ds-funnel__fdot"></span>Negotiation<span class="ds-funnel__count">3</span></div>
+                  <div class="ds-funnel__track"><div class="ds-funnel__fill" style="width:32%"></div></div>
+                  <div class="ds-funnel__figs">
+                    <span class="ds-funnel__val">$4.6M</span>
+                    <span class="ds-funnel__wt">$3.2M</span>
+                    <span class="ds-funnel__prob">70%</span>
+                  </div>
+                </div>
+
+                <div class="ds-funnel__foot">
+                  <span>Weighted pipeline forecast <b>$11.7M</b> across 46 open opportunities</span>
+                  <span class="ds-funnel__won"><span class="wdot"></span>Won this quarter <b>11</b> · <b>$18.9M</b></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

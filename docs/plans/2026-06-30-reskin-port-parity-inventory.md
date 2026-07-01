@@ -111,3 +111,14 @@ Each must get a defined token-based treatment (light+dark, AA) before its surfac
   **vertical history timeline** you flagged.
 - During the build, each surface's reskin PR checks its rows here; the Director verifies **no ✅/⚠️ row
   was dropped** before merge. This file is the parity source of truth.
+
+## Extension round log
+
+### Round 1 — chart/timeline widget treatments (pi + glm-5.2, 2026-07-01) → these ⚠️ now have a proven monochrome-calm treatment
+Built as mockups under `docs/design-mockups/redesign/reskin/ext/` (light + dark, tokens-only, AA), Director-verified (render + purity):
+- **`ext/dashboard.html`** — the whole **chart family**: KPI strip · Budget-vs-Actual bars · Win-rate gauge · Projected-margin bars · Procurement-by-status bars (§B dashboards, §H#1 charts). Locks the monochrome-calm chart theme: quiet neutral axes/grid, status-tinted or single-accent series (no rainbow).
+- **`ext/delivery.html`** — **S-curve** (planned vs actual two-line) + **Gantt** (sticky column + status-tinted bars, one scroll) (§C, §H#2).
+- **`ext/procurement-and-funnel.html`** — the **vertical procurement-history timeline** (§E, §H#3) + the **sales funnel** (§D, §H#4).
+
+### Still ⚠️ (future extension rounds, before their surfaces port)
+Calendar view · Kanban view (vs the board mock) · cards view · **timesheet grid + HoursBar** · **forms/modals/ConfirmDialog/mobile bottom-sheet** · **import wizard** · command palette · banners/notices/toasts · document/file rows + upload · activity log / related-objects panels · **all mobile variants** · the 4 non-exec role dashboards (PM/Finance/Engineer/Mobile).
