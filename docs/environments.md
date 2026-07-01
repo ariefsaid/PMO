@@ -183,12 +183,61 @@ dashboard setup is not part of the first instrumentation PR.
 the local anon key, and `VITE_APP_ENV=local` (the `<EnvBadge>` then shows a "LOCAL" ribbon — non-prod builds badge
 the backend so a deploy can never silently talk to the wrong one).
 
+## Edge Functions (local dev + prod deploy)
+
+Two Deno **Supabase Edge Functions** live in `supabase/functions/`: **`agent-chat`** (the A1–A4
+agent-native LLM deputy — streaming SSE, read-only `query_entity` + approve-gated write actions +
+compose-a-view) and **`compose-view`** (the AI view-composer). They are the app's **first
+server-side tier** — everything else is SPA → Supabase REST. Both hold `ANTHROPIC_API_KEY` and act
+under the **caller's JWT** (deputy auth; RLS is the ceiling). Registered in `config.toml` as
+`[functions.agent-chat]` / `[functions.compose-view]` with `verify_jwt = false` (the handler
+verifies the JWT itself to return a typed 401). Logic is unit-tested via the pure `handler.ts`
+(importable in Vitest); `index.ts` is integration-only (ADR-0039).
+
+**They do NOT run in CI or in this remote container.** `config.toml` has `[edge_runtime] enabled =
+false` — the local Deno image can't reach `deno.land` in the CI/container env and its failed health
+check tears down the whole stack. So the agent e2e specs **mock** `agent-chat` via `page.route`
+(no live LLM). Live end-to-end testing must happen on a real local machine with internet.
+
+### Local dev (real LLM, on your machine)
+
+Prereqs: Docker + local stack up, internet to `deno.land`/npm, a real Anthropic key.
+
+```bash
+cp supabase/functions/.env.example supabase/functions/.env   # fill ANTHROPIC_API_KEY (gitignored)
+supabase start                                                # local stack
+supabase functions serve agent-chat compose-view \
+  --env-file supabase/functions/.env --no-verify-jwt          # standalone Deno runtime, hot-reload
+```
+`functions serve` runs its own edge runtime on demand, so you do **not** flip the committed
+`[edge_runtime] enabled=false` (which would break CI/this container). The SPA already targets
+`${VITE_SUPABASE_URL}/functions/v1/<name>`, so with `.env.local` pointing at the local stack and
+`VITE_FEATURES_AGENT_ASSISTANT=true`, `npm run dev` → ⌘J drives a real agent against your local DB.
+`SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` are auto-injected by the runtime;
+only `ANTHROPIC_API_KEY` must be supplied.
+
+### Prod deploy (⚠ gap — required before `v0.2.0` can ship)
+
+The promote path (below) currently deploys **only DB + frontend** — there is **no
+`supabase functions deploy` step and no prod `ANTHROPIC_API_KEY` secret**. Until added, a prod that
+includes the agent panel calls a missing endpoint. The owner-gated release step is:
+
+```bash
+supabase functions deploy agent-chat compose-view          # deploy the Deno functions
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-…            # set the prod function secret (once)
+```
+This runs **as part of a `v0.2.0` promote**, ordered with the DB push (below). Tracked in
+`docs/backlog.md` (edge-function operationalization).
+
 ## Prod migration state
 
-**Prod is CURRENT at migration 0033** (0028–0033 pushed 2026-06-16 via `scripts/db-push-prod.sh`; FE
-promoted `main`@`a1e5115` → `production`). 0024–0027 were pushed 2026-06-13. No migrations pending.
-> **History:** 0028 procurement-files · 0029 calendar-milestone RPC · 0030 CRM contacts/activity ·
-> 0031 procurement vendor idx · 0032 fix top-projects spent · 0033 at-risk budget from versions.
+**Prod is CURRENT at migration 0041** (`fc312eb`, the procurement case-folder record model pushed
+2026-06-21 via owner-direct "push to prod"; migs 0035–0041). This is the **`v0.1.0` versioning
+baseline** (ADR-0042). `main` is now well ahead (migs 0042–0045 + the agent-native edge-function
+tier); a prod promote of that = `v0.2.0` and needs a **direct per-instance owner instruction**.
+> **History:** …0028–0033 pushed 2026-06-16 (procurement-files, calendar-milestone RPC, CRM,
+> vendor idx, top-projects spent, at-risk budget); **0035–0041 pushed 2026-06-21** (procurement
+> case-folder records). `docs/backlog.md` "Current state" is the live tracker; this section trails it.
 
 The migration-0023 immutability bug (PR #79 edited an already-prod-live migration) was **fixed in PR #80**:
 0023 restored byte-identical to its #74 content, the committed-spend RPC moved to a new **0026**, plus
@@ -217,11 +266,15 @@ Then dashboard → **Settings → API** → copy the URL + anon key into the fro
 > demo showcase** (`VITE_DEMO_MODE=true`; the login page already advertises the `acme.test` creds). When
 > prod becomes a real tenant with real data, **delete `db-seed-prod.sh`** and never demo-seed again.
 
-The standard promote (owner-gated):
+The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version** — bump
+`CHANGELOG.md`/`package.json`, then tag `vX.Y.Z` on the promoted commit with the deploy manifest:
 ```bash
+# 0. RELEASE: pick the bump (ADR-0042 §2), update CHANGELOG.md + pmo-portal/package.json
 scripts/db-push-prod.sh            # 1. DB: apply pending migrations (typed 'prod')
+supabase functions deploy agent-chat compose-view   # 1b. edge functions (v0.2.0+; secret set once)
 scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-deploy only
 git push origin main:production    # 3. FE: Cloudflare builds the production branch
+git tag -a vX.Y.Z <sha> -m "…" && git push origin vX.Y.Z   # 4. tag the release
 ```
 **`seed.sql` conflict gotcha (binding):** the seed's inserts are `on conflict (id) do nothing`, which does
 **not** catch a `(org_id, code)` unique-key collision. If prod already holds demo data from an **older
