@@ -6,6 +6,16 @@
 
 ## ▶ Current state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
+> **🎨 PARALLEL TRACK — DESIGN-SYSTEM RESKIN (2026-07-01, language LOCKED, not yet ported).** A full app
+> reskin is in flight as **docs/mockups only** on branch **`redesign/design-system`** (pushed; nothing wired
+> into the app — no app-code/`dev`/`main`/prod impact). The **monochrome-calm** design language is **LOCKED**
+> (owner "lock the language"): **ADR-0037** is authoritative; look source = `docs/design-mockups/redesign/reskin/`
+> (+ `reskin/ext/`, folder map in its `README.md`); no-drop gate =
+> `docs/plans/2026-06-30-reskin-port-parity-inventory.md`; runbook = `docs/plans/2026-07-01-reskin-port-plan.md`.
+> **Next = the reskin-IN-PLACE port via pi+glm-5.2** (Director orchestrates + render-verifies), **branched off
+> CURRENT `dev`**, Foundation phase rewrites `DESIGN.md`. Do NOT port "from the mockups" (drops widgets) —
+> re-tone existing components; the parity inventory is the gate.
+
 > **RESUME ENTRY POINT (model-agnostic).** **`production`(prod) current at `fc312eb` / Cloud DB migration 0041; `main`=`7a65ac7` (the 2026-06-21 procurement IxD + Reserved-budget program promoted, PR #169); `dev`=`d317260`+ a few ahead (the 2 done follow-ups + docs). See IMMEDIATE NEXT ACTION below.** The prod-level case-folder revamp shipped a prior session (owner-direct "push to prod", PRs #158→dev #160→main): the **procurement revamp** — a case folder over ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment; **dual-ID** = minted system# + external ref; **Model-C** = case-spine + optional PO-anchored settlement chain w/ a same-case FK invariant; PO-less is first-class; SoD-gated `transition_procurement` RPC byte-preserved; append-only `procurement_status_events` log; migs **0035–0041**, the 0038 backfill creates PR/PO records from existing prod pr_number/po_number) **+ the tabbed case page** (Overview bento + Progression timeline · Documents dual-ID ledger w/ file view+upload · Vendor-quotes bid comparison) replacing the old accreted stack. Authority: **ADR-0033**; spec `docs/specs/procurement-records.spec.md`; plans `docs/plans/2026-06-19-procurement-{records,ui-revamp}.md`; design `docs/design/procurement-redesign/`. Security-audited (1 Medium fixed); pgTAP 0076–0083; procurement e2e retargeted to the tabs.
 > **⚑ BINDING (owner): work→`dev`→`main`; `main` is the autonomous ceiling. NEVER promote to `production` (FE push or `db-push-prod.sh`) without a DIRECT per-instance owner instruction.** (`fc312eb` was such an instruction.) Promote = `db-push-prod.sh` typed-`prod` (**NO reseed** — seed §R/§S/§T procurement enrichment is local-only) → `git push origin main:production` (clean ff). ⚠ `db-push-prod.sh --check` hangs **silently in `op-get.sh`** if 1Password is locked (zero output; looks like a DB hang but isn't — unlock 1Password first).
 >

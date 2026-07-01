@@ -1,5 +1,13 @@
 # Design-System Adoption + Full Reskin — Locked Brief (2026-06-29)
 
+> ⚠️ **SUPERSEDED IN PART (2026-07-01) by ADR-0037 + `docs/design-mockups/redesign/reskin/`.** The
+> exploration ran diverge→converge→**reskin** and the owner locked a **monochrome-calm** language:
+> the **accent/font/theme flipped** vs this brief — near-**monochrome** chrome (blue only for the one
+> primary action), **Inter+cv** (not Plus Jakarta/DM Sans), status-as-dot, dark first-class. What still
+> holds from below: the **hybrid IA** (records-workspace + two-pane triage + board toggle), the
+> **big-bang-branch** ship strategy, **light+dark+AA** discipline, **reskin-IN-PLACE** porting, and the
+> **coding-standards / codemod track (still open, separate)**. Read ADR-0037 + the reskin port plan first.
+
 Owner-approved program brief. The redesign workflow agents consume these as **fixed inputs**
 (decisions are front-loaded — agents do not re-litigate them). Source of the grill: owner Q&A,
 2026-06-29.
