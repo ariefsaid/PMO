@@ -1,34 +1,24 @@
 /**
- * AC-W2-3-02: OverviewTab start/end dates do NOT day-shift in behind-UTC timezones.
+ * AC-W2-3-02: record-rail start/end dates do NOT day-shift in behind-UTC timezones.
  *
- * The local fmtDate helper (deleted by the fix) used `new Date(iso).toLocaleDateString()`.
- * For pure YYYY-MM-DD strings, `new Date("2026-06-14")` parses as UTC midnight — in a
- * behind-UTC zone this becomes the previous day. The fix routes through `formatDate`
- * from `@/src/lib/format`, which parses date-only at LOCAL midnight (`${iso}T00:00:00`).
+ * L3-RECORD moved the identifying fields out of OverviewTab and into the persistent
+ * ProjectDetailRail. The oracle stays the same: date-only YYYY-MM-DD values must render
+ * the correct local calendar day via `formatDate`, never the UTC-shifted previous day.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '@/src/components/ui';
 
-// ── Hoist mock state ──────────────────────────────────────────────────────────
-const { projectBudgetState, budgetVersionsState, procurementsState } = vi.hoisted(() => ({
-  projectBudgetState: { data: 100000 as number | undefined, isPending: false, isError: false },
-  budgetVersionsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  procurementsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => false,
 }));
-
-vi.mock('@/src/hooks/useBudget', () => ({
-  useProjectBudget: () => projectBudgetState,
-  useBudgetVersions: () => budgetVersionsState,
-}));
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => procurementsState,
-}));
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
-import OverviewTab from '../OverviewTab';
+import ProjectDetailRail from '../../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs {
@@ -52,34 +42,25 @@ function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs 
   } as unknown as ProjectWithRefs;
 }
 
-describe('AC-W2-3-02: OverviewTab start/end dates — no UTC day-shift', () => {
-  beforeEach(() => {
-    projectBudgetState.data = 100000;
-    budgetVersionsState.data = [];
-    procurementsState.data = [];
-  });
+const renderRail = (project: ProjectWithRefs) =>
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <ProjectDetailRail project={project} />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
 
+describe('AC-W2-3-02: ProjectDetailRail start/end dates — no UTC day-shift', () => {
   it('renders start_date 2026-06-14 as "Jun 14, 2026" (not Jun 13 behind UTC)', () => {
-    render(
-      <OverviewTab
-        project={makeProject({ start_date: '2026-06-14', end_date: '2026-12-31' })}
-        committedSpend={0}
-      />,
-    );
+    renderRail(makeProject({ start_date: '2026-06-14', end_date: '2026-12-31' }));
 
-    // Start date must display the correct local calendar day.
     expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
-    // The UTC-shifted day must NOT appear.
     expect(screen.queryByText('Jun 13, 2026')).not.toBeInTheDocument();
   });
 
   it('renders end_date 2026-12-31 as "Dec 31, 2026" (not Dec 30 behind UTC)', () => {
-    render(
-      <OverviewTab
-        project={makeProject({ start_date: '2026-01-01', end_date: '2026-12-31' })}
-        committedSpend={0}
-      />,
-    );
+    renderRail(makeProject({ start_date: '2026-01-01', end_date: '2026-12-31' }));
 
     expect(screen.getByText('Dec 31, 2026')).toBeInTheDocument();
     expect(screen.queryByText('Dec 30, 2026')).not.toBeInTheDocument();

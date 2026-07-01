@@ -133,13 +133,22 @@ describe('ProjectDetail shell (decomposition)', () => {
     navigate.mockClear();
   });
 
-  it('renders the header from the real cached row and defaults to the Overview tab (AC-F/G, OQ-4)', () => {
+  it('renders the header from the real cached row, defaults to Overview, and moves record details into the persistent rail (L3-RECORD)', () => {
     renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    // Overview content (real): project information card
-    expect(screen.getByText('Project information')).toBeInTheDocument();
+
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(within(rail).getByText('Details')).toBeInTheDocument();
+    expect(within(rail).getByText('Customer')).toBeInTheDocument();
+    expect(within(rail).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(rail).getByText('Project manager')).toBeInTheDocument();
+    expect(within(rail).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(rail).getByText('Customer PO ref')).toBeInTheDocument();
+    expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
+
+    expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
 
   it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', () => {
@@ -197,10 +206,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(tabs).not.toContain('Timesheets');
   });
 
-  it('pre-selects the Budget tab on the /budget deep-link route', () => {
+  it('pre-selects the Budget tab on the /budget deep-link route and keeps the right rail mounted across tabs', () => {
     renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-detail-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
     // was dropped — the selected "Budget" tab is the section label and the "Active
     // budget" line is the section lead. Oracle updated per the BDD authoring rule:

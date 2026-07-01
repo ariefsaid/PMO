@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, type StatTile } from '@/src/components/ui';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
@@ -33,24 +33,18 @@ function signedCurrency(value: number): string {
   return formatCurrency(value);
 }
 
-const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div className="flex flex-col gap-0.5">
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd className="text-sm font-medium">{value}</dd>
-  </div>
-);
-
 /**
  * Phase 5 (T14-T18): densified Overview tab.
- * Row 1: Project information (unchanged) + Budget utilization (unchanged).
+ * Row 1: Budget utilization (unchanged).
  * Row 2 (NEW): Procurement summary card + Budget snapshot card.
  * Both new cards use real data only — no fabricated content (plan §1).
  * setTab prop enables footer links to switch tabs without router navigation.
  *
+ * L3-RECORD: the record-identifying fields (customer / PM / dates / code / PO ref)
+ * now live in the persistent page rail, so Overview no longer duplicates them.
+ *
  * D15 (OD-W5-C3-A): when showFinanceSummary is true (delivery-forward / Engineer role),
- * a read-only "Financial summary" aside renders at the bottom of the Overview tab.
- * This is the finance StatTiles + contract-value SoD row relocated from the page header
- * so the Engineer's page lead is purely delivery-meta → tabs → Tasks content.
+ * a read-only "Financial summary" aside renders near the top of the Overview tab.
  * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
@@ -90,7 +84,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       ]
     : [];
 
-  // D15: SoD row visibility — delivery lens only (on-hand ∪ internal projects).
+  // D15: financial-summary visibility — delivery lens only (on-hand ∪ internal projects).
   const group = showFinanceSummary ? projectStatusGroup(project.status as never) : null;
   const isDelivery = group === 'onHand' || group === 'internal';
   const isOnHand = showFinanceSummary ? ON_HAND_STATUSES.includes(project.status as string) : false;
@@ -118,38 +112,39 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
           whose min-content (a long title / unbroken number) exceeds the track refuse to
           shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}
-      <div className="grid gap-6 lg:grid-cols-3 [&>*]:min-w-0">
-        <Card variant="bare" className="lg:col-span-2">
-          <CardHead>Project information</CardHead>
-          <CardPad>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-              <InfoRow label="Customer" value={project.client?.name ?? 'Not set'} />
-              <InfoRow label="Project manager" value={project.pm?.full_name ?? 'Unassigned'} />
-              <InfoRow label="Start date" value={formatDate(project.start_date)} />
-              <InfoRow label="End date" value={formatDate(project.end_date)} />
-              <InfoRow
-                label="Project code"
-                value={
-                  project.code ? (
-                    <span className="font-mono text-[13px]">{project.code}</span>
-                  ) : (
-                    'Not set'
-                  )
-                }
-              />
-              <InfoRow
-                label="Customer PO ref"
-                value={
-                  project.customer_contract_ref ? (
-                    <span className="font-mono text-[13px]">{project.customer_contract_ref}</span>
-                  ) : (
-                    'Not set'
-                  )
-                }
-              />
-            </dl>
-          </CardPad>
-        </Card>
+      <div className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-2">
+        {showFinanceSummary && isDelivery && (
+          <aside
+            data-testid="financial-summary"
+            aria-label="Financial summary"
+          >
+            <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
+            <StatTiles tiles={financeTiles} columns={5} variant="bare" className="mb-3" />
+            <div
+              data-testid="contract-value-sod"
+              className="flex flex-wrap items-center gap-3 py-1"
+            >
+              <span className="flex items-center gap-2.5">
+                <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
+                <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
+                  {formatCurrency(contract)}
+                </span>
+                {isOnHand && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                    <Icon name="lock" className="size-3" />
+                    Read-only
+                  </span>
+                )}
+              </span>
+              {isOnHand && (
+                <span className="basis-full text-[12px] text-muted-foreground">
+                  Once a project is won, the contract value is locked for your role. Only Executive or
+                  Finance can change it, and the change is recorded.
+                </span>
+              )}
+            </div>
+          </aside>
+        )}
 
         <Card variant="bare">
           <CardHead>Budget utilization</CardHead>
@@ -191,49 +186,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           )}
         </Card>
       </div>
-
-      {/* D15 (OD-W5-C3-A): Financial summary — delivery-forward (Engineer) only.
-          Rendered BELOW the tab bar (inside the tabpanel), so the Engineer's page
-          lead is header (delivery meta) → tab bar → content. Finance-forward roles
-          (Admin·Exec·Finance·PM) keep the finance block in the header; this section
-          is not mounted for them (showFinanceSummary=false). Always read-only. */}
-      {showFinanceSummary && isDelivery && (
-        <aside
-          data-testid="financial-summary"
-          aria-label="Financial summary"
-          className="mb-4"
-        >
-          <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
-          <StatTiles tiles={financeTiles} columns={5} variant="bare" className="mb-3" />
-          {/* Contract-value SoD row — read-only for delivery-forward roles (lock pill).
-              De-duplication: the Budget snapshot below shows variance/category breakdown;
-              this row surfaces the headline contract value + lock status that the Budget
-              snapshot does not show — no overlap. Sits on the canvas (content-over-containers). */}
-          <div
-            data-testid="contract-value-sod"
-            className="flex flex-wrap items-center gap-3 py-1"
-          >
-            <span className="flex items-center gap-2.5">
-              <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
-              <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-                {formatCurrency(contract)}
-              </span>
-              {isOnHand && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                  <Icon name="lock" className="size-3" />
-                  Read-only
-                </span>
-              )}
-            </span>
-            {isOnHand && (
-              <span className="basis-full text-[12px] text-muted-foreground">
-                Once a project is won, the contract value is locked for your role. Only Executive or
-                Finance can change it, and the change is recorded.
-              </span>
-            )}
-          </div>
-        </aside>
-      )}
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
       <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">

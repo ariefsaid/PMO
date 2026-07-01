@@ -18,6 +18,7 @@ import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
+import ProjectDetailRail from './ProjectDetailRail';
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
 
@@ -134,6 +135,40 @@ const ProjectDetail: React.FC = () => {
   const group = projectStatusGroup(project.status as never);
   const isPipeline = group === 'pipeline' || group === 'lost';
 
+  const tabPanel = (
+    <div
+      role="tabpanel"
+      id={tabPanelId('project-detail', tab)}
+      aria-labelledby={tabId('project-detail', tab)}
+    >
+      {tab === 'overview' && (
+        <>
+          <OverviewTab
+            project={project}
+            committedSpend={committedSpend}
+            setTab={setTab}
+            // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
+            // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
+            showFinanceSummary={isDeliveryForward && !isPipeline}
+          />
+          {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
+              the Overview tab is active, and is hidden for pre-win records (no real progress
+              data). Scoping it here (not at shell level) prevents it bleeding into
+              Budget / Procurement / Tasks / Documents. */}
+          {!isPipeline && (
+            <div className="mt-8">
+              <ProjectSCurve projectId={project.id} />
+            </div>
+          )}
+        </>
+      )}
+      {tab === 'budget' && <BudgetTab projectId={project.id} />}
+      {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
+      {tab === 'tasks' && <TasksTab projectId={project.id} />}
+      {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+    </div>
+  );
+
   return (
     <div>
       {/* C-IMP-1: on mobile (< 768px) the top-bar breadcrumb is not visible, so
@@ -145,7 +180,6 @@ const ProjectDetail: React.FC = () => {
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
           at every stage so a record's wayfinding is identical regardless of stage. */}
-      <ProjectDetailHeader project={project} committedSpend={committedSpend} />
 
       {/* AC-IFW-RECORD-01 (Lens-D): pre-win layout — sales levers first so the deal
           actions are above the fold; delivery planner is demoted below; S-curve is hidden
@@ -154,6 +188,8 @@ const ProjectDetail: React.FC = () => {
           actionable tab bar surfaces above the fold rather than buried beneath the S-curve. */}
       {isPipeline ? (
         <>
+          <ProjectDetailHeader project={project} committedSpend={committedSpend} />
+
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
             <PipelineLens project={project} />
@@ -171,53 +207,27 @@ const ProjectDetail: React.FC = () => {
 
           {/* Delivery tabs rendered for pre-win so budget/tasks/procurement are reachable (ADR-0021). */}
           <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+          {tabPanel}
         </>
       ) : (
-        <>
-          {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
-              so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
-          <div className="mb-8">
-            <MilestoneStrip projectId={project.id} />
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+          <div className="min-w-0">
+            <ProjectDetailHeader project={project} committedSpend={committedSpend} />
+
+            {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
+                so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
+            <div className="mb-8">
+              <MilestoneStrip projectId={project.id} />
+            </div>
+
+            {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
+            <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+            {tabPanel}
           </div>
 
-          {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
-          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
-        </>
+          <ProjectDetailRail project={project} />
+        </div>
       )}
-
-      <div
-        role="tabpanel"
-        id={tabPanelId('project-detail', tab)}
-        aria-labelledby={tabId('project-detail', tab)}
-      >
-        {tab === 'overview' && (
-          <>
-            <OverviewTab
-              project={project}
-              committedSpend={committedSpend}
-              setTab={setTab}
-              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-              // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)
-              // rather than in the header above the tabs. Finance-forward roles (Admin·Exec·Finance·PM)
-              // keep the finance block in the header; isDelivery gates to delivery-lens only.
-              showFinanceSummary={isDeliveryForward && !isPipeline}
-            />
-            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
-                the Overview tab is active, and is hidden for pre-win records (no real progress
-                data). Scoping it here (not at shell level) prevents it bleeding into
-                Budget / Procurement / Tasks / Documents. */}
-            {!isPipeline && (
-              <div className="mt-8">
-                <ProjectSCurve projectId={project.id} />
-              </div>
-            )}
-          </>
-        )}
-        {tab === 'budget' && <BudgetTab projectId={project.id} />}
-        {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-        {tab === 'tasks' && <TasksTab projectId={project.id} />}
-        {tab === 'documents' && <DocumentsTab projectId={project.id} />}
-      </div>
     </div>
   );
 };
