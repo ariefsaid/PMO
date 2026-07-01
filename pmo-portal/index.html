@@ -14,6 +14,26 @@
       rel="stylesheet"
     />
     <title>PMO Portal</title>
+    <!-- No-flash theme bootstrap (F2): apply the persisted / prefers-color-scheme
+         theme BEFORE first paint so the canvas never flashes the wrong scheme.
+         Synchronous + pre-module so it runs before <body> renders; the runtime
+         useTheme hook keeps state in sync after hydration and CSS .dark does the rest. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = stored === 'dark' || (stored == null && prefersDark);
+          var root = document.documentElement;
+          if (dark) root.classList.add('dark');
+          else root.classList.remove('dark');
+        } catch (e) {
+          /* localStorage / matchMedia unavailable — default to light (no class). */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

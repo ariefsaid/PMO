@@ -6,6 +6,7 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
+import { ThemeToggle } from './ThemeToggle';
 
 export interface ContextBarProps {
   breadcrumb: BreadcrumbPart[];
@@ -108,6 +109,8 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           ⌘K
         </span>
       </button>
+
+      <ThemeToggle />
 
       {/* B-5 (AC-W2-IXD-008 / OD-W2-5): the notification bell is REMOVED.
           It had no handler (no known destination — dead, not "coming soon"). A
