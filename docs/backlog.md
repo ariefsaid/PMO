@@ -29,6 +29,16 @@
 > agent panel would call a missing endpoint. Edge functions also don't run in CI/this container
 > (`[edge_runtime] enabled=false`) → agent e2e are mocked; **live end-to-end test needs a local session**
 > (`docs/environments.md` → Edge Functions).
+>
+> **▶ NEXT DECISION (owner) — agent-native sidecar spike:** should PMO adopt Builder.io **agent-native**
+> whole (colocated `pmo/agent-native/`, config-over-fork) for a first-class **agent-citizen** surface
+> beyond today's edge-fn chatbot? Investigation spike done: **`docs/spikes/2026-07-01-agent-native-sidecar.md`**.
+> Verdict: **feasible but a scoped PILOT, not adopt-whole** — Node-VPS + same-origin CF proxy is first-class
+> (Workers ✗ — hard `better-sqlite3` dep); chat UI embeds as in-tree React (`@agent-native/core/client`
+> `<AgentSidebar>`, NOT the mis-scoped `code-agents-ui`); BYOA `auth()` hook is the Supabase-JWT seam; **but**
+> it runs its own Drizzle Postgres schema (2nd data layer), the deputy invariant is hand-built (RLS stays the
+> ceiling), and churn is extreme (core 0.84.7, 509 releases since March → pin hard). Gate = a deputy-invariant
+> test (cross-tenant read+write denied) in a local/VPS pilot. Awaiting owner go/no-go.
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 

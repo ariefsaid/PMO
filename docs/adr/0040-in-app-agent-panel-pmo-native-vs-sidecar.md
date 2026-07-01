@@ -1,6 +1,10 @@
 # ADR-0040 — The in-app agent panel: PMO-native conversational surface vs. `agent-native` sidecar
 
-- **Status:** Proposed (decision-support — owner picks Option A or B before any build)
+- **Status:** Proposed (decision-support — owner picks Option A or B before any build). Option A **shipped**
+  (epic A1–A4, PR #200). **Option B revisited 2026-07-01 with live facts → `docs/spikes/2026-07-01-agent-native-sidecar.md`**
+  (verdict: feasible but a scoped pilot; two corrections to this ADR — Cloudflare Workers is out (`better-sqlite3`
+  hard dep) so the target is a Node VPS behind a same-origin proxy, and the chat UI is `@agent-native/core/client`
+  in-tree React, **not** `code-agents-ui`, which is a coding-agent workspace).
 - **Date:** 2026-06-30
 - **Deciders:** Owner, Director
 - **Related:** ADR-0016 (FE authz + real-JWT), ADR-0017 (repository/API seam), ADR-0019 (server-enforced SoD), ADR-0030 (build-vs-buy vendoring), ADR-0036 (agent-native user-composed UI — §8 sidecar, §9 spike), ADR-0037 (compiler DSL), ADR-0038 (renderer executor), ADR-0039 (untrusted-output boundary, the I5 edge function).
