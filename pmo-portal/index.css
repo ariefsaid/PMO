@@ -1,59 +1,120 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   PMO Portal token pipeline (DESIGN.md — "Token System A", shadcn-vue HSL).
-   The prototype primary-50..950 ramp and class-based dark mode are REMOVED.
-   Canonical runtime form is the BARE `H S% L%` triplet so `/ <alpha>` works
-   (e.g. bg-primary/10, border-border/70). Light scheme only.
+   PMO Portal token pipeline (ADR-0037 monochrome-calm). shadcn-vue HSL bare
+   triplets mapped by semantic ROLE onto the app's existing variable names from
+   reskin/_app.css §0 (`:root,.light` + `.dark`). Canonical runtime form is the BARE
+   `H S% L%` triplet so `/ <alpha>` works (e.g. bg-primary/10, border-border/70).
+   Light is default; `.dark` (dormant until a toggle is wired in a later slice)
+   redeclares every token for a first-class, WCAG-AA dark theme.
    ============================================================================= */
 :root {
-  /* --- Surfaces --- */
-  --background: 0 0% 100%;            --foreground: 240 10% 3.9%;
-  --card: 0 0% 100%;                  --card-foreground: 240 10% 3.9%;
-  --popover: 0 0% 100%;              --popover-foreground: 240 10% 3.9%;
-  /* --- Brand / action --- */
-  --primary: 221.2 83.2% 53.3%;      --primary-foreground: 0 0% 98%;
-  /* --- Quiet UI --- */
-  --secondary: 240 4.8% 95.9%;       --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;           --muted-foreground: 240 4% 40%;
-  --accent: 240 4.8% 95.9%;          --accent-foreground: 240 5.9% 10%;
-  /* --- Status / semantic --- */
-  --destructive: 0 84.2% 60.2%;      --destructive-foreground: 0 0% 98%;
-  --warning: 43 96% 56%;             --warning-foreground: 22 78% 26%;
-  --success: 142 71% 45%;            --success-foreground: 0 0% 98%;
-  /* --- Status pill text (darkened-AA literals, DESIGN.md "Accessibility posture") --- */
-  /* Named tokens for the StatusPill darkened-text values — single source of truth (Wave-6 H3). */
-  --status-open-text: 221 75% 38%;
+  /* ===========================================================================
+     LIGHT — monochrome-calm palette (ADR-0037). Values ported from
+     reskin/_app.css §0 `:root,.light` and mapped by semantic ROLE onto the app's
+     existing shadcn-HSL bare-triplet names. The bare `H S% L%` form is LOAD-BEARING:
+     slash-alpha tints (bg-primary/10, border-border/70, bg-success/12) only work on
+     bare triplets — do NOT wrap these in hsl(). No --ds-* names are introduced
+     (only --ds-ease is new). --primary/--ring stay the PMO blue (held to primary +
+     ring only); every other role is the calm near-mono zinc ramp.
+     =========================================================================== */
+
+  /* --- Surfaces (reskin --ds-surface-canvas/-raised = white; --ds-text-primary = neutral-12) --- */
+  --background: 0 0% 100%;            --foreground: 240 6% 10%;
+  --card: 0 0% 100%;                  --card-foreground: 240 6% 10%;
+  --popover: 0 0% 100%;               --popover-foreground: 240 6% 10%;
+  /* --- Brand / action — PMO blue KEPT exactly (blue held to primary + ring only) --- */
+  --primary: 221.2 83.2% 53.3%;       --primary-foreground: 0 0% 98%;
+  /* --- Quiet UI (reskin neutral-3 zinc / text-secondary / text-tertiary) --- */
+  --secondary: 240 5% 95.5%;          --secondary-foreground: 240 4% 32%;
+  --muted: 240 5% 95.5%;              --muted-foreground: 240 4% 44%;
+  --accent: 240 5% 95.5%;             --accent-foreground: 240 4% 32%;
+  /* --- Status / semantic (reskin §0 light hues + AA -fg) --- */
+  --destructive: 0 72% 50%;           --destructive-foreground: 0 0% 100%;
+  --warning: 40 96% 50%;              --warning-foreground: 28 95% 33%;
+  --success: 142 60% 42%;             --success-foreground: 0 0% 100%;
+  /* --- Status pill text (reskin AA -text variants; single source of truth).
+     open ← --ds-primary-text; won ← --ds-success-text; lost ← --ds-destructive-text;
+     violet ← --ds-violet-text. Each clears AA on its /10–/12 tint (reskin §0). --- */
+  --status-open-text: 221.2 83.2% 45%;
   --status-won-text: 142 64% 27%;
-  --status-lost-text: 0 72% 45%;
-  --status-violet-text: 262 60% 42%;
-  /* --- Destructive text (WCAG-AA on white, ≥4.5:1) --- */
-  /* text-destructive (#ef4444) is 3.76:1 on white — below AA. This darker token
-     (≈ #bc1c1c, contrast ≈ 6.2:1 on white) is used for destructive text values that
-     must pass AA (budget overage numbers, negative monetary deltas). The fill/border
-     --destructive token (used for pills/buttons) is unchanged. */
-  --destructive-text: 0 73% 42%;
-  /* --- Nav active text (WCAG-AA contrast fix, AC-PR-026) --- */
-  /* Primary text (#2563eb) on primary/10 bg (#e9effd) = 4.48:1 — just below AA 4.5:1.
-     Darken to 38% L (same hue/saturation family as --status-open-text) → 7.31:1 on #e9effd. */
-  --nav-active-text: 221 75% 38%;
-  /* --- Semantic icon / surface tokens (promoted from inline hsl() literals) --- */
-  /* Warning icon: amber icon on warning/12 tint — darker than --warning (43 96% 56%)
-     so the icon itself clears AA against the tinted background. */
-  --warning-icon: 38 92% 45%;
-  /* Success text: AA-darkened green text on success/10 tint (GateNotice "ready" variant). */
-  --success-text: 142 64% 28%;
-  /* Tooltip muted: de-emphasised body text inside the dark tooltip surface. */
-  --tooltip-muted: 0 0% 80%;
-  /* Scrim: desaturated near-black overlay behind modals/drawers/command-palette (used at /0.4 alpha). */
-  --scrim: 240 10% 4%;
-  /* --- Lines / fields / focus --- */
-  --border: 240 5.9% 90%;            --input: 240 5.9% 90%;
-  --ring: 221.2 83.2% 53.3%;         --violet: 262 83% 58%;
-  /* --- Geometry --- */
+  --status-lost-text: 0 72% 44%;
+  --status-violet-text: 255 45% 42%;
+  /* --- Destructive text (reskin --ds-destructive-text: AA on white + tint, ≥4.5:1) --- */
+  --destructive-text: 0 72% 44%;
+  /* --- Nav active text (reskin --ds-primary-text: AA on the primary/10 nav wash) --- */
+  --nav-active-text: 221.2 83.2% 45%;
+  /* --- Semantic icon / surface tokens (reskin §0) ---
+     warning-icon ← --ds-warning-icon; success-text ← --ds-success-text;
+     tooltip-muted ← muted text on the constant-dark tooltip surface (no direct reskin
+       token — zinc 75% L, ~9:1 on the hsl(240 10% 8%) tooltip, declared for both themes);
+     scrim ← --ds-surface-overlay COLOR (alpha dropped — the app applies /0.4 itself). --- */
+  --warning-icon: 35 92% 42%;
+  --success-text: 142 64% 27%;
+  --tooltip-muted: 240 5% 75%;
+  --scrim: 240 8% 6%;
+  /* --- Lines / fields / focus (reskin border / border-strong; ring = PMO blue KEPT) --- */
+  --border: 240 5% 90.5%;             --input: 240 4% 84%;
+  --ring: 221.2 83.2% 53.3%;          --violet: 255 50% 55%;
+  /* --- Geometry (unchanged) --- */
   --radius: 0.5rem;
-  --rail-w: 224px;                   --header-h: 56px;
+  --rail-w: 224px;                    --header-h: 56px;
+  /* --- Motion (reskin --ds-ease; declared only — NOT wired to existing keyframes yet) --- */
+  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: light;
+}
+
+/* =============================================================================
+   DARK — monochrome-calm dark theme (ADR-0037). EVERY color/semantic token declared
+   in :root is redeclared here from reskin/_app.css §0 `.dark` (the lifted neutral
+   ramp + AA-fixed solids/text). DORMANT in this slice: activated ONLY by adding
+   `class="dark"` to <html> — no toggle/ThemeProvider/prefers-color-scheme is wired
+   (that is the next slice). @theme inline is untouched: it resolves var() at
+   use-time, so redeclaring the base vars here cascades through every utility.
+   NOTE on --primary: the app has ONE --primary token that doubles as the solid
+   button fill (bg-primary + white text), so dark --primary maps to reskin
+   --ds-primary-solid (52% L → white-on-primary 5.39:1, AA) rather than the brighter
+   --ds-primary hue (60% → white-on-primary 4.08:1, below AA). Blue text usages
+   (text-primary on dark) are ~3.5:1 at 52% — a gap for the surface slices to close
+   by adopting reskin's --ds-primary-text split, not a token-layer concern.
+   ============================================================================= */
+.dark {
+  color-scheme: dark;
+  /* --- Surfaces (reskin dark canvas/raised + neutral-12 text) --- */
+  --background: 240 6% 7%;            --foreground: 240 6% 95%;
+  --card: 240 5% 11%;                 --card-foreground: 240 6% 95%;
+  --popover: 240 5% 11%;              --popover-foreground: 240 6% 95%;
+  /* --- Brand / action (reskin dark --ds-primary-solid + -solid-fg) --- */
+  --primary: 221 83% 52%;             --primary-foreground: 0 0% 100%;
+  /* --- Quiet UI (reskin dark surface-muted / text-secondary / text-tertiary) --- */
+  --secondary: 240 5% 14%;            --secondary-foreground: 240 5% 72%;
+  --muted: 240 5% 14%;                --muted-foreground: 240 4% 60%;
+  --accent: 240 5% 14%;               --accent-foreground: 240 5% 72%;
+  /* --- Status / semantic (reskin dark hues + AA -fg) --- */
+  --destructive: 0 80% 62%;           --destructive-foreground: 0 0% 100%;
+  --warning: 43 90% 58%;              --warning-foreground: 43 92% 64%;
+  --success: 142 55% 52%;             --success-foreground: 0 0% 100%;
+  /* --- Status pill text (reskin dark -text; AA on dark tints) --- */
+  --status-open-text: 221 90% 72%;
+  --status-won-text: 142 60% 68%;
+  --status-lost-text: 0 85% 76%;
+  --status-violet-text: 255 65% 80%;
+  /* --- Destructive / nav-active / icon / text (reskin dark -text variants) --- */
+  --destructive-text: 0 85% 76%;
+  --nav-active-text: 221 90% 72%;
+  --warning-icon: 43 90% 64%;
+  --success-text: 142 60% 68%;
+  /* tooltip-muted: same as light — the tooltip surface is a constant-dark knockout. */
+  --tooltip-muted: 240 5% 75%;
+  /* scrim ← reskin dark --ds-surface-overlay COLOR (alpha dropped; app applies /0.4). */
+  --scrim: 0 0% 0%;
+  /* --- Lines / fields / focus (reskin dark border / border-strong / ring) --- */
+  --border: 240 5% 16%;               --input: 240 4% 30%;
+  --ring: 221 90% 66%;                --violet: 255 60% 72%;
+  /* --- Geometry + motion (theme-independent; redeclared for full :root parity) --- */
+  --radius: 0.5rem;
+  --rail-w: 224px;                    --header-h: 56px;
+  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Map Tailwind v4 utilities → the vars. In v4 `@theme` color values must be
@@ -110,6 +171,11 @@
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* Inter stylistic sets (ADR-0037): the agent-native typographic signature.
+       cv02/cv03/cv04 — alternate letterforms (a, g, i); cv11 — single-storey a.
+       The .tabular/.tnum rule below still wins on figures (it sets its own
+       font-feature-settings, which fully replaces — not merges — this list). */
+    font-feature-settings: "cv02","cv03","cv04","cv11";
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
