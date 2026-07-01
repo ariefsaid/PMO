@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
@@ -105,63 +105,60 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
   });
 
-  it('CW-6: a PM (sees both modules) gets deep-linkable scope tabs', () => {
+  it('L3-APPROVALS: a PM (sees both modules) gets queue filters for All, Procurement, and Timesheets', () => {
     renderAs('Project Manager');
+    expect(screen.getByRole('tab', { name: /All/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Procurement/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
-  it('CW-6: clicking the Timesheets tab switches the active section (and updates the deep-link)', async () => {
-    renderAs('Project Manager'); // defaults to procurement
-    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('tab', { name: /Timesheets/i }));
-    // The timesheet section is now the active panel; procurement is hidden.
-    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Purchase requests awaiting you/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('CW-6: ?scope=timesheets deep-links straight to the timesheets section', () => {
-    renderAs('Project Manager', '/approvals?scope=timesheets');
-    expect(screen.getByText(/Timesheets awaiting you/i)).toBeInTheDocument();
-    // Procurement section is not the active panel.
-    expect(screen.queryByText(/Purchase requests awaiting you/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('CW-6: default scope (no param) shows the procurement section for a PM', () => {
+  it('L3-APPROVALS: desktop defaults to the unified triage queue with the first pending item selected', () => {
     renderAs('Project Manager');
-    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(screen.getByRole('tab', { name: /All/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(preview).getByRole('heading', { name: /Steel beams/i })).toBeInTheDocument();
   });
 
-  it('procurement section counts only Requested + not-self (SoD): 1 of 3', () => {
+  it('L3-APPROVALS: clicking the Timesheets filter deep-links straight to that queue and preview', async () => {
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('tab', { name: /Timesheets/i }));
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
+  });
+
+  it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue', () => {
+    renderAs('Project Manager', '/approvals?scope=timesheets');
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
+  });
+
+  it('procurement queue counts only Requested + not-self (SoD): 1 of 3', () => {
     renderAs('Project Manager', '/approvals?scope=procurement');
     // PR-001 (other, Requested) shows; PR-002 (mine) and PR-003 (Approved) excluded.
-    expect(screen.getByText('Steel beams')).toBeInTheDocument();
+    expect(screen.getAllByText('Steel beams').length).toBeGreaterThan(0);
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getByText(/Purchase requests awaiting you \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Procurement/i })).toHaveTextContent('1');
   });
 
-  it('a PR row previews in place + approves inline — no navigation (AC-IFW-PROC-01)', async () => {
-    // IF-A: replaces the CW-6 route-away. The row expands to a budget preview with
-    // Approve/Reject adjacent, so the PM clears the queue without leaving the inbox.
+  it('a queue selection moves the preview pane + keeps approve/reject there — no navigation', async () => {
     renderAs('Project Manager', '/approvals?scope=procurement');
-    const disclosure = screen.getByRole('button', { name: /Show budget impact for Steel beams/i });
-    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(disclosure);
-    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
-    // Approve/Reject are now adjacent, in the inbox — and the row never routed away.
-    expect(screen.getByRole('button', { name: /Approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Reject/i })).toBeInTheDocument();
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    const queueRow = screen.getByRole('button', { name: /Steel beams/i });
+    await userEvent.click(queueRow);
+    expect(within(preview).getByRole('button', { name: /Approve/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Reject/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('Finance sees ONLY the procurement section (no timesheet approval, no tabs)', () => {
+  it('Finance sees ONLY the procurement queue group (no timesheet approval, no extra filters)', () => {
     renderAs('Finance');
-    expect(screen.getByText(/Purchase requests awaiting you/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
     // A single-module role gets no tab-switcher (nothing to switch to).
     expect(screen.queryByRole('tab', { name: /Timesheets/i })).not.toBeInTheDocument();
   });
