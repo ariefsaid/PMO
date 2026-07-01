@@ -155,14 +155,14 @@ const ProjectDetail: React.FC = () => {
       {isPipeline ? (
         <>
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
-          <div className="mb-4">
+          <div className="mb-8">
             <PipelineLens project={project} />
           </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
               M2: when empty, collapse to a single-line affordance so the sales levers stay above
               the fold — the full planning prompt is only surfaced on a won (delivery) record. */}
-          <div className="mb-4">
+          <div className="mb-8">
             <MilestoneStrip projectId={project.id} compactWhenEmpty />
           </div>
 
@@ -176,7 +176,7 @@ const ProjectDetail: React.FC = () => {
         <>
           {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
               so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
-          <div className="mb-4">
+          <div className="mb-8">
             <MilestoneStrip projectId={project.id} />
           </div>
 
@@ -207,7 +207,7 @@ const ProjectDetail: React.FC = () => {
                 data). Scoping it here (not at shell level) prevents it bleeding into
                 Budget / Procurement / Tasks / Documents. */}
             {!isPipeline && (
-              <div className="mt-4">
+              <div className="mt-8">
                 <ProjectSCurve projectId={project.id} />
               </div>
             )}

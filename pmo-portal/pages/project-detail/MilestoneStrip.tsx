@@ -113,7 +113,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
 
   if (isPending) {
     return (
-      <div data-testid="milestone-strip-loading" className="rounded-lg border border-border bg-card">
+      <div data-testid="milestone-strip-loading">
         <ListState variant="loading" rows={2} testId="milestone-strip-skeleton" />
       </div>
     );
@@ -137,7 +137,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           /* M2: pre-win compact affordance — one-liner so the sales levers stay above the fold. */
           <div
             data-testid="prewin-compact-planner"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
+            className="flex items-center gap-2 py-1"
           >
             <span className="flex-1 text-[13px] text-muted-foreground">
               Delivery planning starts once this is won
@@ -153,7 +153,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             )}
           </div>
         ) : (
-          <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
+          <div data-testid="milestone-strip-empty">
             {canCreate ? (
               <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
             ) : (
@@ -162,7 +162,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </div>
         )
       ) : (
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-[14px] font-bold tracking-[-0.01em]">Delivery phases</h2>
             <div className="flex items-center gap-3" aria-label={`Project delivery ${deliveryRollup}%`}>

@@ -320,3 +320,26 @@ describe('ProjectDetailHeader — Actual tile derives from committedSpend (AC-MO
     expect(actualTile!.textContent).not.toContain('$0');
   });
 });
+
+// ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────────
+// The delivery finance strip + contract-value row sit directly on the canvas —
+// no card-in-card box (a borderless StatTiles strip + a de-boxed SoD row). Fewer
+// boxes, more air; the KPI values + SoD gating behavior are unchanged.
+describe('ProjectDetailHeader — content-over-containers (L2-RECORD)', () => {
+  it('the finance stat strip is borderless (no card frame around the KPIs)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const strip = document.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
+    expect(strip).toBeInTheDocument();
+    expect(strip.className).not.toContain('border-border');
+    expect(strip.className).not.toContain('bg-border');
+    expect(strip.className).not.toContain('rounded-lg');
+  });
+
+  it('the contract-value SoD row sits on the canvas (no card box)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const sod = screen.getByTestId('contract-value-sod');
+    expect(sod.className).not.toContain('bg-card');
+    expect(sod.className).not.toContain('border-border');
+    expect(sod.className).not.toContain('rounded-lg');
+  });
+});

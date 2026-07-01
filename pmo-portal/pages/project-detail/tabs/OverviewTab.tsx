@@ -114,12 +114,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
           whose min-content (a long title / unbroken number) exceeds the track refuse to
           shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}
-      <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
-        <Card className="lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-3 [&>*]:min-w-0">
+        <Card variant="bare" className="lg:col-span-2">
           <CardHead>Project information</CardHead>
           <CardPad>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -151,7 +151,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           </CardPad>
         </Card>
 
-        <Card>
+        <Card variant="bare">
           <CardHead>Budget utilization</CardHead>
           {/* B-0.4: gate on useProjectBudget loading/error — mirror Budget-snapshot card.
               Pending/error must not collapse to "$0 of $0" (false-zero). */}
@@ -201,17 +201,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
         <aside
           data-testid="financial-summary"
           aria-label="Financial summary"
-          className="mb-4 rounded-md border border-border bg-card p-4"
+          className="mb-4"
         >
           <h2 className="mb-3 text-[14px] font-semibold text-foreground">Financial summary</h2>
-          <StatTiles tiles={financeTiles} columns={5} className="mb-3" />
+          <StatTiles tiles={financeTiles} columns={5} variant="bare" className="mb-3" />
           {/* Contract-value SoD row — read-only for delivery-forward roles (lock pill).
               De-duplication: the Budget snapshot below shows variance/category breakdown;
               this row surfaces the headline contract value + lock status that the Budget
-              snapshot does not show — no overlap. */}
+              snapshot does not show — no overlap. Sits on the canvas (content-over-containers). */}
           <div
             data-testid="contract-value-sod"
-            className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+            className="flex flex-wrap items-center gap-3 py-1"
           >
             <span className="flex items-center gap-2.5">
               <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
@@ -236,9 +236,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
       )}
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
-      <div data-testid="overview-row2" className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+      <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* T14/T15 — Procurement summary card */}
-        <Card>
+        <Card variant="bare">
           <CardHead>Procurement summary</CardHead>
           {procPending ? (
             <ListState variant="loading" rows={3} />
@@ -326,7 +326,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
         </Card>
 
         {/* T16/T17 — Budget snapshot card */}
-        <Card>
+        <Card variant="bare">
           <CardHead>Budget snapshot</CardHead>
           {budgetPending ? (
             <ListState variant="loading" rows={3} />

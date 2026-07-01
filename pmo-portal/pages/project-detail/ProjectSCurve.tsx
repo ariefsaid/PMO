@@ -68,7 +68,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     : `Project S-curve: actual to date ${model.actualToDate}%.`;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div>
       <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">Progress curve</h2>
 
       <ChartFrame

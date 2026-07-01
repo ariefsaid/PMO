@@ -253,7 +253,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
   const sodRow = isDelivery ? (
     <div
       data-testid="contract-value-sod"
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+      className="flex flex-wrap items-center gap-3 py-1"
     >
       {valueEditing && isFinanceForward ? (
         <div className="flex flex-wrap items-end gap-2">
@@ -318,10 +318,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
       />
 
       {/* Finance-forward roles (Admin·Exec·Finance·PM): keep the delivery finance strip
-          + SoD row in the header, exactly as shipped (OD-W5-C3-A). */}
+          + SoD row in the header, exactly as shipped (OD-W5-C3-A). The strip renders
+          borderless (content-over-containers) so the page leads with content, not boxes. */}
       {isDelivery && isFinanceForward && (
         <>
-          <StatTiles tiles={tiles} columns={5} className="mb-4" />
+          <StatTiles tiles={tiles} columns={5} variant="bare" className="mb-4" />
           <div className="mb-4">{sodRow}</div>
         </>
       )}
