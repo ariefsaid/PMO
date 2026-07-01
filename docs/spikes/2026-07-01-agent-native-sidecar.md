@@ -99,6 +99,10 @@ fits (Node VPS, in-tree UI, BYOA hook, domain actions → PMO Supabase). The ope
 
 ## Recommended pilot (time-boxed; the go/no-go gate)
 
+> **Turnkey execution plan (for a LOCAL agent to pick up cold): `docs/plans/2026-07-01-agent-native-sidecar-pilot.md`**
+> — pinned versions, the PMO caller-JWT deputy pattern to mirror, exact steps + code sketches, the gate test,
+> and the churn measurement. The summary below is the shape; that plan is the runbook.
+
 Runs in a **local/VPS session** (not this container). Throwaway until it earns promotion.
 
 1. **Colocate** `pmo/agent-native/` as a Nitro service consuming `@agent-native/core` at a **pinned exact
