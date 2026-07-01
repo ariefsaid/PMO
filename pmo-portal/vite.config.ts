@@ -2,11 +2,19 @@ import path from 'path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+// E3 (ADR-0040): same-origin dev proxy to the agent-native Nitro sidecar. Pure-data module
+// (no app imports) so it is safe in this Node/Vite context; the AC-408 unit test asserts it too.
+// Relative path (not the `@` alias) because this import runs before the alias is registered.
+import { AGENT_SIDECAR_PROXY } from './src/lib/agent/embedProxy';
 
 export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    // E3: forward same-origin /_agent-native/* (the SDK-fixed prefix) to the Nitro sidecar on
+    // 127.0.0.1:8100, preserving the Authorization header the embed auth interceptor stamped.
+    // Prod same-origin proxy is a Cloudflare Pages Function (E8).
+    proxy: { ...AGENT_SIDECAR_PROXY },
   },
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -37,6 +45,11 @@ export default defineConfig({
           if (id.includes('recharts')) {
             // Recharts — chart library, only used in dashboard pages
             return 'vendor-recharts';
+          }
+          if (id.includes('@agent-native/core') || id.includes('@tabler/icons-react') || id.includes('@assistant-ui/')) {
+            // E3: agent-native embed UI (+ its static peers) — lazy-loaded only when the
+            // agentNativeEmbed flag is on; isolated in its own long-lived chunk.
+            return 'vendor-agent-native';
           }
         },
       },
