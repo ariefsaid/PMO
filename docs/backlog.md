@@ -4,7 +4,33 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
+## ▶ Current state (2026-07-01) — agent-native assistant SHIPPED to `main`; versioning adopted
+
+> **RESUME ENTRY POINT.** **`production`(prod) UNCHANGED at `fc312eb` / Cloud DB migration 0041 = the
+> `v0.1.0` versioning baseline (ADR-0042). `main`=`1c0f747` (agent-native epic A1–A4 promoted, PR #200,
+> gated `verify`+`integration` green). `dev` = same content, + the versioning PR landing now.** No prod
+> promote happened this session (main is the autonomous ceiling; prod needs a direct owner go).
+>
+> **What shipped to `main` this session — the agent-native in-app assistant (ADR-0040/0041), the app's
+> first server-side tier:** the ⌘J `AssistantPanel` (A2); a streaming **`agent-chat` Deno edge-function
+> deputy** (A1) with read-only `query_entity` + approve-gated write actions `create_activity`/
+> `update_task_status` (A3) + compose-a-view (A4); the `AgentRuntime` port + `PmoNativeRuntime` adapter.
+> Feature-flagged off by default (`VITE_FEATURES_AGENT_ASSISTANT`). Deputy auth = caller JWT, RLS ceiling,
+> `ANTHROPIC_API_KEY` server-only. **The `dev→main` integration gate caught 7 real defects the verify-only
+> dev lane structurally can't** (pgTAP fixtures, CI flag, SSE-mock shape, panel-hide UX bug, e2e selectors,
+> hotkey-open race, save-mock shape) — each fixed honestly (app-bug→fix app; test-bug→fix test; PRs #201–205).
+>
+> **Versioning adopted (ADR-0042; PR #206):** SemVer, pre-1.0 while single-tenant MVP. `v0.1.0`=current
+> prod; `v0.2.0`=next release = composed views + the agent-native edge-function tier (migs 0042–0045).
+> The bump rule + release manifest are in the ADR; `CHANGELOG.md` is the per-release record.
+>
+> **⚠ OPEN before `v0.2.0` can ship to prod (owner-gated — see OPEN debt):** the promote path deploys only
+> DB+FE — there is **no `supabase functions deploy` step and no prod `ANTHROPIC_API_KEY` secret**, so the
+> agent panel would call a missing endpoint. Edge functions also don't run in CI/this container
+> (`[edge_runtime] enabled=false`) → agent e2e are mocked; **live end-to-end test needs a local session**
+> (`docs/environments.md` → Edge Functions).
+
+## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
 > **RESUME ENTRY POINT (model-agnostic).** **`production`(prod) current at `fc312eb` / Cloud DB migration 0041; `main`=`7a65ac7` (the 2026-06-21 procurement IxD + Reserved-budget program promoted, PR #169); `dev`=`d317260`+ a few ahead (the 2 done follow-ups + docs). See IMMEDIATE NEXT ACTION below.** The prod-level case-folder revamp shipped a prior session (owner-direct "push to prod", PRs #158→dev #160→main): the **procurement revamp** — a case folder over ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment; **dual-ID** = minted system# + external ref; **Model-C** = case-spine + optional PO-anchored settlement chain w/ a same-case FK invariant; PO-less is first-class; SoD-gated `transition_procurement` RPC byte-preserved; append-only `procurement_status_events` log; migs **0035–0041**, the 0038 backfill creates PR/PO records from existing prod pr_number/po_number) **+ the tabbed case page** (Overview bento + Progression timeline · Documents dual-ID ledger w/ file view+upload · Vendor-quotes bid comparison) replacing the old accreted stack. Authority: **ADR-0033**; spec `docs/specs/procurement-records.spec.md`; plans `docs/plans/2026-06-19-procurement-{records,ui-revamp}.md`; design `docs/design/procurement-redesign/`. Security-audited (1 Medium fixed); pgTAP 0076–0083; procurement e2e retargeted to the tabs.
 > **⚑ BINDING (owner): work→`dev`→`main`; `main` is the autonomous ceiling. NEVER promote to `production` (FE push or `db-push-prod.sh`) without a DIRECT per-instance owner instruction.** (`fc312eb` was such an instruction.) Promote = `db-push-prod.sh` typed-`prod` (**NO reseed** — seed §R/§S/§T procurement enrichment is local-only) → `git push origin main:production` (clean ff). ⚠ `db-push-prod.sh --check` hangs **silently in `op-get.sh`** if 1Password is locked (zero output; looks like a DB hang but isn't — unlock 1Password first).
@@ -118,6 +144,19 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   Resources/Assets (spine 8), Service/O&M (spine 9). See `docs/roadmap-spines.md`.
 
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
+
+### Edge-function operationalization + versioning (from the agent epic + ADR-0042)
+- **Edge-function prod deploy step** [Medium, OWNER-GATED — blocks `v0.2.0` to prod]: the promote path
+  (`docs/environments.md`) deploys only DB+FE. Add `supabase functions deploy agent-chat compose-view` +
+  set the prod `ANTHROPIC_API_KEY` secret (`supabase secrets set`, once). Without it a prod with the agent
+  panel calls a missing endpoint. Runbook + local-dev already documented in `docs/environments.md` → Edge Functions.
+- **Local edge-function dev enablement** [Low, done — scaffolding]: `supabase/functions/.env.example` +
+  the `functions serve` runbook (`docs/environments.md`). Live end-to-end agent testing needs a **local
+  session** (this container has `[edge_runtime] enabled=false` + no `deno.land`/API key). Not automatable here.
+- **`release-please` automation** [Low, ADR-0042 adoption]: GitHub Action on `main` to maintain
+  `CHANGELOG.md` + compute the next `vX.Y.Z` from Conventional Commits, so the version is never hand-argued.
+- **`VITE_APP_VERSION` in-app surfacing** [Low, ADR-0042 adoption]: inline the version at build, show it
+  next to `<EnvBadge>` (`vX.Y.Z · <sha>`) so a running instance reports exactly what it is.
 
 ### Deferred-debt ledger from the 2026-06-14 `dev` burst (fold in before promote where noted)
 - **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit

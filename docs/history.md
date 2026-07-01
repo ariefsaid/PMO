@@ -45,6 +45,17 @@ Timeline (each program is merged to `main`; cited PRs + key migrations/decisions
     definer RPC).
 12. **KANNA series Issue #1 — document file upload** (PR #78, migrations 0024/0025, OD-DOC-1..5) — see
     `docs/backlog.md` for the live entry. First feature run end-to-end on the pi-delegation trial.
+13. **Procurement case-folder record model + tabbed case-page** (PRs #158→#169, migrations 0035–0041,
+    ADR-0033, 2026-06-21) — ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment), dual-ID,
+    Model-C case-spine, SoD-gated `transition_procurement`. **Promoted to prod** (`fc312eb`/mig 0041) —
+    the `v0.1.0` versioning baseline.
+14. **Agent-native in-app assistant — epic A1–A4** (PR #200, ADR-0040/0041, 2026-07-01) — the app's first
+    **server-side tier**: the ⌘J `AssistantPanel` + a streaming `agent-chat` Deno edge-function deputy
+    (read-only `query_entity`, approve-gated write actions, compose-a-view) + `AgentRuntime` port /
+    `PmoNativeRuntime`. Deputy auth (caller JWT, RLS ceiling), flag-gated off. The `dev→main` integration
+    gate caught 7 real defects verify-only can't (PRs #201–205; see `docs/backlog.md` current state).
+    **Versioning adopted** (ADR-0042, PR #206): SemVer pre-1.0; `main` in dev toward `v0.2.0`. Not yet in
+    prod (needs the edge-function deploy step — `docs/environments.md`).
 
 ---
 

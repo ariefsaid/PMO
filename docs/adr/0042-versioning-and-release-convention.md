@@ -83,16 +83,20 @@ Each release's notes **must** pin the full manifest so "what's in prod" is unamb
 
 ## Baseline & first application
 
-- **`0.1.0`** = the **current production baseline** — `main@a1e5115`, DB at migration `0033`,
-  pure two-tier SPA→Supabase (pre-CRUD-foundation, pre-agent). This is where versioning starts;
-  we do not retroactively re-tag older prod pushes.
-- **`0.2.0`** = the **next** production release = the current `main`/`dev` content. It bundles
-  everything unreleased since `0.1.0` — the CRUD/RBAC foundation (ADR-0016–0019), procurement
-  record tables, user-composed views (ADR-0036), **and** the agent-native in-app assistant
-  (ADR-0040/0041). Because versions mark *releases* (not internal milestones), this large backlog
-  collapses into a single minor bump. It is unambiguously a **MINOR**: it adds multiple new
-  user-facing modules **and** the app's first server-side **architectural tier** (the Deno
-  edge-function LLM deputy). `pmo-portal/package.json` is set to `0.2.0` (in development).
+- **`0.1.0`** = the **current production baseline** — `fc312eb`, Cloud DB at migration `0041`,
+  two-tier SPA→Supabase, **no edge functions** (per `docs/backlog.md` living status; the older
+  "migration 0033" in `docs/environments.md` predated the 2026-06-21 procurement prod push and is
+  corrected in this change). This encompasses the full pre-agent product — backend foundation,
+  write MVP, the CRUD/RBAC foundation (ADR-0016–0019), UI/UX programs, deployment, analytics, and
+  the procurement case-folder records (migs 0035–0041). Versioning starts here; we do not
+  retroactively decompose older prod pushes into earlier tags.
+- **`0.2.0`** = the **next** production release = the current `main`/`dev` content over `0.1.0`. It
+  adds **user-composed views (ADR-0036)** and the **agent-native in-app assistant (ADR-0040/0041)** —
+  i.e. the app's first server-side **architectural tier** (the Deno edge-function LLM deputy) — plus
+  DB hardening (migs 0042–0045). Unambiguously a **MINOR**: new user-facing modules **and** a new
+  tier. Because versions mark *releases* (not internal milestones), had composed-views and the agent
+  epic shipped separately they'd have been `0.2.0` then `0.3.0`; unreleased, they collapse into one
+  minor. `pmo-portal/package.json` is set to `0.2.0` (in development).
 
 ## Consequences
 
