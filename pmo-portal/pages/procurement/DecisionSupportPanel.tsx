@@ -97,7 +97,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
@@ -112,7 +112,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
@@ -128,7 +128,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
@@ -178,7 +178,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   ];
 
   return (
-    <Card className="mb-4">
+    <Card variant="bare" className="mb-4">
       <CardPad>
         {heading}
 

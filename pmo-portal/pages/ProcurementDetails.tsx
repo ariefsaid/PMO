@@ -851,7 +851,7 @@ const ProcurementDetails: React.FC = () => {
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
             ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
         {tab === 'documents' && (
-          <Card>
+          <Card variant="bare">
             <ProcurementLedger
               detail={p}
               rows={ledgerRows}
