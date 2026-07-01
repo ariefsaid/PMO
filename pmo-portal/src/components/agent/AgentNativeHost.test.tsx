@@ -18,6 +18,7 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { AgentNativeHost } from '@/src/components/agent/AgentNativeHost';
 import { EMBED_TOKEN_STORAGE_KEY } from '@/src/lib/agent/embedAuth';
 
@@ -31,13 +32,32 @@ vi.mock('@agent-native/core/client', () => ({
       children,
     ),
   ensureEmbedAuthFetchInterceptor: vi.fn(),
+  useAgentRouteState: vi.fn(() => ({
+    navigationState: null,
+    command: null,
+    clearCommand: vi.fn(),
+  })),
 }));
+
+// Mock the feature flag to return false by default for E3 tests (so the E4 hooks are no-ops)
+vi.mock('@/src/lib/features', () => ({
+  isFeatureEnabled: vi.fn(() => false),
+}));
+
+// Helper function that wraps render in a RouterProvider for tests
+function renderWithRouter(component: React.ReactElement) {
+  const router = createMemoryRouter(
+    [{ path: '/', element: component }],
+    { initialEntries: ['/'] }
+  );
+  return render(React.createElement(RouterProvider, { router }));
+}
 
 describe('AC-407 — AgentNativeHost mounts <AgentNativeEmbedded> in-tree (not an iframe)', () => {
   beforeEach(() => sessionStorage.clear());
 
   it('flag ON: renders <AgentNativeEmbedded> in the same React tree with the host shell as children', async () => {
-    render(
+    renderWithRouter(
       <AgentNativeHost enabled accessToken="jwt">
         <div data-testid="pmo-shell-content">PMO</div>
       </AgentNativeHost>,
@@ -55,7 +75,7 @@ describe('AC-407 — AgentNativeHost mounts <AgentNativeEmbedded> in-tree (not a
   });
 
   it('flag ON: the embedded surface is a real DOM node, NEVER an <iframe>', async () => {
-    const { container } = render(
+    const { container } = renderWithRouter(
       <AgentNativeHost enabled accessToken="jwt">
         <div>shell</div>
       </AgentNativeHost>,
@@ -66,7 +86,7 @@ describe('AC-407 — AgentNativeHost mounts <AgentNativeEmbedded> in-tree (not a
   });
 
   it('flag OFF: does NOT mount the embed; renders children unchanged (staged retirement keeps AssistantPanel live)', () => {
-    render(
+    renderWithRouter(
       <AgentNativeHost enabled={false} accessToken="jwt">
         <div data-testid="pmo-shell-content">PMO</div>
       </AgentNativeHost>,
@@ -80,7 +100,7 @@ describe('AC-407 — AgentNativeHost mounts <AgentNativeEmbedded> in-tree (not a
   });
 
   it('flag ON: activates the bearer handoff with the PMO session token', async () => {
-    render(
+    renderWithRouter(
       <AgentNativeHost enabled accessToken="jwt-session-token">
         <div>shell</div>
       </AgentNativeHost>,
@@ -91,7 +111,7 @@ describe('AC-407 — AgentNativeHost mounts <AgentNativeEmbedded> in-tree (not a
   });
 
   it('flag ON without a session: does not publish a bearer (clean, no leaked empty token)', async () => {
-    render(
+    renderWithRouter(
       <AgentNativeHost enabled accessToken={null}>
         <div>shell</div>
       </AgentNativeHost>,
@@ -107,7 +127,7 @@ describe('AC-409 — AgentNativeHost carries the PMO token-bridge theme surface'
   beforeEach(() => sessionStorage.clear());
 
   it('flag ON: the embed container carries the PMO token-bridge attributes/class', async () => {
-    const { container } = render(
+    const { container } = renderWithRouter(
       <AgentNativeHost enabled accessToken="jwt">
         <div>shell</div>
       </AgentNativeHost>,
@@ -120,7 +140,7 @@ describe('AC-409 — AgentNativeHost carries the PMO token-bridge theme surface'
   });
 
   it('flag OFF: no theme-bridge surface is mounted', () => {
-    const { container } = render(
+    const { container } = renderWithRouter(
       <AgentNativeHost enabled={false} accessToken="jwt">
         <div>shell</div>
       </AgentNativeHost>,

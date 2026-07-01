@@ -5,6 +5,10 @@
  * the PMO shell, in the SAME React tree (not an iframe), behind a feature flag so the existing
  * `AssistantPanel` stays live during staged retirement (E8 removes it).
  *
+ * E4 (ADR-0040, FR-410/411/412 / AC-410/411/412): wired the bidirectional context/nav bridge and
+ * @-mentions. The host calls `usePmoContextBridge` to feed PMO's current screen/entity to the
+ * agent, and `usePmoRouteBridge` to consume agent navigation commands and route PMO.
+ *
  * Composition (verified API ref §1 + the proven pilot `embed/main.tsx`): `<AgentNativeEmbedded
  * surface="sidebar">` renders the agent sidebar docked right with the PMO shell composed as its
  * `children` (host content). Same-tree = the agent UI and PMO share providers, context, and the
@@ -27,6 +31,8 @@
  */
 import React, { Suspense, useEffect } from 'react';
 import { activateEmbedAuth } from '@/src/lib/agent/embedAuth';
+import { usePmoContextBridge } from '@/src/lib/agent-native/contextBridge';
+import { usePmoRouteBridge } from '@/src/lib/agent-native/routeBridge';
 import './agentNativeTheme.css';
 
 // Lazy-load the heavy agent-native client ONLY when the embed is enabled. Keeps the default
@@ -63,6 +69,14 @@ export const AgentNativeHost: React.FC<AgentNativeHostProps> = ({ enabled, acces
     if (!enabled) return;
     void activateEmbedAuth(accessToken ?? null);
   }, [enabled, accessToken]);
+
+  // E4: Context IN bridge — feed PMO's current screen/entity to the agent.
+  // Only active when the embed is enabled (feature flag check is inside the hook).
+  usePmoContextBridge({ enabled });
+
+  // E4: Nav OUT bridge — consume agent navigation commands and route PMO.
+  // Only active when the embed is enabled (feature flag check is inside the hook).
+  usePmoRouteBridge({ enabled });
 
   if (!enabled) {
     // Flag off → shell unchanged, zero agent-native code in the tree.
