@@ -184,7 +184,7 @@ const IncidentDetail: React.FC = () => {
 
       {/* Body — the incident's fields (read-only; edit-in-modal). Shared Card primitives,
           DESIGN.md tokens (no raw hex). */}
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardHead>Incident detail</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -207,7 +207,7 @@ const IncidentDetail: React.FC = () => {
         </CardPad>
       </Card>
 
-      <Card>
+      <Card variant="bare">
         <CardHead>Description</CardHead>
         <CardPad>
           {incident.description ? (

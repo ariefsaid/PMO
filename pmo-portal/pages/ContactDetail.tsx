@@ -180,7 +180,7 @@ const ContactDetail: React.FC = () => {
       />
 
       {/* Body — the contact's fields (read-only; edit-in-modal). */}
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardHead>Contact detail</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -236,7 +236,7 @@ const ContactDetail: React.FC = () => {
       </Card>
 
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
-      <Card>
+      <Card variant="bare">
         <CardHead>Activity</CardHead>
         <CardPad>
           <ContactActivityPanel contactId={contact.id} />
