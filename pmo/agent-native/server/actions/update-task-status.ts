@@ -1,42 +1,16 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
+import { authRequired, dbError } from "../lib/actions-shared";
 import { getCallerJwt } from "../lib/deputy-store";
 import { createCallerClient } from "../lib/supabase";
 
 const uuidShape = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const taskStatuses = ["To Do", "In Progress", "Done", "Blocked"] as const;
 
-type SupabaseError = {
-  code?: string;
-  message?: string;
-  details?: string;
-  hint?: string;
-};
-
 const updateTaskStatusSchema = z.object({
   taskId: z.string().regex(uuidShape),
   status: z.enum(taskStatuses),
 });
-
-function authRequired() {
-  return {
-    error: {
-      code: "NO_CALLER_IDENTITY",
-      message: "No authenticated caller on this request (missing caller JWT).",
-    },
-  };
-}
-
-function dbError(error: SupabaseError | null) {
-  return {
-    error: {
-      code: error?.code,
-      message: error?.message ?? "update_task_status db error",
-      details: error?.details,
-      hint: error?.hint,
-    },
-  };
-}
 
 export const updateTaskStatusAction = defineAction({
   description:
@@ -56,8 +30,11 @@ export const updateTaskStatusAction = defineAction({
       .select("id,status")
       .maybeSingle();
 
-    if (error) return dbError(error);
+    if (error) return dbError(error, "update_task_status db error");
     if (!data) {
+      // RLS filtered the target to zero rows (cross-tenant or absent). Surface a
+      // 42501-style denial so callers can distinguish "denied" from "not found"
+      // — distinct from a driver dbError (no error object is returned here).
       return {
         error: {
           code: "42501",

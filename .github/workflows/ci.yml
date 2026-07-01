@@ -73,6 +73,15 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
+      - name: Required-peer guard (legacy-peer-deps blind spot)
+        # pmo-portal installs with legacy-peer-deps=true (the optional
+        # react-router@>=8 peer of @agent-native/core conflicts with the
+        # react-router@7 that react-router-dom@7 pulls in). legacy-peer-deps
+        # silences ALL peer mismatches, so this step re-asserts that every
+        # REQUIRED (non-optional) peer of every direct dep is satisfied — the
+        # silent-mismatch class that would otherwise install clean and break at
+        # runtime. See scripts/check-required-peers.mjs.
+        run: npm run check:peers
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
         # Build-time devDependencies (vite/esbuild/vitest/etc.) never enter the bundle, so an

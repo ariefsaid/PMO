@@ -18,6 +18,7 @@
  */
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
+import { ACTIVITY_KINDS, authRequired, dbError } from "../lib/actions-shared";
 import { getCallerJwt } from "../lib/deputy-store";
 import { createCallerClient } from "../lib/supabase";
 
@@ -73,9 +74,9 @@ const pmoQuerySchema = z.discriminatedUnion("op", [
         "Expected a UUID-shaped string (8-4-4-4-12 hex).",
       )
       .describe("Parent contact UUID. org_id is stamped by a BEFORE INSERT trigger from this contact — do NOT send org_id."),
-    kind: z
-      .enum(["Call", "Email", "Meeting", "Note"])
-      .describe("Activity kind (crm_activity_kind enum)."),
+    // M-4: canonical `crm_activity_kind` vocabulary (single source, shared with
+    // create_activity's alias map in lib/actions-shared.ts).
+    kind: z.enum(ACTIVITY_KINDS).describe("Activity kind (crm_activity_kind enum)."),
     subject: z
       .string()
       .optional()
@@ -96,16 +97,7 @@ export const pmoQueryAction = defineAction({
     // No raw JWT in ActionRunContext (verified) — read it from the host
     // AsyncLocalStorage populated by server/middleware/deputy.ts.
     const jwt = getCallerJwt();
-    if (!jwt) {
-      // Refuse rather than silently build a caller client with no JWT (which
-      // would run as anon-without-identity and bypass the deputy invariant).
-      return {
-        error: {
-          code: "NO_CALLER_IDENTITY",
-          message: "No authenticated caller on this request (missing caller JWT).",
-        },
-      };
-    }
+    if (!jwt) return authRequired();
 
     // ── 2. Build the deputy client (anon key + caller JWT) ─────────────────
     const caller = createCallerClient(jwt);
@@ -118,23 +110,15 @@ export const pmoQueryAction = defineAction({
           .select("id,name,type,created_at");
         // RLS / Postgres errors surface verbatim — never swallowed. A denial
         // (42501) must be observable by Step 5.
-        if (error) {
-          return {
-            error: {
-              code: error.code,
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-            },
-          };
-        }
+        if (error) return dbError(error, "pmo_query list_companies db error");
         return { rows: (data ?? []) as CompanyRow[] };
       }
 
       // ── WRITE: create a CRM activity ─────────────────────────────────────
       case "create_activity": {
         // org_id is NOT sent — stamped by a BEFORE INSERT trigger from the
-        // parent contact. logged_by_id / occurred_at left to DB defaults / RLS.
+        // parent contact. occurred_at is left to the DB default (now()) —
+        // M-4: same as create_activity; the server/DB is the timestamp authority.
         const { data, error } = await caller
           .from("crm_activities")
           .insert({
@@ -146,14 +130,7 @@ export const pmoQueryAction = defineAction({
           .single();
         if (error) {
           // Cross-tenant insert throws Postgres 42501 — surface it (Step 5 gate).
-          return {
-            error: {
-              code: error.code,
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-            },
-          };
+          return dbError(error, "pmo_query create_activity db error");
         }
         return { row: data as CrmActivityRow };
       }

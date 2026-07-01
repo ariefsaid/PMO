@@ -29,7 +29,7 @@
  */
 import { getHeader, type H3Event } from "h3";
 import { runWithDeputy, type DeputyContext } from "../lib/deputy-store";
-import { verifyJwt } from "../lib/supabase";
+import { verifyJwt, type VerifiedCaller } from "../lib/supabase";
 
 /** Nitro middleware continuation. Untyped intentionally — h3 RC shapes vary. */
 type Next = () => unknown;
@@ -46,7 +46,19 @@ export default async function deputyMiddleware(event: H3Event, next: Next): Prom
   // No credential → anonymous. Leave the ALS untouched; continue normally.
   if (!jwt) return next();
 
-  const caller = await verifyJwt(jwt);
+  // M-1: verifyJwt talks to the auth host (GoTrue getUser + profiles read). A
+  // transient failure there (network blip, 5xx, DNS, cold start) MUST NOT take
+  // down every authenticated request — wrap it so a throw degrades this request
+  // to anonymous (next()) rather than surfacing as a 500 storm. A logged warning
+  // keeps the failure observable; RLS still enforces (anon-without-identity sees
+  // nothing), so this is a safe availability fallback, never a bypass.
+  let caller: VerifiedCaller | null;
+  try {
+    caller = await verifyJwt(jwt);
+  } catch (err) {
+    console.warn("[deputy] verifyJwt threw — degrading request to anonymous", err);
+    return next();
+  }
   // Invalid / expired / unknown JWT → anonymous. Do NOT throw; just continue.
   if (!caller) return next();
 

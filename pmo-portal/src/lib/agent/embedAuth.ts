@@ -47,6 +47,12 @@ export async function activateEmbedAuth(accessToken: string | null | undefined):
 }
 
 /** Drop the token (sign-out / embed teardown). Does not uninstall the interceptor (idempotent no-op). */
+// M-6: the fetch interceptor is INTENTIONALLY left installed after sign-out /
+// teardown. It is token-gated — once the sessionStorage token above is gone it
+// resolves no Bearer and becomes a harmless no-op for same-origin fetches.
+// Uninstalling a `window.fetch` monkey-patch mid-flight is unsafe (in-progress
+// requests hold the patched ref) and unnecessary. Do NOT "fix" this by
+// restoring the original fetch here.
 export function clearEmbedAuth(): void {
   try {
     sessionStorage.removeItem(EMBED_TOKEN_STORAGE_KEY);

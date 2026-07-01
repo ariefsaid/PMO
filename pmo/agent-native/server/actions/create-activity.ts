@@ -1,50 +1,18 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
+import { ACTIVITY_KIND_FROM_ALIAS, authRequired, dbError } from "../lib/actions-shared";
 import { getCallerJwt } from "../lib/deputy-store";
 import { createCallerClient } from "../lib/supabase";
 
 const uuidShape = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-const activityKindMap = {
-  call: "Call",
-  email: "Email",
-  meeting: "Meeting",
-  note: "Note",
-} as const;
-
-type SupabaseError = {
-  code?: string;
-  message?: string;
-  details?: string;
-  hint?: string;
-};
 
 const createActivitySchema = z.object({
   contactId: z.string().regex(uuidShape),
-  kind: z.enum(["call", "email", "meeting", "note"]),
+  kind: z.enum(Object.keys(ACTIVITY_KIND_FROM_ALIAS) as [string, ...string[]]),
   subject: z.string().min(1).max(200),
   body: z.string().max(2000).optional(),
   occurredAt: z.string().optional(),
 });
-
-function authRequired() {
-  return {
-    error: {
-      code: "NO_CALLER_IDENTITY",
-      message: "No authenticated caller on this request (missing caller JWT).",
-    },
-  };
-}
-
-function dbError(error: SupabaseError | null) {
-  return {
-    error: {
-      code: error?.code,
-      message: error?.message ?? "create_activity db error",
-      details: error?.details,
-      hint: error?.hint,
-    },
-  };
-}
 
 export const createActivityAction = defineAction({
   description:
@@ -57,19 +25,23 @@ export const createActivityAction = defineAction({
     if (!jwt) return authRequired();
 
     const caller = createCallerClient(jwt);
+    // M-4: prefer the DB default for occurred_at (now()) — only send it when the
+    // caller explicitly back-dates. Matches pmo_query.create_activity, which
+    // also omits occurred_at and relies on the column default. Server/DB is the
+    // timestamp authority.
     const { data, error } = await caller
       .from("crm_activities")
       .insert({
         contact_id: args.contactId,
-        kind: activityKindMap[args.kind],
+        kind: ACTIVITY_KIND_FROM_ALIAS[args.kind],
         subject: args.subject,
         body: args.body ?? null,
-        occurred_at: args.occurredAt ?? new Date().toISOString(),
+        ...(args.occurredAt ? { occurred_at: args.occurredAt } : {}),
       })
       .select("id")
       .single();
 
-    if (error) return dbError(error);
+    if (error) return dbError(error, "create_activity db error");
 
     return { id: String(data.id) };
   },

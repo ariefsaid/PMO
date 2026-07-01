@@ -1,20 +1,19 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
-import { ENTITY_WHITELIST } from "../../../../pmo-portal/src/lib/viewspec/types";
+import { authRequired, badRequest, dbError } from "../lib/actions-shared";
+import {
+  AGENT_READ_ENTITIES,
+  AGENT_READ_ROW_CAP,
+  READ_ALLOWED,
+  READ_ENTITY_MAP,
+  type AgentReadEntity,
+} from "../lib/read-allowlist";
 import { getCallerJwt } from "../lib/deputy-store";
 import { createCallerClient } from "../lib/supabase";
 
-export const AGENT_READ_ENTITIES = ["projects", "companies"] as const;
-export const AGENT_READ_ROW_CAP = 50;
-
-type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
-
-type SupabaseError = {
-  code?: string;
-  message?: string;
-  details?: string;
-  hint?: string;
-};
+// Re-exported so the gate test can import the row cap + entity list from the
+// action module surface it already targets.
+export { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP };
 
 const queryEntitySchema = z.object({
   entity: z.string(),
@@ -29,43 +28,25 @@ const queryEntitySchema = z.object({
   limit: z.number().int().positive().optional(),
 });
 
-function badRequest(message: string) {
-  return { error: { code: "BAD_REQUEST", message } };
-}
-
-function authRequired() {
-  return {
-    error: {
-      code: "NO_CALLER_IDENTITY",
-      message: "No authenticated caller on this request (missing caller JWT).",
-    },
-  };
-}
-
-function dbError(error: SupabaseError | null) {
-  return {
-    error: {
-      code: error?.code,
-      message: error?.message ?? "query_entity db error",
-      details: error?.details,
-      hint: error?.hint,
-    },
-  };
-}
-
 export const queryEntityAction = defineAction({
   description:
-    "Read whitelisted PMO entities as the caller through the deputy client. " +
-    "RLS scopes rows; unknown entities and columns are rejected before any business read.",
+    "Read allow-listed PMO entities (projects, companies) as the caller through the deputy client. " +
+    "RLS scopes rows; entities outside the read allow-list, and unknown columns, are rejected before any business read.",
   schema: queryEntitySchema,
   agentTool: true,
   readOnly: true,
   run: async (args) => {
-    const entity = args.entity as AgentReadEntity;
-    const entry = ENTITY_WHITELIST[entity];
-    if (!entry) {
-      return badRequest(`unknown entity: ${args.entity}`);
+    // I-1: runtime read allow-list. The documented agent READ surface is
+    // projects + companies ONLY — enforce it before resolving the (wider)
+    // viewspec-style column map, so contacts (PII) / tasks / incidents /
+    // user_views are unreadable through this action even though they exist in
+    // PMO's viewspec whitelist. Least-privilege by default.
+    if (!READ_ALLOWED.has(args.entity)) {
+      return badRequest(`read not permitted for entity: ${args.entity}`);
     }
+
+    const entity = args.entity as AgentReadEntity;
+    const entry = READ_ENTITY_MAP[entity];
 
     const requestedColumns = args.columns ?? [...entry.allowedColumns];
     for (const column of requestedColumns) {
@@ -98,7 +79,7 @@ export const queryEntityAction = defineAction({
     }
 
     const { data, error } = await builder.limit(limit);
-    if (error) return dbError(error);
+    if (error) return dbError(error, "query_entity db error");
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     return {
