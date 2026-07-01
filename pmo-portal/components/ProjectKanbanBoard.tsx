@@ -228,7 +228,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
             // Chip visual: matches the count-badge pattern from DESIGN.md §3
             // (secondary bg, border, muted-foreground text, full radius).
             'flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1',
-            'text-[11px] font-semibold text-muted-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.06)]',
+            'text-[11px] font-semibold text-muted-foreground shadow-[0_1px_2px_hsl(var(--foreground)/0.06)]',
             // Visibility: animate away once the user has scrolled (hasScrolled latch).
             // opacity + translate so only compositor properties are animated (no reflow).
             'transition-[opacity,transform] duration-200',

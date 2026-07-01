@@ -173,7 +173,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="cmdk-anim relative w-full max-w-[600px] overflow-hidden rounded-[12px] border border-border bg-popover shadow-[0_24px_60px_hsl(240_10%_4%/0.35)]"
+        className="cmdk-anim relative w-full max-w-[600px] overflow-hidden rounded-[12px] border border-border bg-popover shadow-[0_24px_60px_hsl(var(--scrim)/0.35)]"
       >
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5 [&_svg]:size-[18px] [&_svg]:text-muted-foreground">
           <Icon name="search" />

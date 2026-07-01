@@ -274,6 +274,8 @@ describe('ProjectKanbanBoard', () => {
       // The hint must exist in the DOM so it is visible on mobile before first scroll.
       const hint = screen.getByTestId('swipe-hint');
       expect(hint).toBeInTheDocument();
+      expect(hint.className).toMatch(/shadow-\[0_1px_2px_hsl\(var\(--foreground\)\/0\.06\)\]/);
+      expect(hint.className).not.toMatch(/240_6%_10%/);
     });
 
     it('swipe-hint is aria-hidden (decorative — real navigation is the scroll container)', () => {

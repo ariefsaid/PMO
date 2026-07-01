@@ -30,7 +30,10 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
 
   it('exposes a single project-card test carrier so every surface is the same molecule', () => {
     render(<ProjectCardShell {...baseProps} />);
-    expect(screen.getByTestId('project-card')).toBeInTheDocument();
+    const card = screen.getByTestId('project-card');
+    expect(card).toBeInTheDocument();
+    expect(card.className).toMatch(/hover:shadow-\[0_2px_10px_hsl\(var\(--foreground\)\/0\.06\)\]/);
+    expect(card.className).not.toMatch(/240_6%_10%/);
   });
 
   it('makes the name the activation target and calls onOpen when clicked', async () => {
