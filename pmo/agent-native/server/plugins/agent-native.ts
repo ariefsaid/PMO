@@ -26,7 +26,10 @@
 import { createAgentNativeEmbeddedPlugin } from "@agent-native/core/server";
 import type { H3Event } from "h3";
 import { getDeputyContext } from "../lib/deputy-store";
+import { createActivityAction } from "../actions/create-activity";
 import { pmoQueryAction } from "../actions/pmo-query";
+import { queryEntityAction } from "../actions/query-entity";
+import { updateTaskStatusAction } from "../actions/update-task-status";
 
 /**
  * BYOA getSession — resolve the host caller for agent-native.
@@ -85,6 +88,9 @@ const embeddedPlugin = createAgentNativeEmbeddedPlugin({
   // `defineAction`'s ActionDefinition return is structurally assignable.
   actions: {
     pmo_query: pmoQueryAction,
+    query_entity: queryEntityAction,
+    create_activity: createActivityAction,
+    update_task_status: updateTaskStatusAction,
   },
 });
 

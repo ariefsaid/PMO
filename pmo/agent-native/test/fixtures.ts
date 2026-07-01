@@ -8,13 +8,6 @@
  *   - User B (provisioned here in org 2) provides the cross-org contact_id that
  *     the cross-tenant write assertion targets.
  *
- * The seed ships org 1 only (`…000001`), so we provision:
- *   - organization `00ff0009-…-…002` (org B),
- *   - a real `auth.users` row for user B (created via the Supabase Admin API so
- *     the password grant mints a genuine JWT),
- *   - a `profiles` row tying user B to org B,
- *   - an org-2 company + org-2 contact (the cross-tenant write target).
- *
  * Provisioning uses the postgres SUPERUSER (bypasses RLS) and the service_role
  * Admin API — this is test setup, NOT the system under test. Everything is
  * cleaned up in `teardownFixtures` so the run is idempotent / repeatable.
@@ -22,13 +15,20 @@
 import postgres from "postgres";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// Unique UUID namespace to avoid collisions with seed + other test files.
+export const ORG_A_ID = "00000000-0000-0000-0000-000000000001";
 export const ORG_B_ID = "00ff0009-0000-0000-0000-000000000002";
 export const USER_B_ID = "00ff0009-0000-0000-0000-0000000000b2";
 export const USER_B_EMAIL = "step5-gate-userb@example.com";
 export const USER_B_PASSWORD = "Passw0rd!gate";
 export const CO_B_ID = "00ff0009-0000-0000-0000-000000000051";
 export const CONTACT_B_ID = "00ff0009-0000-0000-0000-000000000061";
+export const PROJECT_A_ID = "00ff0009-0000-0000-0000-000000000071";
+export const TASK_A_ID = "00ff0009-0000-0000-0000-000000000081";
+export const PROJECT_B_ID = "00ff0009-0000-0000-0000-000000000072";
+export const TASK_B_ID = "00ff0009-0000-0000-0000-000000000082";
+export const ORG_A_EXTRA_COMPANY_IDS = Array.from({ length: 60 }, (_, index) =>
+  `00ff0009-0000-0000-0000-${String(900100 + index).padStart(12, "0")}`,
+);
 
 // User A is the seeded Admin in org 1 (admin@acme.test) — its contact for the
 // intra-tenant positive control.
@@ -78,8 +78,6 @@ export async function setupFixtures(): Promise<Fixtures> {
     on conflict (id) do nothing`;
 
   // ── 2. auth.users row for user B (Admin API) ────────────────────────────
-  // Create via Admin API so the password grant mints a genuine JWT. Idempotent:
-  // try create, fall back to update-password if the user already exists.
   const { error: createErr } = await admin.auth.admin.createUser({
     id: USER_B_ID,
     email: USER_B_EMAIL,
@@ -87,7 +85,6 @@ export async function setupFixtures(): Promise<Fixtures> {
     email_confirm: true,
   });
   if (createErr && !/already been registered/i.test(createErr.message)) {
-    // Already exists → ensure the password is the known one.
     const { error: updErr } = await admin.auth.admin.updateUserById(USER_B_ID, {
       password: USER_B_PASSWORD,
       email: USER_B_EMAIL,
@@ -112,15 +109,42 @@ export async function setupFixtures(): Promise<Fixtures> {
     values (${CONTACT_B_ID}, ${ORG_B_ID}, ${CO_B_ID}, 'Step5 Gate Contact B')
     on conflict (id) do nothing`;
 
+  // ── 5. org-1 bulk companies (caller-scope + row-cap proof for AC-404) ───
+  for (const [index, companyId] of ORG_A_EXTRA_COMPANY_IDS.entries()) {
+    await sql`
+      insert into companies (id, org_id, name, type)
+      values (${companyId}, ${ORG_A_ID}, ${`AC404 Org A Company ${index + 1}`}, 'Client')
+      on conflict (id) do nothing`;
+  }
+
+  // ── 6. task fixtures for update_task_status ──────────────────────────────
+  await sql`
+    insert into projects (id, org_id, code, name, status)
+    values (${PROJECT_A_ID}, ${ORG_A_ID}, 'AN-E2-A', 'Agent Native E2 Org A Project', 'Ongoing Project')
+    on conflict (id) do nothing`;
+  await sql`
+    insert into tasks (id, org_id, project_id, name, status)
+    values (${TASK_A_ID}, ${ORG_A_ID}, ${PROJECT_A_ID}, 'Agent Native E2 Org A Task', 'To Do')
+    on conflict (id) do nothing`;
+
+  await sql`
+    insert into projects (id, org_id, code, name, status, project_manager_id)
+    values (${PROJECT_B_ID}, ${ORG_B_ID}, 'AN-E2-B', 'Agent Native E2 Org B Project', 'Ongoing Project', ${USER_B_ID})
+    on conflict (id) do nothing`;
+  await sql`
+    insert into tasks (id, org_id, project_id, name, status, assignee_id)
+    values (${TASK_B_ID}, ${ORG_B_ID}, ${PROJECT_B_ID}, 'Agent Native E2 Org B Task', 'To Do', ${USER_B_ID})
+    on conflict (id) do nothing`;
+
   return { sql, admin };
 }
 
 export async function teardownFixtures(f: Fixtures): Promise<void> {
-  // Delete crm_activities we may have written during the run (only the gate's
-  // own namespace rows are safe to touch; the positive control's row is org-1).
-  await f.sql`delete from crm_activities where subject like 'Step5 gate%'`;
+  await f.sql`delete from crm_activities where subject like 'Step5 gate%' or subject like 'AC-405 %'`;
+  await f.sql`delete from tasks where id in (${TASK_A_ID}, ${TASK_B_ID})`;
+  await f.sql`delete from projects where id in (${PROJECT_A_ID}, ${PROJECT_B_ID})`;
   await f.sql`delete from contacts where id = ${CONTACT_B_ID}`;
-  await f.sql`delete from companies where id = ${CO_B_ID}`;
+  await f.sql`delete from companies where id = any(${[CO_B_ID, ...ORG_A_EXTRA_COMPANY_IDS] as unknown as string[]})`;
   await f.sql`delete from profiles where id = ${USER_B_ID}`;
   await f.admin.auth.admin.deleteUser(USER_B_ID);
   await f.sql`delete from organizations where id = ${ORG_B_ID}`;
@@ -159,10 +183,39 @@ export async function readAllCompanyIds(
   sql: ReturnType<typeof postgres>,
 ): Promise<{ org1: string[]; org2: string[] }> {
   const org1 = (
-    await sql`select id from companies where org_id = '00000000-0000-0000-0000-000000000001'`
+    await sql`select id from companies where org_id = ${ORG_A_ID}`
   ).map((r) => String(r.id));
   const org2 = (await sql`select id from companies where org_id = ${ORG_B_ID}`).map((r) =>
     String(r.id),
   );
   return { org1, org2 };
 }
+
+export async function readActivityBySubject(
+  sql: ReturnType<typeof postgres>,
+  subject: string,
+): Promise<{ id: string; org_id: string | null; contact_id: string } | null> {
+  const rows = await sql`
+    select id, org_id, contact_id
+    from crm_activities
+    where subject = ${subject}
+    limit 1`;
+
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    org_id: row.org_id ? String(row.org_id) : null,
+    contact_id: String(row.contact_id),
+  };
+}
+
+export async function readTaskStatus(
+  sql: ReturnType<typeof postgres>,
+  taskId: string,
+): Promise<string | null> {
+  const rows = await sql`select status from tasks where id = ${taskId} limit 1`;
+  return rows[0]?.status ? String(rows[0].status) : null;
+}
+
+export const AGENT_READ_ROW_CAP = 50;
