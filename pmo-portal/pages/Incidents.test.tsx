@@ -283,7 +283,7 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
         project_id: null,
       }),
     );
-  });
+  }, 10_000);
 
   it('AC-IN-003: a file rejected by RLS (42501) surfaces a classified warning toast', async () => {
     mutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));

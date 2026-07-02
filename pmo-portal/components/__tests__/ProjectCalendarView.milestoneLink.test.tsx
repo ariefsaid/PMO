@@ -116,4 +116,22 @@ describe('ProjectCalendarView — AC-IFW-CAL-01: milestone chips are interactive
     const chip = within(cell).getByRole('button', { name: /KoM.*Meridian HQ/i });
     expect(chip).toBeInTheDocument();
   });
+
+  it('batch-3: project and milestone chips share one consistent high-legibility treatment', () => {
+    render(
+      <ProjectCalendarView
+        projects={[project({ id: 'p1', name: 'Meridian HQ', start_date: '2026-06-05' })]}
+        milestoneDates={milestones}
+        onOpenProject={() => {}}
+        initialCursor={JUNE}
+      />,
+    );
+    const projectChip = within(screen.getByTestId('calendar-cell-2026-06-05')).getByRole('button');
+    const milestoneChip = within(screen.getByTestId('calendar-cell-2026-06-10')).getByRole('button');
+    for (const chip of [projectChip, milestoneChip]) {
+      expect(chip.className).toContain('bg-secondary');
+      expect(chip.className).toContain('border-l-2');
+      expect(chip.className).toContain('text-foreground');
+    }
+  });
 });

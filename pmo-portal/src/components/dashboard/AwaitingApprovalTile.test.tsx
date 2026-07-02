@@ -76,9 +76,11 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
     expect(screen.getByRole('link')).toHaveTextContent('2');
   });
 
-  it('routes to /approvals as a single link', () => {
+  it('routes to /approvals as a single link and surfaces a visible Review CTA', () => {
     renderTile(true);
-    expect(screen.getByRole('link')).toHaveAttribute('href', '/approvals');
+    const link = screen.getByRole('link');
+    expect(link).toHaveAttribute('href', '/approvals');
+    expect(link).toHaveTextContent(/Review/i);
   });
 
   it('a non-approver role (Engineer) contributes zero PRs even if rows exist', () => {

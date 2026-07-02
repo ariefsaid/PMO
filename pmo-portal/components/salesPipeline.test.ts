@@ -58,21 +58,18 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(colors).not.toContain('hsl(262 83% 58%)'); // categorical violet (was Pre-Qual)
   });
 
-  it('C2: calm neutral upstream, exactly one --primary open stage (active), success terminal', () => {
-    // upstream open stages are quiet neutral; Negotiation (closest-to-close) is
-    // the single blue accent on the band (One Blue Rule); terminal is success.
+  it('batch-3: every OPEN stage dot uses one consistent neutral treatment; only terminal outcomes are colored', () => {
     expect(SALES_COLUMNS[0].dotColor).toBe('hsl(var(--muted-foreground))'); // Leads
     expect(SALES_COLUMNS[1].dotColor).toBe('hsl(var(--muted-foreground))'); // Pre-Qual
     expect(SALES_COLUMNS[2].dotColor).toBe('hsl(var(--muted-foreground))'); // Quotation
     expect(SALES_COLUMNS[3].dotColor).toBe('hsl(var(--muted-foreground))'); // Tender
-    expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--primary))'); // Negotiation (active)
+    expect(SALES_COLUMNS[4].dotColor).toBe('hsl(var(--muted-foreground))'); // Negotiation
     expect(SALES_COLUMNS.find((c) => c.title === 'Won')!.dotColor).toBe('hsl(var(--success))');
     expect(SALES_COLUMNS.find((c) => c.title === 'Lost')!.dotColor).toBe('hsl(var(--destructive))');
-    // exactly one OPEN column carries the blue accent
     const openPrimary = SALES_COLUMNS.filter(
       (c) => !c.terminal && c.dotColor === 'hsl(var(--primary))',
     );
-    expect(openPrimary).toHaveLength(1);
+    expect(openPrimary).toHaveLength(0);
   });
 
   it('AC-SP-204: weightedValue multiplies contract_value by win_probability (computed client-side)', () => {

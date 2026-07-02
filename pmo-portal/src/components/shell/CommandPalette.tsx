@@ -164,7 +164,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     >
       <div
         data-testid="cmdk-backdrop"
-        className="absolute inset-0 bg-[hsl(var(--scrim)/0.4)] backdrop-blur-[3px]"
+        className="absolute inset-0 bg-foreground/40 backdrop-blur-[3px]"
         onClick={onClose}
         aria-hidden
       />

@@ -10,12 +10,10 @@ const OPEN_STATUSES = new Set(
   SALES_COLUMNS.filter((c) => !c.terminal).flatMap((c) => c.statuses),
 );
 /**
- * C1 de-rainbow: every bar uses the single `primary` token. These bars measure
- * weighted value, not status — so color need not vary; the per-stage `<span>`
- * label already gives each bar its identity (color-not-only). This removes the
- * categorical/violet rainbow the audit flagged on the PQ bar.
+ * Batch-3 polish: weighted-value bars are quiet indicators, not the page's primary
+ * action. Use the neutral chart tone so the track+fill read as measurement, not CTA.
  */
-const BAR_FILL = chartTheme.series.primary;
+const BAR_FILL = chartTheme.axis;
 
 export interface ProjectedMarginBarsProps {
   /** Probability-adjusted portfolio margin (exec RPC, already loaded). */

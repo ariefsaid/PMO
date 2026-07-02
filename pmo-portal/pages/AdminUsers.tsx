@@ -33,6 +33,8 @@ import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
  * Authority: `profiles_admin_write` RLS (migration 0002) is the enforcement boundary — the FE
  * gates affordances via can('edit','user') on the REAL JWT role (ADR-0016). Executive may VIEW a
  * read-only directory (§J); every other role reaching the route sees an Admin-only gate.
+ * Role pills are intentionally neutral-only: the label carries identity; no single role is
+ * visually singled out as a category accent.
  *
  * Scope (DEFERRED, plan §J): creating an auth user (invite/create) and disabling/Status both need
  * server-side capabilities not available client-side — invite/create needs the Supabase admin API

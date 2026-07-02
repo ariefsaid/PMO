@@ -16,6 +16,7 @@ describe('CommandPalette', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog.className).toMatch(/shadow-\[0_24px_60px_hsl\(var\(--scrim\)\/0\.35\)\]/);
     expect(dialog.className).not.toMatch(/240_10%_4%/);
+    expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
   it('renders nothing when closed', () => {

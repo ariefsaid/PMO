@@ -102,7 +102,7 @@ describe('AC-IXD-FORM-F8: Companies create modal readiness', () => {
 });
 
 describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
-  it('AC-IXD-FORM-F8: submit is DISABLED until both required fields (name + client) are present', async () => {
+  it('AC-IXD-FORM-F8: a fresh New-project modal is clean on open (no eager error banner) and submit is DISABLED until required fields are present', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
@@ -112,6 +112,7 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
     );
     const submit = screen.getByRole('button', { name: 'Create project' });
     expect(submit).toBeDisabled();
+    expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
     // Name alone is not enough — client is also required.
     await user.type(screen.getByLabelText(/^Project name/), 'Harborside Terminal');
     expect(submit).toBeDisabled();
@@ -144,7 +145,7 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
 });
 
 describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
-  it('AC-IXD-FORM-F8: a fresh modal has submit DISABLED and submitting fires no create', async () => {
+  it('AC-IXD-FORM-F8: a fresh New-procurement modal is clean on open (no eager error banner) and submit is DISABLED', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue({ id: 'pr-1' });
     render(
@@ -154,6 +155,7 @@ describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
     );
     const submit = screen.getByRole('button', { name: 'Create request' });
     expect(submit).toBeDisabled();
+    expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
     await user.click(submit);
     expect(onCreate).not.toHaveBeenCalled();
   });
