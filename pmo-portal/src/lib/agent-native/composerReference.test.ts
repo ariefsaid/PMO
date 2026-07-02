@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { insertPmoReference, normalizePmoReference } from './composerReference';
+import { insertPmoReference, normalizePmoReference, MAX_RELATED_REFERENCES } from './composerReference';
 
 // Mock the agent-native composer reference functions
 const mockInsertAgentComposerReference = vi.fn();
@@ -252,7 +252,9 @@ describe('Composer Reference (AC-412)', () => {
       });
     });
 
-    it('AC-412.9: Given a reference with additional metadata, When normalizePmoReference is called, Then the metadata is preserved', () => {
+    it('AC-412.9: Given a reference with additional metadata, When normalizePmoReference is called, Then only the allow-listed (non-PII) metadata keys survive', () => {
+      // `industry` is allow-listed (business classification, not personal PII);
+      // `location` is dropped (PII minimization — see AC-412.12 for the full strip).
       const result = normalizePmoReference({
         entityType: 'company',
         entityId: 'cmp_456',
@@ -269,7 +271,6 @@ describe('Composer Reference (AC-412)', () => {
         refId: 'cmp_456',
         metadata: {
           industry: 'Technology',
-          location: 'San Francisco',
         },
       });
     });
@@ -291,6 +292,79 @@ describe('Composer Reference (AC-412)', () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('normalizePmoReference - PII minimization (metadata allow-list + related cap)', () => {
+    it('AC-412.12: Given a reference carrying arbitrary PII keys, When normalized, Then only allow-listed metadata keys survive', () => {
+      const result = normalizePmoReference({
+        entityType: 'company',
+        entityId: 'cmp_1',
+        label: 'Acme',
+        metadata: {
+          industry: 'Technology', // allow-listed
+          status: 'active', // allow-listed
+          email: 'cto@acme.com', // PII — drop
+          phone: '+1-555-0100', // PII — drop
+          address: '1 Main St', // PII — drop
+          registrationNumber: 'REG-7', // PII — drop
+          ceoName: 'Jane Doe', // PII — drop
+        },
+      });
+
+      expect(result).toEqual({
+        label: 'Acme',
+        refType: 'company',
+        refId: 'cmp_1',
+        metadata: { industry: 'Technology', status: 'active' },
+      });
+    });
+
+    it('AC-412.13: Given a reference with more than N related references, When normalized, Then relatedReferences is capped to N (in order)', () => {
+      const related = Array.from({ length: 10 }, (_, i) => ({
+        entityType: 'project',
+        entityId: `proj_${i}`,
+        label: `P${i}`,
+      }));
+
+      const result = normalizePmoReference({
+        entityType: 'company',
+        entityId: 'cmp_1',
+        label: 'Acme',
+        relatedReferences: related,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.relatedReferences?.length ?? 0).toBeLessThanOrEqual(
+        MAX_RELATED_REFERENCES,
+      );
+      expect(result!.relatedReferences?.length).toBe(MAX_RELATED_REFERENCES);
+      // The first N are kept, in order; the rest are dropped.
+      expect(result!.relatedReferences?.map((r) => r.refId)).toEqual([
+        'proj_0',
+        'proj_1',
+        'proj_2',
+        'proj_3',
+        'proj_4',
+      ]);
+    });
+
+    it('AC-412.14: Given a related reference carrying PII, When normalized, Then its metadata is also stripped', () => {
+      const result = normalizePmoReference({
+        entityType: 'company',
+        entityId: 'cmp_1',
+        label: 'Acme',
+        relatedReferences: [
+          {
+            entityType: 'project',
+            entityId: 'proj_1',
+            label: 'P1',
+            metadata: { status: 'active', ownerEmail: 'p@acme.com' },
+          },
+        ],
+      });
+
+      expect(result!.relatedReferences?.[0]?.metadata).toEqual({ status: 'active' });
     });
   });
 });

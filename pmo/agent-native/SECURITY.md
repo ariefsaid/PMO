@@ -5,7 +5,7 @@
 > the deputy invariant that gates PMO business data on each, and the ADR-0039
 > untrusted-output boundary. This is the **G3 upgrade-canary** reference: an
 > upstream `@agent-native/core` bump that opens a hole on any surface goes RED
-> in `test/deputy-surfaces.gate.test.ts` (AC-601…AC-607) before it ships.
+> in `test/deputy-surfaces.gate.test.ts` (AC-601…AC-608) before it ships.
 
 ## Pinned dependency + cadence (NFR-407 / G3)
 
@@ -14,7 +14,7 @@
   ~4×/day pre-1.0; a bump is a deliberate, reviewed act — never transitive.
 - **The upgrade canary is the gate suite**, not human review:
   `test/deputy-invariant.gate.test.ts` (the original AC-403 5/5) **plus**
-  `test/deputy-surfaces.gate.test.ts` (AC-601…AC-607, added by E6). CI runs
+  `test/deputy-surfaces.gate.test.ts` (AC-601…AC-608, added by E6). CI runs
   both on every change to `pmo/agent-native/**`. **Before bumping the pin,
   re-derive every "Exposed?" / "Auth model" cell below against the new
   `dist/**/*.d.ts` + a booted sidecar probe, and re-run the full gate.**
@@ -62,17 +62,21 @@ could touch PMO data.
 | 2 | MCP tool server | `POST /_agent-native/mcp` (JSON-RPC, streamable-HTTP) | **Yes** (mounted by `createAgentChatPlugin` → dynamic `mountMCP`) | Protocol handshake (`initialize`/`tools/list`) is **unauthenticated**; tool execution resolves caller via agent-native's own request-context | **Yes** — PMO actions are **NOT** in the MCP tool catalog (compact/connector catalog only: `list_apps`, `open_app`, `create_embed_session`, `ask_app`, `ask_app_status`, `tool-search`); `tools/call pmo_query` → `Unknown tool`. Even if a future full-surface token surfaced them, the action still requires `getCallerJwt()` (deputy ALS) → RLS enforces. | AC-602 |
 | 3 | A2A JSON-RPC | `POST /_agent-native/a2a` | **Yes** (mounted by `createAgentChatPlugin` → dynamic `mountA2A`) | `message/send` requires a valid caller identity — unauthenticated ⇒ `no authenticated user`; a PMO Supabase jwt is **not** an A2A-signed token ⇒ `Invalid or expired A2A token`. Public A2A skills (`filterPublicAgentActions`) require `publicAgent.expose && readOnly && !requiresAuth && !isConsequential` — **no PMO action opts in**. | **Yes** — no PMO action is a public A2A skill; `message/send` rejects unauthenticated and non-A2A tokens; if reached via a configured `A2A_SECRET` + A2A token, the agent loop invokes PMO actions through the same deputy seam → RLS enforces. | AC-603 |
 | 4 | Agent card (public metadata) | `GET /.well-known/agent-card.json` | **Yes** (public, no auth — by design) | None (public discovery doc) | **Yes** — public metadata only; `filterPublicAgentCardSkills` drops per-user/per-org MCP entries (anti-fingerprinting); PMO has **no** public A2A skills, so no PMO tenant data is disclosed. (In the Nitro dev server this path is shadowed by the SPA fallback and serves `text/html`; either way it carries **no** PMO tenant identifier.) | AC-604 |
-| 5 | `defineClientAction` (browser) | host-page bridge (not an HTTP route) | **No** — PMO registers **zero** client actions | n/a | **Yes** — static scan confirms no `defineClientAction` in `server/`/`app/`/`embed/` references PMO data (`@supabase`, repositories, `getCallerJwt`, `createCallerClient`). If a future PMO client action touches PMO data, it MUST round-trip through a `defineAction` (server) so the deputy seam applies — client actions run in the browser and have no server-confirmed identity of their own. | AC-605 |
-| 6 | MCP Connect / OAuth (browser) | `GET /_agent-native/mcp/connect`, `POST /_agent-native/mcp/oauth`, `/.well-known/oauth-*` | **Yes** (mounted by `createCoreRoutesPlugin`, default `coreRoutes: true`) | OAuth device-code / authorization-server metadata; token endpoints are single-use-code / refresh-token gated | **Yes** — these are connection/onboarding + OAuth-metadata routes; they do **not** execute PMO tools. They are session-gated where they approve user access. No PMO business data crosses them. | AC-601 |
-| 7 | Resources CRUD | `/_agent-native/resources/**` | **Yes** (default `resources: true`) | Framework session gate (401 anon) | **Yes** — operates on agent-native's **own** `agent_native` schema tables (framework resources), **never** PMO's `public` schema. Cross-schema isolation proven by AC-403 gate-5. | AC-601 |
-| 8 | Core routes (poll/events/ping/health/app-state/open/embed) | `/_agent-native/{poll,events,ping,health,application-state,open,embed}/**` | **Yes** (default `coreRoutes: true`) | Mixed: `health` public; others session-gated | **Yes** — framework plumbing only; no PMO business path. | AC-601 |
+| 5 | `defineClientAction` (browser) | host-page bridge (not an HTTP route) | **No** — PMO registers **zero** client actions | n/a | **Yes** — the canary (AC-605) **fails on ANY `defineClientAction(`** across `pmo/agent-native/**` source **and** `pmo-portal/src/**` (allow-list empty today), so no client action can slip past it. If a future PMO client action needs PMO data, it MUST round-trip through a server `defineAction` (deputy seam) — client actions run in the browser with no server-confirmed identity. | AC-605 |
+| 6 | MCP Connect / OAuth (browser) | `GET /_agent-native/mcp/connect`, `POST /_agent-native/mcp/oauth`, `/.well-known/oauth-*` | **Yes** (explicit `coreRoutes: {}` — **ON, not a default**; positive probe AC-601 asserts `mcp/connect` + oauth-authorization-server metadata respond ≠404) | OAuth device-code / authorization-server metadata; token endpoints are single-use-code / refresh-token gated | **Yes** — these are connection/onboarding + OAuth-metadata routes; they do **not** execute PMO tools. They are session-gated where they approve user access. No PMO business data crosses them. | AC-601 |
+| 7 | Resources CRUD | `/_agent-native/resources/**` | **Yes** (explicit `resources: true` — **ON, not a default**) | Framework session gate (401 anon) | **Yes** — operates on agent-native's **own** `agent_native` schema tables (framework resources), **never** PMO's `public` schema. Cross-schema isolation proven by AC-403 gate-5. | AC-601 |
+| 8 | Core routes (poll/events/ping/health/app-state/open/embed) | `/_agent-native/{poll,events,ping,health,application-state,open,embed}/**` | **Yes** (explicit `coreRoutes: {}` — **ON, not a default**; positive probe AC-601 asserts `health`=200 + `ping` mounted/gated) | Mixed: `health` public; others session-gated | **Yes** — framework plumbing only; no PMO business path. | AC-601 |
 | 9 | Embed fetches (same-origin) | browser → `/_agent-native/**` via `ensureEmbedAuthFetchInterceptor` | **Yes** | Bearer = PMO session jwt, attached same-origin | **Yes** — every embed fetch lands on the routes above; the **global** deputy middleware runs first on all of them, so the same deputy invariant applies. | AC-606 |
 
-**Surfaces NOT mounted** (deliberately off — `createAgentNativeEmbeddedPlugin`
-defaults): `org` (org management), `onboarding`, `integrations` (messaging),
-`terminal`. These would add caller-executing surface area; they stay off until a
-future issue explicitly opts in, at which point a new AC-6xx row + gate
-assertion is added here **before** enable.
+**Surfaces NOT mounted** (set **explicitly OFF** in `createAgentNativeEmbeddedPlugin`
+— NOT left to upstream defaults): `org` (org management), `onboarding`,
+`integrations` (messaging), `terminal`. Each is a **negative probe** in AC-608:
+an **authenticated** caller gets **404** on each surface's routes (the global
+session gate 401s anon on ALL `/_agent-native/**` — even fake routes — so only
+an authenticated 404 proves "not mounted"; the authenticated resources +
+defineAction 200s are the control). They stay off until a future issue
+explicitly opts in, at which point a new AC-6xx row + gate assertion lands here
+**before** enable.
 
 ## ADR-0039 — untrusted-output validation boundary (E6 task #3)
 

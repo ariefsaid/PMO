@@ -181,6 +181,25 @@ describe("AC-601 SURFACE ENUMERATION — every caller-executing surface recorded
     expect(anon.status, "resources endpoint must be mounted (not 404)").not.toBe(404);
     expect(anon.status, "anonymous resources call must be refused").toBe(401);
   });
+
+  it("core framework routes are exposed (SECURITY row 8): health public, ping mounted+gated", async () => {
+    // Row 8 positive probe — coreRoutes is explicitly ON in agent-native.ts.
+    const health = await probe("GET", "/_agent-native/health");
+    expect(health.status, "health must be mounted (public liveness probe)").toBe(200);
+    const ping = await probe("GET", "/_agent-native/ping");
+    expect(ping.status, "ping must be mounted (not 404)").not.toBe(404);
+    expect(ping.status, "anonymous ping must be refused").toBe(401);
+  });
+
+  it("MCP Connect + OAuth metadata routes are exposed (SECURITY row 6)", async () => {
+    // Row 6 positive probe — mcp/connect + oauth metadata are mounted by
+    // coreRoutes (explicitly ON). They are connection/onboarding + metadata
+    // surfaces; they do not execute PMO tools.
+    const connect = await probe("GET", "/_agent-native/mcp/connect");
+    expect(connect.status, "MCP connect page must be mounted (not 404)").not.toBe(404);
+    const oauthMd = await probe("GET", "/.well-known/oauth-authorization-server");
+    expect(oauthMd.status, "OAuth authorization-server metadata must be mounted (not 404)").not.toBe(404);
+  });
 });
 
 // ── AC-602: MCP deputy-invariant ────────────────────────────────────────────
@@ -302,36 +321,53 @@ describe("AC-604 agent-card.json — public metadata only, no PMO tenant identif
 
 // ── AC-605: defineClientAction ──────────────────────────────────────────────
 
-describe("AC-605 defineClientAction — no PMO client action touches PMO data", () => {
-  it("PMO registers no client action that reaches PMO data (static)", async () => {
-    // client actions run in the browser and have no server-confirmed identity.
-    // If any PMO client action needs PMO data it MUST round-trip through a
-    // server defineAction (deputy seam). Scan all PMO source for defineClientAction.
-    const roots = ["server", "app", "embed"].map((r) => resolve(projectRoot, r));
-    const hits: string[] = [];
-    for (const root of roots) {
-      let entries: string[] = [];
-      try {
-        entries = await readdir(root, { recursive: true, withFileTypes: true }).then((ds) =>
-          ds.filter((d) => d.isFile() && d.name.endsWith(".ts") && !d.name.endsWith(".d.ts")).map((d) =>
-            resolve(d.parentPath, d.name),
-          ),
-        );
-      } catch {
-        continue; // root may not exist (e.g. app/)
+describe("AC-605 defineClientAction — no PMO client action registered anywhere (canary)", () => {
+  // PMO registers ZERO client actions. Client actions run in the browser with
+  // no server-confirmed identity; if one ever needs PMO data it MUST round-trip
+  // through a server defineAction (the deputy seam). This canary fails on ANY
+  // `defineClientAction(` occurrence across the sidecar source AND the PMO
+  // portal FE — a future client action cannot slip past it. Adding one requires
+  // a deliberate entry in ALLOWED_CLIENT_ACTION_FILES (empty today) plus a
+  // deputy-seam review (SECURITY.md row 5).
+  const ALLOWED_CLIENT_ACTION_FILES: readonly string[] = [];
+
+  async function collectSource(root: string, into: string[]): Promise<void> {
+    let ds;
+    try {
+      ds = await readdir(root, { recursive: true, withFileTypes: true });
+    } catch {
+      return; // root may not exist (e.g. sidecar app/)
+    }
+    for (const d of ds) {
+      if (!d.isFile()) continue;
+      if (d.name.endsWith(".d.ts")) continue;
+      if (/\.test\./.test(d.name) || /\.spec\./.test(d.name)) continue;
+      if (d.name.endsWith(".ts") || d.name.endsWith(".tsx")) {
+        into.push(resolve(d.parentPath, d.name));
       }
-      for (const file of entries) {
-        const src = stripComments(await readFile(file, "utf8"));
-        if (!/\bdefineClientAction\b/.test(src)) continue;
-        // A client action that ALSO references a PMO data seam is the violation.
-        if (/createCallerClient|getCallerJwt|@supabase\/supabase-js|repositories\//.test(src)) {
-          hits.push(file);
-        }
+    }
+  }
+
+  it("NO defineClientAction( occurs in pmo/agent-native source or pmo-portal/src (static)", async () => {
+    const targets: string[] = [];
+    for (const dir of ["server", "app", "embed"]) {
+      await collectSource(resolve(projectRoot, dir), targets);
+    }
+    // PMO portal FE source lives at <worktree>/pmo-portal/src (two levels up
+    // from the sidecar project root).
+    await collectSource(resolve(projectRoot, "..", "..", "pmo-portal", "src"), targets);
+
+    const hits: string[] = [];
+    for (const file of targets) {
+      const src = stripComments(await readFile(file, "utf8"));
+      if (/\bdefineClientAction\s*\(/.test(src) && !ALLOWED_CLIENT_ACTION_FILES.includes(file)) {
+        hits.push(file);
       }
     }
     expect(
       hits,
-      "no PMO client action may touch PMO data directly — round-trip via a server defineAction",
+      "defineClientAction( is forbidden in PMO source (allow-list is empty); " +
+        "round-trip any browser-reachable PMO data through a server defineAction (deputy seam)",
     ).toEqual([]);
   });
 });
@@ -443,6 +479,59 @@ describe("AC-607 ADR-0039 boundary — PMO actions emit no render/execute output
         `${f}: a PMO action must NOT emit a render/execute payload without an ADR-0039 validator`,
       ).not.toMatch(FORBIDDEN);
     }
+  });
+});
+
+// ── AC-608: surfaces OFF-BY-CONFIG (negative probes) ───────────────────────
+
+describe("AC-608 SURFACES OFF-BY-CONFIG — org/onboarding/integrations/terminal NOT mounted", () => {
+  // These plugins are set explicitly OFF in server/plugins/agent-native.ts
+  // (least-privilege: only resources/coreRoutes/agentChat/sentry are ON). The
+  // global session gate 401s anon on ALL /_agent-native/** (even fake routes —
+  // see AC-601), so a 401 proves NOTHING about mounting. Only an AUTHENTICATED
+  // 404 does: a mounted surface returns its handler response (200/4xx) to a
+  // valid caller, an unmounted one returns 404. The authenticated control
+  // (resources + defineAction → 200) proves the jwt is valid and that a 404
+  // here genuinely means "not mounted".
+  it("CONTROL: surfaces PMO DOES mount respond 200 to the same authenticated caller", async () => {
+    const resources = await probe("GET", "/_agent-native/resources", { jwt: jwtA });
+    expect(resources.status, "resources (ON) must respond 200 to a valid caller").toBe(200);
+    const action = await probe("POST", "/_agent-native/actions/pmo_query", {
+      jwt: jwtA,
+      body: { op: "list_companies" },
+    });
+    expect(action.status, "defineAction path (ON) must respond 200 to a valid caller").toBe(200);
+  });
+
+  it("org-management routes are NOT mounted (authenticated → 404)", async () => {
+    const members = await probe("GET", "/_agent-native/org/members", { jwt: jwtA });
+    const me = await probe("GET", "/_agent-native/org/me", { jwt: jwtA });
+    expect(members.status, "/_agent-native/org/members must not be mounted (org: false)").toBe(404);
+    expect(me.status, "/_agent-native/org/me must not be mounted (org: false)").toBe(404);
+  });
+
+  it("onboarding routes are NOT mounted (authenticated → 404)", async () => {
+    const steps = await probe("GET", "/_agent-native/onboarding/steps", { jwt: jwtA });
+    const dismissed = await probe("GET", "/_agent-native/onboarding/dismissed", { jwt: jwtA });
+    expect(steps.status, "/_agent-native/onboarding/steps must not be mounted (onboarding: false)").toBe(404);
+    expect(dismissed.status, "/_agent-native/onboarding/dismissed must not be mounted").toBe(404);
+  });
+
+  it("messaging-integrations routes are NOT mounted (authenticated → 404)", async () => {
+    // NB: this is the `integrations` plugin (messaging), which is distinct from
+    // A2A — A2A (message/send) is mounted by agentChat and is positively
+    // probed under AC-603.
+    const status = await probe("GET", "/_agent-native/integrations/status", { jwt: jwtA });
+    const tq = await probe("GET", "/_agent-native/integrations/task-queue/status", { jwt: jwtA });
+    expect(status.status, "/_agent-native/integrations/status must not be mounted (integrations: false)").toBe(404);
+    expect(tq.status, "/_agent-native/integrations/task-queue/status must not be mounted").toBe(404);
+  });
+
+  it("terminal routes are NOT mounted (authenticated → 404)", async () => {
+    const clis = await probe("GET", "/_agent-native/available-clis", { jwt: jwtA });
+    const info = await probe("GET", "/_agent-native/agent-terminal-info", { jwt: jwtA });
+    expect(clis.status, "/_agent-native/available-clis must not be mounted (terminal: false)").toBe(404);
+    expect(info.status, "/_agent-native/agent-terminal-info must not be mounted (terminal: false)").toBe(404);
   });
 });
 

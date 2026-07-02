@@ -13,8 +13,11 @@
  *   {
  *     databaseUrl: <agent_native_app role URL — isolated schema>,
  *     auth: getSession,        // bare fn → becomes the BYOA getSession
- *     // defaults: resources on, org/onboarding/integrations/terminal off,
- *     // sentry on, coreRoutes on, agentChat on (actions wired by Step 3).
+ *     // EVERY security-relevant flag is set EXPLICITLY below (no inherited
+ *     // defaults): resources/coreRoutes/agentChat/sentry ON,
+ *     // org/onboarding/integrations/terminal OFF. Each Exposed?/Deputy-safe?
+ *     // cell in SECURITY.md is asserted by a probe in
+ *     // test/deputy-surfaces.gate.test.ts (AC-601…AC-608).
  *   }
  *
  * `databaseUrl` uses a DEDICATED role (agent_native_app) whose default
@@ -73,11 +76,6 @@ function resolveDatabaseUrl(): string {
 const embeddedPlugin = createAgentNativeEmbeddedPlugin({
   databaseUrl: resolveDatabaseUrl(),
   auth: getSession,
-  // defaults are correct for an embedded host-auth install:
-  //   resources: true, org: false, onboarding: false,
-  //   integrations: false, terminal: false, sentry: true,
-  //   coreRoutes: true, agentChat: true.
-  //
   // Step 3 — the PMO deputy action. Registered explicitly via the `actions`
   // option (NOT relying on auto-discovery): agent-native's autoDiscoverActions
   // uses a raw ESM `import()` that bypasses Nitro's bundler, so actions can't
@@ -92,6 +90,22 @@ const embeddedPlugin = createAgentNativeEmbeddedPlugin({
     create_activity: createActivityAction,
     update_task_status: updateTaskStatusAction,
   },
+
+  // ── Explicit least-privilege surface mount (E6 security registry). ───────
+  // Every security-relevant plugin flag is set here on purpose — we do NOT
+  // inherit upstream defaults. Flag names/shape verified against the installed
+  // type `AgentNativeEmbeddedPluginOptions` in
+  // node_modules/@agent-native/core@0.84.8/dist/server/embedded.d.ts.
+  // See SECURITY.md (each Exposed?/Deputy-safe? cell is asserted by a probe in
+  // test/deputy-surfaces.gate.test.ts).
+  resources: true, // ON  — framework resource CRUD on agent_native's OWN schema (AC-601)
+  coreRoutes: {}, // ON  — poll/events/health/app-state/open/embed + MCP connect/oauth (AC-601)
+  agentChat: {}, // ON  — MCP tool server + A2A (PMO actions are NOT in their catalogs; AC-602/AC-603)
+  sentry: true, // ON  — request/error hooks (NOT a caller-executing surface)
+  org: false, // OFF — PMO does not expose org-management (negative probe AC-608)
+  onboarding: false, // OFF — PMO does not expose onboarding (negative probe AC-608)
+  integrations: false, // OFF — PMO does not expose messaging integrations (negative probe AC-608). NB: this is distinct from A2A, which is mounted by agentChat.
+  terminal: false, // OFF — PMO does not expose the terminal (negative probe AC-608)
 });
 
 export default embeddedPlugin;

@@ -33,20 +33,78 @@ export interface PmoRouteBridgeOptions {
 }
 
 /**
+ * Tab allow-list per route (AC-411 security).
+ *
+ * Only the tabs each route ACTUALLY renders. A `tab` is honored ONLY when the
+ * view is present here AND the tab is in its set; everything else is rejected.
+ * Mirrors `pages/project-detail/ProjectDetail.tsx` (PTab) and
+ * `pages/ProcurementDetails.tsx` (PROC_TAB_VALUES).
+ */
+const TAB_ALLOWLIST: Readonly<Record<string, ReadonlySet<string>>> = {
+  projects: new Set(['overview', 'budget', 'procurement', 'tasks', 'documents']),
+  procurement: new Set(['overview', 'items', 'documents', 'quotes']),
+};
+
+/**
+ * Validate a single dynamic path segment (AC-411 security).
+ *
+ * Reject anything that could escape its segment or open a query/fragment:
+ * `/`, `?`, `#`, and the RFC-3986 dot-segments `.` / `..`. A rejected segment
+ * makes the whole command a no-op (mapCommandToPath → null → no navigation).
+ */
+function isValidDynamicSegment(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  if (value.includes('/') || value.includes('?') || value.includes('#')) return false;
+  if (value === '.' || value === '..') return false;
+  return true;
+}
+
+/**
+ * Resolve a `tab` for a view, or signal rejection.
+ *
+ * Returns the encoded tab when it is a real tab of a real tabbed route,
+ * `undefined` when no tab was requested, or `null` when the tab is invalid
+ * (route has no tabs, or the tab isn't in the route's allow-list).
+ */
+function resolveTab(
+  view: string,
+  tab: string | undefined,
+): string | undefined | null {
+  if (tab === undefined) return undefined;
+  const allow = TAB_ALLOWLIST[view];
+  if (!allow || !allow.has(tab)) return null;
+  return encodeURIComponent(tab);
+}
+
+/**
  * Map a PMO navigation command to a React Router path.
  *
- * Returns null for unsupported commands.
+ * Returns null for unsupported OR malformed commands. The framework's
+ * `onCommand` treats a null path as a no-op (`if (!path) return;`), so a null
+ * return means NO navigation. Dynamic segments are validated and encoded.
  */
 export function mapCommandToPath(command: PmoNavigationCommand): string | null {
   const { view, recordId, tab } = command;
 
+  // If a tab is present it must resolve to a real tab of a real tabbed route,
+  // otherwise the whole command is a safe no-op (no navigation).
+  const resolvedTab = resolveTab(view, tab);
+  if (resolvedTab === null) {
+    return null;
+  }
+
+  // Validate + encode the recordId once (shared by all detail routes).
+  const encodedId = recordId === undefined ? undefined : isValidDynamicSegment(recordId) ? encodeURIComponent(recordId) : null;
+  if (encodedId === null) {
+    return null;
+  }
+
   switch (view) {
     case 'projects':
-      if (recordId) {
-        if (tab) {
-          return `/projects/${recordId}/${tab}`;
-        }
-        return `/projects/${recordId}`;
+      if (encodedId) {
+        return resolvedTab !== undefined
+          ? `/projects/${encodedId}/${resolvedTab}`
+          : `/projects/${encodedId}`;
       }
       return '/projects';
 
@@ -55,31 +113,21 @@ export function mapCommandToPath(command: PmoNavigationCommand): string | null {
       return '/sales';
 
     case 'companies':
-      if (recordId) {
-        return `/companies/${recordId}`;
-      }
-      return '/companies';
+      return encodedId ? `/companies/${encodedId}` : '/companies';
 
     case 'procurement':
-      if (recordId) {
-        if (tab) {
-          return `/procurement/${recordId}/${tab}`;
-        }
-        return `/procurement/${recordId}`;
+      if (encodedId) {
+        return resolvedTab !== undefined
+          ? `/procurement/${encodedId}/${resolvedTab}`
+          : `/procurement/${encodedId}`;
       }
       return '/procurement';
 
     case 'contacts':
-      if (recordId) {
-        return `/contacts/${recordId}`;
-      }
-      return '/contacts';
+      return encodedId ? `/contacts/${encodedId}` : '/contacts';
 
     case 'incidents':
-      if (recordId) {
-        return `/incidents/${recordId}`;
-      }
-      return '/incidents';
+      return encodedId ? `/incidents/${encodedId}` : '/incidents';
 
     case 'my-tasks':
       return '/my-tasks';
@@ -98,10 +146,7 @@ export function mapCommandToPath(command: PmoNavigationCommand): string | null {
       return '/administration';
 
     case 'views':
-      if (recordId) {
-        return `/views/${recordId}`;
-      }
-      return '/views';
+      return encodedId ? `/views/${encodedId}` : '/views';
 
     case 'home':
       return '/';
