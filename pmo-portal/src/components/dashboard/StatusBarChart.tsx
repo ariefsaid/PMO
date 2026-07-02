@@ -119,7 +119,7 @@ export function StatusBarChart<S extends string>({
             <Link
               key={d.status}
               to={hrefFor(d.status)}
-              className="inline-flex items-center gap-1.5 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="inline-flex items-center gap-1.5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {inner}
             </Link>

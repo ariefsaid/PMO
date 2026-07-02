@@ -643,7 +643,7 @@ interface LineageButtonProps {
 const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => (
   <button
     type="button"
-    className="w-fit text-[11px] text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    className="w-fit text-[11px] text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     aria-label={`View revision ${revision} of ${title}`}
     onClick={(e) => {
       e.stopPropagation();
@@ -818,7 +818,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             <button
               type="button"
               onClick={() => void onDownload(doc)}
-              className="touch-target inline-flex rounded-sm text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="touch-target inline-flex rounded-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               aria-label={`Download ${doc.file_path.split('/').pop() || 'file'}`}
             >
               {doc.file_path.split('/').pop()}

@@ -206,7 +206,7 @@ const AdminUsers: React.FC = () => {
           <button
             type="button"
             onClick={() => scrollToManager(manager.id)}
-            className="truncate text-left text-[13px] underline-offset-2 hover:text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="truncate text-left text-[13px] underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             {manager.full_name}
           </button>
@@ -547,7 +547,7 @@ const ManagerFormModal: React.FC<{
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}
-            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary hover:underline"
+            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
             Clear manager

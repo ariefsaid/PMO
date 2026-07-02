@@ -109,7 +109,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
                       {' · '}
                       <Link
                         to={ev.docHref}
-                        className="font-mono text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                        className="font-mono text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                       >
                         {ev.docRef}
                       </Link>
@@ -137,7 +137,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((prev) => !prev)}
-          className="mt-3 text-[12px] text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          className="mt-3 text-[12px] text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
         >
           {expanded ? 'Show fewer' : `Show ${hiddenCount} earlier`}
         </button>

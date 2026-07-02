@@ -42,7 +42,8 @@
   --status-violet-text: 255 45% 42%;
   /* --- Destructive text (reskin --ds-destructive-text: AA on white + tint, ≥4.5:1) --- */
   --destructive-text: 0 72% 44%;
-  /* --- Nav active text (reskin --ds-primary-text: AA on the primary/10 nav wash) --- */
+  /* --- Link text / nav active text (reskin --ds-primary-text: AA on white + dark canvas) --- */
+  --primary-text: 221.2 83.2% 45%;
   --nav-active-text: 221.2 83.2% 45%;
   /* --- Semantic icon / surface tokens (reskin §0) ---
      warning-icon ← --ds-warning-icon; success-text ← --ds-success-text;
@@ -99,8 +100,9 @@
   --status-won-text: 142 60% 68%;
   --status-lost-text: 0 85% 76%;
   --status-violet-text: 255 65% 80%;
-  /* --- Destructive / nav-active / icon / text (reskin dark -text variants) --- */
+  /* --- Destructive / link text / nav-active / icon / text (reskin dark -text variants) --- */
   --destructive-text: 0 85% 76%;
+  --primary-text: 221 90% 72%;
   --nav-active-text: 221 90% 72%;
   --warning-icon: 43 90% 64%;
   --success-text: 142 60% 68%;
@@ -148,6 +150,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-violet: hsl(var(--violet));
+  --color-primary-text: hsl(var(--primary-text));
   --color-nav-active-text: hsl(var(--nav-active-text));
   --color-destructive-text: hsl(var(--destructive-text));
   --color-warning-icon: hsl(var(--warning-icon));

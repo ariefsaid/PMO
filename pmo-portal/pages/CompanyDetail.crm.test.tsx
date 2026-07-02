@@ -389,6 +389,7 @@ describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-0
     const link = screen.getByRole('link', { name: /jane doe/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/contacts/ct1');
+    expect(link.className).toContain('text-primary-text');
   });
 
   it('AC-CRM-CD-08: "Primary contact" section is absent when company has no contacts', () => {

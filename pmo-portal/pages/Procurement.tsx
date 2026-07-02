@@ -301,7 +301,7 @@ const ProcurementPage: React.FC = () => {
             {canApprove && (
               <Link
                 to="/approvals?scope=procurement"
-                className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[13px] font-medium text-primary transition-colors hover:bg-accent"
+                className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[13px] font-medium text-primary-text transition-colors hover:bg-accent"
               >
                 See all approvals
                 <Icon name="chev" aria-hidden />

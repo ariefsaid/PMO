@@ -164,7 +164,7 @@ const MyTasks: React.FC = () => {
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project. */}
                       <Link
                         to={`/timesheets?project=${task.project_id}`}
-                        className="text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        className="text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                       >
                         Log time
                       </Link>

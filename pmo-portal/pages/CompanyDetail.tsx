@@ -321,7 +321,7 @@ const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => 
       <dd className="text-[13.5px] text-foreground">
         <Link
           to={`/contacts/${primary.id}`}
-          className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           {primary.full_name}
         </Link>

@@ -145,7 +145,7 @@ const MyViewsPage: React.FC = () => {
           variant="empty"
           title="No views yet."
           sub={
-            <Link to="/views/new" className="font-medium text-primary hover:underline">
+            <Link to="/views/new" className="font-medium text-primary-text hover:underline">
               Create your first view
             </Link>
           }

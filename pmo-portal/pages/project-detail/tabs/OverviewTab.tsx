@@ -268,7 +268,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                 <button
                   type="button"
                   onClick={() => setTab('procurement')}
-                  className="text-[12px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
+                  className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
                   View all procurement
                 </button>
@@ -346,7 +346,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                 <button
                   type="button"
                   onClick={() => setTab('budget')}
-                  className="text-[12px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
+                  className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
                   Open Budget tab
                 </button>

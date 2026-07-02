@@ -145,7 +145,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             {canCreate && (
               <button
                 type="button"
-                className="shrink-0 text-[13px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                 onClick={() => setFormTarget({ milestone: null })}
               >
                 Plan delivery phases
@@ -314,7 +314,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           <button
             type="button"
             aria-label={`Edit progress for ${milestone.name}`}
-            className="text-[11px] font-semibold text-primary hover:underline"
+            className="text-[11px] font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
             Edit
@@ -439,7 +439,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
-              className="mt-1 inline-block text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="mt-1 inline-block text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
             >
               View blocking tasks
             </Link>

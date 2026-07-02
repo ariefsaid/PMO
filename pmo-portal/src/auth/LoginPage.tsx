@@ -243,7 +243,7 @@ const LoginPage: React.FC = () => {
                         setError(null);
                       }}
                       disabled={busy}
-                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {label}
                     </button>
