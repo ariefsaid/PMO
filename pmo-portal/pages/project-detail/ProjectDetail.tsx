@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tabs, tabId, tabPanelId, ListState, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectMutations, useProjects } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { useOpportunity } from '@/src/lib/db/opportunity';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
@@ -19,6 +20,7 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import ProjectDetailRail from './ProjectDetailRail';
+import ProjectFormModal from '../../components/ProjectFormModal';
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
 
@@ -61,6 +63,9 @@ const ProjectDetail: React.FC = () => {
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const { data, isPending } = useProjects();
+  const { updateHeader } = useProjectMutations();
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
 
   const cached = useMemo(
     () => (data ?? []).find((p) => p.id === projectId),
@@ -103,6 +108,20 @@ const ProjectDetail: React.FC = () => {
   // breadcrumb resolves the record name from the cached list in App.tsx, so no
   // per-page label hydration is needed once the tab layer is gone.
   const goBack = () => navigate('/projects');
+
+  const openEditProject = () => setEditOpen(true);
+  const closeEditProject = () => setEditOpen(false);
+
+  const saveProjectHeader = async (id: string, input: ProjectHeaderInput) => {
+    await updateHeader.mutateAsync({ id, input });
+    toast('Project updated', input.name, 'success');
+    closeEditProject();
+  };
+
+  const onProjectEditError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
 
   if (!project) {
     if (isPending || oppPending) {
@@ -188,7 +207,11 @@ const ProjectDetail: React.FC = () => {
           actionable tab bar surfaces above the fold rather than buried beneath the S-curve. */}
       {isPipeline ? (
         <>
-          <ProjectDetailHeader project={project} committedSpend={committedSpend} />
+          <ProjectDetailHeader
+            project={project}
+            committedSpend={committedSpend}
+            onEditProject={openEditProject}
+          />
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
@@ -212,7 +235,11 @@ const ProjectDetail: React.FC = () => {
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <div className="min-w-0">
-            <ProjectDetailHeader project={project} committedSpend={committedSpend} />
+            <ProjectDetailHeader
+              project={project}
+              committedSpend={committedSpend}
+              onEditProject={openEditProject}
+            />
 
             {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
                 so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
@@ -225,8 +252,27 @@ const ProjectDetail: React.FC = () => {
             {tabPanel}
           </div>
 
-          <ProjectDetailRail project={project} />
+          <ProjectDetailRail project={project} onEditProject={openEditProject} />
         </div>
+      )}
+      {editOpen && (
+        <ProjectFormModal
+          mode="editHeader"
+          initial={{
+            id: project.id,
+            name: project.name,
+            code: project.code,
+            client_id: project.client_id,
+            project_manager_id: project.project_manager_id,
+            clientName: project.client?.name ?? null,
+            pmName: project.pm?.full_name ?? null,
+            start_date: project.start_date,
+            end_date: project.end_date,
+          }}
+          onClose={closeEditProject}
+          onSave={saveProjectHeader}
+          onError={onProjectEditError}
+        />
       )}
     </div>
   );

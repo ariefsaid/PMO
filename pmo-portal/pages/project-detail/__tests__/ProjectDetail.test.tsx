@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,17 +19,20 @@ const projectsState = { data: seed, isPending: false, isError: false, refetch: v
 const committedSpendState = { data: 2_350_000 };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox } = vi.hoisted(() => ({ roleBox: { value: 'Project Manager' as string } }));
-vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => projectsState,
-  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
-  useProjectMutations: () => ({
+const { roleBox, projectMutations } = vi.hoisted(() => ({
+  roleBox: { value: 'Project Manager' as string },
+  projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
-  }),
+  },
+}));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => projectsState,
+  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
+  useProjectMutations: () => projectMutations,
   useClientCompanies: () => ({ data: [], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
@@ -131,6 +134,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     committedSpendState.data = 2_350_000;
     roleBox.value = 'Project Manager';
     navigate.mockClear();
+    Object.values(projectMutations).forEach((m) => {
+      m.mutateAsync.mockReset();
+      m.mutateAsync.mockResolvedValue(undefined);
+      m.isPending = false;
+    });
   });
 
   it('renders the header from the real cached row, defaults to Overview, and moves record details into the persistent rail (L3-RECORD)', () => {
@@ -159,6 +167,20 @@ describe('ProjectDetail shell (decomposition)', () => {
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('keeps one shared edit modal host: both header and rail triggers open the same prefilled flow', async () => {
+    renderAt('/projects/p1');
+
+    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    let dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /Edit project/i }));
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 
   it('passes committed PO spend through to the header and Overview budget utilization', () => {

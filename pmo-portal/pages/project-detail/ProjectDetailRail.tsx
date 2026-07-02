@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
-import { Button, StatusPill, type ButtonProps, useToast } from '@/src/components/ui';
+import React from 'react';
+import { Button, StatusPill, type ButtonProps } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjectMutations } from '@/src/hooks/useProjects';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
-import ProjectFormModal from '../../components/ProjectFormModal';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
+  onEditProject?: () => void;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -30,11 +28,8 @@ const railButtonProps: Pick<ButtonProps, 'variant' | 'size'> = {
   size: 'sm',
 };
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, onEditProject }) => {
   const may = usePermission();
-  const { toast } = useToast();
-  const { updateHeader } = useProjectMutations();
-  const [editOpen, setEditOpen] = useState(false);
 
   const canEdit = may('edit', 'project');
 
@@ -52,7 +47,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
               Keep the record details current so delivery, budget, procurement, and documents stay aligned.
             </p>
             {canEdit && (
-              <Button {...railButtonProps} onClick={() => setEditOpen(true)}>
+              <Button {...railButtonProps} onClick={onEditProject}>
                 Edit project
               </Button>
             )}
@@ -96,32 +91,6 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
         </section>
       </div>
 
-      {editOpen && (
-        <ProjectFormModal
-          mode="editHeader"
-          initial={{
-            id: project.id,
-            name: project.name,
-            code: project.code,
-            client_id: project.client_id,
-            project_manager_id: project.project_manager_id,
-            clientName: project.client?.name ?? null,
-            pmName: project.pm?.full_name ?? null,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          }}
-          onClose={() => setEditOpen(false)}
-          onSave={async (id, input) => {
-            await updateHeader.mutateAsync({ id, input });
-            toast('Project updated', input.name, 'success');
-            setEditOpen(false);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
-      )}
     </aside>
   );
 };

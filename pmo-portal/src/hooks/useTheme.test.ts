@@ -6,7 +6,7 @@
  * the no-flash script seeds and CSS reads; localStorage is the persistence layer.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTheme } from './useTheme';
 
 describe('useTheme (F2 dark-mode toggle)', () => {
@@ -62,6 +62,41 @@ describe('useTheme (F2 dark-mode toggle)', () => {
     act(() => result.current.setTheme('light'));
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(localStorage.getItem('theme')).toBe('light');
+  });
+
+  it('syncs same-tab hook instances when one instance sets the theme', async () => {
+    const first = renderHook(() => useTheme());
+    const second = renderHook(() => useTheme());
+
+    expect(first.result.current.theme).toBe('light');
+    expect(second.result.current.theme).toBe('light');
+
+    act(() => first.result.current.setTheme('dark'));
+
+    await waitFor(() => expect(second.result.current.theme).toBe('dark'));
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+
+  it('syncs from DOM truth when a same-tab themechange event is dispatched', async () => {
+    const { result } = renderHook(() => useTheme());
+
+    act(() => {
+      document.documentElement.classList.add('dark');
+      window.dispatchEvent(new Event('themechange'));
+    });
+
+    await waitFor(() => expect(result.current.theme).toBe('dark'));
+  });
+
+  it('syncs from DOM truth when a storage event is dispatched', async () => {
+    const { result } = renderHook(() => useTheme());
+
+    act(() => {
+      document.documentElement.classList.add('dark');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'theme', newValue: 'dark' }));
+    });
+
+    await waitFor(() => expect(result.current.theme).toBe('dark'));
   });
 
   it('persists even though it must not throw when localStorage is unavailable (private mode)', () => {

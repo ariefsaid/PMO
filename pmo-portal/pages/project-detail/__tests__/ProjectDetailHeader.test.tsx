@@ -177,11 +177,18 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     expect(toast).toBeInTheDocument();
   });
 
-  it('AC-PRJ-004: Edit opens the edit-header modal pre-filled with the project name', async () => {
-    renderHeader('Admin');
+  it('AC-PRJ-004: Edit delegates to the shared page-level edit flow host', async () => {
+    const onEditProject = vi.fn();
+    roleBox.value = 'Admin';
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} committedSpend={2_100_000} onEditProject={onEditProject} />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
     await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(onEditProject).toHaveBeenCalledTimes(1);
   });
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {

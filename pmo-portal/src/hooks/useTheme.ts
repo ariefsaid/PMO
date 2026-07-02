@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * useTheme — F2 dark-mode toggle.
@@ -19,6 +19,7 @@ import { useCallback, useState } from 'react';
 export type Theme = 'light' | 'dark';
 
 export const THEME_STORAGE_KEY = 'theme';
+export const THEME_CHANGE_EVENT = 'themechange';
 
 /** Read the authoritative current theme straight off the documentElement class. */
 function readDomTheme(): Theme {
@@ -34,6 +35,18 @@ export interface UseThemeResult {
 export function useTheme(): UseThemeResult {
   const [theme, setThemeState] = useState<Theme>(readDomTheme);
 
+  useEffect(() => {
+    const syncTheme = () => setThemeState(readDomTheme());
+
+    window.addEventListener('storage', syncTheme);
+    window.addEventListener(THEME_CHANGE_EVENT, syncTheme);
+
+    return () => {
+      window.removeEventListener('storage', syncTheme);
+      window.removeEventListener(THEME_CHANGE_EVENT, syncTheme);
+    };
+  }, []);
+
   const setTheme = useCallback((next: Theme) => {
     // 1) DOM truth FIRST — flip the class before touching storage so the
     //    visible state changes even when localStorage.setItem throws.
@@ -46,8 +59,9 @@ export function useTheme(): UseThemeResult {
     } catch {
       /* private mode / quota exhausted — ignore; the class already applied. */
     }
-    // 3) Keep React state in sync so consumers re-render on change.
+    // 3) Keep same-tab consumers in sync with the DOM source of truth.
     setThemeState(next);
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
   const toggle = useCallback(() => {
