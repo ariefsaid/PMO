@@ -13,6 +13,11 @@ export const FEATURES = {
   aiComposer: import.meta.env.VITE_FEATURES_AI_COMPOSER === 'true' || false,
   // A2 (ADR-0040): the in-app agent AssistantPanel + ⌘J. UI-hide-first; off by default.
   agentAssistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
+  // E3 (ADR-0040): mount agent-native's real UI (<AgentNativeEmbedded>) inside the PMO
+  // shell, same React tree, themed by PMO tokens. Staged adoption — OFF by default so the
+  // existing AssistantPanel (agentAssistant) stays the live surface. When ON, the shell is
+  // wrapped by <AgentNativeEmbedded> and the legacy panel is hidden (staged retirement is E8).
+  agentNativeEmbed: import.meta.env.VITE_AGENT_NATIVE_EMBED === 'true' || false,
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

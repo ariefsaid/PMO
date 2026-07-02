@@ -1,0 +1,276 @@
+/*
+ * Step 4 pilot shell styles — plain CSS, no Tailwind / no PMO dep.
+ * Lays out the mock host (fixed left nav + scrolling main) so the coexistence
+ * question is observable: does the agent panel disturb THIS layout?
+ */
+
+:root {
+  --pmo-bg: #0b1220;
+  --pmo-panel: #111a2e;
+  --pmo-panel-2: #0f1729;
+  --pmo-text: #e6ebf5;
+  --pmo-muted: #8a97b0;
+  --pmo-accent: #6ea8ff;
+  --pmo-border: #1f2a44;
+  --pmo-card: #131d35;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--pmo-bg);
+  color: var(--pmo-text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Mock PMO host shell ────────────────────────────────────────────────── */
+
+.pmo-shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+  width: 100%;
+}
+
+.pmo-nav {
+  background: var(--pmo-panel-2);
+  border-right: 1px solid var(--pmo-border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 4px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.pmo-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.pmo-nav__logo {
+  color: var(--pmo-accent);
+}
+
+.pmo-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pmo-nav__item {
+  color: var(--pmo-muted);
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.pmo-nav__item:hover {
+  background: var(--pmo-panel);
+  color: var(--pmo-text);
+}
+
+.pmo-nav__footer {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--pmo-muted);
+  padding: 8px;
+}
+
+.pmo-main {
+  overflow-y: auto;
+  padding: 28px 32px 64px;
+}
+
+.pmo-main__header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.pmo-main__sub {
+  margin: 0 0 24px;
+  color: var(--pmo-muted);
+}
+
+.pmo-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.pmo-card {
+  background: var(--pmo-card);
+  border: 1px solid var(--pmo-border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pmo-card__label {
+  color: var(--pmo-muted);
+  font-size: 12px;
+}
+
+.pmo-card__value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.pmo-prose h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.pmo-prose p,
+.pmo-prose ul {
+  margin: 0 0 12px;
+}
+
+.pmo-prose code {
+  background: var(--pmo-panel);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.pmo-prose ul {
+  padding-left: 20px;
+}
+
+/* ── Signed-in wrapper / sign-out ───────────────────────────────────────── */
+
+.pilot-signed-in {
+  height: 100vh;
+  position: relative;
+}
+
+.pilot-signout {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 60;
+  background: var(--pmo-panel);
+  color: var(--pmo-muted);
+  border: 1px solid var(--pmo-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pilot-signout:hover {
+  color: var(--pmo-text);
+}
+
+/* ── Sign-in gate ───────────────────────────────────────────────────────── */
+
+.pilot-signin {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.pilot-signin__form {
+  width: 100%;
+  max-width: 360px;
+  background: var(--pmo-panel);
+  border: 1px solid var(--pmo-border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pilot-signin__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pilot-signin__sub {
+  margin: 0 0 4px;
+  color: var(--pmo-muted);
+  font-size: 12px;
+}
+
+.pilot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pilot-field span {
+  color: var(--pmo-muted);
+  font-size: 12px;
+}
+
+.pilot-field input {
+  background: var(--pmo-bg);
+  border: 1px solid var(--pmo-border);
+  color: var(--pmo-text);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+}
+
+.pilot-field input:focus {
+  outline: none;
+  border-color: var(--pmo-accent);
+}
+
+.pilot-submit {
+  margin-top: 4px;
+  background: var(--pmo-accent);
+  color: #06101f;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pilot-submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.pilot-error {
+  margin: 0;
+  color: #ff8b8b;
+  font-size: 12px;
+}
+
+.pilot-hint {
+  margin: 0;
+  color: var(--pmo-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.pilot-hint code {
+  background: var(--pmo-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+}

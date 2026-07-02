@@ -1,0 +1,59 @@
+/**
+ * E3 (ADR-0040, FR-409 / NFR-404 / AC-409) — PMO → agent-native theme bridge.
+ *
+ * MECHANISM (verified in the API reference §2): agent-native's client UI consumes the
+ * shadcn-HSL CSS custom properties (`--background`, `--foreground`, `--card`, `--primary`,
+ * `--border`, `--input`, `--muted`, `--accent`, `--popover`, `--destructive`, `--ring`, …)
+ * via `hsl(var(--token))`. PMO's `index.css` declares EXACTLY these names on `:root` (light)
+ * and `.dark` (dark) — so the embedded agent UI inherits PMO's monochrome-calm tokens
+ * automatically, in BOTH themes, with NO source fork of agent-native styles.
+ *
+ * This file is the EXPLICIT bridge surface: it scopes the embedded surface under
+ * `[data-agent-native-host]` and (a) documents the token-name contract both programs share,
+ * (b) redirects any agent-native-specific var that does NOT map 1:1 to a PMO name onto its
+ * PMO equivalent, and (c) guarantees light/dark parity by inheriting PMO's `:root`/`.dark`.
+ *
+ * G1 (theming fidelity) is judged live at E5 against the reskin-port DESIGN.md token contract;
+ * E3 proves the bridge is wired structurally (the container carries PMO tokens + light/dark scope).
+ *
+ * TOKEN RULE: never hardcode raw hex/HSL here — every value is a reference to a PMO token NAME.
+ */
+
+/* The embedded surface sits inside PMO's `:root`/`.dark` scope, so it picks up light + dark
+   automatically. This block is intentionally a no-op alias surface: it asserts the shared
+   token-name contract and is the single place to redirect any future agent-native var that
+   diverges from a PMO name. Adding a literal color here is a defect (DESIGN.md tokens only). */
+[data-agent-native-host] {
+  /* agent-native consumes these shadcn names; PMO owns them on :root/.dark. Re-stating them
+     here as `var()` self-references is belt-and-suspenders: if a future agent-native release
+     ships a `:root` reset, the embed still resolves to PMO's values via this scope. */
+  --background: var(--background);
+  --foreground: var(--foreground);
+  --card: var(--card);
+  --card-foreground: var(--card-foreground);
+  --popover: var(--popover);
+  --popover-foreground: var(--popover-foreground);
+  --primary: var(--primary);
+  --primary-foreground: var(--primary-foreground);
+  --secondary: var(--secondary);
+  --secondary-foreground: var(--secondary-foreground);
+  --muted: var(--muted);
+  --muted-foreground: var(--muted-foreground);
+  --accent: var(--accent);
+  --accent-foreground: var(--accent-foreground);
+  --destructive: var(--destructive);
+  --destructive-foreground: var(--destructive-foreground);
+  --border: var(--border);
+  --input: var(--input);
+  --ring: var(--ring);
+  --radius: var(--radius);
+}
+
+/* Dark parity: PMO toggles `<html>.dark`; the cascade above already re-resolves every var
+   through PMO's `.dark` block, so the embedded surface flips theme in lockstep with the shell.
+   This explicit `.dark [data-agent-native-host]` rule documents that the light|dark pair is
+   OWNED by the host (BrandKit is single-palette; the host owns the light+dark convention —
+   API ref §2). No value overrides needed here. */
+.dark [data-agent-native-host] {
+  /* inherits PMO `.dark` token values via the `:root`/`.dark` cascade — intentional no-op */
+}

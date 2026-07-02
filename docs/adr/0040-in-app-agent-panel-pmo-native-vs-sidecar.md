@@ -1,10 +1,10 @@
 # ADR-0040 — The in-app agent panel: PMO-native conversational surface vs. `agent-native` sidecar
 
-- **Status:** Proposed (decision-support — owner picks Option A or B before any build). Option A **shipped**
-  (epic A1–A4, PR #200). **Option B revisited 2026-07-01 with live facts → `docs/spikes/2026-07-01-agent-native-sidecar.md`**
-  (verdict: feasible but a scoped pilot; two corrections to this ADR — Cloudflare Workers is out (`better-sqlite3`
-  hard dep) so the target is a Node VPS behind a same-origin proxy, and the chat UI is `@agent-native/core/client`
-  in-tree React, **not** `code-agents-ui`, which is a coding-agent workspace).
+- **Status:** Accepted — **Decision: Option B (`agent-native`, whole UI themed) ADOPTED 2026-07-01**, superseding this ADR's prior Option-A recommendation. Option A **shipped**
+  (epic A1–A4, PR #200) and remains live only as the staged fallback until Option B reaches parity. **Option B was re-verified 2026-07-01 with live facts →**
+  `docs/spikes/2026-07-01-agent-native-sidecar-findings.md` and `docs/spikes/2026-07-01-agent-native-sidecar.md`. The material corrections to this ADR are now settled:
+  Cloudflare Workers is out (`better-sqlite3` hard dep) so the target is a persistent Node/Nitro server behind a same-origin proxy, and the product UI is
+  `@agent-native/core/client` in-tree React — including `<AgentNativeEmbedded>` — not `code-agents-ui`.
 - **Date:** 2026-06-30
 - **Deciders:** Owner, Director
 - **Related:** ADR-0016 (FE authz + real-JWT), ADR-0017 (repository/API seam), ADR-0019 (server-enforced SoD), ADR-0030 (build-vs-buy vendoring), ADR-0036 (agent-native user-composed UI — §8 sidecar, §9 spike), ADR-0037 (compiler DSL), ADR-0038 (renderer executor), ADR-0039 (untrusted-output boundary, the I5 edge function).
@@ -229,11 +229,104 @@ interface AgentAction<I> {
 - **B-adapter (deferred)** — `AgentNativeRuntime` + a contract-test suite proving it satisfies the same port;
   gated on a custom domain + the §8 sidecar decision. **No app/panel change required to add it.**
 
+## Decision (2026-07-01)
+
+PMO adopts **Builder.io `agent-native` whole — engine + UI** — as the future in-app agent surface:
+**ADR-0040 Option B, not Option A, not a hybrid, not “their engine behind PMO’s panel.”** The product is
+colocated at **`pmo/agent-native/`** beside `pmo-portal/`, taken **config-over-fork** so it stays
+upstream-upgradeable, and PMO embeds **`<AgentNativeEmbedded>`** from `@agent-native/core/client` in the
+same React tree. PMO does **not** use the iframe `EmbeddedApp` path. PMO themes the shipped agent-native UI
+through the framework’s own token seam (`@agent-native/core/brand-kit`, `server/design-token-utils`,
+`AppearancePicker`) against the monochrome-calm token contract in
+`/Users/ariefsaid/Coding/PMO/.claude/worktrees/reskin-port/DESIGN.md`.
+
+### Why the decision flipped
+
+The owner decision rests on six load-bearing facts verified in the pilot and installed types.
+
+1. **Deputy-invariant gate GREEN, independently re-verified.**
+   `docs/spikes/2026-07-01-agent-native-sidecar-findings.md` records the 5/5 green gate: cross-tenant read
+   denied, cross-tenant write denied, same-tenant write succeeds, no `service_role` business path, and the
+   sidecar schema stays isolated from `public`.
+2. **No second domain is required for the embed.**
+   The embed is same-origin and the browser hands identity over a **bearer token**, not a cross-site cookie.
+   The pilot verified the built-in `ensureEmbedAuthFetchInterceptor()` path using `sessionStorage` and the
+   same-origin proxy, so the prior “custom domain for SSO” blocker is moot for the embedded product shape.
+3. **The headless runtime seam is real and supported.**
+   Installed types confirm `@agent-native/core/client/chat/runtime` exports
+   `createAgentNativeChatRuntime(options?): AgentChatRuntime<...>`, and `AgentChatRuntime` is a first-class
+   interface with `createSession`, `capabilities`, `sendMessage`, `subscribe`, and `resume`. This is a public
+   API seam, not a reverse-engineered transport.
+4. **The first-class-citizen capability lives in the shipped UI layer, not just the engine.**
+   Installed types confirm the relevant client primitives exist today: `AgentNativeEmbedded`,
+   `AgentChatContextItem`, `addContextToAgentChat`/`setContextToAgentChat`, `insertAgentComposerReference`,
+   `useSemanticNavigationState`, `SemanticNavigationCommandEnvelope`, `useAgentRouteState`,
+   `McpAppRenderer`, `getMcpUrl`, `getA2AUrl`, and `defineClientAction`. Rebuilding PMO’s own panel would mean
+   recreating this surface and forever shimming upstream capability. We reject that shim.
+5. **The “off-brand UI” objection dissolved.**
+   agent-native already exposes a theming seam through `brand-kit`, `server/design-token-utils`, and
+   `AppearancePicker`; the new PMO monochrome-calm system is tokenized end-to-end, so brand alignment is a
+   configuration problem, not a forking problem.
+6. **PMO’s in-flight reskin already converged on agent-native’s visual language.**
+   The owner-approved redesign ADR (`/Users/ariefsaid/Coding/PMO/.claude/worktrees/mockups/docs/adr/0037-monochrome-calm-design-language.md`)
+   explicitly derives from Builder.io’s `agent-native` look, and the canonical reskin token contract lives in
+   `/Users/ariefsaid/Coding/PMO/.claude/worktrees/reskin-port/DESIGN.md`. Themed agent-native is therefore
+   aligned with the current UI direction, not fighting it.
+
+### Explicit gates on the adoption
+
+- **G1 — Theming fidelity.** The themed `<AgentNativeEmbedded>` must meet the monochrome-calm bar via tokens.
+  The owner standard is **brand-aligned via tokens, not pixel-parity to bespoke PMO component idioms**. This
+  gate requires the real live model loop, so a real `ANTHROPIC_API_KEY` on the Nitro server is a prerequisite.
+  If token theming cannot reach an acceptable bar, **that is the only gate that reopens** the “engine behind
+  PMO’s port” alternative.
+- **G2 — Security substrate ports forward.** PMO retires Option A’s face, not its immune system. The deputy
+  pattern must be re-established through agent-native’s `auth()` hook plus `defineAction` / `defineClientAction`:
+  caller JWT client, RLS as ceiling, `service_role` only for `auth.getUser` (NFR-AR-SEC-002). Separately,
+  ADR-0039’s untrusted-output boundary must sit **between model output and anything rendered or executed**,
+  including agent-native’s own composition surface.
+- **G3 — Conscious churn coupling.** Whole-UI adoption trades the `AgentRuntime` port’s insulation for
+  upstream-upgradeability. PMO therefore **pins exact versions, owns an explicit upgrade cadence, treats
+  gate-tests as canaries, and expands the deputy-invariant gate to MCP/A2A endpoints plus `defineClientAction`**,
+  not just data read/write.
+
+### Sequencing
+
+This work runs **in parallel with the monochrome-calm reskin**, not after it. The shared contract is the
+reskin token layer (`:root` / `.dark`) in `reskin-port/DESIGN.md`; both fronts must point at the same tokens.
+
+### Honest cost
+
+This is still a real architectural step-up:
+- a persistent **Nitro Node server** on the VPS, not a serverless edge function;
+- a **same-origin Cloudflare Pages Function proxy** in front of it;
+- a **second data layer** for agent-native’s own framework state (the pilot measured ~28 tables), isolated via
+  a dedicated DB role and `search_path` rather than `?schema=`;
+- a **pre-1.0 dependency** publishing at a high rate, so exact pins and explicit upgrade work are mandatory.
+
+### Staged retirement of Option A
+
+Option A’s shipped edge-function assistant remains live **until Option B reaches parity**. Retirement is
+staged, last, and explicit: `supabase/functions/agent-chat/*`, `pmo-portal/src/components/panel/*`, and
+`pmo-portal/src/lib/agent/runtime/*` are removed only in the final issue once parity is proven.
+
+### `compose_view` is a parity-check, not a pre-decided deletion
+
+PMO does **not** pre-decide the fate of `compose_view`. Issue E7 compares PMO’s existing `compose_view`
+compiler/renderer path against agent-native’s native composition and records a separate retire-or-keep
+judgment. The existing PMO trusted-core work remains authoritative until that parity check says otherwise.
+
+### Programmatic next step
+
+The execution artifact for this decision is **`docs/plans/2026-07-01-agent-native-adoption-epic.md`** — the
+staged E1–E8 adoption epic, including the three gates above, the parity-check for `compose_view`, and the
+ADR-0037 renumber-before-merge hazard (`dev` already owns `0037-view-composition-compiler-dsl`, while the
+reskin branch also uses `0037`).
+
 ## Open questions for the owner
-1. **Approach:** confirm A-with-the-seam (this ADR now recommends exactly that).
-2. **Write scope for v1:** start **read-only** (explore + compose), add write-actions (A3) in a follow-up? (Recommended — smallest safe first cut.)
-3. **Entry point:** ⌘J + a Rail "Assistant" item, or a floating button? (Recommended: ⌘J + Rail, matching the existing CommandPalette idiom.)
-4. **Domain (only if B):** is a custom domain on the near-term roadmap? Without it, B's SSO cannot be exercised.
+1. **No decision re-opened here.** Option B whole-UI-themed is adopted.
+2. **Operational readiness only:** when to provide the live `ANTHROPIC_API_KEY` needed to judge G1.
+3. **Release sequencing only:** when the Director wants E1–E8 pulled into issue-by-issue specs/build plans.
 
 ## Addendum (2026-06-30) — Can Option A reuse `agent-native`'s chat UI / template app? (owner question)
 

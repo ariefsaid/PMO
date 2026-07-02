@@ -43,6 +43,10 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
+// E3 (ADR-0040): mount agent-native's real UI (<AgentNativeEmbedded>) in the same React tree,
+// themed by PMO tokens, behind the agentNativeEmbed flag. When on, the legacy AssistantPanel
+// (above) is hidden (staged retirement is E8). Flag off (default) → shell byte-identical.
+import { AgentNativeHost } from '@/src/components/agent/AgentNativeHost';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -156,13 +160,19 @@ const ShellChrome: React.FC = () => {
   const [railOpen, setRailOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
+  // E3: when the agent-native EMBED flag is on, the legacy AssistantPanel surface is retired
+  // (the embed provides its own agent UI + toggle). Suppress the legacy panel, its Rail button,
+  // and its ⌘J hotkey so none of Option-A's affordances dangle beside the embed.
+  const embedOn = isFeatureEnabled('agentNativeEmbed');
+
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.
   const { togglePanel, openPanel, open: assistantOpen } = useAgentRuntimeContext();
 
-  // A2: Register ⌘J / Ctrl+J global hotkey — flag-gated (FR-AP-004).
+  // A2: Register ⌘J / Ctrl+J global hotkey — flag-gated (FR-AP-004). Suppressed when the
+  // agent-native embed owns the assistant surface (E3).
   useAssistantHotkey({
-    enabled: isFeatureEnabled('agentAssistant'),
+    enabled: isFeatureEnabled('agentAssistant') && !embedOn,
     onToggle: togglePanel,
   });
 
@@ -327,9 +337,10 @@ const ShellChrome: React.FC = () => {
             onNavigate={() => setRailOpen(false)}
             railActiveOverride={railActiveOverride}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
-            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
+            // E3: suppressed when the agent-native embed owns the assistant surface.
+            onOpenAssistant={isFeatureEnabled('agentAssistant') && !embedOn ? openPanel : undefined}
             // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).
-            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
+            assistantPanelOpen={isFeatureEnabled('agentAssistant') && !embedOn ? assistantOpen : undefined}
           />
         }
         header={
@@ -343,7 +354,8 @@ const ShellChrome: React.FC = () => {
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
-        assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
+        // E3: when the agent-native embed is on, the legacy panel is hidden (embed owns the surface).
+        assistant={embedOn ? undefined : isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
       >
         <AppRoutes />
       </AppShell>
@@ -362,7 +374,11 @@ const ShellChrome: React.FC = () => {
 
 // ── Shell (eager — renders after auth is confirmed) ────────────────────────
 const Shell: React.FC = () => {
-  const { role } = useAuth();
+  const { role, session } = useAuth();
+  // E3: the embed reads the PMO Supabase session access_token to hand off as the bearer to the
+  // agent-native sidecar (ensureEmbedAuthFetchInterceptor). Flag off → AgentNativeHost is a
+  // pass-through (children unchanged, zero agent-native code in the tree).
+  const embedEnabled = isFeatureEnabled('agentNativeEmbed');
   return (
     <ImpersonationProvider realRole={role}>
       <ToastProvider>
@@ -371,7 +387,11 @@ const Shell: React.FC = () => {
             importer of PmoNativeRuntime (port isolation, AC-AP-024).
             Flag-off: provides runtime=null, open=false — zero overhead. */}
         <AgentRuntimeProvider>
-          <ShellChrome />
+          {/* E3 (FR-407): wraps ShellChrome in <AgentNativeEmbedded> when the embed flag is on
+              (same React tree, themed by PMO tokens); pass-through when off. */}
+          <AgentNativeHost enabled={embedEnabled} accessToken={session?.access_token ?? null}>
+            <ShellChrome />
+          </AgentNativeHost>
         </AgentRuntimeProvider>
       </ToastProvider>
     </ImpersonationProvider>

@@ -73,6 +73,15 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
+      - name: Required-peer guard (legacy-peer-deps blind spot)
+        # pmo-portal installs with legacy-peer-deps=true (the optional
+        # react-router@>=8 peer of @agent-native/core conflicts with the
+        # react-router@7 that react-router-dom@7 pulls in). legacy-peer-deps
+        # silences ALL peer mismatches, so this step re-asserts that every
+        # REQUIRED (non-optional) peer of every direct dep is satisfied — the
+        # silent-mismatch class that would otherwise install clean and break at
+        # runtime. See scripts/check-required-peers.mjs.
+        run: npm run check:peers
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
         # Build-time devDependencies (vite/esbuild/vitest/etc.) never enter the bundle, so an
@@ -211,3 +220,80 @@ jobs:
           name: playwright-report
           path: pmo-portal/playwright-report/
           retention-days: 7
+
+  agent-native-deputy-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect agent-native changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -eu
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            RANGE="origin/$BASE_REF...HEAD"
+          else
+            RANGE="$BEFORE_SHA...HEAD"
+          fi
+
+          if git diff --name-only "$RANGE" | grep -q '^pmo/agent-native/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: supabase/setup-cli@v2
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          version: 2.105.0
+
+      - uses: actions/setup-node@v5
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo/agent-native/package-lock.json
+
+      - name: Start local Supabase stack
+        if: steps.changes.outputs.changed == 'true'
+        run: supabase start -x studio,realtime,vector
+
+      - name: Reset DB (migrations + seed)
+        if: steps.changes.outputs.changed == 'true'
+        run: supabase db reset --yes
+
+      - name: Resolve local Supabase env for the canary
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          eval "$(supabase status -o env)"
+          echo "SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "::add-mask::${SERVICE_ROLE_KEY}"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+
+      - name: Create agent-native framework role
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f pmo/agent-native/scripts/create-agent-native-role.sql
+
+      - name: Install agent-native dependencies
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: pmo/agent-native
+        run: npm ci
+
+      - name: Deputy-invariant canary
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: pmo/agent-native
+        run: npx vitest run test/deputy-invariant.gate.test.ts
