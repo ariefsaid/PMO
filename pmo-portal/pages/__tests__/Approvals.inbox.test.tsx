@@ -112,6 +112,14 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
+  it('AC-MOBILE-OVERFLOW-001: the scope filter strip lives inside a dedicated horizontal scroller', () => {
+    renderAs('Project Manager');
+    const scroll = screen.getByTestId('approvals-scope-scroll');
+    expect(scroll.className).toContain('min-w-0');
+    expect(scroll.className).toContain('overflow-x-auto');
+    expect(scroll.className).toContain('scroll-fade-x');
+  });
+
   it('L3-APPROVALS: desktop defaults to the unified triage queue with the first pending item selected', () => {
     renderAs('Project Manager');
     expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();

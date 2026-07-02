@@ -304,23 +304,29 @@ const ApprovalsPage: React.FC = () => {
       </div>
 
       {hasTabs && !allCaughtUp && (
-        <div className="mb-4">
-          <ViewToggle<Scope>
-            options={[
-              ...(canApproveProcurement && canApproveTimesheets
-                ? [{ value: 'all' as const, label: 'All', icon: 'grid' as const, count: pendingProc + pendingTs }]
-                : []),
-              ...(canApproveProcurement
-                ? [{ value: 'procurement' as const, label: 'Procurement', icon: 'cart' as const, count: pendingProc }]
-                : []),
-              ...(canApproveTimesheets
-                ? [{ value: 'timesheets' as const, label: 'Timesheets', icon: 'clock' as const, count: pendingTs }]
-                : []),
-            ]}
-            value={activeScope}
-            onChange={selectScope}
-            ariaLabel="Approvals scope"
-          />
+        <div className="mb-4 min-w-0">
+          <div
+            data-testid="approvals-scope-scroll"
+            className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
+          >
+            <ViewToggle<Scope>
+              className="max-w-full"
+              options={[
+                ...(canApproveProcurement && canApproveTimesheets
+                  ? [{ value: 'all' as const, label: 'All', icon: 'grid' as const, count: pendingProc + pendingTs }]
+                  : []),
+                ...(canApproveProcurement
+                  ? [{ value: 'procurement' as const, label: 'Procurement', icon: 'cart' as const, count: pendingProc }]
+                  : []),
+                ...(canApproveTimesheets
+                  ? [{ value: 'timesheets' as const, label: 'Timesheets', icon: 'clock' as const, count: pendingTs }]
+                  : []),
+              ]}
+              value={activeScope}
+              onChange={selectScope}
+              ariaLabel="Approvals scope"
+            />
+          </div>
         </div>
       )}
 
