@@ -10,6 +10,7 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
@@ -20,6 +21,7 @@ import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
 import ProjectDetailRail from './ProjectDetailRail';
+import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
@@ -62,6 +64,7 @@ const ProjectDetail: React.FC = () => {
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const { data, isPending } = useProjects();
   const { updateHeader } = useProjectMutations();
   const { toast } = useToast();
@@ -153,6 +156,7 @@ const ProjectDetail: React.FC = () => {
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
   const group = projectStatusGroup(project.status as never);
   const isPipeline = group === 'pipeline' || group === 'lost';
+  const canTransitionProject = may('transition', 'project');
 
   const tabPanel = (
     <div
@@ -233,8 +237,9 @@ const ProjectDetail: React.FC = () => {
           {tabPanel}
         </>
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div className="min-w-0">
+        <>
+          <div className="grid gap-8 pb-24 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:pb-0">
+            <div className="min-w-0">
             <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}
@@ -252,8 +257,29 @@ const ProjectDetail: React.FC = () => {
             {tabPanel}
           </div>
 
-          <ProjectDetailRail project={project} onEditProject={openEditProject} />
-        </div>
+            <ProjectDetailRail
+              project={project}
+              onEditProject={openEditProject}
+              showActionSection={isDesktop}
+            />
+          </div>
+
+          {!isDesktop && canTransitionProject && (
+            <div
+              data-testid="mobile-sticky-action"
+              className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 pt-3 backdrop-blur-sm"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+            >
+              <div className="mx-auto flex max-w-5xl justify-end">
+                <ProjectStatusControl
+                  project={project}
+                  triggerVariant="primary"
+                  triggerSize="sm"
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
       {editOpen && (
         <ProjectFormModal

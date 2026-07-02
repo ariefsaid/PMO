@@ -19,8 +19,9 @@ const projectsState = { data: seed, isPending: false, isError: false, refetch: v
 const committedSpendState = { data: 2_350_000 };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, projectMutations, projectTransition } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' as string },
+  desktopBox: { value: true },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -49,6 +50,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 // ADR-0016: the Budget tab (ProjectBudget) + ProjectStatusControl gate write on the REAL
 // role via usePermission, so the mock supplies realRole (equal to effectiveRole here).
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }) }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
 // Budget tab mounts the real ProjectBudget — stub its data hooks to avoid network.
 vi.mock('@/src/hooks/useBudget', () => ({
   // AC-W2-1-FE-01: budget utilization reads from useProjectBudget (derived from Active version
@@ -143,6 +145,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.isError = false;
     committedSpendState.data = 2_350_000;
     roleBox.value = 'Project Manager';
+    desktopBox.value = true;
     navigate.mockClear();
     Object.values(projectMutations).forEach((m) => {
       m.mutateAsync.mockReset();
@@ -183,13 +186,48 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1');
 
     const rail = screen.getByTestId('project-detail-rail');
-    expect(within(rail).getByRole('button', { name: /change status/i })).toBeInTheDocument();
+    const changeStatus = within(rail).getByRole('button', { name: /change status/i });
+    expect(changeStatus).toBeInTheDocument();
+    expect(changeStatus.className).toContain('bg-primary');
     expect(within(rail).queryByRole('button', { name: /edit project/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
 
     await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+  });
+
+  it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', () => {
+    const cases = [
+      ['/projects/p1/budget', /new version/i],
+      ['/projects/p1/procurement', /new request/i],
+      ['/projects/p1/tasks', /new task/i],
+      ['/projects/p1/documents', /add document/i],
+    ] as const;
+
+    for (const [path, name] of cases) {
+      const { unmount } = renderAt(path);
+      const rail = screen.getByTestId('project-detail-rail');
+      expect(within(rail).getByRole('button', { name: /change status/i }).className).toContain('bg-primary');
+      const tabCta = screen.getAllByRole('button', { name })[0];
+      expect(tabCta.className).toContain('bg-background');
+      expect(tabCta.className).not.toContain('bg-primary');
+      unmount();
+    }
+  });
+
+  it('I-3: mobile record render moves Change status into a sticky bottom action bar and removes the rail action copy', () => {
+    desktopBox.value = false;
+    renderAt('/projects/p1');
+
+    const sticky = screen.getByTestId('mobile-sticky-action');
+    expect(sticky.className).toMatch(/fixed|sticky/);
+    expect(sticky.className).toContain('bottom-0');
+    expect(sticky.textContent).toMatch(/change status/i);
+    expect(sticky.getAttribute('style') ?? '').toContain('safe-area-inset-bottom');
+
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(within(rail).queryByRole('button', { name: /change status/i })).toBeNull();
   });
 
   it('passes committed PO spend through to the header and Overview budget utilization', () => {
@@ -285,31 +323,14 @@ describe('ProjectDetail shell (decomposition)', () => {
   });
 
   it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {
-    // Override matchMedia to simulate a mobile viewport (below the md breakpoint).
-    const originalMatchMedia = window.matchMedia;
-    window.matchMedia = (query: string): MediaQueryList =>
-      ({
-        matches: false, // mobile: never matches min-width: 768px
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        addListener: () => {},
-        removeListener: () => {},
-        dispatchEvent: () => false,
-      }) as MediaQueryList;
-
-    try {
-      renderAt('/projects/p1');
-      // On mobile, the success render must include the in-content back affordance.
-      expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
-    } finally {
-      window.matchMedia = originalMatchMedia;
-    }
+    desktopBox.value = false;
+    renderAt('/projects/p1');
+    // On mobile, the success render must include the in-content back affordance.
+    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
   });
 
   it('C-IMP-1: BackBar is absent on the success render on desktop (>= 768px viewport)', () => {
-    // Desktop: matchMedia matches (default from setup.ts), BackBar should be hidden.
+    desktopBox.value = true;
     renderAt('/projects/p1');
     expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
   });

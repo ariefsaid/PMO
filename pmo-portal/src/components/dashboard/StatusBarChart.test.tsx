@@ -71,16 +71,15 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
 
   // Item E: the bars must be the status's OWN hue TINTED (Tinted-Status Rule),
   // never a fully-saturated categorical fill. The solid hue stays on the dot.
-  it('tintStatusFill tints a status hue (~12-18%) on-token, never a raw hex', () => {
+  it('tintStatusFill keeps the light ~12-18% tint but resolves to a dark-mode-safe token mix', () => {
     expect(STATUS_BAR_TINT).toBeGreaterThanOrEqual(12);
     expect(STATUS_BAR_TINT).toBeLessThanOrEqual(18);
     const fill = tintStatusFill(chartTheme.series.warning);
     // derived from the token via color-mix (resolves against :root at render)
     expect(fill).toContain('color-mix');
     expect(fill).toContain(chartTheme.series.warning);
-    expect(fill).toContain(`${STATUS_BAR_TINT}%`);
-    // never a saturated solid fill, never a raw hex
-    expect(fill).not.toBe(chartTheme.series.warning);
+    expect(fill).toContain('var(--chart-status-fill-tint)');
+    // never a raw hex
     expect(fill).not.toMatch(/#[0-9a-f]{3,6}/i);
   });
 

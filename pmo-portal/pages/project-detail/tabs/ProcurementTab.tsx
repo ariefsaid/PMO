@@ -128,7 +128,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           </p>
         </div>
         {canCreate && (
-          <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowNewModal(true)}>
             <Icon name="plus" />
             New request
           </Button>

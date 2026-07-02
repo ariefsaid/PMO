@@ -182,17 +182,22 @@ describe('AC-GANTT-014: milestone renders as an on-axis diamond at its target-da
     const milestones = [
       makeMilestone({ id: 'ms1', name: 'Phase 1', target_date: '2026-01-06', sort_order: 0 }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={milestones} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={vi.fn()} />);
 
     // The diamond is labelled and positioned ON the axis (not a right-aligned header badge).
     const diamond = screen.getByLabelText(/phase 1 milestone — target 2026-01-06/i);
     expect(diamond).toBeInTheDocument();
+    expect((diamond as HTMLElement).style.background).toBe('hsl(var(--violet))');
     // Its absolute x reflects ~mid-span. With month scale (6px/day), span is extended to
     // include today; assert it is positioned (a non-zero left/x) rather than pinned right.
     const left = diamond.style.left;
     expect(left).toBeTruthy();
     const px = parseFloat(left);
     expect(px).toBeGreaterThan(0);
+
+    const taskBar = screen.getByRole('button', { name: /Task A:/i });
+    expect((taskBar as HTMLElement).style.background).not.toContain('var(--primary)');
+    expect((taskBar as HTMLElement).style.border).not.toContain('var(--primary)');
 
     // The OLD right-aligned header badge (⬥ {targetIso}) is gone.
     expect(screen.queryByText(/⬥\s*2026-01-06/)).toBeNull();

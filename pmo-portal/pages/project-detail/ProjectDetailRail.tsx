@@ -8,6 +8,7 @@ import ProjectStatusControl from '../../components/ProjectStatusControl';
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
   onEditProject?: () => void;
+  showActionSection?: boolean;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -23,7 +24,7 @@ const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
   </div>
 );
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
   return (
     <aside
       data-testid="project-detail-rail"
@@ -31,19 +32,21 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
       className="min-w-0 lg:sticky lg:top-4"
     >
       <div className="space-y-8 border-t border-border/70 pt-4 lg:border-t-0 lg:pt-0">
-        <section aria-label="Project rail actions">
-          <RailSectionLabel>Record</RailSectionLabel>
-          <div className="space-y-3">
-            <p className="text-sm leading-6 text-muted-foreground">
-              Move the project through its delivery stages from here. Edit stays in the header menu.
-            </p>
-            <ProjectStatusControl
-              project={project}
-              triggerVariant="primary"
-              triggerSize="sm"
-            />
-          </div>
-        </section>
+        {showActionSection && (
+          <section aria-label="Project rail actions">
+            <RailSectionLabel>Record</RailSectionLabel>
+            <div className="space-y-3">
+              <p className="text-sm leading-6 text-muted-foreground">
+                Move the project through its delivery stages from here. Edit stays in the header menu.
+              </p>
+              <ProjectStatusControl
+                project={project}
+                triggerVariant="primary"
+                triggerSize="sm"
+              />
+            </div>
+          </section>
+        )}
 
         <section aria-labelledby="project-details-heading">
           <RailSectionLabel>

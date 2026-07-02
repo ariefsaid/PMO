@@ -49,6 +49,6 @@ export const STATUS_BAR_TINT = 18;
  * solid hue is kept for the legend dot, mirroring the StatusPill dot+tint
  * pattern.
  */
-export function tintStatusFill(color: string, tint: number = STATUS_BAR_TINT): string {
-  return `color-mix(in srgb, ${color} ${tint}%, hsl(var(--card)))`;
+export function tintStatusFill(color: string): string {
+  return `color-mix(in srgb, ${color} var(--chart-status-fill-tint), hsl(var(--card)))`;
 }
