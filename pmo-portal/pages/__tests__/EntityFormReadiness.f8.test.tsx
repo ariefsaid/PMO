@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import React from 'react';
+import React, { StrictMode } from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -59,14 +59,23 @@ import { NewProcurementModal } from '../procurement/NewProcurementModal';
 
 const renderCompanies = () =>
   render(
-    <ImpersonationProvider realRole="Admin">
-      <MemoryRouter>
-        <ToastProvider>
-          <Companies />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <StrictMode>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter>
+          <ToastProvider>
+            <Companies />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </StrictMode>,
   );
+
+const flushMountEffects = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
 
 beforeEach(() => {
   createMut.mutateAsync.mockClear();
@@ -106,13 +115,17 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
-      <ToastProvider>
-        <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
-      </ToastProvider>,
+      <StrictMode>
+        <ToastProvider>
+          <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
+        </ToastProvider>
+      </StrictMode>,
     );
+    await flushMountEffects();
     const submit = screen.getByRole('button', { name: 'Create project' });
     expect(submit).toBeDisabled();
     expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Project name is required.')).not.toBeInTheDocument();
     // Name alone is not enough — client is also required.
     await user.type(screen.getByLabelText(/^Project name/), 'Harborside Terminal');
     expect(submit).toBeDisabled();
@@ -122,10 +135,13 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
-      <ToastProvider>
-        <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
-      </ToastProvider>,
+      <StrictMode>
+        <ToastProvider>
+          <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
+        </ToastProvider>
+      </StrictMode>,
     );
+    await flushMountEffects();
     // Fill the required fields so submit is enabled.
     await user.type(screen.getByLabelText(/^Project name/), 'Harborside Terminal');
     // Select the (only) client via the Combobox (trigger has role="combobox").
@@ -149,13 +165,17 @@ describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue({ id: 'pr-1' });
     render(
-      <ToastProvider>
-        <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={vi.fn()} />
-      </ToastProvider>,
+      <StrictMode>
+        <ToastProvider>
+          <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={vi.fn()} />
+        </ToastProvider>
+      </StrictMode>,
     );
+    await flushMountEffects();
     const submit = screen.getByRole('button', { name: 'Create request' });
     expect(submit).toBeDisabled();
     expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('A request title is required.')).not.toBeInTheDocument();
     await user.click(submit);
     expect(onCreate).not.toHaveBeenCalled();
   });
@@ -165,10 +185,13 @@ describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
     const onCreate = vi.fn().mockResolvedValue({ id: 'pr-1' });
     const onCreated = vi.fn();
     render(
-      <ToastProvider>
-        <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={onCreated} />
-      </ToastProvider>,
+      <StrictMode>
+        <ToastProvider>
+          <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={onCreated} />
+        </ToastProvider>
+      </StrictMode>,
     );
+    await flushMountEffects();
     const submit = screen.getByRole('button', { name: 'Create request' });
     await user.type(screen.getByLabelText(/^Title/), 'Welding consumables');
     expect(submit).toBeEnabled();
