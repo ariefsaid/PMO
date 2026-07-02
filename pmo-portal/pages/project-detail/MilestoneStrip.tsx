@@ -281,7 +281,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   const overdue = isOverdueMilestone(milestone);
 
   return (
-    <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
+    <div
+      className={`grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 ${isCurrent ? 'bg-primary/[0.04] ring-1 ring-primary/15' : ''}`}
+    >
       <div className="h-2 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
         <span
           data-testid="milestone-mobile-fill"
@@ -417,7 +419,9 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   return (
     <section
       aria-current={isCurrent ? 'step' : undefined}
-      className="relative min-w-0 rounded-md border border-border bg-background/60 p-3"
+      className={`relative min-w-0 rounded-md border bg-background/60 p-3 ${
+        isCurrent ? 'border-primary/30 ring-1 ring-primary/15' : 'border-border'
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">

@@ -188,7 +188,7 @@ function allowedActions(
   // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
   // so offering it cosmetically produced a "click that does nothing" — gate it.
   if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover) {
-    actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'success' });
+    actions.push({ to: 'Paid', label: 'Mark as Paid', variant: 'primary' });
   }
 
   // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page

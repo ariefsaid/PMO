@@ -235,6 +235,11 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(screen.getByRole('heading', { name: /budget impact/i })).toBeInTheDocument();
   });
 
+  it('renders the five budget figures in a five-column strip at sm+ so no empty sixth cell appears', () => {
+    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
+    expect(screen.getByTestId('stat-tiles').className).toContain('sm:grid-cols-5');
+  });
+
   it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();

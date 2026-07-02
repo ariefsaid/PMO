@@ -95,6 +95,8 @@ describe('ProcurementProgressionTimeline (Overview bento slot)', () => {
     const link = within(items[0]).getByRole('link', { name: /PAY-2026-0033/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/procurement/proc-1/documents');
+    expect(link.className).toContain('text-foreground');
+    expect(link.className).not.toContain('text-primary-text');
   });
 
   it('AC-PR-PROG-008: event without docRef renders the label as plain text (no link)', () => {

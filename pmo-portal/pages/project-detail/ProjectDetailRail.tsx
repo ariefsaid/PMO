@@ -1,9 +1,9 @@
 import React from 'react';
-import { Button, StatusPill, type ButtonProps } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
+import { StatusPill } from '@/src/components/ui';
 import { formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from '../../components/projects';
+import ProjectStatusControl from '../../components/ProjectStatusControl';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
@@ -23,16 +23,7 @@ const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
   </div>
 );
 
-const railButtonProps: Pick<ButtonProps, 'variant' | 'size'> = {
-  variant: 'primary',
-  size: 'sm',
-};
-
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, onEditProject }) => {
-  const may = usePermission();
-
-  const canEdit = may('edit', 'project');
-
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
   return (
     <aside
       data-testid="project-detail-rail"
@@ -44,13 +35,13 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, onEditPr
           <RailSectionLabel>Record</RailSectionLabel>
           <div className="space-y-3">
             <p className="text-sm leading-6 text-muted-foreground">
-              Keep the record details current so delivery, budget, procurement, and documents stay aligned.
+              Move the project through its delivery stages from here. Edit stays in the header menu.
             </p>
-            {canEdit && (
-              <Button {...railButtonProps} onClick={onEditProject}>
-                Edit project
-              </Button>
-            )}
+            <ProjectStatusControl
+              project={project}
+              triggerVariant="primary"
+              triggerSize="sm"
+            />
           </div>
         </section>
 

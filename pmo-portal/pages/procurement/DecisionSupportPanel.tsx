@@ -186,7 +186,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={3} />
+        <StatTiles tiles={tiles} columns={5} />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

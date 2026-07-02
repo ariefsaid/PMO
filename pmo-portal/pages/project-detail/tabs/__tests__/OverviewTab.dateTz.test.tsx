@@ -17,6 +17,15 @@ vi.mock('@/src/auth/usePermission', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false } }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
+  }),
+}));
 
 import ProjectDetailRail from '../../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';

@@ -53,6 +53,15 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
+  }),
+}));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (cached), so it is disabled — stub it so the test
 // needs no QueryClient (this test asserts hooks-order, not data fetching).

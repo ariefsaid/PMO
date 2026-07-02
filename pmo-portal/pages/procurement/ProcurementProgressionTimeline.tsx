@@ -109,7 +109,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
                       {' · '}
                       <Link
                         to={ev.docHref}
-                        className="font-mono text-primary-text hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                        className="font-mono text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                       >
                         {ev.docRef}
                       </Link>

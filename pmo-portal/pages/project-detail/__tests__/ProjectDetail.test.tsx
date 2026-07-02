@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,7 +19,7 @@ const projectsState = { data: seed, isPending: false, isError: false, refetch: v
 const committedSpendState = { data: 2_350_000 };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, projectMutations } = vi.hoisted(() => ({
+const { roleBox, projectMutations, projectTransition } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' as string },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
@@ -27,6 +27,13 @@ const { roleBox, projectMutations } = vi.hoisted(() => ({
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
+  },
+  projectTransition: {
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
   },
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -58,6 +65,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => projectTransition,
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
@@ -169,17 +179,16 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('keeps one shared edit modal host: both header and rail triggers open the same prefilled flow', async () => {
+  it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
     renderAt('/projects/p1');
 
-    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
-    let dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(within(rail).getByRole('button', { name: /change status/i })).toBeInTheDocument();
+    expect(within(rail).queryByRole('button', { name: /edit project/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole('button', { name: /Edit project/i }));
-    dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 

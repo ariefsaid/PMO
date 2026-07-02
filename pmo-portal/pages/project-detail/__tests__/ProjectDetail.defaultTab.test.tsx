@@ -59,6 +59,15 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
+  }),
+}));
 
 // Stub tab contents — we only test which tab is active, not what's inside them.
 vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
