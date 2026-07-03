@@ -4,7 +4,46 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-07-01) — agent-native assistant SHIPPED to `main`; versioning adopted
+## ▶ Current state (2026-07-04) — BATTERIES-INCLUDED A COMPLETE on `dev` (ADRs 0043/0044/0045/0046 fully implemented)
+
+> **RESUME ENTRY POINT.** **`production` UNCHANGED at `fc312eb`/mig 0041 (= `v0.1.0`). `main` = `1c0f747`
+> (pre-reskin). `dev` = `2536b9e` — carries the reskin (#210) + the ENTIRE batteries-included-A program:
+> 8 PRs (#211–#218), migrations 0046–0048, pgTAP 0091–0100, ADRs 0043–0046 implemented.** `dev`→`main`
+> promote is the next Director-level gate (PR→main runs the full `integration` lane); prod needs a direct
+> owner go AND the edge-fn deploy runbook below.
+>
+> **What shipped (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens + rendered-Discover
+> battery per issue):**
+> 1. **#211+#212** — vendor-neutral `ModelClient` + OpenRouter transport (deepseek-v4-flash, DeepInfra-first,
+>    fallbacks on; per-request usage capture). Cross-family pi+gpt-5.5 battery confirmed hardening; live
+>    deepseek gate = **GO-WITH-CAVEATS** (AC-MC-023 evidence in the spec).
+> 2. **#213** — ADR-0043 persistence: `agent_threads/runs/events` (owner-only RLS, seq-ordered, tool-call
+>    journal → durable resume w/ write de-dupe, server heartbeat + stuck-run UX, feedback thumbs), panel
+>    history/resume. Review battery caught + fixed a seq-collision Critical and a heartbeat inversion.
+> 3. **#214** — handler-debt refactor: shared `runToolLoop`, `MALFORMED_TOOL_CALL` repair-turn, cast cleanup.
+> 4. **#215** — PostHog agent events (9 typed builders, no-content privacy NFR proven, `safeTrack`).
+> 5. **#216** — `agent_usage` ledger + credits (mig 0047; unbypassable clamp on untrusted usage; preflight
+>    guard behind `AGENT_CREDITS_ENFORCED` default OFF; out-of-credits UX). Quality lens caught a missing
+>    hot-path index pre-merge.
+> 6. **#217** — ADR-0044 automations + notifications (mig 0048 + **ADR-0046** watermark table; pg_cron→
+>    `agent-dispatch` fn; **minted-owner-JWT background deputy** w/ cross-tenant gate; NL conditions;
+>    bell/inbox). Security lens caught + fixed a HIGH (un-allowlisted trigger source reaching service_role).
+> 7. **#218** — ADR-0045 transcript contracts: typed widgets (twice-validated zod → PMO primitives),
+>    ask-user via `control('answer')`, live-context grounding hints + thread-scope population.
+>
+> **⚠ OPEN before `v0.2.0`→prod (owner-gated):** the promote path deploys DB+FE only — needs
+> `supabase functions deploy agent-chat compose-view agent-dispatch` + prod secrets (`OPENROUTER_API_KEY`,
+> pg_cron `app.settings.service_role_key` GUC) + flag decisions (`VITE_FEATURES_AGENT_ASSISTANT`,
+> `AGENT_CREDITS_ENFORCED`, `AGENT_AUTOMATIONS`) + the **binding live-mint verification** (ADR-0044 —
+> `admin.generateLink` mint for a known user → minted client reads only their rows; edge runtime can't run in CI).
+>
+> **Deferred/owner-pending ledger:** F4 mobile Assistant entry (owner call) · OpenRouter fallback chain
+> (owner will provide) · credit grants admin UI (SQL-only v1) · TOCTOU preflight revisit at ADR-0044-scale
+> concurrency · free-text-question vs composer dual-input + feedback-affordance polish (decisions.md notes) ·
+> chips pending: dependabot vulns (1 high) + `deno check` CI gate for edge-fn entry files (found: they're
+> outside every type gate) · e2e mutation-spec isolation flake (pre-existing, recurring).
+
+## ▶ Prior state (2026-07-01) — agent-native assistant SHIPPED to `main`; versioning adopted
 
 > **RESUME ENTRY POINT.** **`production`(prod) UNCHANGED at `fc312eb` / Cloud DB migration 0041 = the
 > `v0.1.0` versioning baseline (ADR-0042). `main`=`1c0f747` (agent-native epic A1–A4 promoted, PR #200,
