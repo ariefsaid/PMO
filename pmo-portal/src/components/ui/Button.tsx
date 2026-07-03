@@ -18,16 +18,16 @@ const base =
   'text-sm font-medium whitespace-nowrap select-none ' +
   'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ' +
   'active:translate-y-px ' +
-  'disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none ' +
+  'disabled:cursor-not-allowed disabled:pointer-events-none ' +
   '[&_svg]:size-[15px] [&_svg]:shrink-0';
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'border-transparent bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90',
-  outline: 'border-input bg-background text-foreground hover:bg-accent',
-  ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent',
-  destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90',
-  success: 'border-transparent bg-success text-success-foreground hover:bg-success/90',
+    'border-transparent bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
+  outline: 'border-input bg-background text-foreground hover:bg-accent disabled:opacity-60',
+  ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent disabled:opacity-60',
+  destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
+  success: 'border-transparent bg-success text-success-foreground hover:bg-success/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

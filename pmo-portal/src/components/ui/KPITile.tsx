@@ -56,6 +56,8 @@ export interface KPITileProps<L extends string = string> {
   linkLabel?: string;
   /** Test id on the tile root (for AC-tagged smoke assertions). */
   testId?: string;
+  /** Optional visible CTA text rendered inside the link variant (still one focus target). */
+  ctaLabel?: string;
   className?: string;
 }
 
@@ -80,6 +82,7 @@ export function KPITile<L extends string = string>({
   to,
   linkLabel,
   testId,
+  ctaLabel,
   className,
 }: KPITileProps<L>) {
   const isLink = to != null;
@@ -162,9 +165,18 @@ export function KPITile<L extends string = string>({
             {value}
           </div>
         )}
-        {vs && (
+        {(vs || ctaLabel) && (
           <div className="flex items-center gap-2 text-[12px]">
-            <span className="text-muted-foreground">{vs}</span>
+            {vs && <span className="text-muted-foreground">{vs}</span>}
+            {ctaLabel && (
+              <span
+                aria-hidden="true"
+                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-[13px] font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
+              >
+                {ctaLabel}
+                <Icon name="chev" />
+              </span>
+            )}
           </div>
         )}
       </Link>

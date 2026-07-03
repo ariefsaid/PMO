@@ -360,11 +360,11 @@ describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-18: "Back to Sales Pipeline" link uses text-primary + hover:underline (One Blue, no solid fill)', () => {
+  it('AC-IXD-PROJ-W5-C3-18: "Back to Sales Pipeline" link uses text-primary-text + hover:underline (One Blue, no solid fill)', () => {
     renderLens();
     const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    // Token-compliant: text-primary link style (no btn-primary class which would be a solid blue button)
-    expect(link.className).toMatch(/text-primary/);
+    // Token-compliant: AA-safe link text token, never a solid primary button.
+    expect(link.className).toMatch(/text-primary-text/);
     // Must not be a solid primary button
     expect(link.className).not.toMatch(/bg-primary\b/);
   });

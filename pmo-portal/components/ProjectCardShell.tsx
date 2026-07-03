@@ -89,7 +89,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           // Kanban: the KanbanCard wrapper is the single role=button activation
           // target, so the name is plain text (no nested button in role=button).
           <div
-            className="block max-w-full truncate text-[13px] font-semibold text-foreground"
+            className="block max-w-full break-words text-[13px] font-semibold text-foreground line-clamp-2 leading-5"
             title={name}
           >
             {name}
@@ -98,7 +98,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           <button
             type="button"
             onClick={onOpen}
-            className="block max-w-full truncate text-left text-sm font-semibold text-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="block max-w-full break-words text-left text-sm font-semibold text-foreground line-clamp-2 leading-5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             title={name}
           >
             {name}
@@ -155,7 +155,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
     <div
       data-testid="project-card"
       className={cn(
-        'flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+        'flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(var(--foreground)/0.06)]',
         className,
       )}
     >

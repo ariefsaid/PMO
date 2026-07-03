@@ -186,7 +186,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'code',
       header: 'Code',
-      colClassName: 'hidden sm:table-cell',
+      colClassName: 'hidden sm:table-cell w-[96px]',
       cell: (d) =>
         d.code ? (
           <span className="font-mono text-[12.5px] text-muted-foreground" title={d.code}>
@@ -199,7 +199,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'file_path',
       header: 'File',
-      colClassName: 'hidden md:table-cell',
+      colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => (
         <FileCell
           status={d.status}
@@ -219,13 +219,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'category',
       header: 'Category',
-      colClassName: 'hidden md:table-cell',
+      colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => <span className="text-[13px] text-muted-foreground">{d.category}</span>,
     },
     {
       key: 'doc_date',
       header: 'Date',
-      colClassName: 'hidden lg:table-cell',
+      colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
           <span className="tabular text-[13px] text-muted-foreground">{d.doc_date}</span>
@@ -236,12 +236,14 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'status',
       header: 'Status',
+      colClassName: 'w-[112px] min-w-[112px]',
       cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
     {
       key: 'revision_action',
       header: '',
       align: 'center',
+      colClassName: 'w-[96px]',
       cell: (d) =>
         (d.status === 'Issued' || d.status === 'Approved') && canWriteDocs ? (
           <Button
@@ -436,7 +438,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
               button was removed — file upload is signposted by the register subtitle copy
               ("file attachments arrive with Storage"), not a fake disabled control. */}
           {canCreate && (
-            <Button variant="primary" size="sm" onClick={() => setFormTarget({ doc: null })}>
+            <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
               <Icon name="plus" />
               Add document
             </Button>
@@ -643,7 +645,7 @@ interface LineageButtonProps {
 const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => (
   <button
     type="button"
-    className="w-fit text-[11px] text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    className="w-fit text-[11px] text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     aria-label={`View revision ${revision} of ${title}`}
     onClick={(e) => {
       e.stopPropagation();
@@ -818,7 +820,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             <button
               type="button"
               onClick={() => void onDownload(doc)}
-              className="touch-target inline-flex rounded-sm text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="touch-target inline-flex rounded-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               aria-label={`Download ${doc.file_path.split('/').pop() || 'file'}`}
             >
               {doc.file_path.split('/').pop()}

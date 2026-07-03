@@ -107,22 +107,30 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
-  it('AC-CO-001: company_type pills are the category family (Client violet; never the action-blue)', () => {
+  it('AC-CO-001: company_type pills are the category family (Client violet dot+label; never the action-blue)', () => {
     renderPage();
     // The Type column pill is the closest pill ancestor of the type label inside its row.
-    const pillBg = (label: string, rowName: string) => {
+    const pillEl = (label: string, rowName: string) => {
       const row = screen.getByText(rowName).closest('tr')!;
-      return within(row).getByText(label).closest('span')!.className;
+      return within(row).getByText(label).closest('span')!;
     };
-    const client = pillBg('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
-    const vendor = pillBg('Vendor', 'Steelforge Fabrication'); // neutral grey
-    const internal = pillBg('Internal', 'Internal Holdings'); // neutral grey
-    // Freed-Blue Status Rule (CW-2): a TYPE pill never uses the action-blue, and the
-    // category family is `violet` for the highlighted kind + `neutral` for the rest.
-    expect(client).toContain('bg-violet/12');
-    expect(client).not.toContain('bg-primary/10');
-    expect(vendor).not.toContain('bg-primary/10');
-    expect(internal).not.toContain('bg-primary/10');
+    const client = pillEl('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
+    const vendor = pillEl('Vendor', 'Steelforge Fabrication'); // neutral grey
+    const internal = pillEl('Internal', 'Internal Holdings'); // neutral grey
+    const clientDot = client.querySelector('[data-pill-dot]') as HTMLElement;
+    // S1 (ADR-0037): status is a quiet DOT + LABEL — NO filled slab. The category
+    // family is `violet` for the highlighted kind (Client) + `neutral` for the rest;
+    // identity comes from the dot hue + the label word, never a tinted pill.
+    expect(client.className).not.toMatch(/\bbg-(violet|primary|secondary)\b/);
+    expect(client.getAttribute('style') ?? '').toContain('--status-violet-text');
+    expect(clientDot.style.background).toBe('hsl(var(--violet))');
+    // vendor/internal are the quiet neutral grey (muted dot + muted-foreground label)
+    expect(vendor.className).toContain('text-muted-foreground');
+    expect(internal.className).toContain('text-muted-foreground');
+    // Freed-Blue Status Rule (CW-2): a TYPE pill never uses the action-blue.
+    expect(client.className).not.toContain('bg-primary');
+    expect(vendor.className).not.toContain('bg-primary');
+    expect(internal.className).not.toContain('bg-primary');
     // The label (Client / Vendor / Internal) carries identity — never colour-only:
     // each type pill renders its name inside its own row.
     expect(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByText('Client')).toBeInTheDocument();

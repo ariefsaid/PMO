@@ -52,12 +52,12 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   totalValue,
   status,
 }) => (
-  <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
     {/* ── ov-main (left 2/3) ─────────────────────────────────────────────── */}
     <div className="min-w-0">
       {/* StatTiles 2×2. `columns={2}` is the bento layout; the strip auto-fits
           when sparse (e.g. a single Draft tile). */}
-      <StatTiles tiles={tiles} columns={2} className="mb-4" />
+      <StatTiles tiles={tiles} columns={2} variant="bare" className="mb-4" />
 
       {/* Budget signal — renders only when project_id is set (no empty card). */}
       <DecisionSupportPanel
@@ -69,7 +69,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
 
       {/* Detail <dl> — the Field grammar (overline dt + dd). 2-col on desktop,
           1-col below the rail-collapse breakpoint. */}
-      <Card>
+      <Card variant="bare">
         <CardHead>Detail</CardHead>
         <CardPad>
           <dl

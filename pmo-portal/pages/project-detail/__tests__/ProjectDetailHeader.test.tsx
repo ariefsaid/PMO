@@ -177,11 +177,18 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     expect(toast).toBeInTheDocument();
   });
 
-  it('AC-PRJ-004: Edit opens the edit-header modal pre-filled with the project name', async () => {
-    renderHeader('Admin');
+  it('AC-PRJ-004: Edit delegates to the shared page-level edit flow host', async () => {
+    const onEditProject = vi.fn();
+    roleBox.value = 'Admin';
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} committedSpend={2_100_000} onEditProject={onEditProject} />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
     await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(onEditProject).toHaveBeenCalledTimes(1);
   });
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
@@ -318,5 +325,28 @@ describe('ProjectDetailHeader — Actual tile derives from committedSpend (AC-MO
     // The tile must show the committed-basis spend ($3,700,000), not the dead stored $0
     expect(actualTile!.textContent).toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
+  });
+});
+
+// ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────────
+// The delivery finance strip + contract-value row sit directly on the canvas —
+// no card-in-card box (a borderless StatTiles strip + a de-boxed SoD row). Fewer
+// boxes, more air; the KPI values + SoD gating behavior are unchanged.
+describe('ProjectDetailHeader — content-over-containers (L2-RECORD)', () => {
+  it('the finance stat strip is borderless (no card frame around the KPIs)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const strip = document.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
+    expect(strip).toBeInTheDocument();
+    expect(strip.className).not.toContain('border-border');
+    expect(strip.className).not.toContain('bg-border');
+    expect(strip.className).not.toContain('rounded-lg');
+  });
+
+  it('the contract-value SoD row sits on the canvas (no card box)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const sod = screen.getByTestId('contract-value-sod');
+    expect(sod.className).not.toContain('bg-card');
+    expect(sod.className).not.toContain('border-border');
+    expect(sod.className).not.toContain('rounded-lg');
   });
 });

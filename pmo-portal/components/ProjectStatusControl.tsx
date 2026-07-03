@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
-import { ConfirmDialog, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, useToast } from '@/src/components/ui';
 import {
   LEGAL_PROJECT_TRANSITIONS,
   projectStatusGroup,
@@ -14,6 +14,8 @@ interface ProjectStatusControlProps {
     status: ProjectStatus;
     customer_contract_ref: string | null;
   };
+  triggerVariant?: 'outline' | 'primary';
+  triggerSize?: 'sm' | 'default';
 }
 
 /**
@@ -24,7 +26,11 @@ interface ProjectStatusControlProps {
  * When the target is 'Won, Pending KoM', prompts for customer contract ref + date.
  * Surfaces RPC errors inline (not swallowed).
  */
-const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) => {
+const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
+  project,
+  triggerVariant = 'outline',
+  triggerSize = 'sm',
+}) => {
   const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
@@ -157,18 +163,18 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({ project }) 
       )}
 
       {!open && !pendingTarget && (
-        <button
+        <Button
           ref={triggerRef}
-          type="button"
+          variant={triggerVariant}
+          size={triggerSize}
           onClick={() => setOpen(true)}
-          className="rounded-md border border-input px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           disabled={mutation.isPending}
           aria-label="Change status"
           aria-haspopup="true"
           aria-expanded={false}
         >
           {mutation.isPending ? 'Saving…' : 'Change status'}
-        </button>
+        </Button>
       )}
 
       {/* Target selection dropdown */}

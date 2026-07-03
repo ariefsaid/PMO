@@ -130,10 +130,10 @@ const MyTasks: React.FC = () => {
                 {group.items.map((task) => (
                   <div
                     key={task.id}
-                    className="flex items-center justify-between gap-3 px-4 py-3"
+                    className="flex flex-col gap-2 px-4 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 flex-col items-start gap-1 min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2">
                         {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
                             No /tasks/:id route exists; navigating to /projects/:id/tasks is the
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
@@ -141,7 +141,7 @@ const MyTasks: React.FC = () => {
                             #task-<id> anchor — TasksTab scrolls to and highlights it. */}
                         <Link
                           to={`/projects/${task.project_id}/tasks#task-${task.id}`}
-                          className="block truncate text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
                           title={task.name}
                         >
                           {task.name}
@@ -160,11 +160,11 @@ const MyTasks: React.FC = () => {
                       )}
                     </div>
                     {/* Action cluster: Log time + status control. */}
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project. */}
                       <Link
                         to={`/timesheets?project=${task.project_id}`}
-                        className="text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         Log time
                       </Link>

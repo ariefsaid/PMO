@@ -1,547 +1,613 @@
 ---
 name: PMO Portal
-description: The owner-approved RIS shadcn-style control surface — calm, dense, data-first.
+description: >
+  The monochrome-calm control surface (ADR-0037). Calm near-mono zinc chrome; PMO
+  blue reserved for the ONE primary action + focus ring + active-nav; status as a
+  quiet dot/ring + label; content-over-containers. LIGHT default + first-class
+  WCAG-AA DARK. Values below are the LIGHT (`:root`) theme; the full light|dark
+  pair is in §2. Canonical runtime form is the bare `H S% L%` triplet.
 colors:
-  # --- Surfaces ---
+  # --- Surfaces (light; dark in §2) ---
   background: "hsl(0 0% 100%)"
-  foreground: "hsl(240 10% 3.9%)"
+  foreground: "hsl(240 6% 10%)"
   card: "hsl(0 0% 100%)"
-  card-foreground: "hsl(240 10% 3.9%)"
+  card-foreground: "hsl(240 6% 10%)"
   popover: "hsl(0 0% 100%)"
-  popover-foreground: "hsl(240 10% 3.9%)"
-  # --- Brand / action ---
+  popover-foreground: "hsl(240 6% 10%)"
+  # --- Brand / action — PMO blue, held to primary + ring + active-nav ONLY ---
   primary: "hsl(221.2 83.2% 53.3%)"
   primary-foreground: "hsl(0 0% 98%)"
-  # --- Quiet UI ---
-  secondary: "hsl(240 4.8% 95.9%)"
-  secondary-foreground: "hsl(240 5.9% 10%)"
-  muted: "hsl(240 4.8% 95.9%)"
-  muted-foreground: "hsl(240 4% 40%)"  # darkened from 46.1%→40% L so muted text clears AA (≥4.5:1) on secondary fills, not just white
-  accent: "hsl(240 4.8% 95.9%)"
-  accent-foreground: "hsl(240 5.9% 10%)"
-  # --- Status / semantic ---
-  destructive: "hsl(0 84.2% 60.2%)"
-  destructive-foreground: "hsl(0 0% 98%)"
-  warning: "hsl(43 96% 56%)"
-  warning-foreground: "hsl(22 78% 26%)"
-  success: "hsl(142 71% 45%)"
-  success-foreground: "hsl(0 0% 98%)"
-  # --- Lines / fields / focus ---
-  border: "hsl(240 5.9% 90%)"
-  input: "hsl(240 5.9% 90%)"
   ring: "hsl(221.2 83.2% 53.3%)"
-  # --- Categorical accent (KPI/avatar/timeline only; never primary action) ---
-  violet: "hsl(262 83% 58%)"
-  # --- Semantic icon / surface tokens (promoted from inline literals, 2026-06-21) ---
-  warning-icon: "hsl(38 92% 45%)"     # darker amber icon on warning/12 tint — clears AA vs the fill
-  success-text: "hsl(142 64% 28%)"    # AA-darkened green text on success/10 tint (GateNotice "ready")
-  tooltip-muted: "hsl(0 0% 80%)"      # de-emphasised body text inside the dark tooltip surface
-  scrim: "hsl(240 10% 4%)"            # desaturated near-black modal/drawer/palette overlay (used at /0.4 alpha)
+  # --- Quiet UI (calm near-mono zinc) ---
+  secondary: "hsl(240 5% 95.5%)"
+  secondary-foreground: "hsl(240 4% 32%)"
+  muted: "hsl(240 5% 95.5%)"
+  muted-foreground: "hsl(240 4% 44%)"
+  accent: "hsl(240 5% 95.5%)"
+  accent-foreground: "hsl(240 4% 32%)"
+  # --- Status / semantic (restrained: the dot hue; AA text via the -text vars) ---
+  destructive: "hsl(0 72% 50%)"
+  destructive-foreground: "hsl(0 0% 100%)"
+  warning: "hsl(40 96% 50%)"
+  warning-foreground: "hsl(28 95% 33%)"
+  success: "hsl(142 60% 42%)"
+  success-foreground: "hsl(0 0% 100%)"
+  # --- Status / AA text variants (clear ≥4.5:1 on their /10–/12 tints, §6) ---
+  nav-active-text: "hsl(221.2 83.2% 45%)"
+  status-open-text: "hsl(221.2 83.2% 45%)"
+  status-won-text: "hsl(142 64% 27%)"
+  status-lost-text: "hsl(0 72% 44%)"
+  status-violet-text: "hsl(255 45% 42%)"
+  destructive-text: "hsl(0 72% 44%)"
+  warning-icon: "hsl(35 92% 42%)"
+  success-text: "hsl(142 64% 27%)"
+  tooltip-muted: "hsl(240 5% 75%)"
+  scrim: "hsl(240 8% 6%)"
+  # --- Categorical accent (KPI/avatar/timeline only; never an action color) ---
+  violet: "hsl(255 50% 55%)"
+  # --- Lines / fields ---
+  border: "hsl(240 5% 90.5%)"
+  input: "hsl(240 4% 84%)"
 typography:
-  page-title:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "24px"
-    fontWeight: 700
-    lineHeight: 1.2
-    letterSpacing: "-0.02em"
-  heading:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "20px"
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: "-0.01em"
-  subheading:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "18px"
-    fontWeight: 600
-    lineHeight: 1.3
-  body:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.45
-  label:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "12px"
-    fontWeight: 600
-    lineHeight: 1.3
-  overline:
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "11px"
-    fontWeight: 600
-    lineHeight: 1.3
-    letterSpacing: "0.06em"
-  mono:
-    fontFamily: "SF Mono, ui-monospace, JetBrains Mono, Menlo, monospace"
-    fontSize: "13px"
-    fontWeight: 500
-    lineHeight: 1.4
+  # Inter variable + the cv stylistic sets (ADR-0037) is the single UI family.
+  fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+  cvSets: '"cv02","cv03","cv04","cv11"'
+  page-title: { size: "24px", weight: 700, lineHeight: 1.2, letterSpacing: "-0.02em" }
+  heading: { size: "20px", weight: 700, lineHeight: 1.25, letterSpacing: "-0.01em" }
+  subheading: { size: "18px", weight: 600, lineHeight: 1.3 }
+  body: { size: "14px", weight: 400, lineHeight: 1.45 }
+  label: { size: "12px", weight: 600, lineHeight: 1.3 }
+  overline: { size: "11px", weight: 600, lineHeight: 1.3, letterSpacing: "0.06em" }
+  mono: "Tailwind v4 `font-mono` stack (ui-monospace, SFMono-Regular, Menlo, …) — IDs/codes only"
 rounded:
-  xs: "4px"
-  sm: "6px"
-  md: "8px"
-  lg: "10px"
+  sm: "4px"   # calc(var(--radius) - 4px)
+  md: "6px"   # calc(var(--radius) - 2px)
+  lg: "8px"   # var(--radius) = 0.5rem  (the base; nested children step DOWN)
   full: "999px"
 spacing:
-  "1": "4px"
-  "2": "8px"
-  "3": "12px"
-  "4": "16px"
-  "5": "20px"
-  "6": "24px"
+  base: "4px"   # Tailwind v4 default 4px scale (1..N)
+motion:
+  ds-ease: "120ms cubic-bezier(0.16, 1, 0.3, 1)"
 components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
-    rounded: "{rounded.md}"
-    padding: "0 12px"
-    height: "32px"
-  button-primary-hover:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
-  button-outline:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.md}"
-    padding: "0 12px"
-    height: "32px"
-  button-outline-hover:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.foreground}"
-  button-ghost:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.md}"
-    padding: "0 12px"
-    height: "32px"
-  button-ghost-hover:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.foreground}"
-  button-destructive:
-    backgroundColor: "{colors.destructive}"
-    textColor: "{colors.destructive-foreground}"
-    rounded: "{rounded.md}"
-    padding: "0 12px"
-    height: "32px"
-  card:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.card-foreground}"
-    rounded: "{rounded.md}"
-    padding: "16px"
-  input:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.md}"
-    padding: "0 10px"
-    height: "32px"
-  badge-status:
-    backgroundColor: "{colors.secondary}"
-    textColor: "{colors.muted-foreground}"
-    rounded: "{rounded.full}"
-    padding: "0 9px"
-    height: "22px"
-  table-header-cell:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.muted-foreground}"
-    padding: "0 12px"
-    height: "38px"
-  table-body-cell:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.foreground}"
-    padding: "12px"
-    height: "54px"
-  nav-item:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.sm}"
-    padding: "0 10px"
-    height: "36px"
-  nav-item-active:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.sm}"
-    height: "36px"
-  kanban-card:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.md}"
-    padding: "11px"
+  button-primary:    { bg: "{colors.primary}", text: "{colors.primary-foreground}", radius: "{rounded.lg}", padding: "0 12px", height: "32px" }
+  button-outline:    { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.border}", radius: "{rounded.lg}", padding: "0 12px", height: "32px" }
+  button-ghost:      { bg: "transparent", text: "{colors.foreground}", radius: "{rounded.lg}", padding: "0 12px", height: "32px" }
+  button-destructive:{ bg: "{colors.destructive}", text: "{colors.destructive-foreground}", radius: "{rounded.lg}", padding: "0 12px", height: "32px" }
+  card:              { bg: "{colors.card}", text: "{colors.card-foreground}", radius: "{rounded.lg}", padding: "16px" }
+  input:             { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.border}", radius: "{rounded.lg}", padding: "0 10px", height: "32px" }
+  badge-status:      { bg: "{colors.secondary}", text: "{colors.muted-foreground}", radius: "{rounded.full}", padding: "0 9px", height: "22px" }
+  table-header-cell: { bg: "{colors.card}", text: "{colors.muted-foreground}", padding: "0 12px", height: "38px" }
+  table-body-cell:   { bg: "{colors.card}", text: "{colors.foreground}", padding: "12px", height: "54px" }
+  nav-item:          { bg: "transparent", text: "{colors.foreground}", radius: "{rounded.sm}", padding: "0 10px", height: "36px" }
+  kanban-card:       { bg: "{colors.card}", text: "{colors.foreground}", radius: "{rounded.lg}", padding: "11px" }
 ---
 
 # Design System: PMO Portal
 
 ## 1. Overview
 
-**Creative North Star: "The Quiet Control Surface."**
+**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0037).**
 
-This is the existing, owner-approved RIS Portal look — a shadcn/Radix-derived, near-monochrome control surface — adopted wholesale as the PMO Portal's visual identity. It is **preserved, not reinvented.** The system was extracted verbatim from the RIS reference mockups (`sales-pipeline-reference.html`, `budget-reference.html`), both of which carry one identical token block ("Token System A", shadcn-vue HSL, light scheme). Every value below is reverse-engineered from those files; nothing here is a new brand, palette, or font.
+This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0037), ported *in place*
+onto the existing app (Foundation slices F1 tokens + F2 dark toggle are committed; the surface slices
+follow). It supersedes the prior "calm/dense/light-only shadcn" identity in *look only* — every logic,
+data, chart, and action is unchanged. The mockups in `docs/design-mockups/redesign/reskin/` define the
+look; **the committed code is the source of truth for every value below** (`pmo-portal/index.css`).
 
-The personality is **calm, dense, and data-first.** The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (54px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the "AI SaaS marketing" aesthetic: no dark-mode-with-purple-gradients, no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy "floating card" soup.
+The personality is **calm, dense-but-airy, data-first, and premium in both themes.** Chrome is a calm
+near-mono zinc ramp; **PMO blue is reserved for the ONE primary action per surface, the focus ring, and
+active-nav** — nothing else. Status means something but is rendered **restrained**: a quiet **dot/ring +
+label** (or a faint tint), **never a loud filled slab**. Structure prefers **hairline borders or
+whitespace over boxes** (content-over-containers). It is an operator's tool for a contract- and
+project-based business, and it explicitly rejects the "AI SaaS marketing" aesthetic: no
+dark-mode-with-purple-gradients, no neon, no glassmorphism, no oversized hero type, no shadow-heavy
+floating-card soup. *Calm after the 100th use.*
 
-**Key Characteristics:**
-- One blue accent (`primary`, `hsl(221 83% 53%)`) does all the interactive work; everything else is neutral.
-- Borders, not shadows, define structure. Shadows are a *response to state* (hover, focus, overlay), never decoration.
-- Tight 8px-derived radius scale; `--radius: 0.5rem` (8px) is the spine, with `calc()` derivations for nested elements.
-- Inter everywhere; tabular-nums for all money and metrics; SF Mono for IDs/codes only.
-- Status is communicated by a small colored dot + tinted pill, not by loud fills.
+**Key characteristics (locked, ADR-0037 §1):**
+- **Monochrome chrome; colour = meaning.** PMO blue (`--primary`) does all the interactive work and is
+  held to primary-action + ring + active-nav; the semantic status palette (success/warning/destructive)
+  stays but is quiet (dot/ring + label or a faint tint, never a solid slab behind text). Categorical
+  violet is reserved for non-interactive accents (KPI tiles, avatars, timeline dots) — never an action.
+- **Typography:** Inter variable + the cv stylistic sets (`cv02 cv03 cv04 cv11`); `tabular-nums` on all
+  figures.
+- **Shape/motion:** 8px base radius (`--radius: 0.5rem`) with nested reduction `calc(r - 2px/-4px)`;
+  soft `--ds-ease: 120ms cubic-bezier(0.16,1,0.3,1)`; low, single-layer elevation; hairline borders or
+  none. `prefers-reduced-motion` drops all transitions.
+- **Icons:** ONE monoline family, stroke-2, 24×24 viewBox, `currentColor`, 1em — the `<Icon name=…>`
+  facade (`src/components/ui/icons.tsx`).
+- **Dark mode is first-class + WCAG-AA in both themes** (verified numerically; §6). Toggle via `<html>.dark`.
+- **Density = deliberate balance (action ↔ density ↔ whitespace).** Airier than the old chrome
+  (generous gutters, ~56–64px rows, content-over-containers) **while staying action-rich**: exactly one
+  primary action visible; essential ERP verbs (Advance/Approve/Return/New) obvious; rare/secondary
+  actions disclosed in menus, hover/focus, or disclosure rows. *Subtract, don't strip.*
 
-> **Coherence Wave (2026-06-14):** the app's *atoms* (above) are shared and disciplined — the
-> diagnosed "doesn't feel like the same app" problem is PATTERN/MOLECULE drift, not token drift. §7
-> ("Coherence-Wave canonical molecules") is the enforced standard for how records, lists, steppers,
-> status pills, and copy must behave so every module reads as one hand. Plan:
-> `docs/plans/2026-06-14-coherence-wave.md`; diagnosis: `docs/reviews/2026-06-14-whole-app-coherence-audit.md`.
+> **Coherence Wave (2026-06-14):** the app's *atoms* are shared and disciplined — the diagnosed
+> "doesn't feel like the same app" problem is PATTERN/MOLECULE drift, not token drift. §7 is the
+> enforced standard for how records, lists, steppers, status pills, and copy must behave so every module
+> reads as one hand.
 
-## 2. Colors
+## 2. Colors — light | dark token tables
 
-A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a cool neutral (`240`); the only saturated color in normal use is the primary blue. Status colors (destructive/warning/success) appear only on data state, and a single categorical violet is reserved for KPI/avatar/timeline accents — never as an action color. **Light scheme only** in the source; no dark `:root` block was present (see Open Questions).
+A near-mono system built on shadcn-HSL **bare triplets** (`H S% L%`, no `hsl()` wrapper) mapped onto
+semantic roles via Tailwind v4 `@theme inline` (`--color-*: hsl(var(--token))`). The bare form is
+**load-bearing**: slash-alpha tints (`bg-primary/10`, `border-border/70`, `bg-success/12`) only work on
+bare triplets (v4 generates them via `color-mix()`). **Light is default; `.dark` redeclares every
+color/semantic token for a first-class dark theme.** Every value below is copied verbatim from
+`pmo-portal/index.css`. Token groups (light | dark):
 
-### Primary
-- **Action Blue** (`hsl(221.2 83.2% 53.3%)`): The one interactive color. Primary buttons, active nav item (at 10% tint + full-color text), selected rows (7% tint), focus ring, checkbox fill, links-in-context, the "current" step in steppers, sticky-tab indicators, and the toast accent stripe. Its foreground (`hsl(0 0% 98%)`, near-white) sits on solid blue. **Used sparingly** — see The One Blue Rule. **No status, severity, or category pill may use it** — see The Freed-Blue Status Rule.
+### Surfaces + text
+| Token | Light (`:root`) | Dark (`.dark`) | Role |
+|---|---|---|---|
+| `--background` | `0 0% 100%` | `240 6% 7%` | app canvas |
+| `--foreground` | `240 6% 10%` | `240 6% 95%` | primary text |
+| `--card` | `0 0% 100%` | `240 5% 11%` | cards/table/popover body |
+| `--card-foreground` | `240 6% 10%` | `240 6% 95%` | text on card |
+| `--popover` | `0 0% 100%` | `240 5% 11%` | menus/toasts |
+| `--popover-foreground` | `240 6% 10%` | `240 6% 95%` | text on popover |
 
-### Secondary (categorical accent — not an action color)
-- **Categorical Violet** (`hsl(262 83% 58%)`): Reserved for non-interactive categorization only: a KPI icon tile (`violet` variant), the user avatar gradient (blue→violet), and select timeline/legend dots. Never use it for buttons, links, or anything clickable.
+### Quiet UI (calm near-mono zinc)
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--secondary` | `240 5% 95.5%` | `240 5% 14%` | quiet fills (seg tracks, count pills) |
+| `--secondary-foreground` | `240 4% 32%` | `240 5% 72%` | text-secondary on quiet fills |
+| `--muted` | `240 5% 95.5%` | `240 5% 14%` | de-emphasised surface |
+| `--muted-foreground` | `240 4% 44%` | `240 4% 60%` | text-tertiary (labels, captions) |
+| `--accent` | `240 5% 95.5%` | `240 5% 14%` | hover wash on neutral surfaces |
+| `--accent-foreground` | `240 4% 32%` | `240 5% 72%` | text on accent |
 
-### Tertiary (status semantics — data-driven only)
-- **Destructive Red** (`hsl(0 84.2% 60.2%)`, fg `hsl(0 0% 98%)`): Errors, destructive buttons, "lost"/negative status, overdue/stale ages, negative deltas, notification dot. Tinted variants at ~10–12% for chips/icon tiles.
-- **Warning Amber** (`hsl(43 96% 56%)`, fg `hsl(22 78% 26%)`): "Aging"/"overdue" warnings, mid-threshold bars, caution KPI tiles. Note the deep-brown foreground for AA text contrast on amber tints.
-- **Success Green** (`hsl(142 71% 45%)`, fg `hsl(0 0% 98%)`): "Won"/positive status, completed steps, positive deltas, high-threshold bars, the "Live" pulse tag, success toasts.
+### Brand / action — PMO blue, held to primary + ring + active-nav ONLY
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--primary` | `221.2 83.2% 53.3%` | `221 83% 52%` | the ONE primary-action fill + active-nav tint |
+| `--primary-foreground` | `0 0% 98%` | `0 0% 100%` | white-on-primary |
+| `--ring` | `221.2 83.2% 53.3%` | `221 90% 66%` | focus ring |
+| `--nav-active-text` | `221.2 83.2% 45%` | `221 90% 72%` | AA blue text on the primary/10 nav wash |
+| `--violet` | `255 50% 55%` | `255 60% 72%` | categorical accent (KPI/avatar/timeline only) |
 
-### Neutral
-- **Background** (`hsl(0 0% 100%)`, pure white): App background and header. Note the main scroll area uses `secondary` at 35% (`hsl(240 4.8% 95.9% / 0.35)`) to lift cards off the page.
-- **Foreground** (`hsl(240 10% 3.9%)`, near-black): Primary text.
-- **Card / Popover** (`hsl(0 0% 100%)`): Elevated surfaces (cards, table body, rail, popovers, toasts) — pure white against the tinted main area.
-- **Secondary / Muted / Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). `accent` is the hover wash on interactive neutral surfaces (rail items, ghost buttons, row hover, control hover).
-- **Border / Input** (`hsl(240 5.9% 90%)`): All hairline dividers, card outlines, and field strokes — one value. Table row dividers soften to 70% opacity.
+### Status / semantic (the dot/bar hue) + their AA text variants
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--destructive` | `0 72% 50%` | `0 80% 62%` | destructive dot/bar/button fill |
+| `--destructive-foreground` | `0 0% 100%` | `0 0% 100%` | white-on-destructive |
+| `--warning` | `40 96% 50%` | `43 90% 58%` | warning dot/bar |
+| `--warning-foreground` | `28 95% 33%` | `43 92% 64%` | AA amber text on warning tint |
+| `--success` | `142 60% 42%` | `142 55% 52%` | success dot/bar |
+| `--success-foreground` | `0 0% 100%` | `0 0% 100%` | white-on-success |
+| `--status-open-text` | `221.2 83.2% 45%` | `221 90% 72%` | AA blue status-text (open) |
+| `--status-won-text` | `142 64% 27%` | `142 60% 68%` | AA green status-text (won) |
+| `--status-lost-text` | `0 72% 44%` | `0 85% 76%` | AA red status-text (lost) |
+| `--status-violet-text` | `255 45% 42%` | `255 65% 80%` | AA violet status-text |
+| `--destructive-text` | `0 72% 44%` | `0 85% 76%` | AA destructive text on tint/white |
+| `--warning-icon` | `35 92% 42%` | `43 90% 64%` | darker amber icon on warning/12 tint |
+| `--success-text` | `142 64% 27%` | `142 60% 68%` | AA green body text on success/10 tint |
+| `--tooltip-muted` | `240 5% 75%` | `240 5% 75%` | muted text on the constant-dark tooltip |
+| `--scrim` | `240 8% 6%` | `0 0% 0%` | overlay COLOR (app applies `/0.4` itself) |
 
-### Named Rules
-**The One Blue Rule.** The primary blue is the only saturated interactive color and should touch ≤10% of any screen. If two things on a screen are blue and only one is the main action, one of them is wrong. Categorical violet and status colors are NOT substitutes for it.
+### Lines / fields
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--border` | `240 5% 90.5%` | `240 5% 16%` | the single hairline divider/outline |
+| `--input` | `240 4% 84%` | `240 4% 30%` | field stroke (a hairline-strong) |
 
-**The Freed-Blue Status Rule (Coherence Wave).** The action-blue is reserved for the one interactive affordance — **no status, severity, or category pill may use it.** Three independent pill families, each a single source-of-truth map in `src/lib/status/statusVariants.ts`, never sharing tints: **(A) Workflow status** — open/active/in-progress → `progress` (neutral grey; the distinct LABEL carries identity, so it is never color-only); needs-you → `warn`; done/won/approved → `won`; lost/rejected/cancelled → `lost`; closed/terminal → `neutral`. **(B) Severity/risk** — Low `neutral` · Medium/High `warn` · Critical `lost`. **(C) Categorical/type/activity** — `violet` for the highlighted kind + `neutral` for the rest. The StatusPill `open` (blue-tint) variant is **frozen out of status use** (kept defined only for the migration window). This corrects the DOM-measured collisions where Incidents "Medium"==="Open"===action-blue and Companies "Client"===action-blue.
+### Geometry + motion (theme-independent; redeclared in `.dark` for full parity)
+`--radius: 0.5rem` · `--rail-w: 224px` · `--header-h: 56px` · `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)`
 
-**The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only.
+### Dark-theme mechanics (F2)
+- Toggle = the `dark` class on `<html>`. **No-flash bootstrap** (`pmo-portal/index.html`, synchronous,
+  pre-paint) reads `localStorage['theme']`, falls back to `prefers-color-scheme`, and sets the class
+  **before first paint** so the canvas never flashes the wrong scheme.
+- **Persistence + runtime sync** via `useTheme` (`src/hooks/useTheme.ts`) + `ThemeToggle`
+  (`src/components/shell/ThemeToggle.tsx`): the `<html>.dark` class is the single source of truth;
+  `setTheme`/`toggle` flips the class FIRST, then best-effort-persists (never throws — Safari private
+  mode). No `'system'` tri-state, no provider.
+- `@theme inline` is untouched by dark: it resolves `var()` at use-time, so redeclaring the base vars
+  in `.dark` cascades through every utility automatically.
 
-**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead.
+### Named rules
+**The One-Blue Rule.** `--primary` is the only saturated interactive color and must touch ≤~10% of any
+screen: the one primary action + the focus ring + active-nav. If two things are blue and only one is the
+action, one is wrong. Violet/status hues are NOT substitutes for it.
+
+**The Status-As-Dot Rule (ADR-0037).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
+an AA `-text` variant) — **never a loud filled slab behind body text.** Solid status fills are reserved
+for the essential status *verb* (the destructive button). Pill text MUST come from the AA `-text` tokens
+(`--status-*-text`, `--destructive-text`, `--success-text`), never the raw dot hue — and status is never
+color-only (the label carries identity).
+
+**The Freed-Blue Status Rule (Coherence Wave).** The action-blue is reserved for the one affordance —
+**no status/severity/category pill may use it.** Three independent pill families, one registry each in
+`src/lib/status/statusVariants.ts`: **(A) Workflow** open/active/in-progress → `progress` (neutral grey;
+the LABEL carries identity, never color-only); needs-you → `warn`; done/won/approved → `won`;
+lost/rejected/cancelled → `lost`; closed/terminal → `neutral`. **(B) Severity/risk** Low `neutral` ·
+Medium/High `warn` · Critical `lost`. **(C) Categorical/type/activity** `violet` for the highlighted
+kind + `neutral` for the rest. The StatusPill `open` (blue-tint) variant is frozen out of status use.
+
+**The Single-Border Rule.** `--border` is one value; `--input` is its slightly-stronger sibling for field
+strokes. Never invent a second border color to "separate" regions — use surface-tone contrast or spacing
+(content-over-containers) instead.
+
+**Content-over-containers (ADR-0037 §1).** Fewer boxes; prefer hairline dividers and whitespace to
+nested card wrappers. Drop a wrapping card where whitespace/dividers suffice; keep a container only where
+the content earns it (a phase/delivery card, a table frame).
 
 ## 3. Typography
 
-**Display / Body / UI Font:** Inter (with `system-ui, -apple-system, "Segoe UI", sans-serif` fallback).
-**Mono Font:** SF Mono (with `ui-monospace, "JetBrains Mono", Menlo, monospace`) — IDs, codes, and the `⌘K` glyph only.
+**UI font:** Inter variable (opsz 14..32, 400/500/600) + the cv stylistic sets
+(`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0037).
+Fallback `system-ui, -apple-system, "Segoe UI", sans-serif`. Root font-size is **16px** (load-bearing:
+rem-based utilities resolve to DESIGN.md sizes — `h-8` = 32px controls). Default body size is 14px,
+line-height 1.45.
 
-**Character:** One humanist-grotesque sans does all the talking. The voice is neutral and engineered, never expressive — Inter's tight `letterSpacing` at large sizes (`-0.02em` on titles) keeps headings crisp and compact. Base size is 14px with a 1.45 line-height; the app reads like a well-set spreadsheet, not a landing page. **`tabular-nums` (`font-variant-numeric: tabular-nums` + `font-feature-settings: "tnum"`) is mandatory on all money, percentages, counts, deltas, and metric values** so columns align and figures don't jitter on update.
+**Mono:** the Tailwind v4 `font-mono` default stack (`ui-monospace, SFMono-Regular, Menlo, …`), applied
+via the `font-mono` utility for IDs/codes/`⌘K` only. **Never** for prose or money (money is Inter-tabular).
 
-### Hierarchy
-- **Page Title** (700, 24px, lh 1.2, ls -0.02em): One per page, in `.page-head`. KPI values reuse ~23px/700 for the headline number.
-- **Heading** (700, 20px, lh 1.25, ls -0.01em): Section/card titles, kanban column titles (~13.5px/700 in compact contexts).
-- **Subheading** (600, 18px, lh 1.3): Sub-section headers inside detail panels.
-- **Body** (400, 14px, lh 1.45): Default text. Controls and table cells run 13.5px; the base run is 14px.
-- **Label** (600, 12px, lh 1.3): Status pills, badge counts, dense metadata, button text at small sizes.
-- **Overline** (600, 11px, lh 1.3, ls 0.06em, UPPERCASE): Rail group labels and table column headers (`thead th` at 11.5px). The uppercase + tracked treatment is the system's section-divider voice.
-- **Mono** (500, 13px): Project codes / IDs (`.pc-id`), keyboard hints (`.kbd`, `⌘K`). Never for prose or numbers-in-tables (those use tabular Inter).
+**`tabular-nums` is mandatory** (`font-variant-numeric: tabular-nums` + `font-feature-settings: "tnum"`,
+via the `.tabular`/`.tnum` utility) on every figure that can change or be compared — currency, %, counts,
+deltas, ages — so columns align and figures don't jitter. Note: `.tabular`/`.tnum` set their own
+`font-feature-settings` list, which fully replaces (not merges) the cv list on those elements.
 
-### Named Rules
-**The Tabular-Numbers Rule.** Every figure that can change or be compared (currency, %, counts, deltas, ages) is `tabular-nums`. Non-negotiable in tables, KPIs, kanban totals, and funnel values.
+### Hierarchy (unchanged scale)
+- **Page Title** (700, 24px, lh 1.2, ls -0.02em): one per page. KPI values reuse ~23px/700.
+- **Heading** (700, 20px, lh 1.25, ls -0.01em): section/card/kanban-column titles.
+- **Subheading** (600, 18px, lh 1.3): sub-section headers in detail panels.
+- **Body** (400, 14px, lh 1.45): default text; controls/table cells run ~13.5px.
+- **Label** (600, 12px, lh 1.3): status pills, badge counts, dense metadata, small button text.
+- **Overline** (600, 11px, lh 1.3, ls 0.06em, UPPERCASE): rail group labels + table column headers.
+- **Mono** (IDs/codes/`⌘K`): see above.
 
-**The Mono-For-Identifiers Rule.** SF Mono appears only on machine identifiers (deal/project codes) and keyboard chips. Money is Inter-tabular, not mono.
+**The Mono-For-Identifiers Rule.** `font-mono` appears only on machine identifiers (deal/project codes)
+and keyboard chips. Money is Inter-`tabular`, not mono.
 
-## 4. Elevation
+## 4. Geometry, motion & elevation
 
-This is a **borders-first, flat-by-default** system. Depth is conveyed primarily by 1px borders and surface-tone contrast (white `card` floating on the `secondary`/35% main area), not by shadow. Shadows are small, low-opacity, and almost always a *response to state* — a card lifts ~`0 2px 10px` on hover, a primary button carries a faint `0 1px 2px` brand-tinted shadow, segmented "on" states get a `0 1px 2px` lift to read as pressed. Only true overlays (popover menus, toasts, tooltips) carry a real drop shadow, because they genuinely float above the page. All shadow colors are a desaturated near-black (`hsl(240 6–10% ~8% / low-alpha)`), never pure black.
+**Radius — 8px spine with nested reduction.** `--radius: 0.5rem` (8px = `lg`); nested children step DOWN:
+`--radius-md: calc(var(--radius) - 2px)` (6px), `--radius-sm: calc(var(--radius) - 4px)` (4px). `full` =
+999px. So inner corners always sit inside outer ones.
 
-### Shadow Vocabulary
-- **State lift** (`box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06)`): Card / KPI tile on hover.
-- **Pressed/selected lift** (`box-shadow: 0 1px 2px hsl(240 6% 10% / 0.10–0.14)`): Active segment in a segmented control; the live-layout switcher's selected pane button.
-- **Brand button shadow** (`box-shadow: 0 1px 2px hsl(var(--primary) / 0.25)`): Primary button at rest — a faint tinted seat.
-- **Kanban card hover** (`box-shadow: 0 4px 14px hsl(240 6% 10% / 0.10)`): Slightly deeper than KPI hover; cards are draggable, so they lift more.
-- **Overlay** (`box-shadow: 0 10px 30px hsl(240 10% 8% / 0.16), 0 2px 6px hsl(240 10% 8% / 0.08)`): Popover row-menu. Toasts/tooltips use a single `0 10px 30px … / 0.16` (tooltip darker, `0 8px 24px hsl(240 10% 4% / 0.4)` on its dark surface).
+**Motion — soft, premium, low.** `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)` is the declared easing
+token for hover/state transitions. `prefers-reduced-motion: reduce` drops every animation/transition to
+~0ms globally (a single `@media` rule in `index.css`); build motion so it degrades to an instant
+crossfade there.
 
-### Named Rules
-**The Flat-By-Default Rule.** Surfaces are flat at rest, defined by their border and tone. A shadow appears only as a response to state (hover, pressed, focus) or because the element genuinely floats (popover, toast, tooltip). If a static card has a drop shadow, it is wrong — give it a border instead.
+**Elevation — borders-first, flat-by-default, single-layer.** Depth is conveyed by 1px hairlines and
+surface-tone contrast (a white `card` on the tinted canvas), not shadow. Shadows are small, low-opacity,
+and almost always a *response to state* (hover/pressed/focus) or reserved for true overlays (popover,
+toast, tooltip) that genuinely float. Shadow color is a desaturated near-black (`hsl(240 6–10% ~8% /
+low-alpha)`), never pure black. The signature shadow alphas are the only sanctioned raw values (in
+`index.css` + component classes); everything else is token-referenced. Low, single-layer elevation only.
 
-**The No-Pure-Black-Shadow Rule.** Shadow color is always desaturated near-black at low alpha (`hsl(240 …% ~8–10% / 0.04–0.16)`). Never `rgba(0,0,0,…)` at high opacity — that reads as a 2014 app.
+**The Flat-By-Default Rule.** A static card gets a border, not a drop shadow. A shadow appears only on
+hover/pressed/focus or for a genuine overlay.
+
+**The No-Pure-Black-Shadow Rule.** Shadow color is always desaturated near-black at low alpha. Never
+`rgba(0,0,0,…)` at high opacity.
 
 ## 5. Components
 
-All interactive controls are **32px tall** ("h-8") with `md` (8px) radius unless noted; data table rows are deliberately roomier at 54px. Nested radii use `calc(var(--radius) - 2px/3px)` so inner corners sit inside outer ones.
+All interactive controls are **32px tall** ("h-8") with `lg` (8px) radius unless noted; data-table rows
+are deliberately roomier (54px today; the airier target is ~56–64px — generous gutters, content-over-
+containers). Nested radii use `calc(var(--radius) - 2px/-4px)` so inner corners sit inside outer ones.
 
 ### Buttons
-- **Shape:** 8px radius (`{rounded.md}`), 32px tall, `0 12px` padding, 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
-- **Primary:** `primary` bg, `primary-foreground` text, faint brand shadow at rest. Hover → `primary` at 90% (`hsl(var(--primary) / 0.9)`).
-- **Outline:** `background` fill, `input` border, `foreground` text. Hover → `accent` wash.
-- **Ghost:** transparent, `foreground` text. Hover → `accent` wash. Used for icon buttons in the header.
-- **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete).
-- **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
-- **Disabled (gap — see Open Questions):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
+- **Shape:** `lg` radius, 32px tall, `0 12px` padding, ~7px gap to a ~15px icon. Small (`btn-sm`): 28px.
+  Icon-only: 32px square.
+- **Primary:** `primary` bg, `primary-foreground` text, faint brand-tinted shadow at rest. The ONE blue
+  action per surface.
+- **Outline:** `background` fill, `border` stroke, `foreground` text. Hover → `accent` wash.
+- **Ghost:** transparent, `foreground`/`muted-foreground` text. Hover → `accent` wash. Home for header
+  icon buttons and rare/secondary actions (the overflow menu is the calm home for Edit/Archive/Export).
+- **Destructive:** `destructive` bg, `destructive-foreground` text. The only solid status fill; reserved
+  for irreversible actions (Mark lost, Delete).
+- **Focus:** global `:focus-visible` — `outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px`.
 
 ### Badges / Status Pills
-- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. **Per the Freed-Blue Status Rule (§2), no status/severity/category pill may use the `open` (blue) variant — it is frozen for status; map "open/active" to `progress` (neutral).**
-- **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
+- **Status pill:** 22px tall, full radius, 12px/600 label with a leading 6px colored **dot** (a ring on
+  the tinted variants). Background = status hue at ~10–18% (`/10`–`/12` tints), text = the matching AA
+  `-text` token. Per the Freed-Blue + Status-As-Dot rules, **no status/severity/category pill may use the
+  `open` (blue) variant**, and status is never color-only. Default/neutral badge = `secondary` bg +
+  `muted-foreground` text.
+- **Count badge** (nav rail / kanban): quiet — `muted-foreground` figure (not a loud filled chip); active
+  nav item flips to `--nav-active-text` (AA blue) + `font-semibold`.
 
-#### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
-The darkened-AA text values for the four non-neutral pill variants are defined as named CSS custom properties. The `StatusPill` component applies them as `hsl(var(--token))` inline styles — the token IS the applied value.
-
-| Token | HSL value | Pill variant | Contrast (on white) |
-|---|---|---|---|
-| `--status-open-text` | `221 75% 38%` | `open` (blue) | ≥4.5:1 AA |
-| `--status-won-text` | `142 64% 30%` | `won` (green) | ≥4.5:1 AA |
-| `--status-lost-text` | `0 72% 45%` | `lost` (red) | ≥4.5:1 AA |
-| `--status-violet-text` | `262 60% 42%` | `violet` | 7.4:1 AA |
-
-#### Semantic icon / surface tokens (2026-06-21 — promoted from inline literals)
-Four additional named tokens close the raw-literal gap; they are defined in the same `:root` block as the status-pill tokens and mapped via `@theme inline` so `text-[hsl(var(--token))]` / `bg-[hsl(var(--scrim)/0.4)]` arbitrary Tailwind variants reference only the token pipeline, never bare HSL values.
-
-| Token | HSL value | Used by |
-|---|---|---|
-| `--warning-icon` | `38 92% 45%` | Icon color on `warning/12` tinted banners (`ImpersonationBanner`, `GateNotice` blocked) — darker than `--warning` so the icon itself clears AA on the fill |
-| `--success-text` | `142 64% 28%` | Body text on `success/10` tint (`GateNotice` ready variant) |
-| `--tooltip-muted` | `0 0% 80%` | De-emphasised body text inside the dark tooltip surface |
-| `--scrim` | `240 10% 4%` | Modal/drawer/command-palette overlay at `/0.4` alpha (desaturated near-black, per the No-Pure-Black-Shadow Rule) |
+### Status / AA text tokens (single source of truth in `index.css`)
+The darkened-AA text values for blue/status TEXT are named CSS custom properties. `StatusPill` and
+status text apply them as `hsl(var(--token))`. See §6 for the verified contrast numbers.
 
 ### Cards / Containers
-- **Corner Style:** 8px radius (`{rounded.md}`). When a card sits directly above a toolbar+table assembly, top corners are rounded and the seam is squared (`var(--radius) var(--radius) 0 0`).
-- **Background:** `card` (white) on the `secondary/35%` main area; the contrast is what makes it read as elevated.
-- **Border:** always a 1px `border`. This is the primary depth cue.
-- **Shadow:** none at rest; `state lift` on hover for interactive cards (KPI, kanban).
-- **Internal Padding:** 16px standard (`{spacing.4}`); compact cards (kanban) use ~11px.
-- **The KPI Tile** (signature): white card, 16px padding, with a top row of [30px tinted icon tile] + [label, `muted-foreground` 12.5px] + [help `?`], a 23px/700 tabular value, and a foot row with a tinted delta chip (`up` green / `down` red / `neutral` grey) plus a `muted` "vs." comparison. Negative values turn `destructive`. **ONE treatment app-wide** (`KPITile`); per-role dashboards vary *which* tiles, never *how* a tile looks. The in-header metric strip is `StatTiles` — one chrome for every record header (no boxed-vs-borderless fork).
+- **Corner:** `lg` radius (8px). When a card sits above a toolbar+table assembly, top corners round and
+  the seam squares (`var(--radius) var(--radius) 0 0`).
+- **Background:** `card` on the canvas; the tone contrast reads as elevated (no rest shadow).
+- **Border:** always a 1px `border` — the primary depth cue. **Drop the wrapper where whitespace/dividers
+  suffice** (content-over-containers).
+- **Padding:** 16px standard; compact cards (kanban) ~11px.
+- **KPI Tile** (signature): white card, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
+  12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
+  "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.
 
 ### Inputs / Fields
-- **Style:** `background` fill, 1px `input` border, 8px radius, 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font.
-- **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
-- **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
-- **Error / Disabled (gap — see Open Questions):** no error-state field styling in source. Proposed: error border = `destructive`, helper text = `destructive`; disabled = `secondary` bg + `muted-foreground` text + `not-allowed`.
-- **Validation contract (Coherence Wave):** `EntityFormModal`/`useEntityForm` validate **on blur / on submit**, never on mount — no eager "Fix N fields" banner on an untouched form. ONE submit-state rule across every modal (do not mix disabled-until-valid with allow-and-error).
+- `background` fill, 1px `input` border, `lg` radius, 32px tall, `0 10px` padding. Placeholder =
+  `muted-foreground`. Focus = global ring.
+- **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border +
+  white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
+- **Validation contract (Coherence Wave):** `EntityFormModal`/`useEntityForm` validate **on blur / on
+  submit**, never on mount — no eager "Fix N fields" banner on an untouched form.
 
 ### Data Table (signature)
-- **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
-- **Body cells:** 54px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu trigger is **always visible** (B-4 / AC-W2-IXD-006 — hover-hidden was reverted: undiscoverable on touch + keyboard; the trigger is now visible by default so every row's actions are reachable without hover).
-- **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
-- **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values; count in `muted`.
-- **Toolbar / Action bar:** `card` bg seamed to the table top (`… … 0 0`), 10–12px padding, holds `control` chips (32px, `input` border, `muted` icon, chevron), a `seg` segmented filter (`secondary` track, "on" = white pill + lift), a `search-mini`, and trailing icon controls. Selection mode swaps the default controls for a bulk-action cluster on a `primary/6%` wash with a count `pill`. **The list toolbar slot order is fixed by the `ListPage` shell (§7) — view-switcher · status filters · Search · Filter · Export · Import — identical on every list, empty slots held in place.**
+- **Header cells:** sticky, `card` bg, 38px tall, Overline type (uppercase, `muted-foreground`), bottom
+  `border`. Numeric columns right-align. Row `⋯` menu trigger is **always visible** (hover-hidden was
+  reverted: undiscoverable on touch + keyboard).
+- **Body cells:** 54px today (airier target ~56–64px), 12px padding, divider = `border/70%`. Row hover →
+  `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
+- **In-cell:** project cell (28px mono icon + 2-line name/code, code in `font-mono`); money (`tabular`,
+  sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by
+  threshold); age chip (turns `warning`/`destructive` when aging/stale).
+- **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values.
+- **Toolbar / Action bar:** `card` bg seamed to the table top, holds `control` chips, a `seg` segmented
+  filter, a `search-mini`, trailing icon controls. **The list-toolbar slot order is fixed by the
+  `ListPage` shell (§7).**
+- **Reflow (OD-W4-4):** single-renders — `<table>` at `md` (768px), stacked card list below. One branch
+  in the DOM (no flash, no `aria-hidden` dup). Touch targets extend to ≥44px via `.touch-target`.
 
 ### Kanban Card (signature)
-- White `card`, 8px radius, ~11px padding, faint `0 1px 2px` rest shadow. Hover → `0 4px 14px` lift + `muted-foreground/35%` border; active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill; a drag grip fades in on hover. Holds a 26px colored icon, name (13px/600) + customer (`muted`), a 15px/700 tabular value, a win-% chip, and a foot row (border-top `border/70%`) with age + owner avatar + mini status pill. Columns sit in a horizontal-scroll grid of `minmax(290px, 1fr)` tracks on a `secondary/50%` column body with a sticky blurred header. **ONE `ProjectCard` (size variants `kanban`/`grid`) + ONE `KanbanBoard` engine drive every board (Projects + Sales) — they are one entity, so they share one card.**
+White `card`, `lg` radius, ~11px padding, faint rest shadow; hover lift + `muted-foreground/35%` border;
+active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill. 26px icon,
+name + customer, ~15px/700 tabular value, win-% chip, foot row (age + owner avatar + mini status pill).
+Columns in a horizontal-scroll grid of `minmax(258px, 1fr)` tracks with scroll-snap (one column per
+gesture on touch) + a right-edge mask fade. **ONE `ProjectCard` + ONE `KanbanBoard`** drive every board.
 
-### Lifecycle / Stage Stepper (signature) — ONE stepper only
-- **The canonical stepper is the even-flex BAR stepper.** A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600; `paid` → `success`. Used for the budget-version lifecycle, the project stage journey, AND the procurement PR→VQ→PO→GR→VI→Paid lifecycle. The macro funnel/stage-summary band is the list-level analog: connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule. **Note on the Freed-Blue rule:** the `current` step using `primary` is intentional — the bar stepper is a *navigation/journey indicator*, not a status or category *pill*. The Freed-Blue rule governs StatusPill variants (workflow status, severity, category): those must never use `open`/primary. The bar stepper is exempt because its primary bar IS the interactive wayfinding affordance (not a status classification).
-- **Retired (Coherence Wave):** the numbered-circle `node` stepper variant (`LifecycleStepper variant="node"`) is **removed** — there is exactly ONE stepper appearance app-wide. The `inline` pip variant (9px dots in table rows) remains as the compact in-row form of the same stepper.
+### Lifecycle Stepper (signature) — ONE stepper only
+The canonical stepper is the even-flex **BAR** stepper: equal-flex steps each with a 6px rounded `jbar`
+(track `secondary`); `done` → `success`, `current` → `primary`, `paid` → `success`. Used for budget,
+project-stage, and procurement lifecycles. The `current` step using `primary` is intentional — the bar
+stepper is a **journey indicator**, not a status/category pill, so the Freed-Blue rule does not govern it.
+The numbered-circle `node` variant is retired; the `inline` pip (9px dots in table rows) remains.
 
 ### Navigation
-- **Rail (sidebar):** 224px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, `sm`-derived radius (`calc(var(--radius) - 2px)`), 13.5px/500, 17px stroke-2 icon, optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Settings.
-- **Top bar (header):** 56px (`--header-h`), `background` bg, bottom `border`. Holds the mobile menu button, a breadcrumb (`muted` links → `foreground` on hover, `>` separators, bold `current`), a flexible spacer, the `cmdk` search button (`⌘K` chip), an icon button with a `destructive` notification dot, and a user chip (avatar gradient blue→violet + name/role, hidden on phone).
-- **Mobile:** below 920px the rail collapses (`--rail-w: 0`) and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide.
-- **DataTable reflow (OD-W4-4):** the DataTable **single-renders** — at `md` (768 px) it renders the `<table>`; below `md` it renders a stacked card list instead. Exactly ONE branch is in the DOM at a time (chosen by `useIsDesktop()` reading `(min-width: 768px)` synchronously at first paint, so no flash of the wrong branch on mobile). These are two separate breakpoints — 920 px for the rail collapse, 768 px for the table→card reflow. Card anatomy: first column = title/activation button, remaining columns = `<dl>` label:value grid. Because only one branch renders, each cell appears once in the AT tree — **no `aria-hidden` on either branch** (the unrendered branch is simply absent). Touch targets on card affordances extend to ≥44 px via `.touch-target`.
+- **Rail:** `--rail-w: 224px`, `card`/sunken bg, right `border`. Brand block (56px). Grouped items under
+  Overline labels. **Nav item:** 36px tall, `sm` radius, 13.5px/500, 17px stroke-2 icon, optional quiet
+  count. Hover → `accent`; active → `primary/10%` bg + `--nav-active-text` (AA blue) + 600 +
+  `aria-current="page"`. Foot holds Settings + the non-destination Assistant toggle (`aria-pressed`).
+- **Top bar:** `--header-h: 56px`, `background` bg, bottom `border`. Mobile menu + breadcrumb (`muted` →
+  `foreground` on hover, `>` separators, bold current) + spacer + `cmdk` search (`⌘K`) + icon button with
+  a `destructive` notification dot + user chip (avatar gradient + name/role, hidden on phone).
+- **Mobile:** below 920px the rail collapses (`--rail-w: 0`); hamburger appears; `cmdk` shrinks to an
+  icon. (Two breakpoints: 920px rail-collapse, 768px table→card reflow.)
 
 ### Tabs / Segmented Controls
-- **Inline segmented (`seg`):** 32px track on `secondary`, buttons 28px, "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. `role="tablist"`/`role="tab"`/`aria-selected`. Used for stage filters.
-- **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
+- **Inline segmented (`seg`):** 32px track on `secondary`, 28px buttons, "on" = white `background` pill +
+  `foreground` + 600 + a 1px lift. `role="tablist"`/`role="tab"`/`aria-selected`.
+- **View switch (`ViewToggle`):** the shared `Table / Board / Calendar / Cards` label set, right-aligned
+  icon segmented.
 
 ### Overlays
-- **Popover menu (`#rowmenu`):** `popover` bg, `border`, 8px radius, overlay shadow, 5px padding; 32px menu items, `accent` hover, `danger` items in `destructive`, hairline `menu-sep`.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), overlay shadow, bottom-right, slide-in. 
-- **Tooltip (`#tip`):** dark surface (`hsl(240 10% 8%)`), near-white text, 7px radius, `0 8px 24px / 0.4` shadow, max 280px; bold title with optional dot, `tabular` key/value rows.
+- **Popover menu:** `popover` bg, `border`, `lg` radius, overlay shadow, 5px padding; 32px items, `accent`
+  hover, `danger` items in `destructive-text`, hairline separator.
+- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
+  right, slide-in (`.toast-anim`).
+- **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
+  near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
+  key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both
+  themes, so `--tooltip-muted` is the same value in `:root` and `.dark`.)
 
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** drive every interactive affordance with the one `primary` blue, and keep it under ~10% of any screen (The One Blue Rule).
-- **Do** define structure with the single 1px `border` (`hsl(240 5.9% 90%)`) and surface-tone contrast (white `card` on `secondary/35%` main), not with shadows.
-- **Do** apply `tabular-nums` to every figure — currency, %, counts, deltas, ages — in tables, KPIs, kanban, and funnels.
-- **Do** show status as a 6px dot + a tinted pill (status hue ~10–18% bg, darkened text), and reserve solid fills for the `destructive` button only.
-- **Do** keep controls at 32px ("h-8") and table body rows roomy at 54px; use the 8px radius spine with `calc()` derivations for nested corners.
-- **Do** use SF Mono only for machine IDs/codes and the `⌘K` chip; everything else is Inter.
-- **Do** expose the global `:focus-visible` ring (`2px solid {colors.ring}`, 2px offset) on every focusable element, and keep `role`/`aria-selected`/`aria-checked`/`aria-current` on tabs, checkboxes, and nav.
-- **Do** reserve categorical violet and the status hues for non-interactive meaning (KPI tiles, avatars, timeline dots, data state) — never as action colors.
-- **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts` (the three-family registry), never an inline per-module map (The Freed-Blue Status Rule).
-- **Do** open every primary entity as a routable `/x/:id` page with breadcrumb + Back + ⌘K indexing; drawers are previews only (The Record-Open Rule, §7).
+- **Do** hold `--primary` to the ONE primary action + ring + active-nav; keep it under ~10% of any screen.
+- **Do** render status as a dot/ring + label (or a faint `/10–/12` tint) using the AA `-text` tokens;
+  reserve solid status fills for the destructive verb only.
+- **Do** define structure with the single 1px `border` + surface-tone contrast — and prefer
+  whitespace/dividers over boxes (content-over-containers).
+- **Do** apply `tabular-nums` to every figure (currency, %, counts, deltas, ages).
+- **Do** keep controls at 32px and rows roomy; use the 8px radius spine with `calc()` derivations.
+- **Do** use `font-mono` only for machine IDs/codes and the `⌘K` chip; everything else is Inter+cv.
+- **Do** expose the global `:focus-visible` ring on every focusable element; keep `role`/`aria-*` on tabs,
+  checkboxes, nav, dialogs.
+- **Do** reserve violet/status hues for non-interactive meaning — never as action colors.
+- **Do** route every status/severity/category pill through `src/lib/status/statusVariants.ts`.
+- **Do** open every primary entity as a routable `/x/:id` page (The Record-Open Rule, §7).
 
 ### Don't:
-- **Don't** ship the "AI SaaS marketing" aesthetic: no dark-mode-with-purple-gradients, no neon accents, no glassmorphism panels, no oversized hero type, no shadow-heavy floating-card soup.
-- **Don't** put a drop shadow on a static card. If it isn't hovering, pressed, focused, or a true overlay, it gets a border instead (The Flat-By-Default Rule).
-- **Don't** use `rgba(0,0,0,…)` at high opacity for shadows; shadow color is desaturated near-black at low alpha only.
-- **Don't** introduce a second brand color, a new font, or a new border color. The palette is one blue + neutrals + status; the border is one value.
-- **Don't** use mono or proportional figures for money in tables — money is Inter-`tabular`, IDs are mono.
-- **Don't** color body text with a fully saturated status hue, or fill a status pill solid — use the tint + darkened-text pattern.
-- **Don't** make interactive controls taller/shorter than 32px or invent radii outside the 4/6/8/10/999 scale.
-- **Don't** assign the action-blue (`open` variant) to any status, severity, or category pill (The Freed-Blue Status Rule).
-- **Don't** build a record as a URL-less drawer, leave a list row inert (a dead-end), or build a second stepper / KPI-tile / project-card / list-toolbar grammar — reuse the §7 molecule.
-- **Don't** invent a per-feature create verb. Use **"New &lt;Entity&gt;"**; keep a domain verb ("Raise request", "File incident") only where the domain uses it, and make button + modal title + submit all say the same phrase.
+- **Don't** ship the "AI SaaS marketing" aesthetic (dark+purple-gradients, neon, glassmorphism, hero
+  type, floating-card soup).
+- **Don't** put a drop shadow on a static card — give it a border (Flat-By-Default).
+- **Don't** use `rgba(0,0,0,…)` at high opacity for shadows; desaturated near-black at low alpha only.
+- **Don't** introduce a second brand color, a new font, or a second border color.
+- **Don't** color body text with a fully saturated status hue, or fill a status pill solid.
+- **Don't** make controls taller/shorter than 32px or invent radii outside the 4/6/8/999 scale.
+- **Don't** assign the action-blue (`open` variant) to any status/severity/category pill.
+- **Don't** build a record as a URL-less drawer, leave a list row inert, or build a second
+  stepper/KPI-tile/project-card/list-toolbar grammar — reuse the §7 molecule.
+- **Don't** invent a per-feature create verb. Use **"New &lt;Entity&gt;"**; keep a domain verb only where
+  the domain uses it, and make button + modal title + submit all say the same phrase.
 
 ---
 
 ## 7. Coherence-Wave canonical molecules (enforced standard)
 
-The visual atoms (§2–§6) are shared; this section governs the **molecules** so every module behaves
-by one rulebook. Build plan + per-phase migration order: `docs/plans/2026-06-14-coherence-wave.md`.
+The atoms (§2–§6) are shared; this section governs the **molecules** so every module behaves by one
+rulebook. Plan: `docs/plans/2026-06-14-coherence-wave.md`.
 
 ### Terminology + create-verb
-- **Canonical noun = "Project"** in all UI copy. "Deal" and "opportunity" are removed. "Pipeline" is a
-  valid *stage-group* label (breadcrumb, the Sales index page title) — a stage, not a second noun.
-- **Create-verb scheme = "New &lt;Entity&gt;"** (New project / New company / New contact / New user).
-  Domain verbs ("Raise request", "File incident") are kept only where the domain genuinely uses them,
-  and then the **button text, modal title, and submit label must all be identical**.
+- **Canonical noun = "Project"** in all UI copy. "Deal"/"opportunity" are removed. "Pipeline" is a valid
+  *stage-group* label, not a second noun.
+- **Create-verb = "New &lt;Entity&gt;"** (New project / company / contact / user). Domain verbs kept only
+  where the domain uses them; then button + modal title + submit must be identical.
 
 ### RecordHeader (the one record-page header)
-- Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/Delete by permission]**,
-  actions top-right. Optional `meta` row + `StatTiles` metric strip below. Implemented as a thin
-  wrapper over `PageHeader` (`src/components/ui/PageHeader.tsx`); the Project detail header is the
-  template. Every record page (Project, Procurement, Company, Contact, Incident) uses it — icon
-  presence, status presence, and top-right action placement are mandatory.
+Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/Delete by permission]**,
+actions top-right. Optional `meta` row + `StatTiles` strip below. Thin wrapper over `PageHeader`
+(`src/components/ui/PageHeader.tsx`); the Project detail header is the template.
 
 ### Record-open paradigm (The Record-Open Rule)
-- **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers
-  are demoted to optional *quick-peek previews* that carry a URL + an "Open full record" link — never
-  the only home. Company, Contact, and Incident move drawer/dead-end → real pages; ⌘K indexes them.
-- **Stage-aware project lens (ADR-0020 single record):** the one `/projects/:id` shows a **pipeline
-  lens** pre-win (Value / Win probability / Weighted; no S-curve or delivery stepper) and a **delivery
-  lens** post-win (Contract/Committed/Actual strip, S-curve, milestone stepper, delivery tabs). Tab/
-  body visibility is driven by `projectStatusGroup` — never render the wrong shell for the stage. The
-  URL is role-invariant (role tailors entry-point CTAs, not the default tab).
+- **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers are
+  optional quick-peek previews that carry a URL + "Open full record" — never the only home.
+- **Stage-aware project lens (ADR-0020):** the one `/projects/:id` shows a **pipeline lens** pre-win
+  (Value / Win probability / Weighted) and a **delivery lens** post-win (Contract/Committed/Actual strip,
+  S-curve, milestone stepper, delivery tabs). Tab/body visibility is driven by `projectStatusGroup`.
 
 ### RecordActionZone (the record-action contract)
-- The advance/approve verbs (Advance / Mark won / Approve / Reject) live in ONE consistently-placed,
-  **never-below-the-fold** zone (sticky on desktop, fixed action bar on mobile), above the green
-  "Ready to advance" banner. Edit/Archive live in the header; advance verbs live here — one rule for
-  every record. No advance action buried at page-bottom.
+The advance/approve verbs (Advance / Mark won / Approve / Reject) live in ONE consistently-placed,
+**never-below-the-fold** zone (sticky on desktop, fixed action bar on mobile), above the green
+"Ready to advance" banner. Edit/Archive live in the header; advance verbs live here — one rule.
 
 ### ListPage shell
-- Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a toolbar in fixed slot
-  order **view-switcher · status filters · Search · Filter · Export · Import** (empty slots held in
-  place, no reflow). ONE named view-switcher (`ViewToggle`) with the shared label set **`Table /
-  Board / Calendar / Cards`** and a per-entity default. "By-stage Board" and "Kanban" both become
-  **Board**. The view-switcher renders right-aligned (icon segmented); status **filters** render left
-  as text chips — visually distinct so the two strips are never confused. Master-data lists get Export
-  **and** Import; the slot order is identical everywhere.
-- **Implemented** as `ListPage` (`src/components/ui/ListPage.tsx`, CW-5). Named slots
-  `title / description / count / primaryAction` (header row) + `banner / filters / search /
-  secondaryFilter / exportAction / importAction / view` (the toolbar). The view-switcher is the
-  *last* DOM node but carries `ml-auto`, so it sits hard-right while filters/search/Export lead at
-  the left — the documented right-aligned view, left-aligned filters arrangement. Every list page
-  (`Companies / Contacts / Incidents / Procurement / Projects / Pipeline`) renders on it; per-page
-  columns/filters/views are passed as slots — the shell is shared, the content is per-page.
+Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a toolbar in fixed slot order
+**view-switcher · status filters · Search · Filter · Export · Import** (empty slots held in place). ONE
+`ViewToggle` with the shared `Table / Board / Calendar / Cards` label set. View-switcher right-aligned
+(icon segmented); status filters left as text chips — visually distinct. Implemented as `ListPage`
+(`src/components/ui/ListPage.tsx`): named slots `title / description / count / primaryAction` +
+`banner / filters / search / secondaryFilter / exportAction / importAction / view`.
 
 ### Approvals (one inbox)
-- `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs
-  (filtered views INTO the one inbox), one `ApprovalRow` pattern, and one decision affordance (inline
-  Approve/Return + an "Open" link). The Timesheets "Approvals queue" tab and the Procurement
-  "Needs approval" filter are deep-links, not parallel implementations. Rail label + page H1 = "Approvals".
+`/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
+`ApprovalRow`, one decision affordance (inline Approve/Return + "Open"). Rail label + H1 = "Approvals".
 
----
-
-### Skeleton loading pattern (page-head + panel)
-- **Page-head skeleton:** two `skel` divs mirroring the `DashPageHead` structure (h1 + p two-line layout).
-  ```
-  <div aria-hidden="true" className="flex flex-col gap-1">
-    <div className="skel h-7 w-2/5 rounded" />   {/* h1 stand-in */}
-    <div className="skel skel-line w-3/5" />      {/* sub/p stand-in */}
-  </div>
-  ```
-  Never use a single-div `skel h-8 w-1/3 rounded` in place of a page head — it collapses the two-line
-  structure into one and creates a layout jump on ready. The `skel-line` utility provides the line height +
-  bottom gap inherited by the design system's `skel` stylesheet.
-- **Panel skeleton:** delegate to `<ChartFrame state="loading">` — it renders a `ListState variant='loading'`
-  which emits `data-testid="liststate-loading"` and handles both the accessibility announcement and the row
-  skeleton. Never hand-roll a panel spinner.
-- **Unified loading guard:** components that have a brief "compile/init" tick after data resolves should
-  unify both states (data-loading and still-compiling) under ONE `isPending || compiling` guard so the
-  user sees a single, stable skeleton with no FOUC between a skeleton-with-heading and a skeleton-without.
-  See `UserViewRenderer` (I3) for the reference implementation.
+### Skeleton loading pattern
+- **Page-head skeleton:** two `skel` divs mirroring `DashPageHead` (h1 + two-line sub) — never a single
+  `skel h-8` (collapses the two-line structure → layout jump on ready). `skel-line` provides line height
+  + gap.
+- **Panel skeleton:** delegate to `<ChartFrame state="loading">` (emits `data-testid="liststate-loading"`).
+  Never hand-roll a panel spinner.
+- **Unified loading guard:** unify data-loading + still-compiling under one `isPending || compiling` guard
+  so the user sees a single stable skeleton with no FOUC. Reference: `UserViewRenderer` (I3).
 
 ### FE design battery — 4 lenses, run twice
-
-Every UI issue passes a **4-lens design battery** run twice (mockup round 1, built-UI round 2 per
-`docs/design-workflow.md`): **Lens A Visual / B Flow / C Structure / D Intent**. `design-reviewer`
-owns all four. Lens D grades against **`docs/jtbd.md`** (the role × job-story oracle) — it catches
-intent-fit failures that pass Lenses A/B/C. The job story for each feature is captured during intake
-(grill) and recorded in `docs/jtbd.md` before spec, so the mockup is already intent-anchored at
-round 1. Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`.
+Every UI issue passes a **4-lens design battery** twice (mockup round 1, built-UI round 2 per
+`docs/design-workflow.md`): **Lens A Visual / B Flow / C Structure / D Intent**. `design-reviewer` owns
+all four; Lens D grades against `docs/jtbd.md`. In the current (default) **portfolio** review mode
+(ADR-0030), this is the rendered Discover pass: `design-reviewer` renders the running app on rich seed and
+audits open-endedly; every finding graduates to a test + a `routes × oracles` cell + a DESIGN.md note.
 
 ---
 
 ## How to use these tokens (implementers)
 
-The source ships these as **shadcn-vue HSL custom properties on `:root`**, consumed via `hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Preserve that pipeline in the React/Tailwind app:
+The source ships these as **shadcn-HSL bare triplets on `:root`** (light) + `.dark` (dark), consumed via
+`hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Tailwind v4 `@theme inline` maps utilities to them.
 
-1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus `--radius: 0.5rem`, `--rail-w: 224px`, `--header-h: 56px`, `--agent-panel-w: 400px`, `--agent-panel-breakpoint: 1024px` (see §5 AssistantPanel). The frontmatter lists them pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works.
-2. **Map Tailwind theme** to the vars. This app is **Tailwind v4**, so map them in a CSS `@theme inline` block where each `--color-*` value is a **resolvable** color — `@theme inline { --color-background: hsl(var(--background)); --color-primary: hsl(var(--primary)); --color-primary-foreground: hsl(var(--primary-foreground)); … }` — and `--radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px)`. **Do NOT append the v3 `/ <alpha-value>` placeholder** — v4 does not substitute it, so it emits invalid CSS the browser discards and every token utility silently renders nothing. The bare-triplet `:root` form (point 1) is what makes this work: v4 generates the `/<alpha>` modifier (`bg-primary/10`, `border-border/70`) automatically via `color-mix()` from the bare color. Add `warning`/`warning-foreground`, `success`/`success-foreground`, and the categorical `violet` — these are RIS additions beyond stock shadcn.
-3. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
-4. **Numbers:** add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric.
-5. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.
-6. **Charts (recharts):** theme series/axes/grid from these tokens — axis/grid in `border`/`muted-foreground`, primary series in `primary`, status series in success/warning/destructive, categorical in violet. (No chart tokens existed in the mockups; derive from the palette, do not invent new chart colors.)
-7. **Time-series charts use a time/value axis** (`type='number'` + `scale='time'` on `<XAxis>`, `dataKey` set to epoch-ms), never a categorical index. Every plotted point sits at the coordinate its date implies — a point for "today" between two future milestones renders between them, not at the end of the array. Date math uses date-fns (UTC-stable); see OD-DATE-1.
-
----
+1. **Bare `H S% L%` triplets only** — no `hsl()` wrapper on the `:root`/`.dark` declarations. This is
+   load-bearing: slash-alpha tints (`bg-primary/10`, `border-border/70`, `bg-success/12`) only work on
+   bare triplets.
+2. **`@theme inline` maps each `--color-*` to a resolved color** — `@theme inline { --color-background:
+   hsl(var(--background)); --color-primary: hsl(var(--primary)); … }` — and `--radius-lg: var(--radius);
+   --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px)`. **Do NOT append the v3
+   `/ <alpha-value>` placeholder** — v4 does not substitute it and emits invalid CSS the browser discards.
+   v4 generates `/<alpha>` modifiers automatically via `color-mix()` from the bare color.
+3. **Redeclare in `.dark`** every color/semantic token (index.css does). `@theme inline` resolves `var()`
+   at use-time, so redeclaring the base vars cascades through every utility — no per-utility dark variant.
+4. **Alpha tints** (`primary/10`, `success/12`, `border/70`, …) come from slash-alpha syntax — keep them;
+   they are load-bearing for the Status-As-Dot and hover-wash patterns.
+5. **Numbers:** apply `.tabular`/`.tnum` to every metric.
+6. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
+   border-radius: 4px }` rather than per-component focus styles.
+7. **Charts (recharts):** theme via `chartTheme` (`src/components/ui/chartTheme.ts`) — axis/grid in
+   `muted-foreground`/`border`, primary series in `primary`, status series in success/warning/destructive,
+   categorical in violet. **`chartTheme.ts` still holds legacy hardcoded categorical hues** (the old
+   blue/violet/green/amber/red literals) — a known follow-up to re-tone in a chart surface slice; the
+   axis/grid/series already derive from tokens. Time-series use a time/value axis (`type='number'` +
+   `scale='time'`, `dataKey` = epoch-ms), never a categorical index; date math via date-fns (UTC-stable).
 
 ## Accessibility posture
 
-- **Contrast:** `foreground` on `background`/`card` is ~AAA. `muted-foreground` (`46.1%` L) on white clears AA for body/secondary text. Status pills use **darkened text variants** (e.g. won text `hsl(142 64% 30%)`, lost `hsl(0 72% 45%)`, amber's deep-brown `warning-foreground`) specifically to clear AA on their light tinted backgrounds — preserve those darker text values; do not substitute the base status hue as pill text.
-- **Focus:** single source of truth — global `:focus-visible` = `2px solid {colors.ring}` (the primary blue) at 2px offset. Every focusable element inherits it.
-- **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
-- **Keyboard:** tab order follows DOM (rail → header → main); custom checkboxes are `tabindex="0"`. Overlays (popover/toast/tooltip) are non-focus-trapping in the mockup — real implementations must add focus management and `Esc`-to-close (a build-time gap, not a token gap).
-- **Coherence-Wave a11y invariants:** every new record page (Company/Contact/Incident) carries a focus-managed page heading + breadcrumb + Back; the `RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay dot+label (never color-only) so the freed-blue→neutral remap never relies on color alone.
+**Contrast — WCAG-AA in BOTH themes (verified in reskin `_app.css` §0; numbers ported verbatim).**
+Light (text token → on surface → ratio) and Dark:
+
+| Text token (light value) | On surface (light) | Ratio | On surface (dark value) | Ratio |
+|---|---|---|---|---|
+| `--foreground` `240 6% 10%` | canvas | **17.72:1** | `240 6% 95%` on canvas `240 6% 7%` | **16.81:1** |
+| `--secondary-foreground` `240 4% 32%` | canvas / muted | 8.21 / 7.40:1 | `240 5% 72%` on canvas / raised | 9.17 / 8.37:1 |
+| `--muted-foreground` `240 4% 44%` | canvas / sunken / muted | 5.22 / 4.94 / 4.71:1 | `240 4% 60%` on canvas / raised / muted | 6.35 / 5.80 / 5.34:1 |
+| `--nav-active-text`/`--status-open-text` `221.2 83.2% 45%` | canvas / primary-tint / tint-strong | 6.81 / 5.87 / 5.35:1 | `221 90% 72%` on canvas / tint / tint-strong | 7.35 / 6.06 / 5.21:1 |
+| `--status-won-text`/`--success-text` `142 64% 27%` | success-tint / canvas | 5.38 / 6.07:1 | `142 60% 68%` on tint / raised | 8.43 / 10.56:1 |
+| `--status-lost-text`/`--destructive-text` `0 72% 44%` | destructive-tint / canvas | 5.06 / 6.02:1 | `0 85% 76%` on tint / raised | 6.66 / 7.52:1 |
+| `--warning-foreground` `28 95% 33%` | warning-tint / canvas | 5.09 / 5.68:1 | `43 92% 64%` on tint / raised | 8.27 / 10.95:1 |
+| `--status-violet-text` `255 45% 42%` | violet-tint | AA (no §0 number) | `255 65% 80%` on tint | AA (no §0 number) |
+
+**Solid fills (white text on the hue):** dark `--primary` (`221 83% 52%`) = **5.39:1 AA** (verified).
+**Known gap (flagged in `index.css`):** the app has ONE `--primary` that doubles as the solid fill, so
+**raw `text-primary` (blue) used as TEXT on the dark canvas is ~3.5:1 (sub-AA).** The fix is a
+`--primary-text` bright-blue split (the reskin `--ds-primary-text`, already prototyped) landing with the
+surface slices — **not a token-layer concern**. Until then, surface agents MUST use the AA `-text` tokens
+(`--nav-active-text`, `--status-*-text`, `--destructive-text`, `--success-text`) for blue/status TEXT.
+**Unverified solids (not in the §0 table):** the solid BUTTON fills `--primary` (light `53.3%` L) and
+`--destructive` (light `50%` / dark `62%` L) with white text were not contrast-verified in §0 — §0's
+AA-passing solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app
+has not yet split out. Treat solid status-button contrast as pending the surface slices.
+
+**Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
+success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
+hues (success 8.75 / warn 11.01 / neutral 3.12).
+
+**Focus:** single source of truth — global `:focus-visible` = `2px solid hsl(var(--ring))` at 2px offset.
+**Semantics:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented
+filters, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only
+buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus management + `Esc`-to-close.
+**Coherence-Wave invariants:** every new record page carries a focus-managed heading + breadcrumb + Back;
+`RecordActionZone` keeps the primary action in the keyboard path and above the fold; status pills stay
+dot+label (never color-only).
 
 ---
 
-## A2 · AssistantPanel design additions (ADR-0040, 2026-06-30)
+## Icons — the `<Icon name=…>` monoline facade (ADR-0037, locked look)
 
-### Layout tokens (add to `:root`)
+The app renders every icon through ONE facade: `<Icon name=…>` (`src/components/ui/icons.tsx`) backed by
+the `ICON_PATHS` registry (`src/components/ui/iconPaths.tsx`). The facade is the locked monoline look:
+`viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={2}`, round caps/joins,
+`width/height="1em"` (sized by font-size), and `aria-hidden` unless an `aria-label`/`title` is passed.
 
+**Adopting Lucide is DEFERRED.** The hand-rolled monoline set (~36 icons) already matches the Lucide
+style (stroke-2, 24×24, currentColor), and the facade means Lucide can be swapped in behind `<Icon name>`
+with **zero call-site churn** if a future surface needs an icon the set lacks. This is a deliberate
+deferral, not an omission — do not introduce a second icon family or bypass the facade.
+
+---
+
+## A2 · AssistantPanel design additions (ADR-0040)
+
+### Layout tokens
 | Token | Value | Why |
 |---|---|---|
-| `--agent-panel-w` | `400px` | Fixed desktop drawer width — a layout constant alongside `--rail-w: 224px` / `--header-h: 56px`. |
-| `--agent-panel-breakpoint` | `1024px` | The panel's modal-sheet threshold — distinct from the 920px rail-collapse and 768px table-reflow breakpoints (design-plan §1.5). |
+| `--agent-panel-w` | `400px` | Fixed desktop drawer width (a layout constant alongside `--rail-w: 224px` / `--header-h: 56px`). |
+| `--agent-panel-breakpoint` | `1024px` | The panel's modal-sheet threshold — distinct from the 920px rail-collapse and 768px table-reflow. |
 
-### New component entries (§5)
+### `AssistantPanel` (persistent companion drawer)
+A right-side companion drawer mounted as a sibling of `<main>` (NOT a grid column). `card` bg + left
+`border` + overlay shadow on desktop; full-screen modal sheet below `--agent-panel-breakpoint`.
 
-#### `AssistantPanel` (persistent companion drawer surface)
+**Dual focus contract (D-A2-1):**
+- **Desktop (≥ breakpoint):** `role="complementary" aria-label="Agent assistant"`. NON-modal: no focus-
+  trap, no background `inert`, no scrim. Tab exits freely to `<main>`. Focus into composer on open;
+  restores to trigger on close.
+- **Mobile (< breakpoint):** `role="dialog" aria-modal="true"`. Full modal: focus-trap, background
+  `inert`, scrim (`bg-foreground/40`), body-scroll-lock. Mirrors the AppShell mobile rail drawer.
 
-A new surface archetype: a **right-side companion drawer** mounted as a sibling of `<main>` via a fixed-position overlay (NOT a grid column). Inherits `card` bg + left `border` + the `Overlay` shadow on desktop; becomes a full-screen modal sheet below `--agent-panel-breakpoint`.
+**Do:** open with ⌘J (toggle), the Rail "Assistant" button (non-destination, `aria-pressed` MUST track
+the real `open` state from `AgentRuntimeContext`), or Close ×. Esc always closes. Stop cancels.
+**Don't:** trap focus or scrim the background on desktop — a companion drawer is non-modal. Keep-mounted +
+`inert` when closed (transcript survives route changes).
 
-**Dual focus contract (D-A2-1) — the most important a11y rule for this component:**
-- **Desktop (≥ `--agent-panel-breakpoint`):** `role="complementary" aria-label="Agent assistant"`. NON-modal: **no focus-trap, no background `inert`, no scrim.** Tab exits freely to `<main>` (the "keep working while you ask" job). Focus moves into the composer on open; restores to the trigger on close.
-- **Mobile (< `--agent-panel-breakpoint`):** `role="dialog" aria-modal="true"`. Full modal contract: focus-trap (`useFocusTrap`), background `inert`, scrim (`bg-foreground/40`), body-scroll-lock. Mirrors the `AppShell` mobile rail drawer exactly.
+### `ChatBubble` (user message)
+Right-aligned, `secondary` bg, `foreground` text, `lg` radius (one corner squared), max-width ~85%, body
+type, SR-only "You said: " prefix. **Must be `secondary` (quiet grey) — NEVER `primary` blue** (a sent
+message is not an action; One-Blue Rule). Blue is reserved for the Send button only.
 
-**Do:** open with ⌘J (toggle), the Rail "Assistant" button (non-destination, `aria-pressed`), or the Close ×. Esc always closes (never cancels). Stop cancels (`runtime.control(runId,'cancel')`).
-**Do:** the Rail "Assistant" entry is a toggle — `aria-pressed` MUST track the actual `open` state from `AgentRuntimeContext`. Hardcoding `aria-pressed={false}` violates WCAG 4.1.2 (name/role/value) and lies to AT users when the panel is open. Thread `assistantPanelOpen={open}` from the context consumer to `<Rail>`.
-**Don't:** trap focus or scrim the background on desktop — a companion drawer is non-modal. Never use `role="dialog"` on desktop.
+### `ToolCallCard` (agent evidence)
+Recessed card deriving the label from `payload`: `payload.entity` → "Looked up &lt;entity&gt; · N rows"
+(count `tabular`); else "Checking your data…". `card` bg + 1px `border`, `lg` radius, 12px
+`muted-foreground` label. Leading status glyph is `aria-hidden`; never renders raw JSON; never blue.
 
-Keep-mounted + `inert` when closed (no unmount) so transcript state survives route changes (D-A2-6).
-
-#### `ChatBubble` (user message)
-
-Right-aligned user message bubble. `secondary` bg, `foreground` text, `rounded.md` (one corner squared toward the rail edge), max-width ~85%, `body` type. Includes an SR-only "You said: " prefix so the `role="log"` transcript is unambiguous to screen readers.
-
-**Must be `secondary` (quiet grey) — NEVER `primary` blue.** A sent message is not an action (One-Blue Rule). Blue is reserved for the Send button only.
-
-#### `ToolCallCard` (agent evidence card)
-
-Compact recessed card showing what the agent looked up. Derives the human label from `payload`:
-- `payload.entity` present: `"Looked up <entity> · N rows"` (count in `tabular-nums`)
-- Fallback: `"Checking your data…"`
-
-`card` bg + 1px `border`, `rounded.md`, `label`/12px `muted-foreground` text. Leading status glyph (✓ / spinner / !) is `aria-hidden` — the visible label IS the accessible name. Never renders raw `payload` JSON. Never blue.
-
-#### Status chip (transient) — usage note
-
-The run-phase status ("Working…", "Done.") is the `badge-status` molecule applied to a transient live-region. Not a new component — record as a usage note. Announces via `aria-live="polite" aria-atomic="true"` in a separate region from the transcript so status doesn't interleave with the streamed answer.
-
-#### Example-question chip (empty state) — usage note
-
-The empty-state example questions reuse the `button-outline`/control-chip idiom (`rounded.md`, `label` type). Tapping fills the composer (does not auto-send — user reviews, then sends).
-
-#### `ApprovalChip` (write-action approve/deny widget) — A3 Discover graduation
-
-Inline chip rendered in the transcript when the agent proposes a write action (`needs-approval` status event). Graduated findings from the A3 design-Discover pass (2026-06-30):
-
-**Token rule — approved-state text (Blocker-6):** The "Approved ✓" paragraph MUST use `text-[hsl(var(--success-text))]`, the AA-darkened green text token defined in §2 / §4 (`--success-text: 142 64% 28%`). Using the raw Tailwind literal `text-green-600` bypasses the token pipeline (different L — fails AA on the chip's `secondary/40` fill and breaks dark-mode). This is enforced by a Vitest test in `ApprovalChip.test.tsx`.
-
-**Control height rule (Blocker-9):** Approve (primary) and Deny (outline) buttons MUST be `h-8` (32px), matching the app-wide control height rule (§5 Buttons, DESIGN.md "32px tall"). Using `py-1` alone yields ~28-30px and violates the rule. Use `h-8 py-0` so the height class is authoritative. Enforced by Vitest test.
-
-**Chip shape:** `rounded.md` border, `secondary/40` bg, `px-3 py-2` inset — matches `ToolCallCard` recessed style. Summary text: 12px `foreground` (server-composed, never model-generated, truncated to 120 chars). Approve button: `primary` fill, `primary-foreground` text, `h-8`. Deny button: `border` outline, `foreground` text, `h-8`. Resolved states (approved/denied) remove the buttons; "Approved ✓" in `success-text` token, "Denied" in `muted-foreground`.
-
-**Accessibility (NFR-AW-A11Y-001/003 — Blocker-7):** The chip container carries `aria-live="assertive"` so AT announces the proposal immediately. When `phase === 'needs-approval'`, `AssistantPanel` MUST render a distinct `role="status" aria-live="polite"` region with the text "A write action awaits your decision" — separate from the "Working…" streaming indicator so SR users learn WHY composer input is blocked. The Composer textarea MUST carry `aria-disabled="true"` (via `needsApproval` prop) in this phase.
-
-**Per-chip state keyed by `pendingId` (Blocker-8):** Each approval proposal has a unique `pendingId`. Chip display state MUST be a `ChipStateMap = Record<string, ApprovalChipState>` keyed by `pendingId` — NOT a single global atom. A single global state corrupts earlier chips when sequential proposals arrive in one run (e.g. second proposal arrives while first is `approved` → global resets to `pending`, re-enabling the first chip's buttons). This is a structural correctness requirement, not cosmetic. See `docs/decisions.md` OD-A3-CHIP.
-
-### Icon: `message` (chat bubble outline)
-
-Added to `src/components/ui/iconPaths.tsx` as `IconName = ... | 'message'`. A simple speech-bubble outline at stroke-2, 24×24, same family as all existing icons. Used by the Rail "Assistant" entry and future header trigger.
+### `ApprovalChip` (write-action approve/deny widget) — A3 graduation
+- **Token rule (Blocker-6):** the "Approved ✓" paragraph MUST use `text-[hsl(var(--success-text))]`
+  (`--success-text: 142 64% 27%`). Never the raw `text-green-600` literal (different L, fails AA, breaks
+  dark). Enforced by a Vitest test.
+- **Control-height rule (Blocker-9):** Approve/Deny buttons MUST be `h-8` (32px, app-wide control height).
+  Use `h-8 py-0`. Enforced by a Vitest test.
+- **Shape:** `lg` radius border, `secondary/40` bg. Approve = `primary`/`primary-foreground` `h-8`; Deny
+  = `border` outline `foreground` `h-8`. Resolved states remove buttons; "Approved ✓" in `success-text`,
+  "Denied" in `muted-foreground`.
+- **A11y (NFR-AW-A11Y-001/003):** container `aria-live="assertive"`; when `phase==='needs-approval'`,
+  AssistantPanel renders a distinct `role="status" aria-live="polite"` "A write action awaits your
+  decision" region; the composer textarea carries `aria-disabled` via `needsApproval`.
+- **Per-chip state keyed by `pendingId` (Blocker-8):** `ChipStateMap = Record<string, ApprovalChipState>`
+  keyed by `pendingId` — NOT a single global atom (a global corrupts earlier chips on sequential
+  proposals). See `docs/decisions.md` OD-A3-CHIP.

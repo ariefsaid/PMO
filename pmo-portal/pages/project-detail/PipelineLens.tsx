@@ -331,7 +331,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 Router context without breaking (the Sales route is a top-level navigation). */}
             <a
               href="/sales"
-              className="mt-1 self-start text-[12.5px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               ← Back to Sales Pipeline
             </a>

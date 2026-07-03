@@ -115,7 +115,7 @@ describe('Approvals page states', () => {
     queryState.isPending = true;
     queryState.data = undefined;
     renderPage();
-    expect(screen.getByTestId('approvals-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });
 
   it('AC-904 / N6: nothing in EITHER queue → the inbox shows the page-level "all caught up" empty', () => {
@@ -153,9 +153,10 @@ describe('Approvals page data', () => {
     queryState.isError = false;
     queryState.data = submittedSheets;
     renderPage();
-    expect(screen.getByText('Dave Engineer')).toBeInTheDocument();
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    expect(within(preview).getByText('Dave Engineer')).toBeInTheDocument();
     // Week of 2026-06-01 → "Week of Jun 1" (formatted, TZ-safe).
-    expect(screen.getByText(/Jun 1/)).toBeInTheDocument();
+    expect(within(preview).getByText(/Jun 1/)).toBeInTheDocument();
   });
 
   it('renders summed hours per sheet', () => {
@@ -163,8 +164,9 @@ describe('Approvals page data', () => {
     queryState.isError = false;
     queryState.data = submittedSheets;
     renderPage();
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
     // 8 hours in entries
-    expect(screen.getByText(/8\.0/)).toBeInTheDocument();
+    expect(within(preview).getByText(/8\.0/)).toBeInTheDocument();
   });
 });
 
@@ -182,9 +184,10 @@ describe('Approvals page actions', () => {
     );
     renderPage();
 
-    const approveBtn = screen.getByRole('button', { name: /approve/i });
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    const approveBtn = within(preview).getByRole('button', { name: /approve/i });
     // "Return" is the IA-3 label for the reject transition (sends the week back).
-    const returnBtn = screen.getByRole('button', { name: /return/i });
+    const returnBtn = within(preview).getByRole('button', { name: /return/i });
     expect(approveBtn).toBeInTheDocument();
     expect(returnBtn).toBeInTheDocument();
 
@@ -211,7 +214,8 @@ describe('Approvals page actions', () => {
     );
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /return/i }));
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    await userEvent.click(within(preview).getByRole('button', { name: /return/i }));
     expect(rejectMutation.mutate).not.toHaveBeenCalled();
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toBeInTheDocument();

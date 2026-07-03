@@ -180,7 +180,7 @@ const ContactDetail: React.FC = () => {
       />
 
       {/* Body — the contact's fields (read-only; edit-in-modal). */}
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardHead>Contact detail</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -190,7 +190,7 @@ const ContactDetail: React.FC = () => {
                 contact.company_id ? (
                   <Link
                     to={`/companies/${contact.company_id}`}
-                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     {companyName}
                   </Link>
@@ -206,7 +206,7 @@ const ContactDetail: React.FC = () => {
                 contact.email ? (
                   <a
                     href={`mailto:${contact.email}`}
-                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     {contact.email}
                   </a>
@@ -221,7 +221,7 @@ const ContactDetail: React.FC = () => {
                 contact.phone ? (
                   <a
                     href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
-                    className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     {contact.phone}
                   </a>
@@ -236,7 +236,7 @@ const ContactDetail: React.FC = () => {
       </Card>
 
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
-      <Card>
+      <Card variant="bare">
         <CardHead>Activity</CardHead>
         <CardPad>
           <ContactActivityPanel contactId={contact.id} />
@@ -443,7 +443,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                   relatedHref ? (
                     <Link
                       to={relatedHref}
-                      className="text-[13.5px] font-medium text-foreground hover:text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                      className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                     >
                       {a.subject}
                     </Link>

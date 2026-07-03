@@ -28,9 +28,27 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(screen.getByTestId('status-slot')).toBeInTheDocument();
   });
 
+  it('lets long project names wrap to two lines before truncating in both grid and kanban variants', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} />);
+    const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
+    expect(gridName.className).toContain('line-clamp-2');
+    expect(gridName.className).toContain('break-words');
+    expect(gridName.className).not.toContain('truncate');
+
+    rerender(<ProjectCardShell {...baseProps} variant="kanban" />);
+    const kanbanCard = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
+    const kanbanName = within(kanbanCard).getByText('Innovate Corp HQ Fit-Out');
+    expect(kanbanName.className).toContain('line-clamp-2');
+    expect(kanbanName.className).toContain('break-words');
+    expect(kanbanName.className).not.toContain('truncate');
+  });
+
   it('exposes a single project-card test carrier so every surface is the same molecule', () => {
     render(<ProjectCardShell {...baseProps} />);
-    expect(screen.getByTestId('project-card')).toBeInTheDocument();
+    const card = screen.getByTestId('project-card');
+    expect(card).toBeInTheDocument();
+    expect(card.className).toMatch(/hover:shadow-\[0_2px_10px_hsl\(var\(--foreground\)\/0\.06\)\]/);
+    expect(card.className).not.toMatch(/240_6%_10%/);
   });
 
   it('makes the name the activation target and calls onOpen when clicked', async () => {

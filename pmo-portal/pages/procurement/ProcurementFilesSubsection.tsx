@@ -117,7 +117,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={uploading || upload.isPending}
-              className="touch-target inline-flex items-center gap-1 rounded-sm text-[12px] font-medium text-primary hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="touch-target inline-flex items-center gap-1 rounded-sm text-[12px] font-medium text-primary-text hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="upload" className="size-3.5" />
               {uploading ? `Uploading ${progress}%` : 'Attach file'}

@@ -249,7 +249,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           </p>
         </div>
         {canCreate && (
-          <Button variant="primary" size="sm" onClick={() => setFormTarget({ task: null })}>
+          <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
             <Icon name="plus" />
             New task
           </Button>

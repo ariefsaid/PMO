@@ -55,6 +55,28 @@ describe('CW-7: pristine-form contract (no eager validation; consistent submit g
     );
     expect(result.current.errors).toEqual({});
     expect(result.current.touched).toEqual({});
+    expect(result.current.hasAttemptedSubmit).toBe(false);
+  });
+
+  it('CW-7: a mount-time blur before the first task does NOT mark the field touched or surface an error', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }), {
+        wrapper: ({ children }) => <StrictMode>{children}</StrictMode>,
+      });
+      act(() => result.current.handleBlur('name'));
+      expect(result.current.touched).toEqual({});
+      expect(result.current.errors).toEqual({});
+
+      act(() => {
+        vi.runAllTimers();
+      });
+      act(() => result.current.handleBlur('name'));
+      expect(result.current.touched.name).toBe(true);
+      expect(result.current.errors.name).toBe('Opportunity name is required.');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('CW-7: submit gate is consistent — disabled (isComplete=false) while a required field is blank', () => {
@@ -79,33 +101,53 @@ describe('useEntityForm: validate-on-blur (not per keystroke)', () => {
   });
 
   it('surfaces the field error only after blur, and clears it once valid + re-blurred', () => {
-    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
-    act(() => result.current.handleBlur('name'));
-    expect(result.current.errors.name).toBe('Opportunity name is required.');
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+      act(() => {
+        vi.runAllTimers();
+      });
+      act(() => result.current.handleBlur('name'));
+      expect(result.current.errors.name).toBe('Opportunity name is required.');
 
-    act(() => result.current.setValue('name', 'Harborside'));
-    act(() => result.current.handleBlur('name'));
-    expect(result.current.errors.name).toBeUndefined();
+      act(() => result.current.setValue('name', 'Harborside'));
+      act(() => result.current.handleBlur('name'));
+      expect(result.current.errors.name).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('typing a valid value LIVE-clears an already-shown field error (no extra blur needed)', () => {
-    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
-    // Surface the error via blur.
-    act(() => result.current.handleBlur('name'));
-    expect(result.current.errors.name).toBe('Opportunity name is required.');
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+      act(() => {
+        vi.runAllTimers();
+      });
+      // Surface the error via blur.
+      act(() => result.current.handleBlur('name'));
+      expect(result.current.errors.name).toBe('Opportunity name is required.');
 
-    // Typing a value that satisfies the validator clears the error live.
-    act(() => result.current.setValue('name', 'Harborside'));
-    expect(result.current.errors.name).toBeUndefined();
+      // Typing a value that satisfies the validator clears the error live.
+      act(() => result.current.setValue('name', 'Harborside'));
+      expect(result.current.errors.name).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('setValue updater is PURE — no React warning under StrictMode (no setState inside a setState updater)', () => {
     // StrictMode double-invokes updaters; a setState nested inside another
     // setState's updater surfaces as a console.error here. A pure updater stays clean.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers();
     try {
       const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }), {
         wrapper: ({ children }) => <StrictMode>{children}</StrictMode>,
+      });
+      act(() => {
+        vi.runAllTimers();
       });
       act(() => result.current.handleBlur('name'));
       // The setValue that live-clears the already-shown error must not warn.
@@ -113,6 +155,7 @@ describe('useEntityForm: validate-on-blur (not per keystroke)', () => {
       expect(result.current.errors.name).toBeUndefined();
       expect(spy).not.toHaveBeenCalled();
     } finally {
+      vi.useRealTimers();
       spy.mockRestore();
     }
   });
@@ -127,6 +170,7 @@ describe('useEntityForm: submit gating', () => {
     });
     expect(onValid).not.toHaveBeenCalled();
     expect(result.current.errors.name).toBe('Opportunity name is required.');
+    expect(result.current.hasAttemptedSubmit).toBe(true);
     expect(result.current.canSubmit).toBe(false);
   });
 
@@ -215,12 +259,20 @@ describe('useEntityForm: submit gating', () => {
   });
 
   it('exposes fieldProps wiring id/value/onChange/onBlur/aria-invalid for a field', () => {
-    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
-    act(() => result.current.handleBlur('name'));
-    const fp = result.current.fieldProps('name');
-    expect(fp.value).toBe('');
-    expect(fp.error).toBe('Opportunity name is required.');
-    expect(typeof fp.onChange).toBe('function');
-    expect(typeof fp.onBlur).toBe('function');
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+      act(() => {
+        vi.runAllTimers();
+      });
+      act(() => result.current.handleBlur('name'));
+      const fp = result.current.fieldProps('name');
+      expect(fp.value).toBe('');
+      expect(fp.error).toBe('Opportunity name is required.');
+      expect(typeof fp.onChange).toBe('function');
+      expect(typeof fp.onBlur).toBe('function');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -31,4 +31,16 @@ describe('Card', () => {
     render(<CardPad>inner</CardPad>);
     expect(screen.getByText('inner').className).toContain('p-4');
   });
+
+  // ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────
+  // `variant="bare"` drops the card frame so a section sits directly on the canvas
+  // (heading + content, separated from neighbors by whitespace + an optional hairline).
+  // Default (`framed`) keeps the border + bg-card + rounding — unchanged everywhere else.
+  it('variant="bare": no card frame — content sits on the canvas', () => {
+    render(<Card variant="bare">body</Card>);
+    const card = screen.getByText('body');
+    expect(card.className).not.toContain('border-border');
+    expect(card.className).not.toContain('bg-card');
+    expect(card.className).not.toContain('rounded-lg');
+  });
 });
