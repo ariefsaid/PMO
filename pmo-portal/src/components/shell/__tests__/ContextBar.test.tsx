@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import { ContextBar } from '../ContextBar';
 
@@ -21,11 +22,25 @@ vi.mock('@/src/auth/useAuth', () => ({
   }),
 }));
 
+// FR-AAN-038: the bell is gated behind `agentAssistant`, which defaults off in
+// tests (VITE_FEATURES_AGENT_ASSISTANT unset — vite.config.ts test env). Most
+// ContextBar tests exercise the flag-off state (its real default); the REC-3
+// flag-on coverage lives in its own describe block below.
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/src/lib/features')>();
+  return { ...real };
+});
+vi.mock('@/src/components/shell/NotificationBell', () => ({
+  NotificationBell: () => <button type="button" aria-label="Notifications, 0 unread">Bell</button>,
+}));
+
 const breadcrumb = [{ label: 'Dashboard' }];
 
 const renderBar = () =>
   render(
-    <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onToggleRail={vi.fn()} />
+    <MemoryRouter>
+      <ContextBar breadcrumb={breadcrumb} onOpenPalette={onOpenPalette} onToggleRail={vi.fn()} />
+    </MemoryRouter>
   );
 
 beforeEach(() => {
@@ -49,9 +64,9 @@ describe('ContextBar', () => {
     expect(onOpenPalette).toHaveBeenCalled();
   });
 
-  it('B-5 (AC-W2-IXD-008): the notification bell is removed — no dead no-op affordance', () => {
-    // OD-W2-5: the bell had no handler (no known destination — dead, not "coming soon").
-    // Removed rather than disabled-with-tooltip because there is no known future destination.
+  it('FR-AAN-038: the notification bell is absent while `agentAssistant` is off', () => {
+    // The flag defaults off in tests (vite.config.ts test env has no
+    // VITE_FEATURES_AGENT_ASSISTANT) — this is the real default state.
     renderBar();
     expect(screen.queryByRole('button', { name: /notification/i })).not.toBeInTheDocument();
   });
@@ -141,5 +156,18 @@ describe('ContextBar', () => {
     const acct = screen.getByRole('button', { name: /account menu/i });
     expect(acct.closest('div')!.className).toContain('sm:hidden');
     expect(container).toBeTruthy();
+  });
+});
+
+// REC-3/FR-AAN-034/038: with `agentAssistant` on, ContextBar mounts the real
+// NotificationBell (its own component/query — no `notificationCount` prop).
+describe('ContextBar — agentAssistant flag on (REC-3)', () => {
+  it('mounts the NotificationBell with a real destination (no dead no-op affordance)', async () => {
+    const features = await import('@/src/lib/features');
+    vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) => key === 'agentAssistant');
+    canImpersonate = false;
+    renderBar();
+    expect(screen.getByRole('button', { name: /notifications, 0 unread/i })).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 });
