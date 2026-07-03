@@ -2,7 +2,7 @@
  * agentChatHandler — pure async generator for the agent-chat edge function.
  *
  * Pure: all I/O injected via HandlerDeps. No Deno globals, no process.env.
- * Importable in Vitest (Node) with Anthropic SDK + Supabase mocked.
+ * Importable in Vitest (Node) with the ModelClient + Supabase mocked.
  *
  * ADR-0039 decision 7: handler is CI-testable; index.ts (Deno.serve) is not.
  * D2: handler = async function* agentChatHandler(req, deps): AsyncIterable<AgentEvent>
@@ -14,6 +14,12 @@
  *   - On next POST with req.decision, re-validate args, re-derive authz, execute or decline.
  *   - `can` is injected via deps (no direct policy.ts import — policy.ts has browser deps).
  *   - NFR-AW-SEC-001: the dispatchAction gate is the single site that may call action.run.
+ *
+ * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-016..018/022):
+ *   - HandlerDeps.anthropic (AnthropicLike) → HandlerDeps.modelClient (ModelClient).
+ *   - System prompt now travels as messages[0] = {role:'system', ...} (FR-MC-003).
+ *   - Tool result is a single role:'tool' message (FR-MC-006), not an assistant/user pair.
+ *   - finish_reason vocabulary replaces stop_reason (FR-MC-007).
  */
 
 // Relative imports — no .ts extension; no @-alias.
@@ -27,6 +33,7 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions';
 import { buildAgentSystemPrompt } from './prompt';
+import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient';
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport';
 
@@ -46,35 +53,6 @@ const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) =>
 // don't receive composeEnabled directly; the handler passes the right map to helpers.
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
-
-/** Minimal Anthropic-like interface for messages.create. */
-export interface AnthropicLike {
-  messages: {
-    create(params: AnthropicCreateParams): Promise<AnthropicResponse>;
-  };
-}
-
-export interface AnthropicCreateParams {
-  model: string;
-  max_tokens: number;
-  system: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>;
-  tools: Array<{ name: string; description: string; input_schema: object }>;
-}
-
-export interface AnthropicContentBlock {
-  type: string;
-  text?: string;
-  name?: string;
-  id?: string;
-  input?: unknown;
-}
-
-export interface AnthropicResponse {
-  stop_reason: string;
-  content: AnthropicContentBlock[];
-  usage?: { input_tokens?: number; output_tokens?: number };
-}
 
 /**
  * Minimal Supabase-like interface supporting:
@@ -121,7 +99,10 @@ export type CanFn = (
 ) => boolean;
 
 export interface HandlerDeps {
-  anthropic: AnthropicLike;
+  /** Vendor-neutral model client (FR-MC-016). */
+  modelClient: ModelClient;
+  /** Resolved model id for this call (FR-MC-015 / MC-OD-009). */
+  model: string;
   supabase: HandlerSupabaseLike;
   userId: string;
   rateGuard?: RateGuard;
@@ -213,6 +194,22 @@ function getPermissionCheck(
   }
 }
 
+// ── Tool catalog builder (FR-MC-017) ──────────────────────────────────────────
+
+function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
+  const tools: ModelTool[] = BASE_ACTIONS.map((a) => ({
+    type: 'function',
+    function: { name: a.name, description: a.description, parameters: a.inputSchema },
+  }));
+  if (composeEnabled) {
+    tools.push({
+      type: 'function',
+      function: { name: composeViewAction.name, description: composeViewAction.description, parameters: composeViewAction.inputSchema },
+    });
+  }
+  return tools;
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 /**
@@ -224,7 +221,7 @@ function getPermissionCheck(
  *   (3) 429 RATE_LIMITED — rate guard exceeded (D9/AR-OD-002)
  *   (A3-decision) approve/deny branch — when req.decision is present
  *   (4) tool-use loop — up to MAX_TOOL_ROUNDS (AC-AR-001, AC-AR-004)
- *   (5) 502 UPSTREAM_ERROR — SDK throws; error scrubbed (AC-AR-005)
+ *   (5) 502 UPSTREAM_ERROR — model call throws; error scrubbed (AC-AR-005)
  */
 export async function* agentChatHandler(
   req: AgentChatRequest,
@@ -310,79 +307,77 @@ export async function* agentChatHandler(
   // ── Build system prompt ────────────────────────────────────────────────────
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
 
-  // The full conversation messages for the Anthropic API
-  const messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }> =
-    req.messages.map((m) => ({
+  // The full conversation messages for the model call — system prompt is
+  // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
+  const messages: ModelMessage[] = [
+    { role: 'system', content: system },
+    ...req.messages.map((m) => ({
       role: m.role,
       content:
         typeof m.content === 'string'
           ? m.content
-          : (m.content as object[]),
-    }));
+          : null,
+    })),
+  ];
 
   // ── Build tool catalog (A4: flag-gated compose_view, FR-CV-024, D7) ─────────
-  // compose_view is included only when deps.composeEnabled is true.
-  const tools: Array<{ name: string; description: string; input_schema: object }> =
-    BASE_ACTIONS.map((a) => ({
-      name: a.name,
-      description: a.description,
-      input_schema: a.inputSchema,
-    }));
-  if (deps.composeEnabled) {
-    tools.push({
-      name: composeViewAction.name,
-      description: composeViewAction.description,
-      input_schema: composeViewAction.inputSchema,
-    });
-  }
+  const tools = buildTools(deps.composeEnabled);
   // Per-call action lookup map (includes compose_view when enabled)
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
   // ── Tool-use loop (AC-AR-001, AC-AR-004) ──────────────────────────────────
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const resp = await deps.anthropic.messages.create({
-        model: 'claude-opus-4-8',
+      const resp = await deps.modelClient.create({
+        model: deps.model,
         max_tokens: 2048,
-        system,
         messages,
         tools,
       });
 
-      // Emit any text blocks as assistant events
-      for (const block of resp.content) {
-        if (block.type === 'text' && block.text) {
-          yield emit('assistant', { text: block.text });
-        }
+      // Emit any text content as an assistant event.
+      if (resp.message.content) {
+        yield emit('assistant', { text: resp.message.content });
       }
 
-      // Blocker 3: use the API's own sentinel — stop_reason !== 'tool_use' means
-      // no tool dispatch needed, regardless of whether content happens to contain
-      // a tool_use block. Also handle max_tokens explicitly.
-      if (resp.stop_reason === 'max_tokens') {
-        yield statusEvent('completed', {}, 'response truncated');
+      // Blocker 3: use the API's own sentinel — finish_reason !== 'tool_calls' means
+      // no tool dispatch needed. Also handle length (truncation) explicitly.
+      if (resp.finish_reason === 'length') {
+        yield statusEvent(
+          'completed',
+          { model: resp.model, prompt_tokens: resp.usage?.prompt_tokens, completion_tokens: resp.usage?.completion_tokens, ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}) },
+          'response truncated',
+        );
         return;
       }
 
-      const toolBlock = resp.content.find((b) => b.type === 'tool_use');
-
-      if (resp.stop_reason !== 'tool_use') {
-        yield statusEvent('completed');
+      if (resp.finish_reason !== 'tool_calls') {
+        yield statusEvent('completed', {
+          model: resp.model,
+          prompt_tokens: resp.usage?.prompt_tokens,
+          completion_tokens: resp.usage?.completion_tokens,
+          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
+        });
         return;
       }
 
-      const toolInput = toolBlock!.input;
-      const toolId = toolBlock!.id ?? 'tool-use-id';
-      const toolName = toolBlock!.name ?? '';
+      const toolCall = resp.message.tool_calls?.[0];
+      const toolInput = toolCall ? JSON.parse(toolCall.function.arguments) : {};
+      const toolId = toolCall?.id ?? 'tool-use-id';
+      const toolName = toolCall?.function.name ?? '';
+
+      // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
+      // with tool_calls IS the turn; no separate echo needed).
+      messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
 
       // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
-      // The handler owns the anthropic client; it curries it into runComposeView.
+      // The handler owns the model client; it curries it into runComposeView.
       // composeViewAction.run is a guard stub and is NEVER called here (ADR-0041).
       if (toolName === 'compose_view' && deps.composeEnabled) {
         const out = await runComposeView(
           toolInput as { prompt: string },
           { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
-          { anthropic: deps.anthropic },
+          { modelClient: deps.modelClient, model: deps.model },
         );
 
         if ('error' in out) {
@@ -390,20 +385,11 @@ export async function* agentChatHandler(
           yield emit('assistant', {
             text: "I wasn't able to compose a valid view — try rephrasing your request.",
           });
-          // Feed a tool_result so the conversation loop can continue/close
           messages.push({
-            role: 'assistant',
-            content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-          });
-          messages.push({
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: toolId,
-                content: JSON.stringify({ error: out.error, code: out.code }),
-              },
-            ],
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ error: out.error, code: out.code }),
           });
         } else {
           // Compose succeeded — emit artifact event (FR-CV-007/008)
@@ -424,18 +410,10 @@ export async function* agentChatHandler(
             },
           });
           messages.push({
-            role: 'assistant',
-            content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-          });
-          messages.push({
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: toolId,
-                content: JSON.stringify({ ok: true, panels: out.spec.panels.length }),
-              },
-            ],
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ ok: true, panels: out.spec.panels.length }),
           });
         }
         continue;
@@ -445,18 +423,10 @@ export async function* agentChatHandler(
       if (!action) {
         // Unknown action — return structured error to model
         messages.push({
-          role: 'assistant',
-          content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-        });
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolId,
-              content: JSON.stringify({ error: `unknown action: ${toolName}` }),
-            },
-          ],
+          role: 'tool',
+          tool_call_id: toolId,
+          name: toolName,
+          content: JSON.stringify({ error: `unknown action: ${toolName}` }),
         });
         continue;
       }
@@ -473,18 +443,10 @@ export async function* agentChatHandler(
         if (!validation.ok) {
           // Invalid args → error tool_result to model; NO needs-approval event (AC-AW-005)
           messages.push({
-            role: 'assistant',
-            content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-          });
-          messages.push({
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: toolId,
-                content: JSON.stringify({ error: validation.error }),
-              },
-            ],
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ error: validation.error }),
           });
           continue;
         }
@@ -514,20 +476,12 @@ export async function* agentChatHandler(
         },
       });
 
-      // Append assistant tool_use turn + user tool_result turn for the next round
+      // Append the single tool-result message for the next round (FR-MC-006).
       messages.push({
-        role: 'assistant',
-        content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-      });
-      messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: toolId,
-            content: JSON.stringify(toolResult),
-          },
-        ],
+        role: 'tool',
+        tool_call_id: toolId,
+        name: toolName,
+        content: JSON.stringify(toolResult),
       });
     }
 
@@ -541,6 +495,11 @@ export async function* agentChatHandler(
     });
     yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
   }
+
+  // initialRole is captured for future use (deputy re-auth on the propose path);
+  // referenced here to avoid an unused-variable lint error while its consumer
+  // (getPermissionCheck at propose time) is not yet wired — kept intentionally.
+  void initialRole;
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -577,11 +536,13 @@ async function* handleDecision(
 
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
 
-  const messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }> =
-    req.messages.map((m) => ({
+  const messages: ModelMessage[] = [
+    { role: 'system', content: system },
+    ...req.messages.map((m) => ({
       role: m.role,
-      content: typeof m.content === 'string' ? m.content : (m.content as object[]),
-    }));
+      content: typeof m.content === 'string' ? m.content : null,
+    })),
+  ];
 
   // ── Find trailing unresolved confirm-action tool_use (positional match) ────
   // The trailing unresolved tool_use is the last assistant message's last tool_use block
@@ -591,7 +552,7 @@ async function* handleDecision(
   if (!trailingToolUse) {
     // No pending confirm action — stale/duplicate decision; treat as no-op (AC-AW-003)
     // Just run the model to continue normally.
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
     return;
   }
 
@@ -600,7 +561,7 @@ async function* handleDecision(
 
   if (!action || !action.confirm) {
     // Action not found or not a confirm action → no-op
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
     return;
   }
 
@@ -623,17 +584,13 @@ async function* handleDecision(
 
     // Append rejection tool_result so the model acknowledges
     messages.push({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: toolId,
-          content: JSON.stringify({ result: 'Write action declined by user.' }),
-        },
-      ],
+      role: 'tool',
+      tool_call_id: toolId,
+      name: toolName,
+      content: JSON.stringify({ result: 'Write action declined by user.' }),
     });
 
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
     return;
   }
 
@@ -648,16 +605,12 @@ async function* handleDecision(
       payload: { event: 'write_resolved', decision: 'rejected', actionName: toolName, pendingId },
     });
     messages.push({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: toolId,
-          content: JSON.stringify({ error: `Invalid args on approval: ${validation.error}` }),
-        },
-      ],
+      role: 'tool',
+      tool_call_id: toolId,
+      name: toolName,
+      content: JSON.stringify({ error: `Invalid args on approval: ${validation.error}` }),
     });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
     return;
   }
 
@@ -688,14 +641,10 @@ async function* handleDecision(
       yield statusEvent('errored', { error: 'PERMISSION_DENIED' });
       // Also append a model-readable tool_result so the model can explain
       messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: toolId,
-            content: JSON.stringify({ error: 'Permission denied. You do not have access to perform this action.' }),
-          },
-        ],
+        role: 'tool',
+        tool_call_id: toolId,
+        name: toolName,
+        content: JSON.stringify({ error: 'Permission denied. You do not have access to perform this action.' }),
       });
       // Run loop so model can acknowledge (NFR-AW-SEC-003 "surface friendly")
       // But we already emitted errored — stop here per AC-AW-008 assertion
@@ -710,16 +659,12 @@ async function* handleDecision(
   } catch {
     // DB error during write
     messages.push({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: toolId,
-          content: JSON.stringify({ error: 'Write failed; database error.' }),
-        },
-      ],
+      role: 'tool',
+      tool_call_id: toolId,
+      name: toolName,
+      content: JSON.stringify({ error: 'Write failed; database error.' }),
     });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
     return;
   }
 
@@ -745,18 +690,14 @@ async function* handleDecision(
 
   // Append write result as tool_result so the model can acknowledge
   messages.push({
-    role: 'user',
-    content: [
-      {
-        type: 'tool_result',
-        tool_use_id: toolId,
-        content: JSON.stringify(writeResult),
-      },
-    ],
+    role: 'tool',
+    tool_call_id: toolId,
+    name: toolName,
+    content: JSON.stringify(writeResult),
   });
 
   // Continue the loop so the model acknowledges
-  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, system, messages);
+  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
 }
 
 // ── Inner tool-use loop (reused for the decision continuation) ────────────────
@@ -767,65 +708,70 @@ async function* runLoop(
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
-  system: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>,
+  messages: ModelMessage[],
 ): AsyncGenerator<AgentEvent> {
   try {
+    const tools: ModelTool[] = BASE_ACTIONS.map((a) => ({
+      type: 'function',
+      function: { name: a.name, description: a.description, parameters: a.inputSchema },
+    }));
+
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const resp = await deps.anthropic.messages.create({
-        model: 'claude-opus-4-8',
+      const resp = await deps.modelClient.create({
+        model: deps.model,
         max_tokens: 2048,
-        system,
         messages,
-        tools: BASE_ACTIONS.map((a) => ({
-          name: a.name,
-          description: a.description,
-          input_schema: a.inputSchema,
-        })),
+        tools,
       });
 
-      for (const block of resp.content) {
-        if (block.type === 'text' && block.text) {
-          yield emit('assistant', { text: block.text });
-        }
+      if (resp.message.content) {
+        yield emit('assistant', { text: resp.message.content });
       }
 
-      if (resp.stop_reason === 'max_tokens') {
-        yield statusEvent('completed', {}, 'response truncated');
+      if (resp.finish_reason === 'length') {
+        yield statusEvent(
+          'completed',
+          { model: resp.model, prompt_tokens: resp.usage?.prompt_tokens, completion_tokens: resp.usage?.completion_tokens, ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}) },
+          'response truncated',
+        );
         return;
       }
 
-      if (resp.stop_reason !== 'tool_use') {
-        yield statusEvent('completed');
+      if (resp.finish_reason !== 'tool_calls') {
+        yield statusEvent('completed', {
+          model: resp.model,
+          prompt_tokens: resp.usage?.prompt_tokens,
+          completion_tokens: resp.usage?.completion_tokens,
+          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
+        });
         return;
       }
 
-      const toolBlock = resp.content.find((b) => b.type === 'tool_use');
-      if (!toolBlock) {
-        yield statusEvent('completed');
+      const toolCall = resp.message.tool_calls?.[0];
+      if (!toolCall) {
+        yield statusEvent('completed', {
+          model: resp.model,
+          prompt_tokens: resp.usage?.prompt_tokens,
+          completion_tokens: resp.usage?.completion_tokens,
+          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
+        });
         return;
       }
 
-      const toolId = toolBlock.id ?? 'tool-use-id';
-      const toolName = toolBlock.name ?? '';
-      const toolInput = toolBlock.input;
+      const toolId = toolCall.id;
+      const toolName = toolCall.function.name;
+      const toolInput = JSON.parse(toolCall.function.arguments);
+
+      messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
 
       const action = BASE_ACTION_BY_NAME.get(toolName);
       if (!action || action.confirm) {
         // Unknown action or confirm action called from runLoop — return error to model
         messages.push({
-          role: 'assistant',
-          content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-        });
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolId,
-              content: JSON.stringify({ error: `action '${toolName}' not available in this context` }),
-            },
-          ],
+          role: 'tool',
+          tool_call_id: toolId,
+          name: toolName,
+          content: JSON.stringify({ error: `action '${toolName}' not available in this context` }),
         });
         continue;
       }
@@ -835,18 +781,10 @@ async function* runLoop(
       yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult } });
 
       messages.push({
-        role: 'assistant',
-        content: [{ type: 'tool_use', id: toolId, name: toolName, input: toolInput }],
-      });
-      messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: toolId,
-            content: JSON.stringify(toolResult),
-          },
-        ],
+        role: 'tool',
+        tool_call_id: toolId,
+        name: toolName,
+        content: JSON.stringify(toolResult),
       });
     }
 
@@ -875,6 +813,11 @@ interface TrailingToolUse {
  * This is the positional idempotency check (D-A3-1 / AC-AW-003):
  * if the transcript already has a tool_result for the last tool_use, the decision
  * is stale/duplicate → return null.
+ *
+ * NOTE: req.messages (ConversationMessage[]) is the SPA transport shape (Anthropic
+ * content-block array), unrelated to ModelClient's wire shape — it is replayed
+ * verbatim by the client on the approve/deny re-POST and is NOT touched by the
+ * provider swap (FR-MC-006 only changes the model-facing wire representation).
  */
 function findTrailingConfirmToolUse(
   messages: ConversationMessage[],
