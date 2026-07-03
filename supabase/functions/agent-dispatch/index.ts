@@ -25,6 +25,7 @@ import { createClient } from '@supabase/supabase-js';
 import { runDispatchTick } from './dispatcher.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
+import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
@@ -91,6 +92,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return false;
   };
 
+  // ── ADR-0044 §6 / REC-4: credit-backed RateGuard, gated by the SAME AGENT_CREDITS_ENFORCED flag
+  // as the interactive path (agent-chat/index.ts) — default OFF so a deployment with no seeded
+  // credits grants is not instantly locked out (spec Open Question 3). `check` receives the MINTED
+  // OWNER client (dispatcher.ts) and builds the credit-backed guard against it per-automation, so the
+  // balance read runs under owner RLS — never service_role (NFR-AAN-SEC-002/SEC-006).
+  const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
+  const rateGuard = {
+    check: async (userId: string, mintedClient?: unknown) => {
+      if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
+      const guard = createCreditRateGuard({ supabase: mintedClient as never });
+      return guard.check(userId);
+    },
+  };
+
   try {
     await runDispatchTick({
       serviceClient,
@@ -102,8 +117,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       model,
       conditionModel,
       conditionModelId,
-      // REC-4: no-op credit preflight until issue-3's credit-backed RateGuard ships (Phase F).
-      rateGuard: { check: async () => ({ exceeded: false }) },
+      rateGuard,
       now: () => new Date(),
       // The fired run gets the SAME gates as interactive: can() re-auth + compose tool.
       handlerExtras: { can: agentCan, composeEnabled: true },

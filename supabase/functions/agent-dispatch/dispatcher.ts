@@ -123,13 +123,17 @@ export async function selectTriggerMatches(
 // ── runDispatchTick — the per-tick orchestration (ADR-0044 §2/§3, the safety core) ──────────────
 
 /**
- * Credit preflight seam (REC-4, issue-3). The dispatcher checks the OWNER's balance before firing;
- * over-budget ⇒ no-start + a warning notification (FR-AAN-032/033). Until issue-3's credit-backed
- * RateGuard ships, index.ts injects a no-op guard (always { exceeded: false }) — Phase F wires the
- * real one and owns AC-AAN-027. Structurally identical to handler.ts's RateGuard.
+ * Credit preflight seam (REC-4, issue-3 shipped: `_shared/creditRateGuard.ts`). The dispatcher
+ * checks the OWNER's balance before firing; over-budget ⇒ no-start + a warning notification
+ * (FR-AAN-032/033, ADR-0044 §6). `check`'s optional second arg is the MINTED OWNER CLIENT — the
+ * real `createCreditRateGuard({ supabase })` factory computes the balance under whatever client it
+ * is constructed with (`credits`/`agent_usage` rows are owner-RLS-scoped), so `index.ts` builds the
+ * guard per-automation with the minted client (never service_role — the deputy invariant extends to
+ * the credit read, NFR-AAN-SEC-002). A no-op guard (always `{ exceeded: false }`) ignores the arg.
+ * Structurally compatible with handler.ts's interactive `RateGuard`.
  */
 export interface DispatchRateGuard {
-  check(userId: string): Promise<{ exceeded: boolean; retryAfterSeconds?: number }>;
+  check(userId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number }>;
 }
 
 /**
@@ -241,9 +245,12 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   const triggerUnits = triggerMatches.map(({ automation, event }) => ({ automation, event: event as StatusEventRow | undefined }));
 
   for (const { automation, event } of [...scheduleUnits, ...triggerUnits]) {
-    // Trigger + NL condition: evaluate BEFORE minting (cheap-tier, memoized §4). We mint lazily —
-    // once per due automation — so a warning-notify and the fire share one minted client.
-    let conditionWarning: string | undefined;
+    // Mint ONCE per due automation — every downstream use (condition-warning notify, credit
+    // preflight, audit, fire) shares this single minted owner client (one mint per candidate fire,
+    // never a fresh mint per branch).
+    const minted = await mintOwnerJwt(deps, automation);
+
+    // Trigger + NL condition (cheap-tier, memoized §4).
     if (automation.kind === 'trigger' && automation.condition && event) {
       const verdict = await evaluateCondition(
         { model: deps.conditionModel, modelId: deps.conditionModelId, now: () => now.getTime(), memo },
@@ -252,8 +259,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       );
       if (!verdict.fire) {
         if (verdict.warning) {
-          // Unevaluable ⇒ mint + warning notification, no fire (fail-quiet-but-visible, FR-AAN-024).
-          const minted = await mintOwnerJwt(deps, automation);
+          // Unevaluable ⇒ warning notification, no fire (fail-quiet-but-visible, FR-AAN-024).
           await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', verdict.warning, {
             source: 'automation',
             automation_id: automation.id,
@@ -263,10 +269,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       }
     }
 
-    // ── Credit preflight (REC-4, FR-AAN-032/033). Over ⇒ mint + warning notification, no fire. ──
-    const credit = await rateGuard.check(automation.owner_id);
+    // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
+    // OWNER CLIENT (never service_role, NFR-AAN-SEC-002/SEC-006) — the preflight runs strictly
+    // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
+    const credit = await rateGuard.check(automation.owner_id, minted.client);
     if (credit.exceeded) {
-      const minted = await mintOwnerJwt(deps, automation);
       await notifyOwner(
         minted.client,
         'warning',
@@ -277,9 +284,8 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       continue; // no fire, no last_fired_at stamp.
     }
 
-    // ── Mint → audit (BEFORE fire) → fire (the SAME loop) → stamp last_fired_at. ──
+    // ── Audit (BEFORE fire) → fire (the SAME loop) → stamp last_fired_at. ──
     const runId = newRunId();
-    const minted = await mintOwnerJwt(deps, automation);
     // AC-AAN-017: audit BEFORE the minted client is used for the fire. Fail-closed (auditMint
     // throws on failure) — never fire an unaudited run.
     await auditMint(minted.client, automation, runId, newMintedAt());
@@ -287,6 +293,10 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     const persistenceExtras = deps.buildPersistence
       ? { persistence: deps.buildPersistence(minted.client, automation.owner_id, runId) }
       : {};
+    // FR-AUC-002/004/018 parity with interactive: usage recording is unconditional, under the SAME
+    // minted owner client as the fire — one agent_usage row per model-call resolution, scoped to the
+    // automation's owner (never service_role).
+    const usageExtras = { usage: { supabase: minted.client } };
     await fireAutomation({
       handler: deps.handler,
       mintedClient: minted.client,
@@ -295,7 +305,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       ownerId: automation.owner_id,
       automation,
       runId,
-      handlerExtras: { ...(deps.handlerExtras ?? {}), ...persistenceExtras },
+      handlerExtras: { ...(deps.handlerExtras ?? {}), ...usageExtras, ...persistenceExtras },
     });
 
     // FR-AAN-015: stamp last_fired_at only on an actual fire (service_role, quarantined metadata).
