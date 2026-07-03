@@ -57,7 +57,7 @@ function mockOrgCreditsAndUsage(opts: {
 }
 
 /** profiles lookup works; agent_usage insert routed to insertSpy. */
-function mockOrgAndUsageInsert(insertSpy: ReturnType<typeof vi.fn>): HandlerDeps['supabase'] {
+function mockOrgAndUsageInsert(insertSpy: (row: object) => void): HandlerDeps['supabase'] {
   return {
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'profiles') {
