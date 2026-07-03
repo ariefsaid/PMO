@@ -41,4 +41,5 @@ describe('renderWidget registry (FR-ATC-005)', () => {
     );
     expect(screen.getByRole('img')).toBeInTheDocument();
   });
+
 });

@@ -59,11 +59,18 @@ export function renderWidget(widget: WidgetPayload): React.ReactElement {
         seriesTokens[Math.max(0, labels.indexOf(status)) % seriesTokens.length];
       return (
         <ChartFrame state="ready">
+          {/* Item 4 (F2, review-remediation): the panel is a fixed ~365px-content-width
+              container — far narrower than StatusBarChart's own useIsNarrow() viewport-
+              width branch would ever detect on a desktop screen. compactYAxis (container-
+              appropriate, opt-in) hides the Y-axis ticks + pins an explicit domain so the
+              chart can never render a non-monotonic/garbled axis at this width; the
+              existing figcaption legend already carries every count. */}
           <StatusBarChart
             data={chartData}
             toneFor={toneFor}
             label={widget.caption ?? 'Results'}
             noun="items"
+            compactYAxis
           />
         </ChartFrame>
       );
