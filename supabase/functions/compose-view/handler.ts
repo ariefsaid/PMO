@@ -2,10 +2,10 @@
  * composeViewHandler — pure business-logic handler for the compose-view edge function.
  *
  * Pure: all I/O is injected via HandlerDeps. No Deno globals, no process.env reads.
- * Importable in Vitest (Node) with the Anthropic SDK and Supabase client mocked.
+ * Importable in Vitest (Node) with the ModelClient and Supabase client mocked.
  *
- * ADR-0039 decision 7: handler is CI-testable with SDK mocked; the Deno.serve wrapper
- * (index.ts) is integration-only and not unit-tested.
+ * ADR-0039 decision 7: handler is CI-testable with the model client mocked; the
+ * Deno.serve wrapper (index.ts) is integration-only and not unit-tested.
  *
  * A4 refactor (D2): the compose+repair loop is extracted to composeSpec.ts.
  * This handler is now a thin wrapper that owns the HTTP gates (401/400/429) and
@@ -14,6 +14,10 @@
  * Reconciliation #1: compileCompositionSpec THROWS (fail-fast); the loop feeds one error.
  * Reconciliation #2: CompilerContext = { userId, orgId } (subset; teamId/projectId omitted).
  * Reconciliation #4: org_id derived from profiles under caller JWT (not JWT claims).
+ *
+ * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-021): the only edit here
+ * is the HandlerDeps.anthropic → HandlerDeps.modelClient (+model) rename threaded to
+ * composeSpec(); HTTP gate order, error-code mapping, and logging discipline unchanged.
  */
 
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
@@ -24,8 +28,8 @@ import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
 export { MAX_REPAIR_ATTEMPTS } from './composeSpec';
 
-// Re-export injected interfaces so tests can import them from this module as before.
-export type { AnthropicLike, AnthropicCreateParams, AnthropicResponse } from './composeSpec';
+// Re-export the vendor-neutral port so tests/callers can import it from this module too.
+export type { ModelClient } from '../_shared/modelClient';
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
@@ -52,8 +56,10 @@ export interface RateGuard {
 }
 
 export interface HandlerDeps {
-  /** Injected Anthropic-like client — mocked in tests; real SDK in index.ts. */
-  anthropic: import('./composeSpec').AnthropicLike;
+  /** Injected vendor-neutral model client — mocked in tests; OpenRouterModelClient in index.ts. */
+  modelClient: import('../_shared/modelClient').ModelClient;
+  /** Resolved model id for this call (FR-MC-015 / MC-OD-009). */
+  model: string;
   /** Injected caller-JWT Supabase client — mocked in tests; real caller-JWT client in index.ts. */
   supabase: SupabaseLike;
   /** Verified caller user ID (auth.uid()); extracted by index.ts. Empty string = unauthorized. */
@@ -94,7 +100,7 @@ export async function composeViewHandler(
   req: ComposeViewRequest,
   deps: HandlerDeps,
 ): Promise<HandlerResult> {
-  const { anthropic, supabase, userId, rateGuard } = deps;
+  const { modelClient, model, supabase, userId, rateGuard } = deps;
 
   // ── Gate (1): userId present (AC-AS-004, NFR-AS-SEC-002) ──────────────────
   if (!userId) {
@@ -171,7 +177,7 @@ export async function composeViewHandler(
     const { spec, repairAttempts, tokensUsed } = await composeSpec(
       req.prompt,
       req.orgId,
-      { anthropic, userId },
+      { modelClient, userId, model },
     );
     return {
       status: 200,
