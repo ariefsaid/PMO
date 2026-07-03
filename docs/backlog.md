@@ -30,18 +30,35 @@
 > (`[edge_runtime] enabled=false`) → agent e2e are mocked; **live end-to-end test needs a local session**
 > (`docs/environments.md` → Edge Functions).
 >
-> **▶ NEXT DECISION (owner) — agent-native sidecar spike:** should PMO adopt Builder.io **agent-native**
-> whole (colocated `pmo/agent-native/`, config-over-fork) for a first-class **agent-citizen** surface
-> beyond today's edge-fn chatbot? Investigation spike done: **`docs/spikes/2026-07-01-agent-native-sidecar.md`**.
-> Verdict: **feasible but a scoped PILOT, not adopt-whole** — Node-VPS + same-origin CF proxy is first-class
-> (Workers ✗ — hard `better-sqlite3` dep); chat UI embeds as in-tree React (`@agent-native/core/client`
-> `<AgentSidebar>`, NOT the mis-scoped `code-agents-ui`); BYOA `auth()` hook is the Supabase-JWT seam; **but**
-> it runs its own Drizzle Postgres schema (2nd data layer), the deputy invariant is hand-built (RLS stays the
-> ceiling), and churn is extreme (core 0.84.7, 509 releases since March → pin hard). Gate = a deputy-invariant
-> test (cross-tenant read+write denied) in a local/VPS pilot. **Turnkey pilot plan for a LOCAL agent to
-> execute: `docs/plans/2026-07-01-agent-native-sidecar-pilot.md`** (pin-exact, dedicated schema, BYOA JWT
-> verify, one deputy-bound action, embed `<AgentSidebar>`, the gate test, churn measurement → adopt-whole /
-> cherry-pick / stop). Awaiting owner go/no-go; the pilot itself runs locally (this container can't host Nitro).
+> **▶ DECIDED (owner, 2026-07-03) — agent-native sidecar verdict: CHERRY-PICK; Option A is the ONLY user
+> surface. Binding record + forward plan: ADR-0040 addendum 2026-07-03.** The pilot (branch
+> `feat/agent-native-adoption`, PR #209) was driven live by the owner and the sidecar UI proved
+> **builder/admin-grade, not app-user-grade** (workspace file browsing; "sign up with Builder" upsells on
+> the add-provider/add-DB/hosted-UI flows; sidecar settings editable from the end-user panel) — retired as
+> a user surface on UX/audience grounds, on top of the known ops grounds. Its batteries are host-coupled
+> (Nitro + own `agent_native` Drizzle schema), not liftable. **PR #209 closed unmerged; branch retained as
+> a reference archive** (mine: `server/middleware/deputy.ts` AsyncLocalStorage deputy seam,
+> `server/lib/read-allowlist.ts`, `test/deputy-invariant.gate.test.ts`, OpenRouter/deepseek wiring
+> `f6d6eb1`, scoped-CSS embed plugin).
+>
+> **▶ NEXT BUILD — "batteries-included A" (each item its own SDD → plan → TDD issue):**
+> (1) **OpenRouter provider adapter** in `agent-chat` (cut at the injectable `AnthropicLike` seam,
+> `handler.ts`; OpenRouter = OpenAI-shape; its per-request cost accounting feeds metering). **Owner-decided
+> 2026-07-03:** PMO-central OpenRouter key (function secret; BYO-key maybe later, enterprise) · default model
+> **`deepseek/deepseek-v4-flash` routed DeepInfra-first with fallbacks allowed** (fallback chain TBD, owner
+> will provide) — gate: an across-the-board quality test
+> (chat + read/write tools + `compose_view` structured output) on that model BEFORE any stronger-model
+> fallback is added; per-action model map stays env-configurable · seam renamed **vendor-neutral
+> `ModelClient`** (OpenAI-shape). Note: the pilot's "DeepInfra pin infeasible" was an agent-native
+> settings-store limit — direct OpenRouter API supports `provider: { order: ["DeepInfra"] }`;
+> (2) **`agent_threads` + `agent_events`** persistence (RLS/org_id, owner-private, Companies-slice pattern
+> like `user_views`) — transcript resume + doubles as the agent audit trail;
+> (3) **`agent_usage` ledger + per-user CREDIT balance**, enforced server-side at the existing `RateGuard`
+> injection point — the SaaS metering seam (pricing strategy deliberately deferred);
+> (4) **PostHog agent events** (ADR-0022; no Sentry).
+> **Backlogged nice-to-haves (owner 2026-07-03):** view-proposal workflow (user proposes an agent-composed
+> view for promotion into the coded app — ADR-0036 §7) · input-form composition primitives (agent-built
+> data-entry forms; new primitive class, write-path security — own ADR when picked up).
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 

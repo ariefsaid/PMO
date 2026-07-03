@@ -1,10 +1,13 @@
 # ADR-0040 — The in-app agent panel: PMO-native conversational surface vs. `agent-native` sidecar
 
-- **Status:** Proposed (decision-support — owner picks Option A or B before any build). Option A **shipped**
-  (epic A1–A4, PR #200). **Option B revisited 2026-07-01 with live facts → `docs/spikes/2026-07-01-agent-native-sidecar.md`**
-  (verdict: feasible but a scoped pilot; two corrections to this ADR — Cloudflare Workers is out (`better-sqlite3`
-  hard dep) so the target is a Node VPS behind a same-origin proxy, and the chat UI is `@agent-native/core/client`
-  in-tree React, **not** `code-agents-ui`, which is a coding-agent workspace).
+- **Status:** **Decided — Option A only (2026-07-03).** Option A **shipped** (epic A1–A4, PR #200).
+  Option B was piloted live (spike `docs/spikes/2026-07-01-agent-native-sidecar.md` → pilot branch
+  `feat/agent-native-adoption`, PR #209) and the owner ruled **cherry-pick**: the sidecar is retired as a
+  user surface (its UI is builder/admin-grade, not app-user-grade), PR #209 closed unmerged, batteries
+  rebuilt PMO-native on A — see the **2026-07-03 addendum** (bottom), which is the binding record.
+  (Earlier corrections from the spike: Cloudflare Workers is out (`better-sqlite3` hard dep) so the target
+  was a Node VPS behind a same-origin proxy; the chat UI is `@agent-native/core/client` in-tree React,
+  **not** `code-agents-ui`, which is a coding-agent workspace.)
 - **Date:** 2026-06-30
 - **Deciders:** Owner, Director
 - **Related:** ADR-0016 (FE authz + real-JWT), ADR-0017 (repository/API seam), ADR-0019 (server-enforced SoD), ADR-0030 (build-vs-buy vendoring), ADR-0036 (agent-native user-composed UI — §8 sidecar, §9 spike), ADR-0037 (compiler DSL), ADR-0038 (renderer executor), ADR-0039 (untrusted-output boundary, the I5 edge function).
@@ -270,6 +273,71 @@ sidecar), and it should be taken whole (config-over-fork) once PMO has a **custo
 A "hybrid" (their UI component + our edge-fn backend) is **not recommended** — the `core` server-runtime peer
 dep + v0.x churn make it high-friction and self-defeating on the upgradability goal.
 
+## Addendum (2026-07-03) — Pilot verdict: **CHERRY-PICK**. The sidecar is retired as a user surface; batteries are built PMO-native on Option A. (Owner decision — CLOSES the §8/Option-B path.)
+
+The pilot plan (`docs/plans/2026-07-01-agent-native-sidecar-pilot.md`) pre-defined three verdicts —
+**adopt-whole / cherry-pick / stop**. The owner drove the built pilot (branch `feat/agent-native-adoption`,
+PR #209) and ruled **cherry-pick**, on a finding the spike could not have produced without rendering it.
+This **supersedes the interim 2026-07-01 "adopt whole-UI / retire Option A" direction** recorded during the
+epic (in the branch copy of this ADR and `docs/plans/2026-07-01-agent-native-adoption-epic.md`, both branch-only):
+that direction was taken before the owner had personally driven the sidecar surface; driving it produced
+the disqualifying UX finding below.
+
+### The decisive finding — the sidecar UI is builder/admin-grade, not app-user-grade
+The `<AgentSidebar>` surface (and the `@agent-native/core` embedded UI generally) is designed for the
+**app builder/administrator**, not an end user of a SaaS product. Observed first-hand in the running pilot:
+- **Workspace file browsing** — the panel exposes the files of the workspace to whoever opens it.
+- **"Sign up with Builder" upsells** embedded in core flows: adding an agent provider, adding a DB,
+  adding hosted UI — each routes the *end user* toward a Builder.io account.
+- **Sidecar-wide settings are editable from the panel** — an end user could reconfigure the agent
+  runtime itself.
+
+This kills Option B as PMO's end-user surface on **UX/audience grounds**, independent of the ops grounds
+(second deployable, domain/SSO, `.rls()` discipline) already catalogued above. Upstream's product is a
+workbench for *building* agentic apps; PMO needs a *consumer* surface for its tenants' users. No amount
+of config-over-fork changes the audience the panel is designed for.
+
+### Second finding — the batteries are host-coupled, not liftable
+The runtime batteries that motivated reuse (run/thread persistence, token tracking, action audit,
+observability) live **inside the Nitro host** and persist to agent-native's own Drizzle-managed
+`agent_native` schema. They are not importable libraries. "Reuse the batteries" therefore means either
+running the whole sidecar (rejected above) or **rebuilding thin PMO-native equivalents** — which are
+small, ordinary tenant entities on our stack (see Forward plan).
+
+### Disposition
+- **PR #209 — closed unmerged** (2026-07-03). The app remains byte-identical (the epic was flag-off).
+- **Branch `feat/agent-native-adoption` — retained as a reference archive.** Do not delete; do not merge.
+- **What to MINE from the branch** (proven patterns worth porting, all under `pmo/agent-native/`):
+  - `server/middleware/deputy.ts` — JWT verify + `AsyncLocalStorage` deputy seam (`runWithDeputy()`).
+  - `server/lib/read-allowlist.ts` — entity/column allowlist for agent reads.
+  - `test/deputy-invariant.gate.test.ts` — the cross-tenant read+write denial gate (port shape to any new runtime work).
+  - **OpenRouter/deepseek model wiring** (commit `f6d6eb1`) — the non-Anthropic provider path, direct
+    precedent for the OpenRouter provider adapter planned for the `agent-chat` edge fn.
+  - The scoped-CSS Vite embed plugin — if any third-party UI ever needs style-isolated embedding.
+- **The `AgentRuntime` port stays.** The B-ready seam remains true by construction: a future
+  `AgentNativeRuntime` adapter is still possible **if** upstream reaches maturity (≥1.0, stable release
+  cadence) **and** ships an end-user-appropriate panel mode. Revisit no earlier than that; the panel and
+  app need no change either way.
+
+### Forward plan (recorded here; specs/plans to follow per the normal SDD loop)
+Option A is the **only** user surface. The battery gap is closed PMO-native, in rough order:
+1. **Provider adapter — OpenRouter** replaces the hard-wired Anthropic client in `agent-chat`
+   (the injectable `AnthropicLike` seam at `supabase/functions/agent-chat/handler.ts` is the cut point;
+   OpenRouter is OpenAI-shape, so this is a small mapping adapter). OpenRouter's per-request cost
+   accounting is the raw feed for usage metering.
+2. **Thread/event persistence** — `agent_threads` + `agent_events` tables (RLS, `org_id`, owner-private;
+   the Companies-slice pattern, exactly like `user_views`). Fixes transcript-dies-on-reload; the events
+   table doubles as the **audit trail** (action invocations + outcomes + approvals).
+3. **Usage ledger + credits** — `agent_usage` row per turn (tokens + provider-reported cost), a per-user
+   **credit** balance enforced server-side in the edge fn (the existing `RateGuard` injection point is
+   the preflight hook). This is the SaaS metering seam; pricing strategy is deliberately deferred.
+4. **Observability** — agent events emitted to **PostHog** (already integrated, ADR-0022); no Sentry.
+- Deferred to backlog (owner, 2026-07-03): the **view-proposal workflow** (user proposes an agent-composed
+  view for promotion into the coded app — ADR-0036 §7's "promote a popular user view" path) and
+  **input-form composition primitives** (agent-built data-entry forms; a new primitive class with
+  write-path security implications — needs its own ADR when picked up).
+
 ## Verification (of this ADR)
 - Owner selects A or B; `docs/README.md` ADR range/Latest updated to include 0040.
 - On selection, the chosen option's §"build splits" become SDD specs → plans → TDD issues; the deputy-invariant test (agent path carries the real JWT, denied a cross-tenant read/write) is a required gate on the first issue.
+- **2026-07-03:** Option A shipped (PR #200); pilot verdict cherry-pick recorded (this addendum); PR #209 closed unmerged; branch retained as reference.
