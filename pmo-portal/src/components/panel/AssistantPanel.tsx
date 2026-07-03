@@ -200,9 +200,12 @@ export const AssistantPanel: React.FC = () => {
       const t = setTimeout(() => {
         const root = panelRef.current;
         if (!root) return;
-        // Focus the composer textarea (primary action)
-        const textarea = root.querySelector<HTMLElement>('textarea');
-        if (textarea) {
+        // Focus the composer textarea (primary action) — but only if it can actually receive
+        // focus. FR-AUC-016 (F2, Discover finding): when out-of-credits, the textarea is
+        // disabled and `.focus()` on a disabled control is a silent no-op, leaving focus
+        // stranded on <body>. Fall through to the first non-disabled focusable control instead.
+        const textarea = root.querySelector<HTMLTextAreaElement>('textarea');
+        if (textarea && !textarea.disabled) {
           textarea.focus();
         } else {
           // Fall back to first focusable in the panel

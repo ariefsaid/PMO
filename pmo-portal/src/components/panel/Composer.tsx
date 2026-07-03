@@ -6,6 +6,7 @@
  * Styled after AIComposerModal for consistency.
  */
 import React, { useRef, useEffect } from 'react';
+import { cn } from '@/src/components/ui/cn';
 
 export interface ComposerProps {
   value: string;
@@ -81,7 +82,7 @@ export const Composer: React.FC<ComposerProps> = ({
           maxLength={2000}
           rows={1}
           placeholder="Ask a question…"
-          className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Ask a question"
         />
         {running ? (
@@ -99,7 +100,16 @@ export const Composer: React.FC<ComposerProps> = ({
             onClick={onSend}
             disabled={value.trim().length === 0 || disabled}
             aria-label="Send message"
-            className="shrink-0 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            // F1 (Discover finding): the disabled Send button must NOT remain brand-blue at
+            // opacity-50 (`disabled` here is the FR-AUC-016 out-of-credits hard-disable — the
+            // repo's `cn` is clsx-only, no tailwind-merge, so `bg-primary` is conditionally
+            // OMITTED rather than relying on later-cascade `disabled:*` classes to win).
+            className={cn(
+              'shrink-0 rounded-md px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed',
+              disabled
+                ? 'bg-secondary text-muted-foreground'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
+            )}
           >
             Send
           </button>
