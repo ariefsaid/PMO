@@ -98,7 +98,7 @@ export const QUERY_ENTITY_SCHEMA = {
  * the compose_view tool. The model fills in { prompt } with the user's request for a view.
  *
  * NOTE: This is NOT COMPOSITION_SPEC_SCHEMA. COMPOSITION_SPEC_SCHEMA is the inner schema
- * used by composeSpec when tool-forcing the Anthropic model to produce a CompositionSpec.
+ * used by composeSpec when tool-forcing the model to produce a CompositionSpec.
  * These are two different schemas at two different layers (FR-CV-001 / Task 5 NOTE / D-A4-1).
  */
 export const COMPOSE_VIEW_INPUT_SCHEMA = {

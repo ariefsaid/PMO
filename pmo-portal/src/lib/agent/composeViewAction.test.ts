@@ -45,10 +45,8 @@ const VALID_SPEC: CompositionSpec = {
   ],
 };
 
-const mockAnthropicLike = {
-  messages: {
-    create: vi.fn(),
-  },
+const mockModelClient = {
+  create: vi.fn(),
 };
 
 const mockCtx: DeputyContext = {
@@ -59,7 +57,8 @@ const mockCtx: DeputyContext = {
 };
 
 const mockDeps: ComposeActionDeps = {
-  anthropic: mockAnthropicLike,
+  modelClient: mockModelClient,
+  model: 'deepseek/deepseek-v4-flash',
 };
 
 // ── deriveTitle ───────────────────────────────────────────────────────────────

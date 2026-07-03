@@ -6,11 +6,12 @@
  * AC-AW-003: Stale/duplicate decision pendingId mismatch → no write (idempotent).
  * AC-AW-004: Org/role re-derive fails on approve → AUTH_EXPIRED, no write.
  * AC-AW-005: Malformed args → no needs-approval; error tool_result to model.
- * AC-AW-006: confirm:false action (query_entity) bypasses approval entirely.
+ * AC-MC-011: confirm:false action (query_entity) bypasses approval entirely (parity with A3).
  * AC-AW-007: (re-homed) unmatched/stale decision → treated as rejected gracefully.
  * AC-AW-008: can() denies the role → PERMISSION_DENIED, no write.
  *
- * All Anthropic SDK and Supabase calls are mocked via injected HandlerDeps.
+ * All ModelClient and Supabase calls are mocked via injected HandlerDeps
+ * (OpenRouter/OpenAI shape — docs/specs/agent-model-client.spec.md).
  * `can` is injected via HandlerDeps.can — no module-level policy.ts import needed.
  */
 import { it, expect, vi } from 'vitest';
@@ -111,17 +112,17 @@ function mockSupabase(opts: {
 
 function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
-    anthropic: {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          stop_reason: 'end_turn',
-          content: [{ type: 'text', text: 'All done.' }],
-          usage: {},
-        }),
-      },
+    modelClient: {
+      create: vi.fn().mockResolvedValue({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'All done.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
     },
     supabase: mockSupabase({}),
     userId: 'user-1',
+    model: 'deepseek/deepseek-v4-flash',
     can: vi.fn().mockReturnValue(true),
     now: () => new Date('2026-06-30T00:00:00Z'),
     ...overrides,
@@ -174,29 +175,33 @@ it('updateTaskStatusAction.validate rejects bad status; summarize composes (FR-A
     .toBe('Set task t1 status to "Done"');
 });
 
-// ── Task 10 (RED→GREEN): AC-AW-006 confirm:false bypasses approval ────────────
+// ── Task 10 (RED→GREEN): AC-MC-011 confirm:false bypasses approval ────────────
 
-it('AC-AW-006 confirm:false action (query_entity) runs immediately with no needs-approval event', async () => {
-  const anthropic = {
-    messages: {
-      create: vi.fn()
-        .mockResolvedValueOnce({
-          stop_reason: 'tool_use',
-          content: [
-            { type: 'tool_use', id: 'tu1', name: 'query_entity', input: { entity: 'projects' } },
+it('AC-MC-011 confirm:false action (query_entity) runs immediately with no needs-approval event (parity with A3)', async () => {
+  const modelClient = {
+    create: vi.fn()
+      .mockResolvedValueOnce({
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
           ],
-          usage: {},
-        })
-        .mockResolvedValueOnce({
-          stop_reason: 'end_turn',
-          content: [{ type: 'text', text: 'You have 3 projects.' }],
-          usage: {},
-        }),
-    },
+        },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'You have 3 projects.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
   };
 
   const events = await collect(
-    agentChatHandler(BASE_REQ, baseDeps({ anthropic })),
+    agentChatHandler(BASE_REQ, baseDeps({ modelClient })),
   );
 
   expect(events.find((e) => (e.payload as { status?: string })?.status === 'needs-approval')).toBeUndefined();
@@ -211,12 +216,17 @@ it('AC-AW-001 approve → create_activity executes once under caller JWT, write_
   const toolId = 'tool-use-id-1';
 
   // Turn 1: model emits create_activity tool_use
-  const proposeAnthropicCreate = vi.fn().mockResolvedValue({
-    stop_reason: 'tool_use',
-    content: [
-      { type: 'tool_use', id: toolId, name: 'create_activity', input: validArgs },
-    ],
+  const proposeModelClientCreate = vi.fn().mockResolvedValue({
+    finish_reason: 'tool_calls',
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: toolId, type: 'function', function: { name: 'create_activity', arguments: JSON.stringify(validArgs) } },
+      ],
+    },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
   const proposeReq: AgentChatRequest = {
@@ -226,7 +236,7 @@ it('AC-AW-001 approve → create_activity executes once under caller JWT, write_
 
   const proposeEvents = await collect(
     agentChatHandler(proposeReq, baseDeps({
-      anthropic: { messages: { create: proposeAnthropicCreate } },
+      modelClient: { create: proposeModelClientCreate },
       supabase: mockSupabase({ insertResult: { data: { id: 'act-1' }, error: null } }),
       can: vi.fn().mockReturnValue(true),
     })),
@@ -249,10 +259,11 @@ it('AC-AW-001 approve → create_activity executes once under caller JWT, write_
   expect(pendingId).toBeTruthy();
 
   // Turn 2 (approve): re-POST with decision + prior transcript that ends with unresolved tool_use
-  const approveAnthropicCreate = vi.fn().mockResolvedValue({
-    stop_reason: 'end_turn',
-    content: [{ type: 'text', text: 'Done — I\'ve logged the call activity.' }],
+  const approveModelClientCreate = vi.fn().mockResolvedValue({
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'Done — I\'ve logged the call activity.' },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
   const approveReq: AgentChatRequest = {
@@ -274,7 +285,7 @@ it('AC-AW-001 approve → create_activity executes once under caller JWT, write_
 
   const approveEvents = await collect(
     agentChatHandler(approveReq, baseDeps({
-      anthropic: { messages: { create: approveAnthropicCreate } },
+      modelClient: { create: approveModelClientCreate },
       supabase: supabaseMock,
       can: canMock,
     })),
@@ -357,14 +368,13 @@ it('AC-AW-004 (two-phase) approve but re-auth fails after initial gate → AUTH_
 
   const events = await collect(
     agentChatHandler(req, baseDeps({
-      anthropic: {
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            stop_reason: 'end_turn',
-            content: [{ type: 'text', text: 'Done.' }],
-            usage: {},
-          }),
-        },
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Done.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
       },
       supabase,
       can: vi.fn().mockReturnValue(true),
@@ -407,14 +417,13 @@ it('AC-AW-008 approve but can() denies the role → PERMISSION_DENIED, no write'
 
   const events = await collect(
     agentChatHandler(req, baseDeps({
-      anthropic: {
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            stop_reason: 'end_turn',
-            content: [{ type: 'text', text: 'Permission denied.' }],
-            usage: {},
-          }),
-        },
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Permission denied.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
       },
       supabase: supabaseMock,
       can: canMock,
@@ -438,33 +447,37 @@ it('AC-AW-005 malformed args (missing contactId) → no needs-approval; error to
   const invalidArgs = { kind: 'call', subject: 'Follow-up' }; // missing contactId
   const toolId = 'tool-use-id-5';
 
-  const anthropic = {
-    messages: {
-      create: vi.fn()
-        .mockResolvedValueOnce({
-          stop_reason: 'tool_use',
-          content: [
-            { type: 'tool_use', id: toolId, name: 'create_activity', input: invalidArgs },
+  const modelClient = {
+    create: vi.fn()
+      .mockResolvedValueOnce({
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: toolId, type: 'function', function: { name: 'create_activity', arguments: JSON.stringify(invalidArgs) } },
           ],
-          usage: {},
-        })
-        .mockResolvedValueOnce({
-          stop_reason: 'end_turn',
-          content: [{ type: 'text', text: 'I need the contactId.' }],
-          usage: {},
-        }),
-    },
+        },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'I need the contactId.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
   };
 
   const supabaseMock = mockSupabase({});
   const events = await collect(
-    agentChatHandler(BASE_REQ, baseDeps({ anthropic, supabase: supabaseMock })),
+    agentChatHandler(BASE_REQ, baseDeps({ modelClient, supabase: supabaseMock })),
   );
 
   // NO needs-approval event
   expect(events.find((e) => (e.payload as { status?: string })?.status === 'needs-approval')).toBeUndefined();
   // Loop should continue — model is called twice (once for tool, once after error result)
-  expect(anthropic.messages.create).toHaveBeenCalledTimes(2);
+  expect(modelClient.create).toHaveBeenCalledTimes(2);
   // No crm_activities insert
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
   const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
@@ -495,14 +508,13 @@ it('AC-AW-002 deny → no write; system{write_resolved, decision:rejected} emitt
 
   const events = await collect(
     agentChatHandler(req, baseDeps({
-      anthropic: {
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            stop_reason: 'end_turn',
-            content: [{ type: 'text', text: 'Understood, I won\'t log that.' }],
-            usage: {},
-          }),
-        },
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Understood, I won\'t log that.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
       },
       supabase: supabaseMock,
     })),
@@ -546,14 +558,13 @@ it('AC-AW-003 AC-AW-007 stale/duplicate decision (no trailing unresolved tool_us
 
   const events = await collect(
     agentChatHandler(req, baseDeps({
-      anthropic: {
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            stop_reason: 'end_turn',
-            content: [{ type: 'text', text: 'No pending action.' }],
-            usage: {},
-          }),
-        },
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'No pending action.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
       },
       supabase: supabaseMock,
     })),

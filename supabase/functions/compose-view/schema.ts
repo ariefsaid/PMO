@@ -6,7 +6,7 @@
  * to whitelist values; the compiler remains the enforcement authority).
  *
  * Imported by both:
- *   - handler.ts (Deno runtime) — used as tool input_schema for Anthropic tool-forcing
+ *   - handler.ts (Deno runtime) — used as tool parameters schema for model tool-forcing
  *   - pmo-portal/src/lib/agent/schema.test.ts (Node/Vitest) — via relative path (Option B)
  *
  * ADR-0039 decision 7: this is a pure TS module with no Deno/Node runtime dependencies,

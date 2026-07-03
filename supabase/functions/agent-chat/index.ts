@@ -1,11 +1,12 @@
 /**
  * agent-chat — Deno Edge Function entry point.
  * BUILD-TIME-VERIFY checklist (deploy-time, not CI):
- *   1. Streaming call form: messages.create({ ...params }) accumulates; check tool_use block id field.
- *   2. tool_use block shape: content_block.id is used as tool_use_id in the tool_result turn.
- *   3. stop_reason values: 'tool_use' vs 'end_turn' match the loop branches in handler.ts.
+ *   1. Non-streaming call form: modelClient.create({...}) resolves one accumulated
+ *      ModelResponse (MC-OD-007 — plain fetch, no provider-side SSE consumption).
+ *   2. tool_calls[0] shape: .id is used as tool_call_id in the role:'tool' result message.
+ *   3. finish_reason values: 'tool_calls' vs 'stop'/'length' match the branches in handler.ts.
  *   4. supabase functions serve passes Content-Type: text/event-stream unbuffered.
- *   5. ANTHROPIC_API_KEY function secret set in deployed project (never committed).
+ *   5. OPENROUTER_API_KEY function secret set in deployed project (never committed).
  *
  * Integration-only: this file is NOT unit-tested (ADR-0039 decision 7).
  * All business logic lives in handler.ts (pure, importable in Vitest).
@@ -15,15 +16,16 @@
  *   2. Read Authorization header; reject 401 if absent.
  *   3. Verify JWT using service-role client (service_role ONLY for auth.getUser — NFR-AR-SEC-002).
  *   4. Build caller-JWT Supabase client for all business data (deputy auth — FR-AR-014).
- *   5. Read ANTHROPIC_API_KEY from Deno.env (function secret — NFR-AR-SEC-001).
+ *   5. Read OPENROUTER_API_KEY from Deno.env (function secret — NFR-MC-SEC-001).
  *   6. Parse JSON body into AgentChatRequest.
  *   7. Delegate to agentChatHandler; pipe events into SSE ReadableStream (D1/ADR-0042).
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
+import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import {
@@ -73,8 +75,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
-  // ── 4. Read ANTHROPIC_API_KEY from function secrets (NFR-AR-SEC-001) ──────
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  // ── 4. Read OPENROUTER_API_KEY from function secrets (NFR-MC-SEC-001) ──────
+  const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
@@ -82,7 +84,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const anthropic = new Anthropic({ apiKey });
+  const modelClient = new OpenRouterModelClient({ apiKey });
+  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────
   let body: AgentChatRequest;
@@ -115,8 +118,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const enc = new TextEncoder();
       try {
         for await (const ev of agentChatHandler(body, {
-          // Cast: real Anthropic SDK satisfies AnthropicLike (same create() signature)
-          anthropic: anthropic as unknown as Parameters<typeof agentChatHandler>[1]['anthropic'],
+          // Cast: the real OpenRouterModelClient satisfies ModelClient (same create() signature)
+          modelClient: modelClient as unknown as Parameters<typeof agentChatHandler>[1]['modelClient'],
+          model,
           // Cast: real callerClient satisfies HandlerSupabaseLike
           supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
           userId,

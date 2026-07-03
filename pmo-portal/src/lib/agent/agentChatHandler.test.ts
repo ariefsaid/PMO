@@ -5,8 +5,9 @@
  * AC-AR-003: profiles lookup error → 400 BAD_REQUEST(orgId), no model call.
  * AC-AR-004: step cap → terminal completed (not errored), SDK called MAX_TOOL_ROUNDS times.
  * AC-AR-005: upstream SDK error scrubbed → UPSTREAM_ERROR, no prompt/data in log.
+ * AC-MC-008/009/012: ModelClient (OpenRouter/OpenAI shape) parity after the provider swap.
  *
- * All Anthropic SDK and Supabase calls are mocked via injected HandlerDeps.
+ * All ModelClient and Supabase calls are mocked via injected HandlerDeps.
  * No live LLM calls in CI (ADR-0039 decision 7).
  */
 import { it, expect, vi } from 'vitest';
@@ -82,20 +83,20 @@ function mockProfilesError(): HandlerDeps['supabase'] {
   } as unknown as HandlerDeps['supabase'];
 }
 
-/** Build base deps; anthropic and supabase can be overridden. */
+/** Build base deps; modelClient and supabase can be overridden. */
 function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
-    anthropic: {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          stop_reason: 'end_turn',
-          content: [{ type: 'text', text: 'All done.' }],
-          usage: {},
-        }),
-      },
+    modelClient: {
+      create: vi.fn().mockResolvedValue({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'All done.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
     },
     supabase: mockOrgAnd(() => ({ data: [], error: null })),
     userId: 'user-1',
+    model: 'deepseek/deepseek-v4-flash',
     now: () => new Date('2026-06-30T00:00:00Z'),
     ...overrides,
   };
@@ -103,10 +104,10 @@ function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 
 // ── Task 10: AC-AR-002 + AC-AR-003 (gates before any model call) ──────────────
 
-it('AC-AR-002 emits a single 401 status event and never calls Anthropic when userId is empty', async () => {
+it('AC-AR-002 emits a single 401 status event and never calls the model when userId is empty', async () => {
   const create = vi.fn();
   const events = await collect(
-    agentChatHandler(REQ, baseDeps({ userId: '', anthropic: { messages: { create } } })),
+    agentChatHandler(REQ, baseDeps({ userId: '', modelClient: { create } })),
   );
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({
@@ -120,7 +121,7 @@ it('AC-AR-003 emits a 400 BAD_REQUEST (detail orgId) when the profiles lookup fa
   const create = vi.fn();
   const supabase = mockProfilesError();
   const events = await collect(
-    agentChatHandler(REQ, baseDeps({ supabase, anthropic: { messages: { create } } })),
+    agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })),
   );
   expect(events.at(-1)).toMatchObject({
     type: 'status',
@@ -131,13 +132,13 @@ it('AC-AR-003 emits a 400 BAD_REQUEST (detail orgId) when the profiles lookup fa
 
 // ── Task 11: rate guard ────────────────────────────────────────────────────────
 
-it('emits a 429 RATE_LIMITED terminal status and never calls Anthropic when the injected rateGuard reports exceeded', async () => {
+it('emits a 429 RATE_LIMITED terminal status and never calls the model when the injected rateGuard reports exceeded', async () => {
   const create = vi.fn();
   const rateGuard = {
     check: vi.fn().mockResolvedValue({ exceeded: true, retryAfterSeconds: 3600 }),
   };
   const events = await collect(
-    agentChatHandler(REQ, baseDeps({ rateGuard, anthropic: { messages: { create } } })),
+    agentChatHandler(REQ, baseDeps({ rateGuard, modelClient: { create } })),
   );
   expect(events.at(-1)).toMatchObject({
     type: 'status',
@@ -148,12 +149,13 @@ it('emits a 429 RATE_LIMITED terminal status and never calls Anthropic when the 
 
 it('rateGuard absent ⇒ proceeds to the model', async () => {
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'end_turn',
-    content: [{ type: 'text', text: 'Done.' }],
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'Done.' },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
   const events = await collect(
-    agentChatHandler(REQ, baseDeps({ anthropic: { messages: { create } } })),
+    agentChatHandler(REQ, baseDeps({ modelClient: { create } })),
   );
   expect(create).toHaveBeenCalledTimes(1);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
@@ -161,19 +163,25 @@ it('rateGuard absent ⇒ proceeds to the model', async () => {
 
 // ── Task 12: AC-AR-001 + AC-AR-004 (tool loop + step cap) ─────────────────────
 
-it('AC-AR-001 dispatches query_entity then completes: user→tool→assistant→completed, SDK called exactly twice', async () => {
+it('AC-MC-008 tool-use loop parity: happy read path, same event order (OpenRouter/OpenAI shape)', async () => {
   const create = vi.fn()
     .mockResolvedValueOnce({
-      stop_reason: 'tool_use',
-      content: [
-        { type: 'tool_use', id: 'tu1', name: 'query_entity', input: { entity: 'projects' } },
-      ],
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+        ],
+      },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     })
     .mockResolvedValueOnce({
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text: 'You have 3 active projects.' }],
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'You have 3 active projects.' },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   const supabase = mockOrgAnd(() => ({
@@ -181,24 +189,29 @@ it('AC-AR-001 dispatches query_entity then completes: user→tool→assistant→
     error: null,
   }));
 
-  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, anthropic: { messages: { create } } })));
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
   expect(events.map((e) => e.type)).toEqual(['user', 'tool', 'assistant', 'status']);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   expect(create).toHaveBeenCalledTimes(2);
 });
 
-it('AC-AR-004 stops after MAX_TOOL_ROUNDS when the model never finalises, completing gracefully (R4/D7)', async () => {
+it('AC-MC-009 MAX_TOOL_ROUNDS unchanged after the provider swap', async () => {
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'tool_use',
-    content: [
-      { type: 'tool_use', id: 'tu', name: 'query_entity', input: { entity: 'projects' } },
-    ],
+    finish_reason: 'tool_calls',
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: 'tu', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+      ],
+    },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
   const supabase = mockOrgAnd(() => ({ data: [], error: null }));
 
-  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, anthropic: { messages: { create } } })));
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
   expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
   expect(events.at(-1)).toMatchObject({
@@ -208,43 +221,48 @@ it('AC-AR-004 stops after MAX_TOOL_ROUNDS when the model never finalises, comple
   });
 });
 
-// ── Blocker 3: loop termination uses stop_reason !== 'tool_use'; max_tokens handled ──
+// ── Blocker 3: loop termination uses finish_reason !== 'tool_calls'; length handled ──
 
-it('terminates on stop_reason end_turn even when a tool_use block is accidentally present', async () => {
+it('terminates on finish_reason stop even when a tool_calls entry is accidentally present', async () => {
   // OLD CODE: `if (!toolBlock || resp.stop_reason === 'end_turn')` — the OR lets this complete
   // but the OLD code would also trigger completion even if there IS a toolBlock when
   // stop_reason is end_turn, silently skipping the tool. The correct sentinel is
-  // stop_reason !== 'tool_use'.
+  // finish_reason !== 'tool_calls'.
   //
-  // This test ensures: when stop_reason is 'end_turn' AND content has both text + a
-  // spurious tool_use block, we complete (not dispatch the tool).
+  // This test ensures: when finish_reason is 'stop' AND the message has both text + a
+  // spurious tool_calls entry, we complete (not dispatch the tool).
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'end_turn',
-    content: [
-      { type: 'text', text: 'Final answer.' },
-      // Spurious tool_use block with end_turn — model API won't do this, but if it did,
-      // old code would complete (correct result via OR branch), new code does too (via !=tool_use).
-      { type: 'tool_use', id: 'tu1', name: 'query_entity', input: { entity: 'projects' } },
-    ],
+    finish_reason: 'stop',
+    message: {
+      role: 'assistant',
+      content: 'Final answer.',
+      // Spurious tool_calls entry with finish_reason:'stop' — model API won't do this, but if
+      // it did, old code would complete (correct result via OR branch), new code does too.
+      tool_calls: [
+        { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+      ],
+    },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
-  const events = await collect(agentChatHandler(REQ, baseDeps({ anthropic: { messages: { create } } })));
-  // Must complete after 1 SDK call — do not dispatch tool on end_turn
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  // Must complete after 1 SDK call — do not dispatch tool on stop
   expect(create).toHaveBeenCalledTimes(1);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 });
 
-it('stop_reason max_tokens emits completed with truncation note (not silent)', async () => {
+it('finish_reason length emits completed with truncation note (not silent)', async () => {
   // OLD CODE would emit a generic 'completed' indistinguishable from a real answer.
   // Fixed: emit completed with text 'response truncated'.
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'max_tokens',
-    content: [{ type: 'text', text: 'Partial answer...' }],
+    finish_reason: 'length',
+    message: { role: 'assistant', content: 'Partial answer...' },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
-  const events = await collect(agentChatHandler(REQ, baseDeps({ anthropic: { messages: { create } } })));
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
   expect(create).toHaveBeenCalledTimes(1);
   const last = events.at(-1)!;
   expect(last).toMatchObject({ type: 'status', payload: { status: 'completed' } });
@@ -259,17 +277,18 @@ it('concurrent runs produce distinct runIds (no module-level _runId contaminatio
   // the local variable inside the generator, not from module scope.
   const makeCreate = (text: string) =>
     vi.fn().mockResolvedValue({
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text }],
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: text },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   const req1: AgentChatRequest = { runId: 'run-A', messages: [{ role: 'user', content: 'q1' }] };
   const req2: AgentChatRequest = { runId: 'run-B', messages: [{ role: 'user', content: 'q2' }] };
 
   const [evs1, evs2] = await Promise.all([
-    collect(agentChatHandler(req1, baseDeps({ anthropic: { messages: { create: makeCreate('ans1') } } }))),
-    collect(agentChatHandler(req2, baseDeps({ anthropic: { messages: { create: makeCreate('ans2') } } }))),
+    collect(agentChatHandler(req1, baseDeps({ modelClient: { create: makeCreate('ans1') } }))),
+    collect(agentChatHandler(req2, baseDeps({ modelClient: { create: makeCreate('ans2') } }))),
   ]);
 
   // Every event from run-A must carry runId 'run-A' and vice versa
@@ -286,7 +305,7 @@ it('AC-AR-005 scrubs the raw SDK error to UPSTREAM_ERROR and logs no prompt/data
   const events = await collect(
     agentChatHandler(
       REQ_WITH_MSG('show me my projects'),
-      baseDeps({ anthropic: { messages: { create } } }),
+      baseDeps({ modelClient: { create } }),
     ),
   );
 
@@ -304,4 +323,31 @@ it('AC-AR-005 scrubs the raw SDK error to UPSTREAM_ERROR and logs no prompt/data
   }
 
   spy.mockRestore();
+});
+
+// ── Task 13: AC-MC-012 per-round usage surfaced on the terminal status event ─
+
+it('AC-MC-012 per-round usage is surfaced additively on the terminal status event', async () => {
+  const create = vi.fn().mockResolvedValue({
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'done' },
+    usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160, total_cost: 0.0002 },
+    model: 'deepseek/deepseek-v4-flash',
+  });
+
+  const events = await collect(
+    agentChatHandler(REQ, baseDeps({ modelClient: { create } })),
+  );
+
+  const completedEvent = events.find(
+    (e) => e.type === 'status' && (e.payload as { status?: string })?.status === 'completed',
+  );
+  expect(completedEvent).toBeDefined();
+  expect(completedEvent!.payload).toMatchObject({
+    status: 'completed',
+    model: 'deepseek/deepseek-v4-flash',
+    prompt_tokens: 120,
+    completion_tokens: 40,
+    total_cost: 0.0002,
+  });
 });

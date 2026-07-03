@@ -10,9 +10,9 @@
  *      (NFR-AS-SEC-002 — service_role ONLY for JWT verification, never business data).
  *   3. Build a SECOND caller-JWT Supabase client for business data (deputy auth,
  *      NFR-AS-SEC-001/006, FR-AS-010, ADR-0039 decision 2).
- *   4. Read ANTHROPIC_API_KEY from Deno.env (function secret — NFR-AS-SEC-001).
+ *   4. Read OPENROUTER_API_KEY from Deno.env (function secret — NFR-MC-SEC-001).
  *   5. Parse the JSON body into ComposeViewRequest.
- *   6. Call composeViewHandler(req, { anthropic, supabase: callerClient, userId }).
+ *   6. Call composeViewHandler(req, { modelClient, model, supabase: callerClient, userId }).
  *   7. Return JSON response.
  *
  * The [functions.compose-view] config.toml block sets verify_jwt = false so the
@@ -20,9 +20,10 @@
  */
 
 // Deno-native imports (not in pmo-portal/package.json — NFR ground-truth #4)
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { composeViewHandler } from './handler.ts';
+import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -70,8 +71,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
-  // ── 4. Read the Anthropic API key from function secrets (NFR-AS-SEC-001) ──
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  // ── 4. Read the OpenRouter API key from function secrets (NFR-MC-SEC-001) ──
+  const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
@@ -79,8 +80,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // Build Anthropic client (SDK imported via deno.json npm: specifier)
-  const anthropic = new Anthropic({ apiKey });
+  // Build the vendor-neutral model client (OpenRouter transport, deepseek-v4-flash default).
+  const modelClient = new OpenRouterModelClient({ apiKey });
+  const model = resolveComposeModel({
+    AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined,
+    AGENT_MODEL_COMPOSE: Deno.env.get('AGENT_MODEL_COMPOSE') ?? undefined,
+  });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────
   let body: ComposeViewRequest;
@@ -95,8 +100,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── 6. Delegate to the pure handler ───────────────────────────────────────
   const result = await composeViewHandler(body, {
-    // Cast: the real Anthropic SDK satisfies AnthropicLike (same create() signature)
-    anthropic: anthropic as unknown as Parameters<typeof composeViewHandler>[1]['anthropic'],
+    // Cast: the real OpenRouterModelClient satisfies ModelClient (same create() signature)
+    modelClient: modelClient as unknown as Parameters<typeof composeViewHandler>[1]['modelClient'],
+    model,
     supabase: callerClient as unknown as Parameters<typeof composeViewHandler>[1]['supabase'],
     userId,
     // rateGuard: undefined (AS-OD-002 default — disabled in v1)
