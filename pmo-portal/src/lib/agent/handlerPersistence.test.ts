@@ -256,3 +256,127 @@ it('AC-AGP-015 a genuinely different-args write (different hash) is allowed to e
   const toolEvent = events.find((e) => e.type === 'tool');
   expect((toolEvent!.payload as { result: unknown }).result).toMatchObject({ id: 'act-2' });
 });
+
+// ── Task B5 — heartbeat + terminal-status persistence (AC-AGP-016/017) ───────
+
+it('AC-AGP-016 heartbeat advances agent_runs.last_progress_at each tool round', async () => {
+  const modelClient = {
+    create: vi.fn()
+      .mockResolvedValueOnce({
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+          ],
+        },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'Done.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
+  };
+
+  const heartbeatUpdateSpy = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+  const supabase = mockSupabase();
+  (supabase.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+    if (table === 'profiles') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === 'agent_runs') {
+      return {
+        update: heartbeatUpdateSpy,
+        insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'run-hb' }, error: null }) }) }),
+      };
+    }
+    return {
+      select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }) }),
+      update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+    };
+  });
+
+  const timestamps = ['2026-07-03T00:00:00Z', '2026-07-03T00:00:05Z', '2026-07-03T00:00:10Z'];
+  let call = 0;
+  const deps = baseDeps({
+    modelClient,
+    supabase,
+    now: () => new Date(timestamps[Math.min(call, timestamps.length - 1)]),
+    persistence: {
+      supabase,
+      ownerId: 'user-1',
+      orgId: 'org-1',
+      now: () => new Date(timestamps[Math.min(call++, timestamps.length - 1)]),
+    },
+  });
+
+  await collect(agentChatHandler({ runId: 'run-hb', messages: [{ role: 'user', content: 'go' }] }, deps));
+
+  // Two rounds (tool_calls round + stop round) ⇒ heartbeat called at least twice, each with an
+  // advancing last_progress_at.
+  expect(heartbeatUpdateSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+  const stamps = heartbeatUpdateSpy.mock.calls.map((c) => (c[0] as { last_progress_at: string }).last_progress_at);
+  expect(new Date(stamps[1]).getTime()).toBeGreaterThan(new Date(stamps[0]).getTime());
+});
+
+it('AC-AGP-017 a terminal status event persists agent_runs.status via setRunStatus', async () => {
+  const supabase = mockSupabase();
+  const runsUpdateSpy = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+  (supabase.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+    if (table === 'profiles') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === 'agent_runs') {
+      return {
+        update: runsUpdateSpy,
+        insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'run-cancel' }, error: null }) }) }),
+      };
+    }
+    return {
+      select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }) }),
+    };
+  });
+
+  const deps = baseDeps({
+    modelClient: {
+      // Model call rejects, driving the handler's UPSTREAM_ERROR terminal branch — the
+      // handler-level analog of a run being driven to a terminal (errored) state (D-A3/D7
+      // "terminal status" — the same setRunStatus call site persists a cancel-driven
+      // terminal status, since both are `type:'status'` events with a terminal payload.status).
+      create: vi.fn().mockRejectedValue(new Error('aborted')),
+    },
+    supabase,
+    persistence: {
+      supabase,
+      ownerId: 'user-1',
+      orgId: 'org-1',
+      now: () => new Date('2026-07-03T00:00:00Z'),
+    },
+  });
+
+  const events = await collect(agentChatHandler({ runId: 'run-cancel', messages: [{ role: 'user', content: 'go' }] }, deps));
+
+  const terminal = events.find((e) => e.type === 'status' && (e.payload as { status?: string })?.status === 'errored');
+  expect(terminal).toBeDefined();
+
+  // setRunStatus was invoked with the terminal status for THIS run.
+  expect(runsUpdateSpy).toHaveBeenCalledWith({ status: 'errored' });
+});
