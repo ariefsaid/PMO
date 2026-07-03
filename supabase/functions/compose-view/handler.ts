@@ -23,6 +23,7 @@
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
 import { composeSpec, ComposeSpecError } from './composeSpec';
+import { insertUsageRow } from '../_shared/usage';
 import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types';
 
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
@@ -34,14 +35,18 @@ export type { ModelClient } from '../_shared/modelClient';
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
 /**
- * Minimal Supabase-like interface for the profiles lookup.
- * Only the chained call `from('profiles').select('org_id').eq('id', userId).single()` is used.
+ * Minimal Supabase-like interface for the profiles lookup, widened (FR-AUC-002/015) to also
+ * support the credit-backed RateGuard's balance query shape (`.eq(...).limit(n)`, matching
+ * `HandlerSupabaseLike`'s shape in agent-chat/handler.ts) so `creditRateGuard`'s
+ * `.from('credits').select('amount').eq('owner_id', userId).limit(10_000)` call compiles
+ * against this interface too — the real Supabase client satisfies both shapes structurally.
  */
 export interface SupabaseLike {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
         single(): Promise<{ data: { org_id: string } | null; error: unknown }>;
+        limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
       };
     };
   };
@@ -66,6 +71,12 @@ export interface HandlerDeps {
   userId: string;
   /** Optional rate guard — undefined disables rate limiting (AS-OD-002 default). */
   rateGuard?: RateGuard;
+  /**
+   * FR-AUC-002/015: optional usage-recording dep. In production this is the same
+   * caller-JWT client as `deps.supabase`. Independent of any flag — usage recording
+   * is unconditional when this dep is present.
+   */
+  usage?: { supabase: SupabaseLike };
   /** Injectable clock for testing — defaults to () => new Date(). */
   now?: () => Date;
 }
@@ -179,6 +190,25 @@ export async function composeViewHandler(
       req.orgId,
       { modelClient, userId, model },
     );
+
+    // FR-AUC-002/015: one agent_usage row per compose-view invocation (the single choke
+    // point — composeSpec() has already resolved, meaning at least one modelClient.create()
+    // call succeeded). tokensUsed → completion_tokens is a coarse proxy: composeSpec/
+    // ComposeViewResponse does not surface a prompt/completion split or a total_cost today
+    // (see docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
+    // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
+    if (deps.usage) {
+      await insertUsageRow(
+        // deps.usage.supabase (compose-view's SupabaseLike) structurally satisfies the
+        // HandlerSupabaseLike shape insertUsageRow expects — both are minimal Supabase-like
+        // interfaces over the same real client; a genuine structural mismatch (SupabaseLike
+        // lacks .insert()) requires this bridging cast, mirroring agent-chat/handler.ts's own
+        // documented SupabaseLike-vs-port cast.
+        { supabase: deps.usage.supabase as unknown as import('../_shared/usage').UsageDeps['supabase'], runId: null },
+        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0 },
+      );
+    }
+
     return {
       status: 200,
       body: { spec, repairAttempts, tokensUsed },
