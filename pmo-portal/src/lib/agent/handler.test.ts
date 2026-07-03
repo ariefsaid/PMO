@@ -285,11 +285,14 @@ it('AC-AS-006 returns 400 without calling the model when prompt > 2000 chars', a
   expect(modelClient.create).not.toHaveBeenCalled();
 });
 
-it('AC-AS-007 returns 502 UPSTREAM_ERROR and hides the raw model error', async () => {
-  const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+it('AC-AS-007 AC-MC-016 returns 502 UPSTREAM_ERROR and hides the raw model error', async () => {
+  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   // Model call throws with a secret message
+  const RAW_UPSTREAM_MARKER = 'SECRET model 500 body';
   const modelClient = {
-    create: vi.fn().mockRejectedValue(new Error('SECRET model 500 body')),
+    create: vi.fn().mockRejectedValue(new Error(RAW_UPSTREAM_MARKER)),
   };
 
   const result = await composeViewHandler(BASE_REQ, baseDeps({ modelClient }));
@@ -302,9 +305,19 @@ it('AC-AS-007 returns 502 UPSTREAM_ERROR and hides the raw model error', async (
   }
 
   // Verify console.error was not called with req.prompt (NFR-AS-SEC-004)
-  for (const call of consoleSpy.mock.calls) {
+  for (const call of consoleErrorSpy.mock.calls) {
     expect(JSON.stringify(call)).not.toContain('show projects');
   }
 
-  consoleSpy.mockRestore();
+  // AC-MC-016: the raw upstream error text must never appear in ANY console call
+  // (error/warn/log) — not just the response body (NFR-MC-SEC-004).
+  for (const spy of [consoleErrorSpy, consoleWarnSpy, consoleLogSpy]) {
+    for (const call of spy.mock.calls) {
+      expect(JSON.stringify(call)).not.toContain(RAW_UPSTREAM_MARKER);
+    }
+  }
+
+  consoleErrorSpy.mockRestore();
+  consoleWarnSpy.mockRestore();
+  consoleLogSpy.mockRestore();
 });
