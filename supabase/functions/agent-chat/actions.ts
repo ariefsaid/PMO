@@ -23,6 +23,7 @@ import {
   CREATE_AUTOMATION_SCHEMA,
 } from './schema';
 import { cronMatches } from '../agent-dispatch/cron';
+import { TRIGGER_SOURCES, isAllowedTriggerSource } from '../agent-dispatch/triggerSources';
 import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec';
 import type { ModelClient } from '../_shared/modelClient';
 import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
@@ -358,11 +359,11 @@ export interface CreateAutomationInput {
  * `N`, `N-M`, `N/M`, comma lists). `cronMatches(expr, at)` never throws on malformed input — it
  * fails closed to `false` for ANY input, so it alone cannot distinguish "malformed expression"
  * from "syntactically valid but doesn't match this instant." The field-count + character-class
- * regex below is the actual structural gate; `cronMatches` is then run twice against two
- * far-apart instants as a defense-in-depth double-check — a genuinely malformed expression that
- * slips past the regex (there should be none) still fails closed here too, since a valid
- * expression must deterministically match SOME instant across a full week+ span for at least one
- * of the two probes to be meaningful when combined with the regex gate.
+ * regex below is the actual structural gate (the sole source of truth for "is this syntactically
+ * a valid cron string"); `cronMatches` is run ONCE, against `new Date()`, purely as a defense-in-
+ * depth smoke check that it does not throw for a structurally-valid expression — its return value
+ * (true/false for THIS instant) is deliberately NOT part of the accept/reject decision, since a
+ * syntactically valid expression can legitimately not match the current moment.
  */
 function isValidCronExpression(expr: string): boolean {
   if (typeof expr !== 'string' || !expr.trim()) return false;
@@ -372,6 +373,7 @@ function isValidCronExpression(expr: string): boolean {
   if (!parts.every((p) => fieldRe.test(p))) return false;
   // Defense-in-depth: cronMatches must not throw for a structurally valid expression (it never
   // throws by contract, but this guards against a future contract change silently regressing).
+  // Its boolean result is intentionally ignored — see the doc comment above.
   try {
     cronMatches(expr, new Date());
     return true;
@@ -408,6 +410,12 @@ function validateCreateAutomation(
       !i.trigger_on.event
     ) {
       return { ok: false, error: "trigger_on requires source and event when kind='trigger'" };
+    }
+    // SECURITY HIGH-1: trigger_on.source is user-authored input that ultimately reaches
+    // serviceClient.from(source) in the dispatcher's selection query — allowlist it here (layer 1
+    // of 2; layer 2 is the dispatcher's own hard-gate in dispatcher.ts/watermark.ts).
+    if (!isAllowedTriggerSource(i.trigger_on.source)) {
+      return { ok: false, error: `trigger_on.source must be one of: ${TRIGGER_SOURCES.join(', ')}` };
     }
   }
   if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s <= 0)) {

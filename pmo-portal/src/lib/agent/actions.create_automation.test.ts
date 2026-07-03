@@ -110,6 +110,16 @@ describe('createAutomationAction.validate (AC-AAN-030)', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('SECURITY HIGH-1: rejects a trigger_on.source not in the shared TRIGGER_SOURCES allowlist', () => {
+    const result = createAutomationAction.validate({
+      kind: 'trigger',
+      prompt: 'notify me',
+      trigger_on: { source: 'profiles', event: 'Ordered' },
+    }) as { ok: false; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/source/i);
+  });
+
   it('rejects a malformed cron expression', () => {
     const result = createAutomationAction.validate({
       kind: 'schedule',
