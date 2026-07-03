@@ -15,7 +15,7 @@ import type { ArtifactSlotPayload } from './ArtifactSlot';
 import { FeedbackControl } from './FeedbackControl';
 import { WidgetSlot } from './widgets/WidgetSlot';
 import { QuestionChips } from './QuestionChips';
-import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
+import type { TranscriptEntry, ChipStateMap, AnsweredMap, RunPhase } from '@/src/hooks/useAssistantPanel';
 import { isFeatureEnabled } from '@/src/lib/features';
 
 interface TranscriptItemProps {
@@ -25,6 +25,18 @@ interface TranscriptItemProps {
    * Each needs-approval chip looks up its own state by pendingId.
    */
   chipStateMap?: ChipStateMap;
+  /**
+   * Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId.
+   * A question whose id is present renders its chips disabled with the chosen
+   * option/free-text indicated, instead of looking perpetually re-clickable.
+   */
+  answeredMap?: AnsweredMap;
+  /**
+   * Review-remediation item 3 (F3): the panel's run phase. When 'out-of-credits'
+   * a pending question's chips are hard-disabled (mirrors the composer's
+   * disabled state) — the run can't continue, so the control must not look live.
+   */
+  phase?: RunPhase;
   /** A3: called when user clicks Approve. */
   onApprove?: () => void;
   /** A3: called when user clicks Deny. */
@@ -44,6 +56,8 @@ interface TranscriptItemProps {
 export const TranscriptItem: React.FC<TranscriptItemProps> = ({
   entry,
   chipStateMap = {},
+  answeredMap = {},
+  phase,
   onApprove,
   onDeny,
   onAnswer,
@@ -78,13 +92,28 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
         // Flag guard (FR-ATC-020): silently skip if agentAssistant is off.
         if (!isFeatureEnabled('agentAssistant')) return null;
         const q = event.payload as QuestionPayload;
+        // Item 3 (F3): a resolved question (already in answeredMap) renders its
+        // chips disabled with the chosen option/free-text indicated. A LIVE
+        // question is hard-disabled while phase==='out-of-credits' — the run
+        // can't continue, so the chip must not look re-clickable (dishonest
+        // dead-end fix). Item 6: labeled "Answer needed" header, DESIGN.md
+        // overline voice, matching ApprovalChip's "Decision required" header.
+        const answered = answeredMap[q.questionId];
         return (
-          <QuestionChips
-            prompt={q.prompt}
-            options={q.options}
-            allowFreeText={q.allowFreeText}
-            onAnswer={({ optionId, freeText }) => onAnswer?.(q.questionId, optionId, freeText)}
-          />
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Answer needed
+            </p>
+            <QuestionChips
+              prompt={q.prompt}
+              options={q.options}
+              allowFreeText={q.allowFreeText}
+              onAnswer={({ optionId, freeText }) => onAnswer?.(q.questionId, optionId, freeText)}
+              disabled={phase === 'out-of-credits'}
+              selectedOptionId={answered?.optionId}
+              resolvedText={answered?.freeText}
+            />
+          </div>
         );
       }
 

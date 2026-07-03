@@ -8,7 +8,7 @@
  * FR-AP-013.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
+import type { TranscriptEntry, ChipStateMap, AnsweredMap, RunPhase } from '@/src/hooks/useAssistantPanel';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { TranscriptItem } from './TranscriptItem';
 
@@ -28,6 +28,16 @@ interface TranscriptProps {
    * Blocker-8 fix: not a single global atom; supports sequential proposals in one run.
    */
   chipStateMap?: ChipStateMap;
+  /**
+   * Review-remediation item 3 (F3): resolved ask-user answers keyed by
+   * questionId, threaded down to TranscriptItem/QuestionChips.
+   */
+  answeredMap?: AnsweredMap;
+  /**
+   * Review-remediation item 3 (F3): the panel's run phase — threaded down so a
+   * pending question can hard-disable itself while phase==='out-of-credits'.
+   */
+  phase?: RunPhase;
   /** A3: approve callback threaded down. */
   onApprove?: () => void;
   /** A3: deny callback threaded down. */
@@ -44,7 +54,7 @@ interface TranscriptProps {
   onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
-export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny, onAnswer, onRate }) => {
+export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, answeredMap, phase, onApprove, onDeny, onAnswer, onRate }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -106,6 +116,8 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, c
           key={entry.key}
           entry={entry}
           chipStateMap={chipStateMap}
+          answeredMap={answeredMap}
+          phase={phase}
           onApprove={onApprove}
           onDeny={onDeny}
           onAnswer={onAnswer}

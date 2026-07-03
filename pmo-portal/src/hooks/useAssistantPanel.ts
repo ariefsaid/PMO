@@ -53,6 +53,15 @@ export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
  */
 export type ChipStateMap = Record<string, ApprovalChipState>;
 
+/**
+ * Review-remediation item 3 (F3, Discover finding): the resolution of a pending
+ * ask-user question, keyed by questionId — mirrors the ChipStateMap pattern
+ * (Blocker-8: keyed, not a single global atom) so a QuestionChips entry can
+ * render itself disabled with the chosen option/free-text indicated once
+ * answered, instead of looking perpetually re-clickable.
+ */
+export type AnsweredMap = Record<string, { optionId?: string; freeText?: string }>;
+
 export interface UseAssistantPanel {
   open: boolean;
   transcript: TranscriptEntry[];
@@ -64,6 +73,12 @@ export interface UseAssistantPanel {
    * Each needs-approval event has its own entry; resolved via the matching pendingId.
    */
   chipStateMap: ChipStateMap;
+  /**
+   * Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId —
+   * populated by answerQuestion() so a resolved question's chips render disabled
+   * with the chosen option/free-text indicated (mirrors chipStateMap).
+   */
+  answeredMap: AnsweredMap;
   openPanel(): void;
   closePanel(): void;
   togglePanel(): void;
@@ -162,6 +177,9 @@ export function useAssistantPanel(): UseAssistantPanel {
   // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
   // docs/decisions.md: "A3 chip state is keyed by pendingId."
   const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
+  // Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId
+  // (mirrors chipStateMap's keyed-not-global pattern for sequential questions in one run).
+  const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   // Track the currently active pendingId for approve/deny/approving transitions
   const activePendingIdRef = useRef<string | null>(null);
 
@@ -416,6 +434,10 @@ export function useAssistantPanel(): UseAssistantPanel {
     async (questionId: string, optionId?: string, freeText?: string) => {
       if (!runtime || !runIdRef.current) return;
       const activeRunId = runIdRef.current;
+      // Review-remediation item 3 (F3): record the resolution BEFORE the re-POST
+      // so the question's chips render disabled + the chosen answer indicated
+      // immediately, mirroring the A3 chipStateMap 'approving'-set-before-control pattern.
+      setAnsweredMap((prev) => ({ ...prev, [questionId]: { optionId, freeText } }));
       await runtime.control(activeRunId, 'answer', { questionId, optionId, freeText });
       setPhase('running');
       const iterable = runtime.subscribe(activeRunId);
@@ -475,6 +497,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('idle');
     setLastGoal(null);
     setChipStateMap({});
+    setAnsweredMap({});
   }, [runtime]);
 
   // ── openThread — resume-on-open (FR-AGP-021, AC-AGP-021) ─────────────────────
@@ -568,6 +591,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     lastGoal,
     runId,
     chipStateMap,
+    answeredMap,
     openPanel,
     closePanel,
     togglePanel,

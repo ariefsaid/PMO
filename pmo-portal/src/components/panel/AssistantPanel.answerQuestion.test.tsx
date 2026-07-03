@@ -149,4 +149,35 @@ describe('AssistantPanel — ask-user question flow (ADR-0045 §2)', () => {
     });
     expect(runtime.createRunSpy).toHaveBeenCalledTimes(1);
   });
+
+  // ── Review-remediation item 6: SR live-region announcement for a pending question ──
+
+  it('item 6: a pending question renders a polite SR announcement (mirrors the approval announcement)', async () => {
+    const user = userEvent.setup();
+    const runId = 'q-run-2';
+    const runtime = makeFakeRuntime(runId);
+
+    runtime.subscribeSpy.mockImplementation(() =>
+      makeAsyncIterable([
+        makeEvent('status', {
+          runId,
+          payload: { kind: 'question', questionId: 'q1', prompt: 'Which project is this for?', options: [{ id: 'a', label: 'Alpha' }] },
+        }),
+      ]),
+    );
+
+    renderPanel(runtime);
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'log a call');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText('Which project is this for?')).toBeInTheDocument();
+    });
+
+    // A distinct polite status announcement tells SR users WHY the run is
+    // paused, mirroring "A write action awaits your decision" for approvals.
+    expect(screen.getByText(/awaits your answer/i)).toBeInTheDocument();
+  });
 });

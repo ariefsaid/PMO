@@ -50,6 +50,29 @@ it('AC-ATC-008 tapping chip calls control answer not followUp', () => {
   expect(onAnswer).toHaveBeenCalledWith({ optionId: 'a' });
 });
 
+// ── Item 7 (Director decision): Submit is the neutral/outline confirm idiom ──
+// Blue (bg-primary) is reserved for write-committing actions (ApprovalChip's
+// Approve). A question's free-text Submit does not commit a write, so it must
+// NOT be brand-blue — docs/decisions.md records this as the pending-family
+// blue rule.
+
+it('item 7 Submit button uses the neutral/outline idiom, NOT bg-primary', () => {
+  const onAnswer = vi.fn();
+  render(
+    <QuestionChips
+      prompt="Anything else?"
+      options={[]}
+      allowFreeText
+      onAnswer={onAnswer}
+    />,
+  );
+
+  const submitBtn = screen.getByRole('button', { name: /submit/i });
+  expect(submitBtn.className).not.toContain('bg-primary');
+  expect(submitBtn.className).toContain('border-border');
+  expect(submitBtn.className).toContain('text-foreground');
+});
+
 it('allowFreeText renders a labeled input and submitting calls onAnswer with freeText', () => {
   const onAnswer = vi.fn();
   render(
@@ -83,4 +106,68 @@ it('disabled prop disables all controls (resolved state)', () => {
   expect(screen.getByRole('button', { name: 'Alpha' })).toBeDisabled();
   expect(screen.getByLabelText(/your answer/i)).toBeDisabled();
   expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+});
+
+// ── F3 (Discover finding) — resolved question indicates the chosen option ────
+
+it('F3 selectedOptionId disables all option chips and marks the chosen one', () => {
+  const onAnswer = vi.fn();
+  render(
+    <QuestionChips
+      prompt="Which project?"
+      options={[
+        { id: 'a', label: 'Alpha' },
+        { id: 'b', label: 'Beta' },
+      ]}
+      onAnswer={onAnswer}
+      selectedOptionId="b"
+    />,
+  );
+
+  const alpha = screen.getByRole('button', { name: 'Alpha' });
+  const beta = screen.getByRole('button', { name: 'Beta' });
+  expect(alpha).toBeDisabled();
+  expect(beta).toBeDisabled();
+  // The chosen option is indicated distinctly (aria-pressed communicates the
+  // selection to assistive tech; a visual marker also renders in the DOM).
+  expect(beta).toHaveAttribute('aria-pressed', 'true');
+  expect(alpha).toHaveAttribute('aria-pressed', 'false');
+});
+
+it('F3 resolvedText renders the free-text answer as a resolved notice, controls disabled', () => {
+  const onAnswer = vi.fn();
+  render(
+    <QuestionChips
+      prompt="Anything else?"
+      options={[]}
+      allowFreeText
+      onAnswer={onAnswer}
+      resolvedText="Something specific"
+    />,
+  );
+
+  expect(screen.getByText(/something specific/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/your answer/i)).toBeDisabled();
+  expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+});
+
+// ── F3 (Discover finding) — dishonest dead-end fix: out-of-credits disables chips ──
+
+it('F3 disabled prop (e.g. phase===out-of-credits) blocks a stale pending question from accepting input', () => {
+  const onAnswer = vi.fn();
+  render(
+    <QuestionChips
+      prompt="Which project?"
+      options={[{ id: 'a', label: 'Alpha' }]}
+      onAnswer={onAnswer}
+      disabled
+    />,
+  );
+
+  const alpha = screen.getByRole('button', { name: 'Alpha' });
+  expect(alpha).toBeDisabled();
+  // A disabled control cannot be "clicked" meaningfully in jsdom, but assert
+  // the callback contract: even if a click event were forced, no answer fires.
+  alpha.click();
+  expect(onAnswer).not.toHaveBeenCalled();
 });

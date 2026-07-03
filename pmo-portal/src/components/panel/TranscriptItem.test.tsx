@@ -145,4 +145,56 @@ describe('TranscriptItem — question routing (FR-ATC-009)', () => {
     renderItem(ev);
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
+
+  // ── Review-remediation item 3 (F3, Discover finding) ────────────────────────
+
+  it('F3 phase="out-of-credits" disables the pending question chips (no dishonest dead-end)', () => {
+    mockAgentAssistant.value = true;
+    const ev: AgentEvent = {
+      id: 'e8',
+      runId: 'r1',
+      type: 'status',
+      payload: { kind: 'question', questionId: 'q1', prompt: 'Which project?', options: [{ id: 'a', label: 'Alpha' }] },
+      createdAt: 'x',
+    };
+    renderItem(ev, { phase: 'out-of-credits' });
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeDisabled();
+  });
+
+  it('F3 a resolved question (answeredMap has this questionId) renders chips disabled with the chosen option indicated', () => {
+    mockAgentAssistant.value = true;
+    const ev: AgentEvent = {
+      id: 'e9',
+      runId: 'r1',
+      type: 'status',
+      payload: {
+        kind: 'question',
+        questionId: 'q1',
+        prompt: 'Which project?',
+        options: [
+          { id: 'a', label: 'Alpha' },
+          { id: 'b', label: 'Beta' },
+        ],
+      },
+      createdAt: 'x',
+    };
+    renderItem(ev, { answeredMap: { q1: { optionId: 'a' } } });
+    const alpha = screen.getByRole('button', { name: 'Alpha' });
+    expect(alpha).toBeDisabled();
+    expect(alpha).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Beta' })).toBeDisabled();
+  });
+
+  it('F3 a resolved free-text question renders the resolved answer text', () => {
+    mockAgentAssistant.value = true;
+    const ev: AgentEvent = {
+      id: 'e10',
+      runId: 'r1',
+      type: 'status',
+      payload: { kind: 'question', questionId: 'q2', prompt: 'Anything else?', options: [], allowFreeText: true },
+      createdAt: 'x',
+    };
+    renderItem(ev, { answeredMap: { q2: { freeText: 'Yes, urgent' } } });
+    expect(screen.getByText(/yes, urgent/i)).toBeInTheDocument();
+  });
 });
