@@ -4,6 +4,7 @@
  * Only `src/lib/analytics/client.ts` should call these; components use the
  * client facade or the helper builders exported here.
  */
+import type { DownvoteReason } from '../db/agentEvents';
 
 // ---------------------------------------------------------------------------
 // Event name union — extend this when adding new events (AC-PH-015)
@@ -23,7 +24,16 @@ export type AnalyticsEventName =
   | 'form_validation_failed'
   | 'save_failed'
   | 'permission_denied_seen'
-  | 'empty_state_seen';
+  | 'empty_state_seen'
+  | 'agent_panel_opened'
+  | 'agent_run_started'
+  | 'agent_run_completed'
+  | 'agent_run_errored'
+  | 'agent_approval_shown'
+  | 'agent_approval_decided'
+  | 'agent_thread_resumed'
+  | 'agent_feedback_rated'
+  | 'agent_compose_view_saved';
 
 // ---------------------------------------------------------------------------
 // Constrained argument types for facade helpers
@@ -130,4 +140,76 @@ export function trackEmptyStateSeen(
     event: 'empty_state_seen',
     properties: { state_id: stateId, role, module },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Agent-surface event builders (FR-APH-001..012) — pure, TrackedEvent-returning.
+// Property sets are EXHAUSTIVE per FR-APH-004..012 (NFR-APH-PRIV-001): never add
+// a key here without a spec amendment. index.ts's gated trackAgent* wrappers call
+// these builders internally so there is exactly one place each event's property
+// shape is assembled.
+// ---------------------------------------------------------------------------
+
+export function buildAgentPanelOpenedEvent(hasScope: boolean): TrackedEvent {
+  return { event: 'agent_panel_opened', properties: { has_scope: hasScope } };
+}
+
+export function buildAgentRunStartedEvent(runId: string, isRetry: boolean): TrackedEvent {
+  return { event: 'agent_run_started', properties: { run_id: runId, is_retry: isRetry } };
+}
+
+export function buildAgentRunCompletedEvent(
+  runId: string,
+  durationMs: number | undefined,
+  toolRoundCount: number,
+): TrackedEvent {
+  return {
+    event: 'agent_run_completed',
+    properties: { run_id: runId, duration_ms: durationMs, tool_round_count: toolRoundCount },
+  };
+}
+
+export function buildAgentRunErroredEvent(
+  runId: string,
+  durationMs: number | undefined,
+  toolRoundCount: number,
+  errorCode: string,
+): TrackedEvent {
+  return {
+    event: 'agent_run_errored',
+    properties: { run_id: runId, duration_ms: durationMs, tool_round_count: toolRoundCount, error_code: errorCode },
+  };
+}
+
+export function buildAgentApprovalShownEvent(runId: string): TrackedEvent {
+  return { event: 'agent_approval_shown', properties: { run_id: runId } };
+}
+
+export function buildAgentApprovalDecidedEvent(
+  runId: string,
+  decision: 'approved' | 'denied',
+): TrackedEvent {
+  return { event: 'agent_approval_decided', properties: { run_id: runId, decision } };
+}
+
+export function buildAgentThreadResumedEvent(
+  threadId: string,
+  runId: string | null,
+  eventCount: number,
+): TrackedEvent {
+  return {
+    event: 'agent_thread_resumed',
+    properties: { thread_id: threadId, run_id: runId, event_count: eventCount },
+  };
+}
+
+export function buildAgentFeedbackRatedEvent(
+  rating: 'up' | 'down',
+  downvoteReason: DownvoteReason | undefined,
+): TrackedEvent {
+  return { event: 'agent_feedback_rated', properties: { rating, downvote_reason: downvoteReason } };
+}
+
+export function buildAgentComposeViewSavedEvent(runId: string): TrackedEvent {
+  return { event: 'agent_compose_view_saved', properties: { run_id: runId } };
 }
