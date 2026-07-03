@@ -495,11 +495,6 @@ export async function* agentChatHandler(
     });
     yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
   }
-
-  // initialRole is captured for future use (deputy re-auth on the propose path);
-  // referenced here to avoid an unused-variable lint error while its consumer
-  // (getPermissionCheck at propose time) is not yet wired — kept intentionally.
-  void initialRole;
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
