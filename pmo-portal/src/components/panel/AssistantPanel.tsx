@@ -13,13 +13,19 @@
  *
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
-import React, { useEffect, useRef, useCallback, useId } from 'react';
+import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
+import { listAgentThreads } from '@/src/lib/db/agentThreads';
+import type { AgentThreadRow } from '@/src/lib/db/agentThreads';
+import { rateAgentEvent } from '@/src/lib/db/agentEvents';
+import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
+import { ThreadList } from './ThreadList';
+import { StuckRunBanner } from './StuckRunBanner';
 
 // ── Desktop/mobile breakpoint ─────────────────────────────────────────────────
 // The panel goes modal-sheet at 1024px (D-A2-1, design-plan §1.5).
@@ -89,6 +95,7 @@ export const AssistantPanel: React.FC = () => {
     open,
     transcript,
     phase,
+    runId,
     closePanel,
     send,
     stop,
@@ -97,6 +104,8 @@ export const AssistantPanel: React.FC = () => {
     approve,
     deny,
     chipStateMap,
+    isStuck,
+    lastProgressAt,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -104,6 +113,73 @@ export const AssistantPanel: React.FC = () => {
   const triggerRef = useRef<HTMLElement | null>(null);
   const [composerValue, setComposerValue] = React.useState('');
   const titleId = useId();
+
+  // ── ThreadList — collapsible History region (FR-AGP-020, AC-AGP-019) ─────
+  // Lazily fetched: listAgentThreads() only fires once the region is expanded,
+  // so the DAL never runs while the panel is merely open/idle.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [threads, setThreads] = useState<AgentThreadRow[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState(false);
+
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen((wasOpen) => {
+      const next = !wasOpen;
+      if (next) {
+        setThreadsLoading(true);
+        setThreadsError(false);
+        void listAgentThreads()
+          .then((rows) => setThreads(rows))
+          .catch(() => setThreadsError(true))
+          .finally(() => setThreadsLoading(false));
+      }
+      return next;
+    });
+  }, []);
+
+  const handleOpenThread = useCallback(
+    (threadId: string) => {
+      // KNOWN GAP (flagged to the Director, not silently worked around):
+      // openThread(threadId, runId) needs the thread's MOST RECENT run id.
+      // agent_threads carries no run reference (1:N thread->runs by design,
+      // ADR-0043 §1/§2) and no Phase A-C DAL exposes "latest run for a
+      // thread" (listAgentThreads() returns thread rows only; agentEvents.ts
+      // takes a runId, not a threadId). Phase D's ui-implementer brief scopes
+      // ONLY src/components/panel/** — resolving this needs either a new DAL
+      // function (src/lib/db/agentThreads.ts or agentRuns.ts) or a column on
+      // agent_threads, both out of this task's file allowlist. Until that
+      // lands, opening a thread closes the History region but does not yet
+      // resume its transcript (no silent wrong-id call to openThread).
+      void threadId;
+      setHistoryOpen(false);
+    },
+    [],
+  );
+
+  // ── StuckRunBanner status mapping ────────────────────────────────────────
+  // RunPhase (hook-level) -> AgentRunStatus (StuckRunBanner's active-state check).
+  const bannerStatus: AgentRunStatus =
+    phase === 'running' ? 'running' : phase === 'needs-approval' ? 'needs-approval' : 'completed';
+
+  // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
+  // isStuck is a point-in-time derivation (now - lastProgressAt); with no new
+  // SSE events arriving on a genuinely wedged run, nothing else would trigger
+  // a re-render for the banner to appear. A cheap 5s tick forces re-evaluation
+  // while a run is active, so the banner surfaces without requiring new
+  // transcript activity. No-op (cleared) once the run leaves an active phase.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (phase !== 'running' && phase !== 'needs-approval') return;
+    const id = window.setInterval(() => forceTick((n) => n + 1), 5_000);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  const handleRate = useCallback(
+    (eventId: string, rating: 'up' | 'down', reason?: Parameters<typeof rateAgentEvent>[2]) => {
+      void rateAgentEvent(eventId, rating, reason);
+    },
+    [],
+  );
 
   // ── Focus-trap (mobile only) ─────────────────────────────────────────────
   const onTrapKeyDown = useFocusTrap(panelRef, isDesktop /* suspended on desktop */);
@@ -271,6 +347,16 @@ export const AssistantPanel: React.FC = () => {
             Assistant
           </h2>
           <div className="flex items-center gap-1">
+            {/* ADR-0043 (FR-AGP-020): History toggle — expands the ThreadList region. */}
+            <button
+              type="button"
+              onClick={toggleHistory}
+              aria-label="History"
+              aria-expanded={historyOpen}
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+            >
+              <Icon name="clock" />
+            </button>
             {/* New conversation */}
             <button
               type="button"
@@ -292,17 +378,47 @@ export const AssistantPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* ── History region (collapsible ThreadList, FR-AGP-020/AC-AGP-019) ── */}
+        {historyOpen && (
+          <>
+            {threadsLoading && (
+              <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                Loading conversations…
+              </p>
+            )}
+            {threadsError && (
+              <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
+                Couldn&apos;t load your conversations.
+              </p>
+            )}
+            {!threadsLoading && !threadsError && (
+              <ThreadList threads={threads} onOpen={handleOpenThread} />
+            )}
+          </>
+        )}
+
         {/* ── Transcript region ────────────────────────────────────────── */}
         {/* The Transcript always renders its role="log" aria-live="polite" container so
             the live region is always present in the DOM (AC-AP-021; NFR-AP-A11Y-003).
             EmptyState is rendered inside Transcript when transcript is empty. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* ADR-0043 (FR-AGP-022): stuck-run banner, keyed on the hook's heartbeat-
+              staleness derivation — independent of SSE liveness. */}
+          {isStuck && runId && (
+            <StuckRunBanner
+              status={bannerStatus}
+              lastProgressAt={lastProgressAt}
+              onRetry={handleRetry}
+              onCancel={handleStop}
+            />
+          )}
           <Transcript
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
             chipStateMap={chipStateMap}
             onApprove={() => void approve()}
             onDeny={() => void deny()}
+            onRate={handleRate}
           />
 
           {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}

@@ -18,6 +18,14 @@ import { AssistantPanel } from './AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { axeViolations } from '../__tests__/axe';
 
+// ADR-0043 (D7): ThreadList fetches via listAgentThreads() when its region is
+// expanded — mocked here so these component tests never touch the real
+// supabase client (mirrors the DAL's own mocked-client unit-test pattern).
+const listAgentThreadsMock = vi.fn().mockResolvedValue([]);
+vi.mock('@/src/lib/db/agentThreads', () => ({
+  listAgentThreads: (...args: unknown[]) => listAgentThreadsMock(...args),
+}));
+
 // ── Scripted fake runtime ─────────────────────────────────────────────────────
 
 function makeEvent(
@@ -1199,4 +1207,157 @@ describe('AssistantPanel', () => {
 
     expect(panel).not.toHaveAttribute('inert');
   });
+
+  // ── ADR-0043 Phase D: ThreadList + StuckRunBanner wiring ──────────────────
+
+  it('renders a History toggle that expands to a ThreadList region', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Earlier conversation',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+      },
+    ]);
+    renderPanel();
+
+    const toggle = screen.getByRole('button', { name: /history/i });
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(listAgentThreadsMock).toHaveBeenCalled();
+    });
+    expect(await screen.findByRole('list', { name: /recent conversations/i })).toBeInTheDocument();
+    expect(await screen.findByText('Earlier conversation')).toBeInTheDocument();
+  });
+
+  it('does not call listAgentThreads before the History region is expanded', () => {
+    renderPanel();
+    expect(listAgentThreadsMock).not.toHaveBeenCalled();
+  });
+
+  it('clicking a thread in the list closes the History region', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Resume me',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /resume me/i });
+    await user.click(threadBtn);
+
+    // Region collapses after selecting a thread.
+    await waitFor(() => {
+      expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows a loading state while listAgentThreads is in flight', async () => {
+    const user = userEvent.setup();
+    let resolveThreads!: (rows: unknown[]) => void;
+    listAgentThreadsMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveThreads = resolve;
+      }),
+    );
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    expect(screen.getByText(/loading conversations/i)).toBeInTheDocument();
+
+    resolveThreads([]);
+    await waitFor(() => {
+      expect(screen.queryByText(/loading conversations/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows an error state when listAgentThreads rejects', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockRejectedValueOnce(new Error('denied'));
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load your conversations/i);
+    // The empty-list ThreadList must not also render alongside the error.
+    expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+  });
+
+  it('StuckRunBanner renders inside the transcript region while a run is stale', async () => {
+    const user = userEvent.setup();
+    const runId = 'stuck-run-1';
+    // A runtime whose subscribe() never resolves — the run stays 'running' with no
+    // further progress signal, so lastProgressAt is pinned at the one yielded event.
+    const runtime: FakeRuntime = {
+      createRun: vi.fn().mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun),
+      followUp: vi.fn().mockResolvedValue(undefined),
+      control: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn().mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            id: crypto.randomUUID(),
+            runId,
+            type: 'status' as const,
+            payload: { status: 'running' },
+            createdAt: new Date().toISOString(),
+          };
+          await new Promise(() => {}); // never resolves — run stays 'running'
+        },
+      }),
+      createRunSpy: vi.fn(),
+      followUpSpy: vi.fn(),
+      controlSpy: vi.fn(),
+      subscribeSpy: vi.fn(),
+    };
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'do something slow');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /stop generating/i })).toBeInTheDocument();
+    });
+    // No banner yet — the run just started (fresh heartbeat).
+    expect(
+      screen.queryByRole('status', { name: /taking longer than expected/i }),
+    ).not.toBeInTheDocument();
+
+    // Fast-forward the wall clock past the staleness threshold; the panel's
+    // 5s re-render tick (real timer) re-evaluates isStuck against the real
+    // elapsed-vs-stale-heartbeat comparison via a stubbed Date.now().
+    const realNow = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 50_000);
+    try {
+      await waitFor(
+        () => {
+          expect(
+            screen.getByRole('status', { name: /taking longer than expected/i }),
+          ).toBeInTheDocument();
+        },
+        { timeout: 8_000, interval: 250 },
+      );
+      expect(screen.getByRole('button', { name: /^retry$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  }, 12_000);
 });
