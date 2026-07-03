@@ -102,16 +102,25 @@ export const NotificationBell: React.FC = () => {
       });
   }, []);
 
+  // item 9: the badge must never go stale for a mounted session — refresh on mount, on a 60s
+  // interval while mounted (cleanup-safe: the interval is cleared on unmount), and again after
+  // loadInbox/markRead resolve (below) so an in-session read/new-arrival is reflected promptly
+  // without waiting up to 60s.
   useEffect(() => {
     refreshUnreadCount();
+    const id = setInterval(refreshUnreadCount, 60_000);
+    return () => clearInterval(id);
   }, [refreshUnreadCount]);
 
   const loadInbox = useCallback(() => {
     setInbox({ status: 'loading' });
     listNotifications()
-      .then((rows) => setInbox({ status: 'ready', rows }))
+      .then((rows) => {
+        setInbox({ status: 'ready', rows });
+        refreshUnreadCount();
+      })
       .catch(() => setInbox({ status: 'error' }));
-  }, []);
+  }, [refreshUnreadCount]);
 
   useEffect(() => {
     if (open) loadInbox();
@@ -150,7 +159,13 @@ export const NotificationBell: React.FC = () => {
       if (wasUnread) setUnread((n) => Math.max(0, n - 1));
 
       try {
-        if (wasUnread) await markNotificationRead(row.id);
+        if (wasUnread) {
+          await markNotificationRead(row.id);
+          // item 9: reconcile the badge against the server's actual count after a successful
+          // mark-read — the optimistic decrement above is immediate-feel; this is the source of
+          // truth (guards drift from a concurrent notification elsewhere).
+          refreshUnreadCount();
+        }
       } catch {
         // Fail-quiet: the row stays optimistically read in this session; the next
         // full inbox load reconciles against the server's actual read_at.
@@ -169,7 +184,7 @@ export const NotificationBell: React.FC = () => {
         openThread(runId);
       }
     },
-    [navigate, openPanel, openThread],
+    [navigate, openPanel, openThread, refreshUnreadCount],
   );
 
   return (
@@ -177,7 +192,7 @@ export const NotificationBell: React.FC = () => {
       <button
         type="button"
         aria-label={`Notifications, ${unread} unread`}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="touch-target relative grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[17px]"
@@ -189,7 +204,7 @@ export const NotificationBell: React.FC = () => {
         {unread > 0 && (
           <span
             aria-hidden="true"
-            className="absolute right-0.5 top-0.5 grid min-w-[16px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground"
+            className="absolute right-0.5 top-0.5 grid min-w-[16px] place-items-center rounded-full bg-foreground px-1 text-[10px] font-semibold leading-none text-background"
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -198,10 +213,12 @@ export const NotificationBell: React.FC = () => {
 
       {open && (
         <div
-          role="menu"
-          aria-label="Notifications inbox"
+          aria-labelledby="notification-bell-inbox-heading"
           className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
         >
+          <h2 id="notification-bell-inbox-heading" className="sr-only">
+            Notifications inbox
+          </h2>
           {inbox.status === 'loading' && (
             <p className="px-2.5 py-3 text-[13px] text-muted-foreground">Loading notifications…</p>
           )}

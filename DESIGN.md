@@ -296,6 +296,9 @@ containers). Nested radii use `calc(var(--radius) - 2px/-4px)` so inner corners 
 - **Outline:** `background` fill, `border` stroke, `foreground` text. Hover → `accent` wash.
 - **Ghost:** transparent, `foreground`/`muted-foreground` text. Hover → `accent` wash. Home for header
   icon buttons and rare/secondary actions (the overflow menu is the calm home for Edit/Archive/Export).
+  Shell icon-buttons (top-bar bell/theme-toggle/rail-toggle/search-trigger) render at
+  `text-muted-foreground` **at rest** in both themes, flipping to `text-foreground` only on hover —
+  never `text-foreground` at rest (a quiet-by-default control, not a highlighted one).
 - **Destructive:** `destructive` bg, `destructive-foreground` text. The only solid status fill; reserved
   for irreversible actions (Mark lost, Delete).
 - **Focus:** global `:focus-visible` — `outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 4px`.
@@ -308,6 +311,9 @@ containers). Nested radii use `calc(var(--radius) - 2px/-4px)` so inner corners 
   `muted-foreground` text.
 - **Count badge** (nav rail / kanban): quiet — `muted-foreground` figure (not a loud filled chip); active
   nav item flips to `--nav-active-text` (AA blue) + `font-semibold`.
+- **Unread-count chip** (notification bell): `bg-foreground` / `text-background` — a maximal-AA-contrast
+  NEUTRAL pair, never `destructive`. A count is not a severity signal (that's the notification's own
+  dot+label inside the inbox popover); `destructive` stays reserved for the actual destructive verb.
 
 ### Status / AA text tokens (single source of truth in `index.css`)
 The darkened-AA text values for blue/status TEXT are named CSS custom properties. `StatusPill` and

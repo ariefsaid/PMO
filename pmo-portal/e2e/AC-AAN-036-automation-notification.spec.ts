@@ -260,7 +260,9 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     await expect(bellButton).toHaveAccessibleName(/notifications, [1-9]\d* unread/i);
 
     await bellButton.click();
-    const inbox = page.getByRole('menu', { name: /notifications inbox/i });
+    // The inbox popover is a labelled region (a list of notifications), not a role="menu" — review-
+    // remediation item 7 (F4): the items are static content selections, not command/menu actions.
+    const inbox = page.getByRole('list', { name: /notifications/i });
     await expect(inbox).toBeVisible({ timeout: 5_000 });
     await expect(inbox.getByText(NOTIFICATION_TITLE)).toBeVisible({ timeout: 5_000 });
 
@@ -289,10 +291,11 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
     await expect(bobBellButton).toHaveAccessibleName(/notifications, 0 unread/i);
 
     await bobBellButton.click();
-    const bobInbox = page.getByRole('menu', { name: /notifications inbox/i });
-    await expect(bobInbox).toBeVisible({ timeout: 5_000 });
-    await expect(bobInbox.getByText(NOTIFICATION_TITLE)).not.toBeVisible();
-    await expect(bobInbox.getByText(/no notifications yet/i)).toBeVisible({ timeout: 5_000 });
+    // Bob's inbox is empty — the popover shows the empty-state message, not a <ul> list (item 7:
+    // the popover is a labelled region, asserted via its heading text since an empty inbox has no
+    // list role to query).
+    await expect(page.getByText(/no notifications yet/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(NOTIFICATION_TITLE)).not.toBeVisible();
 
     // Not fetchable by id either — a direct PostgREST query for Ann's notification, made under
     // BOB'S OWN session (the browser's live Supabase JWT, found by scanning localStorage for the

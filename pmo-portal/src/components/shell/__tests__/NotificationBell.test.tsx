@@ -33,6 +33,7 @@ vi.mock('@/src/lib/db/notifications', () => ({
 }));
 
 import { NotificationBell } from '../NotificationBell';
+import { ThemeToggle } from '../ThemeToggle';
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -70,6 +71,18 @@ describe('NotificationBell', () => {
     const bell = await screen.findByRole('button', { name: /notifications.*3 unread/i });
     expect(bell).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
+  });
+
+  it('F2+F3: the unread badge is a NEUTRAL foreground/background chip, never destructive (non-severity signal)', async () => {
+    listUnreadCount.mockResolvedValue(3);
+    renderBell();
+    const count = await screen.findByText('3');
+    // Maximal-AA-contrast neutral pair — the badge is a COUNT, not a severity signal (the
+    // Freed-Blue + Status-As-Dot rules reserve destructive for the actual destructive verb).
+    expect(count).toHaveClass('bg-foreground');
+    expect(count).toHaveClass('text-background');
+    expect(count).not.toHaveClass('bg-destructive');
+    expect(count).not.toHaveClass('text-destructive-foreground');
   });
 
   it('NFR-AAN-A11Y-003 the badge region is aria-live=polite', async () => {
@@ -139,7 +152,9 @@ describe('NotificationBell', () => {
   });
 
   it('AC-AAN-034 selecting an unread notification marks it read and decrements the badge', async () => {
-    listUnreadCount.mockResolvedValue(1);
+    // The badge reconciles against the server after markRead (item 9) — the mock reflects the
+    // server-truth transition from 1 unread to 0 once markNotificationRead has been called.
+    listUnreadCount.mockImplementation(() => Promise.resolve(markNotificationRead.mock.calls.length > 0 ? 0 : 1));
     listNotifications.mockResolvedValue([row({ id: 'n1', read_at: null })]);
     renderBell();
     const bell = await screen.findByRole('button', { name: /notifications.*1 unread/i });
@@ -217,6 +232,98 @@ describe('NotificationBell', () => {
     const dot = item.querySelector('[data-severity-dot]');
     expect(dot).not.toBeNull();
     expect(dot).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('F1: the bell resolves the SAME rest-state color token as ThemeToggle (both themes) — mirrors its class construction', async () => {
+    listUnreadCount.mockResolvedValue(0);
+    document.documentElement.classList.remove('dark');
+    const { unmount } = render(
+      <MemoryRouter>
+        <NotificationBell />
+        <ThemeToggle />
+      </MemoryRouter>,
+    );
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    const theme = screen.getByRole('button', { name: /switch to dark theme/i });
+    // Both icon buttons are quiet shell controls at rest: `text-muted-foreground`, never
+    // `text-foreground` (that class only applies on :hover) — mirrors ThemeToggle exactly.
+    expect(bell).toHaveClass('text-muted-foreground');
+    expect(theme).toHaveClass('text-muted-foreground');
+    expect(bell.className).not.toMatch(/(?<!hover:)(?<!focus-visible:)(?<!:)\btext-foreground\b/);
+    unmount();
+
+    document.documentElement.classList.add('dark');
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+        <ThemeToggle />
+      </MemoryRouter>,
+    );
+    const bellDark = await screen.findByRole('button', { name: /notifications/i });
+    expect(bellDark).toHaveClass('text-muted-foreground');
+    document.documentElement.classList.remove('dark');
+  });
+
+  it('F4: the popover is a labelled region/list, not a role="menu" — Escape/outside-click still close it', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([row()]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await userEvent.click(bell);
+
+    // No menu role anywhere in the popover (F4) — aria-haspopup must not advertise 'menu' either.
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(bell).not.toHaveAttribute('aria-haspopup', 'menu');
+
+    // Still a labelled, semantic list of items (kept from before).
+    const list = await screen.findByRole('list', { name: /notifications/i });
+    expect(list).toBeInTheDocument();
+
+    // Escape still closes it.
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('list', { name: /notifications/i })).not.toBeInTheDocument());
+  });
+
+  it('item 9: refreshes the unread count on a 60s interval while mounted (cleanup-safe)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      listUnreadCount.mockResolvedValue(1);
+      const { unmount } = renderBell();
+      await vi.waitFor(() => expect(listUnreadCount).toHaveBeenCalledTimes(1));
+
+      listUnreadCount.mockResolvedValue(5);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.waitFor(() => expect(listUnreadCount).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText('5')).toBeInTheDocument();
+
+      // Cleanup-safe: unmounting stops the interval — no further calls, no act() warning.
+      unmount();
+      const callsAtUnmount = listUnreadCount.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(listUnreadCount).toHaveBeenCalledTimes(callsAtUnmount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('item 9: refreshes the unread count after the inbox loads and after marking a notification read', async () => {
+    listUnreadCount.mockResolvedValue(2);
+    listNotifications.mockResolvedValue([row({ id: 'n1', read_at: null })]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications.*2 unread/i });
+    const callsBeforeOpen = listUnreadCount.mock.calls.length;
+
+    await userEvent.click(bell);
+    await screen.findByRole('list', { name: /notifications/i });
+    // After the inbox load resolves, the count is refreshed (not left stale mid-session).
+    await waitFor(() => expect(listUnreadCount.mock.calls.length).toBeGreaterThan(callsBeforeOpen));
+
+    const callsBeforeMarkRead = listUnreadCount.mock.calls.length;
+    const item = await screen.findByRole('button', { name: /automation finished/i });
+    await userEvent.click(item);
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith('n1'));
+    // After markRead resolves, the count is refreshed again.
+    await waitFor(() => expect(listUnreadCount.mock.calls.length).toBeGreaterThan(callsBeforeMarkRead));
   });
 
   it('keyboard: the bell is reachable and togglable via keyboard (Enter)', async () => {
