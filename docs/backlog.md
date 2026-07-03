@@ -56,6 +56,15 @@
 > (3) **`agent_usage` ledger + per-user CREDIT balance**, enforced server-side at the existing `RateGuard`
 > injection point — the SaaS metering seam (pricing strategy deliberately deferred);
 > (4) **PostHog agent events** (ADR-0022; no Sentry).
+> **Scope grown by owner 2026-07-03 (Tier-1 + ask-user promoted; ADRs 0043–0045 Accepted, they govern):**
+> item (2) is now **ADR-0043** (binding: thread `scope`, tool-call journal/durable resume, progress
+> heartbeat + stuck-run UX, per-event feedback — fold into its spec);
+> (5) **automations (cron + event-triggered) + notifications inbox** = **ADR-0044** (pg_cron→dispatcher
+> edge fn; minted-owner-JWT background deputy — THE security-sensitive piece, security-auditor owns it;
+> credits preflight from item 3);
+> (6) **transcript interaction contracts** = **ADR-0045** (typed data widgets via renderer registry,
+> ask-user question chips via `control('answer')`, live route/entity context as untrusted hints).
+> Suggested build order: 1 → 2(0043) → 3 → 4 → 6(0045) → 5(0044) — automations last (needs credits + notifications).
 > **Backlogged nice-to-haves (owner 2026-07-03):** view-proposal workflow (user proposes an agent-composed
 > view for promotion into the coded app — ADR-0036 §7) · input-form composition primitives (agent-built
 > data-entry forms; new primitive class, write-path security — own ADR when picked up).
