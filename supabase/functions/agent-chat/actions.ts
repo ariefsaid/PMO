@@ -21,6 +21,7 @@ import {
   COMPOSE_VIEW_INPUT_SCHEMA,
   NOTIFY_SCHEMA,
   CREATE_AUTOMATION_SCHEMA,
+  ASK_USER_SCHEMA,
 } from './schema';
 import { cronMatches } from '../agent-dispatch/cron';
 import { TRIGGER_SOURCES, isAllowedTriggerSource } from '../agent-dispatch/triggerSources';
@@ -535,6 +536,25 @@ export const composeViewAction: AgentAction = {
   run: () => {
     throw new Error(
       'compose_view is dispatched by the handler with injected modelClient deps (ADR-0041); never call run() directly',
+    );
+  },
+};
+
+// ── ask_user action (ADR-0045 §2) ─────────────────────────────────────────────
+// Guard stub — the handler NEVER calls this via dispatchAction; runToolLoop
+// special-cases `toolName === 'ask_user'` and emits a status{kind:'question'}
+// event, ending the stream (same shape as the A3 propose branch).
+
+export const askUserAction: AgentAction = {
+  name: 'ask_user',
+  description:
+    'Ask the user a structured clarifying question with tappable options (and optionally a free-text box) when their request is ambiguous.',
+  inputSchema: ASK_USER_SCHEMA,
+  surfaces: ['agent'],
+  confirm: false,
+  run: () => {
+    throw new Error(
+      'ask_user is dispatched by the handler directly (ADR-0045 §2); never call run() directly',
     );
   },
 };

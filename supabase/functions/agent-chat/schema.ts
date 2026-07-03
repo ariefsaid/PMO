@@ -143,6 +143,42 @@ export const QUERY_ENTITY_SCHEMA = {
 };
 
 /**
+ * ASK_USER_SCHEMA — JSON Schema for the ask_user tool input (ADR-0045 §2, FR-ATC-008).
+ * The model calls this to pose a structured clarifying question inline; the handler
+ * emits it as a status{kind:'question'} event and ends the stream (same interaction
+ * family as the A3 needs-approval propose branch — resolved via control('answer')).
+ */
+export const ASK_USER_SCHEMA = {
+  type: 'object' as const,
+  required: ['prompt', 'options'] as string[],
+  additionalProperties: false,
+  properties: {
+    prompt: {
+      type: 'string' as const,
+      maxLength: 300,
+      description: 'The clarifying question to show the user.',
+    },
+    options: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        required: ['id', 'label'] as string[],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' as const },
+          label: { type: 'string' as const },
+        },
+      },
+      description: 'The choices to present as tappable chips.',
+    },
+    allowFreeText: {
+      type: 'boolean' as const,
+      description: 'Whether to also offer a free-text answer box.',
+    },
+  },
+};
+
+/**
  * COMPOSE_VIEW_INPUT_SCHEMA — the tool input schema the model sees when it decides to call
  * the compose_view tool. The model fills in { prompt } with the user's request for a view.
  *

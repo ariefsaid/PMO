@@ -31,6 +31,7 @@ import {
   runComposeView,
   notifyAction,
   createAutomationAction,
+  askUserAction,
   AGENT_READ_ENTITIES,
   AGENT_READ_ROW_CAP,
 } from './actions';
@@ -79,6 +80,12 @@ const BASE_ACTIONS: AgentAction[] = [
   ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
 ];
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
+
+/** ask_user (ADR-0045 §2) — always registered, dispatched specially by runToolLoop. */
+const ASK_USER_TOOL: ModelTool = {
+  type: 'function',
+  function: { name: askUserAction.name, description: askUserAction.description, parameters: askUserAction.inputSchema },
+};
 
 // ACTIONS and ACTION_BY_NAME are built per-call based on composeEnabled (Task 7/FR-CV-024).
 // They are kept as module-level variables for the runLoop/handleDecision helpers which
@@ -349,6 +356,7 @@ function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
     type: 'function',
     function: { name: a.name, description: a.description, parameters: a.inputSchema },
   }));
+  tools.push(ASK_USER_TOOL);
   if (composeEnabled) {
     tools.push({
       type: 'function',
@@ -573,6 +581,35 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         continue;
       }
 
+      // ── ADR-0045 §2: ask_user dispatch branch ────────────────────────────
+      // Same interaction family as the A3 propose branch (needs-approval): a
+      // structured question pauses the run; the client resolves it via
+      // control('answer',...), which continues the SAME run (handleAnswer,
+      // below). Gated by allowProposeConfirm so the decision-continuation pass
+      // cannot propose a SECOND pending question before the first resolves
+      // (mirrors divergence 2's confirm-action guard).
+      if (toolName === 'ask_user' && allowProposeConfirm) {
+        const input = toolInput as { prompt?: string; options?: { id: string; label: string }[]; allowFreeText?: boolean };
+        const questionId = makeId();
+        // ADR-0045 §2 payload shape: {kind:'question', questionId, prompt, options,
+        // allowFreeText?} — carried on `status` so it rides the same run-lifecycle
+        // channel as needs-approval, but WITHOUT a `status` field of its own (it is
+        // not an AgentRunStatus value; `useAssistantPanel`'s drain distinguishes it
+        // by `payload.kind`, not `payload.status`).
+        yield emit('status', {
+          payload: {
+            kind: 'question',
+            questionId,
+            prompt: input.prompt ?? '',
+            options: input.options ?? [],
+            ...(input.allowFreeText !== undefined ? { allowFreeText: input.allowFreeText } : {}),
+          },
+        });
+        // End the stream — the client re-POSTs with `answer` on the next turn
+        // (mirrors the A3 confirm-propose branch ending the stream on needs-approval).
+        return;
+      }
+
       const action = actionByName.get(toolName);
 
       // Divergence 2: the continuation pass (allowProposeConfirm===false) treats a
@@ -777,6 +814,12 @@ async function* agentChatHandlerInner(
     return;
   }
 
+  // ── ADR-0045 §2: Answer branch (req.answer present → resolve a pending question) ──
+  if (req.answer) {
+    yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist);
+    return;
+  }
+
   // ── Yield the last user message ────────────────────────────────────────────
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1);
   if (lastUserMsg) {
@@ -815,6 +858,66 @@ async function* agentChatHandlerInner(
     allowProposeConfirm: true,
     onMissingToolCall: 'continue-as-unknown',
   });
+}
+
+// ── ADR-0045 §2: Answer handler (resolve a pending ask_user question) ─────────
+
+/**
+ * Handle a re-POST with req.answer (resolve a pending ask_user question).
+ *
+ * Protocol (mirrors handleDecision/D-A3-1, generalized per ADR-0045 §2 — the
+ * "question" and "needs-approval" interactions share one resolution family):
+ * 1. Find the trailing unresolved ask_user tool_use in the replayed transcript
+ *    (findTrailingQuestion). If none (stale/duplicate re-POST — AC-ATC-010), it
+ *    is a no-op: just continue the model with the SAME messages, no re-injection.
+ * 2. Otherwise, append the answer as the tool_result resolving that tool_use
+ *    (the chosen option's label, or the free text) and continue the SAME run
+ *    (AC-ATC-009) via runLoop — never a new createRun.
+ * NFR-ATC-SEC-004: no new deputy bypass — this re-POST never re-derives org/role
+ * itself (unlike handleDecision's approve path, there is no write to authorize;
+ * ask_user is read-only UX, so the caller-JWT deputy context already governs
+ * anything the continuation subsequently does through the shared runToolLoop).
+ */
+async function* handleAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  const answer = req.answer!;
+
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
+
+  const messages: ModelMessage[] = [
+    { role: 'system', content: system },
+    ...req.messages.map((m) => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : null,
+    })),
+  ];
+
+  const trailingQuestion = findTrailingQuestion(req.messages);
+
+  if (trailingQuestion) {
+    const { toolId, toolName, toolInput } = trailingQuestion;
+    // Prefer the option's human-readable label (the model asked with labels, not
+    // ids) — fall back to the raw optionId if the option isn't found, then freeText.
+    const questionInput = toolInput as { options?: { id: string; label: string }[] } | undefined;
+    const matchedOption = questionInput?.options?.find((o) => o.id === answer.optionId);
+    const answerText = answer.freeText ?? matchedOption?.label ?? answer.optionId ?? '';
+    messages.push({
+      role: 'tool',
+      tool_call_id: toolId,
+      name: toolName,
+      content: JSON.stringify({ answer: answerText }),
+    });
+  }
+  // No trailingQuestion found → stale/duplicate answer (AC-ATC-010): fall through
+  // and simply continue the model with the messages as replayed (no re-injection).
+
+  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -1123,6 +1226,48 @@ function findTrailingConfirmToolUse(
     if (isAlreadyResolved) return null;
 
     return { toolId, toolName, toolInput: toolUseBlock.input ?? {} };
+  }
+
+  return null;
+}
+
+// ── ADR-0045 §2: Trailing unresolved ask_user tool_use finder ─────────────────
+
+/**
+ * Find the trailing unresolved ask_user tool_use in the replayed messages.
+ * A generalization of findTrailingConfirmToolUse (D-A3-1's positional idempotency
+ * check) for the `question` interaction family: walks backwards for the last
+ * assistant tool_use block naming `ask_user`, returning `null` if a tool_result
+ * already resolves it (stale/duplicate answer — AC-ATC-010).
+ */
+function findTrailingQuestion(messages: ConversationMessage[]): TrailingToolUse | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'assistant') continue;
+
+    const content = msg.content;
+    if (!Array.isArray(content)) continue;
+
+    const toolUseBlock = [...content].reverse().find(
+      (b: { type?: string; name?: string }) => b.type === 'tool_use' && b.name === 'ask_user',
+    ) as { type: string; id?: string; name: string; input?: unknown } | undefined;
+
+    if (!toolUseBlock) continue;
+
+    const toolId = toolUseBlock.id ?? 'tool-use-id';
+
+    const isAlreadyResolved = messages.slice(i + 1).some((laterMsg) => {
+      if (laterMsg.role !== 'user') return false;
+      const lContent = laterMsg.content;
+      if (!Array.isArray(lContent)) return false;
+      return (lContent as Array<{ type?: string; tool_use_id?: string }>).some(
+        (b) => b.type === 'tool_result' && b.tool_use_id === toolId,
+      );
+    });
+
+    if (isAlreadyResolved) return null;
+
+    return { toolId, toolName: toolUseBlock.name, toolInput: toolUseBlock.input ?? {} };
   }
 
   return null;
