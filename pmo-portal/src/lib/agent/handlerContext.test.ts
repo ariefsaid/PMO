@@ -116,6 +116,34 @@ it('AC-ATC-012 context.entity grounds query_entity read', async () => {
   expect(systemMsg?.content).toMatch(/untrusted/i);
 });
 
+// ── Security Lows item 2: buildGroundingHint clamps client strings ───────────
+
+it('SEC-2 oversized entity.label is truncated (not rejected) in the grounding hint', async () => {
+  const create = vi.fn().mockResolvedValue({
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'Summary ready.' },
+    usage: {},
+    model: 'deepseek/deepseek-v4-flash',
+  });
+
+  const oversizedLabel = 'A'.repeat(500);
+
+  const req: AgentChatRequest = {
+    messages: [{ role: 'user', content: 'summarize this' }],
+    context: { route: '/projects/123', entity: { type: 'project', id: '123', label: oversizedLabel } },
+  };
+
+  await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
+
+  const sentMessages = create.mock.calls[0][0].messages as { role: string; content: string }[];
+  const systemMsg = sentMessages.find((m) => m.role === 'system');
+  expect(systemMsg).toBeDefined();
+  // The 500-char label must not appear whole in the prompt — it's truncated to <=200 chars.
+  expect(systemMsg?.content).not.toContain(oversizedLabel);
+  // Still grounds the model (truncated label present, request not rejected).
+  expect(systemMsg?.content).toContain('A'.repeat(50));
+});
+
 // ── AC-ATC-013: forged entity id degrades to a zero-row RLS read ─────────────
 
 it('AC-ATC-013 forged context entity id yields zero rows not elevated access', async () => {
@@ -259,4 +287,64 @@ it('AC-ATC-016 follow-up context does not overwrite existing scope', async () =>
   // No agent_threads INSERT (or any scope write) fires on the follow-up branch —
   // only creation writes scope (FR-ATC-018).
   expect(threadInsertSpy).not.toHaveBeenCalled();
+});
+
+// ── Security Lows item 2: persisted scope narrowing at write time ────────────
+
+it('SEC-2 oversized entity.label is truncated in the persisted thread scope', async () => {
+  const threadInsertSpy = vi.fn();
+  const supabase = mockSupabase({ threadInsertSpy });
+
+  const oversizedLabel = 'B'.repeat(500);
+
+  const req: AgentChatRequest = {
+    messages: [{ role: 'user', content: 'hello' }],
+    context: { route: '/projects/123', entity: { type: 'project', id: '123', label: oversizedLabel } },
+  };
+
+  await collect(
+    agentChatHandler(
+      req,
+      baseDeps({
+        supabase,
+        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+      }),
+    ),
+  );
+
+  const insertedRow = threadInsertSpy.mock.calls[0][0] as { scope?: { label?: string } };
+  expect(insertedRow.scope?.label.length).toBeLessThanOrEqual(200);
+  expect(insertedRow.scope?.label).not.toBe(oversizedLabel);
+});
+
+it('SEC-2 unknown keys on context.entity are stripped from the persisted scope', async () => {
+  const threadInsertSpy = vi.fn();
+  const supabase = mockSupabase({ threadInsertSpy });
+
+  const req: AgentChatRequest = {
+    messages: [{ role: 'user', content: 'hello' }],
+    context: {
+      route: '/projects/123',
+      // Extra keys beyond {type,id,label} — e.g. a forged/bypassed-TS payload.
+      entity: { type: 'project', id: '123', label: 'Alpha', evil: 'DROP TABLE', __proto__: { polluted: true } } as unknown as {
+        type: string;
+        id: string;
+        label: string;
+      },
+    },
+  };
+
+  await collect(
+    agentChatHandler(
+      req,
+      baseDeps({
+        supabase,
+        persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-03T00:00:00Z') },
+      }),
+    ),
+  );
+
+  const insertedRow = threadInsertSpy.mock.calls[0][0] as { scope?: Record<string, unknown> };
+  expect(insertedRow.scope).toEqual({ type: 'project', id: '123', label: 'Alpha' });
+  expect(Object.keys(insertedRow.scope ?? {}).sort()).toEqual(['id', 'label', 'type']);
 });
