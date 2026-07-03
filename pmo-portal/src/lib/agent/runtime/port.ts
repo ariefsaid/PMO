@@ -89,7 +89,7 @@ export interface DeputyContext {
 export interface AgentAction {
   name: string;
   description: string;
-  /** JSON Schema → Anthropic input_schema (D3/R1 — not ZodType) */
+  /** JSON Schema → model tool parameters (D3/R1 — not ZodType) */
   inputSchema: object;
   /** A1 ships ['agent'] */
   surfaces?: ('ui' | 'agent' | 'mcp' | 'cli')[];

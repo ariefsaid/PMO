@@ -3,7 +3,7 @@
  * Constructs one PmoNativeRuntime when the agentAssistant flag is on.
  * Provides runtime + panel open state to all consumers via AgentRuntimeContext.
  *
- * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/ANTHROPIC key.
+ * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/provider API key.
  * FR-AP-024/025.
  */
 import React, { useMemo, useRef, useState, useCallback } from 'react';

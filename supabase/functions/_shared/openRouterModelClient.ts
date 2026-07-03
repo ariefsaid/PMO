@@ -36,6 +36,20 @@ interface OpenRouterResponseBody {
   };
 }
 
+/**
+ * Minimal shape validation for a parsed OpenRouter response's choices[0], run before
+ * any field is read — a malformed/truncated upstream body must never propagate a raw
+ * parse error or partial body into a thrown Error (NFR-MC-SEC-004/005).
+ */
+function isValidChoice(choice: unknown): choice is OpenRouterChoice {
+  if (typeof choice !== 'object' || choice === null) return false;
+  const c = choice as Partial<OpenRouterChoice>;
+  if (typeof c.finish_reason !== 'string') return false;
+  if (typeof c.message !== 'object' || c.message === null) return false;
+  if (c.message.tool_calls !== undefined && !Array.isArray(c.message.tool_calls)) return false;
+  return true;
+}
+
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
 
@@ -80,10 +94,18 @@ export class OpenRouterModelClient implements ModelClient {
       throw new Error(`OpenRouter request failed: ${response.status}`);
     }
 
-    const body = (await response.json()) as OpenRouterResponseBody;
+    let body: OpenRouterResponseBody;
+    try {
+      body = (await response.json()) as OpenRouterResponseBody;
+    } catch {
+      // Never surface the raw parse error/body — it may echo back secret-looking
+      // upstream content (NFR-MC-SEC-004/005).
+      throw new Error('OpenRouter response malformed');
+    }
+
     const choice = body.choices?.[0];
-    if (!choice) {
-      throw new Error('OpenRouter response missing choices');
+    if (!isValidChoice(choice)) {
+      throw new Error('OpenRouter response malformed');
     }
 
     return {

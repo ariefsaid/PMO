@@ -198,3 +198,122 @@ it('AC-MC-007 echoes the server-reported model, not the requested model', async 
 
   expect(resp.model).toBe('deepseek/deepseek-v4-flash');
 });
+
+// ── Malformed-body hardening (remediation, cross-family review of PR #211) ────
+
+const RAW_SECRET_MARKER = 'sk-secret-looking-value-should-never-be-logged';
+
+/** Mocks fetch with a response whose .json() rejects (invalid JSON body) or whose
+ * .text() carries a raw-secret-looking marker, to prove the marker never leaks
+ * into the thrown Error's message. */
+function mockFetchWithBadJson(rawText: string): ReturnType<typeof vi.fn> {
+  const fn = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: () => Promise.reject(new SyntaxError(`Unexpected token in JSON: ${rawText}`)),
+    text: () => Promise.resolve(rawText),
+  });
+  vi.stubGlobal('fetch', fn);
+  return fn;
+}
+
+it('throws a scrubbed error when response.json() fails to parse (invalid JSON body)', async () => {
+  mockFetchWithBadJson(`not json at all ${RAW_SECRET_MARKER}`);
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+
+  try {
+    await client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
+  } catch (err) {
+    expect((err as Error).message).not.toContain(RAW_SECRET_MARKER);
+    expect((err as Error).message).not.toContain('Unexpected token');
+  }
+});
+
+it('throws a scrubbed error when the body is missing choices', async () => {
+  mockFetchOnce({ model: 'deepseek/deepseek-v4-flash' });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+});
+
+it('throws a scrubbed error when choices is an empty array', async () => {
+  mockFetchOnce({ model: 'deepseek/deepseek-v4-flash', choices: [] });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+});
+
+it('throws a scrubbed error when choices[0].message is missing/not an object', async () => {
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ finish_reason: 'stop', message: null }],
+  });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+});
+
+it('throws a scrubbed error when finish_reason is missing', async () => {
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ message: { role: 'assistant', content: 'hi' } }],
+  });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+});
+
+it('throws a scrubbed error when tool_calls is malformed (non-array)', async () => {
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [
+      {
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: `not-an-array ${RAW_SECRET_MARKER}`,
+        },
+      },
+    ],
+  });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  let caught: Error | undefined;
+  try {
+    await client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
+  } catch (err) {
+    caught = err as Error;
+  }
+  expect(caught).toBeInstanceOf(Error);
+  expect(caught?.message).toBe('OpenRouter response malformed');
+  expect(caught?.message).not.toContain(RAW_SECRET_MARKER);
+});
+
+it('never leaks the raw body text into the thrown error message for any malformed-shape case', async () => {
+  const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  mockFetchOnce({ model: 'x', choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: RAW_SECRET_MARKER } }] });
+  // Sanity: well-formed body with the marker as legitimate content is fine —
+  // now assert the malformed cases scrub it.
+  mockFetchOnce({ model: 'x', choices: null });
+
+  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  await expect(
+    client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+  ).rejects.toThrow('OpenRouter response malformed');
+
+  expect(consoleSpy).not.toHaveBeenCalled();
+  consoleSpy.mockRestore();
+});

@@ -34,7 +34,7 @@ const ALWAYS_EXCLUDED_DIRS = ['node_modules', 'dist', 'dist-ssr', 'coverage', '.
  * Runs `grep -rlE <pattern> .` under `opts.cwd` and returns the matching file list
  * (empty string when there are no matches — the pass condition for negative-grep gates).
  *
- * Throws `Error('rg gate could not run: <message>')` for any non-"no matches" failure
+ * Throws `Error('grep gate could not run: <message>')` for any non-"no matches" failure
  * (missing binary, grep usage error, etc.) so the gate fails loudly instead of silently
  * passing.
  */
@@ -56,6 +56,6 @@ export function runNegativeGrep(pattern: string, opts: RunNegativeGrepOptions): 
       // grep's "ran fine, no matches" exit code — the pass condition.
       return '';
     }
-    throw new Error(`rg gate could not run: ${execErr.message}`, { cause: err });
+    throw new Error(`grep gate could not run: ${execErr.message}`, { cause: err });
   }
 }

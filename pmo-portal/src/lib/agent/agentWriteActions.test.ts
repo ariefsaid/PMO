@@ -6,7 +6,7 @@
  * AC-AW-003: Stale/duplicate decision pendingId mismatch → no write (idempotent).
  * AC-AW-004: Org/role re-derive fails on approve → AUTH_EXPIRED, no write.
  * AC-AW-005: Malformed args → no needs-approval; error tool_result to model.
- * AC-MC-011: confirm:false action (query_entity) bypasses approval entirely (parity with A3).
+ * AC-AW-006: confirm:false action (query_entity) bypasses approval entirely (parity with A3).
  * AC-AW-007: (re-homed) unmatched/stale decision → treated as rejected gracefully.
  * AC-AW-008: can() denies the role → PERMISSION_DENIED, no write.
  *
@@ -175,9 +175,9 @@ it('updateTaskStatusAction.validate rejects bad status; summarize composes (FR-A
     .toBe('Set task t1 status to "Done"');
 });
 
-// ── Task 10 (RED→GREEN): AC-MC-011 confirm:false bypasses approval ────────────
+// ── Task 10 (RED→GREEN): AC-AW-006 confirm:false bypasses approval ────────────
 
-it('AC-MC-011 confirm:false action (query_entity) runs immediately with no needs-approval event (parity with A3)', async () => {
+it('AC-AW-006 confirm:false action (query_entity) runs immediately with no needs-approval event (parity with A3)', async () => {
   const modelClient = {
     create: vi.fn()
       .mockResolvedValueOnce({
@@ -210,7 +210,7 @@ it('AC-MC-011 confirm:false action (query_entity) runs immediately with no needs
 
 // ── Task 12 (RED→GREEN): AC-AW-001 happy approve → write executes ─────────────
 
-it('AC-AW-001 approve → create_activity executes once under caller JWT, write_resolved emitted', async () => {
+it('AC-AW-001 AC-MC-011 approve → create_activity executes once under caller JWT, write_resolved emitted', async () => {
   const runFn = vi.fn().mockResolvedValue({ id: 'act-1' });
   const validArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
   const toolId = 'tool-use-id-1';
