@@ -127,7 +127,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const journaledWrites = persistenceEnabled && body.runId
     ? await loadJournaledWrites(
         {
-          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          supabase: callerClient,
           ownerId: userId,
           orgId: '',
           now: () => new Date(),
@@ -145,7 +145,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const startSeq = persistenceEnabled && body.runId
     ? (await loadMaxSeq(
         {
-          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          supabase: callerClient,
           ownerId: userId,
           orgId: '',
           now: () => new Date(),
@@ -165,11 +165,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let socketLive = true;
       try {
         for await (const ev of agentChatHandler(body, {
-          // Cast: the real OpenRouterModelClient satisfies ModelClient (same create() signature)
-          modelClient: modelClient as unknown as Parameters<typeof agentChatHandler>[1]['modelClient'],
+          // Item 3 (cast cleanup): OpenRouterModelClient structurally satisfies ModelClient
+          // and the real Supabase client structurally satisfies HandlerSupabaseLike — no
+          // cast needed (previously an `as unknown as` bridge that TS never actually required).
+          modelClient,
           model,
-          // Cast: real callerClient satisfies HandlerSupabaseLike
-          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          supabase: callerClient,
           userId,
           // A3: injectable can() for deputy re-auth (FR-AW-010)
           can: agentCan,
@@ -181,7 +182,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // rateGuard: undefined (AR-OD-002 default — disabled in v1)
           persistence: persistenceEnabled
             ? {
-                supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+                supabase: callerClient,
                 ownerId: userId,
                 orgId: '',
                 now: () => new Date(),

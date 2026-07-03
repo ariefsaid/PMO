@@ -67,6 +67,12 @@ const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) =>
  *   - profiles lookup: .from('profiles').select('org_id, role').eq().single()
  *   - entity reads: .from(t).select(cols).limit() / .eq().limit() / .in().limit()
  *   - write actions: .from(t).insert(row).select().single() / .update(patch).eq()
+ *
+ * Item 3 (cast cleanup): `.select().in()` is declared at the TOP level (not just nested
+ * under `.eq()`) so this interface is structurally assignable to the port's `SupabaseLike`/
+ * `SupabaseLikeWithWrites` (both require a top-level `.in()`) without an `as unknown as`
+ * bridge — the real Supabase client supports `.select().in()` directly too, so this isn't
+ * a behavior change, just a shape the type was previously missing.
  */
 export interface HandlerSupabaseLike {
   from(table: string): {
@@ -76,6 +82,7 @@ export interface HandlerSupabaseLike {
         limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
         in(column: string, values: string[]): { limit(n: number): Promise<{ data: unknown[] | null; error: unknown }> };
       };
+      in(column: string, values: string[]): { limit(n: number): Promise<{ data: unknown[] | null; error: unknown }> };
       limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
     };
     insert(row: object): {
@@ -474,6 +481,12 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       if (allowCompose && toolName === 'compose_view' && deps.composeEnabled) {
         const out = await runComposeView(
           toolInput as { prompt: string },
+          // Cast: HandlerSupabaseLike's `.eq()` returns a plain object (`.single()`/`.limit()`/
+          // `.in()`), while the port's SupabaseLike requires `.eq()` itself to be PromiseLike —
+          // a genuine shape mismatch between two independently-evolved minimal interfaces, not
+          // a missing member (fixed the missing top-level `.in()` above; this one is structural
+          // and out of scope for a cast-only cleanup). True external boundary: deps.supabase is
+          // always the real (richer) Supabase client at runtime — never a mock without .eq().then.
           { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
           { modelClient: deps.modelClient, model: deps.model },
         );
@@ -705,6 +718,9 @@ async function* agentChatHandlerInner(
   }
 
   // ── Build deputy context ───────────────────────────────────────────────────
+  // Cast: HandlerSupabaseLike vs the port's SupabaseLike is a genuine structural mismatch
+  // (see the identical cast + comment in the compose_view dispatch branch above) — deps.supabase
+  // is always the real Supabase client at runtime, which does satisfy SupabaseLike's shape.
   const deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext = {
     jwt: '',
     userId: deps.userId,
