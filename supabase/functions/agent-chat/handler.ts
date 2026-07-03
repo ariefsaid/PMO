@@ -320,6 +320,257 @@ function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
   return tools;
 }
 
+// ── Shared tool-use loop (item 1 — deferred-debt refactor) ────────────────────
+
+/**
+ * runToolLoop — the single tool-use round loop shared by the main pass
+ * (agentChatHandlerInner) and the decision-continuation pass (formerly a second,
+ * near-identical `runLoop`). Both call sites drive the SAME model-call/tool-dispatch
+ * cycle; their only real differences are parameterized below rather than silently
+ * unified, per the refactor brief:
+ *
+ * Divergences enumerated (main pass vs decision-continuation pass, pre-refactor):
+ *   1. compose_view availability — the main pass builds its tool catalog with
+ *      `buildTools(deps.composeEnabled)` and has a full compose_view dispatch branch
+ *      (model-calling-action seam, ADR-0041). The continuation pass never registered
+ *      compose_view in its tools (base-actions-only) and had no dispatch branch for it.
+ *      → parameterized as `allowCompose: boolean`.
+ *   2. Confirm (A3 propose) actions — the main pass has a full validate/summarize/
+ *      needs-approval branch for `action.confirm === true` (an approval can be proposed
+ *      mid-run). The continuation pass treated ANY confirm action (or missing action) as
+ *      unavailable ("action '<name>' not available in this context") and continued —
+ *      by design: a decision-continuation turn must not re-propose a second pending write
+ *      before the first is resolved.
+ *      → parameterized as `allowProposeConfirm: boolean`.
+ *   3. Missing tool_calls handling — when `resp.finish_reason === 'tool_calls'` but the
+ *      response carries no actual tool_calls[0] (a malformed/empty upstream response),
+ *      the main pass fell through with toolName='' into the "unknown action" branch and
+ *      CONTINUED the loop (another round). The continuation pass instead treated a missing
+ *      toolCall as an immediate graceful completion (same shape as a non-tool finish_reason).
+ *      → parameterized as `onMissingToolCall: 'continue-as-unknown' | 'complete'`.
+ *
+ * Both loops otherwise dispatch identically: heartbeat → model call → text emit →
+ * length/non-tool-call completion → assistant tool-call push → action lookup →
+ * confirm/read dispatch → tool-result push, capped at MAX_TOOL_ROUNDS with the same
+ * graceful "reached step limit" completion and the same UPSTREAM_ERROR catch.
+ */
+interface RunToolLoopOptions {
+  req: AgentChatRequest;
+  deps: HandlerDeps;
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent;
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent;
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext;
+  messages: ModelMessage[];
+  persist: PersistenceRuntime | undefined;
+  runId: string;
+  /** Divergence 1: whether compose_view is in the tool catalog + has a dispatch branch. */
+  allowCompose: boolean;
+  /** Divergence 2: whether a confirm:true action may be proposed (needs-approval) from this loop. */
+  allowProposeConfirm: boolean;
+  /** Divergence 3: behavior when finish_reason==='tool_calls' but tool_calls[0] is absent. */
+  onMissingToolCall: 'continue-as-unknown' | 'complete';
+}
+
+async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent> {
+  const { deps, emit, statusEvent, deputyCtx, messages, persist, runId, allowCompose, allowProposeConfirm, onMissingToolCall } = opts;
+  // compose_view dispatch (divergence 1) needs orgId — deputyCtx already carries it
+  // (every call site builds deputyCtx with orgId set), so no separate param is needed.
+  const orgId = deputyCtx.orgId;
+
+  const tools = buildTools(allowCompose ? deps.composeEnabled : false);
+  const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
+
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      // FR-AGP-014: heartbeat once per model turn (round), before the model call.
+      if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
+
+      const resp = await deps.modelClient.create({
+        model: deps.model,
+        max_tokens: 2048,
+        messages,
+        tools,
+      });
+
+      // Emit any text content as an assistant event.
+      if (resp.message.content) {
+        yield emit('assistant', { text: resp.message.content });
+      }
+
+      // Blocker 3: use the API's own sentinel — finish_reason !== 'tool_calls' means
+      // no tool dispatch needed. Also handle length (truncation) explicitly.
+      if (resp.finish_reason === 'length') {
+        yield statusEvent(
+          'completed',
+          { model: resp.model, prompt_tokens: resp.usage?.prompt_tokens, completion_tokens: resp.usage?.completion_tokens, ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}) },
+          'response truncated',
+        );
+        return;
+      }
+
+      if (resp.finish_reason !== 'tool_calls') {
+        yield statusEvent('completed', {
+          model: resp.model,
+          prompt_tokens: resp.usage?.prompt_tokens,
+          completion_tokens: resp.usage?.completion_tokens,
+          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
+        });
+        return;
+      }
+
+      const toolCall = resp.message.tool_calls?.[0];
+
+      // Divergence 3: a missing tool_calls[0] despite finish_reason==='tool_calls'.
+      if (!toolCall && onMissingToolCall === 'complete') {
+        yield statusEvent('completed', {
+          model: resp.model,
+          prompt_tokens: resp.usage?.prompt_tokens,
+          completion_tokens: resp.usage?.completion_tokens,
+          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
+        });
+        return;
+      }
+
+      const toolInput = toolCall ? JSON.parse(toolCall.function.arguments) : {};
+      const toolId = toolCall?.id ?? 'tool-use-id';
+      const toolName = toolCall?.function.name ?? '';
+
+      // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
+      // with tool_calls IS the turn; no separate echo needed).
+      messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
+
+      // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
+      // Divergence 1: only reachable when allowCompose (main pass).
+      if (allowCompose && toolName === 'compose_view' && deps.composeEnabled) {
+        const out = await runComposeView(
+          toolInput as { prompt: string },
+          { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
+          { modelClient: deps.modelClient, model: deps.model },
+        );
+
+        if ('error' in out) {
+          // Compose failed — emit user-facing assistant error (FR-CV-006)
+          yield emit('assistant', {
+            text: "I wasn't able to compose a valid view — try rephrasing your request.",
+          });
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ error: out.error, code: out.code }),
+          });
+        } else {
+          // Compose succeeded — emit artifact event (FR-CV-007/008)
+          yield emit('artifact', {
+            payload: {
+              kind: 'compose_view',
+              spec: out.spec,
+              repairAttempts: out.repairAttempts,
+              title: out.title,
+              tokensUsed: out.tokensUsed,
+            },
+          });
+          yield emit('tool', {
+            payload: {
+              name: toolName,
+              input: toolInput,
+              result: { ok: true, panels: out.spec.panels.length },
+            },
+          });
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ ok: true, panels: out.spec.panels.length }),
+          });
+        }
+        continue;
+      }
+
+      const action = actionByName.get(toolName);
+
+      // Divergence 2: the continuation pass (allowProposeConfirm===false) treats a
+      // confirm:true action the same as "not found" — a second pending write must not
+      // be proposed before the first is resolved.
+      if (!action || (action.confirm && !allowProposeConfirm)) {
+        const errorMessage = !action
+          ? `unknown action: ${toolName}`
+          : `action '${toolName}' not available in this context`;
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolId,
+          name: toolName,
+          content: JSON.stringify({ error: errorMessage }),
+        });
+        continue;
+      }
+
+      // ── A3: Propose branch (confirm:true action in the normal loop) ─────────
+      if (action.confirm) {
+        // Validate args before proposing (AC-AW-005 / NFR-AW-SEC-005)
+        const writeAction = action as AgentAction & {
+          validate: (i: unknown) => { ok: boolean; error?: string; value?: unknown };
+          summarize: (i: unknown) => string;
+        };
+
+        const validation = writeAction.validate(toolInput);
+        if (!validation.ok) {
+          // Invalid args → error tool_result to model; NO needs-approval event (AC-AW-005)
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolId,
+            name: toolName,
+            content: JSON.stringify({ error: validation.error }),
+          });
+          continue;
+        }
+
+        // Valid args → emit needs-approval and END the stream (D-A3-1)
+        const pendingId = makeId();
+        const humanSummary = writeAction.summarize(validation.value);
+
+        yield statusEvent('needs-approval', {
+          pendingId,
+          actionName: action.name,
+          humanSummary,
+          structuredArgs: validation.value as object,
+        });
+        // End the stream — the client re-POSTs with decision on the next turn
+        return;
+      }
+
+      // ── Read action (confirm:false) — dispatch immediately ─────────────────
+      const toolResult = await dispatchAction(action, toolInput, deputyCtx);
+
+      yield emit('tool', {
+        payload: {
+          name: toolName,
+          input: toolInput,
+          result: toolResult,
+        },
+      });
+
+      // Append the single tool-result message for the next round (FR-MC-006).
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolId,
+        name: toolName,
+        content: JSON.stringify(toolResult),
+      });
+    }
+
+    // Loop fell through — step cap reached (D7/R4: graceful completed, not errored)
+    yield statusEvent('completed', {}, 'reached step limit');
+  } catch {
+    // ── Upstream error → scrub, never echo raw error (AC-AR-005, NFR-AR-SEC-005)
+    console.error('[agent-chat] UPSTREAM_ERROR', {
+      errorCode: 'UPSTREAM_ERROR',
+      round: 'unknown',
+    });
+    yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
+  }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 /**
@@ -454,184 +705,21 @@ async function* agentChatHandlerInner(
     })),
   ];
 
-  // ── Build tool catalog (A4: flag-gated compose_view, FR-CV-024, D7) ─────────
-  const tools = buildTools(deps.composeEnabled);
-  // Per-call action lookup map (includes compose_view when enabled)
-  const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
-
-  // ── Tool-use loop (AC-AR-001, AC-AR-004) ──────────────────────────────────
-  try {
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      // FR-AGP-014: heartbeat once per model turn (round), before the model call.
-      if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
-
-      const resp = await deps.modelClient.create({
-        model: deps.model,
-        max_tokens: 2048,
-        messages,
-        tools,
-      });
-
-      // Emit any text content as an assistant event.
-      if (resp.message.content) {
-        yield emit('assistant', { text: resp.message.content });
-      }
-
-      // Blocker 3: use the API's own sentinel — finish_reason !== 'tool_calls' means
-      // no tool dispatch needed. Also handle length (truncation) explicitly.
-      if (resp.finish_reason === 'length') {
-        yield statusEvent(
-          'completed',
-          { model: resp.model, prompt_tokens: resp.usage?.prompt_tokens, completion_tokens: resp.usage?.completion_tokens, ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}) },
-          'response truncated',
-        );
-        return;
-      }
-
-      if (resp.finish_reason !== 'tool_calls') {
-        yield statusEvent('completed', {
-          model: resp.model,
-          prompt_tokens: resp.usage?.prompt_tokens,
-          completion_tokens: resp.usage?.completion_tokens,
-          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
-        });
-        return;
-      }
-
-      const toolCall = resp.message.tool_calls?.[0];
-      const toolInput = toolCall ? JSON.parse(toolCall.function.arguments) : {};
-      const toolId = toolCall?.id ?? 'tool-use-id';
-      const toolName = toolCall?.function.name ?? '';
-
-      // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
-      // with tool_calls IS the turn; no separate echo needed).
-      messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
-
-      // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
-      // The handler owns the model client; it curries it into runComposeView.
-      // composeViewAction.run is a guard stub and is NEVER called here (ADR-0041).
-      if (toolName === 'compose_view' && deps.composeEnabled) {
-        const out = await runComposeView(
-          toolInput as { prompt: string },
-          { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
-          { modelClient: deps.modelClient, model: deps.model },
-        );
-
-        if ('error' in out) {
-          // Compose failed — emit user-facing assistant error (FR-CV-006)
-          yield emit('assistant', {
-            text: "I wasn't able to compose a valid view — try rephrasing your request.",
-          });
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolId,
-            name: toolName,
-            content: JSON.stringify({ error: out.error, code: out.code }),
-          });
-        } else {
-          // Compose succeeded — emit artifact event (FR-CV-007/008)
-          yield emit('artifact', {
-            payload: {
-              kind: 'compose_view',
-              spec: out.spec,
-              repairAttempts: out.repairAttempts,
-              title: out.title,
-              tokensUsed: out.tokensUsed,
-            },
-          });
-          yield emit('tool', {
-            payload: {
-              name: toolName,
-              input: toolInput,
-              result: { ok: true, panels: out.spec.panels.length },
-            },
-          });
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolId,
-            name: toolName,
-            content: JSON.stringify({ ok: true, panels: out.spec.panels.length }),
-          });
-        }
-        continue;
-      }
-
-      const action = actionByName.get(toolName);
-      if (!action) {
-        // Unknown action — return structured error to model
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolId,
-          name: toolName,
-          content: JSON.stringify({ error: `unknown action: ${toolName}` }),
-        });
-        continue;
-      }
-
-      // ── A3: Propose branch (confirm:true action in the normal loop) ─────────
-      if (action.confirm) {
-        // Validate args before proposing (AC-AW-005 / NFR-AW-SEC-005)
-        const writeAction = action as AgentAction & {
-          validate: (i: unknown) => { ok: boolean; error?: string; value?: unknown };
-          summarize: (i: unknown) => string;
-        };
-
-        const validation = writeAction.validate(toolInput);
-        if (!validation.ok) {
-          // Invalid args → error tool_result to model; NO needs-approval event (AC-AW-005)
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolId,
-            name: toolName,
-            content: JSON.stringify({ error: validation.error }),
-          });
-          continue;
-        }
-
-        // Valid args → emit needs-approval and END the stream (D-A3-1)
-        const pendingId = makeId();
-        const humanSummary = writeAction.summarize(validation.value);
-
-        yield statusEvent('needs-approval', {
-          pendingId,
-          actionName: action.name,
-          humanSummary,
-          structuredArgs: validation.value as object,
-        });
-        // End the stream — the client re-POSTs with decision on the next turn
-        return;
-      }
-
-      // ── Read action (confirm:false) — dispatch immediately ─────────────────
-      const toolResult = await dispatchAction(action, toolInput, deputyCtx);
-
-      yield emit('tool', {
-        payload: {
-          name: toolName,
-          input: toolInput,
-          result: toolResult,
-        },
-      });
-
-      // Append the single tool-result message for the next round (FR-MC-006).
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolId,
-        name: toolName,
-        content: JSON.stringify(toolResult),
-      });
-    }
-
-    // Loop fell through — step cap reached (D7/R4: graceful completed, not errored)
-    yield statusEvent('completed', {}, 'reached step limit');
-  } catch {
-    // ── Upstream error → scrub, never echo raw error (AC-AR-005, NFR-AR-SEC-005)
-    console.error('[agent-chat] UPSTREAM_ERROR', {
-      errorCode: 'UPSTREAM_ERROR',
-      round: 'unknown',
-    });
-    yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
-  }
+  // ── Tool-use loop (AC-AR-001, AC-AR-004) — shared helper, see runToolLoop's
+  // divergence-enumeration doc comment for what's parameterized vs identical. ──
+  yield* runToolLoop({
+    req,
+    deps,
+    emit,
+    statusEvent,
+    deputyCtx,
+    messages,
+    persist,
+    runId,
+    allowCompose: true,
+    allowProposeConfirm: true,
+    onMissingToolCall: 'continue-as-unknown',
+  });
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -861,92 +949,23 @@ async function* runLoop(
   // req.runId is always present here — runLoop is only reached from handleDecision's
   // branches, and a decision re-POST always carries the runId of the run being resumed.
   const runId = req.runId ?? '';
-  try {
-    const tools: ModelTool[] = BASE_ACTIONS.map((a) => ({
-      type: 'function',
-      function: { name: a.name, description: a.description, parameters: a.inputSchema },
-    }));
-
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      // FR-AGP-014: heartbeat once per model turn (round), before the model call.
-      if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
-
-      const resp = await deps.modelClient.create({
-        model: deps.model,
-        max_tokens: 2048,
-        messages,
-        tools,
-      });
-
-      if (resp.message.content) {
-        yield emit('assistant', { text: resp.message.content });
-      }
-
-      if (resp.finish_reason === 'length') {
-        yield statusEvent(
-          'completed',
-          { model: resp.model, prompt_tokens: resp.usage?.prompt_tokens, completion_tokens: resp.usage?.completion_tokens, ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}) },
-          'response truncated',
-        );
-        return;
-      }
-
-      if (resp.finish_reason !== 'tool_calls') {
-        yield statusEvent('completed', {
-          model: resp.model,
-          prompt_tokens: resp.usage?.prompt_tokens,
-          completion_tokens: resp.usage?.completion_tokens,
-          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
-        });
-        return;
-      }
-
-      const toolCall = resp.message.tool_calls?.[0];
-      if (!toolCall) {
-        yield statusEvent('completed', {
-          model: resp.model,
-          prompt_tokens: resp.usage?.prompt_tokens,
-          completion_tokens: resp.usage?.completion_tokens,
-          ...(resp.usage?.total_cost !== undefined ? { total_cost: resp.usage.total_cost } : {}),
-        });
-        return;
-      }
-
-      const toolId = toolCall.id;
-      const toolName = toolCall.function.name;
-      const toolInput = JSON.parse(toolCall.function.arguments);
-
-      messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
-
-      const action = BASE_ACTION_BY_NAME.get(toolName);
-      if (!action || action.confirm) {
-        // Unknown action or confirm action called from runLoop — return error to model
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolId,
-          name: toolName,
-          content: JSON.stringify({ error: `action '${toolName}' not available in this context` }),
-        });
-        continue;
-      }
-
-      const toolResult = await dispatchAction(action, toolInput, deputyCtx);
-
-      yield emit('tool', { payload: { name: toolName, input: toolInput, result: toolResult } });
-
-      messages.push({
-        role: 'tool',
-        tool_call_id: toolId,
-        name: toolName,
-        content: JSON.stringify(toolResult),
-      });
-    }
-
-    yield statusEvent('completed', {}, 'reached step limit');
-  } catch {
-    console.error('[agent-chat] UPSTREAM_ERROR', { errorCode: 'UPSTREAM_ERROR', round: 'unknown' });
-    yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
-  }
+  // Decision-continuation pass — see runToolLoop's doc comment for the three enumerated
+  // divergences from the main pass: no compose_view (allowCompose:false), no re-proposing
+  // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
+  // completes immediately rather than continuing as an unknown-action error (onMissingToolCall:'complete').
+  yield* runToolLoop({
+    req,
+    deps,
+    emit,
+    statusEvent,
+    deputyCtx,
+    messages,
+    persist,
+    runId,
+    allowCompose: false,
+    allowProposeConfirm: false,
+    onMissingToolCall: 'complete',
+  });
 }
 
 // ── Trailing unresolved confirm tool_use finder ────────────────────────────────
