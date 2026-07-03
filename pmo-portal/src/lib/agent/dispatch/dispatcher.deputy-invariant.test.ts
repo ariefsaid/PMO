@@ -209,7 +209,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered' }],
       error: null,
     });
-    const evtSelect = vi.fn().mockReturnValue({ gt: () => ({ order: orderMock }) });
+    const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
