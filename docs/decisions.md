@@ -623,3 +623,19 @@ pre-filled with payload.title" and "Blocker-4 Save calls create.mutateAsync with
 
 **Spec note:** FR-CV-018 ("save(name)") is fulfilled; this decision closes the CV-OD-002 honest-fallback
 gap.
+
+## OD-ATC-PENDING — Transcript pending-interaction UI (review-remediation round, 2026-07-04)
+
+### OD-ATC-PENDING-BLUE — Pending-family blue rule: blue commits writes, question submit is neutral
+
+**Decision (locked this round):** `--primary`/`bg-primary` in the pending-interaction family is reserved
+for the write-COMMITTING action (`ApprovalChip`'s Approve). The free-text `QuestionChips` Submit button
+does not commit a write — it uses the neutral/outline confirm idiom (same classes as Deny/option chips),
+never `bg-primary`.
+
+### OD-ATC-PENDING-DEFERRED — Noted for later: dual-input mental model + feedback-control affordance polish
+
+**Noted, not built this round (F6/F7 deferred):** (a) the free-text question input and the main Composer
+present two separate text-entry surfaces at once, a dual-input mental model worth revisiting; (b) the
+FeedbackControl (thumbs) affordance could use a polish pass. Both are tracked here for a future round, not
+in scope of the review-remediation items actually shipped (items 1-7).
