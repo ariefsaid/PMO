@@ -352,19 +352,32 @@ export interface CreateAutomationInput {
   timeout_s?: number;
 }
 
-/** Structural cron validity — same 5-field shape cronMatches parses; malformed → invalid. */
+/**
+ * Structural cron validity — the 5-field-count + per-field grammar `cronMatches` (the Phase B
+ * dispatcher cron module, `supabase/functions/agent-dispatch/cron.ts`) itself parses (`*`,
+ * `N`, `N-M`, `N/M`, comma lists). `cronMatches(expr, at)` never throws on malformed input — it
+ * fails closed to `false` for ANY input, so it alone cannot distinguish "malformed expression"
+ * from "syntactically valid but doesn't match this instant." The field-count + character-class
+ * regex below is the actual structural gate; `cronMatches` is then run twice against two
+ * far-apart instants as a defense-in-depth double-check — a genuinely malformed expression that
+ * slips past the regex (there should be none) still fails closed here too, since a valid
+ * expression must deterministically match SOME instant across a full week+ span for at least one
+ * of the two probes to be meaningful when combined with the regex gate.
+ */
 function isValidCronExpression(expr: string): boolean {
   if (typeof expr !== 'string' || !expr.trim()) return false;
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return false;
-  // Reuse cronMatches itself as the structural probe: run it against two distinct instants —
-  // a syntactically valid (even if never-matching, e.g. Feb 30 doesn't exist so this never
-  // actually fires "true") expression parses without throwing either way. cronMatches never
-  // throws on malformed input (fails closed to false, per its own contract) — so the real
-  // structural check is the field-count + per-field character whitelist below, cheap and
-  // dependency-free, mirroring the parser's own supported grammar (*, N, N-M, N/M, comma lists).
   const fieldRe = /^(\*(\/\d+)?|\d+(-\d+)?(\/\d+)?)(,(\*(\/\d+)?|\d+(-\d+)?(\/\d+)?))*$/;
-  return parts.every((p) => fieldRe.test(p));
+  if (!parts.every((p) => fieldRe.test(p))) return false;
+  // Defense-in-depth: cronMatches must not throw for a structurally valid expression (it never
+  // throws by contract, but this guards against a future contract change silently regressing).
+  try {
+    cronMatches(expr, new Date());
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function validateCreateAutomation(
