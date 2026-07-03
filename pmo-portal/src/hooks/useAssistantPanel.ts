@@ -7,6 +7,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AgentEvent, RunStatusPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
+import { useAgentContext } from '../lib/agent/context/useAgentContext';
+import { isFeatureEnabled } from '../lib/features';
 import { listRunEvents } from '../lib/db/agentEvents';
 import type { AgentEventRow } from '../lib/db/agentEvents';
 import { getRunHeartbeat } from '../lib/db/agentRuns';
@@ -145,6 +147,9 @@ function mergeAssistantEvent(
 export function useAssistantPanel(): UseAssistantPanel {
   const ctx = useAgentRuntimeContext();
   const { runtime, open, openPanel, closePanel, togglePanel } = ctx;
+  // ADR-0045 §3 (FR-ATC-015/020): live context (route/entity/selection) — a
+  // no-op read outside AgentContextProvider (agentContext.getContext() → {}).
+  const { getContext } = useAgentContext();
 
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [phase, setPhase] = useState<RunPhase>('idle');
@@ -329,7 +334,11 @@ export function useAssistantPanel(): UseAssistantPanel {
       if (!runIdRef.current) {
         // First message in this conversation: create a new run.
         setLastGoal(text);
-        const run = await runtime.createRun({ goal: text });
+        // FR-ATC-015/020: thread live context only when the flag is on — flag-off,
+        // getContext() is never called and no context is sent.
+        const run = await runtime.createRun(
+          isFeatureEnabled('agentAssistant') ? { goal: text, context: getContext() } : { goal: text },
+        );
         activeRunId = run.id;
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
@@ -351,7 +360,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       const iterable = runtime.subscribe(activeRunId);
       await drain(iterable, activeRunId);
     },
-    [runtime, drain],
+    [runtime, drain, getContext],
   );
 
   // ── stop ────────────────────────────────────────────────────────────────────
@@ -433,7 +442,10 @@ export function useAssistantPanel(): UseAssistantPanel {
       ),
     );
 
-    const run = await runtime.createRun({ goal: lastGoal });
+    // FR-ATC-015/020: thread live context only when the flag is on (mirrors send()).
+    const run = await runtime.createRun(
+      isFeatureEnabled('agentAssistant') ? { goal: lastGoal, context: getContext() } : { goal: lastGoal },
+    );
     const activeRunId = run.id;
     setRunId(activeRunId);
     runIdRef.current = activeRunId;
@@ -442,7 +454,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
     await drain(iterable, activeRunId);
-  }, [runtime, lastGoal, drain]);
+  }, [runtime, lastGoal, drain, getContext]);
 
   // ── newConversation ──────────────────────────────────────────────────────────
   const newConversation = useCallback(() => {
