@@ -22,6 +22,11 @@ export interface RateGuardResult {
  * NFR-AUC-SEC-004-EXT residual: agent_usage.cost is already clamped at write time (usage.ts);
  * this read-path clamp is defense-in-depth only, per NFR-AUC-SEC-004's "no second clamp is
  * strictly needed at read time, but confirm no bypass" instruction.
+ *
+ * Security review LOW-2: this preflight is advisory/eventually-consistent, not transactionally
+ * atomic with the write it gates — a bounded transient overspend is possible under concurrent
+ * requests (accepted v1 tradeoff, spec NFR-AUC-PERF-002). Revisit if ADR-0044 §6's background
+ * runs increase concurrency enough to make the overspend window materially larger.
  */
 async function computeBalance(deps: CreditRateGuardDeps, userId: string): Promise<number> {
   const [{ data: grants }, { data: usage }] = await Promise.all([

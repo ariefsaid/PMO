@@ -5,7 +5,7 @@
 --   AC-AUC-003  required indexes exist.
 -- Fixtures inserted as the table owner (bypassing RLS) — this file is schema-shape only, not RLS.
 begin;
-select plan(21);
+select plan(22);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUC-001: agent_usage table exists with required columns.
@@ -49,6 +49,8 @@ select has_index('agent_usage', 'agent_usage_owner_created_idx', array['owner_id
   'AC-AUC-003 agent_usage (owner_id, created_at) index exists');
 select has_index('agent_usage', 'agent_usage_run_id_idx', array['run_id'],
   'AC-AUC-003 agent_usage (run_id) index exists');
+select has_index('credits', 'credits_owner_idx', array['owner_id'],
+  'AC-AUC-003 credits (owner_id) index exists (Quality CRITICAL fix — balance/RLS hot path)');
 
 select * from finish();
 rollback;

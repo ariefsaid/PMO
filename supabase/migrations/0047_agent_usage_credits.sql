@@ -10,6 +10,7 @@
 --   drop policy if exists credits_select on credits;
 --   drop policy if exists agent_usage_insert on agent_usage;
 --   drop policy if exists agent_usage_select on agent_usage;
+--   drop index if exists public.credits_owner_idx;
 --   drop index if exists public.agent_usage_run_id_idx;
 --   drop index if exists public.agent_usage_owner_created_idx;
 --   drop table if exists public.credits;
@@ -40,6 +41,10 @@ create table credits (
 -- Hot-path indexes (NFR-AUC-PERF-001): the balance sum and "my usage history" queries.
 create index agent_usage_owner_created_idx on agent_usage (owner_id, created_at);
 create index agent_usage_run_id_idx        on agent_usage (run_id);
+-- credits(owner_id): the balance computation (creditRateGuard.computeBalance) and every
+-- credits RLS predicate (owner_id = auth.uid()) filter on this column — was previously an
+-- unindexed scan (Quality review CRITICAL finding); now index-backed like agent_usage's.
+create index credits_owner_idx on credits (owner_id);
 
 alter table agent_usage enable row level security;
 alter table agent_usage force row level security;
@@ -73,5 +78,16 @@ create policy agent_usage_insert on agent_usage for insert
 create policy credits_select on credits for select
   using (owner_id = auth.uid() and org_id = auth_org_id());
 
+-- Security review LOW-1: also verifies owner_id's profile belongs to the caller's org — mirrors
+-- the agent_usage run-FK-ownership guard above. Without this, an Admin could grant credits to a
+-- cross-org owner_id (org_id itself is caller-pinned, but owner_id was not cross-checked against
+-- it before this fix).
 create policy credits_insert on credits for insert
-  with check (auth_role() = 'Admin' and org_id = auth_org_id());
+  with check (
+    auth_role() = 'Admin' and org_id = auth_org_id()
+    and exists (
+      select 1 from profiles p
+       where p.id = owner_id
+         and p.org_id = auth_org_id()
+    )
+  );

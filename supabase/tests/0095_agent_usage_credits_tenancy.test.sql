@@ -8,7 +8,7 @@
 -- (bypassing RLS), then `set local role authenticated` + `set local request.jwt.claims`.
 -- Fixture namespace: 00950000-…. Org A = default '00000000-…-0001'; Org B = '00950000-…-0002'.
 begin;
-select plan(19);
+select plan(22);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into organizations (id, name) values
@@ -38,6 +38,14 @@ insert into agent_usage (id, owner_id, run_id, model, cost) values
   ('00950000-0000-0000-0000-000000000030','00950000-0000-0000-0000-0000000000a1','00950000-0000-0000-0000-000000000020','test-model', 10);
 insert into credits (id, owner_id, amount, granted_by) values
   ('00950000-0000-0000-0000-000000000040','00950000-0000-0000-0000-0000000000a1', 50, '00950000-0000-0000-0000-0000000000a3');
+
+-- Bob (org A) owns his own thread + run (Task 3 — agent_usage INSERT run_id FK-ownership fixture,
+-- modeled on 0092's fixture style) so the run_id-ownership WITH CHECK can be proven both ways:
+-- a caller-owned run succeeds, another user's run (Ann's, above) is denied.
+insert into agent_threads (id, owner_id, title) values
+  ('00950000-0000-0000-0000-000000000011','00950000-0000-0000-0000-0000000000a2','Bob Thread');
+insert into agent_runs (id, thread_id, owner_id, status) values
+  ('00950000-0000-0000-0000-000000000021','00950000-0000-0000-0000-000000000011','00950000-0000-0000-0000-0000000000a2','completed');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUC-004: owner reads own usage rows; non-owner in the SAME org reads zero.
@@ -130,6 +138,13 @@ select lives_ok(
       ('00950000-0000-0000-0000-000000000041','00950000-0000-0000-0000-0000000000a2', 25) $$,
   'AC-AUC-007 Admin (Dana) inserting a credits grant for another user (Bob) succeeds');
 
+-- Security review LOW-1: Dana (org A Admin) granting credits to Carol (org B owner_id) is denied —
+-- org_id itself is caller-pinned, but owner_id must also resolve to a profile in the caller's org.
+select throws_ok(
+  $$ insert into credits (owner_id, amount) values ('00950000-0000-0000-0000-0000000000b1', 25) $$,
+  '42501', null,
+  'AC-AUC-SEC-LOW-1 Admin (Dana, org A) granting credits to a cross-org owner_id (Carol, org B) is denied');
+
 reset role;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -146,6 +161,18 @@ select throws_ok(
 select lives_ok(
   $$ insert into agent_usage (owner_id, model, cost) values ('00950000-0000-0000-0000-0000000000a2', 'test-model', 1) $$,
   'AC-AUC-008 Bob inserting agent_usage with his own owner_id succeeds');
+
+-- Spec Minor (item 3): agent_usage INSERT run_id FK-ownership, both directions.
+select lives_ok(
+  $$ insert into agent_usage (owner_id, run_id, model, cost) values
+      ('00950000-0000-0000-0000-0000000000a2','00950000-0000-0000-0000-000000000021','test-model', 1) $$,
+  'AC-AUC-008 Bob inserting agent_usage with a run_id of a run he owns succeeds');
+
+select throws_ok(
+  $$ insert into agent_usage (owner_id, run_id, model, cost) values
+      ('00950000-0000-0000-0000-0000000000a2','00950000-0000-0000-0000-000000000020','test-model', 1) $$,
+  '42501', null,
+  'AC-AUC-008 Bob inserting agent_usage with a run_id of ANOTHER user''s run (Ann''s) is denied');
 
 reset role;
 
