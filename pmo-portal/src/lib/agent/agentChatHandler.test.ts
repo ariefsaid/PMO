@@ -424,3 +424,41 @@ it('malformed tool arguments that never recover exhaust the loop with a distinct
     payload: { status: 'errored', error: 'MALFORMED_TOOL_CALL' },
   });
 });
+
+it('a malformed round healed by later missing-toolCall rounds exhausts as the generic step-limit completion, not MALFORMED_TOOL_CALL', async () => {
+  // Round 1: malformed JSON sets lastRoundMalformed=true.
+  // Rounds 2..MAX_TOOL_ROUNDS: finish_reason 'tool_calls' but an empty tool_calls array —
+  // toolCall is falsy, so the main pass's onMissingToolCall:'continue-as-unknown' branch
+  // runs (else { toolInput = {} }), which must reset lastRoundMalformed to false. Without
+  // that reset, exhaustion at MAX_TOOL_ROUNDS misreports the stale MALFORMED_TOOL_CALL flag
+  // instead of the correct generic "reached step limit" completion.
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: '{not valid json' } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValue({
+      finish_reason: 'tool_calls',
+      message: { role: 'assistant', content: null, tool_calls: [] },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
+  expect(events.find((e) => (e.payload as { error?: string })?.error === 'MALFORMED_TOOL_CALL')).toBeUndefined();
+  expect(events.at(-1)).toMatchObject({
+    type: 'status',
+    payload: { status: 'completed' },
+    text: expect.stringMatching(/step limit/i),
+  });
+});

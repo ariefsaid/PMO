@@ -362,7 +362,6 @@ function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
  * graceful "reached step limit" completion and the same UPSTREAM_ERROR catch.
  */
 interface RunToolLoopOptions {
-  req: AgentChatRequest;
   deps: HandlerDeps;
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent;
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent;
@@ -474,6 +473,10 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         }
       } else {
         toolInput = {};
+        // Item 2 (MALFORMED_TOOL_CALL): a missing toolCall round is not a malformed-JSON
+        // round — reset the flag so a prior malformed round doesn't misreport exhaustion
+        // as MALFORMED_TOOL_CALL when later rounds are merely missing a tool call.
+        lastRoundMalformed = false;
       }
 
       // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
@@ -761,7 +764,6 @@ async function* agentChatHandlerInner(
   // ── Tool-use loop (AC-AR-001, AC-AR-004) — shared helper, see runToolLoop's
   // divergence-enumeration doc comment for what's parameterized vs identical. ──
   yield* runToolLoop({
-    req,
     deps,
     emit,
     statusEvent,
@@ -1007,7 +1009,6 @@ async function* runLoop(
   // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
   // completes immediately rather than continuing as an unknown-action error (onMissingToolCall:'complete').
   yield* runToolLoop({
-    req,
     deps,
     emit,
     statusEvent,
