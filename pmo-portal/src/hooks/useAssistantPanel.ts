@@ -74,6 +74,11 @@ export interface UseAssistantPanel {
   /** A3: deny the pending write action — re-POSTs with verdict:'reject'. */
   deny(): Promise<void>;
   /**
+   * ADR-0045 §2: resolve a pending ask-user question — re-POSTs with req.answer,
+   * continuing the SAME run (never a new createRun, never followUp).
+   */
+  answerQuestion(questionId: string, optionId?: string, freeText?: string): Promise<void>;
+  /**
    * ADR-0043 (FR-AGP-021): open/resume a thread's most recent run — fetches its events
    * ordered by (run_id, seq) and restores the transcript in that exact order, reproducing
    * the original conversation sequence (including the consecutive-assistant-chunk merge).
@@ -394,6 +399,22 @@ export function useAssistantPanel(): UseAssistantPanel {
     await drain(iterable, activeRunId);
   }, [runtime, drain]);
 
+  // ── answerQuestion (ADR-0045 §2) ─────────────────────────────────────────────
+  // Called by QuestionChips. Resolves via control('answer', ...) — the SAME
+  // in-run resolution family as approve/deny — and NEVER via followUp
+  // (FR-ATC-011, OBS-ATC-004: an answer is not a new user turn).
+  const answerQuestion = useCallback(
+    async (questionId: string, optionId?: string, freeText?: string) => {
+      if (!runtime || !runIdRef.current) return;
+      const activeRunId = runIdRef.current;
+      await runtime.control(activeRunId, 'answer', { questionId, optionId, freeText });
+      setPhase('running');
+      const iterable = runtime.subscribe(activeRunId);
+      await drain(iterable, activeRunId);
+    },
+    [runtime, drain],
+  );
+
   // ── retry ───────────────────────────────────────────────────────────────────
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
@@ -544,6 +565,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     newConversation,
     approve,
     deny,
+    answerQuestion,
     openThread,
     isStuck,
     lastProgressAt,

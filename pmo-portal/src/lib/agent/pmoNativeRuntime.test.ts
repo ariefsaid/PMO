@@ -240,6 +240,123 @@ it('Blocker-5 AC-AW-adapter: on needs-approval, re-POST messages include assista
   expect(toolUseBlock?.input).toEqual(structuredArgs);
 });
 
+// ── ADR-0045 §2 (Task Q7): control('answer') stashes AgentAnswer → re-POST carries answer ──
+
+it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs with req.answer', async () => {
+  const questionEvent: AgentEvent = {
+    id: 'q-evt-1',
+    runId: 'r-q1',
+    type: 'status',
+    payload: {
+      kind: 'question',
+      questionId: 'q1',
+      prompt: 'Which project?',
+      options: [{ id: 'a', label: 'Alpha' }],
+    },
+    createdAt: new Date().toISOString(),
+  };
+  const completedEvent: AgentEvent = {
+    id: 'comp-q1',
+    runId: 'r-q1',
+    type: 'status',
+    payload: { status: 'completed' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(questionEvent)) });
+    }
+    return Promise.resolve({ ok: true, body: readableFrom(encodeSse(completedEvent)) });
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'log a call' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain first — ends on question */ }
+
+  await runtime.control(run.id, 'answer', { questionId: 'q1', optionId: 'a' });
+  const events2: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) {
+    events2.push(ev);
+  }
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(body.answer).toEqual({ questionId: 'q1', optionId: 'a' });
+
+  expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
+});
+
+it('AC-ATC-adapter: on question, re-POST messages include assistant tool_use block for ask_user', async () => {
+  const questionEvent: AgentEvent = {
+    id: 'q-evt-2',
+    runId: 'r-q2',
+    type: 'status',
+    payload: {
+      kind: 'question',
+      questionId: 'q2',
+      prompt: 'Which project?',
+      options: [{ id: 'a', label: 'Alpha' }],
+      allowFreeText: true,
+    },
+    createdAt: new Date().toISOString(),
+  };
+  const completedEvent: AgentEvent = {
+    id: 'comp-q2',
+    runId: 'r-q2',
+    type: 'status',
+    payload: { status: 'completed' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(questionEvent)) });
+    }
+    return Promise.resolve({ ok: true, body: readableFrom(encodeSse(completedEvent)) });
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'log a call' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain first */ }
+
+  await runtime.control(run.id, 'answer', { questionId: 'q2', freeText: 'Beta project' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain second */ }
+
+  const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+
+  const assistantMsg = body.messages.find(
+    (m) =>
+      m.role === 'assistant' &&
+      Array.isArray(m.content) &&
+      (m.content as Array<{ type?: string; name?: string }>).some(
+        (b) => b.type === 'tool_use' && b.name === 'ask_user',
+      ),
+  );
+  expect(assistantMsg).toBeDefined();
+
+  const toolUseBlock = (assistantMsg!.content as Array<{ type?: string; name?: string; id?: string }>).find(
+    (b) => b.type === 'tool_use',
+  );
+  expect(toolUseBlock?.id).toBe('q2');
+});
+
 it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs with verdict=reject', async () => {
   const needsApprovalEvent: AgentEvent = {
     id: 'na-2',
