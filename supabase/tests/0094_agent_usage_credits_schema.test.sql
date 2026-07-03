@@ -34,11 +34,11 @@ select col_not_null('credits', 'granted_by', 'AC-AUC-002 credits.granted_by is n
 select col_default_is('credits', 'granted_by', 'auth.uid()', 'AC-AUC-002 credits.granted_by defaults to auth.uid()');
 
 select throws_ok(
-  $$ insert into credits (owner_id, amount) values ('00000000-0000-0000-0000-000000000000', 0) $$,
+  $$ insert into credits (owner_id, amount, granted_by) values ('00000000-0000-0000-0000-000000000000', 0, '00000000-0000-0000-0000-000000000000') $$,
   '23514', null,
   'AC-AUC-002 credits.amount = 0 rejected by the positive-amount check constraint');
 select throws_ok(
-  $$ insert into credits (owner_id, amount) values ('00000000-0000-0000-0000-000000000000', -5) $$,
+  $$ insert into credits (owner_id, amount, granted_by) values ('00000000-0000-0000-0000-000000000000', -5, '00000000-0000-0000-0000-000000000000') $$,
   '23514', null,
   'AC-AUC-002 credits.amount = -5 rejected by the positive-amount check constraint');
 

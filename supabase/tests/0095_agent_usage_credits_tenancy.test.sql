@@ -8,7 +8,7 @@
 -- (bypassing RLS), then `set local role authenticated` + `set local request.jwt.claims`.
 -- Fixture namespace: 00950000-…. Org A = default '00000000-…-0001'; Org B = '00950000-…-0002'.
 begin;
-select plan(18);
+select plan(19);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into organizations (id, name) values
@@ -151,31 +151,38 @@ reset role;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUC-009: no UPDATE/DELETE on credits is permitted (append-only), for any role including the
--- granting Admin.
+-- granting Admin. RLS has no UPDATE/DELETE policy on credits at all — the USING clause for those
+-- commands defaults to "no rows visible", so the statement itself does not raise (no policy exists
+-- to violate); it silently matches and mutates zero rows. The proof is that the row is UNCHANGED
+-- afterward, not that the statement throws (contrast with agent_events, which has an explicit
+-- UPDATE policy + a raise-exception trigger — a different mechanism).
 -- ════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00950000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 
-select throws_ok(
+select lives_ok(
   $$ update credits set amount = 200 where id = '00950000-0000-0000-0000-000000000040' $$,
-  '42501', null,
-  'AC-AUC-009 Admin (Dana, the granting user) UPDATE on credits is denied');
-select throws_ok(
+  'AC-AUC-009 Admin (Dana, the granting user) UPDATE statement runs but matches zero rows (no UPDATE policy)');
+select lives_ok(
   $$ delete from credits where id = '00950000-0000-0000-0000-000000000040' $$,
-  '42501', null,
-  'AC-AUC-009 Admin (Dana, the granting user) DELETE on credits is denied');
+  'AC-AUC-009 Admin (Dana, the granting user) DELETE statement runs but matches zero rows (no DELETE policy)');
 
 reset role;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00950000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
-select throws_ok(
+select lives_ok(
   $$ update credits set amount = 200 where id = '00950000-0000-0000-0000-000000000040' $$,
-  '42501', null,
-  'AC-AUC-009 owner (Ann) UPDATE on her own credits grant is denied');
+  'AC-AUC-009 owner (Ann) UPDATE statement on her own credits grant runs but matches zero rows (no UPDATE policy)');
 
 reset role;
+
+-- Confirm the row genuinely survived every attempt above, unchanged (bypassing RLS as table owner).
+select is(
+  (select amount from credits where id = '00950000-0000-0000-0000-000000000040'),
+  50::numeric,
+  'AC-AUC-009 the credits row is unchanged after all UPDATE/DELETE attempts (append-only holds)');
 
 -- AC-AUC-009 (schema-level twin, Task A5): no UPDATE/DELETE policy exists on credits at all
 -- (append-only by omission).
