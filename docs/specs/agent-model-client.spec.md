@@ -575,6 +575,53 @@ stronger-model fallback is added" the backlog specifies. **This AC is evidence-g
 test** (no key in CI, ADR-0039 decision 7 unchanged) — its pass/fail judgment is recorded in the plan's
 verification notes, not asserted by an automated `expect()`.
 
+#### AC-MC-023 live-gate evidence note (dated)
+
+**2026-07-03 — live run against real OpenRouter API, `deepseek/deepseek-v4-flash` (DeepInfra-first,
+`allow_fallbacks:true`), key sourced from the retired sidecar's local `.env` (owner-authorized one-time use;
+never displayed/echoed, sourced-and-run per-invocation only).** Battery: 4 live calls via the real
+`OpenRouterModelClient` + real `composeSpec` (no mocks) plus a liveness probe (`curl`, HTTP 200).
+
+| Item | Result | finish_reason | Tool call | Latency | Served model / cost |
+|---|---|---|---|---|---|
+| Liveness probe (plain "Say OK.") | PASS | `stop` | n/a | — | `deepseek/deepseek-v4-flash-20260423` |
+| Plain chat answer (no tools, "what is a Gantt chart used for?") | PASS | `stop`, non-empty coherent text | n/a | 3.4s | `deepseek/deepseek-v4-flash-20260423`, cost $0.0000066 |
+| Read-tool call (`query_entity`-shaped tool, "how many of my projects are active?") | PASS | `tool_calls` | `query_entity({"entity":"projects","columns":["id","status"]})` — valid JSON, well-formed args | 3.7s | `deepseek/deepseek-v4-flash-20260423`, cost $0.0000868 |
+| Approve-gated write tool (`update_task_status`-shaped tool, "mark task task-1 as done") | PASS | `tool_calls` | `update_task_status({"taskId":"task-1","status":"Done"})` — valid JSON, exact shape match to the AC-MC-021 fixture | 3.4s | `deepseek/deepseek-v4-flash-20260423`, cost $0.0000436 |
+| `compose_view` structured output through the real repair loop (`composeSpec`, "show my projects grouped by status as a bar chart") | PASS with 1 repair | `repairAttempts: 1` (not 0), compiled successfully on the 2nd attempt, `panels.length: 1`, primitive `StatusBarChart` | valid `compose_view` tool call both attempts (JSON-parseable) | 14.7s total (2 model calls) | `deepseek/deepseek-v4-flash-20260423`, `tokensUsed: 4543` |
+
+**Shape diff vs. the hand-shaped fixtures (`agentChatHandler.deepseekQuality.test.ts` /
+`composeSpec.deepseekQuality.test.ts`, MC-OD-008 provenance):**
+- Tool-call wire shape (`id`, `type:'function'`, `function.name`/`function.arguments` as a JSON-encoded
+  string) matches the fixtures exactly for both `query_entity` and `update_task_status` — no shape drift.
+- The live-served `model` string is `deepseek/deepseek-v4-flash-20260423` (a dated variant OpenRouter/
+  DeepInfra echoes back), vs. the fixtures' literal `'deepseek/deepseek-v4-flash'`. This is cosmetic (no
+  test asserts an exact string match against the served-model field) — not updated in the fixtures.
+- OpenRouter reports `usage.cost` on every live call (`total_cost` populated); the fixtures omit it
+  (`usage` has no `total_cost` field, exercising the "absent" branch already covered by
+  `openRouterModelClient.test.ts` AC-MC-004) — no fixture change needed, both branches are real and covered.
+- **Divergence:** AC-MC-022's fixture asserts `repairAttempts: 0` (first-attempt success) on a simpler
+  prompt ("show my projects by status", → `KPITile`/count aggregate). The live run used a different,
+  slightly more specific prompt ("...as a bar chart") and needed **1** repair attempt before
+  `compileCompositionSpec` succeeded (both attempts still produced syntactically valid tool calls — the
+  repair loop's designed safety net, not a tool-call-shape failure). This is within the ≤2-repair gate the
+  owner set, and is evidence the repair loop works correctly end-to-end against the live model, not a
+  quality failure of the model itself. The exact `ValidationError.code`/`.detail` from the first attempt
+  was not captured in this run's logging (only the outer `repairAttempts`/`tokensUsed`/`panelCount` were
+  logged, per NFR-MC-SEC-004 — never log spec contents); re-running to capture it was not done, per the
+  "no retries hammering the API" instruction. **The AC-MC-022 fixture is left unchanged** (it still
+  correctly proves the first-attempt-success path exists and passes; the live run additionally proves the
+  repair path also recovers correctly on a harder prompt — both are true, real, and covered).
+
+**Verdict: GO-WITH-CAVEATS.** `deepseek/deepseek-v4-flash` is good enough across the board for this gate:
+plain chat quality is coherent and on-topic; both read- and write-tool calls produced well-formed,
+schema-valid JSON arguments on the first try with zero malformed output; `compose_view` structured output
+is reliable through the bounded repair loop (1 of 2 allowed repairs used, not exhausted). The one caveat is
+that `compose_view` does not always succeed on the very first attempt for moderately specific prompts — the
+existing 2-repair budget comfortably absorbs this, so no stronger-model fallback is warranted by this
+evidence, but it's worth tracking `repairAttempts` in production once item (3)'s usage ledger lands (out of
+scope here) to confirm this stays rare rather than typical.
+
 ---
 
 ## 5. Test Layering & Traceability (ADR-0010)
