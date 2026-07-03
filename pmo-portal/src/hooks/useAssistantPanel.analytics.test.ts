@@ -138,6 +138,32 @@ describe('useAssistantPanel analytics', () => {
     expect(erroredCalls[0][1][3]).toBe('PROVIDER_ERROR');
   });
 
+  it('AC-AUC-019/AC-APH-006 agent_run_errored fires with RATE_LIMITED when out-of-credits', async () => {
+    const runtime = makeFakeRuntime([
+      makeEvent('status', { payload: { status: 'errored', error: 'RATE_LIMITED', retryAfterSeconds: 0 } }),
+    ]);
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
+    await act(async () => { await result.current.send('hello'); });
+    expect(result.current.phase).toBe('out-of-credits');
+    const erroredCalls = mockCapture.mock.calls.filter((c) => c[0] === 'agent_run_errored');
+    expect(erroredCalls).toHaveLength(1);
+    const [runId, durationMs, toolRoundCount, errorCode] = erroredCalls[0][1];
+    expect(runId).toBe('test-run');
+    expect(typeof durationMs).toBe('number');
+    expect(toolRoundCount).toBe(0);
+    expect(errorCode).toBe('RATE_LIMITED');
+  });
+
+  it('AC-AUC-019 out-of-credits run cleans up runStartedAt (no leak)', async () => {
+    const sizeBefore = __testOnlyRunStartedAtSize();
+    const runtime = makeFakeRuntime([
+      makeEvent('status', { payload: { status: 'errored', error: 'RATE_LIMITED', retryAfterSeconds: 0 } }),
+    ]);
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
+    await act(async () => { await result.current.send('hello'); });
+    expect(__testOnlyRunStartedAtSize()).toBe(sizeBefore);
+  });
+
   it('AC-APH-007 agent_approval_shown fires when needs-approval is drained', async () => {
     const runtime = makeFakeRuntime([makeEvent('status', { payload: { status: 'needs-approval', pendingId: 'p1' } })]);
     const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
