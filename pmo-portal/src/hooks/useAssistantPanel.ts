@@ -28,7 +28,13 @@ import { safeTrack } from '../lib/analytics/safeTrack';
  */
 const HEARTBEAT_POLL_MS = 5_000;
 
-export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
+/**
+ * 'out-of-credits' (FR-AUC-016): a distinct terminal phase from 'error' — set when a
+ * RATE_LIMITED status event's retryAfterSeconds<=0 (FR-AUC-013's convention for "no wait
+ * will fix this, an admin grant is needed"), so the panel can render the out-of-credits
+ * composer-disabled UX instead of the generic ErrorCard.
+ */
+export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error' | 'out-of-credits';
 
 export interface TranscriptEntry {
   key: string;
@@ -215,6 +221,16 @@ export function useAssistantPanel(): UseAssistantPanel {
 
             if (payload?.status === 'errored') {
               setPhase('idle');
+              const errPayload = ev.payload as
+                | { status: string; error?: string; retryAfterSeconds?: number }
+                | undefined;
+              if (errPayload?.error === 'RATE_LIMITED' && (errPayload.retryAfterSeconds ?? 0) <= 0) {
+                // FR-AUC-013 convention: retryAfterSeconds<=0 on RATE_LIMITED means
+                // out-of-credits. No transcript entry — the composer itself carries the
+                // message (FR-AUC-016), distinct from the generic ErrorCard path.
+                setPhase('out-of-credits');
+                continue;
+              }
               if (payload.error === 'TURN_CAP') {
                 // Step-cap notice: informational, not an error state.
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
