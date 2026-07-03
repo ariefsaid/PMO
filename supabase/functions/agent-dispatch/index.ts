@@ -107,6 +107,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now: () => new Date(),
       // The fired run gets the SAME gates as interactive: can() re-auth + compose tool.
       handlerExtras: { can: agentCan, composeEnabled: true },
+      // FR-AAN-020: the fired run persists as an ordinary run under the MINTED OWNER client (owner
+      // RLS — the deputy invariant, never service_role). auditMint already created the thread+run +
+      // the seq-0 audit event, so this resumes that run: startSeq=1, no journaled writes yet.
+      buildPersistence: (mintedClient, ownerId, _runId) => ({
+        supabase: mintedClient,
+        ownerId,
+        orgId: '',
+        now: () => new Date(),
+        startSeq: 1,
+        journaledWrites: [],
+      }),
     });
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,

@@ -161,8 +161,16 @@ export interface RunDispatchTickDeps {
   newMintedAt?: () => string;
   /** Optional in-invocation condition memo (defaults fresh per tick). */
   conditionMemo?: ConditionMemo;
-  /** Opaque HandlerDeps passthrough (can/composeEnabled/persistence) — index.ts constructs these. */
+  /** Opaque HandlerDeps passthrough (can/composeEnabled) — index.ts constructs these. */
   handlerExtras?: Record<string, unknown>;
+  /**
+   * Optional per-fire persistence-deps factory (FR-AAN-020). Called with the MINTED owner client so
+   * the fired run's events persist as an ordinary run under owner RLS (never service_role). auditMint
+   * already created the run's thread/run + the seq-0 audit event, so the returned deps set
+   * `startSeq: 1` and rely on `runId` being present (handler skips createThreadAndRun on a resume).
+   * Undefined ⇒ no persistence (unit tests + a persistence-off env), a no-op by construction.
+   */
+  buildPersistence?: (mintedClient: unknown, ownerId: string, runId: string) => Record<string, unknown>;
 }
 
 function genId(): string {
@@ -276,6 +284,9 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     // throws on failure) — never fire an unaudited run.
     await auditMint(minted.client, automation, runId, newMintedAt());
 
+    const persistenceExtras = deps.buildPersistence
+      ? { persistence: deps.buildPersistence(minted.client, automation.owner_id, runId) }
+      : {};
     await fireAutomation({
       handler: deps.handler,
       mintedClient: minted.client,
@@ -284,7 +295,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       ownerId: automation.owner_id,
       automation,
       runId,
-      handlerExtras: deps.handlerExtras,
+      handlerExtras: { ...(deps.handlerExtras ?? {}), ...persistenceExtras },
     });
 
     // FR-AAN-015: stamp last_fired_at only on an actual fire (service_role, quarantined metadata).

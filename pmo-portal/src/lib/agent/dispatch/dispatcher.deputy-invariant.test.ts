@@ -263,6 +263,39 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     expect(notifInsert.mock.calls[0][0]).toMatchObject({ severity: 'warning' });
   });
 
+  it('FR-AAN-020: the fired run persists as an ordinary run under the MINTED owner client (startSeq=1)', async () => {
+    const automation = makeScheduleAutomation();
+    const svc = makeServiceClient([automation]);
+    const minted = makeMintedClient();
+    const mintDeps = makeMintDeps(minted.client);
+    const buildPersistence = vi.fn().mockReturnValue({ supabase: minted.client, ownerId: 'user-A', orgId: '', startSeq: 1 });
+    let firedPersistence: unknown = null;
+    const handler = vi.fn(async function* (_req: unknown, deps: { persistence?: unknown }) {
+      firedPersistence = deps.persistence;
+      yield { runId: 'run-1', type: 'status', payload: { status: 'completed' } };
+    });
+
+    await runDispatchTick({
+      serviceClient: svc.client as never,
+      authAdmin: mintDeps.authAdmin as never,
+      buildClient: mintDeps.buildClient,
+      handler: handler as never,
+      modelClient: { create: vi.fn() } as never,
+      model: 'm',
+      conditionModel: { create: vi.fn() } as never,
+      conditionModelId: 'cheap',
+      now: () => new Date('2026-07-06T08:00:00Z'),
+      newRunId: () => 'run-1',
+      newMintedAt: () => '2026-07-06T08:00:00.000Z',
+      buildPersistence,
+    });
+
+    // Persistence deps built per-fire with the MINTED client + owner + runId (never service_role).
+    expect(buildPersistence).toHaveBeenCalledWith(minted.client, 'user-A', 'run-1');
+    // The fired run received the persistence deps (resumes the audit-created run at seq 1).
+    expect(firedPersistence).toMatchObject({ supabase: minted.client, startSeq: 1 });
+  });
+
   it('last_fired_at is stamped on an actual fire, via the quarantined agent_automations table', async () => {
     const automation = makeScheduleAutomation();
     const svc = makeServiceClient([automation]);
