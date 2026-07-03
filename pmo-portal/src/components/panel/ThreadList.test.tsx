@@ -105,4 +105,52 @@ describe('ThreadList', () => {
     await user.click(screen.getByRole('button', { name: /no runs yet/i }));
     expect(onOpen).toHaveBeenCalledWith('thread-z', null);
   });
+
+  it('AC-AGP-019b renders a scoped thread\'s scope.label as a muted secondary line, only on the scoped row, as part of the row\'s accessible content', () => {
+    const scoped = makeThread({
+      id: 'thread-scoped',
+      title: 'Which of my projects is over budget?',
+      scope: { type: 'project', id: 'project-1', label: 'Project Falcon' },
+    });
+    const unscoped = makeThread({
+      id: 'thread-unscoped',
+      title: 'General question',
+      scope: null,
+    });
+    render(<ThreadList threads={[scoped, unscoped]} onOpen={vi.fn()} />);
+
+    // The scope label renders as a muted secondary line under the title, using the
+    // panel's text-xs text-muted-foreground idiom (not color-only — real text content).
+    const scopeLabel = screen.getByText('Project Falcon');
+    expect(scopeLabel).toBeInTheDocument();
+    expect(scopeLabel).toHaveClass('text-muted-foreground');
+
+    // It appears only on the scoped row.
+    expect(screen.queryAllByText('Project Falcon')).toHaveLength(1);
+
+    // It is part of the scoped row's accessible name (button), so a screen reader
+    // announces the scope alongside the title.
+    const scopedButton = screen.getByRole('button', { name: /which of my projects is over budget.*project falcon/i });
+    expect(scopedButton).toBeInTheDocument();
+
+    // The unscoped row's accessible name has no scope text.
+    const unscopedButton = screen.getByRole('button', { name: /^general question$/i });
+    expect(unscopedButton).toBeInTheDocument();
+  });
+
+  it('AC-AGP-019b (a11y) exposes a separator between the pinned marker and the title in the accessible name', () => {
+    const pinnedThread = makeThread({
+      id: 'thread-pinned-a11y',
+      title: 'Which of my projects is over budget?',
+      pinned_at: '2026-06-01T00:00:00.000Z',
+    });
+    render(<ThreadList threads={[pinnedThread]} onOpen={vi.fn()} />);
+
+    // Accessible name must read "Pinned<sep>Which of my projects..." — not the marker text
+    // concatenated directly onto the title with no separator. getByRole computes the
+    // accessible name the same way assistive tech does, so this assertion is a real a11y check.
+    expect(
+      screen.getByRole('button', { name: /Pinned[.,\s]which of my projects/i }),
+    ).toBeInTheDocument();
+  });
 });
