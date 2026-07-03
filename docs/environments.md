@@ -188,7 +188,7 @@ the backend so a deploy can never silently talk to the wrong one).
 Two Deno **Supabase Edge Functions** live in `supabase/functions/`: **`agent-chat`** (the A1–A4
 agent-native LLM deputy — streaming SSE, read-only `query_entity` + approve-gated write actions +
 compose-a-view) and **`compose-view`** (the AI view-composer). They are the app's **first
-server-side tier** — everything else is SPA → Supabase REST. Both hold `ANTHROPIC_API_KEY` and act
+server-side tier** — everything else is SPA → Supabase REST. Both hold `OPENROUTER_API_KEY` and act
 under the **caller's JWT** (deputy auth; RLS is the ceiling). Registered in `config.toml` as
 `[functions.agent-chat]` / `[functions.compose-view]` with `verify_jwt = false` (the handler
 verifies the JWT itself to return a typed 401). Logic is unit-tested via the pure `handler.ts`
@@ -201,10 +201,11 @@ check tears down the whole stack. So the agent e2e specs **mock** `agent-chat` v
 
 ### Local dev (real LLM, on your machine)
 
-Prereqs: Docker + local stack up, internet to `deno.land`/npm, a real Anthropic key.
+Prereqs: Docker + local stack up, internet to `deno.land`/npm, a real OpenRouter API key
+(`https://openrouter.ai/keys`).
 
 ```bash
-cp supabase/functions/.env.example supabase/functions/.env   # fill ANTHROPIC_API_KEY (gitignored)
+cp supabase/functions/.env.example supabase/functions/.env   # fill OPENROUTER_API_KEY (and optionally AGENT_MODEL_DEFAULT / AGENT_MODEL_COMPOSE)
 supabase start                                                # local stack
 supabase functions serve agent-chat compose-view \
   --env-file supabase/functions/.env --no-verify-jwt          # standalone Deno runtime, hot-reload
@@ -214,18 +215,25 @@ supabase functions serve agent-chat compose-view \
 `${VITE_SUPABASE_URL}/functions/v1/<name>`, so with `.env.local` pointing at the local stack and
 `VITE_FEATURES_AGENT_ASSISTANT=true`, `npm run dev` → ⌘J drives a real agent against your local DB.
 `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` are auto-injected by the runtime;
-only `ANTHROPIC_API_KEY` must be supplied.
+only `OPENROUTER_API_KEY` must be supplied. `supabase/functions/.env.example` now documents
+`OPENROUTER_API_KEY` / `AGENT_MODEL_DEFAULT` / `AGENT_MODEL_COMPOSE` in place of `ANTHROPIC_API_KEY`.
 
 ### Prod deploy (⚠ gap — required before `v0.2.0` can ship)
 
 The promote path (below) currently deploys **only DB + frontend** — there is **no
-`supabase functions deploy` step and no prod `ANTHROPIC_API_KEY` secret**. Until added, a prod that
+`supabase functions deploy` step and no prod `OPENROUTER_API_KEY` secret**. Until added, a prod that
 includes the agent panel calls a missing endpoint. The owner-gated release step is:
 
 ```bash
 supabase functions deploy agent-chat compose-view          # deploy the Deno functions
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-…            # set the prod function secret (once)
+supabase secrets set OPENROUTER_API_KEY=sk-or-…            # set the prod function secret (once)
 ```
+**Migration note (this issue):** the prod Supabase Cloud project currently has NO
+`ANTHROPIC_API_KEY` secret set (never deployed — see the ⚠ gap this section already documents) —
+so there is nothing to unset/rotate on the cloud side. The only action needed at prod-deploy time
+is setting `OPENROUTER_API_KEY` (new) instead of the old name; no live-secret rotation is required
+because the old secret was never live.
+
 This runs **as part of a `v0.2.0` promote**, ordered with the DB push (below). Tracked in
 `docs/backlog.md` (edge-function operationalization).
 
