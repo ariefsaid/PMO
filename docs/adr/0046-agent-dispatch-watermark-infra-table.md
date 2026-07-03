@@ -82,7 +82,7 @@ create table agent_dispatch_watermarks (
 
 ## Verification
 
-- The migration (`0047_agent_automations_notifications.sql`) creates this table with `enable`+`force`
+- The migration (`0048_agent_automations_notifications.sql`) creates this table with `enable`+`force`
   RLS and no policy.
 - `AC-AAN-018` (`pmo-portal/src/lib/agent/dispatch/dispatcher.deputy-invariant.test.ts`) asserts the
   set of tables touched under the dispatcher's `service_role` client is exactly

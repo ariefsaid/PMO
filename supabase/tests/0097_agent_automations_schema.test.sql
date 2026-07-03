@@ -1,11 +1,11 @@
--- 0094_agent_automations_schema.test.sql — agent_automations schema (ADR-0044 §1, ADR-0046).
+-- 0097_agent_automations_schema.test.sql — agent_automations schema (ADR-0044 §1, ADR-0046).
 -- Proves:
 --   AC-AAN-001  table exists with required columns.
 --   AC-AAN-002  kind='schedule' requires a non-null schedule (CHECK).
 --   AC-AAN-003  kind='trigger' requires a non-null trigger_on (CHECK).
 --   AC-AAN-004  a valid schedule row and a valid trigger row both insert cleanly.
 -- Fixtures/inserts run as the table owner (bypassing RLS) — this file is schema-shape only, not RLS
--- (RLS/tenancy is 0095_agent_automations_tenancy.test.sql). Modeled on
+-- (RLS/tenancy is 0098_agent_automations_tenancy.test.sql). Modeled on
 -- 0091_agent_persistence_schema.test.sql.
 begin;
 select plan(22);

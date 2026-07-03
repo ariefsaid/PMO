@@ -1,4 +1,4 @@
--- 0097_agent_automations_minting_gate.test.sql — AC-AAN-019 (pgTAP half): the minted-JWT session
+-- 0100_agent_automations_minting_gate.test.sql — AC-AAN-019 (pgTAP half): the minted-JWT session
 -- is denied cross-tenant data identically to interactive (ADR-0044 §3 — the load-bearing
 -- Verification test). A minted JWT is, from Postgres's perspective, just a `request.jwt.claims` set
 -- with the owner's sub/role — so this test simulates it exactly as the interactive tenancy tests do,

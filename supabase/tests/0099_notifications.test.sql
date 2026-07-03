@@ -1,4 +1,4 @@
--- 0096_notifications.test.sql — notifications schema + owner-only RLS + mark-read-only UPDATE
+-- 0099_notifications.test.sql — notifications schema + owner-only RLS + mark-read-only UPDATE
 -- (ADR-0044 §5, FR-AAN-006..009). Proves:
 --   AC-AAN-009  table + unread partial index exist.
 --   AC-AAN-010  owner reads own notifications; non-owner same-org reads zero.

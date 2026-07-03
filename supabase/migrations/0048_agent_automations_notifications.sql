@@ -1,4 +1,4 @@
--- 0047_agent_automations_notifications.sql — agent automations (cron + event-triggered) +
+-- 0048_agent_automations_notifications.sql — agent automations (cron + event-triggered) +
 -- notifications inbox (ADR-0044 §1/§5, ADR-0046, Issue PMO#5 batteries-included A). Three tables:
 -- two ordinary owner-private tenant entities (agent_automations, notifications) mirroring the
 -- Companies/user_views/agent_threads slice exactly, plus ONE non-tenant, service-role-only infra

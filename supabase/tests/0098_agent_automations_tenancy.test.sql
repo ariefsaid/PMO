@@ -1,4 +1,4 @@
--- 0095_agent_automations_tenancy.test.sql — agent_automations owner-only RLS (ADR-0044 §1, FR-AAN-004/005).
+-- 0098_agent_automations_tenancy.test.sql — agent_automations owner-only RLS (ADR-0044 §1, FR-AAN-004/005).
 -- Proves: owner isolation, cross-org wall (incl. Admin), INSERT org/owner pin (spoofed owner denied),
 -- and the dispatcher's due-selection predicate excludes disabled/archived rows. Modeled on
 -- 0092_agent_persistence_tenancy.test.sql. Fixtures inserted as the table owner (bypassing RLS), then
