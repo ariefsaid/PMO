@@ -77,6 +77,19 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
   </div>
 );
 
+// ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
+const OutOfCreditsCard: React.FC = () => (
+  <div
+    role="status"
+    aria-live="polite"
+    className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
+  >
+    <p className="font-medium text-foreground">
+      You&apos;ve used up your assistant credits for now — contact your admin to request more.
+    </p>
+  </div>
+);
+
 // ── Streaming indicator ───────────────────────────────────────────────────────
 const StreamingIndicator: React.FC = () => (
   <div
@@ -187,9 +200,12 @@ export const AssistantPanel: React.FC = () => {
       const t = setTimeout(() => {
         const root = panelRef.current;
         if (!root) return;
-        // Focus the composer textarea (primary action)
-        const textarea = root.querySelector<HTMLElement>('textarea');
-        if (textarea) {
+        // Focus the composer textarea (primary action) — but only if it can actually receive
+        // focus. FR-AUC-016 (F2, Discover finding): when out-of-credits, the textarea is
+        // disabled and `.focus()` on a disabled control is a silent no-op, leaving focus
+        // stranded on <body>. Fall through to the first non-disabled focusable control instead.
+        const textarea = root.querySelector<HTMLTextAreaElement>('textarea');
+        if (textarea && !textarea.disabled) {
           textarea.focus();
         } else {
           // Fall back to first focusable in the panel
@@ -247,8 +263,10 @@ export const AssistantPanel: React.FC = () => {
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
-    // Block send while running or awaiting an approval decision (A3).
-    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval') return;
+    // Block send while running, awaiting an approval decision (A3), or out of credits
+    // (FR-AUC-016) — the Composer's disabled prop already hard-blocks the UI, this guard
+    // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
+    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
     setComposerValue('');
     void send(text);
@@ -433,6 +451,9 @@ export const AssistantPanel: React.FC = () => {
 
           {/* Error card */}
           {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
+
+          {/* Out-of-credits card (FR-AUC-016) — distinct from the generic ErrorCard */}
+          {phase === 'out-of-credits' && <OutOfCreditsCard />}
         </div>
 
         {/* ── Composer ─────────────────────────────────────────────────── */}
@@ -443,6 +464,7 @@ export const AssistantPanel: React.FC = () => {
           onStop={handleStop}
           running={phase === 'running' || phase === 'needs-approval'}
           needsApproval={phase === 'needs-approval'}
+          disabled={phase === 'out-of-credits'}
         />
       </section>
     </>

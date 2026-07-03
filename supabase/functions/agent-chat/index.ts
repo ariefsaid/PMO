@@ -25,6 +25,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
+import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -119,6 +120,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // gate — FR-AGP-026). When the flag is off, `persistence` stays undefined and every
   // persistence call site in handler.ts is a no-op by construction.
   const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false';
+
+  // ── ADR-0044 §6 / FR-AUC-017: credit-backed RateGuard, independent of AGENT_PERSISTENCE.
+  // Default OFF (spec Open Question 3) — matches today's `rateGuard: undefined` behavior so an
+  // existing deployment with no seeded credits grants is not instantly locked out. An operator
+  // flips this on once grant seed-data exists for their users.
+  const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
   // orgId is resolved by the handler's own gate-2 profiles lookup; ownerId (== userId) is all
   // this entry point can supply up front. index.ts does not duplicate the profiles read —
   // persistence writes rely on RLS column DEFAULTs (owner_id default auth.uid(), org_id default
@@ -179,7 +186,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // so enabling the tool here is harmless when the SPA never renders an artifact
           // (OQ-A4-2 recommendation — default true; add a function secret if needed).
           composeEnabled: true,
-          // rateGuard: undefined (AR-OD-002 default — disabled in v1)
+          rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient }) : undefined,
+          // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
+          // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
+          usage: { supabase: callerClient },
           persistence: persistenceEnabled
             ? {
                 supabase: callerClient,

@@ -913,11 +913,14 @@ model.
 ## 5. Scaling / risk notes (Performance + Architecture lenses)
 
 - **Balance computation is two indexed sums per preflight check** (NFR-AUC-PERF-001): `agent_usage
-  (owner_id, created_at)` and an implicit `credits(owner_id)` scan (RLS predicate) — bounded, not a
-  full-table scan, but note the `.limit(10_000)` in `computeBalance` (B4) is a defensive cap, not a
-  correctness requirement; if any single user's row count could plausibly exceed 10k before this
-  ships (unlikely for v1 single-tenant), flag for the reviewer to reconsider a server-side `SUM()`
-  RPC instead of a client-side reduce — deferred as YAGNI per the spec's own v1 posture.
+  (owner_id, created_at)` and `credits (owner_id)` — both explicitly index-backed (Quality review
+  CRITICAL finding, `credits_owner_idx` added to migration 0047), not a full-table scan, but note
+  the `.limit(10_000)` in `computeBalance` (B4) is a defensive cap, not a correctness requirement;
+  if any single user's row count could plausibly exceed 10k before this ships (unlikely for v1
+  single-tenant), flag for the reviewer to reconsider a server-side `SUM()` RPC instead of a
+  client-side reduce — deferred as YAGNI per the spec's own v1 posture. Concrete revisit trigger:
+  reconsider the server-side `SUM()` RPC when a single user's `agent_usage` row count exceeds
+  ~5,000 rows, or when the preflight's p95 latency exceeds 100ms in production telemetry.
 - **Concurrent-request race (NFR-AUC-PERF-002)** — accepted v1 tradeoff, already recorded in the
   spec; this plan does not add a `SELECT ... FOR UPDATE` or advisory lock. Bounded by
   `MAX_TOOL_ROUNDS`.

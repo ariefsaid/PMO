@@ -28,7 +28,13 @@ import { safeTrack } from '../lib/analytics/safeTrack';
  */
 const HEARTBEAT_POLL_MS = 5_000;
 
-export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
+/**
+ * 'out-of-credits' (FR-AUC-016): a distinct terminal phase from 'error' — set when a
+ * RATE_LIMITED status event's retryAfterSeconds<=0 (FR-AUC-013's convention for "no wait
+ * will fix this, an admin grant is needed"), so the panel can render the out-of-credits
+ * composer-disabled UX instead of the generic ErrorCard.
+ */
+export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error' | 'out-of-credits';
 
 export interface TranscriptEntry {
   key: string;
@@ -215,6 +221,30 @@ export function useAssistantPanel(): UseAssistantPanel {
 
             if (payload?.status === 'errored') {
               setPhase('idle');
+              // RunStatusPayload (port.ts, #215) doesn't carry retryAfterSeconds — it's
+              // RATE_LIMITED-specific (AgentChatError, transport.ts). Extend the shared
+              // status-payload type rather than a fully ad-hoc shape, per FR-AUC-013.
+              const errPayload = ev.payload as (RunStatusPayload & { retryAfterSeconds?: number }) | undefined;
+              if (errPayload?.error === 'RATE_LIMITED' && (errPayload.retryAfterSeconds ?? 0) <= 0) {
+                // FR-AUC-013 convention: retryAfterSeconds<=0 on RATE_LIMITED means
+                // out-of-credits. No transcript entry — the composer itself carries the
+                // message (FR-AUC-016), distinct from the generic ErrorCard path. Still a
+                // real run failure for analytics purposes — fire agent_run_errored (same
+                // as the generic error path below) so out-of-credits runs aren't invisible
+                // to the PostHog funnel, and clean up runStartedAt to avoid a leak.
+                setPhase('out-of-credits');
+                const startedAt = runStartedAt.get(drainRunId);
+                runStartedAt.delete(drainRunId);
+                safeTrack(() =>
+                  trackAgentRunErrored(
+                    drainRunId,
+                    startedAt !== undefined ? Date.now() - startedAt : undefined,
+                    toolRoundCount,
+                    errPayload.error ?? 'RATE_LIMITED',
+                  ),
+                );
+                continue;
+              }
               if (payload.error === 'TURN_CAP') {
                 // Step-cap notice: informational, not an error state.
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);

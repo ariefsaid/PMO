@@ -22,6 +22,7 @@
 // Deno-native imports (not in pmo-portal/package.json — NFR ground-truth #4)
 import { createClient } from '@supabase/supabase-js';
 import { composeViewHandler } from './handler.ts';
+import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
@@ -98,6 +99,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── ADR-0044 §6 / FR-AUC-015/017: the SAME credit-backed RateGuard + env toggle as
+  // agent-chat — a user's compose-view calls and agent-chat calls draw from one shared
+  // balance, not two independent budgets. Default OFF, mirrors agent-chat/index.ts.
+  const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
+
   // ── 6. Delegate to the pure handler ───────────────────────────────────────
   // Item 3 (cast cleanup): OpenRouterModelClient structurally satisfies ModelClient and the
   // real Supabase client structurally satisfies HandlerSupabaseLike — no cast needed
@@ -107,7 +113,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     model,
     supabase: callerClient,
     userId,
-    // rateGuard: undefined (AS-OD-002 default — disabled in v1)
+    rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient }) : undefined,
+    // FR-AUC-002/015: usage recording is UNCONDITIONAL (no flag).
+    usage: { supabase: callerClient },
   });
 
   // ── 7. Return JSON response ───────────────────────────────────────────────
