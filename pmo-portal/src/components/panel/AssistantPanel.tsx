@@ -116,6 +116,7 @@ export const AssistantPanel: React.FC = () => {
     newConversation,
     approve,
     deny,
+    answerQuestion,
     chipStateMap,
     isStuck,
     lastProgressAt,
@@ -430,6 +431,7 @@ export const AssistantPanel: React.FC = () => {
             chipStateMap={chipStateMap}
             onApprove={() => void approve()}
             onDeny={() => void deny()}
+            onAnswer={(qid, optionId, freeText) => void answerQuestion(qid, optionId, freeText)}
             onRate={handleRate}
           />
 

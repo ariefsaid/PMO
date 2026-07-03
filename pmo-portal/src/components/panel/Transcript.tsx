@@ -33,13 +33,18 @@ interface TranscriptProps {
   /** A3: deny callback threaded down. */
   onDeny?: () => void;
   /**
+   * ADR-0045 §2: called with (questionId, optionId?, freeText?) when the user
+   * resolves a pending ask-user question via QuestionChips.
+   */
+  onAnswer?: (questionId: string, optionId?: string, freeText?: string) => void;
+  /**
    * ADR-0043 (FR-AGP-024/025): rate-feedback callback threaded down to
    * assistant rows. Thumbs render only when this is provided.
    */
   onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
-export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny, onRate }) => {
+export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny, onAnswer, onRate }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -103,6 +108,7 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, c
           chipStateMap={chipStateMap}
           onApprove={onApprove}
           onDeny={onDeny}
+          onAnswer={onAnswer}
           onRate={onRate}
         />
       ))}
