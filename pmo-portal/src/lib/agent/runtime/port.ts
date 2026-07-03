@@ -46,7 +46,12 @@ export interface AgentEvent {
 
 export interface RunContext {
   route?: string;
+  /** @deprecated use entity.id — retained dormant (no caller populates it, DEC-4). */
   entityId?: string;
+  /** ADR-0045 §2/§3 — the entity currently in view; a grounding hint, never an authorization signal. */
+  entity?: { type: string; id: string; label: string };
+  /** Reserved — not populated in v1 (ADR-0045, plan §5 "selection deferred"). */
+  selection?: unknown;
 }
 
 /**
@@ -103,7 +108,8 @@ export interface AgentRuntime {
   followUp(runId: string, message: string): Promise<void>;
   control(
     runId: string,
-    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject',
+    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject' | 'answer',
+    payload?: AgentAnswer,
   ): Promise<void>;
   subscribe(runId: string): AsyncIterable<AgentEvent>;
 }
@@ -143,6 +149,24 @@ export interface WriteResolvedPayload {
   actionName: string;
   /** Echo of the pendingId from the chip for UI correlation. */
   pendingId: string;
+}
+
+// ── ADR-0045: ask-user question / answer payload types ───────────────────────
+
+/** Payload shape for AgentEvent{type:'status', payload:QuestionPayload} (FR-ATC-008). */
+export interface QuestionPayload {
+  kind: 'question';
+  questionId: string;
+  prompt: string;
+  options: { id: string; label: string }[];
+  allowFreeText?: boolean;
+}
+
+/** The answer wire shape carried on a re-POST resolving a pending question (DEC-1). */
+export interface AgentAnswer {
+  questionId: string;
+  optionId?: string;
+  freeText?: string;
 }
 
 /** Extended SupabaseLike that also supports write operations (A3 write actions). */

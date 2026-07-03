@@ -9,7 +9,9 @@
  * FR-AR-019: typed request/error contract shared by handler + PmoNativeRuntime.
  */
 
-import type { AgentEvent, AgentRunStatus, RunContext } from './port';
+import type { AgentEvent, AgentRunStatus, RunContext, AgentAnswer } from './port';
+
+export type { AgentAnswer };
 
 export type { AgentEvent };
 
@@ -41,6 +43,8 @@ export interface AgentChatRequest {
   context?: RunContext;
   /** A3: present on an approve/deny re-POST (D-A3-1, AW-OD-004 Option B). */
   decision?: AgentDecision;
+  /** ADR-0045 §2: present on a re-POST resolving a pending ask-user question (DEC-1). */
+  answer?: AgentAnswer;
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */
