@@ -5,7 +5,7 @@
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
-import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload } from '@/src/lib/agent/runtime/port';
+import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
 import { ToolCallCard } from './ToolCallCard';
@@ -13,6 +13,8 @@ import { ApprovalChip } from './ApprovalChip';
 import { ArtifactSlot } from './ArtifactSlot';
 import type { ArtifactSlotPayload } from './ArtifactSlot';
 import { FeedbackControl } from './FeedbackControl';
+import { WidgetSlot } from './widgets/WidgetSlot';
+import { QuestionChips } from './QuestionChips';
 import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
 import { isFeatureEnabled } from '@/src/lib/features';
 
@@ -28,6 +30,11 @@ interface TranscriptItemProps {
   /** A3: called when user clicks Deny. */
   onDeny?: () => void;
   /**
+   * ADR-0045 §2: called with (questionId, optionId?, freeText?) when the user
+   * resolves a pending ask-user question via QuestionChips.
+   */
+  onAnswer?: (questionId: string, optionId?: string, freeText?: string) => void;
+  /**
    * ADR-0043 (FR-AGP-024/025): called with (eventId, rating, reason?) when the
    * user rates an assistant event. Thumbs render only when this is provided.
    */
@@ -39,6 +46,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
   chipStateMap = {},
   onApprove,
   onDeny,
+  onAnswer,
   onRate,
 }) => {
   const { event } = entry;
@@ -62,8 +70,23 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       return <ToolCallCard payload={event.payload} />;
 
     case 'status': {
-      const payload = event.payload as { status?: string; error?: string } | undefined;
+      const payload = event.payload as { status?: string; error?: string; kind?: string } | undefined;
       if (!payload) return null;
+
+      if (payload.kind === 'question') {
+        // ADR-0045 §2: render the ask-user chips for this pending question.
+        // Flag guard (FR-ATC-020): silently skip if agentAssistant is off.
+        if (!isFeatureEnabled('agentAssistant')) return null;
+        const q = event.payload as QuestionPayload;
+        return (
+          <QuestionChips
+            prompt={q.prompt}
+            options={q.options}
+            allowFreeText={q.allowFreeText}
+            onAnswer={({ optionId, freeText }) => onAnswer?.(q.questionId, optionId, freeText)}
+          />
+        );
+      }
 
       if (payload.status === 'completed') {
         // Terminal completion is signalled by the composer re-enabling; no extra line.
@@ -122,8 +145,16 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
     }
 
     case 'artifact': {
-      // A4: route compose_view artifacts to ArtifactSlot (FR-CV-013/025).
-      const artifactPayload = event.payload as { kind?: string } | undefined;
+      const artifactPayload = event.payload as { kind?: string; widget?: unknown } | undefined;
+
+      if (artifactPayload?.kind === 'widget') {
+        // ADR-0045 §1: route validated widget results to WidgetSlot (FR-ATC-002).
+        // Flag guard (FR-ATC-020): silently skip if agentAssistant is off.
+        if (!isFeatureEnabled('agentAssistant')) return null;
+        return <WidgetSlot widget={artifactPayload.widget} />;
+      }
+
+      // A4: route compose_view artifacts to ArtifactSlot (FR-CV-013/025) — unchanged (OBS-ATC-001).
       if (artifactPayload?.kind !== 'compose_view') return null;
       // Flag guard (FR-CV-025): both flags must be on; silently skip if either is off.
       if (!isFeatureEnabled('agentAssistant') || !isFeatureEnabled('aiComposer')) return null;
