@@ -51,6 +51,55 @@ export const UPDATE_TASK_STATUS_SCHEMA = {
   },
 };
 
+// ── notify / create_automation schemas (ADR-0044 §1/§5, FR-AAN-026/029) ──────────
+
+export const NOTIFY_SCHEMA = {
+  type: 'object' as const,
+  required: ['title'] as string[],
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' as const, maxLength: 200, description: 'Short notification title.' },
+    body: { type: 'string' as const, maxLength: 2000, description: 'Optional detail.' },
+    severity: {
+      type: 'string' as const,
+      enum: ['info', 'warning', 'critical'] as string[],
+      description: 'Notification severity; defaults to info.',
+    },
+    metadata: {
+      type: 'object' as const,
+      description:
+        'Optional deep-link context: { source?, automation_id?, run_id?, entity?: {type,id,label} }.',
+    },
+  },
+};
+
+export const CREATE_AUTOMATION_SCHEMA = {
+  type: 'object' as const,
+  required: ['kind', 'prompt'] as string[],
+  additionalProperties: false,
+  properties: {
+    kind: {
+      type: 'string' as const,
+      enum: ['schedule', 'trigger'] as string[],
+      description: 'schedule = cron-driven; trigger = event-driven (procurement status events).',
+    },
+    prompt: { type: 'string' as const, maxLength: 2000, description: 'The goal handed to the agent loop when it fires.' },
+    schedule: { type: 'string' as const, description: "Cron expression; required when kind='schedule'." },
+    trigger_on: {
+      type: 'object' as const,
+      required: ['source', 'event'] as string[],
+      additionalProperties: false,
+      properties: {
+        source: { type: 'string' as const },
+        event: { type: 'string' as const },
+      },
+      description: "{ source, event }; required when kind='trigger'.",
+    },
+    condition: { type: 'string' as const, maxLength: 500, description: 'Optional NL condition, evaluated by a small model.' },
+    timeout_s: { type: 'integer' as const, minimum: 1, maximum: 3600, description: 'Hard wall-clock cap per fired run; defaults to 120.' },
+  },
+};
+
 export const QUERY_ENTITY_SCHEMA = {
   type: 'object' as const,
   required: ['entity'] as string[],
