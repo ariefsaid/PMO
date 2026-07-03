@@ -13,6 +13,7 @@
 import React, { useState } from 'react';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { trackAgentFeedbackRated } from '@/src/lib/analytics';
+import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
   { value: 'inaccurate', label: 'Inaccurate' },
@@ -37,11 +38,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRat
     setRating('up');
     setPickerOpen(false);
     onRate(eventId, 'up', undefined);
-    try {
-      trackAgentFeedbackRated('up', undefined);
-    } catch {
-      // NFR-APH-REL-001: analytics never blocks the real state transition.
-    }
+    safeTrack(() => trackAgentFeedbackRated('up', undefined));
   };
 
   const handleDown = () => {
@@ -52,11 +49,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRat
   const handleReason = (reason: DownvoteReason) => {
     setPickerOpen(false);
     onRate(eventId, 'down', reason);
-    try {
-      trackAgentFeedbackRated('down', reason);
-    } catch {
-      // NFR-APH-REL-001: analytics never blocks the real state transition.
-    }
+    safeTrack(() => trackAgentFeedbackRated('down', reason));
   };
 
   return (

@@ -19,6 +19,7 @@ import { useUserViewMutations } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackAgentComposeViewSaved } from '@/src/lib/analytics';
+import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 export interface UseComposeArtifactResult {
   /** Non-null when the spec passes client-side re-validation. */
@@ -76,11 +77,7 @@ export function useComposeArtifact(spec: CompositionSpec, runId?: string): UseCo
       setSavedViewId(row.id);
       setSaveStatus('saved');
       if (runId) {
-        try {
-          trackAgentComposeViewSaved(runId);
-        } catch {
-          // NFR-APH-REL-001: analytics never blocks the real state transition.
-        }
+        safeTrack(() => trackAgentComposeViewSaved(runId));
       }
     } catch (err) {
       const { headline } = classifyMutationError(err);

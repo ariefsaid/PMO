@@ -19,6 +19,7 @@ export { getAnalyticsConfig, parseDemoContext, persistDemoContext } from './conf
 export type { AnalyticsConfig, DemoAudience, DemoContext } from './config';
 export { routeAnalyticsForPath } from './route';
 export type { RouteAnalytics } from './route';
+export { safeTrack } from './safeTrack';
 
 // ── Event-specific action helpers ────────────────────────────────────────
 // These are the ONLY way components should track events. They encapsulate
@@ -109,7 +110,7 @@ export function trackAgentApprovalDecided(runId: string, decision: 'approved' | 
 }
 
 export function trackAgentThreadResumed(
-  threadId: string,
+  threadId: string | null,
   runId: string | null,
   eventCount: number,
 ): void {

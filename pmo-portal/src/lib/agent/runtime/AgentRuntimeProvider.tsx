@@ -13,6 +13,7 @@ import { PmoNativeRuntime } from './pmoNativeRuntime';
 import { useAuth } from '@/src/auth/useAuth';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { trackAgentPanelOpened } from '@/src/lib/analytics';
+import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 interface AgentRuntimeProviderProps {
   children: React.ReactNode;
@@ -46,11 +47,7 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
     setOpen(true);
     // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
     // entry point exists in this codebase yet — every real call site opens unscoped.
-    try {
-      trackAgentPanelOpened(false);
-    } catch {
-      // NFR-APH-REL-001: analytics never blocks the real state transition.
-    }
+    safeTrack(() => trackAgentPanelOpened(false));
   }, []);
   const closePanel = useCallback(() => setOpen(false), []);
   const togglePanel = useCallback(() => setOpen((o) => !o), []);

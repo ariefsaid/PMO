@@ -12,7 +12,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { AgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import type { AgentEvent, AgentRuntime, AgentRun } from '../lib/agent/runtime/port';
-import { useAssistantPanel } from './useAssistantPanel';
+import { useAssistantPanel, __testOnlyRunStartedAtSize } from './useAssistantPanel';
 
 const mockCapture = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/analytics', () => ({
@@ -41,6 +41,31 @@ function makeFakeRuntime(events: AgentEvent[] = [], runId = 'test-run') {
     control: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockReturnValue(makeAsyncIterable(events)),
   } as unknown as AgentRuntime;
+}
+
+/**
+ * A mid-run stream that never yields a terminal event on its own — it hangs
+ * until `abort()` is called, at which point the async generator throws
+ * (mirroring PmoNativeRuntime's AbortController-driven SSE cancellation,
+ * which the drain loop's `catch { // Stream aborted }` swallows). Lets tests
+ * simulate stop()/newConversation() mid-run, before the drain loop's own
+ * completed/errored cleanup ever runs.
+ */
+function makeHangingIterable(): { iterable: AsyncIterable<AgentEvent>; abort: () => void } {
+  let rejectFn: ((err: unknown) => void) | null = null;
+  const pending = new Promise<never>((_resolve, reject) => {
+    rejectFn = reject;
+  });
+  return {
+    iterable: {
+      [Symbol.asyncIterator]: async function* () {
+        await pending; // never resolves until abort() rejects it
+        // unreachable — kept for generator typing
+        yield undefined as unknown as AgentEvent;
+      },
+    },
+    abort: () => rejectFn?.(new DOMException('Aborted', 'AbortError')),
+  };
 }
 
 function wrapper(runtime: AgentRuntime, open = false) {
@@ -169,5 +194,62 @@ describe('useAssistantPanel analytics', () => {
     const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
     await act(async () => { await result.current.openThread('run-1'); });
     expect(mockCapture).toHaveBeenCalledWith('agent_thread_resumed', [null, 'run-1', 0]);
+  });
+
+  it('review-item-1 stop() mid-run deletes the runStartedAt entry (no leak)', async () => {
+    const runId = 'leak-run';
+    const hanging = makeHangingIterable();
+    const runtime = makeFakeRuntime([], runId);
+    (runtime.subscribe as ReturnType<typeof vi.fn>).mockReturnValue(hanging.iterable);
+    (runtime.control as ReturnType<typeof vi.fn>).mockImplementation(async (_id: string, cmd: string) => {
+      if (cmd === 'cancel') hanging.abort();
+    });
+
+    const sizeBefore = __testOnlyRunStartedAtSize();
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
+
+    // send() awaits drain(), which awaits the hanging iterable — kick it off without
+    // awaiting the whole act() so we can call stop() while it's still mid-run.
+    let sendPromise: Promise<void> | undefined;
+    await act(async () => {
+      sendPromise = result.current.send('hello');
+      // Let the microtask queue run far enough for createRun/runStartedAt.set to land.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.stop();
+      await sendPromise;
+    });
+
+    expect(__testOnlyRunStartedAtSize()).toBe(sizeBefore);
+  });
+
+  it('review-item-1 newConversation() mid-run deletes the runStartedAt entry (no leak)', async () => {
+    const runId = 'leak-run-2';
+    const hanging = makeHangingIterable();
+    const runtime = makeFakeRuntime([], runId);
+    (runtime.subscribe as ReturnType<typeof vi.fn>).mockReturnValue(hanging.iterable);
+    (runtime.control as ReturnType<typeof vi.fn>).mockImplementation(async (_id: string, cmd: string) => {
+      if (cmd === 'cancel') hanging.abort();
+    });
+
+    const sizeBefore = __testOnlyRunStartedAtSize();
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: wrapper(runtime) });
+
+    let sendPromise: Promise<void> | undefined;
+    await act(async () => {
+      sendPromise = result.current.send('hello');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      result.current.newConversation();
+      await sendPromise;
+    });
+
+    expect(__testOnlyRunStartedAtSize()).toBe(sizeBefore);
   });
 });

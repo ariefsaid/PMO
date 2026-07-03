@@ -193,7 +193,7 @@ export function buildAgentApprovalDecidedEvent(
 }
 
 export function buildAgentThreadResumedEvent(
-  threadId: string,
+  threadId: string | null,
   runId: string | null,
   eventCount: number,
 ): TrackedEvent {

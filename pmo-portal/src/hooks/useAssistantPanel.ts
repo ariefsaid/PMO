@@ -5,7 +5,7 @@
  * FR-AP-009/021/022/023.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { AgentEvent } from '../lib/agent/runtime/port';
+import type { AgentEvent, RunStatusPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { listRunEvents } from '../lib/db/agentEvents';
 import type { AgentEventRow } from '../lib/db/agentEvents';
@@ -19,6 +19,7 @@ import {
   trackAgentApprovalDecided,
   trackAgentThreadResumed,
 } from '../lib/analytics';
+import { safeTrack } from '../lib/analytics/safeTrack';
 
 /**
  * FR-AGP-022 poll cadence — the EXISTING 5s tick that previously lived in AssistantPanel.tsx
@@ -99,6 +100,16 @@ function makeKey(): string {
 const runStartedAt = new Map<string, number>();
 
 /**
+ * Test-only accessor for `runStartedAt`'s size — asserts the leak-prevention
+ * invariant (every `.set()` is matched by a `.delete()` on stop()/newConversation()
+ * in addition to the completed/errored terminal branches) without exposing the
+ * Map itself. Not imported by any production code path.
+ */
+export function __testOnlyRunStartedAtSize(): number {
+  return runStartedAt.size;
+}
+
+/**
  * Append or concatenate an assistant event into the transcript.
  * NFR-AP-PERF-002: successive assistant events in the same turn are concatenated
  * into one stable-key entry (the key stays fixed; only .event.text grows).
@@ -169,22 +180,20 @@ export function useAssistantPanel(): UseAssistantPanel {
           }
 
           if (ev.type === 'status') {
-            const payload = ev.payload as { status?: string; error?: string } | undefined;
+            const payload = ev.payload as Partial<RunStatusPayload> | undefined;
 
             if (payload?.status === 'completed') {
               setPhase('idle');
               // No extra transcript entry for a clean completion.
-              try {
-                const startedAt = runStartedAt.get(drainRunId);
-                runStartedAt.delete(drainRunId);
+              const startedAt = runStartedAt.get(drainRunId);
+              runStartedAt.delete(drainRunId);
+              safeTrack(() =>
                 trackAgentRunCompleted(
                   drainRunId,
                   startedAt !== undefined ? Date.now() - startedAt : undefined,
                   toolRoundCount,
-                );
-              } catch {
-                // NFR-APH-REL-001: analytics never blocks the real state transition.
-              }
+                ),
+              );
               continue;
             }
 
@@ -196,11 +205,7 @@ export function useAssistantPanel(): UseAssistantPanel {
               setPhase('needs-approval');
               // Key the chip state by pendingId (Blocker-8: not a single global atom).
               setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
-              try {
-                trackAgentApprovalShown(drainRunId);
-              } catch {
-                // NFR-APH-REL-001: analytics never blocks the real state transition.
-              }
+              safeTrack(() => trackAgentApprovalShown(drainRunId));
               // Append the event so TranscriptItem renders the ApprovalChip.
               setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
               // The stream ends here (handler returned after emitting needs-approval).
@@ -217,18 +222,16 @@ export function useAssistantPanel(): UseAssistantPanel {
                 // Other errors → error state (FR-AP-018 / AC-AP-015).
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
                 setPhase('error');
-                try {
-                  const startedAt = runStartedAt.get(drainRunId);
-                  runStartedAt.delete(drainRunId);
+                const startedAt = runStartedAt.get(drainRunId);
+                runStartedAt.delete(drainRunId);
+                safeTrack(() =>
                   trackAgentRunErrored(
                     drainRunId,
                     startedAt !== undefined ? Date.now() - startedAt : undefined,
                     toolRoundCount,
                     payload.error ?? 'UNKNOWN',
-                  );
-                } catch {
-                  // NFR-APH-REL-001: analytics never blocks the real state transition.
-                }
+                  ),
+                );
               }
               continue;
             }
@@ -255,11 +258,9 @@ export function useAssistantPanel(): UseAssistantPanel {
               const pid = sysPayload.pendingId;
               const newState: ApprovalChipState = sysPayload.decision === 'approved' ? 'approved' : 'denied';
               setChipStateMap((prev) => ({ ...prev, [pid]: newState }));
-              try {
-                trackAgentApprovalDecided(drainRunId, sysPayload.decision === 'approved' ? 'approved' : 'denied');
-              } catch {
-                // NFR-APH-REL-001: analytics never blocks the real state transition.
-              }
+              safeTrack(() =>
+                trackAgentApprovalDecided(drainRunId, sysPayload.decision === 'approved' ? 'approved' : 'denied'),
+              );
             }
           }
 
@@ -298,11 +299,7 @@ export function useAssistantPanel(): UseAssistantPanel {
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
         runStartedAt.set(activeRunId, Date.now());
-        try {
-          trackAgentRunStarted(activeRunId, false);
-        } catch {
-          // NFR-APH-REL-001: analytics never blocks the real state transition.
-        }
+        safeTrack(() => trackAgentRunStarted(activeRunId, false));
         // Update the user event's runId in transcript
         setTranscript((prev) =>
           prev.map((e) =>
@@ -325,6 +322,11 @@ export function useAssistantPanel(): UseAssistantPanel {
   // ── stop ────────────────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
     if (!runtime || !runIdRef.current) return;
+    // Review round item 1: stop() exits the drain loop via the abort-triggered
+    // exception (drain's catch{} — "Stream aborted"), never reaching the
+    // completed/errored terminal branches that normally clean up runStartedAt.
+    // Delete it here so a stopped run cannot leak an entry.
+    runStartedAt.delete(runIdRef.current);
     await runtime.control(runIdRef.current, 'cancel');
     const stoppedEvent: AgentEvent = {
       id: makeKey(),
@@ -385,11 +387,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setRunId(activeRunId);
     runIdRef.current = activeRunId;
     runStartedAt.set(activeRunId, Date.now());
-    try {
-      trackAgentRunStarted(activeRunId, true);
-    } catch {
-      // NFR-APH-REL-001: analytics never blocks the real state transition.
-    }
+    safeTrack(() => trackAgentRunStarted(activeRunId, true));
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
     await drain(iterable, activeRunId);
@@ -400,6 +398,10 @@ export function useAssistantPanel(): UseAssistantPanel {
     // Cancel any in-flight run so the drain loop stops producing events.
     // The drain guard (drainRunId !== runIdRef.current) will then break the loop.
     if (runIdRef.current && runtime) {
+      // Review round item 1: neither the guard-break nor the abort-triggered
+      // exception reaches the drain loop's completed/errored cleanup branches —
+      // delete the entry here so a cancelled run cannot leak one.
+      runStartedAt.delete(runIdRef.current);
       void runtime.control(runIdRef.current, 'cancel');
     }
     // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
@@ -443,11 +445,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       setTranscript(nextTranscript);
       setPhase('idle');
       setLastProgressAt(events.length > 0 ? events[events.length - 1].createdAt : null);
-      try {
-        trackAgentThreadResumed(threadId ?? null, targetRunId, events.length);
-      } catch {
-        // NFR-APH-REL-001: analytics never blocks the real state transition.
-      }
+      safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, events.length));
     },
     [],
   );

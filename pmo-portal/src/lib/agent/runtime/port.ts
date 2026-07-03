@@ -108,6 +108,21 @@ export interface AgentRuntime {
   subscribe(runId: string): AsyncIterable<AgentEvent>;
 }
 
+/**
+ * Payload shape for AgentEvent{type:'status'} — the general run-lifecycle status
+ * frame (queued/running/paused/completed/errored). `status` is narrowed to the
+ * SAME closed union as `AgentRun.status` (`AgentRunStatus`) so a typo or a new,
+ * un-plumbed status value is a compile error at every call site that switches on
+ * it, not just a silent `string` mismatch. `error` stays a loose `string` by
+ * design (docs/specs/agent-posthog-events.spec.md: "the existing enum-like
+ * `payload.error` value" — the server can add new error codes without a client
+ * type change; `error_code` on `agent_run_errored` is intentionally `string`).
+ */
+export interface RunStatusPayload {
+  status: AgentRunStatus;
+  error?: string;
+}
+
 // ── A3: needs-approval / write_resolved event payload types ──────────────────
 
 /** Payload shape for AgentEvent{type:'status', payload:NeedsApprovalPayload} (FR-AW-012). */
