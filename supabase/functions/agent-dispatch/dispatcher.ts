@@ -5,7 +5,11 @@
  * never business data. Importable in Vitest (REC-1); no Deno globals here.
  */
 import { cronMatches } from './cron';
-import { readWatermark } from './watermark';
+import { readWatermark, advanceWatermark } from './watermark';
+import { mintOwnerJwt, auditMint, type AuthAdminLike } from './mint';
+import { fireAutomation, type FireHandler } from './fire';
+import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition';
+import type { ModelClient } from '../_shared/modelClient';
 
 /** The minimal automation-row shape the dispatcher's selection queries need. */
 export interface AutomationRow {
@@ -114,4 +118,211 @@ export async function selectTriggerMatches(
   }
 
   return matches;
+}
+
+// ── runDispatchTick — the per-tick orchestration (ADR-0044 §2/§3, the safety core) ──────────────
+
+/**
+ * Credit preflight seam (REC-4, issue-3). The dispatcher checks the OWNER's balance before firing;
+ * over-budget ⇒ no-start + a warning notification (FR-AAN-032/033). Until issue-3's credit-backed
+ * RateGuard ships, index.ts injects a no-op guard (always { exceeded: false }) — Phase F wires the
+ * real one and owns AC-AAN-027. Structurally identical to handler.ts's RateGuard.
+ */
+export interface DispatchRateGuard {
+  check(userId: string): Promise<{ exceeded: boolean; retryAfterSeconds?: number }>;
+}
+
+/**
+ * The full dep bag for one dispatcher tick. service_role appears ONLY on `serviceClient` (selection
+ * + watermark + last_fired_at metadata) and `authAdmin` (mint) — never for business data. The fired
+ * run runs under the MINTED owner client, never these. (§4 type-consistency guard.)
+ */
+export interface RunDispatchTickDeps {
+  /** service_role client — quarantined to {agent_automations, agent_dispatch_watermarks, <sources>}. */
+  serviceClient: ServiceClientLike;
+  /** Supabase Auth admin — used ONLY to mint (never a .from() business query). */
+  authAdmin: AuthAdminLike;
+  /** Builds the caller-JWT-scoped client from a minted access token (mint.ts). */
+  buildClient: (accessToken: string) => unknown;
+  /** The real agentChatHandler (the SAME loop as interactive) — injected (REC-1, no Deno coupling). */
+  handler: FireHandler;
+  /** Chat-tier model client + id for the fired run. */
+  modelClient: unknown;
+  model: string;
+  /** Cheap-tier model client + id for NL condition evaluation (§4, FR-AAN-021). */
+  conditionModel: Pick<ModelClient, 'create'>;
+  conditionModelId: string;
+  /** Credit preflight (REC-4) — no-op until issue-3. */
+  rateGuard?: DispatchRateGuard;
+  /** Injected clock (testable). */
+  now: () => Date;
+  /** Injected run-id + minted-at generators (testable determinism). */
+  newRunId?: () => string;
+  newMintedAt?: () => string;
+  /** Optional in-invocation condition memo (defaults fresh per tick). */
+  conditionMemo?: ConditionMemo;
+  /** Opaque HandlerDeps passthrough (can/composeEnabled/persistence) — index.ts constructs these. */
+  handlerExtras?: Record<string, unknown>;
+}
+
+function genId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2);
+}
+
+/**
+ * Insert an owner notification via the MINTED owner client (RLS pins owner_id/org_id via DEFAULT —
+ * never sent). Used for the fail-quiet-but-visible warning paths (condition-unevaluable §4;
+ * over-credit §6). Swallowed on error — a notify failure must not abort the tick.
+ */
+async function notifyOwner(
+  mintedClient: unknown,
+  severity: 'info' | 'warning' | 'critical',
+  title: string,
+  body: string | null,
+  metadata: Record<string, unknown> | null,
+): Promise<void> {
+  try {
+    const sb = mintedClient as { from: (t: string) => { insert: (r: Record<string, unknown>) => Promise<{ error: unknown }> } };
+    await sb.from('notifications').insert({ severity, title, body, metadata });
+  } catch {
+    // never surface — notify is best-effort.
+  }
+}
+
+/**
+ * runDispatchTick — orchestrate ONE dispatcher tick (ADR-0044 §2/§3):
+ *   selection (schedule + trigger, under service_role, metadata-only) →
+ *   per due automation:
+ *     - trigger+condition ⇒ evaluateCondition (cheap model); false ⇒ skip; unevaluable ⇒ mint +
+ *       warning notification, no fire;
+ *     - credit preflight (owner balance); over ⇒ mint + warning notification, no fire;
+ *     - mint owner JWT (D3) → auditMint (D3, establishes the run, BEFORE fire) → fireAutomation (D2,
+ *       the SAME loop) → stamp last_fired_at (service_role, agent_automations metadata) →
+ *   advance the trigger watermark AFTER the batch (FR-AAN-013 monotonic-after-success).
+ *
+ * The deputy invariant (NFR-AAN-SEC-001) holds by construction: service_role touches ONLY the
+ * quarantined table set; the fired run touches business data ONLY under the minted owner client.
+ */
+export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> {
+  const now = deps.now();
+  const newRunId = deps.newRunId ?? genId;
+  const newMintedAt = deps.newMintedAt ?? (() => new Date().toISOString());
+  const memo = deps.conditionMemo ?? makeConditionMemo();
+  const rateGuard = deps.rateGuard ?? { check: async () => ({ exceeded: false }) };
+
+  // ── Selection (service_role, metadata enumeration ONLY — FR-AAN-014) ──
+  const dueSchedules = await selectDueSchedules(deps.serviceClient, now);
+
+  // Trigger automations: enumerate enabled/live kind='trigger' rows, then poll-since-watermark.
+  const triggerAutomations = await selectEnabledTriggers(deps.serviceClient);
+  const triggerMatches = await selectTriggerMatches(deps.serviceClient, now, triggerAutomations);
+
+  // Track the max-seen event per source to advance the watermark AFTER the batch.
+  const maxSeenBySource = new Map<string, { id: string; at: string }>();
+  for (const { automation, event } of triggerMatches) {
+    const source = automation.trigger_on!.source;
+    const prev = maxSeenBySource.get(source);
+    if (!prev || event.created_at > prev.at) {
+      maxSeenBySource.set(source, { id: event.id, at: event.created_at });
+    }
+  }
+
+  // ── Fire each due automation through the minted-owner deputy path ──
+  const scheduleUnits = dueSchedules.map((automation) => ({ automation, event: undefined as StatusEventRow | undefined }));
+  const triggerUnits = triggerMatches.map(({ automation, event }) => ({ automation, event: event as StatusEventRow | undefined }));
+
+  for (const { automation, event } of [...scheduleUnits, ...triggerUnits]) {
+    // Trigger + NL condition: evaluate BEFORE minting (cheap-tier, memoized §4). We mint lazily —
+    // once per due automation — so a warning-notify and the fire share one minted client.
+    let conditionWarning: string | undefined;
+    if (automation.kind === 'trigger' && automation.condition && event) {
+      const verdict = await evaluateCondition(
+        { model: deps.conditionModel, modelId: deps.conditionModelId, now: () => now.getTime(), memo },
+        automation,
+        event,
+      );
+      if (!verdict.fire) {
+        if (verdict.warning) {
+          // Unevaluable ⇒ mint + warning notification, no fire (fail-quiet-but-visible, FR-AAN-024).
+          const minted = await mintOwnerJwt(deps, automation);
+          await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', verdict.warning, {
+            source: 'automation',
+            automation_id: automation.id,
+          });
+        }
+        continue; // condition false (silent) or unevaluable (warned) ⇒ no fire.
+      }
+    }
+
+    // ── Credit preflight (REC-4, FR-AAN-032/033). Over ⇒ mint + warning notification, no fire. ──
+    const credit = await rateGuard.check(automation.owner_id);
+    if (credit.exceeded) {
+      const minted = await mintOwnerJwt(deps, automation);
+      await notifyOwner(
+        minted.client,
+        'warning',
+        `Automation skipped — out of credits`,
+        `Automation ${automation.id} did not run because the balance was exceeded.`,
+        { source: 'automation', automation_id: automation.id },
+      );
+      continue; // no fire, no last_fired_at stamp.
+    }
+
+    // ── Mint → audit (BEFORE fire) → fire (the SAME loop) → stamp last_fired_at. ──
+    const runId = newRunId();
+    const minted = await mintOwnerJwt(deps, automation);
+    // AC-AAN-017: audit BEFORE the minted client is used for the fire. Fail-closed (auditMint
+    // throws on failure) — never fire an unaudited run.
+    await auditMint(minted.client, automation, runId, newMintedAt());
+
+    await fireAutomation({
+      handler: deps.handler,
+      mintedClient: minted.client,
+      modelClient: deps.modelClient,
+      model: deps.model,
+      ownerId: automation.owner_id,
+      automation,
+      runId,
+      handlerExtras: deps.handlerExtras,
+    });
+
+    // FR-AAN-015: stamp last_fired_at only on an actual fire (service_role, quarantined metadata).
+    await stampLastFired(deps.serviceClient, automation.id, now.toISOString());
+  }
+
+  // ── Advance watermarks AFTER the batch (FR-AAN-013 monotonic-after-success). ──
+  for (const [source, seen] of maxSeenBySource) {
+    await advanceWatermark(deps.serviceClient, source, seen);
+  }
+}
+
+/** Enumerate enabled, non-archived kind='trigger' automations (service_role metadata only). */
+async function selectEnabledTriggers(sb: ServiceClientLike): Promise<AutomationRow[]> {
+  const builder = sb.from('agent_automations') as {
+    select: (cols: string) => {
+      eq: (col: string, val: unknown) => {
+        eq: (col: string, val: unknown) => {
+          is: (col: string, val: null) => Promise<{ data: AutomationRow[] | null; error: unknown }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await builder
+    .select('*')
+    .eq('kind', 'trigger')
+    .eq('enabled', true)
+    .is('archived_at', null);
+  if (error || !data) return [];
+  return data;
+}
+
+/** Stamp last_fired_at on an automation (service_role, agent_automations metadata — within quarantine). */
+async function stampLastFired(sb: ServiceClientLike, automationId: string, at: string): Promise<void> {
+  const builder = sb.from('agent_automations') as {
+    update: (patch: Record<string, unknown>) => {
+      eq: (col: string, val: string) => Promise<{ data: unknown; error: unknown }>;
+    };
+  };
+  await builder.update({ last_fired_at: at }).eq('id', automationId);
 }
