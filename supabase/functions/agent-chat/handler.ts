@@ -29,6 +29,8 @@ import {
   updateTaskStatusAction,
   composeViewAction,
   runComposeView,
+  notifyAction,
+  createAutomationAction,
   AGENT_READ_ENTITIES,
   AGENT_READ_ROW_CAP,
 } from './actions';
@@ -53,8 +55,29 @@ export const MAX_TOOL_ROUNDS = 8;
 
 // ── Action registry (A3) ──────────────────────────────────────────────────────
 
-/** Base read+write actions (always registered). */
-const BASE_ACTIONS: AgentAction[] = [queryEntityAction, createActivityAction, updateTaskStatusAction];
+/** Minimal ambient shape for Deno.env — avoids depending on the Deno global lib.d.ts, which
+ * this file (imported by Node/Vitest, REC-1) does not have available at typecheck time. */
+interface DenoEnvLike {
+  env: { get(key: string): string | undefined };
+}
+
+/**
+ * Base read+write actions (always registered). notify/create_automation (ADR-0044, FR-AAN-038)
+ * are gated behind the AGENT_AUTOMATIONS Deno env flag — the server-side mirror of the SPA's
+ * `agentAssistant` Vite flag (Deno cannot read a browser env var), the SAME pattern as
+ * AGENT_PERSISTENCE in index.ts. With the flag off, the catalog omits both entries: no chat action
+ * can create an automation and no notify producer runs. In a Deno-less context (Vitest/Node,
+ * REC-1's test-import boundary), `Deno` is undefined and the flag defaults ON — matching
+ * production's default-ON posture (mirrors AGENT_PERSISTENCE's `!== 'false'` default).
+ */
+const denoGlobal = (globalThis as { Deno?: DenoEnvLike }).Deno;
+const AUTOMATIONS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_AUTOMATIONS') !== 'false';
+const BASE_ACTIONS: AgentAction[] = [
+  queryEntityAction,
+  createActivityAction,
+  updateTaskStatusAction,
+  ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
+];
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
 // ACTIONS and ACTION_BY_NAME are built per-call based on composeEnabled (Task 7/FR-CV-024).
