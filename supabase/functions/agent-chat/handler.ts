@@ -380,6 +380,13 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
   const tools = buildTools(allowCompose ? deps.composeEnabled : false);
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
+  // Item 2 (MALFORMED_TOOL_CALL): tracks whether the LAST round's tool call was malformed
+  // JSON, so a step-cap fallthrough after a malformed final attempt reports the distinct
+  // MALFORMED_TOOL_CALL error code rather than the generic "reached step limit" completion.
+  // Reset to false on any round that produces a valid parse (a later valid attempt "heals"
+  // a prior malformed one — only the trailing state at loop-exit matters).
+  let lastRoundMalformed = false;
+
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // FR-AGP-014: heartbeat once per model turn (round), before the model call.
@@ -431,13 +438,36 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         return;
       }
 
-      const toolInput = toolCall ? JSON.parse(toolCall.function.arguments) : {};
+      let toolInput: unknown;
       const toolId = toolCall?.id ?? 'tool-use-id';
       const toolName = toolCall?.function.name ?? '';
 
       // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
       // with tool_calls IS the turn; no separate echo needed).
       messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
+
+      // Item 2 (MALFORMED_TOOL_CALL): a SyntaxError here must NOT fail the run as
+      // UPSTREAM_ERROR — append a role:'tool' error result and let the model retry.
+      if (toolCall) {
+        try {
+          toolInput = JSON.parse(toolCall.function.arguments);
+          lastRoundMalformed = false;
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+            lastRoundMalformed = true;
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolId,
+              name: toolName,
+              content: JSON.stringify({ error: 'malformed tool arguments' }),
+            });
+            continue;
+          }
+          throw e;
+        }
+      } else {
+        toolInput = {};
+      }
 
       // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
       // Divergence 1: only reachable when allowCompose (main pass).
@@ -559,7 +589,14 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       });
     }
 
-    // Loop fell through — step cap reached (D7/R4: graceful completed, not errored)
+    // Loop fell through — step cap reached (D7/R4: graceful completed, not errored).
+    // Item 2: EXCEPT when the step cap was reached because the model never recovered
+    // from malformed tool-call JSON — that terminates as errored/MALFORMED_TOOL_CALL,
+    // a distinct code from both the graceful step-cap completion and UPSTREAM_ERROR.
+    if (lastRoundMalformed) {
+      yield statusEvent('errored', { error: 'MALFORMED_TOOL_CALL' });
+      return;
+    }
     yield statusEvent('completed', {}, 'reached step limit');
   } catch {
     // ── Upstream error → scrub, never echo raw error (AC-AR-005, NFR-AR-SEC-005)

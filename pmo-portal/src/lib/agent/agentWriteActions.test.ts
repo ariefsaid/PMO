@@ -25,6 +25,7 @@ import {
 } from '../../../../supabase/functions/agent-chat/actions';
 import {
   agentChatHandler,
+  MAX_TOOL_ROUNDS,
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
@@ -580,4 +581,100 @@ it('AC-AW-003 AC-AW-007 stale/duplicate decision (no trailing unresolved tool_us
     (e) => e.type === 'status' && (e.payload as { status?: string })?.status === 'completed',
   );
   expect(completedEvent).toBeDefined();
+});
+
+// ── Item 2 (deferred-debt refactor): MALFORMED_TOOL_CALL in the decision-continuation loop ──
+// Reuses the stale/duplicate-decision request shape above — it has no trailing unresolved
+// tool_use, so handleDecision routes it straight into the shared runLoop continuation pass.
+
+it('malformed tool arguments (decision-continuation loop) → error tool_result appended, run recovers', async () => {
+  const req: AgentChatRequest = {
+    runId: 'run-7',
+    messages: [
+      { role: 'user', content: 'log a call' },
+      // No trailing tool_use — routes into the runLoop continuation pass.
+    ],
+    decision: { pendingId: 'stale-pending-id-2', verdict: 'approve' },
+  };
+
+  const create = vi.fn()
+    // Round 1: malformed JSON arguments
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: '{broken' } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    // Round 2: model retries with valid JSON
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu2', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    // Round 3: model concludes
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Found your projects.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+
+  const supabaseMock = mockSupabase({ rowsFactory: () => ({ data: [{ id: '1' }], error: null }) });
+
+  const events = await collect(
+    agentChatHandler(req, baseDeps({ modelClient: { create }, supabase: supabaseMock })),
+  );
+
+  expect(create).toHaveBeenCalledTimes(3);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+  expect(events.find((e) => (e.payload as { error?: string })?.error === 'UPSTREAM_ERROR')).toBeUndefined();
+  expect(events.find((e) => e.type === 'tool')).toBeDefined();
+});
+
+it('malformed tool arguments (decision-continuation loop) that never recover exhaust the loop with MALFORMED_TOOL_CALL', async () => {
+  const req: AgentChatRequest = {
+    runId: 'run-8',
+    messages: [
+      { role: 'user', content: 'log a call' },
+    ],
+    decision: { pendingId: 'stale-pending-id-3', verdict: 'approve' },
+  };
+
+  const create = vi.fn().mockResolvedValue({
+    finish_reason: 'tool_calls',
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: 'tu', type: 'function', function: { name: 'query_entity', arguments: '{still broken' } },
+      ],
+    },
+    usage: {},
+    model: 'deepseek/deepseek-v4-flash',
+  });
+
+  const supabaseMock = mockSupabase({});
+
+  const events = await collect(
+    agentChatHandler(req, baseDeps({ modelClient: { create }, supabase: supabaseMock })),
+  );
+
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
+  expect(events.at(-1)).toMatchObject({
+    type: 'status',
+    payload: { status: 'errored', error: 'MALFORMED_TOOL_CALL' },
+  });
 });

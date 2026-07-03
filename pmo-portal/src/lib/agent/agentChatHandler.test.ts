@@ -351,3 +351,76 @@ it('AC-MC-012 per-round usage is surfaced additively on the terminal status even
     total_cost: 0.0002,
   });
 });
+
+// ── Item 2 (deferred-debt refactor): MALFORMED_TOOL_CALL differentiation ──────
+
+it('malformed tool arguments (main loop) → error tool_result appended, run recovers on the model\'s next valid attempt', async () => {
+  const create = vi.fn()
+    // Round 1: model emits invalid JSON in the arguments string
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: '{not valid json' } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    // Round 2: model retries with valid JSON
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu2', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    // Round 3: model concludes
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'You have 2 active projects.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+
+  const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }, { id: '2' }], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // Run must NOT fail as UPSTREAM_ERROR — it must recover and complete normally.
+  expect(create).toHaveBeenCalledTimes(3);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+  expect(events.find((e) => (e.payload as { error?: string })?.error === 'UPSTREAM_ERROR')).toBeUndefined();
+  // A real tool event is still emitted for the successful (round 2) call.
+  expect(events.find((e) => e.type === 'tool')).toBeDefined();
+});
+
+it('malformed tool arguments that never recover exhaust the loop with a distinct MALFORMED_TOOL_CALL error', async () => {
+  const create = vi.fn().mockResolvedValue({
+    finish_reason: 'tool_calls',
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        { id: 'tu', type: 'function', function: { name: 'query_entity', arguments: '{still not valid' } },
+      ],
+    },
+    usage: {},
+    model: 'deepseek/deepseek-v4-flash',
+  });
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
+  expect(events.at(-1)).toMatchObject({
+    type: 'status',
+    payload: { status: 'errored', error: 'MALFORMED_TOOL_CALL' },
+  });
+});
