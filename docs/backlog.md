@@ -59,6 +59,12 @@
 > **Backlogged nice-to-haves (owner 2026-07-03):** view-proposal workflow (user proposes an agent-composed
 > view for promotion into the coded app — ADR-0036 §7) · input-form composition primitives (agent-built
 > data-entry forms; new primitive class, write-path security — own ADR when picked up).
+> **Battery-mining catalog (2026-07-03): `docs/spikes/2026-07-03-agent-native-battery-mining.md`** — the
+> exhaustive pass over agent-native (retired-branch dist + upstream docs) for further end-user batteries.
+> Tier 1 candidates: automations (cron+event) · notifications inbox · progress/stuck-run UX · typed
+> chat-widget results · context awareness. **⚑ Its "design inputs" section is BINDING on items (2)/(4)
+> above** (thread↔entity scope, tool-call journal for durable resume, progress heartbeat, feedback fields);
+> upstream has NO budget/rate-limit system — validates item (3) as a build-not-borrow differentiator.
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
