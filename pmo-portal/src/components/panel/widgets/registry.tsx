@@ -8,13 +8,13 @@
  * (WidgetSlot validates first) — it never renders raw/untrusted content
  * (NFR-ATC-SEC-002).
  */
-import React, { useEffect, useRef, useState } from 'react';
-import { DataTable, type Column } from '@/src/components/ui/DataTable';
+import React from 'react';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import type { WidgetPayload, DataTableWidget as DataTableWidgetPayload } from '@/src/lib/agent/widgets/schema';
+import type { WidgetPayload } from '@/src/lib/agent/widgets/schema';
+import { DataTableWidget } from './DataTableWidget';
 
 const TEXT_FALLBACK = (
   <div
@@ -24,64 +24,6 @@ const TEXT_FALLBACK = (
     This result couldn&apos;t be displayed.
   </div>
 );
-
-/**
- * Item 5 (F1, Discover finding): wraps DataTable with a caption header (the
- * ChartFrame idiom — a small semibold label above the primitive, matching
- * StatusBarChart's `label`/HydratedPrimitive Card's `title`) and a right-edge
- * scroll-mask affordance (DESIGN.md's Kanban mask-fade pattern) that appears
- * ONLY when the table's content actually overflows its container
- * (scrollWidth>clientWidth) — never a fixed always-on fade.
- */
-function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }): React.ReactElement {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const check = () => setIsOverflowing(el.scrollWidth > el.clientWidth);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, [widget]);
-
-  const columns: Column<Record<string, unknown>>[] = widget.columns.map((c) => ({
-    key: c.key,
-    header: c.label,
-    cell: (row) => {
-      const v = row[c.key];
-      return v == null ? '' : String(v);
-    },
-  }));
-
-  return (
-    <div>
-      {widget.caption && (
-        <p
-          data-testid="data-table-widget-caption"
-          className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-        >
-          {widget.caption}
-        </p>
-      )}
-      <div ref={scrollRef} className="relative">
-        <DataTable
-          rows={widget.rows}
-          columns={columns}
-          rowKey={(row) => String(row.id ?? JSON.stringify(row))}
-        />
-        {isOverflowing && (
-          <div
-            data-testid="data-table-widget-scroll-mask"
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-r from-transparent to-card"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
 
 /**
  * Renders a WidgetPayload as the mapped PMO primitive. `data_chart`'s
