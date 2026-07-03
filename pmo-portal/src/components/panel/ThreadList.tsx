@@ -7,11 +7,13 @@
  * component never receives another user's thread.
  */
 import React from 'react';
-import type { AgentThreadRow } from '@/src/lib/db/agentThreads';
+import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 
 interface ThreadListProps {
-  threads: AgentThreadRow[];
-  onOpen: (threadId: string) => void;
+  threads: AgentThreadListItem[];
+  /** ADR-0043 (FR-AGP-021): resume-on-open needs the thread's latest run id (null when
+   * the thread has no runs yet). */
+  onOpen: (threadId: string, latestRunId: string | null) => void;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
@@ -22,7 +24,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({ threads, onOpen }) => {
           <li key={thread.id}>
             <button
               type="button"
-              onClick={() => onOpen(thread.id)}
+              onClick={() => onOpen(thread.id, thread.latestRunId)}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {thread.pinned_at !== null && (

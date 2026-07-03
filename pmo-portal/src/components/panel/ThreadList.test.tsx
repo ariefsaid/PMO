@@ -8,10 +8,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import type { AgentThreadRow } from '@/src/lib/db/agentThreads';
+import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import { ThreadList } from './ThreadList';
 
-function makeThread(overrides: Partial<AgentThreadRow>): AgentThreadRow {
+function makeThread(overrides: Partial<AgentThreadListItem>): AgentThreadListItem {
   return {
     id: 'thread-1',
     org_id: 'org-1',
@@ -22,6 +22,7 @@ function makeThread(overrides: Partial<AgentThreadRow>): AgentThreadRow {
     created_at: '2026-07-01T00:00:00.000Z',
     updated_at: '2026-07-01T00:00:00.000Z',
     archived_at: null,
+    latestRunId: null,
     ...overrides,
   };
 }
@@ -72,26 +73,36 @@ describe('ThreadList', () => {
     expect(screen.getByText(/no conversations yet/i)).toBeInTheDocument();
   });
 
-  it('each item is a keyboard-operable button that calls onOpen with thread id and run id', async () => {
+  it('each item is a keyboard-operable button that calls onOpen with thread id and latest run id', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    const thread = makeThread({ id: 'thread-x', title: 'Talk about project X' });
+    const thread = makeThread({ id: 'thread-x', title: 'Talk about project X', latestRunId: 'run-x' });
     render(<ThreadList threads={[thread]} onOpen={onOpen} />);
 
     const btn = screen.getByRole('button', { name: /talk about project x/i });
     await user.click(btn);
-    expect(onOpen).toHaveBeenCalledWith('thread-x');
+    expect(onOpen).toHaveBeenCalledWith('thread-x', 'run-x');
   });
 
   it('each item is reachable via Tab and activatable via Enter', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    const thread = makeThread({ id: 'thread-y', title: 'Keyboard reachable thread' });
+    const thread = makeThread({ id: 'thread-y', title: 'Keyboard reachable thread', latestRunId: 'run-y' });
     render(<ThreadList threads={[thread]} onOpen={onOpen} />);
 
     await user.tab();
     expect(screen.getByRole('button', { name: /keyboard reachable thread/i })).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(onOpen).toHaveBeenCalledWith('thread-y');
+    expect(onOpen).toHaveBeenCalledWith('thread-y', 'run-y');
+  });
+
+  it('calls onOpen with a null run id for a thread with no runs yet', async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const thread = makeThread({ id: 'thread-z', title: 'No runs yet', latestRunId: null });
+    render(<ThreadList threads={[thread]} onOpen={onOpen} />);
+
+    await user.click(screen.getByRole('button', { name: /no runs yet/i }));
+    expect(onOpen).toHaveBeenCalledWith('thread-z', null);
   });
 });

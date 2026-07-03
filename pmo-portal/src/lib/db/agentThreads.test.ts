@@ -9,6 +9,7 @@ const h = vi.hoisted(() => {
     select: [] as unknown[],
     is: [] as unknown[],
     order: [] as unknown[],
+    limit: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -18,6 +19,7 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.limit = chain('limit');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -43,8 +45,8 @@ describe('AC-AGP-019 listAgentThreads', () => {
   it('listAgentThreads orders pinned above unpinned then by recency, never sends org_id/owner_id', async () => {
     h.result.value = {
       data: [
-        { id: 't1', title: 'Pinned thread', pinned_at: '2026-07-01T00:00:00Z', archived_at: null },
-        { id: 't2', title: 'Recent unpinned', pinned_at: null, archived_at: null },
+        { id: 't1', title: 'Pinned thread', pinned_at: '2026-07-01T00:00:00Z', archived_at: null, agent_runs: [] },
+        { id: 't2', title: 'Recent unpinned', pinned_at: null, archived_at: null, agent_runs: [] },
       ],
       error: null,
     };
@@ -69,5 +71,39 @@ describe('AC-AGP-019 listAgentThreads', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(listAgentThreads()).rejects.toMatchObject({ message: 'denied', code: '42501' });
     await expect(listAgentThreads()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-AGP-021 flattens the embedded latest agent_runs row into latestRunId', async () => {
+    h.result.value = {
+      data: [
+        {
+          id: 't1',
+          title: 'Has a run',
+          pinned_at: null,
+          archived_at: null,
+          agent_runs: [{ id: 'run-latest' }],
+        },
+      ],
+      error: null,
+    };
+    const rows = await listAgentThreads();
+
+    // The embed select requests agent_runs(id) ordered by created_at desc, limited to 1
+    // (the FK is agent_runs.thread_id -> agent_threads.id, so the embed is the "many" side).
+    expect(h.calls.select).toContainEqual(expect.stringContaining('agent_runs'));
+    expect(rows[0].latestRunId).toBe('run-latest');
+    // The raw embed array must not leak onto the returned row shape.
+    expect(rows[0]).not.toHaveProperty('agent_runs');
+  });
+
+  it('AC-AGP-021 latestRunId is null for a thread with no runs yet', async () => {
+    h.result.value = {
+      data: [
+        { id: 't2', title: 'No runs yet', pinned_at: null, archived_at: null, agent_runs: [] },
+      ],
+      error: null,
+    };
+    const rows = await listAgentThreads();
+    expect(rows[0].latestRunId).toBeNull();
   });
 });

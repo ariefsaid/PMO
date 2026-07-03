@@ -26,6 +26,14 @@ vi.mock('@/src/lib/db/agentThreads', () => ({
   listAgentThreads: (...args: unknown[]) => listAgentThreadsMock(...args),
 }));
 
+// ADR-0043 (FR-AGP-021): resume-on-open reads a thread's events via listRunEvents —
+// mocked here so a click-to-resume test never touches the real supabase client
+// (mirrors useAssistantPanel.persistence.test.ts's own mock of this DAL).
+const listRunEventsMock = vi.fn().mockResolvedValue([]);
+vi.mock('@/src/lib/db/agentEvents', () => ({
+  listRunEvents: (...args: unknown[]) => listRunEventsMock(...args),
+}));
+
 // ── Scripted fake runtime ─────────────────────────────────────────────────────
 
 function makeEvent(
@@ -1223,6 +1231,7 @@ describe('AssistantPanel', () => {
         created_at: '2026-07-01T00:00:00.000Z',
         updated_at: '2026-07-01T00:00:00.000Z',
         archived_at: null,
+        latestRunId: null,
       },
     ]);
     renderPanel();
@@ -1255,6 +1264,7 @@ describe('AssistantPanel', () => {
         created_at: '2026-07-01T00:00:00.000Z',
         updated_at: '2026-07-01T00:00:00.000Z',
         archived_at: null,
+        latestRunId: null,
       },
     ]);
     renderPanel();
@@ -1267,6 +1277,99 @@ describe('AssistantPanel', () => {
     await waitFor(() => {
       expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
     });
+  });
+
+  it('AC-AGP-021 clicking a thread with a latest run resumes and renders its restored transcript', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Resume me',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: 'run-42',
+      },
+    ]);
+    listRunEventsMock.mockResolvedValueOnce([
+      {
+        id: crypto.randomUUID(),
+        run_id: 'run-42',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        seq: 1,
+        type: 'user',
+        text: 'how many active projects?',
+        payload: null,
+        tool_name: null,
+        tool_args_hash: null,
+        tool_status: null,
+        rating: null,
+        downvote_reason: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+      },
+      {
+        id: crypto.randomUUID(),
+        run_id: 'run-42',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        seq: 2,
+        type: 'assistant',
+        text: 'You have 3 active projects.',
+        payload: null,
+        tool_name: null,
+        tool_args_hash: null,
+        tool_status: null,
+        rating: null,
+        downvote_reason: null,
+        created_at: '2026-07-01T00:00:01.000Z',
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /resume me/i });
+    await user.click(threadBtn);
+
+    await waitFor(() => {
+      expect(listRunEventsMock).toHaveBeenCalledWith('run-42');
+    });
+    expect(await screen.findByText('how many active projects?')).toBeInTheDocument();
+    expect(await screen.findByText('You have 3 active projects.')).toBeInTheDocument();
+  });
+
+  it('AC-AGP-021 clicking a thread with no runs yet opens an empty transcript without crashing', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-empty',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Never sent',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: null,
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /never sent/i });
+    await user.click(threadBtn);
+
+    // No crash; listRunEvents is never called for a thread with no runs; the
+    // History region still closes and the empty-transcript state renders.
+    await waitFor(() => {
+      expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+    });
+    expect(listRunEventsMock).not.toHaveBeenCalled();
   });
 
   it('shows a loading state while listAgentThreads is in flight', async () => {

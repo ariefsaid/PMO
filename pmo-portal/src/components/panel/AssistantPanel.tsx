@@ -18,7 +18,7 @@ import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
-import type { AgentThreadRow } from '@/src/lib/db/agentThreads';
+import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import { rateAgentEvent } from '@/src/lib/db/agentEvents';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
@@ -106,6 +106,7 @@ export const AssistantPanel: React.FC = () => {
     chipStateMap,
     isStuck,
     lastProgressAt,
+    openThread,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -118,7 +119,7 @@ export const AssistantPanel: React.FC = () => {
   // Lazily fetched: listAgentThreads() only fires once the region is expanded,
   // so the DAL never runs while the panel is merely open/idle.
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [threads, setThreads] = useState<AgentThreadRow[]>([]);
+  const [threads, setThreads] = useState<AgentThreadListItem[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState(false);
 
@@ -138,22 +139,18 @@ export const AssistantPanel: React.FC = () => {
   }, []);
 
   const handleOpenThread = useCallback(
-    (threadId: string) => {
-      // KNOWN GAP (flagged to the Director, not silently worked around):
-      // openThread(threadId, runId) needs the thread's MOST RECENT run id.
-      // agent_threads carries no run reference (1:N thread->runs by design,
-      // ADR-0043 §1/§2) and no Phase A-C DAL exposes "latest run for a
-      // thread" (listAgentThreads() returns thread rows only; agentEvents.ts
-      // takes a runId, not a threadId). Phase D's ui-implementer brief scopes
-      // ONLY src/components/panel/** — resolving this needs either a new DAL
-      // function (src/lib/db/agentThreads.ts or agentRuns.ts) or a column on
-      // agent_threads, both out of this task's file allowlist. Until that
-      // lands, opening a thread closes the History region but does not yet
-      // resume its transcript (no silent wrong-id call to openThread).
-      void threadId;
+    (threadId: string, latestRunId: string | null) => {
+      // ADR-0043 (FR-AGP-021): resume-on-open. listAgentThreads() now returns each
+      // thread's latestRunId (a PostgREST embed on agent_runs, agentThreads.ts) so we
+      // can resume its most recent run directly. A thread with no runs yet
+      // (latestRunId null — created but never sent) has nothing to fetch: just close
+      // History and let the panel show its current (empty) transcript state, no crash.
+      if (latestRunId !== null) {
+        void openThread(threadId, latestRunId);
+      }
       setHistoryOpen(false);
     },
-    [],
+    [openThread],
   );
 
   // ── StuckRunBanner status mapping ────────────────────────────────────────
