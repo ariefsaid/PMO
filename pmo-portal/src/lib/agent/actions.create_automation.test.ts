@@ -13,7 +13,6 @@ import { createAutomationAction } from '../../../../supabase/functions/agent-cha
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
-import type { AgentChatRequest } from './runtime/transport';
 
 async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const out: AgentEvent[] = [];
