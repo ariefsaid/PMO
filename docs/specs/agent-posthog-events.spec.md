@@ -184,7 +184,13 @@ affects whether the DB write succeeds.
   alongside (not wrapping) the panel's real state transitions; a test asserts that a thrown/rejected
   analytics call (simulated via a mocked `analyticsClient.capture` that throws) does not prevent the
   triggering state transition (e.g. `phase` still reaches `'idle'` after a completed run) from
-  completing.
+  completing. A per-call try/catch guard wrapped tightly around the tracking call itself — e.g. the
+  shared `safeTrack(fn: () => void)` helper (`src/lib/analytics/safeTrack.ts`), which catches and
+  `console.debug`s rather than rethrows — is explicitly BLESSED as the implementation of this
+  invariant; what NFR-APH-REL-001 forbids is a try/catch scoped around the real state transition
+  itself (e.g. wrapping `setPhase(...)`/`runtime.control(...)` alongside the tracking call), which
+  could silently swallow a real UX-affecting error. Every call site MUST route through `safeTrack`
+  (or an equivalent tightly-scoped guard) rather than hand-roll a bespoke try/catch.
 - **NFR-APH-REL-002 — Duration measurement tolerates a missing start.** Where `agent_run_completed`/
   `agent_run_errored`'s `duration_ms` (FR-APH-006/007) cannot be computed because no matching
   `agent_run_started` was observed for that `run_id` in the current client session (e.g. panel

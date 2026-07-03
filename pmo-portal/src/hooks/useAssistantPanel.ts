@@ -5,12 +5,21 @@
  * FR-AP-009/021/022/023.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { AgentEvent } from '../lib/agent/runtime/port';
+import type { AgentEvent, RunStatusPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { listRunEvents } from '../lib/db/agentEvents';
 import type { AgentEventRow } from '../lib/db/agentEvents';
 import { getRunHeartbeat } from '../lib/db/agentRuns';
 import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
+import {
+  trackAgentRunStarted,
+  trackAgentRunCompleted,
+  trackAgentRunErrored,
+  trackAgentApprovalShown,
+  trackAgentApprovalDecided,
+  trackAgentThreadResumed,
+} from '../lib/analytics';
+import { safeTrack } from '../lib/analytics/safeTrack';
 
 /**
  * FR-AGP-022 poll cadence — the EXISTING 5s tick that previously lived in AssistantPanel.tsx
@@ -62,10 +71,11 @@ export interface UseAssistantPanel {
    * ADR-0043 (FR-AGP-021): open/resume a thread's most recent run — fetches its events
    * ordered by (run_id, seq) and restores the transcript in that exact order, reproducing
    * the original conversation sequence (including the consecutive-assistant-chunk merge).
-   * Takes only `runId` — the DB query is scoped by runId alone (RLS scopes ownership); the
-   * caller's threadId was never used (review round item 6, dead param dropped).
+   * The DB query is scoped by runId alone (RLS scopes ownership); `threadId` is optional
+   * and used ONLY to populate `agent_thread_resumed`'s `thread_id` property (FR-APH-010) —
+   * omitted, it reports `null` (NFR-APH-REL-002 posture: omit rather than fabricate).
    */
-  openThread(runId: string): Promise<void>;
+  openThread(runId: string, threadId?: string): Promise<void>;
   /**
    * ADR-0043 (FR-AGP-022): true while a run is active AND heartbeat-stale (keyed on
    * elapsed time since the last observed progress signal, independent of SSE liveness).
@@ -78,6 +88,25 @@ export interface UseAssistantPanel {
 
 function makeKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * PostHog agent_run_completed/errored duration_ms source (FR-APH-006/007, NFR-APH-REL-002).
+ * Module-scope (not useRef): the hook is re-instantiated per AssistantPanel mount but a
+ * run's lifecycle can span the SAME mount from send() to the drain loop's terminal branch,
+ * so a plain module Map is sufficient and is explicitly deleted on read (never grows
+ * unbounded — bounded by concurrently in-flight run count, always small).
+ */
+const runStartedAt = new Map<string, number>();
+
+/**
+ * Test-only accessor for `runStartedAt`'s size — asserts the leak-prevention
+ * invariant (every `.set()` is matched by a `.delete()` on stop()/newConversation()
+ * in addition to the completed/errored terminal branches) without exposing the
+ * Map itself. Not imported by any production code path.
+ */
+export function __testOnlyRunStartedAtSize(): number {
+  return runStartedAt.size;
 }
 
 /**
@@ -127,6 +156,12 @@ export function useAssistantPanel(): UseAssistantPanel {
   // ── drain: consume an AsyncIterable<AgentEvent> and update transcript ───────
   const drain = useCallback(
     async (iterable: AsyncIterable<AgentEvent>, drainRunId: string) => {
+      // FR-APH-006/007: tool_round_count counts type='tool' events observed for THIS
+      // drain call. A local counter (not a transcript-state/ref read) avoids any
+      // dependency on React's render/batching timing — the drain loop is the single
+      // source of truth for "how many tool events did THIS run stream," independent
+      // of when setTranscript's updates are reflected back into a ref.
+      let toolRoundCount = 0;
       try {
         for await (const ev of iterable) {
           // Guard: if the runId has changed (newConversation reset it), stop
@@ -145,11 +180,20 @@ export function useAssistantPanel(): UseAssistantPanel {
           }
 
           if (ev.type === 'status') {
-            const payload = ev.payload as { status?: string; error?: string } | undefined;
+            const payload = ev.payload as Partial<RunStatusPayload> | undefined;
 
             if (payload?.status === 'completed') {
               setPhase('idle');
               // No extra transcript entry for a clean completion.
+              const startedAt = runStartedAt.get(drainRunId);
+              runStartedAt.delete(drainRunId);
+              safeTrack(() =>
+                trackAgentRunCompleted(
+                  drainRunId,
+                  startedAt !== undefined ? Date.now() - startedAt : undefined,
+                  toolRoundCount,
+                ),
+              );
               continue;
             }
 
@@ -161,6 +205,7 @@ export function useAssistantPanel(): UseAssistantPanel {
               setPhase('needs-approval');
               // Key the chip state by pendingId (Blocker-8: not a single global atom).
               setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
+              safeTrack(() => trackAgentApprovalShown(drainRunId));
               // Append the event so TranscriptItem renders the ApprovalChip.
               setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
               // The stream ends here (handler returned after emitting needs-approval).
@@ -177,6 +222,16 @@ export function useAssistantPanel(): UseAssistantPanel {
                 // Other errors → error state (FR-AP-018 / AC-AP-015).
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
                 setPhase('error');
+                const startedAt = runStartedAt.get(drainRunId);
+                runStartedAt.delete(drainRunId);
+                safeTrack(() =>
+                  trackAgentRunErrored(
+                    drainRunId,
+                    startedAt !== undefined ? Date.now() - startedAt : undefined,
+                    toolRoundCount,
+                    payload.error ?? 'UNKNOWN',
+                  ),
+                );
               }
               continue;
             }
@@ -188,6 +243,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
           // A3: tool event with pendingId → write was approved and executed.
           if (ev.type === 'tool') {
+            toolRoundCount += 1;
             const toolPayload = ev.payload as { pendingId?: string } | undefined;
             if (toolPayload?.pendingId) {
               const pid = toolPayload.pendingId;
@@ -202,6 +258,9 @@ export function useAssistantPanel(): UseAssistantPanel {
               const pid = sysPayload.pendingId;
               const newState: ApprovalChipState = sysPayload.decision === 'approved' ? 'approved' : 'denied';
               setChipStateMap((prev) => ({ ...prev, [pid]: newState }));
+              safeTrack(() =>
+                trackAgentApprovalDecided(drainRunId, sysPayload.decision === 'approved' ? 'approved' : 'denied'),
+              );
             }
           }
 
@@ -239,6 +298,8 @@ export function useAssistantPanel(): UseAssistantPanel {
         activeRunId = run.id;
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
+        runStartedAt.set(activeRunId, Date.now());
+        safeTrack(() => trackAgentRunStarted(activeRunId, false));
         // Update the user event's runId in transcript
         setTranscript((prev) =>
           prev.map((e) =>
@@ -261,6 +322,11 @@ export function useAssistantPanel(): UseAssistantPanel {
   // ── stop ────────────────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
     if (!runtime || !runIdRef.current) return;
+    // Review round item 1: stop() exits the drain loop via the abort-triggered
+    // exception (drain's catch{} — "Stream aborted"), never reaching the
+    // completed/errored terminal branches that normally clean up runStartedAt.
+    // Delete it here so a stopped run cannot leak an entry.
+    runStartedAt.delete(runIdRef.current);
     await runtime.control(runIdRef.current, 'cancel');
     const stoppedEvent: AgentEvent = {
       id: makeKey(),
@@ -320,6 +386,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     const activeRunId = run.id;
     setRunId(activeRunId);
     runIdRef.current = activeRunId;
+    runStartedAt.set(activeRunId, Date.now());
+    safeTrack(() => trackAgentRunStarted(activeRunId, true));
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
     await drain(iterable, activeRunId);
@@ -330,6 +398,10 @@ export function useAssistantPanel(): UseAssistantPanel {
     // Cancel any in-flight run so the drain loop stops producing events.
     // The drain guard (drainRunId !== runIdRef.current) will then break the loop.
     if (runIdRef.current && runtime) {
+      // Review round item 1: neither the guard-break nor the abort-triggered
+      // exception reaches the drain loop's completed/errored cleanup branches —
+      // delete the entry here so a cancelled run cannot leak one.
+      runStartedAt.delete(runIdRef.current);
       void runtime.control(runIdRef.current, 'cancel');
     }
     // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
@@ -347,9 +419,11 @@ export function useAssistantPanel(): UseAssistantPanel {
   // the transcript in that exact order — folding consecutive assistant rows through the
   // SAME mergeAssistantEvent reducer `drain` uses, so a reload reproduces the original
   // live-merge behavior. The DB query is scoped by runId alone (RLS scopes ownership) —
-  // threadId was never used (review round item 6, dead param dropped).
+  // threadId was never used for the query (review round item 6, dead param dropped); it
+  // is now accepted as an OPTIONAL second param solely to populate agent_thread_resumed's
+  // thread_id property (FR-APH-010) — callers that don't have it get `thread_id: null`.
   const openThread = useCallback(
-    async (targetRunId: string) => {
+    async (targetRunId: string, threadId?: string) => {
       const rows: AgentEventRow[] = await listRunEvents(targetRunId);
       const ordered = [...rows].sort((a, b) => a.seq - b.seq);
       const events: AgentEvent[] = ordered.map((row) => ({
@@ -371,6 +445,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       setTranscript(nextTranscript);
       setPhase('idle');
       setLastProgressAt(events.length > 0 ? events[events.length - 1].createdAt : null);
+      safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, events.length));
     },
     [],
   );

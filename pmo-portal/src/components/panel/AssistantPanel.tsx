@@ -139,16 +139,17 @@ export const AssistantPanel: React.FC = () => {
   }, []);
 
   const handleOpenThread = useCallback(
-    (_threadId: string, latestRunId: string | null) => {
+    (threadId: string, latestRunId: string | null) => {
       // ADR-0043 (FR-AGP-021): resume-on-open. listAgentThreads() now returns each
       // thread's latestRunId (a PostgREST embed on agent_runs, agentThreads.ts) so we
       // can resume its most recent run directly. A thread with no runs yet
       // (latestRunId null — created but never sent) has nothing to fetch: just close
       // History and let the panel show its current (empty) transcript state, no crash.
-      // threadId is accepted here to match ThreadList's onOpen contract but not otherwise
-      // used — the hook's openThread takes only runId (review round item 6, dead param dropped).
+      // threadId is forwarded to openThread solely to populate agent_thread_resumed's
+      // thread_id analytics property (FR-APH-010) — the DB query itself is still scoped
+      // by runId alone (RLS scopes ownership; review round item 6, dead param dropped).
       if (latestRunId !== null) {
-        void openThread(latestRunId);
+        void openThread(latestRunId, threadId);
       }
       setHistoryOpen(false);
     },

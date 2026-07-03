@@ -54,6 +54,9 @@ vi.mock('@/src/lib/features', () => ({
   FEATURES: { agentAssistant: true },
 }));
 
+const mockTrackAgentPanelOpened = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/analytics', () => ({ trackAgentPanelOpened: mockTrackAgentPanelOpened }));
+
 // ── Lazy import of provider (after mocks are set up) ─────────────────────────
 
 import { AgentRuntimeProvider } from './AgentRuntimeProvider';
@@ -133,6 +136,25 @@ describe('AgentRuntimeProvider', () => {
     // Toggle
     fireEvent.click(screen.getByTestId('toggle-btn'));
     expect(screen.getByTestId('open-state').textContent).toBe('open');
+  });
+});
+
+describe('AC-APH-001', () => {
+  it('AC-APH-001 agent_panel_opened fires on open with has_scope false', () => {
+    mockTrackAgentPanelOpened.mockClear();
+    const Probe: React.FC = () => {
+      const ctx = useAgentRuntimeContext();
+      return <button onClick={ctx.openPanel} data-testid="open-btn">Open</button>;
+    };
+
+    render(
+      <AgentRuntimeProvider>
+        <Probe />
+      </AgentRuntimeProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId('open-btn'));
+    expect(mockTrackAgentPanelOpened).toHaveBeenCalledWith(false);
   });
 });
 

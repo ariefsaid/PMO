@@ -127,7 +127,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       if (artifactPayload?.kind !== 'compose_view') return null;
       // Flag guard (FR-CV-025): both flags must be on; silently skip if either is off.
       if (!isFeatureEnabled('agentAssistant') || !isFeatureEnabled('aiComposer')) return null;
-      return <ArtifactSlot payload={event.payload as ArtifactSlotPayload} />;
+      return <ArtifactSlot payload={event.payload as ArtifactSlotPayload} runId={event.runId} />;
     }
 
     default:
