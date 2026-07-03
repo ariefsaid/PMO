@@ -34,6 +34,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_automations: {
+        Row: {
+          archived_at: string | null
+          condition: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          kind: string
+          last_fired_at: string | null
+          org_id: string
+          owner_id: string
+          prompt: string
+          schedule: string | null
+          timeout_s: number
+          trigger_on: Json | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          condition?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind: string
+          last_fired_at?: string | null
+          org_id?: string
+          owner_id?: string
+          prompt: string
+          schedule?: string | null
+          timeout_s?: number
+          trigger_on?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          condition?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind?: string
+          last_fired_at?: string | null
+          org_id?: string
+          owner_id?: string
+          prompt?: string
+          schedule?: string | null
+          timeout_s?: number
+          trigger_on?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_automations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_automations_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_dispatch_watermarks: {
+        Row: {
+          last_seen_at: string | null
+          last_seen_id: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          last_seen_at?: string | null
+          last_seen_id?: string | null
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          last_seen_at?: string | null
+          last_seen_id?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agent_events: {
         Row: {
           created_at: string
@@ -537,6 +624,57 @@ export type Database = {
           {
             foreignKeyName: "incident_reports_reported_by_fkey"
             columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          org_id: string
+          owner_id: string
+          read_at: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          owner_id?: string
+          read_at?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          owner_id?: string
+          read_at?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_owner_id_fkey"
+            columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

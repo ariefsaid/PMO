@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { formatCurrency, parseMoneyInput, pct, formatDate } from './format';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime } from './format';
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
@@ -62,5 +62,31 @@ describe('formatDate — canonical human date formatter (CW-7 coherence: no raw 
   });
   it('returns the em-dash for an unparseable string rather than "Invalid Date" or raw ISO', () => {
     expect(formatDate('not-a-date')).toBe('—');
+  });
+});
+
+describe('formatRelativeTime — human relative timestamps for the notifications inbox (FR-AAN-035)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('formats a moment seconds ago', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-03T12:00:05.000Z'));
+    expect(formatRelativeTime('2026-07-03T12:00:00.000Z')).toBe('less than a minute ago');
+  });
+
+  it('formats minutes/hours/days ago', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-03T12:30:00.000Z'));
+    expect(formatRelativeTime('2026-07-03T12:00:00.000Z')).toBe('30 minutes ago');
+    vi.setSystemTime(new Date('2026-07-04T12:00:00.000Z'));
+    expect(formatRelativeTime('2026-07-03T12:00:00.000Z')).toBe('1 day ago');
+  });
+
+  it('null / undefined / unparseable input renders an em-dash, never "Invalid Date"', () => {
+    expect(formatRelativeTime(null)).toBe('—');
+    expect(formatRelativeTime(undefined)).toBe('—');
+    expect(formatRelativeTime('not-a-date')).toBe('—');
   });
 });

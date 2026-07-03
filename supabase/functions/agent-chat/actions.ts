@@ -14,7 +14,16 @@
 // No @-alias (Deno has no Vite alias).
 import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
 import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port';
-import { QUERY_ENTITY_SCHEMA, CREATE_ACTIVITY_SCHEMA, UPDATE_TASK_STATUS_SCHEMA, COMPOSE_VIEW_INPUT_SCHEMA } from './schema';
+import {
+  QUERY_ENTITY_SCHEMA,
+  CREATE_ACTIVITY_SCHEMA,
+  UPDATE_TASK_STATUS_SCHEMA,
+  COMPOSE_VIEW_INPUT_SCHEMA,
+  NOTIFY_SCHEMA,
+  CREATE_AUTOMATION_SCHEMA,
+} from './schema';
+import { cronMatches } from '../agent-dispatch/cron';
+import { TRIGGER_SOURCES, isAllowedTriggerSource } from '../agent-dispatch/triggerSources';
 import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec';
 import type { ModelClient } from '../_shared/modelClient';
 import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
@@ -286,6 +295,171 @@ export const updateTaskStatusAction: AgentAction & {
       .eq('id', v.value.taskId);
     if (error) return { error: 'update_task_status db error', code: (error as { code?: string }).code };
     return { taskId: v.value.taskId, status: v.value.status };
+  },
+};
+
+// ── notify action (ADR-0044 §5, FR-AAN-026/027/028) ───────────────────────────
+
+export interface NotifyInput {
+  title: string;
+  body?: string;
+  severity?: 'info' | 'warning' | 'critical';
+  metadata?: Record<string, unknown>;
+}
+
+export const notifyAction: AgentAction = {
+  name: 'notify',
+  description:
+    "Create an in-app notification for the caller's own inbox. Not a business write — no approval needed.",
+  inputSchema: NOTIFY_SCHEMA,
+  surfaces: ['agent'],
+  confirm: false,
+  run: async (input: unknown, ctx: DeputyContext) => {
+    const i = input as Partial<NotifyInput>;
+    if (typeof i?.title !== 'string' || !i.title) {
+      return { error: 'title is required' };
+    }
+    // Cast: see the write-action comment on createActivityAction — DeputyContext.supabase is
+    // read-only typed; the real caller-JWT (or minted-owner-JWT, background path) client always
+    // supports insert (NFR-AW-SEC-002).
+    const sb = ctx.supabase as SupabaseLikeWithWrites;
+    // Never sends owner_id/org_id (FR-AAN-027) — RLS column DEFAULTs (owner_id default
+    // auth.uid(), org_id default seed-org) pin the row to the CALLING identity's own uid,
+    // whether that identity is an interactive caller JWT or a minted owner JWT (background
+    // automation run) — v1 has no cross-user notify path (ADR-0044 §5).
+    const { error } = await sb
+      .from('notifications')
+      .insert({
+        title: i.title,
+        body: i.body ?? null,
+        severity: i.severity ?? 'info',
+        metadata: i.metadata ?? null,
+      })
+      .select()
+      .single();
+    if (error) return { error: 'notify db error', code: (error as { code?: string }).code };
+    return { ok: true };
+  },
+};
+
+// ── create_automation action (ADR-0044 §1, FR-AAN-029/030/031) ────────────────
+
+export interface CreateAutomationInput {
+  kind: 'schedule' | 'trigger';
+  prompt: string;
+  schedule?: string;
+  trigger_on?: { source: string; event: string };
+  condition?: string;
+  timeout_s?: number;
+}
+
+/**
+ * Structural cron validity — the 5-field-count + per-field grammar `cronMatches` (the Phase B
+ * dispatcher cron module, `supabase/functions/agent-dispatch/cron.ts`) itself parses (`*`,
+ * `N`, `N-M`, `N/M`, comma lists). `cronMatches(expr, at)` never throws on malformed input — it
+ * fails closed to `false` for ANY input, so it alone cannot distinguish "malformed expression"
+ * from "syntactically valid but doesn't match this instant." The field-count + character-class
+ * regex below is the actual structural gate (the sole source of truth for "is this syntactically
+ * a valid cron string"); `cronMatches` is run ONCE, against `new Date()`, purely as a defense-in-
+ * depth smoke check that it does not throw for a structurally-valid expression — its return value
+ * (true/false for THIS instant) is deliberately NOT part of the accept/reject decision, since a
+ * syntactically valid expression can legitimately not match the current moment.
+ */
+function isValidCronExpression(expr: string): boolean {
+  if (typeof expr !== 'string' || !expr.trim()) return false;
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  const fieldRe = /^(\*(\/\d+)?|\d+(-\d+)?(\/\d+)?)(,(\*(\/\d+)?|\d+(-\d+)?(\/\d+)?))*$/;
+  if (!parts.every((p) => fieldRe.test(p))) return false;
+  // Defense-in-depth: cronMatches must not throw for a structurally valid expression (it never
+  // throws by contract, but this guards against a future contract change silently regressing).
+  // Its boolean result is intentionally ignored — see the doc comment above.
+  try {
+    cronMatches(expr, new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateCreateAutomation(
+  input: unknown,
+): { ok: true; value: CreateAutomationInput } | { ok: false; error: string } {
+  const i = input as Partial<CreateAutomationInput>;
+  if (typeof i?.kind !== 'string' || (i.kind !== 'schedule' && i.kind !== 'trigger')) {
+    return { ok: false, error: "kind must be 'schedule' or 'trigger'" };
+  }
+  if (typeof i?.prompt !== 'string' || !i.prompt) {
+    return { ok: false, error: 'prompt is required' };
+  }
+  if (i.kind === 'schedule') {
+    if (typeof i.schedule !== 'string' || !i.schedule.trim()) {
+      return { ok: false, error: "schedule is required when kind='schedule'" };
+    }
+    if (!isValidCronExpression(i.schedule)) {
+      return { ok: false, error: `invalid cron expression: ${i.schedule}` };
+    }
+  }
+  if (i.kind === 'trigger') {
+    if (
+      !i.trigger_on ||
+      typeof i.trigger_on !== 'object' ||
+      typeof i.trigger_on.source !== 'string' ||
+      !i.trigger_on.source ||
+      typeof i.trigger_on.event !== 'string' ||
+      !i.trigger_on.event
+    ) {
+      return { ok: false, error: "trigger_on requires source and event when kind='trigger'" };
+    }
+    // SECURITY HIGH-1: trigger_on.source is user-authored input that ultimately reaches
+    // serviceClient.from(source) in the dispatcher's selection query — allowlist it here (layer 1
+    // of 2; layer 2 is the dispatcher's own hard-gate in dispatcher.ts/watermark.ts).
+    if (!isAllowedTriggerSource(i.trigger_on.source)) {
+      return { ok: false, error: `trigger_on.source must be one of: ${TRIGGER_SOURCES.join(', ')}` };
+    }
+  }
+  if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s <= 0)) {
+    return { ok: false, error: 'timeout_s must be a positive integer' };
+  }
+  return { ok: true, value: i as CreateAutomationInput };
+}
+
+export const createAutomationAction: AgentAction & {
+  validate: (input: unknown) => { ok: true; value: CreateAutomationInput } | { ok: false; error: string };
+  summarize: (input: CreateAutomationInput) => string;
+} = {
+  name: 'create_automation',
+  description:
+    'Create a scheduled or event-triggered automation that fires the agent with a prompt. Requires user approval.',
+  inputSchema: CREATE_AUTOMATION_SCHEMA,
+  surfaces: ['agent'],
+  confirm: true,
+  validate: validateCreateAutomation,
+  summarize: (i) =>
+    `Watch: ${i.prompt} (${i.kind === 'schedule' ? `on schedule ${i.schedule}` : `when ${i.trigger_on?.event}`})`,
+  run: async (input: unknown, ctx: DeputyContext) => {
+    const v = validateCreateAutomation(input);
+    if (v.ok === false) return { error: v.error };
+    // Cast: see the write-action comment on createActivityAction.
+    const sb = ctx.supabase as SupabaseLikeWithWrites;
+    const { kind, prompt, schedule, trigger_on, condition, timeout_s } = v.value;
+    // Never sends owner_id/org_id (mirrors create_activity/update_task_status) — RLS column
+    // DEFAULTs pin the row to the caller's own uid; writes ALWAYS go via dispatchActionForced
+    // under the caller JWT, never service_role (FR-AAN-031).
+    const { data, error } = await sb
+      .from('agent_automations')
+      .insert({
+        kind,
+        prompt,
+        schedule: schedule ?? null,
+        trigger_on: trigger_on ?? null,
+        condition: condition ?? null,
+        timeout_s: timeout_s ?? 120,
+      })
+      .select()
+      .single();
+    if (error) return { error: 'create_automation db error', code: (error as { code?: string }).code };
+    return { id: (data as { id?: string }).id };
   },
 };
 

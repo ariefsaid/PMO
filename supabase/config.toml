@@ -409,6 +409,14 @@ verify_jwt = false
 [functions.agent-chat]
 verify_jwt = false
 
+# ── Edge Function: agent-dispatch ─────────────────────────────────────────────
+# verify_jwt = false: this endpoint is invoked once per minute by the pg_cron job (migration
+# 0048) via net.http_post — the caller is Postgres, not a browser/end-user JWT. The handler
+# verifies the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, since this endpoint mints
+# owner JWTs) and returns a typed 401 otherwise (ADR-0044 §2/§3, NFR-AAN-SEC-001).
+[functions.agent-dispatch]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

@@ -5,7 +5,9 @@ import type { Role } from '@/src/auth/AuthContext';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { isFeatureEnabled } from '@/src/lib/features';
 import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
+import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
 
 export interface ContextBarProps {
@@ -13,8 +15,6 @@ export interface ContextBarProps {
   onOpenPalette: () => void;
   /** Opens the mobile rail drawer (≤920px). */
   onToggleRail: () => void;
-  /** Notification count (drives the dot + aria-label). */
-  notificationCount?: number;
 }
 
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
@@ -34,10 +34,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   breadcrumb,
   onOpenPalette,
   onToggleRail,
-  // B-5 (AC-W2-IXD-008): notification bell is removed (no destination). The prop is kept
-  // in the interface so callers don't need churn — prefixed with _ to silence the lint rule
-  // until the bell is re-implemented with a real notification backend.
-  notificationCount: _notificationCount = 0,
 }) => {
   const { currentUser, signOut } = useAuth();
   const { effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
@@ -112,11 +108,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
       <ThemeToggle />
 
-      {/* B-5 (AC-W2-IXD-008 / OD-W2-5): the notification bell is REMOVED.
-          It had no handler (no known destination — dead, not "coming soon"). A
-          dead no-op control is more harmful than absence (it misleads the user
-          into thinking notifications exist). The prop is kept in the interface
-          for a future wired implementation but nothing renders. */}
+      {/* FR-AAN-034/038: the notification bell (B-5/AC-W2-IXD-008 removed it for having
+          no destination — it now has one, the notifications inbox, REC-3). Gated behind
+          `agentAssistant` alongside the rest of the automations + notifications layer. */}
+      {isFeatureEnabled('agentAssistant') && <NotificationBell />}
 
       {/* Desktop right-cluster (≥640px): role-switcher + user chip + Sign out, inline.
           On phones this whole cluster collapses behind the avatar menu below. */}
