@@ -33,6 +33,14 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions';
 import { buildAgentSystemPrompt } from './prompt';
+import {
+  hashToolArgs,
+  createThreadAndRun,
+  insertEvent,
+  heartbeat,
+  setRunStatus,
+} from './persistence';
+import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient';
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport';
@@ -119,6 +127,18 @@ export interface HandlerDeps {
    * When undefined/false, compose_view is absent from the tool catalog (AC-CV-002).
    */
   composeEnabled?: boolean;
+  /**
+   * ADR-0043: optional persistence dep (thread/run/event journal, heartbeat, de-dupe).
+   * Optional so flag-off / existing tests pass unchanged (FR-AGP-026 gating) — every
+   * persistence call site below is guarded on `deps.persistence` being present.
+   * `journaledWrites` is the run's completed tool-call journal, pre-loaded by index.ts
+   * (via `loadJournaledWrites`) before the handler is invoked — used by the de-dupe gate
+   * (FR-AGP-013/014/015) and resume context injection (FR-AGP-018).
+   * `startSeq` (ADR-0043 §2, seq continuity): the first seq value this request's events should
+   * be assigned, pre-loaded by index.ts (via `loadMaxSeq(runId) + 1`) for a resumed run —
+   * omitted/undefined defaults to 0 (a genuinely fresh run, no prior persisted events).
+   */
+  persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number };
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
@@ -143,6 +163,96 @@ function mkEvent(
     createdAt: now().toISOString(),
     ...fields,
   };
+}
+
+// ── Persistence runtime (ADR-0043 §2/§3/§4) ──────────────────────────────────
+
+/**
+ * Per-request persistence bookkeeping — a monotonic seq counter and the run's journaled
+ * completed writes, shared across agentChatHandler/handleDecision/runLoop (all three feed
+ * the same run's event stream on a resume/decision re-POST). Built once per call; `undefined`
+ * when `deps.persistence` is absent (flag-off — FR-AGP-026), so every call site below is a
+ * single `if (persist)` guard away from a no-op.
+ */
+interface PersistenceRuntime {
+  deps: PersistenceDeps;
+  journaledWrites: JournaledWrite[];
+  nextSeq(): number;
+}
+
+function makePersistenceRuntime(deps: HandlerDeps): PersistenceRuntime | undefined {
+  if (!deps.persistence) return undefined;
+  const { journaledWrites, startSeq, ...persistDeps } = deps.persistence;
+  // ADR-0043 §2: seed from startSeq (index.ts's loadMaxSeq(runId) + 1 on a resumed request) so
+  // a decision re-POST — or any re-invocation on an existing runId — continues the run's seq
+  // counter instead of restarting at 0 and colliding with already-persisted rows.
+  let seq = startSeq ?? 0;
+  return {
+    deps: persistDeps,
+    journaledWrites: journaledWrites ?? [],
+    nextSeq: () => seq++,
+  };
+}
+
+/** Look up a journaled COMPLETED write matching (toolName, argsHash) — FR-AGP-013/015. */
+function findJournaledWrite(
+  persist: PersistenceRuntime,
+  toolName: string,
+  argsHash: string,
+): JournaledWrite | undefined {
+  return persist.journaledWrites.find((j) => j.toolName === toolName && j.argsHash === argsHash);
+}
+
+/**
+ * Wrap an inner AgentEvent generator so every yielded event is ALSO persisted as an
+ * agent_events row (FR-AGP-011), with journal columns populated on `type==='tool'`
+ * (FR-AGP-012) and the terminal status persisted onto agent_runs.status when a `status`
+ * event carries a terminal value (FR-AGP-015). A no-op passthrough when `persist` is
+ * undefined (flag-off, FR-AGP-026) — every persistence write is additionally
+ * best-effort (insertEvent/setRunStatus already swallow their own errors, NFR-AGP-SEC-005)
+ * so a DB hiccup never blocks the SSE stream.
+ *
+ * Review round item 5 (partial-failure de-dupe window, preferred fix (a)): the tool event's
+ * payload already carries name/input/result at emit time, so the journal fields (toolName/
+ * argsHash/status) are computed BEFORE insertEvent is called and passed into the SAME insert —
+ * never a separate follow-up UPDATE. This closes the two-step window where a completed write's
+ * journal write could fail after the write itself already executed, making it invisible to the
+ * resume de-dupe gate (FR-AGP-013) and letting a client retry re-execute it.
+ */
+async function* withPersistence(
+  inner: AsyncGenerator<AgentEvent>,
+  persist: PersistenceRuntime | undefined,
+  runId: string,
+): AsyncGenerator<AgentEvent> {
+  for await (const ev of inner) {
+    if (persist) {
+      let journal: ToolJournal | undefined;
+      if (ev.type === 'tool') {
+        const payload = ev.payload as { name?: string; input?: unknown; result?: unknown } | undefined;
+        if (payload?.name) {
+          const argsHash = hashToolArgs(payload.input ?? {});
+          const status = payload.result && typeof payload.result === 'object' && 'error' in (payload.result as object)
+            ? 'errored' as const
+            : 'completed' as const;
+          journal = { toolName: payload.name, argsHash, status };
+          // Keep the in-memory journal current within this same request (a run can
+          // journal a write and then, later in the SAME turn, propose it again after
+          // a client retry — de-dupe must see it without a DB round-trip).
+          if (status === 'completed') {
+            persist.journaledWrites.push({ toolName: payload.name, argsHash, payload: payload.result });
+          }
+        }
+      }
+      await insertEvent(persist.deps, runId, persist.nextSeq(), ev, journal);
+      if (ev.type === 'status') {
+        const statusPayload = ev.payload as { status?: AgentRunStatus } | undefined;
+        if (statusPayload?.status === 'completed' || statusPayload?.status === 'errored') {
+          await setRunStatus(persist.deps, runId, statusPayload.status);
+        }
+      }
+    }
+    yield ev;
+  }
 }
 
 // ── Dispatch helpers (A3/NFR-AW-SEC-001) ─────────────────────────────────────
@@ -227,8 +337,32 @@ export async function* agentChatHandler(
   req: AgentChatRequest,
   deps: HandlerDeps,
 ): AsyncIterable<AgentEvent> {
-  const now = deps.now ?? (() => new Date());
   const runId = req.runId ?? makeId();
+  const persist = makePersistenceRuntime(deps);
+
+  // FR-AGP-010: a fresh run (no req.runId on the wire) gets a new agent_threads + agent_runs
+  // row, created BEFORE any event is persisted (insertEvent's run_id FK requires the run to
+  // exist first). Only on a genuinely new run — a resume/decision re-POST already carries
+  // req.runId and its thread/run rows already exist.
+  if (persist && !req.runId) {
+    const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1);
+    const title =
+      lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
+        ? lastUserMsgForTitle.content.slice(0, 60)
+        : 'New conversation';
+    await createThreadAndRun(persist.deps, { runId, title, scope: req.context ?? null });
+  }
+
+  yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId);
+}
+
+async function* agentChatHandlerInner(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  runId: string,
+  persist: PersistenceRuntime | undefined,
+): AsyncGenerator<AgentEvent> {
+  const now = deps.now ?? (() => new Date());
   const canFn: CanFn = deps.can ?? (() => false);
 
   const emit = (
@@ -292,7 +426,7 @@ export async function* agentChatHandler(
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
   if (req.decision) {
-    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx);
+    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, persist);
     return;
   }
 
@@ -328,6 +462,9 @@ export async function* agentChatHandler(
   // ── Tool-use loop (AC-AR-001, AC-AR-004) ──────────────────────────────────
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      // FR-AGP-014: heartbeat once per model turn (round), before the model call.
+      if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
+
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
@@ -519,6 +656,7 @@ async function* handleDecision(
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   canFn: CanFn,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!;
   const { pendingId, verdict } = decision;
@@ -547,7 +685,7 @@ async function* handleDecision(
   if (!trailingToolUse) {
     // No pending confirm action — stale/duplicate decision; treat as no-op (AC-AW-003)
     // Just run the model to continue normally.
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
     return;
   }
 
@@ -556,7 +694,7 @@ async function* handleDecision(
 
   if (!action || !action.confirm) {
     // Action not found or not a confirm action → no-op
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
     return;
   }
 
@@ -585,7 +723,7 @@ async function* handleDecision(
       content: JSON.stringify({ result: 'Write action declined by user.' }),
     });
 
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
     return;
   }
 
@@ -605,7 +743,7 @@ async function* handleDecision(
       name: toolName,
       content: JSON.stringify({ error: `Invalid args on approval: ${validation.error}` }),
     });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
     return;
   }
 
@@ -647,27 +785,41 @@ async function* handleDecision(
     }
   }
 
-  // Step 4: Execute under caller JWT (FR-AW-011, NFR-AW-SEC-002)
+  // ── FR-AGP-013/015: resume de-dupe gate — inside the single dispatch-forced site ──
+  // A write whose (toolName, argsHash-of-VALIDATED-args) matches an already-journaled
+  // COMPLETED call is hard-blocked: action.run is never re-invoked; the journaled result
+  // is returned as the tool_result instead. NFR-AGP-SEC-004: the hash is computed from
+  // validation.value (post-schema), never the raw toolInput.
+  const journaled = persist ? findJournaledWrite(persist, toolName, hashToolArgs(validation.value)) : undefined;
+
+  // Step 4: Execute under caller JWT (FR-AW-011, NFR-AW-SEC-002) — unless de-duped.
   let writeResult: unknown;
-  try {
-    writeResult = await dispatchActionForced(action, validation.value, deputyCtx);
-  } catch {
-    // DB error during write
-    messages.push({
-      role: 'tool',
-      tool_call_id: toolId,
-      name: toolName,
-      content: JSON.stringify({ error: 'Write failed; database error.' }),
-    });
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
-    return;
+  if (journaled) {
+    writeResult = journaled.payload;
+  } else {
+    try {
+      writeResult = await dispatchActionForced(action, validation.value, deputyCtx);
+    } catch {
+      // DB error during write
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolId,
+        name: toolName,
+        content: JSON.stringify({ error: 'Write failed; database error.' }),
+      });
+      yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+      return;
+    }
   }
 
-  // Emit tool event with result + pendingId (AC-AW-001)
+  // Emit tool event with result + pendingId (AC-AW-001). `input` carries the VALIDATED args
+  // (not raw toolInput) so the persistence wrapper's journal hash (FR-AGP-012, NFR-AGP-SEC-004)
+  // is computed from the same value dispatchActionForced executed against.
   yield emit('tool', {
     payload: {
       name: toolName,
       pendingId,
+      input: validation.value,
       result: writeResult,
     },
   });
@@ -692,7 +844,7 @@ async function* handleDecision(
   });
 
   // Continue the loop so the model acknowledges
-  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages);
+  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
 }
 
 // ── Inner tool-use loop (reused for the decision continuation) ────────────────
@@ -704,7 +856,11 @@ async function* runLoop(
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
   messages: ModelMessage[],
+  persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
+  // req.runId is always present here — runLoop is only reached from handleDecision's
+  // branches, and a decision re-POST always carries the runId of the run being resumed.
+  const runId = req.runId ?? '';
   try {
     const tools: ModelTool[] = BASE_ACTIONS.map((a) => ({
       type: 'function',
@@ -712,6 +868,9 @@ async function* runLoop(
     }));
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      // FR-AGP-014: heartbeat once per model turn (round), before the model call.
+      if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
+
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,

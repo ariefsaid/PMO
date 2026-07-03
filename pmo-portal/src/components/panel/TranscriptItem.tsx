@@ -6,11 +6,13 @@
  */
 import React from 'react';
 import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload } from '@/src/lib/agent/runtime/port';
+import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
 import { ToolCallCard } from './ToolCallCard';
 import { ApprovalChip } from './ApprovalChip';
 import { ArtifactSlot } from './ArtifactSlot';
 import type { ArtifactSlotPayload } from './ArtifactSlot';
+import { FeedbackControl } from './FeedbackControl';
 import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
 import { isFeatureEnabled } from '@/src/lib/features';
 
@@ -25,6 +27,11 @@ interface TranscriptItemProps {
   onApprove?: () => void;
   /** A3: called when user clicks Deny. */
   onDeny?: () => void;
+  /**
+   * ADR-0043 (FR-AGP-024/025): called with (eventId, rating, reason?) when the
+   * user rates an assistant event. Thumbs render only when this is provided.
+   */
+  onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
 export const TranscriptItem: React.FC<TranscriptItemProps> = ({
@@ -32,6 +39,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
   chipStateMap = {},
   onApprove,
   onDeny,
+  onRate,
 }) => {
   const { event } = entry;
 
@@ -41,9 +49,12 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
 
     case 'assistant':
       return (
-        <div data-testid="assistant-bubble" className="max-w-[90%] text-sm text-foreground">
-          <span className="sr-only">Assistant: </span>
-          {event.text}
+        <div data-transcript-item className="max-w-[90%]">
+          <div data-testid="assistant-bubble" className="text-sm text-foreground">
+            <span className="sr-only">Assistant: </span>
+            {event.text}
+          </div>
+          {onRate && <FeedbackControl eventId={event.id} onRate={onRate} />}
         </div>
       );
 

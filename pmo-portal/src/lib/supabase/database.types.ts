@@ -34,6 +34,194 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_events: {
+        Row: {
+          created_at: string
+          downvote_reason: string | null
+          id: string
+          org_id: string
+          owner_id: string
+          payload: Json | null
+          rating: string | null
+          run_id: string
+          seq: number
+          text: string | null
+          tool_args_hash: string | null
+          tool_name: string | null
+          tool_status: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          downvote_reason?: string | null
+          id?: string
+          org_id?: string
+          owner_id?: string
+          payload?: Json | null
+          rating?: string | null
+          run_id: string
+          seq: number
+          text?: string | null
+          tool_args_hash?: string | null
+          tool_name?: string | null
+          tool_status?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          downvote_reason?: string | null
+          id?: string
+          org_id?: string
+          owner_id?: string
+          payload?: Json | null
+          rating?: string | null
+          run_id?: string
+          seq?: number
+          text?: string | null
+          tool_args_hash?: string | null
+          tool_name?: string | null
+          tool_status?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_events_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          created_at: string
+          id: string
+          last_progress_at: string | null
+          org_id: string
+          owner_id: string
+          progress: number | null
+          progress_step: string | null
+          status: string
+          thread_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_progress_at?: string | null
+          org_id?: string
+          owner_id?: string
+          progress?: number | null
+          progress_step?: string | null
+          status?: string
+          thread_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_progress_at?: string | null
+          org_id?: string
+          owner_id?: string
+          progress?: number | null
+          progress_step?: string | null
+          status?: string
+          thread_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "agent_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_threads: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          org_id: string
+          owner_id: string
+          pinned_at: string | null
+          scope: Json | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          org_id?: string
+          owner_id?: string
+          pinned_at?: string | null
+          scope?: Json | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          org_id?: string
+          owner_id?: string
+          pinned_at?: string | null
+          scope?: Json | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_threads_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_threads_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_line_items: {
         Row: {
           actual_amount: number
@@ -2040,6 +2228,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
+      committed_procurement_statuses: { Args: never; Returns: string[] }
       create_payment: {
         Args: {
           p_amount: number
@@ -2070,17 +2259,21 @@ export type Database = {
       }
       create_procurement_invoice: {
         Args: {
+          p_amount?: number
           p_invoice_date: string
           p_procurement_id: string
+          p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
+          amount: number | null
           created_at: string
           id: string
           invoice_date: string | null
           org_id: string
           po_id: string | null
           procurement_id: string
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
           vi_number: string | null
         }
@@ -2123,6 +2316,7 @@ export type Database = {
         Args: {
           p_procurement_id: string
           p_receipt_date: string
+          p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Returns: {
@@ -2133,6 +2327,7 @@ export type Database = {
           po_id: string | null
           procurement_id: string
           receipt_date: string | null
+          reference_number: string | null
           status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         SetofOptions: {
@@ -2262,6 +2457,8 @@ export type Database = {
         Args: { p_org: string; p_prefix: string }
         Returns: string
       }
+      on_hand_project_statuses: { Args: never; Returns: string[] }
+      pipeline_project_statuses: { Args: never; Returns: string[] }
       select_procurement_quote: {
         Args: { p_quotation_id: string }
         Returns: undefined

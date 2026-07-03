@@ -24,6 +24,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
+import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -112,10 +113,56 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return false;
   };
 
+  // ── ADR-0043 §6: persistence deps bound to the SAME callerClient (never verifierClient/
+  // service_role — the deputy invariant, AC-AGP-018). Gated on AGENT_PERSISTENCE (default ON;
+  // Deno cannot read the SPA's Vite `agentAssistant` flag, so this is the mirrored server-side
+  // gate — FR-AGP-026). When the flag is off, `persistence` stays undefined and every
+  // persistence call site in handler.ts is a no-op by construction.
+  const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false';
+  // orgId is resolved by the handler's own gate-2 profiles lookup; ownerId (== userId) is all
+  // this entry point can supply up front. index.ts does not duplicate the profiles read —
+  // persistence writes rely on RLS column DEFAULTs (owner_id default auth.uid(), org_id default
+  // seed-org) rather than an explicit orgId here, so an empty string is a safe placeholder
+  // (never sent to Postgres; RLS/DEFAULT stamps the real value).
+  const journaledWrites = persistenceEnabled && body.runId
+    ? await loadJournaledWrites(
+        {
+          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          ownerId: userId,
+          orgId: '',
+          now: () => new Date(),
+        },
+        body.runId,
+      )
+    : undefined;
+
+  // ADR-0043 §2: seq continuity — a resumed run (body.runId already exists, e.g. a
+  // req.decision re-POST) must continue the run's seq counter, never restart at 0 (which
+  // would collide with the prior turn's already-persisted agent_events rows — silent
+  // transcript misordering, since listRunEvents orders by seq). loadMaxSeq(runId) mirrors
+  // loadJournaledWrites' same fail-safe style (-1 on error/no rows ⇒ startSeq 0, identical to
+  // a fresh run). Only computed when body.runId is present — a fresh run has no prior seq.
+  const startSeq = persistenceEnabled && body.runId
+    ? (await loadMaxSeq(
+        {
+          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          ownerId: userId,
+          orgId: '',
+          now: () => new Date(),
+        },
+        body.runId,
+      )) + 1
+    : undefined;
+
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
+      // FR-AGP-016: client-disconnect continuation — an enqueue error (dropped socket) is
+      // swallowed so the `for await` loop below keeps draining the generator to completion
+      // server-side (persisting the remaining journal/heartbeat/terminal-status writes) rather
+      // than breaking early and leaving the run's durable-resume state incomplete.
+      let socketLive = true;
       try {
         for await (const ev of agentChatHandler(body, {
           // Cast: the real OpenRouterModelClient satisfies ModelClient (same create() signature)
@@ -132,11 +179,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // (OQ-A4-2 recommendation — default true; add a function secret if needed).
           composeEnabled: true,
           // rateGuard: undefined (AR-OD-002 default — disabled in v1)
+          persistence: persistenceEnabled
+            ? {
+                supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+                ownerId: userId,
+                orgId: '',
+                now: () => new Date(),
+                journaledWrites,
+                startSeq,
+              }
+            : undefined,
         })) {
-          controller.enqueue(enc.encode(encodeSse(ev)));
+          if (!socketLive) continue; // keep draining for persistence; stop trying to enqueue
+          try {
+            controller.enqueue(enc.encode(encodeSse(ev)));
+          } catch {
+            // Dropped socket — stop enqueueing but keep the loop (and persistence) running.
+            socketLive = false;
+          }
         }
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Already closed/errored (e.g. socket dropped) — nothing further to do.
+        }
       }
     },
   });
