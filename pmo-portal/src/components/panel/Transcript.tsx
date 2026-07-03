@@ -9,6 +9,7 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
+import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { TranscriptItem } from './TranscriptItem';
 
 /** NFR-AP-PERF-003: maximum number of visible transcript entries before the cap kicks in. */
@@ -31,9 +32,14 @@ interface TranscriptProps {
   onApprove?: () => void;
   /** A3: deny callback threaded down. */
   onDeny?: () => void;
+  /**
+   * ADR-0043 (FR-AGP-024/025): rate-feedback callback threaded down to
+   * assistant rows. Thumbs render only when this is provided.
+   */
+  onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
-export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny }) => {
+export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, chipStateMap, onApprove, onDeny, onRate }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -97,6 +103,7 @@ export const Transcript: React.FC<TranscriptProps> = ({ transcript, emptySlot, c
           chipStateMap={chipStateMap}
           onApprove={onApprove}
           onDeny={onDeny}
+          onRate={onRate}
         />
       ))}
       <div ref={bottomRef} aria-hidden />

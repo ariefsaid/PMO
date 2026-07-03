@@ -2,8 +2,8 @@
  * Transcript component tests.
  * NFR-AP-PERF-003: transcript cap at 200 visible entries + "Show earlier" affordance.
  */
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TranscriptEntry } from '@/src/hooks/useAssistantPanel';
@@ -75,5 +75,109 @@ describe('Transcript — NFR-AP-PERF-003 entry cap', () => {
   it('renders empty slot when transcript is empty', () => {
     render(<Transcript transcript={[]} emptySlot={<div>Empty here</div>} />);
     expect(screen.getByText('Empty here')).toBeInTheDocument();
+  });
+});
+
+describe('Transcript — AC-AGP-022 thumbs feedback persists', () => {
+  function makeAssistantEntry(id: string, text: string): TranscriptEntry {
+    return {
+      key: id,
+      event: {
+        id,
+        runId: 'test-run',
+        type: 'assistant',
+        text,
+        createdAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  function makeUserEntry(id: string, text: string): TranscriptEntry {
+    return {
+      key: id,
+      event: {
+        id,
+        runId: 'test-run',
+        type: 'user',
+        text,
+        createdAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  function makeToolEntry(id: string): TranscriptEntry {
+    return {
+      key: id,
+      event: {
+        id,
+        runId: 'test-run',
+        type: 'tool',
+        payload: { toolName: 'query_entity' },
+        createdAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  it('AC-AGP-022 thumbs feedback persists', async () => {
+    const user = userEvent.setup();
+    const onRate = vi.fn();
+    const entries = [
+      makeUserEntry('u1', 'How many active projects?'),
+      makeAssistantEntry('a1', 'You have 4 active projects.'),
+      makeToolEntry('t1'),
+    ];
+    render(<Transcript transcript={entries} onRate={onRate} />);
+
+    // Thumbs appear only on the assistant row — scope queries to that row.
+    const assistantBubble = screen.getByTestId('assistant-bubble');
+    const assistantRow = assistantBubble.closest('[data-transcript-item]') ?? assistantBubble.parentElement!;
+
+    const goodBtn = within(assistantRow as HTMLElement).getByRole('button', { name: /good response/i });
+    const badBtn = within(assistantRow as HTMLElement).getByRole('button', { name: /bad response/i });
+    expect(goodBtn).toBeInTheDocument();
+    expect(badBtn).toBeInTheDocument();
+
+    // No thumbs on the user or tool rows — exactly one of each thumb button total.
+    expect(screen.getAllByRole('button', { name: /good response/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /bad response/i })).toHaveLength(1);
+
+    // Click thumbs-down → a downvote-reason picker appears with the four options.
+    await user.click(badBtn);
+    expect(screen.getByRole('button', { name: /inaccurate/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /not helpful/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /wrong tool/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /too slow/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /inaccurate/i }));
+    expect(onRate).toHaveBeenCalledWith('a1', 'down', 'inaccurate');
+  });
+
+  it('thumbs-up calls onRate with rating up and no reason', async () => {
+    const user = userEvent.setup();
+    const onRate = vi.fn();
+    const entries = [makeAssistantEntry('a2', 'Here is your answer.')];
+    render(<Transcript transcript={entries} onRate={onRate} />);
+
+    await user.click(screen.getByRole('button', { name: /good response/i }));
+    expect(onRate).toHaveBeenCalledWith('a2', 'up', undefined);
+  });
+
+  it('does not render thumbs when onRate is not provided', () => {
+    const entries = [makeAssistantEntry('a3', 'Answer without feedback wiring.')];
+    render(<Transcript transcript={entries} />);
+    expect(screen.queryByRole('button', { name: /good response/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /bad response/i })).not.toBeInTheDocument();
+  });
+
+  it('thumbs buttons are keyboard-operable with visible focus', async () => {
+    const user = userEvent.setup();
+    const onRate = vi.fn();
+    const entries = [makeAssistantEntry('a4', 'Keyboard reachable answer.')];
+    render(<Transcript transcript={entries} onRate={onRate} />);
+
+    await user.tab();
+    // First focusable in the panel-less Transcript is the "good response" thumb
+    // (Transcript renders no other interactive control for a single assistant entry).
+    expect(screen.getByRole('button', { name: /good response/i })).toHaveFocus();
   });
 });
