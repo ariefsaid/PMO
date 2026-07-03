@@ -18,6 +18,7 @@ import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
 import { useUserViewMutations } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackAgentComposeViewSaved } from '@/src/lib/analytics';
 
 export interface UseComposeArtifactResult {
   /** Non-null when the spec passes client-side re-validation. */
@@ -36,7 +37,7 @@ export interface UseComposeArtifactResult {
  * artifact event. Re-validates the spec on every render (pure useMemo — no effect).
  * Save is never automatic: the user MUST call save() explicitly (FR-CV-019).
  */
-export function useComposeArtifact(spec: CompositionSpec): UseComposeArtifactResult {
+export function useComposeArtifact(spec: CompositionSpec, runId?: string): UseComposeArtifactResult {
   const { currentUser } = useAuth();
   const { create } = useUserViewMutations();
 
@@ -74,6 +75,13 @@ export function useComposeArtifact(spec: CompositionSpec): UseComposeArtifactRes
       const row = await create.mutateAsync({ name, spec: spec as unknown as Parameters<typeof create.mutateAsync>[0]['spec'], scope });
       setSavedViewId(row.id);
       setSaveStatus('saved');
+      if (runId) {
+        try {
+          trackAgentComposeViewSaved(runId);
+        } catch {
+          // NFR-APH-REL-001: analytics never blocks the real state transition.
+        }
+      }
     } catch (err) {
       const { headline } = classifyMutationError(err);
       setSaveError(headline);

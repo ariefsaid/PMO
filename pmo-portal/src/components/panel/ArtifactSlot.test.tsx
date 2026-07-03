@@ -117,7 +117,7 @@ const INVALID_PAYLOAD = {
 function renderSlot(payload = VALID_PAYLOAD) {
   return render(
     <MemoryRouter>
-      <ArtifactSlot payload={payload} />
+      <ArtifactSlot payload={payload} runId="test-run" />
     </MemoryRouter>,
   );
 }
