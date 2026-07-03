@@ -41,6 +41,7 @@ import {
   setRunStatus,
 } from './persistence';
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence';
+import { recordUsage } from '../_shared/usage';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient';
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport';
@@ -122,6 +123,13 @@ export interface HandlerDeps {
   userId: string;
   rateGuard?: RateGuard;
   now?: () => Date;
+  /**
+   * FR-AUC-002/004/018: optional usage-recording dep, separate from `persistence` so a
+   * usage row is inserted regardless of whether the ADR-0043 persistence flag is on
+   * (AC-AUC-018). In production this is the same caller-JWT client as `deps.supabase`,
+   * typed/named independently so a test can enable one without the other.
+   */
+  usage?: { supabase: HandlerSupabaseLike };
   /**
    * A3: injectable can() predicate. If omitted, defaults to deny-all (safe default).
    * Production: pass `can` from src/auth/policy.ts.
@@ -404,6 +412,15 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         messages,
         tools,
       });
+
+      // FR-AUC-002/004/018: one agent_usage row per modelClient.create() resolution — the
+      // single per-round choke point (unified by the runToolLoop refactor, so both the main
+      // pass and the decision-continuation pass hit this exactly once per round). Independent
+      // of `persist` (persistence flag) — usage recording is unconditional; `run_id` is set
+      // only when a run row exists (persist truthy), else null (FR-AUC-004).
+      if (deps.usage) {
+        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp);
+      }
 
       // Emit any text content as an assistant event.
       if (resp.message.content) {
