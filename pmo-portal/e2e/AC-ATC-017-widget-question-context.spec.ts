@@ -134,7 +134,7 @@ test.describe('AC-ATC-017: widget + question + context journey', () => {
     await page.route('**/functions/v1/agent-chat', async (route) => {
       const req = route.request();
       const bodyText = req.postData() ?? '{}';
-      let parsed: { runId?: string; answer?: { questionId?: string; optionId?: string } } = {};
+      let parsed: { runId?: string; answer?: { questionId?: string; optionId?: string } };
       try {
         parsed = JSON.parse(bodyText);
       } catch {
