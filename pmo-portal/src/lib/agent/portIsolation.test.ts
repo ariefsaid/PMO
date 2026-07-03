@@ -20,3 +20,15 @@ it('AC-AR-011 no module outside src/lib/agent/runtime/ imports a concrete adapte
   }
   expect(hits.trim()).toBe('');
 });
+
+it('AC-MC-017 DeputyContext gains no modelClient member under the ModelClient rename', () => {
+  // Type-level assertion: DeputyContext (runtime/port.ts) must have exactly its
+  // documented members. This mirrors the ADR-0041 invariant this file already
+  // exists to protect, now re-asserted for the renamed anthropic->modelClient seam.
+  type Keys = keyof import('./runtime/port').DeputyContext;
+  const allowedKeys: Record<Keys, true> = { jwt: true, userId: true, orgId: true, supabase: true };
+  // If DeputyContext ever gains a `modelClient` (or any other) member, this object
+  // literal fails to typecheck (excess/missing property) — a compile-time proof,
+  // not just a runtime grep.
+  expect(Object.keys(allowedKeys)).toEqual(['jwt', 'userId', 'orgId', 'supabase']);
+});

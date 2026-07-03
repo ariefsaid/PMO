@@ -16,7 +16,7 @@ import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
 import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port';
 import { QUERY_ENTITY_SCHEMA, CREATE_ACTIVITY_SCHEMA, UPDATE_TASK_STATUS_SCHEMA, COMPOSE_VIEW_INPUT_SCHEMA } from './schema';
 import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec';
-import type { AnthropicLike } from '../compose-view/composeSpec';
+import type { ModelClient } from '../_shared/modelClient';
 import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
@@ -281,13 +281,15 @@ export const updateTaskStatusAction: AgentAction & {
 
 // ── compose_view action (A4) ──────────────────────────────────────────────────
 // ADR-0041: model-calling action seam. composeViewAction.run is a guard stub;
-// the handler dispatches compose_view by calling runComposeView(input, ctx, {anthropic})
-// directly, injecting the Anthropic client as a typed ComposeActionDeps bag.
+// the handler dispatches compose_view by calling runComposeView(input, ctx, {modelClient, model})
+// directly, injecting the vendor-neutral model client as a typed ComposeActionDeps bag.
 
 /** Extra deps for the model-calling compose action (ADR-0041). */
 export interface ComposeActionDeps {
-  /** The Anthropic-like client, curried in by the handler at dispatch. */
-  anthropic: AnthropicLike;
+  /** The vendor-neutral model client, curried in by the handler at dispatch. */
+  modelClient: ModelClient;
+  /** The resolved model id for this call (FR-MC-015 / MC-OD-009). */
+  model: string;
 }
 
 export type ComposeResult =
@@ -307,8 +309,8 @@ export function deriveTitle(prompt: string): string {
 }
 
 /**
- * Run the compose_view action with injected anthropic deps (ADR-0041 / D1).
- * Called by the handler's dispatch branch with { anthropic: deps.anthropic }.
+ * Run the compose_view action with injected model-client deps (ADR-0041 / D1).
+ * Called by the handler's dispatch branch with { modelClient: deps.modelClient, model: deps.model }.
  * Returns a structured result (never throws to the handler).
  */
 export async function runComposeView(
@@ -320,7 +322,7 @@ export async function runComposeView(
     const { spec, repairAttempts, tokensUsed } = await composeSpec(
       input.prompt,
       ctx.orgId,
-      { anthropic: deps.anthropic, userId: ctx.userId },
+      { modelClient: deps.modelClient, userId: ctx.userId, model: deps.model },
     );
     return { spec, repairAttempts, tokensUsed, title: deriveTitle(input.prompt) };
   } catch (e) {
@@ -338,7 +340,7 @@ export async function runComposeView(
  * - surfaces: ['agent']
  * - confirm: false (composing a spec is non-destructive; Save is the user-dispose gate)
  * - run: guard stub — the handler NEVER calls this via dispatchAction; it calls
- *        runComposeView(input, ctx, {anthropic}) directly (ADR-0041 model-calling seam).
+ *        runComposeView(input, ctx, {modelClient, model}) directly (ADR-0041 model-calling seam).
  */
 export const composeViewAction: AgentAction = {
   name: 'compose_view',
@@ -348,7 +350,7 @@ export const composeViewAction: AgentAction = {
   confirm: false,
   run: () => {
     throw new Error(
-      'compose_view is dispatched by the handler with injected anthropic deps (ADR-0041); never call run() directly',
+      'compose_view is dispatched by the handler with injected modelClient deps (ADR-0041); never call run() directly',
     );
   },
 };
