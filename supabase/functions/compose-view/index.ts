@@ -99,11 +99,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── 6. Delegate to the pure handler ───────────────────────────────────────
+  // Item 3 (cast cleanup): OpenRouterModelClient structurally satisfies ModelClient and the
+  // real Supabase client structurally satisfies HandlerSupabaseLike — no cast needed
+  // (previously an `as unknown as` bridge that TS never actually required).
   const result = await composeViewHandler(body, {
-    // Cast: the real OpenRouterModelClient satisfies ModelClient (same create() signature)
-    modelClient: modelClient as unknown as Parameters<typeof composeViewHandler>[1]['modelClient'],
+    modelClient,
     model,
-    supabase: callerClient as unknown as Parameters<typeof composeViewHandler>[1]['supabase'],
+    supabase: callerClient,
     userId,
     // rateGuard: undefined (AS-OD-002 default — disabled in v1)
   });

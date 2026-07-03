@@ -213,8 +213,13 @@ export const createActivityAction: AgentAction & {
   run: async (input: unknown, ctx: DeputyContext) => {
     const v = validateCreateActivity(input);
     if (v.ok === false) return { error: v.error };
-    // Type cast: write actions receive a SupabaseLikeWithWrites client (NFR-AW-SEC-002).
-    const sb = ctx.supabase as unknown as SupabaseLikeWithWrites;
+    // Cast: DeputyContext.supabase is typed SupabaseLike (read-only, shared by all actions);
+    // write actions need the extended SupabaseLikeWithWrites shape, which SupabaseLike is
+    // structurally a strict subset of, so a single `as` (no `unknown` bridge) is sufficient —
+    // the real caller-JWT client passed in at runtime always supports insert/update
+    // (NFR-AW-SEC-002). DeputyContext itself is intentionally NOT widened to
+    // SupabaseLikeWithWrites — that would leak write capability into read-only actions.
+    const sb = ctx.supabase as SupabaseLikeWithWrites;
     const { contactId, kind, subject, body, occurredAt } = v.value;
     const { data, error } = await sb
       .from('crm_activities')
@@ -268,8 +273,13 @@ export const updateTaskStatusAction: AgentAction & {
   run: async (input: unknown, ctx: DeputyContext) => {
     const v = validateUpdateTaskStatus(input);
     if (v.ok === false) return { error: v.error };
-    // Type cast: write actions receive a SupabaseLikeWithWrites client (NFR-AW-SEC-002).
-    const sb = ctx.supabase as unknown as SupabaseLikeWithWrites;
+    // Cast: DeputyContext.supabase is typed SupabaseLike (read-only, shared by all actions);
+    // write actions need the extended SupabaseLikeWithWrites shape, which SupabaseLike is
+    // structurally a strict subset of, so a single `as` (no `unknown` bridge) is sufficient —
+    // the real caller-JWT client passed in at runtime always supports insert/update
+    // (NFR-AW-SEC-002). DeputyContext itself is intentionally NOT widened to
+    // SupabaseLikeWithWrites — that would leak write capability into read-only actions.
+    const sb = ctx.supabase as SupabaseLikeWithWrites;
     const { error } = await sb
       .from('tasks')
       .update({ status: v.value.status })
