@@ -81,7 +81,10 @@ export class OpenRouterModelClient implements ModelClient {
     }
 
     const body = (await response.json()) as OpenRouterResponseBody;
-    const choice = body.choices[0];
+    const choice = body.choices?.[0];
+    if (!choice) {
+      throw new Error('OpenRouter response missing choices');
+    }
 
     return {
       finish_reason: choice.finish_reason,
