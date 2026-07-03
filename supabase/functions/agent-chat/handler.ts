@@ -37,11 +37,10 @@ import {
   hashToolArgs,
   createThreadAndRun,
   insertEvent,
-  journalToolEvent,
   heartbeat,
   setRunStatus,
 } from './persistence';
-import type { PersistenceDeps, JournaledWrite } from './persistence';
+import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient';
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport';
@@ -135,8 +134,11 @@ export interface HandlerDeps {
    * `journaledWrites` is the run's completed tool-call journal, pre-loaded by index.ts
    * (via `loadJournaledWrites`) before the handler is invoked — used by the de-dupe gate
    * (FR-AGP-013/014/015) and resume context injection (FR-AGP-018).
+   * `startSeq` (ADR-0043 §2, seq continuity): the first seq value this request's events should
+   * be assigned, pre-loaded by index.ts (via `loadMaxSeq(runId) + 1`) for a resumed run —
+   * omitted/undefined defaults to 0 (a genuinely fresh run, no prior persisted events).
    */
-  persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[] };
+  persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number };
 }
 
 // ── Event builders ─────────────────────────────────────────────────────────────
@@ -180,8 +182,11 @@ interface PersistenceRuntime {
 
 function makePersistenceRuntime(deps: HandlerDeps): PersistenceRuntime | undefined {
   if (!deps.persistence) return undefined;
-  const { journaledWrites, ...persistDeps } = deps.persistence;
-  let seq = 0;
+  const { journaledWrites, startSeq, ...persistDeps } = deps.persistence;
+  // ADR-0043 §2: seed from startSeq (index.ts's loadMaxSeq(runId) + 1 on a resumed request) so
+  // a decision re-POST — or any re-invocation on an existing runId — continues the run's seq
+  // counter instead of restarting at 0 and colliding with already-persisted rows.
+  let seq = startSeq ?? 0;
   return {
     deps: persistDeps,
     journaledWrites: journaledWrites ?? [],
@@ -204,8 +209,15 @@ function findJournaledWrite(
  * (FR-AGP-012) and the terminal status persisted onto agent_runs.status when a `status`
  * event carries a terminal value (FR-AGP-015). A no-op passthrough when `persist` is
  * undefined (flag-off, FR-AGP-026) — every persistence write is additionally
- * best-effort (insertEvent/journalToolEvent/setRunStatus already swallow their own
- * errors, NFR-AGP-SEC-005) so a DB hiccup never blocks the SSE stream.
+ * best-effort (insertEvent/setRunStatus already swallow their own errors, NFR-AGP-SEC-005)
+ * so a DB hiccup never blocks the SSE stream.
+ *
+ * Review round item 5 (partial-failure de-dupe window, preferred fix (a)): the tool event's
+ * payload already carries name/input/result at emit time, so the journal fields (toolName/
+ * argsHash/status) are computed BEFORE insertEvent is called and passed into the SAME insert —
+ * never a separate follow-up UPDATE. This closes the two-step window where a completed write's
+ * journal write could fail after the write itself already executed, making it invisible to the
+ * resume de-dupe gate (FR-AGP-013) and letting a client retry re-execute it.
  */
 async function* withPersistence(
   inner: AsyncGenerator<AgentEvent>,
@@ -214,7 +226,7 @@ async function* withPersistence(
 ): AsyncGenerator<AgentEvent> {
   for await (const ev of inner) {
     if (persist) {
-      await insertEvent(persist.deps, runId, persist.nextSeq(), ev);
+      let journal: ToolJournal | undefined;
       if (ev.type === 'tool') {
         const payload = ev.payload as { name?: string; input?: unknown; result?: unknown } | undefined;
         if (payload?.name) {
@@ -222,7 +234,7 @@ async function* withPersistence(
           const status = payload.result && typeof payload.result === 'object' && 'error' in (payload.result as object)
             ? 'errored' as const
             : 'completed' as const;
-          await journalToolEvent(persist.deps, ev.id, { toolName: payload.name, argsHash, status });
+          journal = { toolName: payload.name, argsHash, status };
           // Keep the in-memory journal current within this same request (a run can
           // journal a write and then, later in the SAME turn, propose it again after
           // a client retry — de-dupe must see it without a DB round-trip).
@@ -231,6 +243,7 @@ async function* withPersistence(
           }
         }
       }
+      await insertEvent(persist.deps, runId, persist.nextSeq(), ev, journal);
       if (ev.type === 'status') {
         const statusPayload = ev.payload as { status?: AgentRunStatus } | undefined;
         if (statusPayload?.status === 'completed' || statusPayload?.status === 'errored') {

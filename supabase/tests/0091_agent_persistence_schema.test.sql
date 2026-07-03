@@ -4,10 +4,12 @@
 --   AC-AGP-001  three tables exist with required columns.
 --   AC-AGP-002  required indexes exist.
 --   AC-AGP-003  seq orders the transcript, not created_at.
+--   AC-AGP-CONT-002  unique(run_id, seq) exists (review round item 1) — a seq-continuity
+--                     regression fails loudly (INSERT error) instead of silently misordering.
 -- Fixtures inserted as the table owner (bypassing RLS) — this file is schema-shape only, not RLS.
 -- Fixture namespace: 00910000-….
 begin;
-select plan(21);
+select plan(22);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AGP-001: three tables exist with required columns.
@@ -66,6 +68,13 @@ select is(
   (select seq from agent_events where run_id = '00910000-0000-0000-0000-000000000002' order by seq limit 1),
   1::bigint,
   'AC-AGP-003: seq (not created_at, which ties) is the total transcript order — first row is seq=1');
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- AC-AGP-CONT-002: unique(run_id, seq) exists — a seq-continuity regression (e.g. the handler
+-- re-invocation bug fixed in this review round) fails LOUDLY instead of silently colliding.
+-- ════════════════════════════════════════════════════════════════════════════
+select col_is_unique('agent_events', array['run_id','seq'],
+  'AC-AGP-CONT-002: agent_events (run_id, seq) is unique');
 
 select * from finish();
 rollback;

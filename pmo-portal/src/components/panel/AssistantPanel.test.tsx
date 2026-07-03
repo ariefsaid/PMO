@@ -34,6 +34,15 @@ vi.mock('@/src/lib/db/agentEvents', () => ({
   listRunEvents: (...args: unknown[]) => listRunEventsMock(...args),
 }));
 
+// Review round item 2: the hook's server-heartbeat poll (useAssistantPanel.ts) calls
+// getRunHeartbeat on its 5s tick while a run is active — mocked here so these component tests
+// never touch the real supabase client. Defaults to a fresh (non-stale) heartbeat; the
+// StuckRunBanner test below overrides this per-case to simulate a genuinely wedged run.
+const getRunHeartbeatMock = vi.fn().mockResolvedValue({ last_progress_at: new Date().toISOString(), status: 'running' });
+vi.mock('@/src/lib/db/agentRuns', () => ({
+  getRunHeartbeat: (...args: unknown[]) => getRunHeartbeatMock(...args),
+}));
+
 // ── Scripted fake runtime ─────────────────────────────────────────────────────
 
 function makeEvent(
@@ -1443,10 +1452,13 @@ describe('AssistantPanel', () => {
       screen.queryByRole('status', { name: /taking longer than expected/i }),
     ).not.toBeInTheDocument();
 
-    // Fast-forward the wall clock past the staleness threshold; the panel's
-    // 5s re-render tick (real timer) re-evaluates isStuck against the real
-    // elapsed-vs-stale-heartbeat comparison via a stubbed Date.now().
+    // Fast-forward the wall clock past the staleness threshold; the hook's 5s server-heartbeat
+    // poll (real timer, review round item 2) re-evaluates isStuck against the real
+    // elapsed-vs-stale-heartbeat comparison via a stubbed Date.now(). The mock is pinned to a
+    // fixed real-time stamp NOW (before the spy) so the very next poll — whenever it lands —
+    // reads as unambiguously stale once Date.now() is offset, independent of interval timing.
     const realNow = Date.now();
+    getRunHeartbeatMock.mockResolvedValue({ last_progress_at: new Date(realNow).toISOString(), status: 'running' });
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 50_000);
     try {
       await waitFor(

@@ -5,8 +5,11 @@
 -- unchanged; the same feedback UPDATE is denied for a non-owner. Fixtures inserted as the table owner
 -- (bypassing RLS), then `set local role authenticated` + `set local request.jwt.claims`.
 -- Fixture namespace: 00930000-….
+-- AC-AGP-SEC-INFO (security review, item 4): the append-only trigger's column-pin also covers
+-- run_id/created_at — an owner UPDATE must never re-point an event onto a different run or
+-- rewrite its original timestamp.
 begin;
-select plan(14);
+select plan(16);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into auth.users (id, email) values
@@ -21,7 +24,8 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into agent_threads (id, owner_id, title) values
   ('00930000-0000-0000-0000-000000000010','00930000-0000-0000-0000-0000000000a1','Ann AO Thread');
 insert into agent_runs (id, thread_id, owner_id, status) values
-  ('00930000-0000-0000-0000-000000000020','00930000-0000-0000-0000-000000000010','00930000-0000-0000-0000-0000000000a1','completed');
+  ('00930000-0000-0000-0000-000000000020','00930000-0000-0000-0000-000000000010','00930000-0000-0000-0000-0000000000a1','completed'),
+  ('00930000-0000-0000-0000-000000000021','00930000-0000-0000-0000-000000000010','00930000-0000-0000-0000-0000000000a1','completed');
 insert into agent_events (id, run_id, owner_id, seq, type, text, payload) values
   ('00930000-0000-0000-0000-000000000030','00930000-0000-0000-0000-000000000020','00930000-0000-0000-0000-0000000000a1', 1, 'assistant', 'Original reply', '{"orig":true}'::jsonb);
 
@@ -80,6 +84,16 @@ select throws_ok(
   $$ update agent_events set tool_status = 'errored' where id = '00930000-0000-0000-0000-000000000030' $$,
   '42501', null,
   'AC-AGP-010: owner UPDATE touching tool_status is rejected (append-only trigger)');
+
+select throws_ok(
+  $$ update agent_events set run_id = '00930000-0000-0000-0000-000000000021' where id = '00930000-0000-0000-0000-000000000030' $$,
+  '42501', null,
+  'AC-AGP-SEC-INFO: owner UPDATE re-pointing run_id onto another of their own runs is rejected (append-only trigger)');
+
+select throws_ok(
+  $$ update agent_events set created_at = now() + interval '1 day' where id = '00930000-0000-0000-0000-000000000030' $$,
+  '42501', null,
+  'AC-AGP-SEC-INFO: owner UPDATE rewriting created_at is rejected (append-only trigger)');
 
 reset role;
 

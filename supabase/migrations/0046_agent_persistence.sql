@@ -30,6 +30,7 @@
 --   drop policy if exists agent_threads_update on agent_threads;
 --   drop policy if exists agent_threads_insert on agent_threads;
 --   drop policy if exists agent_threads_select on agent_threads;
+--   alter table agent_events drop constraint if exists agent_events_run_id_seq_key;
 --   drop index if exists public.agent_threads_owner_live_idx;
 --   drop index if exists public.agent_runs_thread_created_idx;
 --   drop index if exists public.agent_events_run_seq_idx;
@@ -86,6 +87,13 @@ create index agent_events_run_seq_idx      on agent_events (run_id, seq);
 create index agent_runs_thread_created_idx  on agent_runs (thread_id, created_at);
 create index agent_threads_owner_live_idx   on agent_threads (owner_id) where archived_at is null;
 
+-- ADR-0043 §2 seq continuity (review round, item 1): seq is the total transcript order per run
+-- (FR-AGP-005) — a duplicate (run_id, seq) pair means two turns collided (e.g. a handler
+-- re-invocation on the same runId that failed to seed its seq counter from max(seq)+1). This
+-- constraint turns that regression into a loud INSERT failure instead of a silently
+-- misordered/overwritten transcript.
+alter table agent_events add constraint agent_events_run_id_seq_key unique (run_id, seq);
+
 alter table agent_threads enable row level security;
 alter table agent_threads force row level security;
 alter table agent_runs    enable row level security;
@@ -111,8 +119,19 @@ create policy agent_threads_delete on agent_threads for delete
 create policy agent_runs_select on agent_runs for select
   using (owner_id = auth.uid() and org_id = auth_org_id());
 
+-- WITH CHECK also verifies thread_id belongs to a thread the caller owns — mirrors the
+-- agent_events_insert guard (a caller could otherwise stamp their OWN owner_id/org_id while
+-- pointing thread_id at someone else's thread; security review Low-2, symmetric guard).
 create policy agent_runs_insert on agent_runs for insert
-  with check (owner_id = auth.uid() and org_id = auth_org_id());
+  with check (
+    owner_id = auth.uid() and org_id = auth_org_id()
+    and exists (
+      select 1 from agent_threads t
+       where t.id = agent_runs.thread_id
+         and t.owner_id = auth.uid()
+         and t.org_id = auth_org_id()
+    )
+  );
 
 create policy agent_runs_update on agent_runs for update
   using (owner_id = auth.uid() and org_id = auth_org_id())
@@ -151,7 +170,9 @@ create policy agent_events_delete on agent_events for delete
 
 -- Column-pin trigger: the only permitted UPDATE is rating/downvote_reason. Any drift on the
 -- transcript/journal columns — including by the owner — is rejected (append-only except feedback).
--- seq is also pinned (an out-of-band UPDATE must never renumber the transcript).
+-- seq is also pinned (an out-of-band UPDATE must never renumber the transcript). run_id and
+-- created_at are pinned too (security review Info finding) — an owner UPDATE must never
+-- re-point an event onto a different run or rewrite its original timestamp.
 create or replace function agent_events_feedback_only()
   returns trigger language plpgsql set search_path = public as $$
 begin
@@ -162,6 +183,8 @@ begin
      or new.tool_args_hash is distinct from old.tool_args_hash
      or new.tool_status  is distinct from old.tool_status
      or new.seq          is distinct from old.seq
+     or new.run_id       is distinct from old.run_id
+     or new.created_at   is distinct from old.created_at
   then
     raise exception 'agent_events is append-only except rating/downvote_reason' using errcode = '42501';
   end if;

@@ -63,6 +63,20 @@ export function hashToolArgs(validatedArgs: unknown): string {
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
+// ── Read caps ──────────────────────────────────────────────────────────────────
+
+/**
+ * Row cap for the two "load this run's full agent_events history" reads below
+ * (loadMaxSeq/loadJournaledWrites). A run persists at most a handful of rows per tool round
+ * (assistant text + one tool event, occasionally a system/artifact event) and is hard-capped
+ * at `MAX_TOOL_ROUNDS` rounds (handler.ts, currently 8) — not re-imported here to avoid a
+ * persistence.ts -> handler.ts import cycle (handler.ts already imports FROM persistence.ts).
+ * 1000 rows is a wide, deliberately generous safety margin above any realistic run's row
+ * count, not a tuned/expected value — it exists so a pathological run degrades (truncated
+ * read) rather than the query becoming unbounded.
+ */
+const MAX_RUN_EVENTS_READ = 1000;
+
 // ── PersistenceDeps ───────────────────────────────────────────────────────────
 
 /**
@@ -124,17 +138,40 @@ export async function createThreadAndRun(
   }
 }
 
-// ── insertEvent — FR-AGP-011 ──────────────────────────────────────────────────
+// ── insertEvent — FR-AGP-011/012 ──────────────────────────────────────────────
+
+/**
+ * Optional tool-call journal fields (FR-AGP-012), populated in the SAME insert as the event
+ * row on a `type==='tool'` event (review round item 5 — see the docstring below).
+ */
+export interface ToolJournal {
+  toolName: string;
+  argsHash: string;
+  status: 'completed' | 'errored';
+}
 
 /**
  * Insert one agent_events row mirroring a streamed AgentEvent, with the assigned monotonic
- * seq. Swallowed on error (NFR-AGP-SEC-005) — a persistence failure never blocks the SSE stream.
+ * seq — and, when `journal` is supplied (a `type==='tool'` event), the tool-call journal
+ * columns (tool_name/tool_args_hash/tool_status) in the SAME INSERT, never a follow-up UPDATE.
+ *
+ * Review round item 5 (partial-failure de-dupe window): the prior shape was insert-then-UPDATE
+ * (journalToolEvent, now removed) — a two-step window where the completed write's journal
+ * UPDATE could fail AFTER the write itself already executed, making the completed write
+ * invisible to the resume de-dupe gate (FR-AGP-013) and letting a client retry re-execute it.
+ * The tool event's payload already carries the result at emit time (the caller — handler.ts's
+ * withPersistence — computes `journal` before calling insertEvent), so there is no structural
+ * need for a second write: a single INSERT either persists the complete row (event + journal
+ * together) or fails atomically, closing the window entirely.
+ *
+ * Swallowed on error (NFR-AGP-SEC-005) — a persistence failure never blocks the SSE stream.
  */
 export async function insertEvent(
   deps: PersistenceDeps,
   runId: string,
   seq: number,
   ev: AgentEvent,
+  journal?: ToolJournal,
 ): Promise<void> {
   try {
     const { error } = await deps.supabase
@@ -146,6 +183,9 @@ export async function insertEvent(
         type: ev.type,
         text: ev.text ?? null,
         payload: ev.payload ?? null,
+        ...(journal
+          ? { tool_name: journal.toolName, tool_args_hash: journal.argsHash, tool_status: journal.status }
+          : {}),
       })
       .select()
       .single();
@@ -156,40 +196,6 @@ export async function insertEvent(
     }
   } catch (err) {
     console.error('[agent-chat] persistence insertEvent threw', {
-      code: err instanceof Error ? err.name : 'unknown',
-    });
-  }
-}
-
-// ── journalToolEvent — FR-AGP-012 ─────────────────────────────────────────────
-
-/**
- * Populate the tool-call journal columns (tool_name/tool_args_hash/tool_status) on the
- * agent_events row identified by eventId. Separate UPDATE from insertEvent because the
- * journal fields are only known once the tool dispatch has resolved (result + status).
- * Swallowed on error (NFR-AGP-SEC-005).
- */
-export async function journalToolEvent(
-  deps: PersistenceDeps,
-  eventId: string,
-  journal: { toolName: string; argsHash: string; status: 'completed' | 'errored' },
-): Promise<void> {
-  try {
-    const { error } = await deps.supabase
-      .from('agent_events')
-      .update({
-        tool_name: journal.toolName,
-        tool_args_hash: journal.argsHash,
-        tool_status: journal.status,
-      })
-      .eq('id', eventId);
-    if (error) {
-      console.error('[agent-chat] persistence journalToolEvent failed', {
-        code: (error as { code?: string }).code,
-      });
-    }
-  } catch (err) {
-    console.error('[agent-chat] persistence journalToolEvent threw', {
       code: err instanceof Error ? err.name : 'unknown',
     });
   }
@@ -249,6 +255,38 @@ export async function setRunStatus(
   }
 }
 
+// ── loadMaxSeq — ADR-0043 §2 seq continuity across requests ──────────────────
+
+/**
+ * Load the highest `seq` already persisted for `runId` (or -1 when the run has no persisted
+ * events yet — a genuinely fresh run). A resumed request (decision re-POST / any re-invocation
+ * carrying an existing `req.runId`) MUST seed its in-request seq counter from `maxSeq + 1`
+ * rather than restarting at 0 — otherwise the new turn's events collide with the prior turn's
+ * already-persisted seq values (`agent_events (run_id, seq)` is unique — 0046_agent_persistence.sql
+ * — and `listRunEvents`/the transcript order rely on seq being a total, gap-tolerant order).
+ * Same fail-safe style as `loadJournaledWrites`: on any error, returns -1 (fail open to "no
+ * prior events" — mirrors a fresh run's starting point; the worst case is a resumed run's next
+ * write racing a stale seq, which the unique index below turns into a loud failure rather than
+ * a silent one).
+ */
+export async function loadMaxSeq(
+  deps: PersistenceDeps,
+  runId: string,
+): Promise<number> {
+  try {
+    const { data, error } = await deps.supabase
+      .from('agent_events')
+      .select('seq')
+      .eq('run_id', runId)
+      .limit(MAX_RUN_EVENTS_READ);
+    if (error || !data) return -1;
+    const seqs = (data as Array<{ seq?: number }>).map((row) => row.seq ?? -1);
+    return seqs.length > 0 ? Math.max(...seqs) : -1;
+  } catch {
+    return -1;
+  }
+}
+
 // ── loadJournaledWrites — FR-AGP-013/018 ──────────────────────────────────────
 
 /**
@@ -266,7 +304,7 @@ export async function loadJournaledWrites(
       .from('agent_events')
       .select('tool_name, tool_args_hash, tool_status, payload')
       .eq('run_id', runId)
-      .limit(1000);
+      .limit(MAX_RUN_EVENTS_READ);
     if (error || !data) return [];
     return (data as Array<Record<string, unknown>>)
       .filter((row) => row.tool_status === 'completed' && row.tool_name && row.tool_args_hash)

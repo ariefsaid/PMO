@@ -4,12 +4,20 @@
  * NFR-AP-SEC-003: imports only from port.ts and AgentRuntimeContext (no PmoNativeRuntime).
  * FR-AP-009/021/022/023.
  */
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AgentEvent } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { listRunEvents } from '../lib/db/agentEvents';
 import type { AgentEventRow } from '../lib/db/agentEvents';
+import { getRunHeartbeat } from '../lib/db/agentRuns';
 import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
+
+/**
+ * FR-AGP-022 poll cadence — the EXISTING 5s tick that previously lived in AssistantPanel.tsx
+ * as a pure force-rerender interval; moved here so the SAME tick both re-evaluates staleness
+ * AND polls the server heartbeat (no second timer, per the review round item-2 fix).
+ */
+const HEARTBEAT_POLL_MS = 5_000;
 
 export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
 
@@ -54,8 +62,10 @@ export interface UseAssistantPanel {
    * ADR-0043 (FR-AGP-021): open/resume a thread's most recent run — fetches its events
    * ordered by (run_id, seq) and restores the transcript in that exact order, reproducing
    * the original conversation sequence (including the consecutive-assistant-chunk merge).
+   * Takes only `runId` — the DB query is scoped by runId alone (RLS scopes ownership); the
+   * caller's threadId was never used (review round item 6, dead param dropped).
    */
-  openThread(threadId: string, runId: string): Promise<void>;
+  openThread(runId: string): Promise<void>;
   /**
    * ADR-0043 (FR-AGP-022): true while a run is active AND heartbeat-stale (keyed on
    * elapsed time since the last observed progress signal, independent of SSE liveness).
@@ -336,10 +346,10 @@ export function useAssistantPanel(): UseAssistantPanel {
   // Fetches the thread's most recent run's events ordered by (run_id, seq) and rebuilds
   // the transcript in that exact order — folding consecutive assistant rows through the
   // SAME mergeAssistantEvent reducer `drain` uses, so a reload reproduces the original
-  // live-merge behavior. threadId is accepted for API symmetry with the panel's future
-  // ThreadList (Phase D) — the DB query itself is scoped by runId (RLS scopes ownership).
+  // live-merge behavior. The DB query is scoped by runId alone (RLS scopes ownership) —
+  // threadId was never used (review round item 6, dead param dropped).
   const openThread = useCallback(
-    async (_threadId: string, targetRunId: string) => {
+    async (targetRunId: string) => {
       const rows: AgentEventRow[] = await listRunEvents(targetRunId);
       const ordered = [...rows].sort((a, b) => a.seq - b.seq);
       const events: AgentEvent[] = ordered.map((row) => ({
@@ -365,10 +375,49 @@ export function useAssistantPanel(): UseAssistantPanel {
     [],
   );
 
+  // ── Server-heartbeat poll (FR-AGP-022, review round item 2) ──────────────────
+  // The SPEC's staleness authority is `agent_runs.last_progress_at` (the server heartbeat),
+  // NOT client-observed SSE liveness — a live SSE can be silently wedged server-side, and a
+  // dropped SSE can be genuinely still progressing. `lastProgressAt` above is only a coarse,
+  // OPPORTUNISTIC client-side proxy (updated on every drained event, for a snappy UI between
+  // polls); this effect polls the real DB value on the SAME 5s cadence AssistantPanel.tsx used
+  // to force a bare re-render (no second timer) and, whenever the poll returns a value, treats
+  // it as authoritative — overwriting the SSE-derived stamp so the server value always wins
+  // when it is fresher. Runs only while a run is genuinely active.
+  useEffect(() => {
+    if (phase !== 'running' && phase !== 'needs-approval') return;
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const heartbeat = await getRunHeartbeat(activeRunId);
+        if (cancelled) return;
+        if (heartbeat?.last_progress_at) {
+          setLastProgressAt(heartbeat.last_progress_at);
+        }
+      } catch {
+        // Transient read failure — the next poll retries; the opportunistic SSE-derived
+        // stamp (if any) remains in effect until then (fail-open, mirrors server-side
+        // heartbeat/journal error handling — NFR-AGP-SEC-005 style).
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), HEARTBEAT_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [phase, runId]);
+
   // ── isStuck — heartbeat-staleness derivation (FR-AGP-022) ────────────────────
   // Active only while a run is genuinely in flight ('running'/'needs-approval' are both
   // "the run has not reached a terminal state" per AgentRunStatus); keyed on elapsed
-  // wall-clock time since the last observed progress signal, independent of SSE liveness.
+  // wall-clock time since the last observed progress signal (the SERVER heartbeat, once the
+  // poll above has landed at least once — an SSE-derived stamp may still be the value between
+  // polls, but the server value overwrites it whenever a fresher poll resolves).
   const isStuck =
     (phase === 'running' || phase === 'needs-approval') &&
     lastProgressAt !== null &&

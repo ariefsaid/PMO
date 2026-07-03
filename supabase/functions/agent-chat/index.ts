@@ -24,7 +24,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
-import { loadJournaledWrites } from './persistence.ts';
+import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -136,6 +136,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       )
     : undefined;
 
+  // ADR-0043 §2: seq continuity — a resumed run (body.runId already exists, e.g. a
+  // req.decision re-POST) must continue the run's seq counter, never restart at 0 (which
+  // would collide with the prior turn's already-persisted agent_events rows — silent
+  // transcript misordering, since listRunEvents orders by seq). loadMaxSeq(runId) mirrors
+  // loadJournaledWrites' same fail-safe style (-1 on error/no rows ⇒ startSeq 0, identical to
+  // a fresh run). Only computed when body.runId is present — a fresh run has no prior seq.
+  const startSeq = persistenceEnabled && body.runId
+    ? (await loadMaxSeq(
+        {
+          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
+          ownerId: userId,
+          orgId: '',
+          now: () => new Date(),
+        },
+        body.runId,
+      )) + 1
+    : undefined;
+
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
@@ -168,6 +186,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 orgId: '',
                 now: () => new Date(),
                 journaledWrites,
+                startSeq,
               }
             : undefined,
         })) {

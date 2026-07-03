@@ -4,8 +4,10 @@
 -- hiding from the live index. Modeled on 0089_user_views_tenancy.test.sql. Fixtures inserted as the
 -- table owner (bypassing RLS), then `set local role authenticated` + `set local request.jwt.claims`.
 -- Fixture namespace: 00920000-…. Org A = default '00000000-…-0001'; Org B = '00920000-…-0002'.
+-- AC-AGP-SEC-LOW-2 (security review, item 3): agent_runs_insert's WITH CHECK is symmetric with
+-- agent_events_insert — a caller cannot insert a run under another user's thread_id.
 begin;
-select plan(23);
+select plan(24);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into organizations (id, name) values
@@ -167,6 +169,20 @@ select is(
   (select count(*)::int from agent_threads where owner_id = auth.uid() and title = 'Archived Thread'),
   1,
   'AC-AGP-008: the archived thread still exists (soft-archive, not hard-delete)');
+
+reset role;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- AC-AGP-SEC-LOW-2: a non-owner cannot insert a run under another user's thread_id
+-- (agent_runs_insert WITH CHECK is symmetric with agent_events_insert — security review Low-2).
+-- ════════════════════════════════════════════════════════════════════════════
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00920000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into agent_runs (thread_id, status) values ('00920000-0000-0000-0000-000000000010','queued') $$,
+  '42501', null,
+  'AC-AGP-SEC-LOW-2: Bob inserting a run under Ann''s thread_id is denied by WITH CHECK');
 
 reset role;
 

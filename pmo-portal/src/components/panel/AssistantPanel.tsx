@@ -139,14 +139,16 @@ export const AssistantPanel: React.FC = () => {
   }, []);
 
   const handleOpenThread = useCallback(
-    (threadId: string, latestRunId: string | null) => {
+    (_threadId: string, latestRunId: string | null) => {
       // ADR-0043 (FR-AGP-021): resume-on-open. listAgentThreads() now returns each
       // thread's latestRunId (a PostgREST embed on agent_runs, agentThreads.ts) so we
       // can resume its most recent run directly. A thread with no runs yet
       // (latestRunId null — created but never sent) has nothing to fetch: just close
       // History and let the panel show its current (empty) transcript state, no crash.
+      // threadId is accepted here to match ThreadList's onOpen contract but not otherwise
+      // used — the hook's openThread takes only runId (review round item 6, dead param dropped).
       if (latestRunId !== null) {
-        void openThread(threadId, latestRunId);
+        void openThread(latestRunId);
       }
       setHistoryOpen(false);
     },
@@ -159,17 +161,11 @@ export const AssistantPanel: React.FC = () => {
     phase === 'running' ? 'running' : phase === 'needs-approval' ? 'needs-approval' : 'completed';
 
   // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
-  // isStuck is a point-in-time derivation (now - lastProgressAt); with no new
-  // SSE events arriving on a genuinely wedged run, nothing else would trigger
-  // a re-render for the banner to appear. A cheap 5s tick forces re-evaluation
-  // while a run is active, so the banner surfaces without requiring new
-  // transcript activity. No-op (cleared) once the run leaves an active phase.
-  const [, forceTick] = useState(0);
-  useEffect(() => {
-    if (phase !== 'running' && phase !== 'needs-approval') return;
-    const id = window.setInterval(() => forceTick((n) => n + 1), 5_000);
-    return () => window.clearInterval(id);
-  }, [phase]);
+  // isStuck is a point-in-time derivation (now - lastProgressAt). The hook's own 5s server-
+  // heartbeat poll (useAssistantPanel.ts, review round item 2) already forces a re-render on
+  // this same cadence by updating `lastProgressAt` state — so the banner surfaces without a
+  // second, purely-local tick here (this component previously owned that timer as a bare
+  // force-rerender; it moved into the hook so the SAME tick can also poll the server).
 
   const handleRate = useCallback(
     (eventId: string, rating: 'up' | 'down', reason?: Parameters<typeof rateAgentEvent>[2]) => {

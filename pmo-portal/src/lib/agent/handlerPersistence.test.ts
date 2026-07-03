@@ -380,3 +380,231 @@ it('AC-AGP-017 a terminal status event persists agent_runs.status via setRunStat
   // setRunStatus was invoked with the terminal status for THIS run.
   expect(runsUpdateSpy).toHaveBeenCalledWith({ status: 'errored' });
 });
+
+// ── ADR-0043 §2 — seq continuity across requests (review round, item 1) ──────
+
+/**
+ * AC-AGP-CONT-001: a `req.decision` re-POST on an existing runId must NOT restart `seq` at 0
+ * — the handler's per-request `let seq = 0` (persistence.ts makePersistenceRuntime) would
+ * collide with the prior turn's persisted rows (silent transcript misordering, since
+ * `listRunEvents` orders by `seq`). This drives TWO separate `agentChatHandler` invocations
+ * on the SAME runId — a real "create" turn ending in needs-approval, then a "decision approve"
+ * re-POST — and asserts the FULL persisted seq sequence across both calls has no duplicates
+ * and strictly increases. index.ts is expected to seed `deps.persistence.startSeq` from
+ * `maxSeq + 1` (via the new `loadMaxSeq`) on every resumed call, mirroring how it already
+ * pre-loads `journaledWrites` — this test exercises that seam directly against the handler.
+ */
+it('AC-AGP-CONT-001 seq continues (no restart, no duplicates) across two handler invocations on the same runId', async () => {
+  // Shared in-memory agent_events store across BOTH calls, simulating what a real resumed
+  // request would see via a fresh `loadMaxSeq(runId)` read (index.ts seam).
+  const persistedRows: Array<{ id: string; run_id: string; seq: number; type: string }> = [];
+
+  function mockPersistSupabase(): HandlerDeps['supabase'] {
+    return {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'agent_events') {
+          return {
+            insert: vi.fn().mockImplementation((row: { id: string; run_id: string; seq: number; type: string }) => {
+              persistedRows.push(row);
+              return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: row, error: null }) }) };
+            }),
+            update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          };
+        }
+        if (table === 'crm_activities') {
+          return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'act-1' }, error: null }) }),
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        };
+      }),
+    } as unknown as HandlerDeps['supabase'];
+  }
+
+  const runId = 'run-continuity-1';
+  const supabase = mockPersistSupabase();
+
+  // ── Call 1: create + a confirm:true tool call → needs-approval, stream ends ──
+  const modelClient1 = {
+    create: vi.fn().mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu-1', type: 'function', function: { name: 'create_activity', arguments: JSON.stringify(CREATE_ACTIVITY_ARGS) } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    }),
+  };
+
+  const deps1 = baseDeps({
+    modelClient: modelClient1,
+    supabase,
+    persistence: {
+      supabase,
+      ownerId: 'user-1',
+      orgId: 'org-1',
+      now: () => new Date('2026-07-03T00:00:00Z'),
+    },
+  });
+
+  const req1: AgentChatRequest = { runId, messages: [{ role: 'user', content: 'log a call' }] };
+  await collect(agentChatHandler(req1, deps1));
+
+  expect(persistedRows.length).toBeGreaterThan(0);
+  const seqsAfterCall1 = persistedRows.map((r) => r.seq);
+
+  // ── Call 2: decision re-POST (approve) on the SAME runId ─────────────────────
+  // index.ts's seam: a fresh `loadMaxSeq(runId)` read would return the max seq persisted so
+  // far — passed here as `startSeq` (maxSeq + 1), exactly as index.ts is expected to do.
+  const maxSeqSoFar = Math.max(...seqsAfterCall1);
+
+  const deps2 = baseDeps({
+    supabase,
+    persistence: {
+      supabase,
+      ownerId: 'user-1',
+      orgId: 'org-1',
+      now: () => new Date('2026-07-03T00:00:05Z'),
+      startSeq: maxSeqSoFar + 1,
+    },
+  });
+
+  const req2 = approveReq('tu-1', 'pending-1');
+  req2.runId = runId;
+  await collect(agentChatHandler(req2, deps2));
+
+  const allSeqs = persistedRows.map((r) => r.seq);
+
+  // No duplicates across the two calls.
+  expect(new Set(allSeqs).size).toBe(allSeqs.length);
+  // Strictly increasing in insertion order (transcript order).
+  for (let i = 1; i < allSeqs.length; i++) {
+    expect(allSeqs[i]).toBeGreaterThan(allSeqs[i - 1]);
+  }
+  // Call 2's rows must not restart at 0/1 — they continue past call 1's max.
+  const seqsAfterCall2Only = allSeqs.slice(seqsAfterCall1.length);
+  for (const s of seqsAfterCall2Only) {
+    expect(s).toBeGreaterThan(maxSeqSoFar);
+  }
+});
+
+// ── review round item 5 — partial-failure de-dupe window (single-INSERT tool journal) ──
+
+/**
+ * AC-AGP-JOURNAL-001: a tool event's journal columns (tool_name/tool_args_hash/tool_status)
+ * must be populated in the SAME `agent_events` INSERT as the event row itself — never a
+ * separate follow-up UPDATE. The two-step (insert-then-update) shape left a window where a
+ * completed write's journal UPDATE could fail after the write itself already executed,
+ * making the completed write invisible to resume de-dupe (FR-AGP-013) and letting a retry
+ * re-execute it. The tool event's payload already carries the result at emit time, so the
+ * journal fields are computable before the single insert — no follow-up UPDATE is structurally
+ * necessary. This asserts `agent_events.update` is NEVER called for a tool event, and the
+ * SINGLE insert call already carries the journal columns.
+ */
+it('AC-AGP-JOURNAL-001 a tool event journal is populated in the SAME insert — no follow-up UPDATE', async () => {
+  const insertedRows: Array<Record<string, unknown>> = [];
+  const eventsUpdateSpy = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+
+  function mockSupabaseSingleInsert(): HandlerDeps['supabase'] {
+    return {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'agent_events') {
+          return {
+            insert: vi.fn().mockImplementation((row: Record<string, unknown>) => {
+              insertedRows.push(row);
+              return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: row, error: null }) }) };
+            }),
+            update: eventsUpdateSpy,
+          };
+        }
+        if (table === 'crm_activities') {
+          return {
+            select: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ id: '1' }, { id: '2' }, { id: '3' }], error: null }),
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+          insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        };
+      }),
+    } as unknown as HandlerDeps['supabase'];
+  }
+
+  const modelClient = {
+    create: vi.fn()
+      .mockResolvedValueOnce({
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'tu1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+          ],
+        },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'Done.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
+  };
+
+  const supabase = mockSupabaseSingleInsert();
+  const deps = baseDeps({
+    modelClient,
+    supabase,
+    persistence: {
+      supabase,
+      ownerId: 'user-1',
+      orgId: 'org-1',
+      now: () => new Date('2026-07-03T00:00:00Z'),
+    },
+  });
+
+  await collect(agentChatHandler({ runId: 'run-journal-1', messages: [{ role: 'user', content: 'how many active projects?' }] }, deps));
+
+  // No follow-up UPDATE on agent_events for the tool event's journal columns.
+  expect(eventsUpdateSpy).not.toHaveBeenCalled();
+
+  // The tool event's SINGLE insert already carries the journal columns.
+  const toolRow = insertedRows.find((r) => r.type === 'tool');
+  expect(toolRow).toBeDefined();
+  expect(toolRow!.tool_name).toBe('query_entity');
+  expect(toolRow!.tool_status).toBe('completed');
+  expect(typeof toolRow!.tool_args_hash).toBe('string');
+  expect((toolRow!.tool_args_hash as string).length).toBeGreaterThan(0);
+});
