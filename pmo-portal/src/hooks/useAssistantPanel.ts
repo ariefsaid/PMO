@@ -7,6 +7,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AgentEvent, RunStatusPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
+import { useAgentContext } from '../lib/agent/context/useAgentContext';
+import { isFeatureEnabled } from '../lib/features';
 import { listRunEvents } from '../lib/db/agentEvents';
 import type { AgentEventRow } from '../lib/db/agentEvents';
 import { getRunHeartbeat } from '../lib/db/agentRuns';
@@ -51,6 +53,15 @@ export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
  */
 export type ChipStateMap = Record<string, ApprovalChipState>;
 
+/**
+ * Review-remediation item 3 (F3, Discover finding): the resolution of a pending
+ * ask-user question, keyed by questionId — mirrors the ChipStateMap pattern
+ * (Blocker-8: keyed, not a single global atom) so a QuestionChips entry can
+ * render itself disabled with the chosen option/free-text indicated once
+ * answered, instead of looking perpetually re-clickable.
+ */
+export type AnsweredMap = Record<string, { optionId?: string; freeText?: string }>;
+
 export interface UseAssistantPanel {
   open: boolean;
   transcript: TranscriptEntry[];
@@ -62,6 +73,12 @@ export interface UseAssistantPanel {
    * Each needs-approval event has its own entry; resolved via the matching pendingId.
    */
   chipStateMap: ChipStateMap;
+  /**
+   * Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId —
+   * populated by answerQuestion() so a resolved question's chips render disabled
+   * with the chosen option/free-text indicated (mirrors chipStateMap).
+   */
+  answeredMap: AnsweredMap;
   openPanel(): void;
   closePanel(): void;
   togglePanel(): void;
@@ -73,6 +90,11 @@ export interface UseAssistantPanel {
   approve(): Promise<void>;
   /** A3: deny the pending write action — re-POSTs with verdict:'reject'. */
   deny(): Promise<void>;
+  /**
+   * ADR-0045 §2: resolve a pending ask-user question — re-POSTs with req.answer,
+   * continuing the SAME run (never a new createRun, never followUp).
+   */
+  answerQuestion(questionId: string, optionId?: string, freeText?: string): Promise<void>;
   /**
    * ADR-0043 (FR-AGP-021): open/resume a thread's most recent run — fetches its events
    * ordered by (run_id, seq) and restores the transcript in that exact order, reproducing
@@ -140,6 +162,9 @@ function mergeAssistantEvent(
 export function useAssistantPanel(): UseAssistantPanel {
   const ctx = useAgentRuntimeContext();
   const { runtime, open, openPanel, closePanel, togglePanel } = ctx;
+  // ADR-0045 §3 (FR-ATC-015/020): live context (route/entity/selection) — a
+  // no-op read outside AgentContextProvider (agentContext.getContext() → {}).
+  const { getContext } = useAgentContext();
 
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [phase, setPhase] = useState<RunPhase>('idle');
@@ -152,6 +177,9 @@ export function useAssistantPanel(): UseAssistantPanel {
   // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
   // docs/decisions.md: "A3 chip state is keyed by pendingId."
   const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
+  // Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId
+  // (mirrors chipStateMap's keyed-not-global pattern for sequential questions in one run).
+  const [answeredMap, setAnsweredMap] = useState<AnsweredMap>({});
   // Track the currently active pendingId for approve/deny/approving transitions
   const activePendingIdRef = useRef<string | null>(null);
 
@@ -324,7 +352,11 @@ export function useAssistantPanel(): UseAssistantPanel {
       if (!runIdRef.current) {
         // First message in this conversation: create a new run.
         setLastGoal(text);
-        const run = await runtime.createRun({ goal: text });
+        // FR-ATC-015/020: thread live context only when the flag is on — flag-off,
+        // getContext() is never called and no context is sent.
+        const run = await runtime.createRun(
+          isFeatureEnabled('agentAssistant') ? { goal: text, context: getContext() } : { goal: text },
+        );
         activeRunId = run.id;
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
@@ -346,7 +378,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       const iterable = runtime.subscribe(activeRunId);
       await drain(iterable, activeRunId);
     },
-    [runtime, drain],
+    [runtime, drain, getContext],
   );
 
   // ── stop ────────────────────────────────────────────────────────────────────
@@ -394,6 +426,26 @@ export function useAssistantPanel(): UseAssistantPanel {
     await drain(iterable, activeRunId);
   }, [runtime, drain]);
 
+  // ── answerQuestion (ADR-0045 §2) ─────────────────────────────────────────────
+  // Called by QuestionChips. Resolves via control('answer', ...) — the SAME
+  // in-run resolution family as approve/deny — and NEVER via followUp
+  // (FR-ATC-011, OBS-ATC-004: an answer is not a new user turn).
+  const answerQuestion = useCallback(
+    async (questionId: string, optionId?: string, freeText?: string) => {
+      if (!runtime || !runIdRef.current) return;
+      const activeRunId = runIdRef.current;
+      // Review-remediation item 3 (F3): record the resolution BEFORE the re-POST
+      // so the question's chips render disabled + the chosen answer indicated
+      // immediately, mirroring the A3 chipStateMap 'approving'-set-before-control pattern.
+      setAnsweredMap((prev) => ({ ...prev, [questionId]: { optionId, freeText } }));
+      await runtime.control(activeRunId, 'answer', { questionId, optionId, freeText });
+      setPhase('running');
+      const iterable = runtime.subscribe(activeRunId);
+      await drain(iterable, activeRunId);
+    },
+    [runtime, drain],
+  );
+
   // ── retry ───────────────────────────────────────────────────────────────────
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
@@ -412,7 +464,10 @@ export function useAssistantPanel(): UseAssistantPanel {
       ),
     );
 
-    const run = await runtime.createRun({ goal: lastGoal });
+    // FR-ATC-015/020: thread live context only when the flag is on (mirrors send()).
+    const run = await runtime.createRun(
+      isFeatureEnabled('agentAssistant') ? { goal: lastGoal, context: getContext() } : { goal: lastGoal },
+    );
     const activeRunId = run.id;
     setRunId(activeRunId);
     runIdRef.current = activeRunId;
@@ -421,7 +476,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('running');
     const iterable = runtime.subscribe(activeRunId);
     await drain(iterable, activeRunId);
-  }, [runtime, lastGoal, drain]);
+  }, [runtime, lastGoal, drain, getContext]);
 
   // ── newConversation ──────────────────────────────────────────────────────────
   const newConversation = useCallback(() => {
@@ -442,6 +497,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setPhase('idle');
     setLastGoal(null);
     setChipStateMap({});
+    setAnsweredMap({});
   }, [runtime]);
 
   // ── openThread — resume-on-open (FR-AGP-021, AC-AGP-021) ─────────────────────
@@ -535,6 +591,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     lastGoal,
     runId,
     chipStateMap,
+    answeredMap,
     openPanel,
     closePanel,
     togglePanel,
@@ -544,6 +601,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     newConversation,
     approve,
     deny,
+    answerQuestion,
     openThread,
     isStuck,
     lastProgressAt,

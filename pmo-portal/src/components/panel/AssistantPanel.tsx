@@ -20,7 +20,7 @@ import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import { rateAgentEvent } from '@/src/lib/db/agentEvents';
-import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
+import type { AgentRunStatus, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
@@ -116,7 +116,9 @@ export const AssistantPanel: React.FC = () => {
     newConversation,
     approve,
     deny,
+    answerQuestion,
     chipStateMap,
+    answeredMap,
     isStuck,
     lastProgressAt,
     openThread,
@@ -292,6 +294,24 @@ export const AssistantPanel: React.FC = () => {
   // ── Determine if we show the empty state ─────────────────────────────────
   const isEmpty = transcript.length === 0;
 
+  // ── Review-remediation item 6: pending-question SR announcement ──────────
+  // Unlike needs-approval, a pending question does NOT transition `phase` (it
+  // simply lets the model's stream end while the composer keeps the SAME
+  // phase) — so "is a question currently pending" is derived from the
+  // transcript directly: the trailing status{kind:'question'} entry whose
+  // questionId has no answeredMap entry yet.
+  const hasPendingQuestion = (() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      const ev = transcript[i].event;
+      if (ev.type !== 'status') continue;
+      const payload = ev.payload as { kind?: string } | undefined;
+      if (payload?.kind !== 'question') continue;
+      const q = ev.payload as QuestionPayload;
+      return answeredMap[q.questionId] === undefined;
+    }
+    return false;
+  })();
+
   // ── Desktop non-modal vs mobile modal role/attributes ────────────────────
   const desktopProps = {
     role: 'complementary' as const,
@@ -428,8 +448,11 @@ export const AssistantPanel: React.FC = () => {
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
             chipStateMap={chipStateMap}
+            answeredMap={answeredMap}
+            phase={phase}
             onApprove={() => void approve()}
             onDeny={() => void deny()}
+            onAnswer={(qid, optionId, freeText) => void answerQuestion(qid, optionId, freeText)}
             onRate={handleRate}
           />
 
@@ -446,6 +469,20 @@ export const AssistantPanel: React.FC = () => {
               className="px-4 py-1 text-xs text-muted-foreground"
             >
               A write action awaits your decision
+            </div>
+          )}
+
+          {/* Item 6: pending-question announcement — mirrors the approval
+              announcement above (NFR-AW-A11Y-003's pattern extended to the
+              question interaction family, ADR-0045 §2). */}
+          {hasPendingQuestion && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="px-4 py-1 text-xs text-muted-foreground"
+            >
+              A question awaits your answer
             </div>
           )}
 

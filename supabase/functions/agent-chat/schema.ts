@@ -139,6 +139,48 @@ export const QUERY_ENTITY_SCHEMA = {
       maximum: AGENT_READ_ROW_CAP,
       description: `Maximum rows to return. Hard cap is ${AGENT_READ_ROW_CAP}.`,
     },
+    as: {
+      type: 'string' as const,
+      enum: ['table'] as string[],
+      description:
+        'Optional presentation hint (ADR-0045 DEC-2): when "table", the handler renders the result as an inline data table widget instead of describing it in text. Omit for the default text summary.',
+    },
+  },
+};
+
+/**
+ * ASK_USER_SCHEMA — JSON Schema for the ask_user tool input (ADR-0045 §2, FR-ATC-008).
+ * The model calls this to pose a structured clarifying question inline; the handler
+ * emits it as a status{kind:'question'} event and ends the stream (same interaction
+ * family as the A3 needs-approval propose branch — resolved via control('answer')).
+ */
+export const ASK_USER_SCHEMA = {
+  type: 'object' as const,
+  required: ['prompt', 'options'] as string[],
+  additionalProperties: false,
+  properties: {
+    prompt: {
+      type: 'string' as const,
+      maxLength: 300,
+      description: 'The clarifying question to show the user.',
+    },
+    options: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        required: ['id', 'label'] as string[],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' as const },
+          label: { type: 'string' as const },
+        },
+      },
+      description: 'The choices to present as tappable chips.',
+    },
+    allowFreeText: {
+      type: 'boolean' as const,
+      description: 'Whether to also offer a free-text answer box.',
+    },
   },
 };
 

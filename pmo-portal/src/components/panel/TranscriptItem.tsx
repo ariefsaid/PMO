@@ -5,7 +5,7 @@
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
-import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload } from '@/src/lib/agent/runtime/port';
+import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
 import { ToolCallCard } from './ToolCallCard';
@@ -13,7 +13,9 @@ import { ApprovalChip } from './ApprovalChip';
 import { ArtifactSlot } from './ArtifactSlot';
 import type { ArtifactSlotPayload } from './ArtifactSlot';
 import { FeedbackControl } from './FeedbackControl';
-import type { TranscriptEntry, ChipStateMap } from '@/src/hooks/useAssistantPanel';
+import { WidgetSlot } from './widgets/WidgetSlot';
+import { QuestionChips } from './QuestionChips';
+import type { TranscriptEntry, ChipStateMap, AnsweredMap, RunPhase } from '@/src/hooks/useAssistantPanel';
 import { isFeatureEnabled } from '@/src/lib/features';
 
 interface TranscriptItemProps {
@@ -23,10 +25,27 @@ interface TranscriptItemProps {
    * Each needs-approval chip looks up its own state by pendingId.
    */
   chipStateMap?: ChipStateMap;
+  /**
+   * Review-remediation item 3 (F3): resolved ask-user answers keyed by questionId.
+   * A question whose id is present renders its chips disabled with the chosen
+   * option/free-text indicated, instead of looking perpetually re-clickable.
+   */
+  answeredMap?: AnsweredMap;
+  /**
+   * Review-remediation item 3 (F3): the panel's run phase. When 'out-of-credits'
+   * a pending question's chips are hard-disabled (mirrors the composer's
+   * disabled state) — the run can't continue, so the control must not look live.
+   */
+  phase?: RunPhase;
   /** A3: called when user clicks Approve. */
   onApprove?: () => void;
   /** A3: called when user clicks Deny. */
   onDeny?: () => void;
+  /**
+   * ADR-0045 §2: called with (questionId, optionId?, freeText?) when the user
+   * resolves a pending ask-user question via QuestionChips.
+   */
+  onAnswer?: (questionId: string, optionId?: string, freeText?: string) => void;
   /**
    * ADR-0043 (FR-AGP-024/025): called with (eventId, rating, reason?) when the
    * user rates an assistant event. Thumbs render only when this is provided.
@@ -37,8 +56,11 @@ interface TranscriptItemProps {
 export const TranscriptItem: React.FC<TranscriptItemProps> = ({
   entry,
   chipStateMap = {},
+  answeredMap = {},
+  phase,
   onApprove,
   onDeny,
+  onAnswer,
   onRate,
 }) => {
   const { event } = entry;
@@ -62,8 +84,38 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       return <ToolCallCard payload={event.payload} />;
 
     case 'status': {
-      const payload = event.payload as { status?: string; error?: string } | undefined;
+      const payload = event.payload as { status?: string; error?: string; kind?: string } | undefined;
       if (!payload) return null;
+
+      if (payload.kind === 'question') {
+        // ADR-0045 §2: render the ask-user chips for this pending question.
+        // Flag guard (FR-ATC-020): silently skip if agentAssistant is off.
+        if (!isFeatureEnabled('agentAssistant')) return null;
+        const q = event.payload as QuestionPayload;
+        // Item 3 (F3): a resolved question (already in answeredMap) renders its
+        // chips disabled with the chosen option/free-text indicated. A LIVE
+        // question is hard-disabled while phase==='out-of-credits' — the run
+        // can't continue, so the chip must not look re-clickable (dishonest
+        // dead-end fix). Item 6: labeled "Answer needed" header, DESIGN.md
+        // overline voice, matching ApprovalChip's "Decision required" header.
+        const answered = answeredMap[q.questionId];
+        return (
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Answer needed
+            </p>
+            <QuestionChips
+              prompt={q.prompt}
+              options={q.options}
+              allowFreeText={q.allowFreeText}
+              onAnswer={({ optionId, freeText }) => onAnswer?.(q.questionId, optionId, freeText)}
+              disabled={phase === 'out-of-credits'}
+              selectedOptionId={answered?.optionId}
+              resolvedText={answered?.freeText}
+            />
+          </div>
+        );
+      }
 
       if (payload.status === 'completed') {
         // Terminal completion is signalled by the composer re-enabling; no extra line.
@@ -122,8 +174,16 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
     }
 
     case 'artifact': {
-      // A4: route compose_view artifacts to ArtifactSlot (FR-CV-013/025).
-      const artifactPayload = event.payload as { kind?: string } | undefined;
+      const artifactPayload = event.payload as { kind?: string; widget?: unknown } | undefined;
+
+      if (artifactPayload?.kind === 'widget') {
+        // ADR-0045 §1: route validated widget results to WidgetSlot (FR-ATC-002).
+        // Flag guard (FR-ATC-020): silently skip if agentAssistant is off.
+        if (!isFeatureEnabled('agentAssistant')) return null;
+        return <WidgetSlot widget={artifactPayload.widget} />;
+      }
+
+      // A4: route compose_view artifacts to ArtifactSlot (FR-CV-013/025) — unchanged (OBS-ATC-001).
       if (artifactPayload?.kind !== 'compose_view') return null;
       // Flag guard (FR-CV-025): both flags must be on; silently skip if either is off.
       if (!isFeatureEnabled('agentAssistant') || !isFeatureEnabled('aiComposer')) return null;

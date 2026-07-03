@@ -11,3 +11,14 @@ it('port.ts exports no runtime values (types only)', () => {
   // at runtime — the module object should have zero enumerable keys.
   expect(Object.keys(Port)).toHaveLength(0);
 });
+
+it('AC-ATC-011 control verb set is a superset, answer added, no existing member changed', () => {
+  type Cmd = Parameters<import('./port').AgentRuntime['control']>[1];
+  // Every existing verb still assignable (no member removed/renamed):
+  const existing: Cmd[] = ['pause', 'resume', 'cancel', 'approve', 'reject'];
+  const added: Cmd = 'answer'; // new member present
+  expect([...existing, added]).toHaveLength(6);
+  // @ts-expect-error — a non-member is still rejected (union not widened to string)
+  const bogus: Cmd = 'delete-everything';
+  void bogus;
+});
