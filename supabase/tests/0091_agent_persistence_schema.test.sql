@@ -7,7 +7,7 @@
 -- Fixtures inserted as the table owner (bypassing RLS) — this file is schema-shape only, not RLS.
 -- Fixture namespace: 00910000-….
 begin;
-select plan(20);
+select plan(21);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AGP-001: three tables exist with required columns.
@@ -35,9 +35,9 @@ select has_column('agent_events', 'downvote_reason', 'AC-AGP-001: agent_events.d
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AGP-002: required indexes exist.
 -- ════════════════════════════════════════════════════════════════════════════
-select has_index('agent_events',  'agent_events_run_seq_idx',     'AC-AGP-002: agent_events (run_id, seq) index exists');
-select has_index('agent_runs',    'agent_runs_thread_created_idx','AC-AGP-002: agent_runs (thread_id, created_at) index exists');
-select has_index('agent_threads', 'agent_threads_owner_live_idx', 'AC-AGP-002: agent_threads (owner_id) where archived_at is null index exists');
+select has_index('agent_events',  'agent_events_run_seq_idx',      array['run_id','seq'],         'AC-AGP-002: agent_events (run_id, seq) index exists');
+select has_index('agent_runs',    'agent_runs_thread_created_idx', array['thread_id','created_at'],'AC-AGP-002: agent_runs (thread_id, created_at) index exists');
+select has_index('agent_threads', 'agent_threads_owner_live_idx',  array['owner_id'],              'AC-AGP-002: agent_threads (owner_id) where archived_at is null index exists');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AGP-003: seq orders the transcript, not created_at.
