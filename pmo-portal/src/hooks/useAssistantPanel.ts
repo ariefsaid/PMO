@@ -7,6 +7,9 @@
 import { useState, useCallback, useRef } from 'react';
 import type { AgentEvent } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
+import { listRunEvents } from '../lib/db/agentEvents';
+import type { AgentEventRow } from '../lib/db/agentEvents';
+import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
 
 export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error';
 
@@ -47,6 +50,20 @@ export interface UseAssistantPanel {
   approve(): Promise<void>;
   /** A3: deny the pending write action — re-POSTs with verdict:'reject'. */
   deny(): Promise<void>;
+  /**
+   * ADR-0043 (FR-AGP-021): open/resume a thread's most recent run — fetches its events
+   * ordered by (run_id, seq) and restores the transcript in that exact order, reproducing
+   * the original conversation sequence (including the consecutive-assistant-chunk merge).
+   */
+  openThread(threadId: string, runId: string): Promise<void>;
+  /**
+   * ADR-0043 (FR-AGP-022): true while a run is active AND heartbeat-stale (keyed on
+   * elapsed time since the last observed progress signal, independent of SSE liveness).
+   * The render (StuckRunBanner, Phase D) consumes this boolean + lastProgressAt; this hook
+   * only derives the flag.
+   */
+  isStuck: boolean;
+  lastProgressAt: string | null;
 }
 
 function makeKey(): string {
@@ -83,6 +100,10 @@ export function useAssistantPanel(): UseAssistantPanel {
   const [phase, setPhase] = useState<RunPhase>('idle');
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  // FR-AGP-022: last observed progress signal for the active run — a coarse client-side
+  // proxy (updated on every drained event) for the server's heartbeat, used to derive
+  // isStuck. Null when no run has ever progressed.
+  const [lastProgressAt, setLastProgressAt] = useState<string | null>(null);
   // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
   // docs/decisions.md: "A3 chip state is keyed by pendingId."
   const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
@@ -103,6 +124,10 @@ export function useAssistantPanel(): UseAssistantPanel {
           // This prevents events from a stale/cancelled run from polluting a
           // fresh transcript after newConversation() is called.
           if (drainRunId !== runIdRef.current) break;
+
+          // FR-AGP-022: any observed event is a progress signal — advance the
+          // client-side staleness clock (a coarse proxy for the server heartbeat).
+          setLastProgressAt(new Date().toISOString());
 
           if (ev.type === 'assistant') {
             setTranscript((prev) => mergeAssistantEvent(prev, ev));
@@ -307,6 +332,48 @@ export function useAssistantPanel(): UseAssistantPanel {
     setChipStateMap({});
   }, [runtime]);
 
+  // ── openThread — resume-on-open (FR-AGP-021, AC-AGP-021) ─────────────────────
+  // Fetches the thread's most recent run's events ordered by (run_id, seq) and rebuilds
+  // the transcript in that exact order — folding consecutive assistant rows through the
+  // SAME mergeAssistantEvent reducer `drain` uses, so a reload reproduces the original
+  // live-merge behavior. threadId is accepted for API symmetry with the panel's future
+  // ThreadList (Phase D) — the DB query itself is scoped by runId (RLS scopes ownership).
+  const openThread = useCallback(
+    async (_threadId: string, targetRunId: string) => {
+      const rows: AgentEventRow[] = await listRunEvents(targetRunId);
+      const ordered = [...rows].sort((a, b) => a.seq - b.seq);
+      const events: AgentEvent[] = ordered.map((row) => ({
+        id: row.id,
+        runId: row.run_id,
+        type: row.type as AgentEvent['type'],
+        text: row.text ?? undefined,
+        payload: row.payload ?? undefined,
+        createdAt: row.created_at,
+      }));
+
+      let nextTranscript: TranscriptEntry[] = [];
+      for (const ev of events) {
+        nextTranscript = ev.type === 'assistant' ? mergeAssistantEvent(nextTranscript, ev) : [...nextTranscript, { key: makeKey(), event: ev }];
+      }
+
+      runIdRef.current = targetRunId;
+      setRunId(targetRunId);
+      setTranscript(nextTranscript);
+      setPhase('idle');
+      setLastProgressAt(events.length > 0 ? events[events.length - 1].createdAt : null);
+    },
+    [],
+  );
+
+  // ── isStuck — heartbeat-staleness derivation (FR-AGP-022) ────────────────────
+  // Active only while a run is genuinely in flight ('running'/'needs-approval' are both
+  // "the run has not reached a terminal state" per AgentRunStatus); keyed on elapsed
+  // wall-clock time since the last observed progress signal, independent of SSE liveness.
+  const isStuck =
+    (phase === 'running' || phase === 'needs-approval') &&
+    lastProgressAt !== null &&
+    Date.now() - new Date(lastProgressAt).getTime() > STUCK_RUN_STALE_MS;
+
   return {
     open,
     transcript,
@@ -323,5 +390,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     newConversation,
     approve,
     deny,
+    openThread,
+    isStuck,
+    lastProgressAt,
   };
 }
