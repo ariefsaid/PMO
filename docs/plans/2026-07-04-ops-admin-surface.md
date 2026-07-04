@@ -770,6 +770,12 @@ verify` (creditRateGuard vitest green; the edge-fn call-site edits compile under
 
 ---
 
+> **⚑ Cross-issue contract (from the auth-floor e2e build, 2026-07-04):** the real `admin-invite-user`
+> edge fn's `auth.admin.inviteUserByEmail` call MUST pass `redirectTo: <origin>/update-password` —
+> without it GoTrue resolves the invite link to the bare `site_url` and the invitee never reaches the
+> set-password page (verified live; the auth-floor spec's INVITE_PENDING contract + AC-AUTHF-020
+> e2e depend on it). Also stamp `user_metadata.invite_pending = true` per that spec's §1.2 contract.
+
 ## SLICE S3 — `admin-invite-user` edge fn (issuance) + pure handler logic
 
 **No `db reset`** (Deno wrapper + vitest-tested pure logic). Depends on S1 (`is_operator()`). Supports
