@@ -154,7 +154,7 @@ it('answering a pending question at zero balance resolves the trailing tool_use 
     model: 'deepseek/deepseek-v4-flash',
   });
 
-  const events = await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
+  await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
 
   // The answer resolution itself must reach the model (i.e. create() was actually called
   // with the answer tool_result injected) rather than short-circuiting on RATE_LIMITED
