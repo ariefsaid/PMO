@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -24,6 +24,15 @@ vi.mock('@/src/lib/analytics', () => ({
   trackDemoPersonaSelected: trackHelpers.trackDemoPersonaSelected,
   trackAuthLoginSucceeded: trackHelpers.trackAuthLoginSucceeded,
   trackAuthLoginFailed: trackHelpers.trackAuthLoginFailed,
+}));
+
+vi.mock('@/src/lib/legalConfig', () => ({
+  LEGAL_ENTITY_NAME: 'PMO Portal',
+  DOMAIN: 'pmoportal.app',
+  CONTACT_EMAIL: 'support@pmoportal.app',
+  HELP_WHATSAPP: '6281234567890',
+  HOSTING_LOCATION: 'Singapore',
+  HELP_URL: 'https://wa.me/6281234567890',
 }));
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -280,5 +289,16 @@ describe('LoginPage', () => {
       ...trackHelpers.trackAuthLoginFailed.mock.calls,
     ]);
     expect(allCalls).not.toContain('pm@acme.test');
+  });
+
+  it('AC-LEG-021: footer has Terms, Privacy, and Help links', () => {
+    renderLogin();
+    const footer = screen.getByRole('contentinfo');
+    expect(within(footer).getByRole('link', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
+    expect(within(footer).getByRole('link', { name: /^privacy$/i })).toHaveAttribute('href', '/privacy');
+    const help = within(footer).getByRole('link', { name: /contact support via whatsapp/i });
+    expect(help).toHaveAttribute('href', 'https://wa.me/6281234567890');
+    expect(help).toHaveAttribute('target', '_blank');
+    expect(help).toHaveAttribute('rel', 'noopener noreferrer');
   });
 });
