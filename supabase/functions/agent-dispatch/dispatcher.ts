@@ -337,12 +337,12 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     }
 
     try {
-      // Mint ONCE per due automation — every downstream use (condition-warning notify, credit
-      // preflight, audit, fire) shares this single minted owner client (one mint per candidate
-      // fire, never a fresh mint per branch).
-      const minted = await mintOwnerJwt(deps, automation);
-
-      // Trigger + NL condition (cheap-tier, memoized §4).
+      // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
+      // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
+      // case) never mints at all — no audit run, no minted-client write, nothing to leak. This is the
+      // "move condition eval before mint" resolution: the ONLY minted-client use for an unevaluable
+      // condition is its warning notify, which is deferred below to AFTER mint+audit. ──
+      let conditionWarning: string | null = null;
       if (automation.kind === 'trigger' && automation.condition && event) {
         const verdict = await evaluateCondition(
           { model: deps.conditionModel, modelId: deps.conditionModelId, now: () => now.getTime(), memo },
@@ -350,15 +350,35 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
           event,
         );
         if (!verdict.fire) {
-          if (verdict.warning) {
-            // Unevaluable ⇒ warning notification, no fire (fail-quiet-but-visible, FR-AAN-024).
-            await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', verdict.warning, {
-              source: 'automation',
-              automation_id: automation.id,
-            });
-          }
-          continue; // condition false (silent) or unevaluable (warned) ⇒ no fire.
+          // Condition false ⇒ silent no-fire, NEVER mint (nothing to notify, nothing to audit).
+          if (!verdict.warning) continue;
+          // Unevaluable ⇒ we must warn the owner; that needs the minted client, so we fall through to
+          // mint + audit and notify below. Recorded here so the post-audit block emits it.
+          conditionWarning = verdict.warning;
         }
+      }
+
+      // Mint ONCE per candidate — shared by audit, notify, credit preflight, and fire (one mint per
+      // candidate, never a fresh mint per branch). Reached only when the automation will either fire
+      // or produce an owner notification (unevaluable condition / over-credit).
+      const minted = await mintOwnerJwt(deps, automation);
+
+      // ── Audit EVERY mint FIRST — before ANY other minted-client DB use (gpt-5.5 audit #3,
+      // AC-AAN-017). mint.ts's invariant ("audit is the first minted-client use") now holds on the
+      // skip paths too: an unevaluable-condition or over-credit candidate that mints still leaves an
+      // audit trail BEFORE its warning notification. Fail-closed — auditMint throws on failure, so a
+      // candidate whose audit cannot be written never notifies, credits, or fires. ──
+      const runId = newRunId();
+      await auditMint(minted.client, automation, runId, newMintedAt());
+
+      // Deferred unevaluable-condition warning (the mint is already audited above, so this notify is
+      // never the first minted-client write). No fire follows.
+      if (conditionWarning !== null) {
+        await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', conditionWarning, {
+          source: 'automation',
+          automation_id: automation.id,
+        });
+        continue;
       }
 
       // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
@@ -376,11 +396,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         continue; // no fire, no last_fired_at stamp.
       }
 
-      // ── Audit (BEFORE fire) → fire (the SAME loop) → stamp last_fired_at. ──
-      const runId = newRunId();
-      // AC-AAN-017: audit BEFORE the minted client is used for the fire. Fail-closed (auditMint
-      // throws on failure) — never fire an unaudited run.
-      await auditMint(minted.client, automation, runId, newMintedAt());
+      // ── Fire (the SAME loop) → stamp last_fired_at. The run was already audited above. ──
 
       const persistenceExtras = deps.buildPersistence
         ? { persistence: deps.buildPersistence(minted.client, automation.owner_id, runId) }

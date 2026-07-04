@@ -134,6 +134,49 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
     expect(svc.updateMock).not.toHaveBeenCalled();
   });
 
+  it('gpt-5.5 #3: a mint that then writes a warning notification is AUDITED first (audit before any minted-client write)', async () => {
+    // The over-credit skip path mints, then notifies via the minted client without firing. Every
+    // mint must leave an audit trail BEFORE any other minted-client DB use — otherwise a skipped-but-
+    // minted candidate produces a minted-client write (the notification) with no audit event. This
+    // asserts the ORDER on the minted client: an agent_events (audit) write precedes the
+    // notifications write.
+    const automation = makeScheduleAutomation();
+    const svc = makeServiceClient([automation]);
+    const minted = makeMintedClient();
+    const mintDeps = makeMintDeps(minted.client);
+
+    const handler = vi.fn(async function* () {
+      yield { runId: 'run-1', type: 'status', payload: { status: 'completed' } };
+    });
+    const rateGuard = { check: vi.fn().mockResolvedValue({ exceeded: true, retryAfterSeconds: 0 }) };
+
+    await runDispatchTick({
+      serviceClient: svc.client as never,
+      authAdmin: mintDeps.authAdmin as never,
+      buildClient: mintDeps.buildClient,
+      handler: handler as never,
+      modelClient: { create: vi.fn() } as never,
+      model: 'anthropic/claude',
+      conditionModel: { create: vi.fn() } as never,
+      conditionModelId: 'cheap',
+      rateGuard,
+      now: () => new Date('2026-07-06T08:00:00Z'),
+      newRunId: () => 'run-1',
+      newMintedAt: () => '2026-07-06T08:00:00.000Z',
+    });
+
+    // No fire.
+    expect(handler).not.toHaveBeenCalled();
+    // The mint was audited: the minted client wrote agent_threads/agent_runs/agent_events even on
+    // the skip path (a minted-but-skipped candidate still leaves an audit trail, gpt-5.5 #3).
+    expect(minted.tablesTouched).toContain('agent_events');
+    // And the audit write happened BEFORE the notification write (order on the minted client).
+    const firstAuditIdx = minted.tablesTouched.indexOf('agent_events');
+    const firstNotifIdx = minted.tablesTouched.indexOf('notifications');
+    expect(firstAuditIdx).toBeGreaterThanOrEqual(0);
+    expect(firstNotifIdx).toBeGreaterThan(firstAuditIdx);
+  });
+
   it('fires normally when the owner balance is not exceeded', async () => {
     const automation = makeScheduleAutomation();
     const svc = makeServiceClient([automation]);
