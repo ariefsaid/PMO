@@ -954,7 +954,7 @@ async function* agentChatHandlerInner(
   // fabricated/stale decision (no real pending item — previously an un-gated free model
   // call) is now blocked identically to a genuine decision's continuation.
   if (req.decision) {
-    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, persist);
+    yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, initialRole, persist);
     return;
   }
 
@@ -969,7 +969,7 @@ async function* agentChatHandlerInner(
   // credit-blocked at zero balance; only the resolution write that already happened is
   // exempt).
   if (req.answer) {
-    yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist);
+    yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, initialRole, persist);
     return;
   }
 
@@ -998,7 +998,7 @@ async function* agentChatHandlerInner(
   }
 
   // ── Build system prompt (+ ADR-0045 §3 untrusted grounding hint) ──────────
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP) + buildGroundingHint(req.context?.entity);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
@@ -1066,11 +1066,12 @@ async function* handleAnswer(
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
+  initialRole: string | null,
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
   const answer = req.answer!;
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1124,6 +1125,7 @@ async function* handleDecision(
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   canFn: CanFn,
   deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
+  initialRole: string | null,
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!;
@@ -1135,7 +1137,7 @@ async function* handleDecision(
     yield emit('user', { text: lastUserMsg.content });
   }
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
