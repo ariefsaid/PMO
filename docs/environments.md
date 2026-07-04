@@ -8,8 +8,13 @@ different connection target** for that same schema.
 
 - **`local`** = where you develop **and test** — the Docker stack (`supabase start` / `supabase db reset`).
   Its keys are the well-known local dev keys (not secret).
-- **`prod`** = the **Supabase Cloud** project (functionally staging, treated as prod). Its DB connection
+- **`prod`** = the **Supabase Cloud** project — **reclassified STAGING/DEMO (owner, 2026-07-04):** it is
+  the demo/staging instance, NOT where paying clients will live. The env label + `db-push-prod.sh` script
+  names are kept for continuity; treat "prod" in tooling as "the hosted staging project". Its DB connection
   string is a **secret, stored in 1Password** (vault `AS`).
+- **Real production (GTM)** = per-client environments, topology being decided 2026-07-04 (candidates:
+  per-client Supabase Cloud Pro projects + CF Pages, vs self-hosted VPS compose stacks). Recorded here +
+  ADR once locked.
 - **`selfhost`** (later) = a VPS Docker Supabase — a future target with the same schema.
 - A separate **hosted `test`/staging** project is not used yet; `scripts/db-push-test.sh` + `supabase/op.test.env`
   are dormant forward-compat for when one is added.
