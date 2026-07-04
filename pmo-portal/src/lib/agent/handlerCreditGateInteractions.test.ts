@@ -14,6 +14,15 @@
  * approve/answer that DOES trigger a model continuation may still be gated
  * (the continuation's own runToolLoop model call still incurs cost).
  *
+ * RED-2 follow-up (gpt-5.5 red-team audit, HIGH — "out-of-credits users force model
+ * calls via decision/answer with no pending item"): the answer test below was updated —
+ * before RED-2, the answer-continuation's own model call was UN-GATED entirely (a
+ * pre-existing gap noted but deliberately left out of scope by finding 2's original fix).
+ * RED-2 closes it: runLoopAfterAnswer (and runLoop) now gate themselves on
+ * deps.rateGuard, so the answer-continuation model call correctly shows RATE_LIMITED at
+ * zero balance instead of proceeding un-gated. See handlerCreditGateContinuation.test.ts
+ * for the full RED-2 coverage (fake/absent pending item, genuine reject, genuine answer).
+ *
  * [REC-1]: handler unit tests live under pmo-portal/src/lib/agent/*.test.ts.
  */
 import { it, expect, vi } from 'vitest';
@@ -133,20 +142,24 @@ it('reject succeeds at zero balance — not credit-blocked', async () => {
   expect(rejected).toBeDefined();
 });
 
-it('answering a pending question at zero balance resolves the trailing tool_use — not credit-blocked', async () => {
+it('answering a pending question at zero balance routes through handleAnswer, but the model continuation is credit-gated (RED-2)', async () => {
   const req: AgentChatRequest = {
     runId: 'run-1',
     messages: transcriptWithPendingQuestion('q1'),
     answer: { questionId: 'q1', optionId: 'a' },
   };
 
-  // The post-answer model turn itself would normally trigger a NEW modelClient.create()
-  // call — that call is a legitimate credit-gated continuation, so a real deployment MAY
-  // still show RATE_LIMITED for it. What must NOT happen is the raw resolution (finding
-  // the trailing tool_use + appending the answer tool_result) being skipped/blocked before
-  // even reaching the model. We assert the FIRST event is not the bare pre-flight
-  // RATE_LIMITED-with-no-context short-circuit that ignores req.answer entirely — i.e. the
-  // answer resolution is at least ATTEMPTED (the handler routes through handleAnswer).
+  // Semantics corrected by RED-2 (gpt-5.5 red-team audit, HIGH): the post-answer model
+  // turn IS a genuine NEW modelClient.create() call — indistinguishable in cost from a
+  // fresh-send turn — so it MUST be credit-gated like any other model call, not exempted
+  // just because it happens to follow an answer resolution. Only the pure resolution
+  // (finding the trailing tool_use + appending the answer tool_result to the CONSTRUCTED
+  // messages, never sent anywhere) is exempt from the gate — it never itself calls the
+  // model. The routing goal-oracle stays intact: req.answer must still route through
+  // handleAnswer (never short-circuited by the unrelated gate (1)/(2) checks or a bare
+  // pre-flight RATE_LIMITED that ignores req.answer's existence) — the RATE_LIMITED
+  // terminal status below is emitted FROM WITHIN the answer-continuation path
+  // (runLoopAfterAnswer's own gate), not from gate (3)'s fresh-send-only short-circuit.
   const create = vi.fn().mockResolvedValue({
     finish_reason: 'stop',
     message: { role: 'assistant', content: 'Logged.' },
@@ -154,17 +167,15 @@ it('answering a pending question at zero balance resolves the trailing tool_use 
     model: 'deepseek/deepseek-v4-flash',
   });
 
-  await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
+  const events = await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
 
-  // The answer resolution itself must reach the model (i.e. create() was actually called
-  // with the answer tool_result injected) rather than short-circuiting on RATE_LIMITED
-  // before ever routing to handleAnswer.
-  expect(create).toHaveBeenCalledTimes(1);
-  const sentMessages = create.mock.calls[0][0].messages as {
-    role: string;
-    tool_call_id?: string;
-    content?: unknown;
-  }[];
-  const answerMsg = sentMessages.find((m) => m.role === 'tool' && m.tool_call_id === 'q1');
-  expect(answerMsg).toBeDefined();
+  // The continuation model call must NOT happen at zero balance.
+  expect(create).not.toHaveBeenCalled();
+
+  // The run still reaches a terminal RATE_LIMITED status — the resolution was genuinely
+  // attempted (routed all the way through handleAnswer), not dangling/silently dropped.
+  const terminal = events.find(
+    (e) => e.type === 'status' && (e.payload as { error?: string } | undefined)?.error === 'RATE_LIMITED',
+  );
+  expect(terminal).toBeDefined();
 });

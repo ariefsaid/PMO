@@ -939,8 +939,11 @@ async function* agentChatHandlerInner(
   // Correctness-remediation (finding 2): routed BEFORE the credit gate below — resolving
   // a pending decision (the write_resolved audit event + tool_result injection for
   // reject/approve) never itself costs a model call, so it must never be credit-blocked.
-  // The SUBSEQUENT model turn inside handleDecision's own runLoop call is a genuine new
-  // model call and is not specially exempted here — only the resolution act itself is.
+  // The SUBSEQUENT model turn inside handleDecision's own runLoop call IS a genuine new
+  // model call and is NOT exempted — RED-2 (gpt-5.5 red-team audit) hardened this: runLoop
+  // now gates itself on deps.rateGuard (isCreditExhausted) before making that call, so a
+  // fabricated/stale decision (no real pending item — previously an un-gated free model
+  // call) is now blocked identically to a genuine decision's continuation.
   if (req.decision) {
     yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, persist);
     return;
@@ -951,10 +954,11 @@ async function* agentChatHandlerInner(
   // same reason as the decision branch — resolving a pending question (finding the
   // trailing tool_use + injecting the answer as its tool_result) never itself costs a
   // model call. The trailing model turn that follows (inside handleAnswer's own
-  // runLoopAfterAnswer call) is a genuine new model call and may legitimately still be
-  // credit-blocked in a deployment with AGENT_CREDITS_ENFORCED on — that is a SEPARATE,
-  // pre-existing gap (the decision/answer continuations never re-checked credits even
-  // before this fix) and is out of scope for this remediation.
+  // runLoopAfterAnswer call) IS a genuine new model call — RED-2 hardened this the same
+  // way as the decision branch: runLoopAfterAnswer now gates itself on deps.rateGuard
+  // before making that call (a fabricated/stale answer, or a genuine one, both correctly
+  // credit-blocked at zero balance; only the resolution write that already happened is
+  // exempt).
   if (req.answer) {
     yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist);
     return;
@@ -1302,6 +1306,36 @@ async function* handleDecision(
   yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
 }
 
+// ── RED-2 remediation (gpt-5.5 red-team audit, HIGH): credit-gate every ────────
+// decision/answer CONTINUATION that makes a model call ─────────────────────────
+
+/**
+ * True when deps.rateGuard is configured AND the caller is out of credits.
+ *
+ * Correctness-remediation (finding 2, handlerCreditGateInteractions.test.ts) routes
+ * req.decision/req.answer BEFORE the top-level credit gate (3) — correct, because the
+ * PURE resolution write (the write_resolved audit event / an answer's tool_result
+ * append) never itself costs a model call and must never be credit-blocked at zero
+ * balance. But every decision/answer branch ends by calling `runLoop` or
+ * `runLoopAfterAnswer` to let the model continue the conversation — and THAT call is a
+ * genuine new model turn, indistinguishable in cost from a fresh-send turn. Before this
+ * fix, that continuation call was never gated at all (RED-2): a zero-credit user could
+ * send a fabricated/stale decision or answer (no real pending item to resolve) and still
+ * force a free model call via the un-gated `runLoop`/`runLoopAfterAnswer` fallthrough.
+ *
+ * This single check, called at the top of both continuation loops, closes that gap for
+ * all three shapes uniformly: the stale/absent-pending no-op, a genuine reject (whose
+ * OWN resolution — the write_resolved event — already fired in the caller before this
+ * check runs), and a genuine answer (whose tool_result append already fired). Only the
+ * model-call continuation itself is gated; the resolution that already happened is
+ * never rolled back or hidden.
+ */
+async function isCreditExhausted(deps: HandlerDeps): Promise<{ exceeded: boolean; retryAfterSeconds: number } | null> {
+  if (!deps.rateGuard) return null;
+  const r = await deps.rateGuard.check(deps.userId);
+  return r.exceeded ? r : null;
+}
+
 // ── Inner tool-use loop (reused for the decision continuation) ────────────────
 
 async function* runLoop(
@@ -1316,6 +1350,16 @@ async function* runLoop(
   // req.runId is always present here — runLoop is only reached from handleDecision's
   // branches, and a decision re-POST always carries the runId of the run being resumed.
   const runId = req.runId ?? '';
+
+  // RED-2: this continuation is a genuine new model call — gate it. Whatever pure
+  // resolution (write_resolved event / stale-decision no-op) the caller already emitted
+  // stays intact; only THIS call is blocked.
+  const exhausted = await isCreditExhausted(deps);
+  if (exhausted) {
+    yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
+    return;
+  }
+
   // Decision-continuation pass — see runToolLoop's doc comment for the three enumerated
   // divergences from the main pass: no compose_view (allowCompose:false), no re-proposing
   // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
@@ -1361,6 +1405,16 @@ async function* runLoopAfterAnswer(
   // req.runId is always present here — an answer re-POST always carries the runId of the
   // run being resumed (PmoNativeRuntime._doSubscribe always sends the existing runId).
   const runId = req.runId ?? '';
+
+  // RED-2: this continuation is a genuine new model call — gate it. The answer's own
+  // resolution (the tool_result append the caller already did, if a real pending question
+  // existed) stays intact; only THIS call is blocked.
+  const exhausted = await isCreditExhausted(deps);
+  if (exhausted) {
+    yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
+    return;
+  }
+
   yield* runToolLoop({
     deps,
     emit,
