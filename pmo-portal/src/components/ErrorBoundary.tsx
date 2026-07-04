@@ -34,7 +34,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     // Surface to the console so it is observable in dev/CI and captured by any
     // console-forwarding error reporter. We intentionally do not swallow it silently.
-    // eslint-disable-next-line no-console
     console.error('ErrorBoundary caught a render error:', error, info.componentStack);
   }
 
