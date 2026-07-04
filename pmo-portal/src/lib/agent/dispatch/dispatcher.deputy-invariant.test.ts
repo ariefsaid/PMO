@@ -346,4 +346,65 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     );
     expect(svc.updateEqMock).toHaveBeenCalledWith('id', 'auto-A');
   });
+
+  it('mint-target correctness: two automations owned by DIFFERENT users, dispatched in the SAME tick, each fire under their OWN owner minted client — never the other owner (AC-AAN-016 multi-unit proof)', async () => {
+    // Real regression this test would catch: a dispatcher bug that reuses one mint across the batch
+    // (e.g. hoists `mintOwnerJwt` outside the per-unit loop, or a `buildClient` closure captures the
+    // wrong automation) would hand automation-B's fire the client minted for owner A. A single-automation
+    // test (as above) cannot catch that class of bug — it needs ≥2 distinct owners in one tick.
+    const automationA = makeScheduleAutomation({ id: 'auto-A', owner_id: 'user-A' });
+    const automationB = makeScheduleAutomation({ id: 'auto-B', owner_id: 'user-B' });
+    const svc = makeServiceClient([automationA, automationB]);
+
+    // Two DISTINCT minted clients + a generateLink/buildClient pair that mints the RIGHT one per
+    // owner_id — mirrors the real mint.ts (email/user_id resolved from automation.owner_id, see
+    // mint.ts's mintOwnerJwt) rather than the single-client-for-all-calls stub `makeMintDeps` uses.
+    const mintedA = makeMintedClient();
+    const mintedB = makeMintedClient();
+    (mintedB.client as { __identity: string }).__identity = 'minted-B';
+
+    const generateLink = vi.fn(async (params: Record<string, unknown>) => {
+      const email = params.email as string | undefined;
+      return {
+        data: { properties: { access_token: email === 'user-A' ? 'MINTED.A' : 'MINTED.B' } },
+        error: null,
+      };
+    });
+    const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
+    const authAdmin = { admin: { generateLink, getUserById } };
+    const buildClient = vi.fn((accessToken: string) =>
+      accessToken === 'MINTED.A' ? mintedA.client : mintedB.client,
+    );
+
+    const firedByOwner: Record<string, unknown> = {};
+    const handler = vi.fn(async function* (
+      _req: unknown,
+      deps: { supabase: unknown; userId: string },
+    ) {
+      firedByOwner[deps.userId] = deps.supabase;
+      yield { runId: `run-${deps.userId}`, type: 'status', payload: { status: 'completed' } };
+    });
+
+    await runDispatchTick({
+      serviceClient: svc.client as never,
+      authAdmin: authAdmin as never,
+      buildClient,
+      handler: handler as never,
+      modelClient: { create: vi.fn() } as never,
+      model: 'm',
+      conditionModel: { create: vi.fn() } as never,
+      conditionModelId: 'cheap',
+      now: () => new Date('2026-07-06T08:00:00Z'),
+      newRunId: () => 'run-x',
+      newMintedAt: () => '2026-07-06T08:00:00.000Z',
+    });
+
+    // Each owner's fire ran under THEIR OWN minted client — never the other owner's.
+    expect(firedByOwner['user-A']).toBe(mintedA.client);
+    expect(firedByOwner['user-B']).toBe(mintedB.client);
+    expect(firedByOwner['user-A']).not.toBe(mintedB.client);
+    expect(firedByOwner['user-B']).not.toBe(mintedA.client);
+    // Both fired (both were dispatched — the batch touched both owners' work, not just one).
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
 });
