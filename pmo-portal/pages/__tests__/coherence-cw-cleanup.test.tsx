@@ -91,6 +91,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: vi.fn().mockResolvedValue({ id: 'q-new' }), isPending: false, error: null },
     createReceipt: { mutateAsync: vi.fn().mockResolvedValue({ id: 'r-new' }), isPending: false, error: null },
     createInvoice: { mutateAsync: vi.fn().mockResolvedValue({ id: 'i-new' }), isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: vi.fn().mockResolvedValue({ id: 'vi-new' }), isPending: false, error: null },
   }),
 }));
 

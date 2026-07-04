@@ -274,3 +274,31 @@ export async function createInvoice(
   if (error) throwRpc(error);
   return data;
 }
+
+/**
+ * Atomic vendor-invoice capture (reliability harden #2): transition the case to Vendor Invoiced,
+ * create the invoice record, and log the status event in ONE transaction via the
+ * capture_vendor_invoice security-definer RPC — so the case can never advance to Vendor Invoiced
+ * with no invoice (or vice versa). The RPC REUSES transition_procurement's SoD/role guard (it is not
+ * bypassed). org_id is NEVER sent. Throws (with the RPC error.code) on any failure — the form stays
+ * open so the user can retry.
+ */
+export async function captureVendorInvoice(
+  procurementId: string,
+  status: 'Received' | 'Scheduled',
+  invoiceDate: string,
+  referenceNumber?: string | null,
+  amount?: number | null,
+  notes?: string | null,
+): Promise<ProcurementInvoiceRow> {
+  const { data, error } = (await supabase.rpc('capture_vendor_invoice', {
+    p_procurement_id: procurementId,
+    p_status: status,
+    p_invoice_date: invoiceDate,
+    p_reference_number: referenceNumber ?? null,
+    p_amount: amount ?? null,
+    p_notes: notes ?? null,
+  })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+  return data;
+}

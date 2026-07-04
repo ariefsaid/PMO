@@ -1,8 +1,7 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  createDraftTimesheet,
-  upsertTimesheetEntries,
+  saveTimesheetWeek,
   deleteTimesheetEntry,
   TimesheetWriteError,
 } from '@/src/lib/db/timesheets';
@@ -22,12 +21,14 @@ export interface SaveWeekInput {
 /**
  * Entry-write mutations for the signed-in engineer's own week (FR-TSE-011/012/016/017).
  *
- * `saveWeek` orchestrates, in one user action: create-the-Draft-if-absent → upsert the changed
- * cells (re-targeted at the resolved sheet id) → delete the zeroed cells → invalidate
- * ['timesheets', orgId, userId] on success (refetch reflects server state). `deleteRow` deletes a
- * persisted row's entries then invalidates. No org_id is ever sent — RLS is the authority. Errors
- * surface as TimesheetWriteError preserving error.code so the page can classify the toast; on
- * failure the query is NOT invalidated (edits are kept for retry).
+ * `saveWeek` commits the whole week in ONE atomic transaction via the save_timesheet_week RPC
+ * (harden #1): create-the-Draft-if-absent + upsert the changed cells + delete the zeroed cells are
+ * all-or-nothing, so a mid-op failure can never leave a partial commit. It returns the RPC's
+ * resolved sheet id (for chained submit) and invalidates ['timesheets', orgId, userId] on success.
+ * `deleteRow` deletes a persisted row's entries then invalidates. No org_id is ever sent — RLS/the
+ * RPC's re-asserted guards are the authority. Errors surface as TimesheetWriteError preserving
+ * error.code so the page can classify the toast; on failure the query is NOT invalidated (edits are
+ * kept for retry).
  */
 export function useTimesheetEntryMutations(): {
   saveWeek: UseMutationResult<string, TimesheetWriteError, SaveWeekInput>;
@@ -43,27 +44,12 @@ export function useTimesheetEntryMutations(): {
   };
 
   const saveWeek = useMutation<string, TimesheetWriteError, SaveWeekInput>({
-    mutationFn: async ({ currentTimesheetId, weekStartDate, diff }) => {
-      // 1. Create the Draft sheet if this week has none; reuse its id as the upsert target.
-      let sheetId = currentTimesheetId;
-      if (sheetId === null) {
-        const sheet = await createDraftTimesheet(weekStartDate, userId as string);
-        sheetId = sheet.id;
-      }
-      // 2. Upsert the changed/new cells, re-targeted at the resolved sheet id (the diff may carry a
-      //    placeholder timesheet_id when the sheet did not yet exist).
-      const upserts = diff.upserts.map(u => ({ ...u, timesheet_id: sheetId as string }));
-      await upsertTimesheetEntries(upserts);
-      // 3. Delete the zeroed cells' persisted entries.
-      for (const id of diff.deletes) {
-        await deleteTimesheetEntry(id);
-      }
-      // Return the resolved sheet id so chained callers (e.g. auto-save-then-submit, AC-W3-O1)
-      // can immediately submit against the correct id without waiting for the query invalidation
-      // refetch to settle. This is the same id that would eventually appear in `currentTimesheet`
-      // after the refetch — surfacing it here closes the chain without a poll/timeout.
-      return sheetId as string;
-    },
+    mutationFn: async ({ currentTimesheetId, weekStartDate, diff }) =>
+      // One atomic RPC: create-draft-if-absent + upsert changed cells + delete zeroed cells, all
+      // in a single transaction (harden #1). The RPC re-targets the upserts at the resolved sheet
+      // id server-side and returns that id so chained callers (auto-save-then-submit, AC-W3-O1)
+      // can submit immediately without waiting for the invalidation refetch to settle.
+      saveTimesheetWeek(currentTimesheetId, weekStartDate, diff.upserts, diff.deletes),
     onSuccess: invalidateOwn,
   });
 

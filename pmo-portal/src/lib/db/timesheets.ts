@@ -108,3 +108,32 @@ export async function deleteTimesheetEntry(id: string): Promise<void> {
   const { error } = await supabase.from('timesheet_entries').delete().eq('id', id);
   if (error) throwWrite(error);
 }
+
+/**
+ * Atomic week save (reliability harden #1): create-draft-if-absent + upsert changed cells +
+ * delete zeroed cells in ONE transaction via the save_timesheet_week security-definer RPC, so a
+ * mid-op failure can never leave a partial commit. Returns the resolved timesheet id. org_id is
+ * NEVER sent — the RPC re-asserts ownership/tenancy/Draft (mirrors the entries_write RLS).
+ */
+export async function saveTimesheetWeek(
+  timesheetId: string | null,
+  weekStartDate: string,
+  upserts: EntryUpsert[],
+  deleteIds: string[],
+): Promise<string> {
+  const { data, error } = (await supabase.rpc('save_timesheet_week', {
+    p_timesheet_id: timesheetId,
+    p_week_start_date: weekStartDate,
+    // The RPC re-targets entries at the resolved sheet id, so timesheet_id in the payload is
+    // ignored; send only the cell coordinates + values it reads (project_id/entry_date/hours/notes).
+    p_upserts: upserts.map(({ project_id, entry_date, hours, notes }) => ({
+      project_id,
+      entry_date,
+      hours,
+      notes,
+    })),
+    p_delete_ids: deleteIds,
+  })) as unknown as { data: string | null; error: PostgrestErrorLike | null };
+  if (error) throwWrite(error);
+  return data as string;
+}
