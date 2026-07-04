@@ -6,6 +6,7 @@ import {
   createQuotation as dalCreateQuotation,
   createReceipt as dalCreateReceipt,
   createInvoice as dalCreateInvoice,
+  captureVendorInvoice as dalCaptureVendorInvoice,
   ProcurementError,
   type ProcurementDetail,
   type ProcurementStatus,
@@ -95,5 +96,24 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice };
+  // harden #2: atomic VI capture — transition→Vendor Invoiced + invoice-create + status-event in ONE
+  // RPC (SoD reused, not bypassed). Replaces the old two-write FE sequence that could advance the
+  // case with no invoice on a partial failure.
+  const captureVendorInvoice = useMutation<
+    ProcurementInvoiceRow,
+    ProcurementError,
+    {
+      status: 'Received' | 'Scheduled';
+      invoiceDate: string;
+      referenceNumber?: string | null;
+      amount?: number | null;
+      notes?: string | null;
+    }
+  >({
+    mutationFn: ({ status, invoiceDate, referenceNumber, amount, notes }) =>
+      dalCaptureVendorInvoice(id, status, invoiceDate, referenceNumber, amount, notes),
+    onSuccess: invalidateDetail,
+  });
+
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice };
 }

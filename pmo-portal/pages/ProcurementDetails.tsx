@@ -521,13 +521,12 @@ const ProcurementDetails: React.FC = () => {
     }
   };
 
-  // O3 (AC-W3-O3): submit the inline VI capture — transition to Vendor Invoiced THEN create the
-  // invoice record, sequenced from the FE (no RPC change). Calls the mutations DIRECTLY (not
-  // commitTransition, whose catch swallows) so a failed transition exits the try BEFORE the invoice
-  // is created. Exactly ONE toast: a combined success, or the classified failure (no contradictory
-  // success-then-warning pair). The inline panel is closed on BOTH paths — on a partial failure
-  // (transition OK, invoice fails) the PR is at Vendor Invoiced with no invoice, so the
-  // `canShowVIForm` recovery after-form (gated on `p.invoices.length === 0`) is where it's finished.
+  // O3 (AC-W3-O3) + harden #2: submit the inline VI capture atomically. The transition to Vendor
+  // Invoiced + the invoice-create + the status-event log now happen in ONE transactional RPC
+  // (capture_vendor_invoice), so a partial failure can never leave the case at Vendor Invoiced with
+  // no invoice (or vice versa) — it is all-or-nothing. Exactly ONE toast: a combined success, or the
+  // classified failure. On FAILURE the inline panel STAYS OPEN so the user can correct + retry
+  // without hunting for the recovery after-form; only a success closes it.
   const submitVICapture = async (
     viStatus: 'Received' | 'Scheduled',
     invoiceDate: string,
@@ -536,13 +535,19 @@ const ProcurementDetails: React.FC = () => {
   ) => {
     setMutationError(null);
     try {
-      await mutations.transition.mutateAsync({ to: 'Vendor Invoiced', notes: notesInput || undefined });
-      await mutations.createInvoice.mutateAsync({ status: viStatus, invoiceDate, referenceNumber, amount });
+      await mutations.captureVendorInvoice.mutateAsync({
+        status: viStatus,
+        invoiceDate,
+        referenceNumber,
+        amount,
+        notes: notesInput || undefined,
+      });
       setNotesInput('');
       setShowVICapture(false);
       toast('Vendor invoice recorded', `Moved to ${toastStateLabel('Vendor Invoiced')}`, 'success');
     } catch (err) {
-      setShowVICapture(false);
+      // Keep the form open (do NOT close) — the atomic RPC rolled everything back, so the user
+      // can fix the input and resubmit from the same panel.
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
@@ -552,7 +557,8 @@ const ProcurementDetails: React.FC = () => {
   const confirmInFlight =
     mutations.transition.isPending ||
     mutations.createReceipt.isPending ||
-    mutations.createInvoice.isPending;
+    mutations.createInvoice.isPending ||
+    mutations.captureVendorInvoice.isPending;
 
   // ── Stat tiles (sparse + honest — I2/I3 design-review fixes) ───────────────
   // I3: only render a tile when its value is real (not a placeholder like
