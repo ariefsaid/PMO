@@ -12,8 +12,16 @@
 > hardening (#221–#228). **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
 >
 > **⚑ TWO OWNER GATES OUTSTANDING (nothing else blocks):**
-> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). `main` is
->    ~19 PRs behind `dev` — a big but clean promote.
+> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). **⚠ NOT a
+>    fast-forward** (independent review 2026-07-04): `origin/main` has ~5 commits not on `dev` (squash-merge
+>    divergence; content is present on `dev` in equal/superior form), so `git diff dev origin/main` touches
+>    ~382 files — the promote is a real 3-way MERGE, not a clean linear ff. **Do a dry-run
+>    `git merge --no-commit --no-ff origin/main` into a throwaway branch FIRST** to scope conflicts before
+>    scheduling. Also: flag-default precision — `VITE_FEATURES_AGENT_ASSISTANT` + `AGENT_CREDITS_ENFORCED`
+>    default OFF (`=== 'true'`), but the internal `AGENT_PERSISTENCE`/`AGENT_AUTOMATIONS` default ON
+>    (`!== 'false'`) — inert without the parent panel flag, but not literally "all OFF". No `.env.example` in
+>    repo; flag contract is source-only. Fix `mint.ts` `generateLink` latent bug (or add a mint-failure alert)
+>    BEFORE flipping `AGENT_AUTOMATIONS` ON in prod — it's in the deputy path.
 > 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
 >    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
 >    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner

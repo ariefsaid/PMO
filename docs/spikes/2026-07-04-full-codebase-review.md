@@ -25,8 +25,8 @@ exploitable, all ledgered.**
 | RED-2 | High | `agent-chat/handler.ts` | #220 regression: decision/answer with no pending item → un-gated model call → zero-credit spend | ✅ `isCreditExhausted` gate (PR #222) |
 | RED-3 | High **(WAS LIVE PROD)** | `procurements_insert` (0002/0010/0038) | Client-supplied `requested_by_id` → PM files a PR "as" another user + self-approves → SoD bypass | ✅ mig 0051 hard-pin (PR #221; cross-family CONFIRM-CLOSED). **⚠ EXPEDITE main→prod.** |
 | RED-4 | High **(WAS LIVE PROD)** | `projects_write` (0002) | No restrictive admin-only delete → non-admin hard-delete (ADR-0019 gap) | ✅ mig 0052 admin-only delete (PR #221; CONFIRM-CLOSED). **⚠ EXPEDITE main→prod.** |
-| SEC-HIGH-1 | High | `user_views_select` (0045) | Owner OR-branch omits `org_id` → stale/other-org saved views readable on org change (B2B-future) | ledger |
-| SEC-HIGH-2 | High | `agent-dispatch/dispatcher.ts` | `service_role` reads `procurement_status_events`; JS org-gate mitigates but violates the invariant — correct fix is a security-definer RPC | ledger (owner/ADR call) |
+| SEC-HIGH-1 | High | `user_views_select` (0045) | Owner OR-branch omits `org_id` → stale/other-org saved views readable on org change (B2B-future) | ✅ mig 0053 org gate wraps every branch (PR #223) |
+| SEC-HIGH-2 | High | `agent-dispatch/dispatcher.ts` | `service_role` reads `procurement_status_events`; JS org-gate mitigates but violates the invariant | ✅ mig 0054 `select_trigger_events` definer RPC (service_role-only, org+status filter); JS gate kept as belt (PR #223) |
 
 ### 🟠 Reliability (atomicity — non-atomic multi-step writes partial-commit)
 - Critical: `useTimesheetEntries` week save; `ProcurementDetails` VI capture (transition then invoice as 2 FE writes); bulk procurement import (retry duplicates, no idempotency key); agent SSE failures swallowed → stuck `running`.
