@@ -4,30 +4,36 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening COMPLETE on `dev`
+## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening on `dev`+`main`; RED-3/4 security LIVE in prod
 
-> **RESUME ENTRY POINT.** **`production` UNCHANGED at `fc312eb`/mig 0041 (= `v0.1.0`). `main` = `1c0f747`
-> (pre-reskin, WELL behind). `dev` = `ad1f156`** — carries the reskin (#210) + the ENTIRE batteries-included-A
-> program (#211–#218) + cross-family remediation (#219/#220) + the full-codebase-review remediation & 5-wave
-> hardening (#221–#228). **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
+> **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
+> `6f75edb` — a real 3-way merge resolving 44 squash-divergence conflicts to `dev`; `git diff origin/main
+> origin/dev` is now EMPTY, and `main` carries `dev`'s ancestry so the NEXT promote is a clean ff).
+> `main`/`dev` carry the reskin (#210) + the ENTIRE batteries-included-A program (#211–#218) + cross-family
+> remediation (#219/#220) + full-codebase-review remediation & 5-wave hardening (#221–#228) + the mint
+> fail-closed fix + the agent-e2e/CI gate fix. **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
 >
-> **⚑ TWO OWNER GATES OUTSTANDING (nothing else blocks):**
-> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). **⚠ NOT a
->    fast-forward** (independent review 2026-07-04): `origin/main` has ~5 commits not on `dev` (squash-merge
->    divergence; content is present on `dev` in equal/superior form), so `git diff dev origin/main` touches
->    ~382 files — the promote is a real 3-way MERGE, not a clean linear ff. **Do a dry-run
->    `git merge --no-commit --no-ff origin/main` into a throwaway branch FIRST** to scope conflicts before
->    scheduling. Also: flag-default precision — `VITE_FEATURES_AGENT_ASSISTANT` + `AGENT_CREDITS_ENFORCED`
->    default OFF (`=== 'true'`), but the internal `AGENT_PERSISTENCE`/`AGENT_AUTOMATIONS` default ON
->    (`!== 'false'`) — inert without the parent panel flag, but not literally "all OFF". No `.env.example` in
->    repo; flag contract is source-only. ~~Fix `mint.ts` `generateLink` latent bug BEFORE flipping
->    `AGENT_AUTOMATIONS` ON in prod~~ ✅ FIXED (`2de2da8` on dev): mint now fails-closed on unresolvable
->    owner email, invalid `user_id` fallback removed — the last agent-automations-prod caveat is cleared.
-> 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
->    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
->    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner
->    gives the per-instance go. Prod also needs the edge-fn deploy runbook (functions deploy ×3, secrets/GUCs,
->    live-mint verify) BEFORE enabling the agent tier — all flags default OFF so a DB+FE promote is safe without it.
+> **✅ BOTH OWNER GATES CLEARED (owner-instructed 2026-07-04):**
+> 1. **`dev`→`main` promote — DONE** (PR #229). Full `verify`+`integration` lane green. The integration gate
+>    (which only runs on PR→main, never PR→dev) caught 3 agent-e2e that had never executed in CI — all
+>    test/CI-config, no app change: AC-AAN-036/AC-AGP-023 needed `VITE_SUPABASE_ANON_KEY` exported to
+>    `$GITHUB_ENV` (they build a 2nd anon client); AC-AW-012 raced the ⌘J listener mount (added the
+>    wait-for-Assistant-button guard every other agent e2e already had). Fixed on `dev` (`3324b9d`), re-verified.
+> 2. **RED-3 + RED-4 → `production` DB — DONE.** `scripts/db-push-prod.sh` applied migs **0042–0057** to the
+>    Supabase Cloud DB (prod was at 0041; all 16 were pending — the pre-agent 0042–0045 had also never shipped
+>    to prod). All prod-data-safe (0043's FK is on a fresh NULLABLE column; the rest additive/RLS-policy-only).
+>    **prod DB now at 0057; the two live-prod tenant-security holes are CLOSED** (RLS-enforced, independent of FE).
+>    Legit old-FE flows unaffected — 0051/0052 only block the abuse paths (file-a-PR-as-another-user, non-admin
+>    project delete).
+>
+> **STILL OWNER-PENDING (separate, bigger decisions — NOT done by the security promote):**
+> - **`main`→`production` FE deploy** (Cloudflare `production` branch) — ships the reskin + agent UI (flag-OFF)
+>   to live users; a visible change needing its own render-verify + per-instance owner go. The security fix did
+>   NOT require it (RLS is DB-enforced). `production` FE still runs the pre-reskin build.
+> - **Enabling the agent tier in prod** — needs the edge-fn deploy runbook (functions deploy ×3, `OPENROUTER_API_KEY`,
+>   pg_cron GUCs `app.settings.dispatch_url`/`service_role_key`, live-mint verify). Until then mig 0048's cron is
+>   registered-but-idle on prod (fires per-minute against a NULL url → self-pruning no-op, by design). All
+>   user-facing agent flags default OFF, so the DB push is safe without it.
 >
 > **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
 > is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
