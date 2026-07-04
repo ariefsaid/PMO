@@ -44,13 +44,13 @@ describe('AC-PJ-DG-001: drawer-vs-detail invariant — no Drawer import in detai
   for (const relPath of GUARDED_FILES) {
     it(`AC-PJ-DG-001: ${relPath} does NOT import <Drawer>`, () => {
       const absPath = join(PAGES_ROOT, relPath);
-      let src: string;
-      try {
-        src = readFileSync(absPath, 'utf-8');
-      } catch {
-        // If the file doesn't exist the invariant is trivially satisfied
-        return;
-      }
+      // A missing guarded file must FAIL LOUDLY, not pass vacuously — a silently-swallowed
+      // ENOENT here previously let a renamed/deleted guarded file "pass" with zero assertions
+      // ever executed (the invariant this test exists to enforce was never actually checked).
+      // readFileSync's own throw on a missing path is exactly the loud failure we want; if this
+      // guard's file inventory (GUARDED_FILES above) ever drifts from the real pages/ tree, the
+      // fix is to update GUARDED_FILES to match reality — never to swallow the read error here.
+      const src = readFileSync(absPath, 'utf-8');
 
       // Extract all import statements
       const importLines = src
