@@ -4,9 +4,15 @@
 **Method:** 7 independent pi+gpt-5.5 sweeps over the whole `dev` tree (not just recent changes), each with a
 role system-prompt + a method-driven brief. glm-5.2 was requested for reliability/test/observability but was
 z.ai-rate-capped (~4h); ran on the sanctioned gpt-5.5 fallback (re-run on glm optional).
-**Overall verdict: NO-SHIP to prod until the HIGH/Critical security items are fixed.** Most are pre-existing
-(not this session's agent-tier work); two were **live in production**. The 🔴 exploitable set is now FIXED on
-`dev` (PRs #221/#222); the 🟡 items remain a ranked ledger for the owner to sequence.
+**Original verdict: NO-SHIP to prod until the HIGH/Critical items are fixed → now RESOLVED on `dev`.**
+Most findings were pre-existing (not this session's agent-tier work); two were **live in production**.
+
+**✅ UPDATE 2026-07-04 — full remediation + 5-wave hardening program shipped to `dev` (8 PRs, #221–#228):**
+🔴 exploitable set FIXED (#221 RED-3/4, #222 RED-1/2); SEC-HIGH-1/2 (#223); 🟡 observability (#224);
+🟠 reliability atomicity 5/6 (#225); 🟡 data-layer indexes+pagination (#226); 🟡 test-hardening + a new
+`deno check` edge-fn CI gate + dependabot bumps (#227/#228). TDD-first + reviewed (opus / Director read where
+external cross-family was rate-capped). **Remaining = the deferred items in the sequencing list — none
+exploitable, all ledgered.**
 
 ---
 
