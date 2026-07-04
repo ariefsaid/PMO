@@ -29,6 +29,7 @@ function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): Automat
     id: 'auto-A',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '* * * * *', // matches every tick
     enabled: true,
@@ -206,7 +207,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       eq: () => ({ eq: () => ({ is: isMock }) }),
     });
     const orderMock = vi.fn().mockResolvedValue({
-      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered' }],
+      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
     });
     const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
@@ -231,7 +232,10 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const notifInsert = vi.fn().mockResolvedValue({ error: null });
     const origFrom = minted.client.from;
     (minted.client as { from: (t: string) => unknown }).from = vi.fn((table: string) => {
-      if (table === 'notifications') return { insert: notifInsert };
+      if (table === 'notifications') {
+        minted.tablesTouched.push(table); // record order alongside the audit writes
+        return { insert: notifInsert };
+      }
       return origFrom(table);
     });
     const mintDeps = makeMintDeps(minted.client);
@@ -261,6 +265,12 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     // A severity='warning' notification was written via the MINTED owner client.
     expect(notifInsert).toHaveBeenCalledTimes(1);
     expect(notifInsert.mock.calls[0][0]).toMatchObject({ severity: 'warning' });
+    // gpt-5.5 #3: the mint was AUDITED (agent_events written) BEFORE the warning notification —
+    // an unevaluable-condition skip that mints still leaves an audit trail first.
+    const auditIdx = minted.tablesTouched.indexOf('agent_events');
+    const notifIdx = minted.tablesTouched.indexOf('notifications');
+    expect(auditIdx).toBeGreaterThanOrEqual(0);
+    expect(notifIdx).toBeGreaterThan(auditIdx);
   });
 
   it('FR-AAN-020: the fired run persists as an ordinary run under the MINTED owner client (startSeq=1)', async () => {

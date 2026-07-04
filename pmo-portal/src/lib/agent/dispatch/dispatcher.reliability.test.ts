@@ -12,6 +12,7 @@ function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): Automat
     id: 'auto-A',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '* * * * *', // matches every tick
     enabled: true,
@@ -161,7 +162,7 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
     const triggerIs = vi.fn().mockResolvedValue({ data: [trigger], error: null });
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({ eq: () => ({ eq: () => ({ is: isMock }) }) });
     const orderMock = vi.fn().mockResolvedValue({
-      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered' }],
+      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
     });
     const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
@@ -285,14 +286,15 @@ describe('selectTriggerMatches — item 4: compound (created_at, id) watermark c
       id: 'trig-1',
       kind: 'trigger',
       owner_id: 'u1',
+      org_id: 'org-A',
       prompt: 'notify me when ordered',
       trigger_on: { source: 'procurement_status_events', event: 'Ordered' },
       enabled: true,
       archived_at: null,
     };
     const sameTs = '2026-07-06T08:00:00Z';
-    const eventA = { id: 'aaaa0000-0000-0000-0000-000000000001', created_at: sameTs, to_status: 'Ordered' };
-    const eventB = { id: 'bbbb0000-0000-0000-0000-000000000002', created_at: sameTs, to_status: 'Ordered' };
+    const eventA = { id: 'aaaa0000-0000-0000-0000-000000000001', created_at: sameTs, to_status: 'Ordered', org_id: 'org-A' };
+    const eventB = { id: 'bbbb0000-0000-0000-0000-000000000002', created_at: sameTs, to_status: 'Ordered', org_id: 'org-A' };
 
     // Watermark already advanced past eventA (by id), same created_at as eventB.
     const maybeSingleMock = vi.fn().mockResolvedValue({

@@ -17,6 +17,14 @@ export interface AutomationRow {
   id: string;
   kind: 'schedule' | 'trigger';
   owner_id: string;
+  /**
+   * The automation's tenant (gpt-5.5 audit #1). Carried so a trigger automation is ONLY ever matched
+   * to source events of its OWN org — a background run is a deputy for exactly one tenant, and
+   * cross-org event content must never reach its condition model or its fire. It is `agent_automations.org_id`,
+   * selected under service_role for metadata enumeration; the FIRED run's org is still pinned by RLS
+   * (the minted owner JWT), this is the SELECTION-time tenancy gate.
+   */
+  org_id: string;
   prompt: string;
   schedule?: string | null;
   trigger_on?: { source: string; event: string } | null;
@@ -63,13 +71,23 @@ export async function selectDueSchedules(sb: ServiceClientLike, now: Date): Prom
   return data.filter((row) => row.schedule && cronMatches(row.schedule, now));
 }
 
-/** A status-event row from a trigger source table (e.g. procurement_status_events). */
+/**
+ * A status-event row from a trigger source table (e.g. procurement_status_events), projected to the
+ * MINIMAL column set the dispatcher needs (gpt-5.5 audit #2). service_role bypasses RLS, so reading
+ * `select('*')` on a tenant business table over-exposes every column of every org's rows to the
+ * condition model prompt. We project ONLY: id + created_at (the watermark cursor), to_status (the
+ * trigger match key), and org_id (the cross-org tenancy gate). No wide `[key: string]: unknown` —
+ * an unforeseen column must never silently flow into a model prompt.
+ */
 export interface StatusEventRow {
   id: string;
   created_at: string;
   to_status?: string;
-  [key: string]: unknown;
+  org_id: string;
 }
+
+/** The exact minimal column projection read from a trigger source table (gpt-5.5 audit #2). */
+export const TRIGGER_EVENT_COLUMNS = 'id, created_at, to_status, org_id';
 
 export interface TriggerMatch {
   automation: AutomationRow;
@@ -85,16 +103,22 @@ export interface TriggerMatch {
  * (runDispatchTick) responsibility, performed AFTER the batch succeeds, so a failed tick does not
  * skip events (FR-AAN-013).
  *
- * Item 4 (compound cursor, created_at ties): `created_at` alone is not a unique cursor — two events
- * can share the exact same timestamp (bulk inserts, low-resolution clocks). A plain `gt('created_at',
- * since)` cursor would SKIP any sibling event at the watermark's own timestamp that sorts after the
- * seen one; conversely a naive re-run of `gt` after advancing past only one of them risks re-scanning
- * (and, without the id filter below, RE-MATCHING) the already-seen row forever. The simplest CORRECT
- * form: query with `gte('created_at', since)` (never narrower than the watermark's own instant), then
- * filter the already-seen row(s) OUT in-JS by id — never by discarding lastSeenId. This is a full
- * `(created_at, id)` compound cursor: "at-or-after this timestamp, excluding the exact id(s) already
- * recorded at that timestamp" — same-timestamp siblings are neither missed (gte keeps them) nor
- * double-fired (the id filter drops only the exact previously-seen row).
+ * Item 4 + gpt-5.5 audit #5 (TRUE compound (created_at, id) cursor): `created_at` alone is not a
+ * unique cursor — two events can share the exact same timestamp (bulk inserts, low-resolution clocks).
+ * A plain `gt('created_at', since)` cursor would SKIP any sibling event at the watermark's own
+ * timestamp that sorts after the seen one. So we query `gte('created_at', since)` (never narrower than
+ * the watermark's own instant) and then apply the FULL compound-cursor predicate in-JS: keep an event
+ * iff `created_at > lastSeenAt OR (created_at === lastSeenAt AND id > lastSeenId)`.
+ *
+ * The earlier form filtered only `id === lastSeenId`, which is WRONG: when three same-timestamp
+ * siblings A,B,C advance the watermark to C, that filter drops only C and re-yields A,B EVERY tick
+ * forever (a double-fire, gpt-5.5 audit #5). The strict `> (lastSeenAt, lastSeenId)` predicate drops
+ * A and B too (their id is ≤ C's at the same instant), yielding only genuinely-newer rows.
+ *
+ * Cross-org tenancy (gpt-5.5 audit #1): each candidate event is additionally gated by
+ * `event.org_id === automation.org_id` before it can match — a background automation is a deputy for
+ * exactly one tenant, so another org's event must never match, condition-evaluate, notify, credit, or
+ * fire it.
  */
 export async function selectTriggerMatches(
   sb: ServiceClientLike,
@@ -125,8 +149,9 @@ export async function selectTriggerMatches(
       continue;
     }
     const wm = await readWatermark(sb, source);
-    const since = wm?.lastSeenAt ?? '1970-01-01';
+    const lastSeenAt = wm?.lastSeenAt ?? null;
     const lastSeenId = wm?.lastSeenId ?? null;
+    const since = lastSeenAt ?? '1970-01-01';
 
     const builder = sb.from(source) as {
       select: (cols: string) => {
@@ -137,13 +162,33 @@ export async function selectTriggerMatches(
     };
     // gte (not gt): the compound cursor — see the doc comment above. Same-timestamp siblings of the
     // watermark's own instant must still be considered; the exact already-seen row is excluded below
-    // by id, in-JS (never discarding lastSeenId).
-    const { data, error } = await builder.select('*').gte('created_at', since).order('created_at');
+    // by (created_at, id), in-JS. Column projection is MINIMIZED (gpt-5.5 audit #2): never select('*')
+    // on a tenant business table under service_role — only the columns the cursor/match/org-gate need.
+    const { data, error } = await builder
+      .select(TRIGGER_EVENT_COLUMNS)
+      .gte('created_at', since)
+      .order('created_at');
     if (error || !data) continue;
 
     for (const event of data) {
-      if (lastSeenId !== null && event.id === lastSeenId) continue; // already seen at this exact instant.
+      // Compound (created_at, id) cursor exclusion (gpt-5.5 audit #5): keep an event only if it is
+      // strictly AFTER the watermark — either a later timestamp, or the same timestamp with a greater
+      // id. Same-timestamp siblings that sort BEFORE OR EQUAL the last-seen id were already emitted on
+      // a prior tick; filtering only `id === lastSeenId` would re-yield same-timestamp siblings A,B
+      // forever when the watermark advanced to C. Skipped when there is no prior watermark.
+      if (lastSeenAt !== null && lastSeenId !== null) {
+        const after = event.created_at > lastSeenAt || (event.created_at === lastSeenAt && event.id > lastSeenId);
+        if (!after) continue;
+      }
       for (const automation of automations) {
+        // SECURITY CRITICAL cross-org gate (gpt-5.5 audit #1): match ONLY within the automation's own
+        // org. Without this, an Org-B event fires an Org-A automation and Org-B's row is serialized
+        // into Org-A's condition-model prompt. This is the SELECTION-time tenancy authority (RLS still
+        // pins the fired run via the minted owner JWT, but the event never reaches the model here).
+        // Falsy-org hardening (re-audit Low): don't rely on the DB NOT NULL constraint alone —
+        // `null !== null` is false in JS, so two null-org rows would cross-match if that constraint
+        // were ever dropped. Deny unless BOTH orgs are present AND equal.
+        if (!automation.org_id || !event.org_id || automation.org_id !== event.org_id) continue;
         if (automation.trigger_on?.event === event.to_status) {
           matches.push({ automation, event });
         }
@@ -295,12 +340,12 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     }
 
     try {
-      // Mint ONCE per due automation — every downstream use (condition-warning notify, credit
-      // preflight, audit, fire) shares this single minted owner client (one mint per candidate
-      // fire, never a fresh mint per branch).
-      const minted = await mintOwnerJwt(deps, automation);
-
-      // Trigger + NL condition (cheap-tier, memoized §4).
+      // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
+      // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
+      // case) never mints at all — no audit run, no minted-client write, nothing to leak. This is the
+      // "move condition eval before mint" resolution: the ONLY minted-client use for an unevaluable
+      // condition is its warning notify, which is deferred below to AFTER mint+audit. ──
+      let conditionWarning: string | null = null;
       if (automation.kind === 'trigger' && automation.condition && event) {
         const verdict = await evaluateCondition(
           { model: deps.conditionModel, modelId: deps.conditionModelId, now: () => now.getTime(), memo },
@@ -308,15 +353,35 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
           event,
         );
         if (!verdict.fire) {
-          if (verdict.warning) {
-            // Unevaluable ⇒ warning notification, no fire (fail-quiet-but-visible, FR-AAN-024).
-            await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', verdict.warning, {
-              source: 'automation',
-              automation_id: automation.id,
-            });
-          }
-          continue; // condition false (silent) or unevaluable (warned) ⇒ no fire.
+          // Condition false ⇒ silent no-fire, NEVER mint (nothing to notify, nothing to audit).
+          if (!verdict.warning) continue;
+          // Unevaluable ⇒ we must warn the owner; that needs the minted client, so we fall through to
+          // mint + audit and notify below. Recorded here so the post-audit block emits it.
+          conditionWarning = verdict.warning;
         }
+      }
+
+      // Mint ONCE per candidate — shared by audit, notify, credit preflight, and fire (one mint per
+      // candidate, never a fresh mint per branch). Reached only when the automation will either fire
+      // or produce an owner notification (unevaluable condition / over-credit).
+      const minted = await mintOwnerJwt(deps, automation);
+
+      // ── Audit EVERY mint FIRST — before ANY other minted-client DB use (gpt-5.5 audit #3,
+      // AC-AAN-017). mint.ts's invariant ("audit is the first minted-client use") now holds on the
+      // skip paths too: an unevaluable-condition or over-credit candidate that mints still leaves an
+      // audit trail BEFORE its warning notification. Fail-closed — auditMint throws on failure, so a
+      // candidate whose audit cannot be written never notifies, credits, or fires. ──
+      const runId = newRunId();
+      await auditMint(minted.client, automation, runId, newMintedAt());
+
+      // Deferred unevaluable-condition warning (the mint is already audited above, so this notify is
+      // never the first minted-client write). No fire follows.
+      if (conditionWarning !== null) {
+        await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', conditionWarning, {
+          source: 'automation',
+          automation_id: automation.id,
+        });
+        continue;
       }
 
       // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
@@ -334,11 +399,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         continue; // no fire, no last_fired_at stamp.
       }
 
-      // ── Audit (BEFORE fire) → fire (the SAME loop) → stamp last_fired_at. ──
-      const runId = newRunId();
-      // AC-AAN-017: audit BEFORE the minted client is used for the fire. Fail-closed (auditMint
-      // throws on failure) — never fire an unaudited run.
-      await auditMint(minted.client, automation, runId, newMintedAt());
+      // ── Fire (the SAME loop) → stamp last_fired_at. The run was already audited above. ──
 
       const persistenceExtras = deps.buildPersistence
         ? { persistence: deps.buildPersistence(minted.client, automation.owner_id, runId) }

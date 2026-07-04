@@ -29,6 +29,7 @@ function makeAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
     id: 'auto-1',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '0 8 * * 1',
     enabled: true,
@@ -130,8 +131,10 @@ describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row
     // Assert no OTHER user id (e.g. user-B) can appear — the automation carries only owner_id.
     expect(idsInCall).not.toContain('user-B');
     expect(minted.client).toBe(buildClient.mock.results[0]?.value);
-    // Lifetime bounded to timeout_s (FR-AAN-018).
-    expect(minted.expiresInS).toBe(90);
+    // The returned wall-clock timeout mirrors the automation's timeout_s — this is the fire
+    // AbortController budget, NOT the minted JWT's cryptographic lifetime (gpt-5.5 #4: generateLink
+    // exposes no TTL knob, so the JWT uses the project's default OTP/JWT expiry).
+    expect(minted.wallClockTimeoutS).toBe(90);
   });
 
   it('mints only for owner_id even when other automation fields differ (no field leakage)', async () => {
@@ -200,5 +203,26 @@ describe('auditMint — AC-AAN-017 (every mint is audited before use) + AC-AAN-0
     // The audit (auditMint) writes automation_id/owner_id/minted_at only — asserted structurally
     // above; here we assert mint.ts contains no token-persisting write literal.
     expect(src).not.toMatch(/\.(insert|upsert|update)\([^)]*token/i);
+  });
+
+  it('gpt-5.5 #4: mint.ts makes no false JWT-TTL claim and passes no TTL param to generateLink', () => {
+    // generateLink (the Supabase admin magiclink API) exposes NO custom-TTL knob — the minted token
+    // uses the project's default OTP/JWT expiry. The invariant we land on: mint.ts must NOT claim the
+    // JWT lifetime is bounded to timeout_s (that was false), and must NOT pass any expiry/ttl/validity
+    // param to generateLink (which would silently no-op and re-imply a false bound).
+    const src = readFileSync(resolve(DISPATCH_DIR, 'mint.ts'), 'utf8');
+
+    // No expiry/ttl/validity option object handed to the admin API.
+    expect(src).not.toMatch(/generateLink\([^)]*(?:ttl|expires_in|expiresIn|validity_period|valid_for)/i);
+    // The generateLink call carries only type + the owner identity (email or user_id) — no TTL field.
+    expect(src).not.toMatch(/expires_in|expiresIn\s*:/);
+
+    // The returned field is the wall-clock fire timeout, not a JWT lifetime — the old `expiresInS`
+    // name (which implied the JWT expired then) is gone.
+    expect(src).not.toMatch(/expiresInS/);
+    expect(src).toMatch(/wallClockTimeoutS/);
+
+    // No lingering comment claiming the JWT's cryptographic lifetime is bounded to timeout_s.
+    expect(src).not.toMatch(/JWT'?s? lifetime is bounded to/i);
   });
 });

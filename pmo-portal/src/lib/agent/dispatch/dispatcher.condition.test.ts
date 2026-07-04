@@ -15,6 +15,7 @@ function makeAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
     id: 'trig-1',
     kind: 'trigger',
     owner_id: 'u1',
+    org_id: 'org-A',
     prompt: 'notify me',
     trigger_on: { source: 'procurement_status_events', event: 'Ordered' },
     condition: 'the case has sat in Ordered for more than 30 days',
@@ -24,7 +25,7 @@ function makeAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   };
 }
 
-const event: StatusEventRow = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered' };
+const event: StatusEventRow = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' };
 
 describe('evaluateCondition', () => {
   it('AC-AAN-023 condition false no-fire no notification', async () => {
