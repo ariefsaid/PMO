@@ -1,4 +1,4 @@
--- 0105_capture_vendor_invoice_atomic.test.sql
+-- 0107_capture_vendor_invoice_atomic.test.sql
 -- Reliability harden #2 — atomic vendor-invoice capture (migration 0056_capture_vendor_invoice.sql).
 --
 -- The VI capture was two FE writes (transition→Vendor Invoiced, then createInvoice). A failure
