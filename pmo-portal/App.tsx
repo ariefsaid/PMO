@@ -5,6 +5,7 @@ import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
+import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
@@ -409,7 +410,9 @@ const App: React.FC = () => (
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/update-password" element={<UpdatePasswordPage />} />
               <Route element={<RequireAuth />}>
-                <Route path="/*" element={<Shell />} />
+                <Route element={<RequireInviteAccepted />}>
+                  <Route path="/*" element={<Shell />} />
+                </Route>
               </Route>
             </Routes>
           </AnalyticsProvider>
