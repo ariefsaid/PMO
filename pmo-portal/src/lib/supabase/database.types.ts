@@ -309,6 +309,64 @@ export type Database = {
           },
         ]
       }
+      agent_usage: {
+        Row: {
+          completion_tokens: number
+          cost: number
+          created_at: string
+          id: string
+          model: string
+          org_id: string
+          owner_id: string
+          prompt_tokens: number
+          run_id: string | null
+        }
+        Insert: {
+          completion_tokens?: number
+          cost?: number
+          created_at?: string
+          id?: string
+          model: string
+          org_id?: string
+          owner_id?: string
+          prompt_tokens?: number
+          run_id?: string | null
+        }
+        Update: {
+          completion_tokens?: number
+          cost?: number
+          created_at?: string
+          id?: string
+          model?: string
+          org_id?: string
+          owner_id?: string
+          prompt_tokens?: number
+          run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_usage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_usage_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_usage_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_line_items: {
         Row: {
           actual_amount: number
@@ -484,6 +542,58 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credits: {
+        Row: {
+          amount: number
+          created_at: string
+          granted_by: string
+          id: string
+          note: string | null
+          org_id: string
+          owner_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          granted_by?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          owner_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          granted_by?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credits_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credits_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credits_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2365,6 +2475,34 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      capture_vendor_invoice: {
+        Args: {
+          p_amount?: number
+          p_invoice_date: string
+          p_notes?: string
+          p_procurement_id: string
+          p_reference_number?: string
+          p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          id: string
+          invoice_date: string | null
+          org_id: string
+          po_id: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          vi_number: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
       committed_procurement_statuses: { Args: never; Returns: string[] }
       create_payment: {
@@ -2597,6 +2735,15 @@ export type Database = {
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      save_timesheet_week: {
+        Args: {
+          p_delete_ids?: string[]
+          p_timesheet_id: string
+          p_upserts?: Json
+          p_week_start_date: string
+        }
+        Returns: string
+      }
       select_procurement_quote: {
         Args: { p_quotation_id: string }
         Returns: undefined
