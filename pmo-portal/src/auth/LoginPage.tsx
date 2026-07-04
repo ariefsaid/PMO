@@ -35,11 +35,16 @@ const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' =
   return message.toLowerCase().includes('invalid') ? 'invalid_credentials' : 'auth_error';
 };
 
+// FR-AUTHF-043: classification is driven SOLELY by the GoTrue error string, not a build flag —
+// the confirm-required state is unreachable in dev by construction (enable_confirmations=false).
+const isEmailNotConfirmed = (message: string) => /email not confirmed/i.test(message);
+const isRateLimited = (message: string) => /for security purposes|rate limit|once every/i.test(message);
+
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
     import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-  const { signInWithPassword, signInWithMagicLink } = useAuth();
+  const { signInWithPassword, signInWithMagicLink, resendEmailConfirmation } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -47,6 +52,11 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // FR-AUTHF-040..043: confirm-required state + Resend action.
+  const [confirmRequired, setConfirmRequired] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,12 +66,34 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
     if (error) {
+      if (isEmailNotConfirmed(error)) {
+        trackAuthLoginFailed('password', 'email_not_confirmed'); // FR-AUTHF-061
+        setConfirmRequired(true);
+        return;
+      }
       trackAuthLoginFailed('password', authReasonCode(error));
       setError(error);
       return;
     }
     trackAuthLoginSucceeded('password');
     navigate('/', { replace: true });
+  };
+
+  const onResend = async () => {
+    setError(null);
+    setNotice(null);
+    setResendBusy(true);
+    const { error } = await resendEmailConfirmation(email); // FR-AUTHF-041 — origin redirect
+    setResendBusy(false);
+    if (error) {
+      if (isRateLimited(error)) {
+        setRateLimited(true); // FR-AUTHF-042 — disable until retry
+        return;
+      }
+      setError(error);
+      return;
+    }
+    setNotice('Confirmation sent. Check your email.'); // FR-AUTHF-042 — role=status (SuccessNotice)
   };
 
   const onMagicLink = async () => {
@@ -99,9 +131,34 @@ const LoginPage: React.FC = () => {
             {/* Error banner (network / credential failure) */}
             {error && <ErrorBanner message={error} />}
 
-            {/* Magic-link sent confirmation */}
+            {/* Magic-link sent / resend-confirmation-sent confirmation */}
             {notice && <SuccessNotice>{notice}</SuccessNotice>}
 
+            {/* FR-AUTHF-040..043: confirm-required state replaces the form when GoTrue rejects
+                sign-in with "email not confirmed" (prod only — unreachable in dev by construction). */}
+            {confirmRequired ? (
+              <div className="space-y-4">
+                <p className="text-[13.5px] text-foreground">
+                  Confirm your email to finish signing in. We can resend the confirmation link.
+                </p>
+                {rateLimited && (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Too many requests — please try again in a minute.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={resendBusy}
+                  disabled={resendBusy || rateLimited}
+                  className="w-full"
+                  onClick={onResend}
+                >
+                  Resend confirmation
+                </Button>
+              </div>
+            ) : (
+              <>
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
               <AuthInput
                 id="email"
@@ -195,6 +252,8 @@ const LoginPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+            )}
+              </>
             )}
           </CardPad>
         </Card>

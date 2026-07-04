@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 const auth = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   signInWithOtp: vi.fn(),
+  resend: vi.fn(),
 }));
 
 const trackHelpers = vi.hoisted(() => ({
@@ -35,6 +36,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
       })),
       signInWithPassword: auth.signInWithPassword,
       signInWithOtp: auth.signInWithOtp,
+      resend: auth.resend,
       signOut: vi.fn().mockResolvedValue({ error: null }),
     },
     from: vi.fn(() => ({
@@ -59,6 +61,7 @@ function renderLogin() {
 beforeEach(() => {
   auth.signInWithPassword.mockReset();
   auth.signInWithOtp.mockReset();
+  auth.resend.mockReset();
   trackHelpers.trackDemoPersonaSelected.mockReset();
   trackHelpers.trackAuthLoginSucceeded.mockReset();
   trackHelpers.trackAuthLoginFailed.mockReset();
@@ -280,5 +283,64 @@ describe('LoginPage', () => {
       ...trackHelpers.trackAuthLoginFailed.mock.calls,
     ]);
     expect(allCalls).not.toContain('pm@acme.test');
+  });
+
+  // --- Email-confirmation handling (auth-floor Slice 4) ---
+
+  it('AC-AUTHF-025: a "email not confirmed" error renders the confirm-required state, not the generic banner', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByText(/confirm your email/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeInTheDocument();
+    // NOT the generic error banner
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('AC-AUTHF-026: Resend calls resend({ type: signup, email, options: { emailRedirectTo: origin } })', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    auth.resend.mockResolvedValueOnce({ error: null });
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeInTheDocument()
+    );
+    await userEvent.click(screen.getByRole('button', { name: /resend confirmation/i }));
+    await waitFor(() =>
+      expect(auth.resend).toHaveBeenCalledWith({
+        type: 'signup',
+        email: 'pm@acme.test',
+        options: { emailRedirectTo: window.location.origin },
+      })
+    );
+  });
+
+  it('AC-AUTHF-027: resend success shows a status notice', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    auth.resend.mockResolvedValueOnce({ error: null });
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /resend confirmation/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/confirmation sent/i));
+  });
+
+  it('AC-AUTHF-027: resend rate-limit shows a rate-limit message and disables the action', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Email not confirmed' } });
+    auth.resend.mockResolvedValueOnce({
+      error: { message: 'For security purposes, you can only request this once every 60 seconds' },
+    });
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /resend confirmation/i }));
+    await waitFor(() => expect(screen.getByText(/too many|rate limit|try again/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeDisabled();
   });
 });
