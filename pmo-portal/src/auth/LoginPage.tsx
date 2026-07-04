@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
@@ -123,6 +123,15 @@ const LoginPage: React.FC = () => {
                 onChange={setPassword}
                 disabled={busy}
               />
+
+              <div className="flex justify-end">
+                <Link
+                  to="/reset-password"
+                  className="text-[12px] font-semibold text-primary-text hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               {/* PRIMARY action — bg-primary, full-width */}
               <Button
