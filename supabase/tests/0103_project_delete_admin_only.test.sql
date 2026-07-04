@@ -110,11 +110,14 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01030000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 
 delete from projects where id = '01030000-0000-0000-0000-000000000015';
+-- Count as TABLE OWNER (reset role first): the cross-org admin cannot SELECT the org-A row
+-- (projects_select org guard), so counting under their identity would return 0 whether or not the
+-- DELETE was blocked — a false negative. The owner sees all rows, so this proves the row SURVIVED.
+reset role;
 select is(
   (select count(*)::int from projects where id = '01030000-0000-0000-0000-000000000015'),
   1,
   'RED-4: cross-org Admin hard-delete of another org''s project is denied (org guard, row survives)');
 
-reset role;
 select * from finish();
 rollback;
