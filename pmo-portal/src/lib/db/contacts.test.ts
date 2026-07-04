@@ -14,6 +14,7 @@ const h = vi.hoisted(() => {
     delete: 0,
     single: 0,
     maybeSingle: 0,
+    range: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -33,6 +34,7 @@ const h = vi.hoisted(() => {
   builder.delete = chain('delete');
   builder.single = chain('single');
   builder.maybeSingle = chain('maybeSingle');
+  builder.range = chain('range');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -95,6 +97,18 @@ describe('AC-CRM-020 listContacts', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(listContacts()).rejects.toMatchObject({ message: 'denied', code: '42501' });
     await expect(listContacts()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+    h.result.value = { data: [], error: null };
+    await listContacts();
+    expect(h.calls.range).toEqual([]);
+  });
+
+  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
+    h.result.value = { data: [], error: null };
+    await listContacts({ page: 3, pageSize: 15 });
+    expect(h.calls.range).toContainEqual([45, 59]);
   });
 });
 
