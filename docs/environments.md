@@ -232,6 +232,7 @@ includes the agent panel calls a missing endpoint. The owner-gated release step 
 ```bash
 supabase functions deploy agent-chat compose-view          # deploy the Deno functions
 supabase secrets set OPENROUTER_API_KEY=sk-or-…            # set the prod function secret (once)
+supabase secrets set AGENT_ALLOWED_ORIGIN=https://pmo-bfb.pages.dev  # AUDIT-M4: narrow CORS to the SPA origin (unset ⇒ '*' for local dev)
 ```
 **Migration note (this issue):** the prod Supabase Cloud project currently has NO
 `ANTHROPIC_API_KEY` secret set (never deployed — see the ⚠ gap this section already documents) —

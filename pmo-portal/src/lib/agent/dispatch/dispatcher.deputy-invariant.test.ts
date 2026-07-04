@@ -50,7 +50,14 @@ function makeServiceClient(automations: AutomationRow[]) {
   const eq2Mock = vi.fn().mockReturnValue({ is: isMock });
   const eq1Mock = vi.fn().mockReturnValue({ eq: eq2Mock });
   const selectMock = vi.fn().mockReturnValue({ eq: eq1Mock });
-  const updateEqMock = vi.fn().mockResolvedValue({ data: null, error: null });
+  // AUDIT-M2: .update().eq() must be awaitable (trigger stampLastFired) AND chain
+  // .or().select() (schedule claim — resolves one claimed row so schedules fire in tests).
+  const updateOrSelectMock = vi.fn().mockResolvedValue({ data: [{ id: 'claimed' }], error: null });
+  const updateEqMock = vi.fn().mockReturnValue(
+    Object.assign(Promise.resolve({ data: null, error: null }), {
+      or: vi.fn().mockReturnValue({ select: updateOrSelectMock }),
+    }),
+  );
   const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -221,7 +228,13 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       if (table === 'agent_automations') {
         automationSelectCall += 1;
         // 1st select = schedules, 2nd = triggers.
-        return { select: () => makeSelectChain(automationSelectCall === 1 ? scheduleIs : triggerIs), update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
+        return { select: () => makeSelectChain(automationSelectCall === 1 ? scheduleIs : triggerIs), update: () => ({
+          eq: vi.fn().mockReturnValue(
+            Object.assign(Promise.resolve({ error: null }), {
+              or: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: 'claimed' }], error: null }) }),
+            }),
+          ),
+        }) };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: upsertMock };
       throw new Error(`service_role must never .from() business data; got: ${table}`);

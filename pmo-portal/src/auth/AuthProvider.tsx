@@ -40,7 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (active) setLoading(false);
     };
-    supabase.auth.getSession().then(({ data }) => apply(data.session));
+    // AUDIT-M11 (2026-07-04 audit): a rejected getSession() must not strand the app on the
+    // loading screen forever — treat it as signed-out and let the login flow take over.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => apply(data.session))
+      .catch(() => void apply(null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       void apply(s);
     });
