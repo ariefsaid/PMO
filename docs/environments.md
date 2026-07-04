@@ -380,10 +380,12 @@ The Resend API key lives in the 1Password client vault (vault `AS` pattern); the
 - No `localhost`, no `http`, no wildcard, no second origin (NFR-AUTHF-CONF-003).
 
 ### 7.3 Auth toggles
+(source list: `docs/specs/auth-production-floor.spec.md` §7.3)
 - `enable_confirmations = true` (email confirmation required) — NFR-AUTHF-CONF-004.
 - `enable_signup = false` (invite-only — GTM item 1a issues all users) — NFR-AUTHF-CONF-004.
 - `enable_anonymous_sign_ins` stays `false`.
 - `minimum_password_length` / `password_requirements` ≥ local template (`>=10`, `lower_upper_letters_digits`).
+- `secure_password_change = true` — does not affect the recovery/invite flow (those sessions are freshly token-authenticated).
 
 ### 7.4 Rate-limit & captcha (Auth → Rate limits / Auth → Captcha)
 The reset/confirm/invite endpoints this issue exposes are the primary abuse surface. Two distinct knobs

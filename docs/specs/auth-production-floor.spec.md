@@ -559,7 +559,9 @@ No `localhost`, no `http`, no wildcard, no second origin. *(NFR-AUTHF-CONF-003.)
 - `enable_signup = false` (invite-only — GTM item 1a issues all users) — NFR-AUTHF-CONF-004;
 - `enable_anonymous_sign_ins` stays `false`;
 - `minimum_password_length` / `password_requirements` kept at least as strict as the local template
-  (`>=10`, `lower_upper_letters_digits`).
+  (`>=10`, `lower_upper_letters_digits`);
+- `secure_password_change = true` — does not affect the recovery/invite flow (those sessions are
+  freshly token-authenticated).
 
 **7.4 Rate-limit & captcha** — on the cloud project (Auth → Rate limits / Auth → Captcha). The reset/confirm/
 invite endpoints this issue exposes are the primary abuse surface. Two distinct knobs (both verified
