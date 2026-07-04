@@ -22,7 +22,6 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
-import ProjectFormModal from '../../components/ProjectFormModal';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -40,6 +39,7 @@ export function hasFinanceView(role: Role | null): boolean {
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
+  onEditProject?: () => void;
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (number rigor). */
@@ -82,14 +82,17 @@ function formatThousands(raw: string): string {
  *    audit confirm that NAMES the segregation of duties. A delivery role that cannot edit
  *    a won value sees a static "Read-only" lock (read-only-distinction), never a dead input.
  */
-const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, committedSpend }) => {
+const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
+  project,
+  committedSpend,
+  onEditProject,
+}) => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
-  const { updateHeader, archive, remove, setContractValue } = useProjectMutations();
+  const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
 
-  const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   // contract_value inline-edit state.
@@ -223,7 +226,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
   const actions = (
     <>
       {canEdit && (
-        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+        <Button variant="outline" size="sm" onClick={onEditProject}>
           Edit
         </Button>
       )}
@@ -253,7 +256,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
   const sodRow = isDelivery ? (
     <div
       data-testid="contract-value-sod"
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+      className="flex flex-wrap items-center gap-3 py-1"
     >
       {valueEditing && isFinanceForward ? (
         <div className="flex flex-wrap items-end gap-2">
@@ -318,10 +321,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
       />
 
       {/* Finance-forward roles (Admin·Exec·Finance·PM): keep the delivery finance strip
-          + SoD row in the header, exactly as shipped (OD-W5-C3-A). */}
+          + SoD row in the header, exactly as shipped (OD-W5-C3-A). The strip renders
+          borderless (content-over-containers) so the page leads with content, not boxes. */}
       {isDelivery && isFinanceForward && (
         <>
-          <StatTiles tiles={tiles} columns={5} className="mb-4" />
+          <StatTiles tiles={tiles} columns={5} variant="bare" className="mb-4" />
           <div className="mb-4">{sodRow}</div>
         </>
       )}
@@ -330,34 +334,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({ project, comm
           INTO the Overview "Financial summary" section (rendered in OverviewTab, below the
           tab bar). Nothing is mounted here so the Engineer header ends at the delivery-meta
           row — no finance above the tab bar (D15, OD-W5-C3-A). */}
-
-      {/* Edit-header modal (Admin·Exec·PM). */}
-      {editOpen && (
-        <ProjectFormModal
-          mode="editHeader"
-          initial={{
-            id: project.id,
-            name: project.name,
-            code: project.code,
-            client_id: project.client_id,
-            project_manager_id: project.project_manager_id,
-            clientName: project.client?.name ?? null,
-            pmName: project.pm?.full_name ?? null,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          }}
-          onClose={() => setEditOpen(false)}
-          onSave={async (id, input) => {
-            await updateHeader.mutateAsync({ id, input });
-            toast('Project updated', input.name, 'success');
-            setEditOpen(false);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
-      )}
 
       {/* Archive confirm (destructive tone — leaves the active list). */}
       <ConfirmDialog

@@ -75,7 +75,15 @@ export function useFileUpload(projectId: string) {
         onProgress: (p) => setProgress((prev) => ({ ...prev, [docId]: p })),
         signal: controller.signal,
       });
-      await repositories.document.confirmUpload(docId, path);
+      // Transport succeeded → the object is now in the bucket. If the confirm INSERT fails
+      // (e.g. RLS reject), the freshly uploaded object would orphan in storage, so clean it
+      // up best-effort before re-throwing (mirrors useProcurementFiles, harden #5).
+      try {
+        await repositories.document.confirmUpload(docId, path);
+      } catch (confirmError) {
+        repositories.document.cleanupObject(path).catch(() => {});
+        throw confirmError;
+      }
       if (allowReplace && oldPath) {
         repositories.document.cleanupObject(oldPath).catch(() => {});
       }

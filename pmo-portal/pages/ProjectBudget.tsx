@@ -750,7 +750,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         </p>
       </div>
       {canWrite && (
-        <Button variant="primary" onClick={() => setShowNewVersionForm(true)}>
+        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
           + New version
         </Button>
       )}

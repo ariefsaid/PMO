@@ -117,4 +117,15 @@ describe('EngineerDashboard (real hours, deferred tasks)', () => {
     renderPane();
     expect(screen.getByRole('group', { name: /Hours this week by day/i })).toBeInTheDocument();
   });
+
+  it('M-1: hours bars stay neutral data bars, not blue action bars', () => {
+    const { container } = renderPane();
+    const dayFill = container.querySelector('[aria-label="Mon: 8 hours"] > span') as HTMLElement;
+    expect(dayFill.className).toContain('bg-muted-foreground');
+    expect(dayFill.className).not.toContain('bg-primary');
+
+    const projectFill = screen.getByRole('progressbar', { name: /A: 15.5 hours/i }).querySelector('span') as HTMLElement;
+    expect(projectFill.className).toContain('bg-muted-foreground');
+    expect(projectFill.className).not.toContain('bg-primary');
+  });
 });

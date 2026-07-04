@@ -491,7 +491,7 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
         left: marker.x,
         top: marker.y,
         height: Math.max(0, contentHeight - marker.y),
-        borderLeft: '1px dashed hsl(var(--primary) / 0.25)',
+        borderLeft: '1px dashed hsl(var(--violet) / 0.3)',
       }}
     />
     {/* The diamond glyph (rotated square) — labelled, no role (keeps role="img" singular) */}
@@ -505,7 +505,7 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
         width: 10,
         height: 10,
         transform: 'translate(-50%, -50%) rotate(45deg)',
-        background: 'hsl(var(--primary))',
+        background: 'hsl(var(--violet))',
         borderRadius: 2,
       }}
     />
@@ -558,7 +558,7 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         onClick={onActivate}
         onKeyDown={handleKeyDown}
         title={label}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 text-[14px] text-primary${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 text-[14px] text-violet${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
         style={{ left: box.xStart, top: box.y + box.h / 2 }}
       >
         ◆
@@ -580,8 +580,9 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         width,
         top: box.y,
         height: box.h,
-        background: 'hsl(var(--primary) / 0.15)',
-        border: '1px solid hsl(var(--primary) / 0.35)',
+        background: 'hsl(var(--secondary) / 0.78)',
+        border: '1px solid hsl(var(--border))',
+        boxShadow: 'inset 3px 0 0 hsl(var(--violet))',
         transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
       }}
     >

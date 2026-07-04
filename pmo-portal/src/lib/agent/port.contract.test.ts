@@ -78,11 +78,27 @@ runAgentRuntimeContract(
       fetchImpl: scriptedFetch(SCRIPTED_EVENTS),
     }),
   () => {
-    // For the cancel test, use a fetch that honours AbortSignal between chunks
-    let capturedSignal: AbortSignal | undefined;
+    // For the cancel test, use a fetch that honours AbortSignal between chunks.
+    //
+    // Correctness-remediation (finding 4): control('cancel') now ALSO fires a SEPARATE
+    // fire-and-forget POST (no AbortSignal of its own — see PmoNativeRuntime._postCancel)
+    // to drive the server-side abort. A real `fetch()` scopes its AbortSignal per-request,
+    // so that second, signal-less request has zero effect on the FIRST request's own
+    // signal — this fixture must model that same per-request isolation (a SINGLE shared
+    // `capturedSignal` variable would be overwritten to `undefined` by the second,
+    // signal-less call, masking the first request's real abort — a fixture artifact, not
+    // a production bug). Track signals keyed by call index instead.
+    let callIndex = 0;
+    const capturedSignals: Array<AbortSignal | undefined> = [];
     const fetchImpl = ((_url: string, init?: RequestInit) => {
-      capturedSignal = init?.signal as AbortSignal | undefined;
-      // Return a stream that checks signal.aborted between chunks
+      const thisCallIndex = callIndex++;
+      capturedSignals[thisCallIndex] = init?.signal as AbortSignal | undefined;
+      if (thisCallIndex > 0) {
+        // The cancel-POST (or any subsequent call) — not the streamed run itself;
+        // no scripted body needed, the contract test only drains the FIRST subscribe.
+        return Promise.resolve({ ok: true, body: readableFrom('') } as unknown as Response);
+      }
+      // Return a stream that checks THIS call's own signal.aborted between chunks.
       return new Promise<Response>((resolve) => {
         // Resolved synchronously so _doSubscribe can start reading;
         // the stream itself pauses between chunks via microtask
@@ -94,7 +110,8 @@ runAgentRuntimeContract(
             return new ReadableStream<Uint8Array>({
               async pull(controller) {
                 await Promise.resolve(); // yield to event loop so cancel can be called
-                if ((capturedSignal?.aborted ?? false) || idx >= LONG_EVENTS.length) {
+                const aborted = capturedSignals[thisCallIndex]?.aborted ?? false;
+                if (aborted || idx >= LONG_EVENTS.length) {
                   controller.close();
                   return;
                 }

@@ -233,7 +233,7 @@ const task: TaskRepository = {
 };
 
 const procurement: ProcurementRepository = {
-  list: () => wrap(() => listProcurements()),
+  list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
   transition: (id, to, notes) => wrap(() => transitionProcurement(id, to, notes)),
   createQuotation: (procurementId, vendorId, totalAmount, receivedDate) =>
@@ -264,7 +264,7 @@ const procurement: ProcurementRepository = {
 };
 
 const timesheet: TimesheetRepository = {
-  list: (userId) => wrap(() => listTimesheets(userId)),
+  list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
   upsertEntries: (entries) => wrap(() => upsertTimesheetEntries(entries)),
   deleteEntry: (id) => wrap(() => deleteTimesheetEntry(id)),
@@ -319,7 +319,7 @@ const procurementFiles: ProcurementFileRepository = {
 };
 
 const contact: ContactRepository = {
-  list: () => wrap(() => listContacts()),
+  list: (params) => wrap(() => listContacts(params)),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
   create: (input) => wrap(() => createContact(input)),

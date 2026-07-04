@@ -103,6 +103,7 @@ describe('ContactDetail — email/phone action links (AC-JR-W1-12)', () => {
     renderPage();
     const emailLink = screen.getByRole('link', { name: 'jane@apex.co' });
     expect(emailLink).toHaveAttribute('href', 'mailto:jane@apex.co');
+    expect(emailLink.className).toContain('text-primary-text');
   });
 
   it('AC-JR-W1-12: phone renders as a tel: link with digits-and-plus only', () => {
@@ -111,6 +112,7 @@ describe('ContactDetail — email/phone action links (AC-JR-W1-12)', () => {
     const phoneLink = screen.getByRole('link', { name: '+1 555 010 0000' });
     // spaces/dashes stripped: +15550100000
     expect(phoneLink).toHaveAttribute('href', 'tel:+15550100000');
+    expect(phoneLink.className).toContain('text-primary-text');
   });
 
   it('AC-JR-W1-12: email shows em-dash (not a link) when null', () => {

@@ -16,7 +16,16 @@ export interface UploadTransportOptions {
   onProgress?: (percent: number) => void;
   /** AbortSignal for cancellation. Wires directly to xhr.abort(). */
   signal?: AbortSignal;
+  /**
+   * Max ms the upload may stall before it is aborted with a 408 TransportError.
+   * Defaults to DEFAULT_UPLOAD_TIMEOUT_MS so a hung connection can never leave the
+   * mutation pending forever (harden #5). Pass a larger value for big files.
+   */
+  timeoutMs?: number;
 }
+
+/** Default XHR timeout (ms) — a stalled upload is aborted rather than hanging forever. */
+export const DEFAULT_UPLOAD_TIMEOUT_MS = 60_000;
 
 /** Error thrown when the XHR upload fails with an HTTP status. */
 export class TransportError extends Error {
@@ -83,6 +92,13 @@ export function uploadWithProgress(
       rejectOnce(new TransportError(0, 'Network error during upload'));
     };
 
+    // harden #5: arm a timeout so a stalled connection is aborted (status 408)
+    // instead of leaving the promise — and the mutation — pending forever.
+    xhr.timeout = options.timeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS;
+    xhr.ontimeout = () => {
+      rejectOnce(new TransportError(408, 'Upload timed out'));
+    };
+
     if (options.signal) {
       onAbort = () => {
         xhr.abort();
@@ -101,7 +117,7 @@ export function uploadWithProgress(
 
 // ── Error classification ────────────────────────────────────────────────────
 
-export type UploadErrorType = 'oversize' | 'type' | 'network' | 'server' | 'cancel';
+export type UploadErrorType = 'oversize' | 'type' | 'network' | 'server' | 'cancel' | 'timeout';
 
 export interface ClassifiedUploadError {
   type: UploadErrorType;
@@ -134,6 +150,9 @@ export function classifyUploadError(
     return { type: 'cancel', message: 'Upload cancelled' };
   }
   if (error instanceof TransportError) {
+    if (error.status === 408 || message.includes('timed out') || message.includes('timeout')) {
+      return { type: 'timeout', message: 'Upload timed out — try again' };
+    }
     if (error.status === 0) {
       return { type: 'network', message: 'Upload failed — try again' };
     }

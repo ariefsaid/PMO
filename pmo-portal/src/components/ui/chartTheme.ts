@@ -1,8 +1,8 @@
 /**
  * Recharts theming helper — every chart color derives from a DESIGN.md token
- * (so charts inherit the One-Blue / status palette), except the `categorical`
- * array, which is the mockup's FROZEN series set (Open Question 2: kept as
- * sanctioned non-interactive literals, pending promotion to chart-* tokens).
+ * (so charts inherit the One-Blue / status palette), including the calm
+ * categorical set which now resolves through existing text/status tokens rather
+ * than raw HSL literals.
  *
  * Consume as `stroke={chartTheme.series.primary}` etc. The values are CSS
  * `hsl(var(--token))` strings, so they resolve against :root at render time
@@ -22,29 +22,23 @@ export const chartTheme = {
     violet: 'hsl(var(--violet))',
   },
   /**
-   * Frozen categorical palette for multi-series charts (KPI/legend/timeline).
-   * These are the only sanctioned chart literals — taken verbatim from the
-   * mockup so the identity is preserved; do NOT invent new chart colors.
-   *
-   * C1 de-rainbow (2026-06-07): the off-palette cyan (`hsl(199 89% 48%)`) was
-   * removed — it maps to no DESIGN.md token and read as the "AI rainbow" the
-   * audit flagged. The frozen set is now blue/violet/green/amber/red only. Use
-   * `series.*` for status/brand meaning; reach for `categorical` only when a
-   * chart genuinely needs >1 non-status hue.
+   * Calm categorical palette for multi-series charts (KPI/legend/timeline).
+   * Every hue resolves through an existing semantic token so dark mode keeps a
+   * contrast-safe, non-rainbow series set without hardcoded literals.
    */
   categorical: [
-    'hsl(221 83% 53%)', // blue (primary family)
-    'hsl(262 83% 58%)', // violet
-    'hsl(142 71% 45%)', // green
-    'hsl(43 96% 56%)', // amber
-    'hsl(0 84% 60%)', // red
+    'hsl(var(--primary-text))',
+    'hsl(var(--violet))',
+    'hsl(var(--success-text))',
+    'hsl(var(--warning-icon))',
+    'hsl(var(--destructive-text))',
   ],
 } as const;
 
 export type ChartTheme = typeof chartTheme;
 
 /** Tint percentage for status bar fills — the Tinted-Status Rule (~12-18%). */
-export const STATUS_BAR_TINT = 15;
+export const STATUS_BAR_TINT = 18;
 
 /**
  * Tints a resolvable status-hue color string (`hsl(var(--token))`) to the
@@ -55,6 +49,6 @@ export const STATUS_BAR_TINT = 15;
  * solid hue is kept for the legend dot, mirroring the StatusPill dot+tint
  * pattern.
  */
-export function tintStatusFill(color: string, tint: number = STATUS_BAR_TINT): string {
-  return `color-mix(in srgb, ${color} ${tint}%, transparent)`;
+export function tintStatusFill(color: string): string {
+  return `color-mix(in srgb, ${color} var(--chart-status-fill-tint), hsl(var(--card)))`;
 }

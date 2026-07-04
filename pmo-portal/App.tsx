@@ -34,6 +34,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
+import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
@@ -43,6 +44,8 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
+// ADR-0045 §3: live context (route/entity/selection) source for agent runs.
+import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -369,9 +372,21 @@ const Shell: React.FC = () => {
         {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
             so the runtime + open state survive route changes. It is the SOLE
             importer of PmoNativeRuntime (port isolation, AC-AP-024).
-            Flag-off: provides runtime=null, open=false — zero overhead. */}
+            Flag-off: provides runtime=null, open=false — zero overhead.
+            ADR-0045 §3: AgentContextProvider nests inside — it reads the router
+            location (useLocation, available here since Shell renders inside
+            BrowserRouter) and is the source useAssistantPanel reads via
+            useAgentContext() when threading context on createRun/followUp. */}
         <AgentRuntimeProvider>
-          <ShellChrome />
+          <AgentContextProvider>
+            {/* Reliability harden #4: a render throw anywhere in the authenticated
+                shell/routes renders the ErrorBoundary fallback (retry / reload / home)
+                instead of white-screening the SPA. Wrapped inside the providers so a
+                recovery keeps auth/runtime/toast context intact. */}
+            <ErrorBoundary>
+              <ShellChrome />
+            </ErrorBoundary>
+          </AgentContextProvider>
         </AgentRuntimeProvider>
       </ToastProvider>
     </ImpersonationProvider>

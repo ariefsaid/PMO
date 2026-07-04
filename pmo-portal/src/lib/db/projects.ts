@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 /**
  * The active Projects (delivery) list partition (Model B, ADR-0020): on-hand ∪ internal.
@@ -80,9 +81,13 @@ export interface ProjectHeaderInput {
  * NOT in the active Projects list (it lives in the Sales Pipeline). A caller wanting a
  * specific status (e.g. a future "Lost" filter) passes `params.status` to override the
  * default partition with a precise `.eq('status', …)`.
+ *
+ * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
+ * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
+ * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; pmId?: string },
+  params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
   // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
@@ -98,6 +103,8 @@ export async function listProjects(
     q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
   }
   if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
+  const range = resolveRange(params);
+  if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProjectWithRefs[];

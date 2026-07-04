@@ -64,10 +64,12 @@ beforeEach(() => {
 });
 
 describe('MyTasks — Log time action (AC-IFW-TASKS-02)', () => {
-  it('AC-IFW-TASKS-02: each task row has a "Log time" link', () => {
+  it('AC-IFW-TASKS-02: each task row has a neutral "Log time" link', () => {
     renderMyTasks();
     const logTimeLink = screen.getByRole('link', { name: /log time/i });
     expect(logTimeLink).toBeInTheDocument();
+    expect(logTimeLink.className).toContain('border-input');
+    expect(logTimeLink.className).not.toContain('text-primary-text');
   });
 
   it('AC-IFW-TASKS-02: Log time link carries ?project=<task.project_id>', () => {

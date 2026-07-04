@@ -46,7 +46,12 @@ export interface AgentEvent {
 
 export interface RunContext {
   route?: string;
+  /** @deprecated use entity.id — retained dormant (no caller populates it, DEC-4). */
   entityId?: string;
+  /** ADR-0045 §2/§3 — the entity currently in view; a grounding hint, never an authorization signal. */
+  entity?: { type: string; id: string; label: string };
+  /** Reserved — not populated in v1 (ADR-0045, plan §5 "selection deferred"). */
+  selection?: unknown;
 }
 
 /**
@@ -89,7 +94,7 @@ export interface DeputyContext {
 export interface AgentAction {
   name: string;
   description: string;
-  /** JSON Schema → Anthropic input_schema (D3/R1 — not ZodType) */
+  /** JSON Schema → model tool parameters (D3/R1 — not ZodType) */
   inputSchema: object;
   /** A1 ships ['agent'] */
   surfaces?: ('ui' | 'agent' | 'mcp' | 'cli')[];
@@ -103,9 +108,25 @@ export interface AgentRuntime {
   followUp(runId: string, message: string): Promise<void>;
   control(
     runId: string,
-    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject',
+    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject' | 'answer',
+    payload?: AgentAnswer,
   ): Promise<void>;
   subscribe(runId: string): AsyncIterable<AgentEvent>;
+}
+
+/**
+ * Payload shape for AgentEvent{type:'status'} — the general run-lifecycle status
+ * frame (queued/running/paused/completed/errored). `status` is narrowed to the
+ * SAME closed union as `AgentRun.status` (`AgentRunStatus`) so a typo or a new,
+ * un-plumbed status value is a compile error at every call site that switches on
+ * it, not just a silent `string` mismatch. `error` stays a loose `string` by
+ * design (docs/specs/agent-posthog-events.spec.md: "the existing enum-like
+ * `payload.error` value" — the server can add new error codes without a client
+ * type change; `error_code` on `agent_run_errored` is intentionally `string`).
+ */
+export interface RunStatusPayload {
+  status: AgentRunStatus;
+  error?: string;
 }
 
 // ── A3: needs-approval / write_resolved event payload types ──────────────────
@@ -128,6 +149,24 @@ export interface WriteResolvedPayload {
   actionName: string;
   /** Echo of the pendingId from the chip for UI correlation. */
   pendingId: string;
+}
+
+// ── ADR-0045: ask-user question / answer payload types ───────────────────────
+
+/** Payload shape for AgentEvent{type:'status', payload:QuestionPayload} (FR-ATC-008). */
+export interface QuestionPayload {
+  kind: 'question';
+  questionId: string;
+  prompt: string;
+  options: { id: string; label: string }[];
+  allowFreeText?: boolean;
+}
+
+/** The answer wire shape carried on a re-POST resolving a pending question (DEC-1). */
+export interface AgentAnswer {
+  questionId: string;
+  optionId?: string;
+  freeText?: string;
 }
 
 /** Extended SupabaseLike that also supports write operations (A3 write actions). */

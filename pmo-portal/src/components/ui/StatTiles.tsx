@@ -14,6 +14,15 @@ export interface StatTilesProps {
   /** Columns at sm+ breakpoint (default 4). Mobile is always 2-col. */
   columns?: number;
   className?: string;
+  /**
+   * Visual treatment (monochrome-calm reskin, content-over-containers):
+   *  • `framed` (default) — the hairline-gap strip in a bordered card frame.
+   *  • `bare`              — borderless: the KPIs sit directly on the canvas,
+   *                          separated by whitespace. Used on record-page finance
+   *                          strips so the page reads as content-over-containers.
+   * Responsive behavior (mobile 2-col, sm:grid-cols-n, odd-count clip) is identical.
+   */
+  variant?: 'framed' | 'bare';
 }
 
 /**
@@ -44,19 +53,32 @@ const SM_COLS_CLASS: Record<number, string> = {
  * half-empty visual "clipped" cell — e.g. 5 tiles → 2+2+1 (orphaned) becomes 2+2+full.
  * sm:col-span-1 resets the span at the sm+ breakpoint where the N-col grid takes over.
  * Desktop behavior is unchanged.
+ *
+ * `variant="bare"` (content-over-containers): drops the card frame + cell fills so the
+ * strip is a quiet row of KPIs on the canvas — fewer boxes, more air. Layout + clip
+ * behavior is identical to `framed`.
  */
-export const StatTiles: React.FC<StatTilesProps> = ({ tiles, columns = 4, className }) => {
+export const StatTiles: React.FC<StatTilesProps> = ({
+  tiles,
+  columns = 4,
+  className,
+  variant = 'framed',
+}) => {
   const smColsClass = SM_COLS_CLASS[columns] ?? `sm:grid-cols-${columns}`;
   const isOdd = tiles.length % 2 !== 0;
+  const isBare = variant === 'bare';
   return (
     <div
       data-testid="stat-tiles"
       className={cn(
-        'rounded-lg border border-border bg-border',
         // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel)
-        'grid grid-cols-2 gap-px',
+        'grid grid-cols-2',
         // sm+: N-col equal-width grid per the columns prop
         smColsClass,
+        // framed = the hairline-gap card strip; bare = borderless on the canvas
+        isBare
+          ? 'gap-x-8 gap-y-5'
+          : 'rounded-lg border border-border bg-border gap-px',
         className,
       )}
     >
@@ -70,7 +92,9 @@ export const StatTiles: React.FC<StatTilesProps> = ({ tiles, columns = 4, classN
             key={i}
             data-testid="stat-tile"
             className={cn(
-              'bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg',
+              isBare
+                ? 'py-1'
+                : 'bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg',
               isLastOdd && 'col-span-2 sm:col-span-1',
             )}
           >

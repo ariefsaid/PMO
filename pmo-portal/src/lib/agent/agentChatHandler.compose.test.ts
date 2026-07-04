@@ -7,7 +7,8 @@
  * AC-CV-016: upstream error → assistant error text, no artifact.
  *
  * Uses the same harness as agentChatHandler.test.ts (baseDeps, mockOrgAnd).
- * SDK and composeSpec are fully mocked; no live LLM calls (ADR-0039 decision 7).
+ * ModelClient and composeSpec are fully mocked; no live LLM calls (ADR-0039 decision 7).
+ * Mock shape: OpenRouter/OpenAI (ModelResponse) per docs/specs/agent-model-client.spec.md.
  */
 import { it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -89,17 +90,17 @@ function mockOrgAnd(
 
 function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
-    anthropic: {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          stop_reason: 'end_turn',
-          content: [{ type: 'text', text: 'Done.' }],
-          usage: {},
-        }),
-      },
+    modelClient: {
+      create: vi.fn().mockResolvedValue({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'Done.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
     },
     supabase: mockOrgAnd(() => ({ data: [], error: null })),
     userId: 'user-1',
+    model: 'deepseek/deepseek-v4-flash',
     now: () => new Date('2026-06-30T00:00:00Z'),
     ...overrides,
   };
@@ -113,53 +114,55 @@ beforeEach(() => {
 
 it('AC-CV-001 includes a compose_view tool with { prompt } input schema when composeEnabled', async () => {
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'end_turn',
-    content: [{ type: 'text', text: 'Sure!' }],
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'Sure!' },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
   await collect(
     agentChatHandler(
       REQ_COMPOSE,
-      baseDeps({ anthropic: { messages: { create } }, composeEnabled: true }),
+      baseDeps({ modelClient: { create }, composeEnabled: true }),
     ),
   );
 
   expect(create).toHaveBeenCalledTimes(1);
   const callArgs = create.mock.calls[0][0];
-  const tools = callArgs.tools as Array<{ name: string; input_schema: { required?: string[] } }>;
+  const tools = callArgs.tools as Array<{ type: string; function: { name: string; parameters: { required?: string[] } } }>;
 
-  const composeTool = tools.find((t) => t.name === 'compose_view');
+  const composeTool = tools.find((t) => t.function.name === 'compose_view');
   expect(composeTool).toBeDefined();
-  expect(composeTool!.input_schema.required).toContain('prompt');
+  expect(composeTool!.function.parameters.required).toContain('prompt');
 
   // Catalog order: query_entity first, compose_view last (FR-CV-002 — "after existing actions")
-  expect(tools[0].name).toBe('query_entity');
-  expect(tools[tools.length - 1].name).toBe('compose_view');
+  expect(tools[0].function.name).toBe('query_entity');
+  expect(tools[tools.length - 1].function.name).toBe('compose_view');
 });
 
 // ── AC-CV-002: catalog omits compose_view when composeEnabled is false ─────────
 
 it('AC-CV-002 omits compose_view from the catalog when composeEnabled is false', async () => {
   const create = vi.fn().mockResolvedValue({
-    stop_reason: 'end_turn',
-    content: [{ type: 'text', text: 'Sure!' }],
+    finish_reason: 'stop',
+    message: { role: 'assistant', content: 'Sure!' },
     usage: {},
+    model: 'deepseek/deepseek-v4-flash',
   });
 
   await collect(
     agentChatHandler(
       REQ_COMPOSE,
-      baseDeps({ anthropic: { messages: { create } }, composeEnabled: false }),
+      baseDeps({ modelClient: { create }, composeEnabled: false }),
     ),
   );
 
   const callArgs = create.mock.calls[0][0];
-  const tools = callArgs.tools as Array<{ name: string }>;
+  const tools = callArgs.tools as Array<{ function: { name: string } }>;
   // compose_view must be absent from the catalog
-  expect(tools.find((t) => t.name === 'compose_view')).toBeUndefined();
+  expect(tools.find((t) => t.function.name === 'compose_view')).toBeUndefined();
   // The base catalog (A1+A3 actions) is still present
-  expect(tools.some((t) => t.name === 'query_entity')).toBe(true);
+  expect(tools.some((t) => t.function.name === 'query_entity')).toBe(true);
 });
 
 // ── AC-CV-003: successful compose emits artifact event ──────────────────────
@@ -169,17 +172,22 @@ it('AC-CV-003 emits an artifact event after assistant text and before completed 
   // Round 2: model ends the turn
   const create = vi.fn()
     .mockResolvedValueOnce({
-      stop_reason: 'tool_use',
-      content: [
-        { type: 'text', text: "Here's a view:" },
-        { type: 'tool_use', id: 'tu-compose-1', name: 'compose_view', input: { prompt: 'active projects by status' } },
-      ],
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: "Here's a view:",
+        tool_calls: [
+          { id: 'tu-compose-1', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify({ prompt: 'active projects by status' }) } },
+        ],
+      },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     })
     .mockResolvedValueOnce({
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text: 'View composed!' }],
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'View composed!' },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   vi.mocked(mockRunComposeView).mockResolvedValueOnce({
@@ -192,7 +200,7 @@ it('AC-CV-003 emits an artifact event after assistant text and before completed 
   const events = await collect(
     agentChatHandler(
       REQ_COMPOSE,
-      baseDeps({ anthropic: { messages: { create } }, composeEnabled: true }),
+      baseDeps({ modelClient: { create }, composeEnabled: true }),
     ),
   );
 
@@ -228,16 +236,22 @@ it('AC-CV-003 emits an artifact event after assistant text and before completed 
 it('AC-CV-004 emits an assistant error event (not an artifact) when compose exhausts repair', async () => {
   const create = vi.fn()
     .mockResolvedValueOnce({
-      stop_reason: 'tool_use',
-      content: [
-        { type: 'tool_use', id: 'tu-compose-2', name: 'compose_view', input: { prompt: 'x' } },
-      ],
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu-compose-2', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify({ prompt: 'x' }) } },
+        ],
+      },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     })
     .mockResolvedValueOnce({
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text: "I couldn't help with that." }],
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: "I couldn't help with that." },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   vi.mocked(mockRunComposeView).mockResolvedValueOnce({
@@ -248,7 +262,7 @@ it('AC-CV-004 emits an assistant error event (not an artifact) when compose exha
   const events = await collect(
     agentChatHandler(
       REQ_COMPOSE,
-      baseDeps({ anthropic: { messages: { create } }, composeEnabled: true }),
+      baseDeps({ modelClient: { create }, composeEnabled: true }),
     ),
   );
 
@@ -270,16 +284,22 @@ it('AC-CV-004 emits an assistant error event (not an artifact) when compose exha
 it('AC-CV-016 emits an assistant error event (not an artifact) on an upstream compose error', async () => {
   const create = vi.fn()
     .mockResolvedValueOnce({
-      stop_reason: 'tool_use',
-      content: [
-        { type: 'tool_use', id: 'tu-compose-3', name: 'compose_view', input: { prompt: 'y' } },
-      ],
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tu-compose-3', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify({ prompt: 'y' }) } },
+        ],
+      },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     })
     .mockResolvedValueOnce({
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text: 'Sorry.' }],
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Sorry.' },
       usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   vi.mocked(mockRunComposeView).mockResolvedValueOnce({
@@ -290,7 +310,7 @@ it('AC-CV-016 emits an assistant error event (not an artifact) on an upstream co
   const events = await collect(
     agentChatHandler(
       REQ_COMPOSE,
-      baseDeps({ anthropic: { messages: { create } }, composeEnabled: true }),
+      baseDeps({ modelClient: { create }, composeEnabled: true }),
     ),
   );
 

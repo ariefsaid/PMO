@@ -1,4 +1,4 @@
-import { parseISO } from 'date-fns';
+import { parseISO, formatDistanceToNow } from 'date-fns';
 
 // Single source of truth for currency formatting (F-6). USD, no fraction digits —
 // preserves the prototype's prior output. Multi-currency deferred (NFR-I18N-001, OD-1).
@@ -65,6 +65,18 @@ export function formatDate(iso: string | null | undefined): string {
   const parsed = parseISO(iso);
   if (Number.isNaN(parsed.getTime())) return '—';
   return dateFormatter.format(parsed);
+}
+
+/**
+ * Human relative timestamp ("5 minutes ago") for the notifications inbox (FR-AAN-035).
+ * Non-string / blank / unparseable input → an em-dash `—` (never a raw ISO string or
+ * "Invalid Date" — same never-throws contract as `formatDate`).
+ */
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso || typeof iso !== 'string') return '—';
+  const parsed = parseISO(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return formatDistanceToNow(parsed, { addSuffix: true });
 }
 
 /** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces.

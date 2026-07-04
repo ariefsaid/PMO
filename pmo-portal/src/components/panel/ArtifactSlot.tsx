@@ -38,6 +38,8 @@ export interface ArtifactSlotPayload {
 
 interface ArtifactSlotProps {
   payload: ArtifactSlotPayload;
+  /** The run this artifact belongs to — threaded to trackAgentComposeViewSaved (FR-APH-012). */
+  runId: string;
 }
 
 // ── Per-panel fetch state ─────────────────────────────────────────────────────
@@ -57,9 +59,9 @@ interface PanelDataState {
  * 3. Renders via HydratedPrimitive (I3 machinery)
  * 4. Offers an editable name + Save affordance (agent-proposes / user-disposes)
  */
-export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload }) => {
+export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) => {
   const { compiledPanels, validationError, saveStatus, saveError, savedViewId, save } =
-    useComposeArtifact(payload.spec);
+    useComposeArtifact(payload.spec, runId);
 
   // Editable view name (Blocker-4 / CV-OD-002): pre-filled from payload.title.
   // "User can rename on Save" must be a real affordance, not just rationale.

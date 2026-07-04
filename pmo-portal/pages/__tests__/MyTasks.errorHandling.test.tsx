@@ -73,10 +73,13 @@ beforeEach(() => {
 });
 
 describe('MyTasks — status mutation error handling (W2-2)', () => {
-  it('AC-W2-2-01: failed status write calls onError which surfaces a toast (no silent revert)', async () => {
-    // Simulate mutate calling the onError callback with an error
+  it('AC-W2-2-01: a permission-denied (42501) status write surfaces classifyMutationError\'s SoD-specific copy (no silent revert, no generic fallback)', async () => {
+    // Simulate mutate calling the onError callback with a PostgREST-shaped RLS-denial error
+    // (code 42501 — insufficient privilege / SoD), the real shape classifyMutationError branches
+    // on. Asserting the SPECIFIC classified headline (not just "some non-empty string") proves
+    // MyTasks actually wires the error through classifyMutationError rather than a generic catch.
     mutateState.mutate.mockImplementation((_vars: unknown, opts?: { onError?: (err: unknown) => void }) => {
-      opts?.onError?.(new Error('RLS policy violation'));
+      opts?.onError?.(Object.assign(new Error('permission denied for table tasks'), { code: '42501' }));
     });
 
     renderMyTasks();
@@ -88,12 +91,29 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
     // Change status to trigger mutation
     fireEvent.change(selects[0], { target: { value: 'Done' } });
 
-    // The toast should have been called with a non-empty headline
+    // The toast surfaces classifyMutationError's exact 42501 headline + the underlying message
+    // as detail — not a generic "Update failed" or an unasserted non-empty string.
     await waitFor(() => {
-      expect(toastSpy).toHaveBeenCalled();
-      const [headline] = toastSpy.mock.calls[0];
-      expect(typeof headline).toBe('string');
-      expect(headline.length).toBeGreaterThan(0);
+      expect(toastSpy).toHaveBeenCalledWith(
+        "You don't have permission to do that.",
+        'permission denied for table tasks',
+        'warning',
+      );
+    });
+  });
+
+  it('AC-W2-2-01b: an unclassified status-write error falls back to classifyMutationError\'s generic "Update failed" headline (distinguishes the fallback branch from the SoD branch above)', async () => {
+    mutateState.mutate.mockImplementation((_vars: unknown, opts?: { onError?: (err: unknown) => void }) => {
+      opts?.onError?.(new Error('unexpected server error'));
+    });
+
+    renderMyTasks();
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'Done' } });
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalledWith('Update failed', 'unexpected server error', 'warning');
     });
   });
 

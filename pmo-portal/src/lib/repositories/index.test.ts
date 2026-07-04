@@ -455,6 +455,12 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.list();
     expect(procurementsDal.listProcurements).toHaveBeenCalledTimes(1);
+    expect(procurementsDal.listProcurements).toHaveBeenLastCalledWith(undefined);
+
+    // data-layer perf hardening #4: page params pass through to the DAL
+    const pageParams = { page: 1, pageSize: 20 };
+    await repositories.procurement.list(pageParams);
+    expect(procurementsDal.listProcurements).toHaveBeenLastCalledWith(pageParams);
 
     await repositories.procurement.get('pr1');
     expect(procLifecycleDal.getProcurementDetail).toHaveBeenCalledWith('pr1');
@@ -568,7 +574,12 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(tsTransitionDal.listTimesheetsAwaitingApproval).mockResolvedValue([] as never);
 
     await repositories.timesheet.list('u1');
-    expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1');
+    expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1', undefined);
+
+    // data-layer perf hardening #4: page params pass through to the DAL
+    const pageParams = { page: 2, pageSize: 10 };
+    await repositories.timesheet.list('u1', pageParams);
+    expect(timesheetsDal.listTimesheets).toHaveBeenLastCalledWith('u1', pageParams);
 
     await repositories.timesheet.createDraft('2026-06-01', 'u1');
     expect(timesheetsDal.createDraftTimesheet).toHaveBeenCalledWith('2026-06-01', 'u1');

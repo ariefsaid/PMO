@@ -11,8 +11,13 @@
 -- AC-AUTHZ-008  Engineer who is NOT the requester → create_procurement_receipt raises 42501.
 -- AC-AUTHZ-009  Finance → INSERT own-Draft timesheet_entries raises 42501 (Finance excluded from role gate).
 -- AC-AUTHZ-010  Engineer → INSERT own-Draft timesheet_entries ok (Engineering is in the role gate).
+--
+-- Post-state hardening (RED-first, gpt-5.5 test-quality sweep): AC-004/006/007's `lives_ok` only
+-- proved the RPC did not throw — a no-op RPC returning success would have passed identically. Each
+-- now ALSO asserts the actual persisted effect: status/approved_by_id after transition_procurement,
+-- and the receipt row's existence + stamped fields after create_procurement_receipt.
 begin;
-select plan(10);
+select plan(14);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Fixtures (inserted as table owner, bypassing RLS)
@@ -118,6 +123,19 @@ select lives_ok(
 
 reset role;
 
+-- Post-state (table owner read, bypasses RLS — proves the RPC ACTUALLY wrote, not just returned):
+-- the status really flipped to Approved, and approved_by_id is stamped with the calling Admin (a2) —
+-- a no-op RPC would leave status='Requested'/approved_by_id null and still have passed lives_ok above.
+select is(
+  (select status::text from procurements where id = '00550000-0000-0000-0000-000000000012'),
+  'Approved',
+  'AC-AUTHZ-004 post-state: proc-3 status actually transitioned to Approved (not a no-op)');
+
+select is(
+  (select approved_by_id from procurements where id = '00550000-0000-0000-0000-000000000012'),
+  '00550000-0000-0000-0000-0000000000a2'::uuid,
+  'AC-AUTHZ-004 post-state: approved_by_id is stamped with the approving Admin (a2)');
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUTHZ-005: Finance cannot create a GR (no longer in the allowed role set).
 -- ════════════════════════════════════════════════════════════════════════════
@@ -143,6 +161,16 @@ select lives_ok(
 
 reset role;
 
+-- Post-state: the receipt row ACTUALLY exists (table owner read, bypasses RLS) with the exact
+-- status/date the RPC was called with — a no-op RPC that swallowed the insert would still have
+-- passed lives_ok above but leave zero rows here.
+select is(
+  (select count(*)::int from procurement_receipts
+     where procurement_id = '00550000-0000-0000-0000-000000000013'
+       and status = 'Partial' and receipt_date = '2026-06-09'),
+  1,
+  'AC-AUTHZ-006 post-state: the PM-created GR receipt row exists with the given status/date');
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUTHZ-007: Engineer who IS the requester can create a GR.
 -- ════════════════════════════════════════════════════════════════════════════
@@ -154,6 +182,15 @@ select lives_ok(
   'AC-AUTHZ-007: Engineer who IS the requester can create a GR (requester allowed)');
 
 reset role;
+
+-- Post-state: this SECOND receipt row (distinct receipt_date from AC-006's) also actually exists —
+-- proves the requester-Engineer's GR really persisted, not just "didn't throw".
+select is(
+  (select count(*)::int from procurement_receipts
+     where procurement_id = '00550000-0000-0000-0000-000000000013'
+       and status = 'Complete' and receipt_date = '2026-06-10'),
+  1,
+  'AC-AUTHZ-007 post-state: the requester-Engineer-created GR receipt row exists with the given status/date');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUTHZ-008: Engineer who is NOT the requester cannot create a GR.

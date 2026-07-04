@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type CompanyRow = Tables<'companies'>;
 export type CompanyType = CompanyRow['type'];
@@ -47,11 +48,20 @@ export async function listClientCompanies(): Promise<CompanyRow[]> {
  * — RLS (companies_select: org_id = auth_org_id()) scopes rows. Archived rows (archived_at IS NOT NULL)
  * are hidden by default; pass `type` to filter to one company_type (Internal / Client / Vendor).
  * Ordered by name for a stable, scannable list. Throws an `AppError` (code preserved) on failure.
+ *
+ * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
+ * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
+ * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
-export async function listCompanies(params?: { type?: CompanyType }): Promise<CompanyRow[]> {
+export async function listCompanies(
+  params?: { type?: CompanyType } & PageParams,
+): Promise<CompanyRow[]> {
   let query = supabase.from('companies').select('*').is('archived_at', null);
   if (params?.type) query = query.eq('type', params.type);
-  const { data, error } = await query.order('name');
+  const range = resolveRange(params);
+  let ordered = query.order('name');
+  if (range) ordered = ordered.range(range.from, range.to);
+  const { data, error } = await ordered;
   if (error) throwWrite(error);
   return data ?? [];
 }

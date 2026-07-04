@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type TimesheetRow = Tables<'timesheets'>;
 export type TimesheetEntryRow = Tables<'timesheet_entries'>;
@@ -21,13 +22,23 @@ const SELECT = '*, entries:timesheet_entries(*, project:projects(name,code))';
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS
  * (timesheets_select) scopes rows; passing the signed-in user's own id keeps it to own rows even
  * for manager roles (FR-DAL-TS-001). On error it throws.
+ *
+ * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
+ * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
+ * read for every existing caller.
  */
-export async function listTimesheets(userId: string): Promise<TimesheetWithEntries[]> {
-  const { data, error } = await supabase
+export async function listTimesheets(
+  userId: string,
+  params?: PageParams,
+): Promise<TimesheetWithEntries[]> {
+  const range = resolveRange(params);
+  let query = supabase
     .from('timesheets')
     .select(SELECT)
     .eq('user_id', userId)
     .order('week_start_date', { ascending: false });
+  if (range) query = query.range(range.from, range.to);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   // Normalise hours to number at the data boundary so callers never need Number() casts.
   return ((data ?? []) as unknown as TimesheetWithEntries[]).map(sheet => ({
@@ -107,4 +118,33 @@ export async function upsertTimesheetEntries(entries: EntryUpsert[]): Promise<vo
 export async function deleteTimesheetEntry(id: string): Promise<void> {
   const { error } = await supabase.from('timesheet_entries').delete().eq('id', id);
   if (error) throwWrite(error);
+}
+
+/**
+ * Atomic week save (reliability harden #1): create-draft-if-absent + upsert changed cells +
+ * delete zeroed cells in ONE transaction via the save_timesheet_week security-definer RPC, so a
+ * mid-op failure can never leave a partial commit. Returns the resolved timesheet id. org_id is
+ * NEVER sent — the RPC re-asserts ownership/tenancy/Draft (mirrors the entries_write RLS).
+ */
+export async function saveTimesheetWeek(
+  timesheetId: string | null,
+  weekStartDate: string,
+  upserts: EntryUpsert[],
+  deleteIds: string[],
+): Promise<string> {
+  const { data, error } = (await supabase.rpc('save_timesheet_week', {
+    p_timesheet_id: timesheetId,
+    p_week_start_date: weekStartDate,
+    // The RPC re-targets entries at the resolved sheet id, so timesheet_id in the payload is
+    // ignored; send only the cell coordinates + values it reads (project_id/entry_date/hours/notes).
+    p_upserts: upserts.map(({ project_id, entry_date, hours, notes }) => ({
+      project_id,
+      entry_date,
+      hours,
+      notes,
+    })),
+    p_delete_ids: deleteIds,
+  })) as unknown as { data: string | null; error: PostgrestErrorLike | null };
+  if (error) throwWrite(error);
+  return data as string;
 }

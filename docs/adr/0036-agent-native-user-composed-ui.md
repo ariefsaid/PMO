@@ -1,6 +1,9 @@
 # ADR-0036 — Agent-native, user-composed UI: the deputy authorization model + declarative hydration over the existing primitive kit
 
-- **Status:** Accepted (owner-approved 2026-06-29; §9 spike gate green — claims #1/#2/#3-core all PASS)
+- **Status:** Accepted (owner-approved 2026-06-29; §9 spike gate green — claims #1/#2/#3-core all PASS).
+  **§8 sidecar path CLOSED 2026-07-03** — the live pilot found the sidecar UI builder/admin-grade, not
+  app-user-grade; verdict **cherry-pick**, batteries rebuilt PMO-native on the Option-A panel. Binding
+  record: ADR-0040 addendum 2026-07-03. §4–§7 (trusted core, `user_views`, coexistence) are unaffected and shipped.
 - **Date:** 2026-06-29
 - **Deciders:** Owner, Director
 - **Related:** ADR-0001 (org_id seam), ADR-0005 (TanStack Query), ADR-0008 (view-only impersonation), ADR-0010 (test pyramid), ADR-0016 (FE authz primitive + real-JWT), ADR-0017 (repository/API seam), ADR-0018 (soft-archive), ADR-0019 (server-enforced SoD + delete gating), ADR-0030 (QA portfolio + build-vs-buy vendoring policy).

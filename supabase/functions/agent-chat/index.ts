@@ -1,11 +1,12 @@
 /**
  * agent-chat — Deno Edge Function entry point.
  * BUILD-TIME-VERIFY checklist (deploy-time, not CI):
- *   1. Streaming call form: messages.create({ ...params }) accumulates; check tool_use block id field.
- *   2. tool_use block shape: content_block.id is used as tool_use_id in the tool_result turn.
- *   3. stop_reason values: 'tool_use' vs 'end_turn' match the loop branches in handler.ts.
+ *   1. Non-streaming call form: modelClient.create({...}) resolves one accumulated
+ *      ModelResponse (MC-OD-007 — plain fetch, no provider-side SSE consumption).
+ *   2. tool_calls[0] shape: .id is used as tool_call_id in the role:'tool' result message.
+ *   3. finish_reason values: 'tool_calls' vs 'stop'/'length' match the branches in handler.ts.
  *   4. supabase functions serve passes Content-Type: text/event-stream unbuffered.
- *   5. ANTHROPIC_API_KEY function secret set in deployed project (never committed).
+ *   5. OPENROUTER_API_KEY function secret set in deployed project (never committed).
  *
  * Integration-only: this file is NOT unit-tested (ADR-0039 decision 7).
  * All business logic lives in handler.ts (pure, importable in Vitest).
@@ -15,15 +16,19 @@
  *   2. Read Authorization header; reject 401 if absent.
  *   3. Verify JWT using service-role client (service_role ONLY for auth.getUser — NFR-AR-SEC-002).
  *   4. Build caller-JWT Supabase client for all business data (deputy auth — FR-AR-014).
- *   5. Read ANTHROPIC_API_KEY from Deno.env (function secret — NFR-AR-SEC-001).
+ *   5. Read OPENROUTER_API_KEY from Deno.env (function secret — NFR-MC-SEC-001).
  *   6. Parse JSON body into AgentChatRequest.
  *   7. Delegate to agentChatHandler; pipe events into SSE ReadableStream (D1/ADR-0042).
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
+import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
+import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { resolveDefaultModel } from '../_shared/modelResolution.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import {
@@ -73,16 +78,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
-  // ── 4. Read ANTHROPIC_API_KEY from function secrets (NFR-AR-SEC-001) ──────
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  // ── 4. Read OPENROUTER_API_KEY from function secrets (NFR-MC-SEC-001) ──────
+  const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
+    logStructuredError({ fn: 'agent-chat', errorCode: 'MISSING_OPENROUTER_API_KEY' });
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 
-  const anthropic = new Anthropic({ apiKey });
+  const modelClient = new OpenRouterModelClient({ apiKey });
+  const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────
   let body: AgentChatRequest;
@@ -109,30 +116,131 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return false;
   };
 
+  // ── ADR-0043 §6: persistence deps bound to the SAME callerClient (never verifierClient/
+  // service_role — the deputy invariant, AC-AGP-018). Gated on AGENT_PERSISTENCE (default ON;
+  // Deno cannot read the SPA's Vite `agentAssistant` flag, so this is the mirrored server-side
+  // gate — FR-AGP-026). When the flag is off, `persistence` stays undefined and every
+  // persistence call site in handler.ts is a no-op by construction.
+  const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false';
+
+  // ── ADR-0044 §6 / FR-AUC-017: credit-backed RateGuard, independent of AGENT_PERSISTENCE.
+  // Default OFF (spec Open Question 3) — matches today's `rateGuard: undefined` behavior so an
+  // existing deployment with no seeded credits grants is not instantly locked out. An operator
+  // flips this on once grant seed-data exists for their users.
+  const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
+  // orgId is resolved by the handler's own gate-2 profiles lookup; ownerId (== userId) is all
+  // this entry point can supply up front. index.ts does not duplicate the profiles read —
+  // persistence writes rely on RLS column DEFAULTs (owner_id default auth.uid(), org_id default
+  // seed-org) rather than an explicit orgId here, so an empty string is a safe placeholder
+  // (never sent to Postgres; RLS/DEFAULT stamps the real value).
+  const journaledWrites = persistenceEnabled && body.runId
+    ? await loadJournaledWrites(
+        {
+          // Cast: real SupabaseClient structurally satisfies HandlerSupabaseLike at runtime (both
+          // are minimal Supabase-like interfaces), but checking that assignability against the
+          // real client's full generic type here hits deno check's structural-recursion limit
+          // (TS2589 "excessively deep") — a TS-engine limitation, not a real mismatch (every other
+          // `supabase: callerClient` site in this file checks fine). Same bridging-cast convention
+          // as `handler: agentChatHandler as never` elsewhere in this codebase.
+          supabase: callerClient as never,
+          ownerId: userId,
+          orgId: '',
+          now: () => new Date(),
+        },
+        body.runId,
+      )
+    : undefined;
+
+  // ADR-0043 §2: seq continuity — a resumed run (body.runId already exists, e.g. a
+  // req.decision re-POST) must continue the run's seq counter, never restart at 0 (which
+  // would collide with the prior turn's already-persisted agent_events rows — silent
+  // transcript misordering, since listRunEvents orders by seq). loadMaxSeq(runId) mirrors
+  // loadJournaledWrites' same fail-safe style (-1 on error/no rows ⇒ startSeq 0, identical to
+  // a fresh run). Only computed when body.runId is present — a fresh run has no prior seq.
+  const startSeq = persistenceEnabled && body.runId
+    ? (await loadMaxSeq(
+        {
+          // Cast: see the identical loadJournaledWrites cast above (TS2589 structural-recursion
+          // limit, not a real mismatch).
+          supabase: callerClient as never,
+          ownerId: userId,
+          orgId: '',
+          now: () => new Date(),
+        },
+        body.runId,
+      )) + 1
+    : undefined;
+
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
+      // FR-AGP-016: client-disconnect continuation — an enqueue error (dropped socket) is
+      // swallowed so the `for await` loop below keeps draining the generator to completion
+      // server-side (persisting the remaining journal/heartbeat/terminal-status writes) rather
+      // than breaking early and leaving the run's durable-resume state incomplete.
+      let socketLive = true;
+      // Built as its own explicitly-typed variable (rather than an inline object literal in the
+      // call expression below): deno check's structural assignability recursion (TS2589
+      // "excessively deep") is triggered by inferring+widening this large literal (6+
+      // `supabase: callerClient` occurrences across nested sub-objects) THROUGH the call
+      // expression's generic resolution — giving it a concrete `HandlerDeps` target to check
+      // directly resolves the same real assignability with no cast needed (every field here is
+      // the same real client the codebase already establishes structurally satisfies
+      // HandlerSupabaseLike — Item 3's cast-cleanup rationale still holds).
+      const deps: import('./handler.ts').HandlerDeps = {
+        modelClient,
+        model,
+        // Cast: Item 3's original cast-cleanup rationale (real client structurally satisfies
+        // HandlerSupabaseLike, checked fine under tsc) still holds; deno check's stricter/deeper
+        // structural recursion over this large HandlerDeps literal (6 `supabase: callerClient`
+        // occurrences combined) hits TS2589 without it — a TS-engine depth limit, not a real
+        // mismatch (confirmed: this exact field alone, isolated, checks fine).
+        supabase: callerClient as never,
+        userId,
+        // A3: injectable can() for deputy re-auth (FR-AW-010)
+        can: agentCan,
+        // A4: enable compose_view tool (Task 8b / FR-CV-024 / D7).
+        // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
+        // so enabling the tool here is harmless when the SPA never renders an artifact
+        // (OQ-A4-2 recommendation — default true; add a function secret if needed).
+        composeEnabled: true,
+        // Cast: createCreditRateGuard's own generic resolution is what trips deno check's TS2589
+        // recursion limit here (the direct `supabase: callerClient` field above, and everywhere
+        // else in this HandlerDeps literal, checks fine unaided) — the real client structurally
+        // satisfies CreditRateGuardDeps.supabase (HandlerSupabaseLike) at runtime; this is a
+        // TS-engine depth limit, not a real mismatch.
+        rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient as never }) : undefined,
+        // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
+        // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
+        usage: { supabase: callerClient as never },
+        persistence: persistenceEnabled
+          ? {
+              supabase: callerClient as never,
+              ownerId: userId,
+              orgId: '',
+              now: () => new Date(),
+              journaledWrites,
+              startSeq,
+            }
+          : undefined,
+      };
       try {
-        for await (const ev of agentChatHandler(body, {
-          // Cast: real Anthropic SDK satisfies AnthropicLike (same create() signature)
-          anthropic: anthropic as unknown as Parameters<typeof agentChatHandler>[1]['anthropic'],
-          // Cast: real callerClient satisfies HandlerSupabaseLike
-          supabase: callerClient as unknown as Parameters<typeof agentChatHandler>[1]['supabase'],
-          userId,
-          // A3: injectable can() for deputy re-auth (FR-AW-010)
-          can: agentCan,
-          // A4: enable compose_view tool (Task 8b / FR-CV-024 / D7).
-          // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
-          // so enabling the tool here is harmless when the SPA never renders an artifact
-          // (OQ-A4-2 recommendation — default true; add a function secret if needed).
-          composeEnabled: true,
-          // rateGuard: undefined (AR-OD-002 default — disabled in v1)
-        })) {
-          controller.enqueue(enc.encode(encodeSse(ev)));
+        for await (const ev of agentChatHandler(body, deps)) {
+          if (!socketLive) continue; // keep draining for persistence; stop trying to enqueue
+          try {
+            controller.enqueue(enc.encode(encodeSse(ev)));
+          } catch {
+            // Dropped socket — stop enqueueing but keep the loop (and persistence) running.
+            socketLive = false;
+          }
         }
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Already closed/errored (e.g. socket dropped) — nothing further to do.
+        }
       }
     },
   });

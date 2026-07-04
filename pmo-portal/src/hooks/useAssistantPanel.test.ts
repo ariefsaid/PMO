@@ -258,4 +258,44 @@ describe('useAssistantPanel', () => {
       goal: 'show active projects',
     });
   });
+
+  it('AC-AUC-019 RATE_LIMITED with retryAfterSeconds<=0 sets phase to out-of-credits, not error', async () => {
+    const runId = 'credits-run';
+    const rateLimitedEvent = makeEvent('status', {
+      runId,
+      payload: { status: 'errored', error: 'RATE_LIMITED', retryAfterSeconds: 0 },
+    });
+    const runtime = makeFakeRuntime([rateLimitedEvent], runId);
+    const wrapper = makeWrapper(runtime);
+
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await act(async () => {
+      await result.current.send('do something expensive');
+    });
+
+    await waitFor(() => {
+      expect(result.current.phase).toBe('out-of-credits');
+    });
+  });
+
+  it('RATE_LIMITED with retryAfterSeconds>0 (hypothetical future throttle) stays the generic error phase', async () => {
+    const runId = 'throttle-run';
+    const throttledEvent = makeEvent('status', {
+      runId,
+      payload: { status: 'errored', error: 'RATE_LIMITED', retryAfterSeconds: 3600 },
+    });
+    const runtime = makeFakeRuntime([throttledEvent], runId);
+    const wrapper = makeWrapper(runtime);
+
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await act(async () => {
+      await result.current.send('do something expensive');
+    });
+
+    await waitFor(() => {
+      expect(result.current.phase).toBe('error');
+    });
+  });
 });

@@ -64,3 +64,9 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 **External reference number** — the identifier the document carries in the *outside* world — the vendor's quotation number, the real PO number, the supplier's invoice number. Optional, free-form, captured by the procurement admin alongside the **System-assigned number** so a record is findable from either side. Every Procurement record carries both. (ADR-0033.)
 
 **RFQ (Request for Quotation)** — a Procurement record representing a formal request for pricing issued to a set of vendors. One RFQ may gather **many** Quotations (1:N); a Quotation may cite the RFQ it answers. (ADR-0033.)
+
+**Assistant** — the in-app agent a signed-in user converses with to explore their data, perform writes (always with the user's explicit approval), and compose views. The Assistant is a **deputy**: it acts under the user's own identity and permissions and can never see or do more than that user could in the UI. It is an end-user product feature, not an admin or developer tool. (ADR-0036, ADR-0040.)
+
+**Deputy** — the authorization stance of the Assistant: it carries the user's badge, never a master key. Whatever bounds the user (tenancy, role, separation-of-duties) bounds the Assistant identically, by construction. (ADR-0036 §2.)
+
+**User view** — a dashboard/view a user composes at runtime (manually or via the Assistant) and owns as data, not code. Private to its owner by default; sharing shows each viewer only their own authorized data. Distinct from built-in pages, which are part of the app itself. (ADR-0036.)

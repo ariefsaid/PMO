@@ -48,6 +48,11 @@ export const ApprovalChip: React.FC<ApprovalChipProps> = ({
       aria-live="assertive"
       className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
     >
+      {/* Item 6 (Discover finding): labeled header — DESIGN.md overline voice,
+          mirrors QuestionChips' "Answer needed" header for the pending family. */}
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        Decision required
+      </p>
       {/* Summary line */}
       <p className="mb-2 text-xs text-foreground">{summary}</p>
 

@@ -163,6 +163,26 @@ describe('useFileUpload', () => {
     expect(repo.confirmUpload).not.toHaveBeenCalled();
   });
 
+  it('harden #5: transport OK but confirmUpload fails → the orphaned object is cleaned up + error rethrown', async () => {
+    const mockedUploadWithProgress = vi.mocked(uploadTransport.uploadWithProgress);
+    // Transport succeeds → the object is now in the bucket.
+    mockedUploadWithProgress.mockResolvedValue(undefined);
+    // But the confirm INSERT fails (e.g. RLS reject) → without cleanup the object orphans.
+    const confirmError = { code: '42501', message: 'row-level security' };
+    repo.confirmUpload.mockRejectedValue(confirmError);
+
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+    const file = new File(['content'], 'file.pdf', { type: 'application/pdf' });
+
+    await expect(
+      act(async () => result.current.upload.mutateAsync({ docId: 'doc-1', file })),
+    ).rejects.toEqual(confirmError);
+
+    // The just-uploaded object MUST be cleaned up best-effort so it does not orphan.
+    expect(repo.cleanupObject).toHaveBeenCalledWith('org-1/proj-1/doc-1/file.pdf');
+  });
+
   it('AC-DOC-024 (hook): upload error is stored with the approved copy and cleared on Remove', async () => {
     const mockedUploadWithProgress = vi.mocked(uploadTransport.uploadWithProgress);
     mockedUploadWithProgress.mockRejectedValue({ code: '42501', message: 'storage unavailable' });

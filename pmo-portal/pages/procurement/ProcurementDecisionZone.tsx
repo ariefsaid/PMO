@@ -65,7 +65,7 @@ function readyGateMessage(
     case 'Vendor Invoiced':
       // Finance payer — teach SoD-b: the approver cannot also release payment.
       return isApprover
-        ? 'Ready to advance.' // SoD-b blocks them anyway; the action won't appear
+        ? 'Payment must be released by a different finance user — the approver can\'t also pay this request.'
         : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
     default:
       return 'Ready to advance. Select an action below to move this request to its next stage.';

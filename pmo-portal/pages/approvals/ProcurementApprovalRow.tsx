@@ -3,7 +3,7 @@
  *
  * Expand-in-place procurement approval row — mirrors the ApprovalsQueue (timesheet)
  * expand pattern. A disclosure button reveals:
- *   • DecisionSupportPanel (budget impact — lazy, enabled only when expanded)
+ *   • DecisionSupportPanel (budget impact)
  *   • Line items from the procurement detail
  *   • Adjacent Approve / Reject actions (staged through ConfirmDialog)
  *
@@ -13,7 +13,16 @@
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ApprovalRow, Button, ConfirmDialog, Icon, ListState, ProjectNameLink, useToast } from '@/src/components/ui';
+import {
+  ApprovalRow,
+  Button,
+  ConfirmDialog,
+  Icon,
+  ListState,
+  ProjectNameLink,
+  StatusPill,
+  useToast,
+} from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import {
   useProcurementDetail,
@@ -24,10 +33,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 type PendingAction = 'Approved' | 'Rejected';
 
@@ -35,9 +41,10 @@ export interface ProcurementApprovalRowProps {
   row: ProcurementWithRefs;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+export interface ProcurementApprovalPreviewProps {
+  row: ProcurementWithRefs;
+  surface?: 'panel' | 'inline';
+}
 
 /** Whole days since an ISO timestamp — mirrors ProcurementApprovalSection. */
 function daysAgo(iso: string): string {
@@ -48,25 +55,20 @@ function daysAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ row }) => {
-  const panelId = `proc-approval-panel-${useId()}`;
+export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProps> = ({
+  row,
+  surface = 'panel',
+}) => {
   const { currentUser } = useAuth();
   const may = usePermission();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const [expanded, setExpanded] = useState(false);
+  const detail = useProcurementDetail(row.id);
+  const { transition } = useProcurementMutations(row.id);
   const [pending, setPending] = useState<PendingAction | null>(null);
 
-  // Lazy fetch: only enabled when the row is expanded (cost-free while collapsed).
-  const detail = useProcurementDetail(expanded ? row.id : undefined);
-  const { transition } = useProcurementMutations(row.id);
-
   const canTransition = may('transition', 'procurement');
+  const isInline = surface === 'inline';
 
   const handleConfirm = () => {
     if (!pending) return;
@@ -75,7 +77,6 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
       {
         onSuccess: () => {
           setPending(null);
-          // Invalidate list so this row leaves the inbox after approval/rejection.
           queryClient.invalidateQueries({ queryKey: ['procurements', currentUser?.org_id] });
           toast(
             pending === 'Approved' ? 'Request approved' : 'Request rejected',
@@ -94,14 +95,200 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
     );
   };
 
-  // ---------------------------------------------------------------------------
-  // Collapsed row header — rendered through the shared ApprovalRow shell (B,
-  // AC-JR-W3B-03) so padding/gap/vertical-alignment + avatar match the timesheet
-  // rows. Switching the scope tab no longer shifts row metrics.
-  // ---------------------------------------------------------------------------
+  const actionCluster = canTransition ? (
+    <>
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={() => setPending('Approved')}
+        loading={transition.isPending}
+      >
+        <Icon name="check" />
+        Approve
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setPending('Rejected')}
+        loading={transition.isPending}
+      >
+        Reject
+      </Button>
+    </>
+  ) : null;
 
-  // B: subtitle node — request meta in the same text-[12px] style as the timesheet
-  // "week · hours h" subtitle. Uses the same slot so the layout is identical.
+  return (
+    <>
+      <div className={isInline ? 'space-y-3' : 'flex h-full flex-col'}>
+        <div className={isInline ? 'space-y-3' : 'border-b border-border pb-4'}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+                <span>·</span>
+                <ProjectNameLink
+                  projectId={row.project_id}
+                  name={row.project?.name ?? null}
+                  className="text-[12px]"
+                />
+                <span>·</span>
+                <span>{daysAgo(row.created_at)}</span>
+              </div>
+              <h2 className="text-lg font-semibold tracking-[-0.01em]">{row.title}</h2>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+                <span>{row.requested_by?.full_name ?? 'Unknown requester'}</span>
+                <span className="tabular font-medium text-foreground">
+                  {formatCurrency(row.total_value)}
+                </span>
+                <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
+              </div>
+            </div>
+            {!isInline && (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Link
+                  to={`/procurement/${row.id}`}
+                  aria-label="Open request"
+                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                >
+                  Open request
+                </Link>
+                {actionCluster}
+              </div>
+            )}
+          </div>
+          {!isInline && (
+            <p className="max-w-[68ch] text-[13px] text-muted-foreground">
+              Approval actions remain permission-gated in the UI and server-enforced via the
+              procurement transition RPC.
+            </p>
+          )}
+        </div>
+
+        <div className={isInline ? 'space-y-3' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>
+          {detail.isPending ? (
+            <ListState variant="loading" rows={3} />
+          ) : detail.isError ? (
+            <ListState
+              variant="error"
+              title="Couldn't load request details"
+              sub="Something went wrong fetching the budget impact and line items."
+              onRetry={() => detail.refetch()}
+            />
+          ) : detail.data ? (
+            <>
+              <DecisionSupportPanel
+                projectId={detail.data.project_id}
+                totalValue={detail.data.total_value}
+                projectName={detail.data.project?.name}
+                status={detail.data.status}
+              />
+
+              {detail.data.items.length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    Line items
+                  </h3>
+                  <ul className="space-y-1.5" aria-label="Line items">
+                    {detail.data.items.map((item) => {
+                      const lineTotal = item.amount ?? item.quantity * item.rate;
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex items-baseline justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-[13px]"
+                        >
+                          <span className="min-w-0 truncate">{item.name}</span>
+                          <span className="shrink-0 tabular text-muted-foreground">
+                            {item.quantity} × {formatCurrency(item.rate)} ={' '}
+                            <span className="font-medium text-foreground">
+                              {formatCurrency(lineTotal)}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  Request details
+                </h3>
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border/70 px-3 py-2">
+                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      Requested by
+                    </dt>
+                    <dd className="mt-1 text-[13px] font-medium">
+                      {row.requested_by?.full_name ?? 'Unknown requester'}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg border border-border/70 px-3 py-2">
+                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      Project
+                    </dt>
+                    <dd className="mt-1 text-[13px] font-medium">
+                      {row.project?.name ?? 'No project linked'}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg border border-border/70 px-3 py-2">
+                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      Requested
+                    </dt>
+                    <dd className="mt-1 text-[13px] font-medium">{daysAgo(row.created_at)}</dd>
+                  </div>
+                  <div className="rounded-lg border border-border/70 px-3 py-2">
+                    <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      Total value
+                    </dt>
+                    <dd className="mt-1 tabular text-[13px] font-medium">
+                      {formatCurrency(row.total_value)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            </>
+          ) : null}
+        </div>
+
+        {isInline && (
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            <Link
+              to={`/procurement/${row.id}`}
+              aria-label="Open request"
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              Open request
+            </Link>
+            {actionCluster}
+          </div>
+        )}
+      </div>
+
+      {pending && (
+        <ConfirmDialog
+          open
+          tone={pending === 'Approved' ? 'default' : 'destructive'}
+          title={pending === 'Approved' ? `Approve ${row.title}?` : `Reject ${row.title}?`}
+          description={
+            pending === 'Approved'
+              ? `Approve ${row.title} — ${formatCurrency(row.total_value)}? This will advance the request to the ordering stage.`
+              : `Reject ${row.title}? The requester will be notified and may revise and resubmit.`
+          }
+          confirmLabel={pending === 'Approved' ? 'Approve' : 'Reject request'}
+          loading={transition.isPending}
+          onCancel={() => setPending(null)}
+          onConfirm={handleConfirm}
+        />
+      )}
+    </>
+  );
+};
+
+export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ row }) => {
+  const panelId = `proc-approval-panel-${useId()}`;
+  const [expanded, setExpanded] = useState(false);
+
   const subtitle = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
       <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
@@ -111,23 +298,17 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         className="text-[12px]"
       />
       {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-      <span className="tabular font-medium text-foreground">
-        {formatCurrency(row.total_value)}
-      </span>
+      <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value)}</span>
       <span>{daysAgo(row.created_at)}</span>
     </span>
   );
 
   return (
     <div className="border-b border-border last:border-b-0">
-      {/* Row summary rendered through the shared ApprovalRow shell.
-          AC-ROWCLICK-PROC-APPROVAL: whole-row click TOGGLES the in-place expand
-          (the IF-A "decide without leaving the queue" flow) — it never navigates.
-          The chevron, ProjectNameLink and (in the panel) action buttons / "Open
-          request" are interactive and excluded by the shell's closest() guard. */}
       <ApprovalRow
         name={row.title}
         subtitle={subtitle}
+        status={<StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>}
         onActivate={() => setExpanded((v) => !v)}
         disclosure={
           <Button
@@ -149,116 +330,10 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         className="border-b-0 px-4"
       />
 
-      {/* Expanded panel */}
       {expanded && (
-        <div
-          id={panelId}
-          className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3"
-        >
-          {detail.isPending ? (
-            <ListState variant="loading" rows={3} />
-          ) : detail.isError ? (
-            <ListState
-              variant="error"
-              title="Couldn't load request details"
-              sub="Something went wrong fetching the budget impact and line items."
-              onRetry={() => detail.refetch()}
-            />
-          ) : detail.data ? (
-            <>
-              {/* Budget impact */}
-              <DecisionSupportPanel
-                projectId={detail.data.project_id}
-                totalValue={detail.data.total_value}
-                projectName={detail.data.project?.name}
-                status={detail.data.status}
-              />
-
-              {/* Line items */}
-              {detail.data.items.length > 0 && (
-                <div className="mb-3">
-                  <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Line items
-                  </h4>
-                  <ul className="space-y-1" aria-label="Line items">
-                    {detail.data.items.map((item) => {
-                      const lineTotal = item.amount ?? item.quantity * item.rate;
-                      return (
-                        <li
-                          key={item.id}
-                          className="flex items-baseline justify-between gap-2 text-[13px]"
-                        >
-                          <span className="truncate">{item.name}</span>
-                          <span className="tabular text-muted-foreground shrink-0">
-                            {item.quantity} × {formatCurrency(item.rate)} ={' '}
-                            <span className="font-medium text-foreground">
-                              {formatCurrency(lineTotal)}
-                            </span>
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {/* Action footer — "Open request" always visible; Approve/Reject UX-gated by
-                  can('transition','procurement') (AC-JR-W2-02). */}
-              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                <Link
-                  to={`/procurement/${row.id}`}
-                  aria-label="Open request"
-                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                >
-                  Open request
-                </Link>
-                {canTransition && (
-                  <>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setPending('Approved')}
-                      loading={transition.isPending}
-                    >
-                      <Icon name="check" />
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPending('Rejected')}
-                      loading={transition.isPending}
-                    >
-                      Reject
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : null}
+        <div id={panelId} className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3">
+          <ProcurementApprovalPreview row={row} surface="inline" />
         </div>
-      )}
-
-      {/* Staged confirmation — one click never approves (mirrors ApprovalsQueue T2/T3). */}
-      {pending && (
-        <ConfirmDialog
-          open
-          tone={pending === 'Approved' ? 'default' : 'destructive'}
-          title={
-            pending === 'Approved'
-              ? `Approve ${row.title}?`
-              : `Reject ${row.title}?`
-          }
-          description={
-            pending === 'Approved'
-              ? `Approve ${row.title} — ${formatCurrency(row.total_value)}? This will advance the request to the ordering stage.`
-              : `Reject ${row.title}? The requester will be notified and may revise and resubmit.`
-          }
-          confirmLabel={pending === 'Approved' ? 'Approve' : 'Reject request'}
-          loading={transition.isPending}
-          onCancel={() => setPending(null)}
-          onConfirm={handleConfirm}
-        />
       )}
     </div>
   );

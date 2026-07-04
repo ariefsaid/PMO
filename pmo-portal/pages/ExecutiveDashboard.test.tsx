@@ -90,6 +90,13 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
+
+  it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
+    renderPage();
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveAttribute('href', '/approvals');
+    expect(tile).toHaveTextContent(/Review/i);
+  });
   it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
     renderPage();
     expect(screen.getByTestId('dashboard-pipeline')).toHaveTextContent('2');

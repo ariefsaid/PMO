@@ -105,6 +105,20 @@ jobs:
         run: npm run build
       - name: Lint
         run: npm run lint:ci
+      - uses: denoland/setup-deno@v2
+        with:
+          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          deno-version: '2.7.11'
+      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
+      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      - name: Deno typecheck — edge function entry points + _shared
+        working-directory: .
+        run: |
+          set -e
+          for fn in agent-chat agent-dispatch compose-view; do
+            echo "── deno check supabase/functions/$fn/index.ts ──"
+            deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
+          done
 
   integration:
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
@@ -172,10 +186,14 @@ jobs:
           # The ownership e2e (AC-VR-020) seeds two users via an admin client, reading these
           # from process.env (the local-stack service-role key is the well-known demo key —
           # ephemeral, not a production secret). Exported to GITHUB_ENV for the Playwright step.
+          # The agent tenancy e2e (AC-AAN-036, AC-AGP-023) additionally build a second anon-key
+          # client to prove "second user cannot see" — they read VITE_SUPABASE_ANON_KEY from
+          # process.env, so it must be exported here too (not only written to .env.local for Vite).
           echo "::add-mask::${SERVICE_ROLE_KEY}"
           {
             echo "SUPABASE_URL=${API_URL}"
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}"
           } >> "$GITHUB_ENV"
 
       # Cache the Chromium binary across runs (the download is ~15s). System deps (apt)

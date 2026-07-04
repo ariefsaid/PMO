@@ -17,7 +17,7 @@ import { ImportButton } from '@/src/components/import';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -295,18 +295,9 @@ const ProcurementPage: React.FC = () => {
                 ariaLabel="Status filter"
               />
             </div>
-            {/* CW-6: the "Needs approval" segment is a VIEW of this list, not an approvals home.
-                Approvers get a clear cross-link to the single canonical inbox so this filter never
-                reads as a competing approvals surface (audit P7 / C-IMP-4). */}
-            {canApprove && (
-              <Link
-                to="/approvals?scope=procurement"
-                className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[13px] font-medium text-primary transition-colors hover:bg-accent"
-              >
-                See all approvals
-                <Icon name="chev" aria-hidden />
-              </Link>
-            )}
+            {/* CW-6: the "Needs approval" segment is the toolbar's single approvals doorway.
+                The extra "See all approvals" link was removed to avoid three parallel entries
+                to the same workstream on compact widths. */}
           </div>
         )
       }

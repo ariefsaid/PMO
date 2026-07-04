@@ -19,17 +19,28 @@ const projectsState = { data: seed, isPending: false, isError: false, refetch: v
 const committedSpendState = { data: 2_350_000 };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox } = vi.hoisted(() => ({ roleBox: { value: 'Project Manager' as string } }));
-vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => projectsState,
-  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
-  useProjectMutations: () => ({
+const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(() => ({
+  roleBox: { value: 'Project Manager' as string },
+  desktopBox: { value: true },
+  projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
-  }),
+  },
+  projectTransition: {
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
+  },
+}));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => projectsState,
+  // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).
+  useProjectMutations: () => projectMutations,
   useClientCompanies: () => ({ data: [], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
@@ -39,6 +50,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 // ADR-0016: the Budget tab (ProjectBudget) + ProjectStatusControl gate write on the REAL
 // role via usePermission, so the mock supplies realRole (equal to effectiveRole here).
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }) }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
 // Budget tab mounts the real ProjectBudget — stub its data hooks to avoid network.
 vi.mock('@/src/hooks/useBudget', () => ({
   // AC-W2-1-FE-01: budget utilization reads from useProjectBudget (derived from Active version
@@ -55,6 +67,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => projectTransition,
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
@@ -130,16 +145,31 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.isError = false;
     committedSpendState.data = 2_350_000;
     roleBox.value = 'Project Manager';
+    desktopBox.value = true;
     navigate.mockClear();
+    Object.values(projectMutations).forEach((m) => {
+      m.mutateAsync.mockReset();
+      m.mutateAsync.mockResolvedValue(undefined);
+      m.isPending = false;
+    });
   });
 
-  it('renders the header from the real cached row and defaults to the Overview tab (AC-F/G, OQ-4)', () => {
+  it('renders the header from the real cached row, defaults to Overview, and moves record details into the persistent rail (L3-RECORD)', () => {
     renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    // Overview content (real): project information card
-    expect(screen.getByText('Project information')).toBeInTheDocument();
+
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(within(rail).getByText('Details')).toBeInTheDocument();
+    expect(within(rail).getByText('Customer')).toBeInTheDocument();
+    expect(within(rail).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(rail).getByText('Project manager')).toBeInTheDocument();
+    expect(within(rail).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(rail).getByText('Customer PO ref')).toBeInTheDocument();
+    expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
+
+    expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
 
   it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', () => {
@@ -150,6 +180,54 @@ describe('ProjectDetail shell (decomposition)', () => {
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
+    renderAt('/projects/p1');
+
+    const rail = screen.getByTestId('project-detail-rail');
+    const changeStatus = within(rail).getByRole('button', { name: /change status/i });
+    expect(changeStatus).toBeInTheDocument();
+    expect(changeStatus.className).toContain('bg-primary');
+    expect(within(rail).queryByRole('button', { name: /edit project/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+  });
+
+  it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', () => {
+    const cases = [
+      ['/projects/p1/budget', /new version/i],
+      ['/projects/p1/procurement', /new request/i],
+      ['/projects/p1/tasks', /new task/i],
+      ['/projects/p1/documents', /add document/i],
+    ] as const;
+
+    for (const [path, name] of cases) {
+      const { unmount } = renderAt(path);
+      const rail = screen.getByTestId('project-detail-rail');
+      expect(within(rail).getByRole('button', { name: /change status/i }).className).toContain('bg-primary');
+      const tabCta = screen.getAllByRole('button', { name })[0];
+      expect(tabCta.className).toContain('bg-background');
+      expect(tabCta.className).not.toContain('bg-primary');
+      unmount();
+    }
+  });
+
+  it('I-3: mobile record render moves Change status into a sticky bottom action bar and removes the rail action copy', () => {
+    desktopBox.value = false;
+    renderAt('/projects/p1');
+
+    const sticky = screen.getByTestId('mobile-sticky-action');
+    expect(sticky.className).toMatch(/fixed|sticky/);
+    expect(sticky.className).toContain('bottom-0');
+    expect(sticky.textContent).toMatch(/change status/i);
+    expect(sticky.getAttribute('style') ?? '').toContain('safe-area-inset-bottom');
+
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(within(rail).queryByRole('button', { name: /change status/i })).toBeNull();
   });
 
   it('passes committed PO spend through to the header and Overview budget utilization', () => {
@@ -197,10 +275,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(tabs).not.toContain('Timesheets');
   });
 
-  it('pre-selects the Budget tab on the /budget deep-link route', () => {
+  it('pre-selects the Budget tab on the /budget deep-link route and keeps the right rail mounted across tabs', () => {
     renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-detail-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
     // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
     // was dropped — the selected "Budget" tab is the section label and the "Active
     // budget" line is the section lead. Oracle updated per the BDD authoring rule:
@@ -243,31 +323,14 @@ describe('ProjectDetail shell (decomposition)', () => {
   });
 
   it('C-IMP-1: BackBar is present on the success render on mobile (< 768px viewport)', () => {
-    // Override matchMedia to simulate a mobile viewport (below the md breakpoint).
-    const originalMatchMedia = window.matchMedia;
-    window.matchMedia = (query: string): MediaQueryList =>
-      ({
-        matches: false, // mobile: never matches min-width: 768px
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        addListener: () => {},
-        removeListener: () => {},
-        dispatchEvent: () => false,
-      }) as MediaQueryList;
-
-    try {
-      renderAt('/projects/p1');
-      // On mobile, the success render must include the in-content back affordance.
-      expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
-    } finally {
-      window.matchMedia = originalMatchMedia;
-    }
+    desktopBox.value = false;
+    renderAt('/projects/p1');
+    // On mobile, the success render must include the in-content back affordance.
+    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
   });
 
   it('C-IMP-1: BackBar is absent on the success render on desktop (>= 768px viewport)', () => {
-    // Desktop: matchMedia matches (default from setup.ts), BackBar should be hidden.
+    desktopBox.value = true;
     renderAt('/projects/p1');
     expect(screen.queryByRole('button', { name: /Back to Projects/i })).toBeNull();
   });

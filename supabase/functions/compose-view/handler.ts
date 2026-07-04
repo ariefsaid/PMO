@@ -2,10 +2,10 @@
  * composeViewHandler — pure business-logic handler for the compose-view edge function.
  *
  * Pure: all I/O is injected via HandlerDeps. No Deno globals, no process.env reads.
- * Importable in Vitest (Node) with the Anthropic SDK and Supabase client mocked.
+ * Importable in Vitest (Node) with the ModelClient and Supabase client mocked.
  *
- * ADR-0039 decision 7: handler is CI-testable with SDK mocked; the Deno.serve wrapper
- * (index.ts) is integration-only and not unit-tested.
+ * ADR-0039 decision 7: handler is CI-testable with the model client mocked; the
+ * Deno.serve wrapper (index.ts) is integration-only and not unit-tested.
  *
  * A4 refactor (D2): the compose+repair loop is extracted to composeSpec.ts.
  * This handler is now a thin wrapper that owns the HTTP gates (401/400/429) and
@@ -14,30 +14,42 @@
  * Reconciliation #1: compileCompositionSpec THROWS (fail-fast); the loop feeds one error.
  * Reconciliation #2: CompilerContext = { userId, orgId } (subset; teamId/projectId omitted).
  * Reconciliation #4: org_id derived from profiles under caller JWT (not JWT claims).
+ *
+ * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-021): the only edit here
+ * is the HandlerDeps.anthropic → HandlerDeps.modelClient (+model) rename threaded to
+ * composeSpec(); HTTP gate order, error-code mapping, and logging discipline unchanged.
  */
 
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
-import { composeSpec, ComposeSpecError } from './composeSpec';
-import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types';
+import { composeSpec, ComposeSpecError } from './composeSpec.ts';
+import { insertUsageRow } from '../_shared/usage.ts';
+import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
-export { MAX_REPAIR_ATTEMPTS } from './composeSpec';
+export { MAX_REPAIR_ATTEMPTS } from './composeSpec.ts';
 
-// Re-export injected interfaces so tests can import them from this module as before.
-export type { AnthropicLike, AnthropicCreateParams, AnthropicResponse } from './composeSpec';
+// Re-export the vendor-neutral port so tests/callers can import it from this module too.
+export type { ModelClient } from '../_shared/modelClient.ts';
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
 /**
- * Minimal Supabase-like interface for the profiles lookup.
- * Only the chained call `from('profiles').select('org_id').eq('id', userId).single()` is used.
+ * Minimal Supabase-like interface for the profiles lookup, widened (FR-AUC-002/015) to also
+ * support the credit-backed RateGuard's balance query shape (`.eq(...).limit(n)`, matching
+ * `HandlerSupabaseLike`'s shape in agent-chat/handler.ts) so `creditRateGuard`'s
+ * `.from('credits').select('amount').eq('owner_id', userId).limit(10_000)` call compiles
+ * against this interface too — the real Supabase client satisfies both shapes structurally.
  */
+// `PromiseLike` (not `Promise`): mirrors agent-chat/handler.ts's HandlerSupabaseLike — the real
+// supabase-js query builder is a thenable, not nominally a `Promise` (missing catch/finally/
+// Symbol.toStringTag under Deno's stricter check), so `Promise<T>` here rejected the real client.
 export interface SupabaseLike {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
-        single(): Promise<{ data: { org_id: string } | null; error: unknown }>;
+        single(): PromiseLike<{ data: { org_id: string } | null; error: unknown }>;
+        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
       };
     };
   };
@@ -52,14 +64,22 @@ export interface RateGuard {
 }
 
 export interface HandlerDeps {
-  /** Injected Anthropic-like client — mocked in tests; real SDK in index.ts. */
-  anthropic: import('./composeSpec').AnthropicLike;
+  /** Injected vendor-neutral model client — mocked in tests; OpenRouterModelClient in index.ts. */
+  modelClient: import('../_shared/modelClient.ts').ModelClient;
+  /** Resolved model id for this call (FR-MC-015 / MC-OD-009). */
+  model: string;
   /** Injected caller-JWT Supabase client — mocked in tests; real caller-JWT client in index.ts. */
   supabase: SupabaseLike;
   /** Verified caller user ID (auth.uid()); extracted by index.ts. Empty string = unauthorized. */
   userId: string;
   /** Optional rate guard — undefined disables rate limiting (AS-OD-002 default). */
   rateGuard?: RateGuard;
+  /**
+   * FR-AUC-002/015: optional usage-recording dep. In production this is the same
+   * caller-JWT client as `deps.supabase`. Independent of any flag — usage recording
+   * is unconditional when this dep is present.
+   */
+  usage?: { supabase: SupabaseLike };
   /** Injectable clock for testing — defaults to () => new Date(). */
   now?: () => Date;
 }
@@ -94,7 +114,7 @@ export async function composeViewHandler(
   req: ComposeViewRequest,
   deps: HandlerDeps,
 ): Promise<HandlerResult> {
-  const { anthropic, supabase, userId, rateGuard } = deps;
+  const { modelClient, model, supabase, userId, rateGuard } = deps;
 
   // ── Gate (1): userId present (AC-AS-004, NFR-AS-SEC-002) ──────────────────
   if (!userId) {
@@ -171,8 +191,27 @@ export async function composeViewHandler(
     const { spec, repairAttempts, tokensUsed } = await composeSpec(
       req.prompt,
       req.orgId,
-      { anthropic, userId },
+      { modelClient, userId, model },
     );
+
+    // FR-AUC-002/015: one agent_usage row per compose-view invocation (the single choke
+    // point — composeSpec() has already resolved, meaning at least one modelClient.create()
+    // call succeeded). tokensUsed → completion_tokens is a coarse proxy: composeSpec/
+    // ComposeViewResponse does not surface a prompt/completion split or a total_cost today
+    // (see docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
+    // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
+    if (deps.usage) {
+      await insertUsageRow(
+        // deps.usage.supabase (compose-view's SupabaseLike) structurally satisfies the
+        // HandlerSupabaseLike shape insertUsageRow expects — both are minimal Supabase-like
+        // interfaces over the same real client; a genuine structural mismatch (SupabaseLike
+        // lacks .insert()) requires this bridging cast, mirroring agent-chat/handler.ts's own
+        // documented SupabaseLike-vs-port cast.
+        { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
+        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0 },
+      );
+    }
+
     return {
       status: 200,
       body: { spec, repairAttempts, tokensUsed },
