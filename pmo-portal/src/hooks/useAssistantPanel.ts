@@ -5,7 +5,7 @@
  * FR-AP-009/021/022/023.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { AgentEvent, RunStatusPayload } from '../lib/agent/runtime/port';
+import type { AgentEvent, RunStatusPayload, QuestionPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { useAgentContext } from '../lib/agent/context/useAgentContext';
 import { isFeatureEnabled } from '../lib/features';
@@ -109,9 +109,24 @@ export interface UseAssistantPanel {
    * elapsed time since the last observed progress signal, independent of SSE liveness).
    * The render (StuckRunBanner, Phase D) consumes this boolean + lastProgressAt; this hook
    * only derives the flag.
+   *
+   * Correctness-remediation (gpt-5.5 cross-family audit, finding 3): EXCLUDES a run with
+   * a pending ask_user question (`hasPendingQuestion`) — waiting on the human is a
+   * legitimate paused state, not evidence the run is wedged, even past
+   * STUCK_RUN_STALE_MS. See `hasPendingQuestion` below.
    */
   isStuck: boolean;
   lastProgressAt: string | null;
+  /**
+   * Correctness-remediation finding 3: true when the trailing status{kind:'question'}
+   * transcript entry has no matching answeredMap resolution yet — a pending ask_user
+   * question is awaiting the user's answer. Derived from the transcript (mirrors the
+   * AssistantPanel.tsx computation this hook now centralizes) rather than `phase`,
+   * because a pending question does NOT transition `phase` away from 'running' (the
+   * drain loop appends a `question` status frame as-is, same as any other in-flight
+   * status event — by design, since the SSE stream simply ends there).
+   */
+  hasPendingQuestion: boolean;
 }
 
 function makeKey(): string {
@@ -573,13 +588,37 @@ export function useAssistantPanel(): UseAssistantPanel {
     };
   }, [phase, runId]);
 
+  // ── hasPendingQuestion (correctness-remediation finding 3) ───────────────────
+  // Derived from the transcript, not `phase` — a pending question does NOT transition
+  // `phase` away from 'running' (the drain loop appends a `question` status frame as-is;
+  // the SSE stream simply ends there). Centralizes the computation AssistantPanel.tsx
+  // previously duplicated locally (review-remediation item 6) so the hook's own isStuck
+  // derivation can also consume it.
+  const hasPendingQuestion = (() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      const ev = transcript[i].event;
+      if (ev.type !== 'status') continue;
+      const payload = ev.payload as { kind?: string } | undefined;
+      if (payload?.kind !== 'question') continue;
+      const q = ev.payload as QuestionPayload;
+      return answeredMap[q.questionId] === undefined;
+    }
+    return false;
+  })();
+
   // ── isStuck — heartbeat-staleness derivation (FR-AGP-022) ────────────────────
   // Active only while a run is genuinely in flight ('running'/'needs-approval' are both
   // "the run has not reached a terminal state" per AgentRunStatus); keyed on elapsed
   // wall-clock time since the last observed progress signal (the SERVER heartbeat, once the
   // poll above has landed at least once — an SSE-derived stamp may still be the value between
   // polls, but the server value overwrites it whenever a fresher poll resolves).
+  // Correctness-remediation finding 3: a pending ask_user question is EXCLUDED — the run
+  // is legitimately paused waiting on the human, not wedged, even past
+  // STUCK_RUN_STALE_MS with no fresh heartbeat (the server has no more work to do until
+  // the user answers, so its heartbeat genuinely stops advancing — that is expected, not
+  // a symptom of being stuck).
   const isStuck =
+    !hasPendingQuestion &&
     (phase === 'running' || phase === 'needs-approval') &&
     lastProgressAt !== null &&
     Date.now() - new Date(lastProgressAt).getTime() > STUCK_RUN_STALE_MS;
@@ -605,5 +644,6 @@ export function useAssistantPanel(): UseAssistantPanel {
     openThread,
     isStuck,
     lastProgressAt,
+    hasPendingQuestion,
   };
 }

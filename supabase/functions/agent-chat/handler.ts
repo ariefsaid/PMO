@@ -816,8 +816,21 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
  * Gate order (each gate yields terminal status and returns):
  *   (1) 401 UNAUTHORIZED — userId empty (AC-AR-002)
  *   (2) 400 BAD_REQUEST(orgId) — profiles lookup fails (AC-AR-003)
- *   (3) 429 RATE_LIMITED — rate guard exceeded (D9/AR-OD-002)
- *   (A3-decision) approve/deny branch — when req.decision is present
+ *   (ADR-0043 §4 cancel) server-side abort branch — when req.cancel is present.
+ *       Correctness-remediation finding 4: no model call, no deputy context needed;
+ *       emits a terminal errored/CANCELLED status event, persisted via the same
+ *       withPersistence -> setRunStatus call site every other terminal status uses.
+ *   (A3-decision) approve/deny branch — when req.decision is present. Correctness-
+ *       remediation finding 2: routed BEFORE gate (3) — a reject/approve resolution
+ *       (the write_resolved audit event) never itself costs a model call and must
+ *       never be credit-blocked.
+ *   (ADR-0045 §2 answer) resolve-question branch — when req.answer is present. Same
+ *       ordering rationale as the decision branch (finding 2): resolving the pending
+ *       question is not itself a model call.
+ *   (3) 429 RATE_LIMITED — rate guard exceeded (D9/AR-OD-002), fresh-send path only
+ *       (only reached when neither req.decision nor req.answer is present — a fresh
+ *       user turn always costs a model call, so gating it here is unchanged from the
+ *       pre-remediation behavior for this path).
  *   (4) tool-use loop — up to MAX_TOOL_ROUNDS (AC-AR-001, AC-AR-004)
  *   (5) 502 UPSTREAM_ERROR — model call throws; error scrubbed (AC-AR-005)
  */
@@ -897,16 +910,18 @@ async function* agentChatHandlerInner(
     return;
   }
 
-  // ── Gate (3): rate guard (AR-OD-002, D9) ─────────────────────────────────
-  if (deps.rateGuard) {
-    const r = await deps.rateGuard.check(deps.userId);
-    if (r.exceeded) {
-      yield statusEvent('errored', {
-        error: 'RATE_LIMITED',
-        retryAfterSeconds: r.retryAfterSeconds,
-      });
-      return;
-    }
+  // ── ADR-0043 §4: Cancel branch (req.cancel present → server-side abort) ──────
+  // Correctness-remediation (finding 4): control('cancel') previously only aborted the
+  // client-side fetch — agent_runs.status never reached a persisted terminal state
+  // server-side. This branch makes NO model call (a cancel is a pure status write, not
+  // a continuation) and emits a terminal errored/CANCELLED status event; withPersistence
+  // (the SAME wrapper every other terminal status already flows through) persists it via
+  // setRunStatus — no new persistence code needed. Routed before the credit gate for the
+  // same reason as decision/answer (finding 2): a cancel never costs a model call and
+  // must never be credit-blocked.
+  if (req.cancel) {
+    yield statusEvent('errored', { error: 'CANCELLED' });
+    return;
   }
 
   // ── Build deputy context ───────────────────────────────────────────────────
@@ -921,15 +936,44 @@ async function* agentChatHandlerInner(
   };
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
+  // Correctness-remediation (finding 2): routed BEFORE the credit gate below — resolving
+  // a pending decision (the write_resolved audit event + tool_result injection for
+  // reject/approve) never itself costs a model call, so it must never be credit-blocked.
+  // The SUBSEQUENT model turn inside handleDecision's own runLoop call is a genuine new
+  // model call and is not specially exempted here — only the resolution act itself is.
   if (req.decision) {
     yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, persist);
     return;
   }
 
   // ── ADR-0045 §2: Answer branch (req.answer present → resolve a pending question) ──
+  // Correctness-remediation (finding 2): routed BEFORE the credit gate below, for the
+  // same reason as the decision branch — resolving a pending question (finding the
+  // trailing tool_use + injecting the answer as its tool_result) never itself costs a
+  // model call. The trailing model turn that follows (inside handleAnswer's own
+  // runLoopAfterAnswer call) is a genuine new model call and may legitimately still be
+  // credit-blocked in a deployment with AGENT_CREDITS_ENFORCED on — that is a SEPARATE,
+  // pre-existing gap (the decision/answer continuations never re-checked credits even
+  // before this fix) and is out of scope for this remediation.
   if (req.answer) {
     yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist);
     return;
+  }
+
+  // ── Gate (3): rate guard (AR-OD-002, D9) — fresh-send path only ──────────
+  // Reached only when neither req.decision nor req.answer is present (both branches
+  // above already returned). A fresh user turn always costs at least one model call,
+  // so gating it here (before even echoing the user event) is correct and unchanged
+  // from the pre-remediation behavior for this path.
+  if (deps.rateGuard) {
+    const r = await deps.rateGuard.check(deps.userId);
+    if (r.exceeded) {
+      yield statusEvent('errored', {
+        error: 'RATE_LIMITED',
+        retryAfterSeconds: r.retryAfterSeconds,
+      });
+      return;
+    }
   }
 
   // ── Yield the last user message ────────────────────────────────────────────
@@ -985,11 +1029,23 @@ async function* agentChatHandlerInner(
  *    messages, no re-injection.
  * 2. Otherwise, append the answer as the tool_result resolving that tool_use
  *    (the chosen option's label, or the free text) and continue the SAME run
- *    (AC-ATC-009) via runLoop — never a new createRun.
+ *    (AC-ATC-009) via runLoopAfterAnswer — never a new createRun.
  * NFR-ATC-SEC-004: no new deputy bypass — this re-POST never re-derives org/role
  * itself (unlike handleDecision's approve path, there is no write to authorize;
  * ask_user is read-only UX, so the caller-JWT deputy context already governs
  * anything the continuation subsequently does through the shared runToolLoop).
+ *
+ * Correctness-remediation (gpt-5.5 cross-family audit, finding 1): an answer RESUMES
+ * the user's original request — unlike a decision (which is terminal: a write was
+ * either executed or declined, and the continuation must not immediately propose a
+ * SECOND write before the model acknowledges the first), answering a clarifying
+ * question is not itself a resolution of anything write-shaped. The model may need
+ * to immediately propose a confirm action (e.g. create_activity) or emit a
+ * compose_view artifact to actually satisfy the request the question was blocking.
+ * So the answer-continuation runs via runLoopAfterAnswer (allowCompose:true,
+ * allowProposeConfirm:true — the SAME capabilities as the main pass), not runLoop
+ * (which stays allowCompose:false/allowProposeConfirm:false, used only by
+ * handleDecision's continuation).
  */
 async function* handleAnswer(
   req: AgentChatRequest,
@@ -1030,7 +1086,7 @@ async function* handleAnswer(
   // No trailingQuestion found → stale/duplicate answer (AC-ATC-010): fall through
   // and simply continue the model with the messages as replayed (no re-injection).
 
-  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+  yield* runLoopAfterAnswer(req, deps, emit, statusEvent, deputyCtx, messages, persist);
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -1264,6 +1320,10 @@ async function* runLoop(
   // divergences from the main pass: no compose_view (allowCompose:false), no re-proposing
   // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
   // completes immediately rather than continuing as an unknown-action error (onMissingToolCall:'complete').
+  // TERMINAL by design (correctness-remediation finding 1): a decision resolves a write
+  // (approved/rejected) — the continuation must not immediately propose a SECOND pending
+  // write, nor emit a compose_view artifact, before the model has acknowledged the first
+  // resolution. Used ONLY by handleDecision's approve/reject/no-op branches.
   yield* runToolLoop({
     deps,
     emit,
@@ -1274,6 +1334,43 @@ async function* runLoop(
     runId,
     allowCompose: false,
     allowProposeConfirm: false,
+    onMissingToolCall: 'complete',
+  });
+}
+
+/**
+ * Inner tool-use loop for the answer continuation (ADR-0045 §2, correctness-remediation
+ * finding 1). Unlike `runLoop` (handleDecision's continuation, deliberately restricted —
+ * see its doc comment), answering a pending question RESUMES the user's original request:
+ * the model may need to immediately propose a confirm action (needs-approval) or emit a
+ * compose_view artifact to actually satisfy what the question was blocking. Runs with the
+ * SAME capabilities as the main pass (allowCompose:true, allowProposeConfirm:true) — only
+ * `onMissingToolCall` stays 'complete' (a missing tool_calls[0] on a continuation pass is a
+ * graceful completion, not a further "unknown action" round — this divergence is orthogonal
+ * to compose/propose-confirm and unrelated to the bug being fixed here).
+ */
+async function* runLoopAfterAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  messages: ModelMessage[],
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  // req.runId is always present here — an answer re-POST always carries the runId of the
+  // run being resumed (PmoNativeRuntime._doSubscribe always sends the existing runId).
+  const runId = req.runId ?? '';
+  yield* runToolLoop({
+    deps,
+    emit,
+    statusEvent,
+    deputyCtx,
+    messages,
+    persist,
+    runId,
+    allowCompose: true,
+    allowProposeConfirm: true,
     onMissingToolCall: 'complete',
   });
 }
