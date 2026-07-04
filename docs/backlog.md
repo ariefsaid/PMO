@@ -46,6 +46,14 @@ subsidiary dimension** (never a separate org; intra-group visibility OK for MVP)
    + per-role walkthrough videos recorded during onboarding. No written manual until a question
    repeats 3×.
 
+**Deferred follow-up (Director-adjudicated during the build, 2026-07-04):**
+`auto_expose_new_tables=false` (NFR-AUTHF-CONF-006) — cross-family review found flipping it strips
+DML grants on all 44 tables (no migration issues explicit GRANTs), so it needs a dedicated
+per-table GRANT migration + security review, NOT a jam into the auth PR. **Accepted as a tracked
+follow-up issue**, not an auth-floor blocker; the auth email flows are unaffected. `config.toml`
+keeps it commented with the reason; `docs/environments.md` §7.6 carries the blocking-finding note
+for the eventual owner-gated hardening pass.
+
 **CUT from MVP (owner-confirmed):** custom RBAC engine (escape valve = additive read-only
 Viewer role) · Stripe/Midtrans (manual MSA billing) · VPS (exit trigger: >$200/mo Supabase or
 onshore-data contract; sized playbook in ADR-0047) · homegrown accounting (never) · separate
