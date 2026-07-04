@@ -17,6 +17,14 @@ export interface AutomationRow {
   id: string;
   kind: 'schedule' | 'trigger';
   owner_id: string;
+  /**
+   * The automation's tenant (gpt-5.5 audit #1). Carried so a trigger automation is ONLY ever matched
+   * to source events of its OWN org — a background run is a deputy for exactly one tenant, and
+   * cross-org event content must never reach its condition model or its fire. It is `agent_automations.org_id`,
+   * selected under service_role for metadata enumeration; the FIRED run's org is still pinned by RLS
+   * (the minted owner JWT), this is the SELECTION-time tenancy gate.
+   */
+  org_id: string;
   prompt: string;
   schedule?: string | null;
   trigger_on?: { source: string; event: string } | null;
@@ -63,13 +71,23 @@ export async function selectDueSchedules(sb: ServiceClientLike, now: Date): Prom
   return data.filter((row) => row.schedule && cronMatches(row.schedule, now));
 }
 
-/** A status-event row from a trigger source table (e.g. procurement_status_events). */
+/**
+ * A status-event row from a trigger source table (e.g. procurement_status_events), projected to the
+ * MINIMAL column set the dispatcher needs (gpt-5.5 audit #2). service_role bypasses RLS, so reading
+ * `select('*')` on a tenant business table over-exposes every column of every org's rows to the
+ * condition model prompt. We project ONLY: id + created_at (the watermark cursor), to_status (the
+ * trigger match key), and org_id (the cross-org tenancy gate). No wide `[key: string]: unknown` —
+ * an unforeseen column must never silently flow into a model prompt.
+ */
 export interface StatusEventRow {
   id: string;
   created_at: string;
   to_status?: string;
-  [key: string]: unknown;
+  org_id: string;
 }
+
+/** The exact minimal column projection read from a trigger source table (gpt-5.5 audit #2). */
+export const TRIGGER_EVENT_COLUMNS = 'id, created_at, to_status, org_id';
 
 export interface TriggerMatch {
   automation: AutomationRow;
@@ -85,16 +103,22 @@ export interface TriggerMatch {
  * (runDispatchTick) responsibility, performed AFTER the batch succeeds, so a failed tick does not
  * skip events (FR-AAN-013).
  *
- * Item 4 (compound cursor, created_at ties): `created_at` alone is not a unique cursor — two events
- * can share the exact same timestamp (bulk inserts, low-resolution clocks). A plain `gt('created_at',
- * since)` cursor would SKIP any sibling event at the watermark's own timestamp that sorts after the
- * seen one; conversely a naive re-run of `gt` after advancing past only one of them risks re-scanning
- * (and, without the id filter below, RE-MATCHING) the already-seen row forever. The simplest CORRECT
- * form: query with `gte('created_at', since)` (never narrower than the watermark's own instant), then
- * filter the already-seen row(s) OUT in-JS by id — never by discarding lastSeenId. This is a full
- * `(created_at, id)` compound cursor: "at-or-after this timestamp, excluding the exact id(s) already
- * recorded at that timestamp" — same-timestamp siblings are neither missed (gte keeps them) nor
- * double-fired (the id filter drops only the exact previously-seen row).
+ * Item 4 + gpt-5.5 audit #5 (TRUE compound (created_at, id) cursor): `created_at` alone is not a
+ * unique cursor — two events can share the exact same timestamp (bulk inserts, low-resolution clocks).
+ * A plain `gt('created_at', since)` cursor would SKIP any sibling event at the watermark's own
+ * timestamp that sorts after the seen one. So we query `gte('created_at', since)` (never narrower than
+ * the watermark's own instant) and then apply the FULL compound-cursor predicate in-JS: keep an event
+ * iff `created_at > lastSeenAt OR (created_at === lastSeenAt AND id > lastSeenId)`.
+ *
+ * The earlier form filtered only `id === lastSeenId`, which is WRONG: when three same-timestamp
+ * siblings A,B,C advance the watermark to C, that filter drops only C and re-yields A,B EVERY tick
+ * forever (a double-fire, gpt-5.5 audit #5). The strict `> (lastSeenAt, lastSeenId)` predicate drops
+ * A and B too (their id is ≤ C's at the same instant), yielding only genuinely-newer rows.
+ *
+ * Cross-org tenancy (gpt-5.5 audit #1): each candidate event is additionally gated by
+ * `event.org_id === automation.org_id` before it can match — a background automation is a deputy for
+ * exactly one tenant, so another org's event must never match, condition-evaluate, notify, credit, or
+ * fire it.
  */
 export async function selectTriggerMatches(
   sb: ServiceClientLike,
@@ -125,8 +149,9 @@ export async function selectTriggerMatches(
       continue;
     }
     const wm = await readWatermark(sb, source);
-    const since = wm?.lastSeenAt ?? '1970-01-01';
+    const lastSeenAt = wm?.lastSeenAt ?? null;
     const lastSeenId = wm?.lastSeenId ?? null;
+    const since = lastSeenAt ?? '1970-01-01';
 
     const builder = sb.from(source) as {
       select: (cols: string) => {
@@ -137,13 +162,30 @@ export async function selectTriggerMatches(
     };
     // gte (not gt): the compound cursor — see the doc comment above. Same-timestamp siblings of the
     // watermark's own instant must still be considered; the exact already-seen row is excluded below
-    // by id, in-JS (never discarding lastSeenId).
-    const { data, error } = await builder.select('*').gte('created_at', since).order('created_at');
+    // by (created_at, id), in-JS. Column projection is MINIMIZED (gpt-5.5 audit #2): never select('*')
+    // on a tenant business table under service_role — only the columns the cursor/match/org-gate need.
+    const { data, error } = await builder
+      .select(TRIGGER_EVENT_COLUMNS)
+      .gte('created_at', since)
+      .order('created_at');
     if (error || !data) continue;
 
     for (const event of data) {
-      if (lastSeenId !== null && event.id === lastSeenId) continue; // already seen at this exact instant.
+      // Compound (created_at, id) cursor exclusion (gpt-5.5 audit #5): keep an event only if it is
+      // strictly AFTER the watermark — either a later timestamp, or the same timestamp with a greater
+      // id. Same-timestamp siblings that sort BEFORE OR EQUAL the last-seen id were already emitted on
+      // a prior tick; filtering only `id === lastSeenId` would re-yield same-timestamp siblings A,B
+      // forever when the watermark advanced to C. Skipped when there is no prior watermark.
+      if (lastSeenAt !== null && lastSeenId !== null) {
+        const after = event.created_at > lastSeenAt || (event.created_at === lastSeenAt && event.id > lastSeenId);
+        if (!after) continue;
+      }
       for (const automation of automations) {
+        // SECURITY CRITICAL cross-org gate (gpt-5.5 audit #1): match ONLY within the automation's own
+        // org. Without this, an Org-B event fires an Org-A automation and Org-B's row is serialized
+        // into Org-A's condition-model prompt. This is the SELECTION-time tenancy authority (RLS still
+        // pins the fired run via the minted owner JWT, but the event never reaches the model here).
+        if (automation.org_id !== event.org_id) continue;
         if (automation.trigger_on?.event === event.to_status) {
           matches.push({ automation, event });
         }

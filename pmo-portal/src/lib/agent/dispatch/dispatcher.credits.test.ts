@@ -16,6 +16,7 @@ function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): Automat
     id: 'auto-A',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '* * * * *', // matches every tick
     enabled: true,

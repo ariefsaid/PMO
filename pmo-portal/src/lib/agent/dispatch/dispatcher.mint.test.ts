@@ -29,6 +29,7 @@ function makeAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
     id: 'auto-1',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '0 8 * * 1',
     enabled: true,

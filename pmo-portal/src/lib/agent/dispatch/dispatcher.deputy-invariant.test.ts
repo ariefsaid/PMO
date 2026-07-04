@@ -29,6 +29,7 @@ function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): Automat
     id: 'auto-A',
     kind: 'schedule',
     owner_id: 'user-A',
+    org_id: 'org-A',
     prompt: 'summarize my overdue tasks',
     schedule: '* * * * *', // matches every tick
     enabled: true,
@@ -206,7 +207,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       eq: () => ({ eq: () => ({ is: isMock }) }),
     });
     const orderMock = vi.fn().mockResolvedValue({
-      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered' }],
+      data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
     });
     const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
