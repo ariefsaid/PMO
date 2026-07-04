@@ -3,7 +3,7 @@
  * AC-AUC-012/013/014: untrusted ModelResponse.usage values are clamped before
  * persistence (Number.isFinite(x) && x >= 0 ? x : 0), never thrown, never coerced.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { clampUsageValue, recordUsage, insertUsageRow } from '../../../../supabase/functions/_shared/usage';
 import type { UsageDeps } from '../../../../supabase/functions/_shared/usage';
 import type { ModelResponse } from '../../../../supabase/functions/_shared/modelClient';
@@ -102,6 +102,47 @@ describe('recordUsage', () => {
       }),
     } as unknown as UsageDeps['supabase'];
     await expect(recordUsage({ supabase, runId: null }, resp)).resolves.not.toThrow();
+  });
+
+  // Observability hardening (harden #1, spike 2026-07-04): the insert-failure log line must
+  // carry a DISTINCT, greppable errorCode (USAGE_INSERT_FAILED) — never just a generic
+  // free-text message — and never the row payload/secret values.
+  describe('structured error codes', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('logs errorCode USAGE_INSERT_FAILED (code-only) when the insert returns an error', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const supabase = {
+        from: vi.fn().mockReturnValue({
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: null, error: { code: '23503' } }),
+            }),
+          }),
+        }),
+      } as unknown as UsageDeps['supabase'];
+      await recordUsage({ supabase, runId: null }, resp);
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
+      expect(context).toMatchObject({ errorCode: 'USAGE_INSERT_FAILED', code: '23503' });
+    });
+
+    it('logs a DIFFERENT errorCode (USAGE_INSERT_THREW) when the client throws', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const supabase = {
+        from: vi.fn().mockImplementation(() => {
+          throw new Error('connection reset');
+        }),
+      } as unknown as UsageDeps['supabase'];
+      await expect(recordUsage({ supabase, runId: null }, resp)).resolves.not.toThrow();
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
+      expect(context).toMatchObject({ errorCode: 'USAGE_INSERT_THREW' });
+      // Never the raw error message (which could carry connection-string/host details).
+      expect(JSON.stringify(context)).not.toContain('connection reset');
+    });
   });
 
   it('insertUsageRow accepts a flat fields object (compose-view call shape)', async () => {

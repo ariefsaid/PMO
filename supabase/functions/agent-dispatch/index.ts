@@ -29,6 +29,7 @@ import { runDispatchTick } from './dispatcher.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
@@ -41,7 +42,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the bearer MUST be the service-role key (this endpoint mints). ──
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
-  if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+  if (!serviceRoleKey) {
+    // Missing SUPABASE_SERVICE_ROLE_KEY: distinct from a bad/absent caller bearer — this
+    // function secret is required for the dispatcher to ever authenticate its own pg_cron
+    // caller, so its absence is a deploy-config gap, not a caller error.
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'MISSING_SERVICE_ROLE_KEY' });
+    return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (authHeader !== `Bearer ${serviceRoleKey}`) {
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -60,6 +71,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!supabaseUrl || !anonKey || !apiKey) {
+    // Distinct codes so a deploy-config gap is greppable without exposing WHICH secret is
+    // missing in the client-facing body (the log line — server-side only — names it).
+    const errorCode = !supabaseUrl
+      ? 'MISSING_SUPABASE_URL'
+      : !anonKey
+        ? 'MISSING_SUPABASE_ANON_KEY'
+        : 'MISSING_OPENROUTER_API_KEY';
+    logStructuredError({ fn: 'agent-dispatch', errorCode });
     return new Response(JSON.stringify({ error: 'MISCONFIGURED' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -142,7 +161,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (err) {
     // Scrub — never surface a mint/owner detail. Log the error name only (NFR-AAN-SEC-007/008).
-    console.error('[agent-dispatch] tick failed', { code: err instanceof Error ? err.name : 'unknown' });
+    logStructuredError({
+      fn: 'agent-dispatch',
+      errorCode: 'DISPATCH_TICK_FAILED',
+      contextId: err instanceof Error ? err.name : 'unknown',
+    });
     return new Response(JSON.stringify({ error: 'TICK_FAILED' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

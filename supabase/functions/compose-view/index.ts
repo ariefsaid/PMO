@@ -25,6 +25,7 @@ import { composeViewHandler } from './handler.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -75,6 +76,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 4. Read the OpenRouter API key from function secrets (NFR-MC-SEC-001) ──
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
+    logStructuredError({ fn: 'compose-view', errorCode: 'MISSING_OPENROUTER_API_KEY' });
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
