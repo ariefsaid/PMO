@@ -4,13 +4,34 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-07-04) — BATTERIES-INCLUDED A COMPLETE on `dev` (ADRs 0043/0044/0045/0046 fully implemented)
+## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening COMPLETE on `dev`
 
 > **RESUME ENTRY POINT.** **`production` UNCHANGED at `fc312eb`/mig 0041 (= `v0.1.0`). `main` = `1c0f747`
-> (pre-reskin). `dev` = `2536b9e` — carries the reskin (#210) + the ENTIRE batteries-included-A program:
-> 8 PRs (#211–#218), migrations 0046–0048, pgTAP 0091–0100, ADRs 0043–0046 implemented.** `dev`→`main`
-> promote is the next Director-level gate (PR→main runs the full `integration` lane); prod needs a direct
-> owner go AND the edge-fn deploy runbook below.
+> (pre-reskin, WELL behind). `dev` = `ad1f156`** — carries the reskin (#210) + the ENTIRE batteries-included-A
+> program (#211–#218) + cross-family remediation (#219/#220) + the full-codebase-review remediation & 5-wave
+> hardening (#221–#228). **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
+>
+> **⚑ TWO OWNER GATES OUTSTANDING (nothing else blocks):**
+> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). `main` is
+>    ~19 PRs behind `dev` — a big but clean promote.
+> 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
+>    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
+>    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner
+>    gives the per-instance go. Prod also needs the edge-fn deploy runbook (functions deploy ×3, secrets/GUCs,
+>    live-mint verify) BEFORE enabling the agent tier — all flags default OFF so a DB+FE promote is safe without it.
+>
+> **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
+> is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
+> passed (incl. 2 live-prod); all exploitable ones FIXED (#221–#223), + hardening waves: observability logging
+> +readiness script (#224), reliability atomic RPCs +error-boundary (#225), 12 indexes +pagination (#226),
+> test-hardening +deno-check CI gate +dependabot bumps (#227/#228). **Deferred (non-exploitable, ledgered):**
+> bulk-import idempotency (own slice), `mint.ts` latent bug (generateLink user_id fallback), timesheet
+> entry_date week-range, `.select('*')` trim, MED-1/MED-2 org-seam, deno.lock pin, PostHog dashboards (ops).
+>
+> **What shipped in batteries-included A (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens +
+> rendered-Discover battery per issue):**
+> 1. **#211+#212** — vendor-neutral `ModelClient` + OpenRouter transport (deepseek-v4-flash, DeepInfra-first,
+>    fallbacks on; per-request usage capture). Cross-family pi+gpt-5.5 battery confirmed hardening; live
 >
 > **What shipped (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens + rendered-Discover
 > battery per issue):**
