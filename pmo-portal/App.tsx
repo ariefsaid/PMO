@@ -34,6 +34,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { UserRole } from './types';
 import { ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
+import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { isFeatureEnabled } from '@/src/lib/features';
@@ -378,7 +379,13 @@ const Shell: React.FC = () => {
             useAgentContext() when threading context on createRun/followUp. */}
         <AgentRuntimeProvider>
           <AgentContextProvider>
-            <ShellChrome />
+            {/* Reliability harden #4: a render throw anywhere in the authenticated
+                shell/routes renders the ErrorBoundary fallback (retry / reload / home)
+                instead of white-screening the SPA. Wrapped inside the providers so a
+                recovery keeps auth/runtime/toast context intact. */}
+            <ErrorBoundary>
+              <ShellChrome />
+            </ErrorBoundary>
           </AgentContextProvider>
         </AgentRuntimeProvider>
       </ToastProvider>
