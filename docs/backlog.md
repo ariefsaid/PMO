@@ -20,8 +20,9 @@
 >    scheduling. Also: flag-default precision — `VITE_FEATURES_AGENT_ASSISTANT` + `AGENT_CREDITS_ENFORCED`
 >    default OFF (`=== 'true'`), but the internal `AGENT_PERSISTENCE`/`AGENT_AUTOMATIONS` default ON
 >    (`!== 'false'`) — inert without the parent panel flag, but not literally "all OFF". No `.env.example` in
->    repo; flag contract is source-only. Fix `mint.ts` `generateLink` latent bug (or add a mint-failure alert)
->    BEFORE flipping `AGENT_AUTOMATIONS` ON in prod — it's in the deputy path.
+>    repo; flag contract is source-only. ~~Fix `mint.ts` `generateLink` latent bug BEFORE flipping
+>    `AGENT_AUTOMATIONS` ON in prod~~ ✅ FIXED (`2de2da8` on dev): mint now fails-closed on unresolvable
+>    owner email, invalid `user_id` fallback removed — the last agent-automations-prod caveat is cleared.
 > 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
 >    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
 >    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner
@@ -33,7 +34,7 @@
 > passed (incl. 2 live-prod); all exploitable ones FIXED (#221–#223), + hardening waves: observability logging
 > +readiness script (#224), reliability atomic RPCs +error-boundary (#225), 12 indexes +pagination (#226),
 > test-hardening +deno-check CI gate +dependabot bumps (#227/#228). **Deferred (non-exploitable, ledgered):**
-> bulk-import idempotency (own slice), `mint.ts` latent bug (generateLink user_id fallback), timesheet
+> bulk-import idempotency (own slice), ~~`mint.ts` latent bug~~ (✅ fixed `2de2da8`), timesheet
 > entry_date week-range, `.select('*')` trim, MED-1/MED-2 org-seam, deno.lock pin, PostHog dashboards (ops).
 >
 > **What shipped in batteries-included A (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens +
