@@ -20,7 +20,7 @@ import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import { rateAgentEvent } from '@/src/lib/db/agentEvents';
-import type { AgentRunStatus, QuestionPayload } from '@/src/lib/agent/runtime/port';
+import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
@@ -121,6 +121,7 @@ export const AssistantPanel: React.FC = () => {
     answeredMap,
     isStuck,
     lastProgressAt,
+    hasPendingQuestion,
     openThread,
   } = useAssistantPanel();
 
@@ -294,24 +295,6 @@ export const AssistantPanel: React.FC = () => {
   // ── Determine if we show the empty state ─────────────────────────────────
   const isEmpty = transcript.length === 0;
 
-  // ── Review-remediation item 6: pending-question SR announcement ──────────
-  // Unlike needs-approval, a pending question does NOT transition `phase` (it
-  // simply lets the model's stream end while the composer keeps the SAME
-  // phase) — so "is a question currently pending" is derived from the
-  // transcript directly: the trailing status{kind:'question'} entry whose
-  // questionId has no answeredMap entry yet.
-  const hasPendingQuestion = (() => {
-    for (let i = transcript.length - 1; i >= 0; i--) {
-      const ev = transcript[i].event;
-      if (ev.type !== 'status') continue;
-      const payload = ev.payload as { kind?: string } | undefined;
-      if (payload?.kind !== 'question') continue;
-      const q = ev.payload as QuestionPayload;
-      return answeredMap[q.questionId] === undefined;
-    }
-    return false;
-  })();
-
   // ── Desktop non-modal vs mobile modal role/attributes ────────────────────
   const desktopProps = {
     role: 'complementary' as const,
@@ -456,8 +439,12 @@ export const AssistantPanel: React.FC = () => {
             onRate={handleRate}
           />
 
-          {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}
-          {(phase === 'running') && <StreamingIndicator />}
+          {/* Streaming indicator — shows while run is active or awaiting approval re-POST.
+              Correctness-remediation (finding 3): suppressed while hasPendingQuestion —
+              the model is not "Working…" once it has asked a clarifying question and is
+              waiting on the human; the distinct "A question awaits your answer" status
+              below already covers that paused state without the misleading busy-copy. */}
+          {phase === 'running' && !hasPendingQuestion && <StreamingIndicator />}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}
