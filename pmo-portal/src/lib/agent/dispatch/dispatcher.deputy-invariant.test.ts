@@ -197,8 +197,9 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       condition: 'sits >30 days in Ordered',
     });
 
-    // serviceClient: schedule-select returns none; trigger-select returns the trigger; the source
-    // table yields one matching Ordered event; watermark null.
+    // serviceClient: schedule-select returns none; trigger-select returns the trigger; the
+    // select_trigger_events RPC (SEC-HIGH-2) yields one matching Ordered event; watermark null. The
+    // source business table is NEVER reached via .from() — anything but the metadata tables throws.
     const tablesTouched: string[] = [];
     const scheduleIs = vi.fn().mockResolvedValue({ data: [], error: null });
     const triggerIs = vi.fn().mockResolvedValue({ data: [trigger], error: null });
@@ -206,11 +207,10 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({
       eq: () => ({ eq: () => ({ is: isMock }) }),
     });
-    const orderMock = vi.fn().mockResolvedValue({
+    const rpc = vi.fn().mockResolvedValue({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
     });
-    const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -223,9 +223,9 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
         return { select: () => makeSelectChain(automationSelectCall === 1 ? scheduleIs : triggerIs), update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: upsertMock };
-      return { select: evtSelect };
+      throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
-    const svcClient = { from };
+    const svcClient = { from, rpc };
 
     const minted = makeMintedClient();
     // Add a notifications insert path to the minted client.
@@ -271,6 +271,17 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const notifIdx = minted.tablesTouched.indexOf('notifications');
     expect(auditIdx).toBeGreaterThanOrEqual(0);
     expect(notifIdx).toBeGreaterThan(auditIdx);
+
+    // SEC-HIGH-2 deputy invariant: the trigger event came via the select_trigger_events RPC, and the
+    // service_role client NEVER .from()'d a business table — only agent_automations + watermarks
+    // metadata (any other .from() throws in the mock above, so reaching here already proves it).
+    expect(rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({ p_source: 'procurement_status_events' }),
+    );
+    for (const t of new Set(tablesTouched)) {
+      expect(['agent_automations', 'agent_dispatch_watermarks']).toContain(t);
+    }
   });
 
   it('FR-AAN-020: the fired run persists as an ordinary run under the MINTED owner client (startSeq=1)', async () => {

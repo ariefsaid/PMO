@@ -161,11 +161,11 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
     const scheduleIs = vi.fn().mockResolvedValue({ data: [], error: null });
     const triggerIs = vi.fn().mockResolvedValue({ data: [trigger], error: null });
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({ eq: () => ({ eq: () => ({ is: isMock }) }) });
-    const orderMock = vi.fn().mockResolvedValue({
+    // SEC-HIGH-2: the trigger event comes from the select_trigger_events RPC, not a raw table read.
+    const rpc = vi.fn().mockResolvedValue({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
     });
-    const evtSelect = vi.fn().mockReturnValue({ gte: () => ({ order: orderMock }) });
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -179,9 +179,9 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
         };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: upsertMock };
-      return { select: evtSelect };
+      throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
-    const svcClient = { from };
+    const svcClient = { from, rpc };
 
     const minted = makeMintedClient();
     const mintDeps = makeMintDeps(() => minted.client);
@@ -281,7 +281,12 @@ describe('runDispatchTick — item 3: timeout_s wired to an AbortController sign
 });
 
 describe('selectTriggerMatches — item 4: compound (created_at, id) watermark cursor', () => {
-  it('two events sharing created_at, watermark at the first by id — the second still matches (no missed event)', async () => {
+  it('forwards the compound (created_at, id) cursor to select_trigger_events, and matches its result (no missed event)', async () => {
+    // SEC-HIGH-2: the compound-cursor filtering itself now lives in the RPC (pgTAP 0104 AC-STE-003).
+    // This test owns the JS contract: the dispatcher reads the watermark and forwards it as the
+    // (p_last_seen_at, p_last_seen_id) cursor, then matches whatever the RPC returns. The scenario:
+    // watermark advanced past eventA (same created_at as eventB, lower id) — the RPC returns only the
+    // not-yet-seen eventB (as the real SQL cursor does), which must still be matched (no missed event).
     const automation: AutomationRow = {
       id: 'trig-1',
       kind: 'trigger',
@@ -304,20 +309,22 @@ describe('selectTriggerMatches — item 4: compound (created_at, id) watermark c
     const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
     const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
-    // The event-source query returns BOTH events at/after the watermark timestamp (gte, not gt) —
-    // selectTriggerMatches must filter out eventA (already seen) and keep eventB in-JS by id.
-    const orderMock = vi.fn().mockResolvedValue({ data: [eventA, eventB], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
+    // The RPC applies the compound cursor in SQL and returns only the not-yet-seen eventB.
+    const rpc = vi.fn().mockResolvedValue({ data: [eventB], error: null });
 
     const fromMock = vi.fn().mockImplementation((table: string) => {
       if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
+      throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
-    const sb = { from: fromMock };
+    const sb = { from: fromMock, rpc };
 
     const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:00:05Z'), [automation]);
 
+    // The compound (created_at, id) cursor was forwarded to the RPC (the SQL side excludes eventA).
+    expect(rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({ p_last_seen_at: sameTs, p_last_seen_id: eventA.id }),
+    );
     expect(matches).toHaveLength(1);
     expect(matches[0].event.id).toBe(eventB.id);
   });

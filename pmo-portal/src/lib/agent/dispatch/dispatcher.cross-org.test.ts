@@ -1,11 +1,14 @@
 /**
- * dispatcher.cross-org.test.ts — SECURITY CRITICAL: cross-org trigger tenancy (gpt-5.5 audit #1/#2).
+ * dispatcher.cross-org.test.ts — SECURITY CRITICAL: cross-org trigger tenancy (gpt-5.5 audit #1/#2,
+ * SEC-HIGH-2).
  *
- * The dispatcher enumerates automations under service_role and reads trigger-source rows under
- * service_role (RLS-bypassing). A trigger automation matched an event by `to_status` ALONE — so an
- * Org-B `procurement_status_events` row could fire an Org-A automation, and Org-B's event would be
- * serialized into Org-A's condition-model prompt. The fix carries each automation's org_id and the
- * event's org_id, and REQUIRES event.org_id === automation.org_id before any match.
+ * The dispatcher enumerates automations under service_role and (SEC-HIGH-2, migration 0054) selects
+ * trigger events via the SECURITY DEFINER `select_trigger_events` RPC — it no longer reads the tenant
+ * `procurement_status_events` table under service_role. The RPC returns ONLY events matching one of the
+ * caller's (org_id, event) filter pairs, so a cross-org event never crosses into the edge fn. These
+ * tests assert BOTH the belt (the dispatcher passes org-scoped filters + never .from()s the source
+ * table) AND the suspenders (the in-JS pairing loop re-asserts event.org_id === automation.org_id, so
+ * even a mocked RPC that leaks a cross-org row is not cross-matched).
  *
  * [REC-1]: logic in supabase/functions/agent-dispatch/*, tests here.
  */
@@ -27,28 +30,46 @@ function makeTrigger(overrides: Partial<AutomationRow> = {}): AutomationRow {
   };
 }
 
-/** A serviceClient whose watermark is null and whose source table returns the given event rows. */
+/**
+ * A serviceClient whose watermark is null and whose select_trigger_events RPC returns the given event
+ * rows. The source business table is NEVER exposed via .from() — a .from('procurement_status_events')
+ * call throws, proving the deputy invariant (SEC-HIGH-2). `rpc` is returned so tests can assert the
+ * dispatcher passed org-scoped filters to the RPC.
+ */
 function makeServiceClient(events: Array<Record<string, unknown>>) {
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
   const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
-  const orderMock = vi.fn().mockResolvedValue({ data: events, error: null });
-  const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-  const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
+  const rpc = vi.fn().mockResolvedValue({ data: events, error: null });
 
   const from = vi.fn((table: string) => {
     if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-    if (table === 'procurement_status_events') return { select: evtSelectMock };
-    throw new Error(`unexpected table ${table}`);
+    throw new Error(`service_role must never .from() business data; got: ${table}`);
   });
-  return { from };
+  return { from, rpc };
 }
 
-describe('selectTriggerMatches — SECURITY CRITICAL cross-org tenancy (gpt-5.5 #1)', () => {
-  it('does NOT match an Org-B event to an Org-A automation (event.org_id must equal automation.org_id)', async () => {
+describe('selectTriggerMatches — SECURITY CRITICAL cross-org tenancy (gpt-5.5 #1, SEC-HIGH-2)', () => {
+  it('never reads the source table directly; passes an org-scoped filter to select_trigger_events', async () => {
     const automation = makeTrigger({ org_id: 'org-A' });
-    // An Org-B event with the matching to_status — must NEVER match the Org-A automation.
+    const sb = makeServiceClient([]);
+
+    await selectTriggerMatches(sb as never, new Date('2026-07-06T08:00:05Z'), [automation]);
+
+    // The RPC — not a raw table read — was used, with the automation's own org in the filter set.
+    expect(sb.rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({
+        p_source: 'procurement_status_events',
+        p_filters: [{ org_id: 'org-A', event: 'Ordered' }],
+      }),
+    );
+  });
+
+  it('does NOT match an Org-B event to an Org-A automation (defense-in-depth: even a leaky RPC row)', async () => {
+    const automation = makeTrigger({ org_id: 'org-A' });
+    // A (hypothetically leaked) Org-B event with the matching to_status — the in-JS gate must reject it.
     const orgBEvent = { id: 'evt-B', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-B' };
     const sb = makeServiceClient([orgBEvent]);
 
