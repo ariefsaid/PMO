@@ -78,7 +78,7 @@ checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoici
 spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
 then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 
-## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening on `dev`+`main`; RED-3/4 security LIVE in prod
+## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
 > `6f75edb` — a real 3-way merge resolving 44 squash-divergence conflicts to `dev`; `git diff origin/main
@@ -100,14 +100,24 @@ then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 >    Legit old-FE flows unaffected — 0051/0052 only block the abuse paths (file-a-PR-as-another-user, non-admin
 >    project delete).
 >
-> **STILL OWNER-PENDING (separate, bigger decisions — NOT done by the security promote):**
-> - **`main`→`production` FE deploy** (Cloudflare `production` branch) — ships the reskin + agent UI (flag-OFF)
->   to live users; a visible change needing its own render-verify + per-instance owner go. The security fix did
->   NOT require it (RLS is DB-enforced). `production` FE still runs the pre-reskin build.
-> - **Enabling the agent tier in prod** — needs the edge-fn deploy runbook (functions deploy ×3, `OPENROUTER_API_KEY`,
->   pg_cron GUCs `app.settings.dispatch_url`/`service_role_key`, live-mint verify). Until then mig 0048's cron is
->   registered-but-idle on prod (fires per-minute against a NULL url → self-pruning no-op, by design). All
->   user-facing agent flags default OFF, so the DB push is safe without it.
+> 3. **`main`→`production` FE deploy + agent tier LIVE — DONE (owner-instructed 2026-07-04, rendered-verified).**
+>    CF Pages `production` = `8e4998e` → https://pmo-bfb.pages.dev (reskin + agent UI). AssistantPanel **flag ON**
+>    via a committed `pmo-portal/.env.production` (`VITE_FEATURES_AGENT_ASSISTANT=true`, `git add -f`) — there is
+>    NO CF Pages API token in op (only `CF-Access-Client-*` = Zero-Trust Access, not Pages-mgmt), so the flag is a
+>    committed build-time toggle (off = revert+rebuild). `agent-chat`+`compose-view` deployed to the Cloud project;
+>    `OPENROUTER_API_KEY` set as a function secret (op `openrouter-api-key`/`credential`). **Live E2E verified in
+>    the deployed UI**: login → panel → real answer (deputy-JWT → OpenRouter → deepseek-v4-flash); threads persist
+>    (History survives reload). Fixed an edge-fn **boot-crash** in the process (actions↔schema circular-import TDZ
+>    → WORKER_ERROR; `049d1e2`, now CI-guarded by `scripts/deno-boot-smoke.ts`).
+>    **⚠ Live agent-chat follow-ups (non-fatal, chips spawned):** 406 on the `agent_runs` heartbeat/progress poll
+>    (`.single()` on a not-yet-visible row → race); duplicate "You said:" user bubble (optimistic echo not de-duped).
+>
+> **STILL OWNER-PENDING (separate):**
+> - **Agent AUTOMATIONS in prod** — needs `agent-dispatch` fn deploy + pg_cron GUCs (`app.settings.dispatch_url`/
+>   `service_role_key`) + live-mint verify. Until then mig 0048's cron is registered-but-idle (per-minute NULL-url
+>   → self-pruning no-op, by design). Interactive assistant (above) does NOT need this.
+> - **Credits enforcement** — `AGENT_CREDITS_ENFORCED` default OFF (launch un-enforced per the GTM plan; price after
+>   pilot-margin data). **F4 mobile assistant entry, OpenRouter fallback chain** still open.
 >
 > **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
 > is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
