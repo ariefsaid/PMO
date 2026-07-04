@@ -31,6 +31,20 @@
 > 7. **#218** — ADR-0045 transcript contracts: typed widgets (twice-validated zod → PMO primitives),
 >    ask-user via `control('answer')`, live-context grounding hints + thread-scope population.
 >
+> **✅ CROSS-FAMILY VERIFICATION PASS (pi+gpt-5.5, 2026-07-04) — #219 + #220.** After the 6 issues merged,
+> ran the whole tier through an independent gpt-5.5 battery (security · ADR-conformance · quality/interaction),
+> which found **11 issues 4 Claude review layers had passed** — incl. a genuine **Critical cross-org tenancy
+> breach** (Org-B `procurement_status_events` event firing an Org-A automation + leaking into its condition
+> prompt; service_role read had no org filter). All fixed + independently re-audited **CONFIRM-CLOSED**:
+> - **#219** (dispatch/tenancy): cross-org org-gate (+ falsy-org hardening), service_role minimal projection,
+>   mint-before-audit on every path, watermark `(created_at,id)` compound cursor, **migration 0049** dropping
+>   the owner-DELETE append-only violation on agent transcript/audit rows, JWT-TTL honesty (`wallClockTimeoutS`).
+> - **#220** (agent-chat/panel): answer-continuation regains write/compose caps, credit-gate ordering (resolve
+>   pending interactions at zero balance), pending-question ≠ stuck-run, server cancel path (ADR-0043 §4).
+> - **ADR amendments** (this commit): 0044 §3 (JWT TTL not bounded — deputy ceiling is the mitigation, not TTL);
+>   0046 (advance-per-attempted, not advance-after-success). **Lesson: cross-family review catches what
+>   same-family passes — make it a launch/version gate, not just issue 1.**
+>
 > **⚠ OPEN before `v0.2.0`→prod (owner-gated):** the promote path deploys DB+FE only — needs
 > `supabase functions deploy agent-chat compose-view agent-dispatch` + prod secrets (`OPENROUTER_API_KEY`,
 > pg_cron `app.settings.service_role_key` GUC) + flag decisions (`VITE_FEATURES_AGENT_ASSISTANT`,

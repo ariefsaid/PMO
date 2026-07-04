@@ -57,8 +57,15 @@ create table agent_dispatch_watermarks (
 **Positive**
 - Minimal, indexed (by primary key), and trivially extensible — a second source is a new row, not a
   migration.
-- The advance-after-success discipline (FR-AAN-013) is a single-row `upsert` keyed on `source`, with
-  no risk of scoping it to the wrong tenant (there is no tenant to get wrong).
+- The watermark advance is a single-row `upsert` keyed on `source`, with no risk of scoping it to the
+  wrong tenant (there is no tenant to get wrong). **⚠ Amended 2026-07-04 (gpt-5.5 cross-family audit):**
+  the shipped discipline is **advance-per-attempted-event, not advance-only-after-successful-fire.** The
+  cursor advances over every matched event the dispatcher *attempted*, so a single automation that throws
+  mid-fire neither rewinds the cursor nor blocks siblings, and the cursor is a true `(created_at, id)`
+  compound so same-timestamp events are neither missed nor re-fired. This is the correct posture and
+  supersedes the earlier "advance-after-success" phrasing, which would have re-scanned already-fired events
+  forever on any mid-batch failure. Known Low follow-up: events matching *no* automation never advance the
+  per-source cursor, so unmatched history is re-scanned each tick (efficiency, not correctness — ticketed).
 
 **Negative / costs**
 - A table with **no `org_id`** in an `org_id`-seam codebase is, on its face, a divergence from the

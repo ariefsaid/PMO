@@ -100,7 +100,14 @@ minted **for its owner** at dispatch time. Concretely:
    `AgentAction` catalog, the same RLS ceiling. From the agent loop's perspective it is **indistinguishable
    from an interactive run** — same tools, same `can()` re-auth on writes (ADR-0040 A3), same untrusted-
    output boundary (ADR-0039).
-3. The JWT's lifetime is bounded to the automation's `timeout_s`; it is never persisted.
+3. The minted JWT is never persisted. **⚠ Amended 2026-07-04 (gpt-5.5 cross-family audit):** the JWT's
+   *token* lifetime is **NOT** bounded to `timeout_s` — the Supabase Auth `generateLink` admin API used to
+   mint exposes no per-token TTL knob, so a minted access token carries the project's default token
+   lifetime. `timeout_s` bounds only the **wall-clock fire deadline** (an `AbortController` on the fired
+   run, code: `wallClockTimeoutS`), not the credential's validity window. The mitigation for a leaked
+   minted token is therefore the deputy ceiling itself (it can only reach the owner's own RLS-scoped data),
+   NOT a short TTL. A narrower-TTL admin mint mechanism should replace `generateLink` if/when Supabase
+   exposes one; until then, treat minted tokens as default-lifetime bearer tokens in threat models.
 
 **The risk, and how it is constrained.** A minting path is privileged — a bug that mints for the *wrong*
 `owner_id` would be a tenancy breach. Constraints (binding):
