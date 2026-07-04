@@ -31,12 +31,14 @@ import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
 
-/** Whitelisted entities available to the agent in A1 (D5/R3). */
-export const AGENT_READ_ENTITIES = ['projects', 'companies'] as const;
-export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
-
-/** Hard row cap — the effective limit is min(input.limit ?? CAP, CAP). D6. */
-export const AGENT_READ_ROW_CAP = 50;
+// AGENT_READ_ENTITIES / AgentReadEntity / AGENT_READ_ROW_CAP live in the leaf module readEntities.ts
+// to break the actions.ts ↔ schema.ts cycle that TDZ-crashed the deployed worker (see its header).
+// Imported for local use AND re-exported so existing importers (handler.ts, etc.) still resolve them
+// from actions.ts without change.
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './readEntities.ts';
+import type { AgentReadEntity } from './readEntities.ts';
+export { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP };
+export type { AgentReadEntity };
 
 /** Wall-clock timeout for each DB read. D6. */
 export const READ_TIMEOUT_MS = 5000;
@@ -393,6 +395,10 @@ function validateCreateAutomation(
   if (typeof i?.prompt !== 'string' || !i.prompt) {
     return { ok: false, error: 'prompt is required' };
   }
+  // AUDIT-M1: mirrors migration 0059's agent_automations_prompt_len CHECK (DB is the authority).
+  if (i.prompt.length > 4000) {
+    return { ok: false, error: 'prompt must be 4000 characters or fewer' };
+  }
   if (i.kind === 'schedule') {
     if (typeof i.schedule !== 'string' || !i.schedule.trim()) {
       return { ok: false, error: "schedule is required when kind='schedule'" };
@@ -419,8 +425,9 @@ function validateCreateAutomation(
       return { ok: false, error: `trigger_on.source must be one of: ${TRIGGER_SOURCES.join(', ')}` };
     }
   }
-  if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s <= 0)) {
-    return { ok: false, error: 'timeout_s must be a positive integer' };
+  // AUDIT-M1: mirrors migration 0059's agent_automations_timeout_bounds CHECK ([10, 900]).
+  if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s < 10 || i.timeout_s > 900)) {
+    return { ok: false, error: 'timeout_s must be between 10 and 900 seconds' };
   }
   return { ok: true, value: i as CreateAutomationInput };
 }

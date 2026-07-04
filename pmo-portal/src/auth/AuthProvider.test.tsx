@@ -122,3 +122,27 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(screen.queryByTestId('profile-error')).toBeNull());
   });
 });
+
+// AUDIT-M11 (2026-07-04 audit): a rejected getSession() must resolve loading (signed-out),
+// not strand the app on the loading screen forever.
+describe('AuthProvider getSession rejection', () => {
+  it('treats a rejected getSession as signed-out and finishes loading', async () => {
+    const { supabase } = await import('@/src/lib/supabase/client');
+    (supabase.auth.getSession as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+      Promise.reject(new Error('network down'))
+    );
+
+    function LoadingProbe() {
+      const { loading, currentUser } = useAuth();
+      return <div data-testid="state">{loading ? 'loading' : `done|${currentUser === null}`}</div>;
+    }
+
+    render(
+      <AuthProvider>
+        <LoadingProbe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('done|true'));
+  });
+});

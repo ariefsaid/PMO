@@ -13,7 +13,7 @@
  * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
-import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './actions.ts';
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './readEntities.ts';
 
 // Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
 export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema.ts';

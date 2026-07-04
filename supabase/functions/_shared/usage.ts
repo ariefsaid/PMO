@@ -29,16 +29,39 @@ export interface UsageFields {
   cost: number;
 }
 
+// AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
+// grant unbounded unmetered model calls. A single transient failure is still swallowed
+// (NFR-AUC-SEC-006 — never blocks the turn on a blip), but after FAIL_CLOSED_THRESHOLD
+// CONSECUTIVE failures insertUsageRow throws, which the handlers surface as an errored turn —
+// metering stays fail-closed until an insert succeeds again. Per-isolate counter by design:
+// each edge-runtime isolate self-heals independently.
+const FAIL_CLOSED_THRESHOLD = 3;
+let consecutiveInsertFailures = 0;
+
+/** Test seam — reset the fail-closed counter between tests. */
+export function resetUsageFailureCounter(): void {
+  consecutiveInsertFailures = 0;
+}
+
+export class UsageMeteringUnavailableError extends Error {
+  constructor() {
+    super('usage metering unavailable');
+    this.name = 'UsageMeteringUnavailableError';
+  }
+}
+
 /**
  * Insert one agent_usage row from an already-flattened fields object (FR-AUC-002 grain —
  * one row per modelClient.create() resolution, or one row per compose-view invocation).
  * Every field is (re-)clamped here — the single site that constructs the insert payload
  * (NFR-AUC-SEC-004) — so a caller that forgets to clamp upstream still cannot persist an
- * unclamped value. Swallows errors (NFR-AUC-SEC-006 — logs count/code only, never blocks
- * the turn), mirroring persistence.ts's discipline. Unconditional — NOT gated on
- * deps.persistence (FR-AUC-004/018).
+ * unclamped value. Swallows TRANSIENT errors (NFR-AUC-SEC-006 — logs count/code only, never
+ * blocks the turn), mirroring persistence.ts's discipline — but fails closed after
+ * FAIL_CLOSED_THRESHOLD consecutive failures (AUDIT-H5, see above). Unconditional — NOT
+ * gated on deps.persistence (FR-AUC-004/018).
  */
 export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Promise<void> {
+  let failed = false;
   try {
     const { error } = await deps.supabase
       .from('agent_usage')
@@ -52,16 +75,30 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
       .select()
       .single();
     if (error) {
+      failed = true;
       console.error('[agent-usage] USAGE_INSERT_FAILED', {
         errorCode: 'USAGE_INSERT_FAILED',
         code: (error as { code?: string }).code,
       });
     }
   } catch (err) {
+    failed = true;
     console.error('[agent-usage] USAGE_INSERT_THREW', {
       errorCode: 'USAGE_INSERT_THREW',
       code: err instanceof Error ? err.name : 'unknown',
     });
+  }
+  if (!failed) {
+    consecutiveInsertFailures = 0;
+    return;
+  }
+  consecutiveInsertFailures++;
+  if (consecutiveInsertFailures >= FAIL_CLOSED_THRESHOLD) {
+    console.error('[agent-usage] USAGE_METERING_FAIL_CLOSED', {
+      errorCode: 'USAGE_METERING_FAIL_CLOSED',
+      consecutiveFailures: consecutiveInsertFailures,
+    });
+    throw new UsageMeteringUnavailableError();
   }
 }
 

@@ -119,6 +119,19 @@ jobs:
             echo "── deno check supabase/functions/$fn/index.ts ──"
             deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
           done
+      # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
+      # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
+      # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
+      # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
+      - name: Deno boot smoke — edge function entry points load without throwing
+        working-directory: .
+        run: |
+          set -e
+          for fn in agent-chat agent-dispatch compose-view; do
+            echo "── boot-smoke supabase/functions/$fn/index.ts ──"
+            deno run --allow-all --config "supabase/functions/$fn/deno.json" \
+              scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
+          done
 
   integration:
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant

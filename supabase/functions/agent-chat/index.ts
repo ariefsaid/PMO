@@ -36,8 +36,12 @@ import {
   AGENT_DELIVERY_WITH_ENGINEER_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
 
+// AUDIT-M4 (2026-07-04 audit): CORS narrows to the deployed SPA origin when
+// AGENT_ALLOWED_ORIGIN is set (the prod edge-fn deploy runbook sets it to the Pages origin);
+// '*' fallback keeps local dev + previews working. Auth is JWT-header-based (no cookies), so
+// '*' is not itself an auth bypass — this is defense-in-depth against browser-driven abuse.
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': Deno.env.get('AGENT_ALLOWED_ORIGIN') ?? '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
