@@ -395,6 +395,10 @@ function validateCreateAutomation(
   if (typeof i?.prompt !== 'string' || !i.prompt) {
     return { ok: false, error: 'prompt is required' };
   }
+  // AUDIT-M1: mirrors migration 0059's agent_automations_prompt_len CHECK (DB is the authority).
+  if (i.prompt.length > 4000) {
+    return { ok: false, error: 'prompt must be 4000 characters or fewer' };
+  }
   if (i.kind === 'schedule') {
     if (typeof i.schedule !== 'string' || !i.schedule.trim()) {
       return { ok: false, error: "schedule is required when kind='schedule'" };
@@ -421,8 +425,9 @@ function validateCreateAutomation(
       return { ok: false, error: `trigger_on.source must be one of: ${TRIGGER_SOURCES.join(', ')}` };
     }
   }
-  if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s <= 0)) {
-    return { ok: false, error: 'timeout_s must be a positive integer' };
+  // AUDIT-M1: mirrors migration 0059's agent_automations_timeout_bounds CHECK ([10, 900]).
+  if (i.timeout_s !== undefined && (typeof i.timeout_s !== 'number' || i.timeout_s < 10 || i.timeout_s > 900)) {
+    return { ok: false, error: 'timeout_s must be between 10 and 900 seconds' };
   }
   return { ok: true, value: i as CreateAutomationInput };
 }

@@ -33,7 +33,14 @@ function makeServiceClient(automations: AutomationRow[]) {
   const eq2Mock = vi.fn().mockReturnValue({ is: isMock });
   const eq1Mock = vi.fn().mockReturnValue({ eq: eq2Mock });
   const selectMock = vi.fn().mockReturnValue({ eq: eq1Mock });
-  const updateEqMock = vi.fn().mockResolvedValue({ data: null, error: null });
+  // AUDIT-M2: .update().eq() must be awaitable (trigger stampLastFired) AND chain
+  // .or().select() (schedule claim — resolves one claimed row so schedules fire in tests).
+  const updateOrSelectMock = vi.fn().mockResolvedValue({ data: [{ id: 'claimed' }], error: null });
+  const updateEqMock = vi.fn().mockReturnValue(
+    Object.assign(Promise.resolve({ data: null, error: null }), {
+      or: vi.fn().mockReturnValue({ select: updateOrSelectMock }),
+    }),
+  );
   const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -131,8 +138,12 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
     expect(payload.title).toMatch(/out of credits/i);
     expect(payload.metadata).toMatchObject({ automation_id: 'auto-A' });
 
-    // last_fired_at was NOT stamped — no fire occurred (FR-AAN-033).
-    expect(svc.updateMock).not.toHaveBeenCalled();
+    // AUDIT-M2: the schedule's minute-claim DOES stamp last_fired_at (claim-then-fire, exactly
+    // once, BEFORE the credit preflight) — but no post-fire stamp follows the credit skip. The
+    // fire itself never happened (handler assertion above); FR-AAN-033's "no fire" is unchanged,
+    // the stamp just moved to the claim.
+    expect(svc.updateMock).toHaveBeenCalledTimes(1);
+    expect(svc.updateMock).toHaveBeenCalledWith({ last_fired_at: '2026-07-06T08:00:00.000Z' });
   });
 
   it('gpt-5.5 #3: a mint that then writes a warning notification is AUDITED first (audit before any minted-client write)', async () => {

@@ -32,12 +32,7 @@ export async function getRunHeartbeat(runId: string): Promise<RunHeartbeat | nul
     .from('agent_runs')
     .select('last_progress_at, status')
     .eq('id', runId)
-    .single();
-  if (error) {
-    // PostgREST's .single() returns PGRST116 when zero rows match (RLS-hidden/not found) —
-    // treat that as "no heartbeat" rather than a hard error, matching the null-data contract.
-    if ((error as PostgrestErrorLike).code === 'PGRST116') return null;
-    throwWrite(error);
-  }
+    .maybeSingle();
+  if (error) throwWrite(error);
   return data ?? null;
 }
