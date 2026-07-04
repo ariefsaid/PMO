@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type ContactRow = Tables<'contacts'>;
 
@@ -32,13 +33,20 @@ function throwWrite(error: PostgrestErrorLike): never {
  * List the caller's org non-archived contacts ordered by name (AC-CRM-020). org_id is NEVER
  * sent — RLS (contacts_select: org_id = auth_org_id()) scopes rows. Throws an `AppError`
  * (code preserved) on failure.
+ *
+ * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
+ * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
+ * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
-export async function listContacts(): Promise<ContactRow[]> {
-  const { data, error } = await supabase
+export async function listContacts(params?: PageParams): Promise<ContactRow[]> {
+  const range = resolveRange(params);
+  let query = supabase
     .from('contacts')
     .select('*')
     .is('archived_at', null)
     .order('full_name');
+  if (range) query = query.range(range.from, range.to);
+  const { data, error } = await query;
   if (error) throwWrite(error);
   return data ?? [];
 }

@@ -11,6 +11,7 @@ const h = vi.hoisted(() => {
     order: [] as unknown[],
     update: [] as unknown[],
     eq: [] as unknown[],
+    range: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -22,6 +23,7 @@ const h = vi.hoisted(() => {
   builder.order = chain('order');
   builder.update = chain('update');
   builder.eq = chain('eq');
+  builder.range = chain('range');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -71,6 +73,18 @@ describe('FR-AAN-035 listNotifications', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' }, count: null };
     await expect(listNotifications()).rejects.toMatchObject({ message: 'denied', code: '42501' });
     await expect(listNotifications()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await listNotifications();
+    expect(h.calls.range).toEqual([]);
+  });
+
+  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await listNotifications({ page: 1, pageSize: 30 });
+    expect(h.calls.range).toContainEqual([30, 59]);
   });
 });
 

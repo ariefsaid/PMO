@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange } = vi.hoisted(() => {
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
-  return { mockSelect, mockFrom };
+  const mockRange = vi.fn();
+  return { mockSelect, mockFrom, mockRange };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
@@ -19,15 +20,17 @@ import {
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
     select: mockSelect,
+    range: mockRange,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
   mockSelect.mockReturnValue(builder);
+  mockRange.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
 
-beforeEach(() => { mockFrom.mockReset(); mockSelect.mockReset(); });
+beforeEach(() => { mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
 
 describe('listProcurements', () => {
   it('selects procurements joining project/vendor/requester; returns rows (AC-509, FR-DAL-PROC-001)', async () => {
@@ -60,6 +63,18 @@ describe('listProcurements', () => {
   it('throws on PostgREST error (AC-509)', async () => {
     makeBuilder({ data: null, error: { message: 'boom' } });
     await expect(listProcurements()).rejects.toThrow('boom');
+  });
+
+  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements();
+    expect(mockRange).not.toHaveBeenCalled();
+  });
+
+  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ page: 2, pageSize: 10 });
+    expect(mockRange).toHaveBeenCalledWith(20, 29);
   });
 });
 

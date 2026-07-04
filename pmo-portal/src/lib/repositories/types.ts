@@ -80,9 +80,12 @@ import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFile
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
+import type { PageParams } from '@/src/lib/pagination';
 
 export interface ProjectRepository {
-  list(params?: { status?: ProjectRow['status']; pmId?: string }): Promise<ProjectWithRefs[]>;
+  list(
+    params?: { status?: ProjectRow['status']; pmId?: string } & PageParams,
+  ): Promise<ProjectWithRefs[]>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
@@ -101,7 +104,7 @@ export interface CompanyRepository {
   /** Client companies only — the FK picker for project/opportunity clients. */
   listClients(): Promise<CompanyRow[]>;
   /** All companies in the org (archived hidden by default), optionally filtered by type. */
-  list(params?: { type?: CompanyType }): Promise<CompanyRow[]>;
+  list(params?: { type?: CompanyType } & PageParams): Promise<CompanyRow[]>;
   /** A single company by id, or null when not found / not readable. */
   get(id: string): Promise<CompanyRow | null>;
   /** Create a company (org_id stamped by RLS, never sent). */
@@ -181,7 +184,7 @@ export interface DocumentRepository {
 }
 
 export interface ProcurementRepository {
-  list(): Promise<ProcurementWithRefs[]>;
+  list(params?: PageParams): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;
   createQuotation(
@@ -259,7 +262,7 @@ export interface ProcurementRepository {
 }
 
 export interface TimesheetRepository {
-  list(userId: string): Promise<TimesheetWithEntries[]>;
+  list(userId: string, params?: PageParams): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
   deleteEntry(id: string): Promise<void>;
@@ -343,7 +346,7 @@ export interface ProcurementFileRepository {
 
 export interface ContactRepository {
   /** All non-archived contacts in the org, ordered by name. */
-  list(): Promise<ContactRow[]>;
+  list(params?: PageParams): Promise<ContactRow[]>;
   /** A company's non-archived contacts (the company-detail list). */
   listByCompany(companyId: string): Promise<ContactRow[]>;
   /** A single contact by id, or null when not found / not readable. */

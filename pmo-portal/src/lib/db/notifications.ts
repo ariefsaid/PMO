@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type NotificationRow = Tables<'notifications'>;
 
@@ -19,12 +20,19 @@ function throwWrite(error: PostgrestErrorLike): never {
  * org_id/owner_id are NEVER sent — owner-only RLS scopes the rows entirely; a caller never
  * receives another user's notification. Throws an `AppError` (code preserved) on a genuine
  * query error.
+ *
+ * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
+ * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
+ * read for every existing caller.
  */
-export async function listNotifications(): Promise<NotificationRow[]> {
-  const { data, error } = await supabase
+export async function listNotifications(params?: PageParams): Promise<NotificationRow[]> {
+  const range = resolveRange(params);
+  let query = supabase
     .from('notifications')
     .select('*')
     .order('created_at', { ascending: false });
+  if (range) query = query.range(range.from, range.to);
+  const { data, error } = await query;
   if (error) throwWrite(error);
   return data ?? [];
 }
