@@ -185,7 +185,10 @@ export async function selectTriggerMatches(
         // org. Without this, an Org-B event fires an Org-A automation and Org-B's row is serialized
         // into Org-A's condition-model prompt. This is the SELECTION-time tenancy authority (RLS still
         // pins the fired run via the minted owner JWT, but the event never reaches the model here).
-        if (automation.org_id !== event.org_id) continue;
+        // Falsy-org hardening (re-audit Low): don't rely on the DB NOT NULL constraint alone —
+        // `null !== null` is false in JS, so two null-org rows would cross-match if that constraint
+        // were ever dropped. Deny unless BOTH orgs are present AND equal.
+        if (!automation.org_id || !event.org_id || automation.org_id !== event.org_id) continue;
         if (automation.trigger_on?.event === event.to_status) {
           matches.push({ automation, event });
         }
