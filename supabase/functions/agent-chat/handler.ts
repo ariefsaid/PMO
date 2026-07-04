@@ -985,11 +985,23 @@ async function* agentChatHandlerInner(
  *    messages, no re-injection.
  * 2. Otherwise, append the answer as the tool_result resolving that tool_use
  *    (the chosen option's label, or the free text) and continue the SAME run
- *    (AC-ATC-009) via runLoop — never a new createRun.
+ *    (AC-ATC-009) via runLoopAfterAnswer — never a new createRun.
  * NFR-ATC-SEC-004: no new deputy bypass — this re-POST never re-derives org/role
  * itself (unlike handleDecision's approve path, there is no write to authorize;
  * ask_user is read-only UX, so the caller-JWT deputy context already governs
  * anything the continuation subsequently does through the shared runToolLoop).
+ *
+ * Correctness-remediation (gpt-5.5 cross-family audit, finding 1): an answer RESUMES
+ * the user's original request — unlike a decision (which is terminal: a write was
+ * either executed or declined, and the continuation must not immediately propose a
+ * SECOND write before the model acknowledges the first), answering a clarifying
+ * question is not itself a resolution of anything write-shaped. The model may need
+ * to immediately propose a confirm action (e.g. create_activity) or emit a
+ * compose_view artifact to actually satisfy the request the question was blocking.
+ * So the answer-continuation runs via runLoopAfterAnswer (allowCompose:true,
+ * allowProposeConfirm:true — the SAME capabilities as the main pass), not runLoop
+ * (which stays allowCompose:false/allowProposeConfirm:false, used only by
+ * handleDecision's continuation).
  */
 async function* handleAnswer(
   req: AgentChatRequest,
@@ -1030,7 +1042,7 @@ async function* handleAnswer(
   // No trailingQuestion found → stale/duplicate answer (AC-ATC-010): fall through
   // and simply continue the model with the messages as replayed (no re-injection).
 
-  yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+  yield* runLoopAfterAnswer(req, deps, emit, statusEvent, deputyCtx, messages, persist);
 }
 
 // ── A3: Decision handler (stateless approve/deny re-POST) ─────────────────────
@@ -1264,6 +1276,10 @@ async function* runLoop(
   // divergences from the main pass: no compose_view (allowCompose:false), no re-proposing
   // a confirm action mid-continuation (allowProposeConfirm:false), and a missing tool_calls[0]
   // completes immediately rather than continuing as an unknown-action error (onMissingToolCall:'complete').
+  // TERMINAL by design (correctness-remediation finding 1): a decision resolves a write
+  // (approved/rejected) — the continuation must not immediately propose a SECOND pending
+  // write, nor emit a compose_view artifact, before the model has acknowledged the first
+  // resolution. Used ONLY by handleDecision's approve/reject/no-op branches.
   yield* runToolLoop({
     deps,
     emit,
@@ -1274,6 +1290,43 @@ async function* runLoop(
     runId,
     allowCompose: false,
     allowProposeConfirm: false,
+    onMissingToolCall: 'complete',
+  });
+}
+
+/**
+ * Inner tool-use loop for the answer continuation (ADR-0045 §2, correctness-remediation
+ * finding 1). Unlike `runLoop` (handleDecision's continuation, deliberately restricted —
+ * see its doc comment), answering a pending question RESUMES the user's original request:
+ * the model may need to immediately propose a confirm action (needs-approval) or emit a
+ * compose_view artifact to actually satisfy what the question was blocking. Runs with the
+ * SAME capabilities as the main pass (allowCompose:true, allowProposeConfirm:true) — only
+ * `onMissingToolCall` stays 'complete' (a missing tool_calls[0] on a continuation pass is a
+ * graceful completion, not a further "unknown action" round — this divergence is orthogonal
+ * to compose/propose-confirm and unrelated to the bug being fixed here).
+ */
+async function* runLoopAfterAnswer(
+  req: AgentChatRequest,
+  deps: HandlerDeps,
+  emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
+  statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  messages: ModelMessage[],
+  persist?: PersistenceRuntime,
+): AsyncGenerator<AgentEvent> {
+  // req.runId is always present here — an answer re-POST always carries the runId of the
+  // run being resumed (PmoNativeRuntime._doSubscribe always sends the existing runId).
+  const runId = req.runId ?? '';
+  yield* runToolLoop({
+    deps,
+    emit,
+    statusEvent,
+    deputyCtx,
+    messages,
+    persist,
+    runId,
+    allowCompose: true,
+    allowProposeConfirm: true,
     onMissingToolCall: 'complete',
   });
 }
