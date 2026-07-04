@@ -21,19 +21,19 @@ insert into organizations (id, name) values
 insert into auth.users (id, email) values
   ('01050000-0000-0000-0000-0000000000f1','finance@example.com'),
   ('01050000-0000-0000-0000-0000000000e1','eng@example.com'),
-  ('01050000-0000-0000-0000-0000000000r1','requester@example.com');
+  ('01050000-0000-0000-0000-0000000000a1','requester@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
   ('01050000-0000-0000-0000-0000000000f1','01050000-0000-0000-0000-000000000001','Fin User','finance@example.com','Finance'),
   ('01050000-0000-0000-0000-0000000000e1','01050000-0000-0000-0000-000000000001','Eng User','eng@example.com','Engineer'),
-  ('01050000-0000-0000-0000-0000000000r1','01050000-0000-0000-0000-000000000001','Req User','requester@example.com','Engineer');
+  ('01050000-0000-0000-0000-0000000000a1','01050000-0000-0000-0000-000000000001','Req User','requester@example.com','Engineer');
 
 -- Two procurements: one at 'Received' (legal VI source) and one at 'Approved' (illegal VI source).
 insert into procurements (id, org_id, title, status, requested_by_id, total_value) values
   ('01050000-0000-0000-0000-0000000000c1','01050000-0000-0000-0000-000000000001','Received Case','Received',
-   '01050000-0000-0000-0000-0000000000r1', 1000),
+   '01050000-0000-0000-0000-0000000000a1', 1000),
   ('01050000-0000-0000-0000-0000000000c2','01050000-0000-0000-0000-000000000001','Approved Case','Approved',
-   '01050000-0000-0000-0000-0000000000r1', 2000);
+   '01050000-0000-0000-0000-0000000000a1', 2000);
 
 -- ── Proof 2 FIRST (illegal transition) — act as Finance on the Approved case ─────────
 -- Approved→Vendor Invoiced is NOT in the legal map, so transition_procurement raises P0001.

@@ -26,6 +26,7 @@ const detailState = {
 
 const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new', vi_number: 'VI-001' });
+const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new', vi_number: 'VI-001' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 
@@ -51,6 +52,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: mockCreateQuotation, isPending: false, error: null },
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
   }),
 }));
 
@@ -329,6 +331,8 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     mockEffectiveRole = 'Finance';
     mockTransition.mockClear().mockResolvedValue(undefined);
     mockCreateInvoice.mockClear().mockResolvedValue({ id: 'i-new', vi_number: 'VI-001' });
+    // harden #2: the capture now goes through the ONE atomic RPC (transition + invoice + event).
+    mockCaptureVendorInvoice.mockClear().mockResolvedValue({ id: 'vi-new', vi_number: 'VI-001' });
     toast.mockClear();
   });
 
@@ -346,7 +350,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(screen.getByTestId('vi-date-input')).toBeInTheDocument();
   });
 
-  it('AC-W3-O3: submitting the inline capture fires the transition to Vendor Invoiced AND createInvoice with the captured values', async () => {
+  it('AC-W3-O3: submitting the inline capture fires the atomic capture (transition + VI-create) with the captured values', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
@@ -361,17 +365,15 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     // Submit the inline capture
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
-    // Both the transition AND the VI creation must fire
+    // harden #2: the transition + VI-create happen atomically through the ONE RPC, carrying the
+    // captured status. The two separate FE writes are no longer used.
     await waitFor(() => {
-      expect(mockTransition).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'Vendor Invoiced' }),
-      );
-    });
-    await waitFor(() => {
-      expect(mockCreateInvoice).toHaveBeenCalledWith(
+      expect(mockCaptureVendorInvoice).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'Scheduled' }),
       );
     });
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
 
   it('AC-W3-O3: cancelling the inline capture leaves the status unchanged (no transition, no VI-create)', async () => {
@@ -390,6 +392,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(screen.queryByTestId('vi-inline-capture')).not.toBeInTheDocument();
 
     // Neither mutation should have fired
+    expect(mockCaptureVendorInvoice).not.toHaveBeenCalled();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
@@ -410,12 +413,12 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
   });
 
-  it('AC-W3-O3 (review): a partial failure (transition OK, invoice-create fails) closes the inline panel + warns — no stuck panel', async () => {
+  it('AC-W3-O3 (harden #2): a capture failure warns and leaves the panel OPEN for retry — the atomic RPC rolled everything back (no partial state)', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
-    mockTransition.mockClear().mockResolvedValue(undefined);
-    mockCreateInvoice.mockClear().mockRejectedValueOnce(
+    // The single atomic RPC fails → both the transition and the invoice are rolled back server-side.
+    mockCaptureVendorInvoice.mockClear().mockRejectedValueOnce(
       Object.assign(new Error('invoice insert failed'), { code: '23503' }),
     );
     toast.mockClear();
@@ -424,11 +427,13 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
-    // Transition fired, then createInvoice was attempted and failed.
-    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
-    expect(mockTransition).toHaveBeenCalledTimes(1);
-    // The inline panel is CLOSED (not stuck open) and a warning toast surfaced.
-    await waitFor(() => expect(screen.queryByTestId('vi-inline-capture')).not.toBeInTheDocument());
+    // Exactly one atomic call was made; the two legacy writes are never used.
+    await waitFor(() => expect(mockCaptureVendorInvoice).toHaveBeenCalledTimes(1));
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    // Deliberate UX change: the inline panel STAYS OPEN so the user can correct + retry, and a
+    // warning toast surfaces. (Previously the panel closed on a partial failure.)
+    expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
     expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
   });
 

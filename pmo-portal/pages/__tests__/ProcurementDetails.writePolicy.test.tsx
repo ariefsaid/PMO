@@ -30,6 +30,7 @@ const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
+const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
@@ -53,6 +54,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: mockCreateQuotation, isPending: false, error: null },
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
   }),
 }));
 
@@ -221,14 +223,14 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
 
-    // The inline capture is now visible — submit it to commit the transition.
+    // The inline capture is now visible — submit it to commit the advance.
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
-    // Goal oracle unchanged: transition to Vendor Invoiced fires (no modal was required).
-    await waitFor(() =>
-      expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Vendor Invoiced' })),
-    );
+    // Goal oracle unchanged: submitting the inline capture commits the Received→Vendor Invoiced
+    // advance (no modal was required). harden #2: the advance + invoice now commit atomically via
+    // the single capture RPC, so we assert that call fired rather than the standalone transition.
+    await waitFor(() => expect(mockCaptureVendorInvoice).toHaveBeenCalledTimes(1));
   });
 
   it('AC-IXD-WP-003: a routine single-click forward step fires a quiet success toast', async () => {
