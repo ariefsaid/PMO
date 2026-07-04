@@ -1,13 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * AC-LEG-022 — login footer links navigate correctly (cross-stack: rendered footer
- * link → router navigation / new tab). The footer lives on /login (unauthed), so no
- * signIn is needed. Help-leg opens wa.me in a new tab and requires VITE_HELP_WHATSAPP
- * in the dev-server env (see docs/plans/2026-07-04-legal-pages.md Slice 6 prerequisite).
+ * AC-LEG-022 — login footer Terms/Privacy links navigate correctly (cross-stack:
+ * rendered footer link → router navigation). The footer lives on /login (unauthed),
+ * so no signIn is needed.
+ *
+ * The Help leg is UNIT-OWNED (Director decision, ADR-0010 lowest-sufficient-layer):
+ * navigating to an external wa.me URL is not meaningfully e2e-testable, and asserting
+ * it here required VITE_HELP_WHATSAPP in the dev-server env — a fragility that bought
+ * no real coverage. `src/auth/LoginPage.test.tsx` (AC-LEG-021) already asserts the
+ * footer Help anchor's href/target/rel against an injected legalConfig value.
  */
 test.describe('AC-LEG-022 login footer links navigate correctly', () => {
-  test('AC-LEG-022 Terms / Privacy / Help from the login footer', async ({ page }) => {
+  test('AC-LEG-022 Terms / Privacy from the login footer', async ({ page }) => {
     await page.goto('/login');
     const footer = page.getByRole('contentinfo');
 
@@ -21,15 +26,5 @@ test.describe('AC-LEG-022 login footer links navigate correctly', () => {
     await page.getByRole('contentinfo').getByRole('link', { name: /^privacy$/i }).click();
     await expect(page).toHaveURL(/\/privacy$/);
     await expect(page.getByRole('heading', { level: 1, name: /privacy policy/i })).toBeVisible();
-
-    // Help → wa.me in a new tab (target=_blank). page.waitForEvent('popup') — the
-    // type-safe pattern this repo already uses (e2e/AC-DOC-020…spec.ts:117);
-    // context.waitForEvent('popup') does not type-check against this Playwright version.
-    await page.goto('/login');
-    const popupPromise = page.waitForEvent('popup');
-    await page.getByRole('contentinfo').getByRole('link', { name: /contact support via whatsapp/i }).click();
-    const newTab = await popupPromise;
-    await expect.poll(() => newTab.url()).toContain('https://wa.me/');
-    await newTab.close();
   });
 });

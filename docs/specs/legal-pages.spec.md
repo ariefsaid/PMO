@@ -340,8 +340,11 @@ The "Governing Law" section is **heading-only** (no clause text) and intentional
 - **Then** they navigate to `/terms`
 - **When** they click the "Privacy" footer link
 - **Then** they navigate to `/privacy`
-- **When** they click the "Help" footer link
-- **Then** the wa.me URL opens in a new tab
+- (Director decision, ADR-0010 lowest-sufficient-layer: the Help leg is unit-owned by
+  `AC-LEG-021` — navigating to an external `wa.me` URL is not meaningfully e2e-testable, and
+  requiring `VITE_HELP_WHATSAPP` in the e2e dev-server env is fragile. The unit test already
+  asserts the anchor's `href`/`target`/`rel` against an injected config value; e2e keeps only
+  the in-app Terms/Privacy route navigation.)
 
 **AC-LEG-023:** (Unit/Vitest RTL) Mobile account menu includes Terms, Privacy, Help
 - **Given** an authenticated user on a viewport <640px
@@ -356,8 +359,8 @@ The "Governing Law" section is **heading-only** (no clause text) and intentional
 - **Then** they navigate to `/terms` (bare public page)
 - **When** they open the menu and click "Privacy"
 - **Then** they navigate to `/privacy` (bare public page)
-- **When** they open the menu and click "Help"
-- **Then** the wa.me URL opens in a new tab
+- (Director decision, ADR-0010 lowest-sufficient-layer: the Help leg is unit-owned by
+  `AC-LEG-023` — same rationale as AC-LEG-022.)
 
 **AC-LEG-025:** (Unit/Vitest RTL) Desktop cluster renders one inline Help icon, no Terms/Privacy
 - **Given** an authenticated user on a viewport ≥640px
