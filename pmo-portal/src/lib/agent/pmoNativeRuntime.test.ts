@@ -478,3 +478,56 @@ it('control(cancel) POSTs { cancel: { runId } } in addition to aborting the clie
   const cancelBody = JSON.parse(cancelCall[1].body as string) as AgentChatRequest;
   expect(cancelBody.cancel).toEqual({ runId: run.id });
 });
+
+// ── Observability hardening (harden #1 item 3, spike 2026-07-04): a failing cancel-POST
+// must not be FULLY silent. Before this fix, _postCancel's catch swallowed every error with
+// no signal at all — the server-side run could stay stuck 'running' forever with nothing
+// observable client-side. RED (before the fix): no console.warn call on a failing cancel-POST.
+
+it('a failing cancel-POST emits an observable console.warn carrying a structured code (not fully silent)', async () => {
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  const runningEvent: AgentEvent = {
+    id: 'e-run-2',
+    runId: 'r-cancel-2',
+    type: 'status',
+    payload: { status: 'running' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(runningEvent)) });
+    }
+    // Second call: the cancel POST — simulates a network failure (fetch rejects).
+    return Promise.reject(new Error('network down'));
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'do something slow' });
+
+  const drainPromise = (async () => {
+    for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  })();
+
+  await runtime.control(run.id, 'cancel');
+  await drainPromise;
+  // Let the fire-and-forget _postCancel's rejected promise settle.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(warnSpy).toHaveBeenCalledTimes(1);
+  const [message, context] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+  expect(message).toContain('cancel');
+  expect(context).toMatchObject({ errorCode: 'CANCEL_POST_FAILED', runId: run.id });
+  // Never leaks the raw error's message/stack into the structured context.
+  expect(JSON.stringify(context)).not.toContain('network down');
+
+  warnSpy.mockRestore();
+});
