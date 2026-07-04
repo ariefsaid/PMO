@@ -15,8 +15,13 @@
  *      off the automation row and nothing else.
  *   3. Every mint is audited (auditMint → an agent_events type='system' row on the fired run,
  *      BEFORE the minted client is used for anything else).
- *   4. The minted JWT's lifetime is bounded to the automation's timeout_s and is NEVER persisted or
- *      logged (NFR-AAN-SEC-008) — it is only ever handed to the in-memory client builder.
+ *   4. The minted token is NEVER persisted or logged (NFR-AAN-SEC-008) — it is only ever handed to
+ *      the in-memory client builder. Note (gpt-5.5 audit #4): the Supabase admin `generateLink`
+ *      magiclink API exposes NO custom-TTL knob, so the minted JWT uses the project's DEFAULT OTP/JWT
+ *      expiry — its cryptographic lifetime is NOT bounded to the automation's timeout_s. What IS
+ *      bounded to timeout_s is the fired run's WALL-CLOCK deadline (the dispatcher's AbortController),
+ *      returned below as `wallClockTimeoutS`. (ADR-0044 §3 item 3's "lifetime bounded to timeout_s"
+ *      wording overstates the JWT bound and should be corrected — flagged for the Director in the PR.)
  *
  * Pure/injectable (REC-1): the Auth admin API and the caller-JWT client builder are injected, so
  * this compiles + unit-tests under Node/Vitest without Deno globals.
@@ -56,8 +61,13 @@ export interface MintDeps {
 export interface MintedSession {
   /** The caller-JWT-scoped client the fired run executes under (RLS ceiling = owner). */
   client: unknown;
-  /** Bounded lifetime (FR-AAN-018) — the automation's timeout_s; the client is never persisted. */
-  expiresInS: number;
+  /**
+   * The automation's WALL-CLOCK fire deadline in seconds (== timeout_s) — the budget the dispatcher's
+   * AbortController enforces on the fired run. NOT the minted JWT's cryptographic lifetime (gpt-5.5
+   * audit #4: generateLink has no TTL knob; the JWT uses the project's default OTP/JWT expiry). The
+   * minted token itself is never persisted.
+   */
+  wallClockTimeoutS: number;
 }
 
 /**
@@ -90,7 +100,7 @@ export async function mintOwnerJwt(deps: MintDeps, automation: AutomationRow): P
 
   return {
     client,
-    expiresInS: automation.timeout_s ?? 120,
+    wallClockTimeoutS: automation.timeout_s ?? 120,
   };
 }
 
