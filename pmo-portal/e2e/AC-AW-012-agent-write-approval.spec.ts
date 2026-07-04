@@ -237,6 +237,9 @@ test.describe('AC-AW-012: Agent write-action approve/deny journey', () => {
     await signIn(page, 'admin@acme.test');
 
     // ── 2. Open the AssistantPanel via Ctrl+J (Linux CI) ─────────────────
+    // Wait for the shell's Assistant button first — the ⌘J listener attaches in a useEffect, so
+    // pressing before it mounts silently misses the hotkey (the race only bites in slower CI).
+    await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
     await page.keyboard.press('Control+j');
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
@@ -321,6 +324,8 @@ test.describe('AC-AW-012: Agent write-action approve/deny journey', () => {
     await signIn(page, 'admin@acme.test');
 
     // ── 2. Open panel ─────────────────────────────────────────────────────
+    // Guard the ⌘J listener mount (see the approve journey above) before pressing.
+    await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
     await page.keyboard.press('Control+j');
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
