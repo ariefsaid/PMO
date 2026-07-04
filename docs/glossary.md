@@ -69,4 +69,22 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Deputy** — the authorization stance of the Assistant: it carries the user's badge, never a master key. Whatever bounds the user (tenancy, role, separation-of-duties) bounds the Assistant identically, by construction. (ADR-0036 §2.)
 
+**Operator** — the platform-level persona (the vendor operating PMO itself), distinct from
+any org role. Owns what a client never touches: creating orgs, granting AI credits,
+toggling per-org feature entitlements. Not a sixth org role — an Operator transcends the
+org boundary, so operator powers are granted by a separate platform-level mechanism, never
+by the in-org role enum. Contrast **Admin**, the client's own in-org administrator role.
+(Decided 2026-07-04.)
+
+**Organization (org)** — the tenant boundary: one paying client **group**, holding all its
+users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
+entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two
+unrelated clients never share an org.
+
+**Entity** — an operating/legal company *within* a client group (parent or subsidiary),
+modeled as a dimension on the org's data (e.g. a project belongs to an Entity), never as a
+separate org. Users and dashboards span Entities by default; intra-group visibility is the
+norm and cross-Entity rollup is a feature. Not to be confused with **Company**, which is a
+CRM counterparty (client/vendor) in the sales sense. (Decided 2026-07-04.)
+
 **User view** — a dashboard/view a user composes at runtime (manually or via the Assistant) and owns as data, not code. Private to its owner by default; sharing shows each viewer only their own authorized data. Distinct from built-in pages, which are part of the app itself. (ADR-0036.)

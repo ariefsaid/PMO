@@ -23,8 +23,8 @@ exploitable, all ledgered.**
 |---|---|---|---|---|
 | RED-1 | Critical | `agent_usage` (mig 0047) | No `CHECK(cost>=0)`; direct PostgREST insert with negative cost forges unlimited credits | ✅ mig 0050 CHECK (PR #222) |
 | RED-2 | High | `agent-chat/handler.ts` | #220 regression: decision/answer with no pending item → un-gated model call → zero-credit spend | ✅ `isCreditExhausted` gate (PR #222) |
-| RED-3 | High **(WAS LIVE PROD)** | `procurements_insert` (0002/0010/0038) | Client-supplied `requested_by_id` → PM files a PR "as" another user + self-approves → SoD bypass | ✅ mig 0051 hard-pin (PR #221; cross-family CONFIRM-CLOSED). **⚠ EXPEDITE main→prod.** |
-| RED-4 | High **(WAS LIVE PROD)** | `projects_write` (0002) | No restrictive admin-only delete → non-admin hard-delete (ADR-0019 gap) | ✅ mig 0052 admin-only delete (PR #221; CONFIRM-CLOSED). **⚠ EXPEDITE main→prod.** |
+| RED-3 | High **(WAS LIVE PROD)** | `procurements_insert` (0002/0010/0038) | Client-supplied `requested_by_id` → PM files a PR "as" another user + self-approves → SoD bypass | ✅ mig 0051 hard-pin (PR #221; cross-family CONFIRM-CLOSED). **✅ LIVE IN PROD (2026-07-04, mig push to 0057).** |
+| RED-4 | High **(WAS LIVE PROD)** | `projects_write` (0002) | No restrictive admin-only delete → non-admin hard-delete (ADR-0019 gap) | ✅ mig 0052 admin-only delete (PR #221; CONFIRM-CLOSED). **✅ LIVE IN PROD (2026-07-04, mig push to 0057).** |
 | SEC-HIGH-1 | High | `user_views_select` (0045) | Owner OR-branch omits `org_id` → stale/other-org saved views readable on org change (B2B-future) | ✅ mig 0053 org gate wraps every branch (PR #223) |
 | SEC-HIGH-2 | High | `agent-dispatch/dispatcher.ts` | `service_role` reads `procurement_status_events`; JS org-gate mitigates but violates the invariant | ✅ mig 0054 `select_trigger_events` definer RPC (service_role-only, org+status filter); JS gate kept as belt (PR #223) |
 

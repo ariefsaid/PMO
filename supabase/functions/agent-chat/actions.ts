@@ -31,12 +31,14 @@ import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
 
-/** Whitelisted entities available to the agent in A1 (D5/R3). */
-export const AGENT_READ_ENTITIES = ['projects', 'companies'] as const;
-export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
-
-/** Hard row cap — the effective limit is min(input.limit ?? CAP, CAP). D6. */
-export const AGENT_READ_ROW_CAP = 50;
+// AGENT_READ_ENTITIES / AgentReadEntity / AGENT_READ_ROW_CAP live in the leaf module readEntities.ts
+// to break the actions.ts ↔ schema.ts cycle that TDZ-crashed the deployed worker (see its header).
+// Imported for local use AND re-exported so existing importers (handler.ts, etc.) still resolve them
+// from actions.ts without change.
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './readEntities.ts';
+import type { AgentReadEntity } from './readEntities.ts';
+export { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP };
+export type { AgentReadEntity };
 
 /** Wall-clock timeout for each DB read. D6. */
 export const READ_TIMEOUT_MS = 5000;

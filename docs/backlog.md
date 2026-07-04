@@ -4,30 +4,102 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening COMPLETE on `dev`
+## ▶ GTM / MVP-viability program (owner grill, 2026-07-04 — supersedes scattered GTM notes)
 
-> **RESUME ENTRY POINT.** **`production` UNCHANGED at `fc312eb`/mig 0041 (= `v0.1.0`). `main` = `1c0f747`
-> (pre-reskin, WELL behind). `dev` = `ad1f156`** — carries the reskin (#210) + the ENTIRE batteries-included-A
-> program (#211–#218) + cross-family remediation (#219/#220) + the full-codebase-review remediation & 5-wave
-> hardening (#221–#228). **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
+**Decisions of record from the grill (all owner-confirmed):** ADR-0047 (per-client Supabase Cloud
+Pro + CF Pages; VPS = documented exit path; the old cloud project is **reclassified STAGING/DEMO**,
+`docs/environments.md` updated) · ADR-0048 (ERPNext = headless accounting engine under PMO;
+never build accounting; no Odoo; command/query split, single-writer per DocType; accountant
+workspace chunked, AR/AP aging pulled into F1; period-close/e-Faktur stays ERPNext) · glossary:
+**Operator** (platform persona ≠ org Admin), **Organization = client group**, **Entity =
+subsidiary dimension** (never a separate org; intra-group visibility OK for MVP).
+
+**MVP scope (before/at first paying client) — each row ≈ one issue-loop:**
+1. **Ops-Admin surface:** (a) user invite/disable (service-role edge fn + `profiles.status` +
+   email rails); (b) credits → **org-pool grants** (schema tweak; flip `credits` INSERT RLS from
+   role=Admin → **Operator-only** — as-built it lets client Admins self-grant); (c) usage view
+   (`agent_usage` aggregates per org/user + provider-USD vs credits **margin column**; Operator
+   sees **aggregates only, never transcripts** — owner-locked privacy line); (d) Operator
+   mechanism = platform-level grant table, NOT a 6th enum role; (e) `org_features` entitlements
+   build with ownership **flipped from the 2026-06-15 note: Operator-write, org-Admin read-only**.
+2. **Auth floor (non-negotiable):** Resend SMTP · password-reset flow · email confirm + invite
+   emails · redirect allowlist → prod HTTPS only · rotate/kill seed creds · `auto_expose_new_tables=false`.
+   Build together with 1a (same rails). Google OAuth = stretch; SAML = out.
+3. **Observability floor:** uptime ping + public status page (= the SLA answer) · PostHog error
+   tracking (vendor-consolidated; still no Sentry) · one alert webhook consuming the #224 edge-fn
+   errorCodes · 2 PostHog dashboards (org usage; agent cost) · real-browser PostHog spot-check.
+   Explicitly NOT: log aggregation, APM, tracing.
+4. **Legal floor (Indonesia):** MSA/subscription template (lawyer-day, carries manual billing) ·
+   ToS + privacy static pages + footer links incl. wa.me help · pinned data-residency answer.
+   Skip: GDPR self-service, cookie banner, DPA machinery.
+5. **Backup/DR (cloud):** Pro plan per client project · **one restore drill** into a scratch
+   project (documented) · 1-page incident runbook (FE rollback via CF, DB restore, alert path,
+   client-comms line).
+6. **Client onboarding:** provisioning runbook/script (project → migrations → `functions deploy`
+   → secrets → org + first Admin → CF env) — this IS "add org" for the Operator; **white-glove**
+   import (runbook + wizard idempotency fix) · **historical import script**: summary-grade,
+   ≤1yr, terminal-status records with provenance, NO fabricated transition events.
+7. **Entity (subsidiary) dimension** — conditional MVP: build when the first group-of-companies
+   client signs (schema dimension + filters + rollup).
+8. **Support floor:** WhatsApp group per client (response-time line lives in the MSA) · in-app
+   help link · **deputy-as-help-desk** (help corpus = glossary + jtbd.md into assistant context)
+   + per-role walkthrough videos recorded during onboarding. No written manual until a question
+   repeats 3×.
+
+**CUT from MVP (owner-confirmed):** custom RBAC engine (escape valve = additive read-only
+Viewer role) · Stripe/Midtrans (manual MSA billing) · VPS (exit trigger: >$200/mo Supabase or
+onshore-data contract; sized playbook in ADR-0047) · homegrown accounting (never) · separate
+operator console (<~5 deployments) · shared-project multi-org + org-seam proof (deferred by
+per-client isolation) · SAML · GDPR self-service.
+
+**⚑ BUILD-LOOP AUTHORIZED (owner, 2026-07-04):** autonomous session(s) on `dev`, batteries-A
+goal directive (full SDD/TDD + 3-lens + rendered battery per issue, PR per issue, owner gates
+`dev`→`main`). Build order: auth floor → ops-admin → observability → DR → legal pages →
+onboarding tooling → support floor. **Executor policy: pi+GLM first, parallel where possible;
+Claude subagents + dynamic workflows when pi quota exhausts.** Locked inputs: **domain/brand
+decision DEFERRED until after issues 1–2** — build against env-var seams (`RESEND_API_KEY`,
+sender/site URL as config; wire 1Password + DNS later) · Operator = arief.said@gmail.com ·
+alerts → **Telegram bot** · uptime/status = **BetterStack** (professional client-facing status
+page > reliability > ease, per owner priority order) · Supabase stays FREE tier as staging/demo;
+Pro billing at first client signing · MSA brief drafted by Director (`docs/legal/`), owner takes
+to counsel.
+
+**Fast-follow (post-first-clients):** `pmo_connector` F1 (Frappe app trimmed from RIS-portal-2
+`api/*.py` — Python stays ERPNext-side, NO Node port; PMO side = thin TS edge-fn client): AP
+checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoicing (= Revenue/AR
+spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
+then price, then enforce) · Google OAuth · PostHog product-analytics widening.
+
+## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening on `dev`+`main`; RED-3/4 security LIVE in prod
+
+> **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
+> `6f75edb` — a real 3-way merge resolving 44 squash-divergence conflicts to `dev`; `git diff origin/main
+> origin/dev` is now EMPTY, and `main` carries `dev`'s ancestry so the NEXT promote is a clean ff).
+> `main`/`dev` carry the reskin (#210) + the ENTIRE batteries-included-A program (#211–#218) + cross-family
+> remediation (#219/#220) + full-codebase-review remediation & 5-wave hardening (#221–#228) + the mint
+> fail-closed fix + the agent-e2e/CI gate fix. **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
 >
-> **⚑ TWO OWNER GATES OUTSTANDING (nothing else blocks):**
-> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). **⚠ NOT a
->    fast-forward** (independent review 2026-07-04): `origin/main` has ~5 commits not on `dev` (squash-merge
->    divergence; content is present on `dev` in equal/superior form), so `git diff dev origin/main` touches
->    ~382 files — the promote is a real 3-way MERGE, not a clean linear ff. **Do a dry-run
->    `git merge --no-commit --no-ff origin/main` into a throwaway branch FIRST** to scope conflicts before
->    scheduling. Also: flag-default precision — `VITE_FEATURES_AGENT_ASSISTANT` + `AGENT_CREDITS_ENFORCED`
->    default OFF (`=== 'true'`), but the internal `AGENT_PERSISTENCE`/`AGENT_AUTOMATIONS` default ON
->    (`!== 'false'`) — inert without the parent panel flag, but not literally "all OFF". No `.env.example` in
->    repo; flag contract is source-only. ~~Fix `mint.ts` `generateLink` latent bug BEFORE flipping
->    `AGENT_AUTOMATIONS` ON in prod~~ ✅ FIXED (`2de2da8` on dev): mint now fails-closed on unresolvable
->    owner email, invalid `user_id` fallback removed — the last agent-automations-prod caveat is cleared.
-> 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
->    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
->    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner
->    gives the per-instance go. Prod also needs the edge-fn deploy runbook (functions deploy ×3, secrets/GUCs,
->    live-mint verify) BEFORE enabling the agent tier — all flags default OFF so a DB+FE promote is safe without it.
+> **✅ BOTH OWNER GATES CLEARED (owner-instructed 2026-07-04):**
+> 1. **`dev`→`main` promote — DONE** (PR #229). Full `verify`+`integration` lane green. The integration gate
+>    (which only runs on PR→main, never PR→dev) caught 3 agent-e2e that had never executed in CI — all
+>    test/CI-config, no app change: AC-AAN-036/AC-AGP-023 needed `VITE_SUPABASE_ANON_KEY` exported to
+>    `$GITHUB_ENV` (they build a 2nd anon client); AC-AW-012 raced the ⌘J listener mount (added the
+>    wait-for-Assistant-button guard every other agent e2e already had). Fixed on `dev` (`3324b9d`), re-verified.
+> 2. **RED-3 + RED-4 → `production` DB — DONE.** `scripts/db-push-prod.sh` applied migs **0042–0057** to the
+>    Supabase Cloud DB (prod was at 0041; all 16 were pending — the pre-agent 0042–0045 had also never shipped
+>    to prod). All prod-data-safe (0043's FK is on a fresh NULLABLE column; the rest additive/RLS-policy-only).
+>    **prod DB now at 0057; the two live-prod tenant-security holes are CLOSED** (RLS-enforced, independent of FE).
+>    Legit old-FE flows unaffected — 0051/0052 only block the abuse paths (file-a-PR-as-another-user, non-admin
+>    project delete).
+>
+> **STILL OWNER-PENDING (separate, bigger decisions — NOT done by the security promote):**
+> - **`main`→`production` FE deploy** (Cloudflare `production` branch) — ships the reskin + agent UI (flag-OFF)
+>   to live users; a visible change needing its own render-verify + per-instance owner go. The security fix did
+>   NOT require it (RLS is DB-enforced). `production` FE still runs the pre-reskin build.
+> - **Enabling the agent tier in prod** — needs the edge-fn deploy runbook (functions deploy ×3, `OPENROUTER_API_KEY`,
+>   pg_cron GUCs `app.settings.dispatch_url`/`service_role_key`, live-mint verify). Until then mig 0048's cron is
+>   registered-but-idle on prod (fires per-minute against a NULL url → self-pruning no-op, by design). All
+>   user-facing agent flags default OFF, so the DB push is safe without it.
 >
 > **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
 > is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
