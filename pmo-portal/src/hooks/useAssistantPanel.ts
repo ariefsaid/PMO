@@ -337,8 +337,23 @@ export function useAssistantPanel(): UseAssistantPanel {
             }
           }
 
-          // All other event types (tool, system, artifact, user echo) append directly.
-          setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
+          // All other event types (tool, system, artifact, user echo) append directly —
+          // EXCEPT a 'user' echo that duplicates send()'s optimistic append. send() appends
+          // the user's message locally immediately; the stream then re-delivers the SAME
+          // message as a server-echoed type:'user' event, which would otherwise render a
+          // second, identical bubble (mirrors mergeAssistantEvent's de-dupe spirit). Skip the
+          // echo only when the most recent existing user entry already has identical text
+          // (that entry IS the optimistic add this echo mirrors); otherwise append it,
+          // preserving any user event not already shown — a repeated identical message is
+          // still exactly one optimistic entry ahead of its own echo, so this rule never
+          // suppresses a genuinely new turn.
+          setTranscript((prev) => {
+            if (ev.type === 'user') {
+              const lastUser = [...prev].reverse().find((e) => e.event.type === 'user');
+              if (lastUser && lastUser.event.text === ev.text) return prev;
+            }
+            return [...prev, { key: makeKey(), event: ev }];
+          });
         }
       } catch {
         // Stream aborted (e.g. via stop()) — handled by stop().
