@@ -307,10 +307,12 @@ These are **decisions of record**, not proposals. The spec encodes them; it does
 - **NFR-AUTHF-CONF-007** *(runbook deliverable)* A **"Production auth configuration"** section is added to
   `docs/environments.md` containing the per-client provisioning checklist that satisfies
   NFR-AUTHF-CONF-001…008 (the §7 outline is the binding content).
-- **NFR-AUTHF-CONF-008** *(rate-limit & captcha)* Production auth runs with `[auth.rate_limit] email_sent` set
-  (intended production value **`2`**, mirroring the committed `config.toml` template) and `[auth.captcha]`
-  enabled once the per-client captcha provider keys are provisioned — the primary abuse levers for the
-  reset/confirm/invite endpoints this issue exposes. *(§7.4; I-3.)*
+- **NFR-AUTHF-CONF-008** *(rate-limit & captcha)* Production auth runs with two distinct rate knobs:
+  `[auth.rate_limit] email_sent` — the **per-hour email count cap** (intended production value **`2`**, mirroring
+  the committed `config.toml` template) — and `[auth.email] max_frequency` — the **per-address minimum-seconds
+  throttle** (intended production value **`"60s"`**, tighter than the dev template's `"1s"`) — together with
+  `[auth.captcha]` enabled once the per-client captcha provider keys are provisioned. These are the primary
+  abuse levers for the reset/confirm/invite endpoints this issue exposes. *(§7.4; I-3.)*
 
 ### 5.3 UX / accessibility
 - **NFR-AUTHF-UX-001** *(states)* Every auth surface renders each of its states — idle / loading / error /
@@ -560,10 +562,15 @@ No `localhost`, no `http`, no wildcard, no second origin. *(NFR-AUTHF-CONF-003.)
   (`>=10`, `lower_upper_letters_digits`).
 
 **7.4 Rate-limit & captcha** — on the cloud project (Auth → Rate limits / Auth → Captcha). The reset/confirm/
-invite endpoints this issue exposes are the primary abuse surface:
-- `[auth.rate_limit] email_sent = 2` — seconds between emails to the same address; production value **`2`**
-  (mirrors the committed `config.toml` template; tune per client). This is the **primary** abuse lever for the
-  reset/confirm endpoints. *(NFR-AUTHF-CONF-008.)*
+invite endpoints this issue exposes are the primary abuse surface. Two distinct knobs (both verified
+against the committed `supabase/config.toml` comments):
+- `[auth.rate_limit] email_sent = 2` — **per-hour email count cap** (the `config.toml` comment reads "Number
+  of emails that can be sent per hour"). Production value **`2`** (mirrors the committed `config.toml`
+  template; tune per client). Bounds overall volume from the reset/confirm/invite endpoints. *(NFR-AUTHF-CONF-008.)*
+- `[auth.email] max_frequency = "60s"` — **per-address minimum-seconds throttle** (the `config.toml` comment
+  reads "Controls the minimum amount of time that must pass before sending another signup confirmation or
+  password reset email"). Production value **`"60s"`** — one reset/confirm/invite email per address per minute,
+  tighter than the dev template's `"1s"`; the **primary per-address** abuse lever (tune per client). *(NFR-AUTHF-CONF-008.)*
 - `[auth.captcha]` — enable captcha (hCaptcha / Cloudflare Turnstile per the project) for production once the
   provider keys are provisioned; `enabled = true` + `provider` + the secret/site-key pair is a per-client
   provisioning value (**no key committed**). Intended production value: **enabled**.
@@ -571,7 +578,8 @@ invite endpoints this issue exposes are the primary abuse surface:
   that *the endpoint was hit repeatedly for that address* — a side channel distinct from the client-rendered
   message parity the app controls. The app cannot eliminate this (it is server-side), so the client keeps the
   **rendered** notice constant (FR-AUTHF-013) and treats a rate-limit response the same as other transient
-  errors from the user's point of view; the `email_sent` + captcha levers bound the leakage rate.
+  errors from the user's point of view; `email_sent` (hourly cap) + `max_frequency` (per-address throttle) +
+  captcha bound the leakage rate.
 
 **7.5 Seed-credential hygiene** — on a **real** client project (not staging/demo):
 - rotate or disable the `Passw0rd!dev` / `admin@acme.test` user;
