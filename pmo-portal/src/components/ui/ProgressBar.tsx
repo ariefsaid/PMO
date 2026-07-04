@@ -1,8 +1,11 @@
 import React from 'react';
 import { cn } from './cn';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import type { ProgressTone } from './ProgressBar.types';
 
-export type ProgressTone = 'success' | 'warning' | 'destructive' | 'primary';
+// Re-exported (not duplicated) from the pure sibling file (see ProgressBar.types.ts) — still the
+// single source of truth `registry.ts`'s `satisfies` drift guard relies on.
+export type { ProgressTone };
 
 export interface ProgressBarProps {
   /** 0-100 (values >100 clamp the bar to 100% and force the over-budget tone). */

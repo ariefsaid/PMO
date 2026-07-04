@@ -9,8 +9,8 @@
  */
 
 // Relative import — no @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
-import type { AgentReadEntity } from './actions';
+import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import type { AgentReadEntity } from './actions.ts';
 
 /**
  * Build the system prompt for the agent-chat model call.

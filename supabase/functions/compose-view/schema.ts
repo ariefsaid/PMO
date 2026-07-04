@@ -16,11 +16,11 @@
 // Relative imports back into the trusted core.
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions;
 // Deno (when using a deno.json import map) will map these via the importmap entry.
-import { registry } from '../../../pmo-portal/src/lib/viewspec/registry';
+import { registry } from '../../../pmo-portal/src/lib/viewspec/registry.ts';
 import {
   ENTITY_WHITELIST,
   MAX_PANELS_PER_VIEW,
-} from '../../../pmo-portal/src/lib/viewspec/types';
+} from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 /**
  * JSON Schema for CompositionSpec v1.

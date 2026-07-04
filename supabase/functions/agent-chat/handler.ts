@@ -34,21 +34,21 @@ import {
   askUserAction,
   AGENT_READ_ENTITIES,
   AGENT_READ_ROW_CAP,
-} from './actions';
-import { buildAgentSystemPrompt } from './prompt';
+} from './actions.ts';
+import { buildAgentSystemPrompt } from './prompt.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
   insertEvent,
   heartbeat,
   setRunStatus,
-} from './persistence';
-import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence';
-import { recordUsage } from '../_shared/usage';
-import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient';
-import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port';
-import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport';
-import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets/schema';
+} from './persistence.ts';
+import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
+import { recordUsage } from '../_shared/usage.ts';
+import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts';
+import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
+import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets/schema.ts';
 
 // ── Constants (D7) ────────────────────────────────────────────────────────────
 
@@ -105,25 +105,34 @@ const ASK_USER_TOOL: ModelTool = {
  * `SupabaseLikeWithWrites` (both require a top-level `.in()`) without an `as unknown as`
  * bridge — the real Supabase client supports `.select().in()` directly too, so this isn't
  * a behavior change, just a shape the type was previously missing.
+ *
+ * `PromiseLike` (not `Promise`): the real `@supabase/supabase-js` query builder is a
+ * thenable (`.then()`/`.catch()`/`.finally()` all present at runtime) but its TS type
+ * (`PostgrestBuilder`) is not nominally a `Promise` — under Deno's stricter structural
+ * check (deno-check CI gate) `Promise<T>` requires `catch`/`finally`/`[Symbol.toStringTag]`
+ * that `PostgrestBuilder`'s declared type omits, so the real client failed to satisfy this
+ * interface (deno check TS2322, never caught before this interface was exercised outside
+ * tsc's looser resolution). `PromiseLike<T>` needs only `.then()`, which both the real
+ * client and every test's plain-object mock already provide — no runtime behavior change.
  */
 export interface HandlerSupabaseLike {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
-        single(): Promise<{ data: { org_id: string; role?: string } | null; error: unknown }>;
-        limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
-        in(column: string, values: string[]): { limit(n: number): Promise<{ data: unknown[] | null; error: unknown }> };
+        single(): PromiseLike<{ data: { org_id: string; role?: string } | null; error: unknown }>;
+        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
+        in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
       };
-      in(column: string, values: string[]): { limit(n: number): Promise<{ data: unknown[] | null; error: unknown }> };
-      limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
+      in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
+      limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
     };
     insert(row: object): {
       select(): {
-        single(): Promise<{ data: unknown; error: unknown }>;
+        single(): PromiseLike<{ data: unknown; error: unknown }>;
       };
     };
     update(patch: object): {
-      eq(column: string, value: string): Promise<{ data: unknown; error: unknown }>;
+      eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>;
     };
   };
 }
@@ -407,7 +416,7 @@ async function* withPersistence(
 async function dispatchAction(
   action: AgentAction,
   toolInput: unknown,
-  ctx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  ctx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
 ): Promise<unknown> {
   if (action.confirm) {
     throw new Error(`dispatchAction: confirm:true action '${action.name}' must route through the approval branch`);
@@ -422,7 +431,7 @@ async function dispatchAction(
 async function dispatchActionForced(
   action: AgentAction,
   validatedInput: unknown,
-  ctx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  ctx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
 ): Promise<unknown> {
   return action.run(validatedInput, ctx);
 }
@@ -501,7 +510,7 @@ interface RunToolLoopOptions {
   deps: HandlerDeps;
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent;
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent;
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext;
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext;
   messages: ModelMessage[];
   persist: PersistenceRuntime | undefined;
   runId: string;
@@ -635,7 +644,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           // a missing member (fixed the missing top-level `.in()` above; this one is structural
           // and out of scope for a cast-only cleanup). True external boundary: deps.supabase is
           // always the real (richer) Supabase client at runtime — never a mock without .eq().then.
-          { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike },
+          { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port.ts').SupabaseLike },
           { modelClient: deps.modelClient, model: deps.model },
         );
 
@@ -928,11 +937,11 @@ async function* agentChatHandlerInner(
   // Cast: HandlerSupabaseLike vs the port's SupabaseLike is a genuine structural mismatch
   // (see the identical cast + comment in the compose_view dispatch branch above) — deps.supabase
   // is always the real Supabase client at runtime, which does satisfy SupabaseLike's shape.
-  const deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext = {
+  const deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext = {
     jwt: '',
     userId: deps.userId,
     orgId,
-    supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port').SupabaseLike,
+    supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port.ts').SupabaseLike,
   };
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
@@ -1056,7 +1065,7 @@ async function* handleAnswer(
   deps: HandlerDeps,
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
   const answer = req.answer!;
@@ -1114,7 +1123,7 @@ async function* handleDecision(
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
   canFn: CanFn,
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!;
@@ -1343,7 +1352,7 @@ async function* runLoop(
   deps: HandlerDeps,
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
   messages: ModelMessage[],
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {
@@ -1398,7 +1407,7 @@ async function* runLoopAfterAnswer(
   deps: HandlerDeps,
   emit: (type: AgentEvent['type'], fields?: Partial<Omit<AgentEvent, 'id' | 'runId' | 'type' | 'createdAt'>>) => AgentEvent,
   statusEvent: (status: AgentRunStatus, extra?: Record<string, unknown>, text?: string) => AgentEvent,
-  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port').DeputyContext,
+  deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
   messages: ModelMessage[],
   persist?: PersistenceRuntime,
 ): AsyncGenerator<AgentEvent> {

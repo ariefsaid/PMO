@@ -22,15 +22,15 @@
 
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
-import { composeSpec, ComposeSpecError } from './composeSpec';
-import { insertUsageRow } from '../_shared/usage';
-import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types';
+import { composeSpec, ComposeSpecError } from './composeSpec.ts';
+import { insertUsageRow } from '../_shared/usage.ts';
+import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
-export { MAX_REPAIR_ATTEMPTS } from './composeSpec';
+export { MAX_REPAIR_ATTEMPTS } from './composeSpec.ts';
 
 // Re-export the vendor-neutral port so tests/callers can import it from this module too.
-export type { ModelClient } from '../_shared/modelClient';
+export type { ModelClient } from '../_shared/modelClient.ts';
 
 // ── Injected interfaces ────────────────────────────────────────────────────────
 
@@ -41,12 +41,15 @@ export type { ModelClient } from '../_shared/modelClient';
  * `.from('credits').select('amount').eq('owner_id', userId).limit(10_000)` call compiles
  * against this interface too — the real Supabase client satisfies both shapes structurally.
  */
+// `PromiseLike` (not `Promise`): mirrors agent-chat/handler.ts's HandlerSupabaseLike — the real
+// supabase-js query builder is a thenable, not nominally a `Promise` (missing catch/finally/
+// Symbol.toStringTag under Deno's stricter check), so `Promise<T>` here rejected the real client.
 export interface SupabaseLike {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
-        single(): Promise<{ data: { org_id: string } | null; error: unknown }>;
-        limit(n: number): Promise<{ data: unknown[] | null; error: unknown }>;
+        single(): PromiseLike<{ data: { org_id: string } | null; error: unknown }>;
+        limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
       };
     };
   };
@@ -62,7 +65,7 @@ export interface RateGuard {
 
 export interface HandlerDeps {
   /** Injected vendor-neutral model client — mocked in tests; OpenRouterModelClient in index.ts. */
-  modelClient: import('../_shared/modelClient').ModelClient;
+  modelClient: import('../_shared/modelClient.ts').ModelClient;
   /** Resolved model id for this call (FR-MC-015 / MC-OD-009). */
   model: string;
   /** Injected caller-JWT Supabase client — mocked in tests; real caller-JWT client in index.ts. */
@@ -204,7 +207,7 @@ export async function composeViewHandler(
         // interfaces over the same real client; a genuine structural mismatch (SupabaseLike
         // lacks .insert()) requires this bridging cast, mirroring agent-chat/handler.ts's own
         // documented SupabaseLike-vs-port cast.
-        { supabase: deps.usage.supabase as unknown as import('../_shared/usage').UsageDeps['supabase'], runId: null },
+        { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
         { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0 },
       );
     }

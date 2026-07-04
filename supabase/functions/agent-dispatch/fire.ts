@@ -11,7 +11,7 @@
  * The handler + minted client are injected (REC-1) so this compiles + unit-tests under Node/Vitest.
  * We do NOT import agent-chat source that has Deno-only deps at module load — `handler` is passed in.
  */
-import type { AutomationRow } from './dispatcher';
+import type { AutomationRow } from './dispatcher.ts';
 
 /**
  * The agentChatHandler shape fireAutomation drives — a pure async generator of events. Typed

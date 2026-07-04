@@ -19,8 +19,8 @@
  */
 
 // Type-only imports from component source (no runtime dependency on React components)
-import type { KPITone } from '@/src/components/ui/KPITile';
-import type { ProgressTone } from '@/src/components/ui/ProgressBar';
+import type { KPITone } from '@/src/components/ui/KPITile.types.ts';
+import type { ProgressTone } from '@/src/components/ui/ProgressBar.types.ts';
 
 // ── Descriptor types ───────────────────────────────────────────────────────────
 

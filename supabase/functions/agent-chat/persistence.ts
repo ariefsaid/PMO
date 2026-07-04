@@ -20,8 +20,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { AgentEvent, AgentRunStatus } from '../../../pmo-portal/src/lib/agent/runtime/port';
-import type { HandlerSupabaseLike } from './handler';
+import type { AgentEvent, AgentRunStatus } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { HandlerSupabaseLike } from './handler.ts';
 
 // ── hashToolArgs — sha-256 hex of canonicalized (sorted-key) JSON ────────────
 

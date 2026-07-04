@@ -4,8 +4,8 @@
  * credits/agent_usage itself. Deputy invariant: takes the already-injected caller-JWT
  * HandlerSupabaseLike; constructs no client.
  */
-import type { HandlerSupabaseLike } from '../agent-chat/handler';
-import { clampUsageValue } from './usage';
+import type { HandlerSupabaseLike } from '../agent-chat/handler.ts';
+import { clampUsageValue } from './usage.ts';
 
 export interface CreditRateGuardDeps {
   supabase: HandlerSupabaseLike;

@@ -9,8 +9,8 @@
  *
  * NFR-AAN-SEC-007: never log the condition/prompt text — on error, log only the automation id.
  */
-import type { ModelClient } from '../_shared/modelClient';
-import type { AutomationRow, StatusEventRow } from './dispatcher';
+import type { ModelClient } from '../_shared/modelClient.ts';
+import type { AutomationRow, StatusEventRow } from './dispatcher.ts';
 
 /** 60s = one tick window (ADR-0044 §2 ≤1min dispatcher latency) — caps re-billing to once per
  *  (automation_id, condition) per tick without persisting memo state across ticks (the dispatcher

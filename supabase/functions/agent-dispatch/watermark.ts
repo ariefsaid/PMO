@@ -19,7 +19,7 @@ export async function readWatermark(sb: ServiceClientLike, source: string): Prom
   const builder = sb.from('agent_dispatch_watermarks') as {
     select: (cols: string) => {
       eq: (col: string, val: string) => {
-        maybeSingle: () => Promise<{
+        maybeSingle: () => PromiseLike<{
           data: { last_seen_id: string | null; last_seen_at: string | null } | null;
           error: unknown;
         }>;
@@ -42,7 +42,7 @@ export async function advanceWatermark(
   seen: { id: string; at: string },
 ): Promise<void> {
   const builder = sb.from('agent_dispatch_watermarks') as {
-    upsert: (row: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+    upsert: (row: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
   };
   await builder.upsert({
     source,

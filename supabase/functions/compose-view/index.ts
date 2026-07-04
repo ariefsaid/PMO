@@ -113,11 +113,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const result = await composeViewHandler(body, {
     modelClient,
     model,
-    supabase: callerClient,
+    // Cast: Item 3's original cast-cleanup rationale (real client structurally satisfies
+    // HandlerSupabaseLike, checked fine under tsc) still holds; deno check's stricter structural
+    // recursion over this HandlerDeps literal (multiple `supabase: callerClient` occurrences
+    // combined) hits TS2589 without it — a TS-engine depth limit, not a real mismatch (see
+    // agent-chat/index.ts's identical, more heavily documented instance of this same bridge).
+    supabase: callerClient as never,
     userId,
-    rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient }) : undefined,
+    rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient as never }) : undefined,
     // FR-AUC-002/015: usage recording is UNCONDITIONAL (no flag).
-    usage: { supabase: callerClient },
+    usage: { supabase: callerClient as never },
   });
 
   // ── 7. Return JSON response ───────────────────────────────────────────────

@@ -9,7 +9,7 @@
  * FR-AR-019: typed request/error contract shared by handler + PmoNativeRuntime.
  */
 
-import type { AgentEvent, AgentRunStatus, RunContext, AgentAnswer } from './port';
+import type { AgentEvent, AgentRunStatus, RunContext, AgentAnswer } from './port.ts';
 
 export type { AgentAnswer };
 

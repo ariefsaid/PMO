@@ -9,7 +9,7 @@
  * Importable under both Deno (edge function) and Node/Vitest (unit tests, Option B).
  */
 
-import type { EntityWhitelistEntry } from '../../../pmo-portal/src/lib/viewspec/types';
+import type { EntityWhitelistEntry } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 /** ENTITY_WHITELIST type for param — avoids importing the runtime value here (sets are not serialisable). */
 type WhitelistParam = Readonly<Record<string, EntityWhitelistEntry>>;

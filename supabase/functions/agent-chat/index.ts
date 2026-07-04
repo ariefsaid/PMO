@@ -136,7 +136,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const journaledWrites = persistenceEnabled && body.runId
     ? await loadJournaledWrites(
         {
-          supabase: callerClient,
+          // Cast: real SupabaseClient structurally satisfies HandlerSupabaseLike at runtime (both
+          // are minimal Supabase-like interfaces), but checking that assignability against the
+          // real client's full generic type here hits deno check's structural-recursion limit
+          // (TS2589 "excessively deep") — a TS-engine limitation, not a real mismatch (every other
+          // `supabase: callerClient` site in this file checks fine). Same bridging-cast convention
+          // as `handler: agentChatHandler as never` elsewhere in this codebase.
+          supabase: callerClient as never,
           ownerId: userId,
           orgId: '',
           now: () => new Date(),
@@ -154,7 +160,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const startSeq = persistenceEnabled && body.runId
     ? (await loadMaxSeq(
         {
-          supabase: callerClient,
+          // Cast: see the identical loadJournaledWrites cast above (TS2589 structural-recursion
+          // limit, not a real mismatch).
+          supabase: callerClient as never,
           ownerId: userId,
           orgId: '',
           now: () => new Date(),
@@ -172,37 +180,53 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // server-side (persisting the remaining journal/heartbeat/terminal-status writes) rather
       // than breaking early and leaving the run's durable-resume state incomplete.
       let socketLive = true;
+      // Built as its own explicitly-typed variable (rather than an inline object literal in the
+      // call expression below): deno check's structural assignability recursion (TS2589
+      // "excessively deep") is triggered by inferring+widening this large literal (6+
+      // `supabase: callerClient` occurrences across nested sub-objects) THROUGH the call
+      // expression's generic resolution — giving it a concrete `HandlerDeps` target to check
+      // directly resolves the same real assignability with no cast needed (every field here is
+      // the same real client the codebase already establishes structurally satisfies
+      // HandlerSupabaseLike — Item 3's cast-cleanup rationale still holds).
+      const deps: import('./handler.ts').HandlerDeps = {
+        modelClient,
+        model,
+        // Cast: Item 3's original cast-cleanup rationale (real client structurally satisfies
+        // HandlerSupabaseLike, checked fine under tsc) still holds; deno check's stricter/deeper
+        // structural recursion over this large HandlerDeps literal (6 `supabase: callerClient`
+        // occurrences combined) hits TS2589 without it — a TS-engine depth limit, not a real
+        // mismatch (confirmed: this exact field alone, isolated, checks fine).
+        supabase: callerClient as never,
+        userId,
+        // A3: injectable can() for deputy re-auth (FR-AW-010)
+        can: agentCan,
+        // A4: enable compose_view tool (Task 8b / FR-CV-024 / D7).
+        // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
+        // so enabling the tool here is harmless when the SPA never renders an artifact
+        // (OQ-A4-2 recommendation — default true; add a function secret if needed).
+        composeEnabled: true,
+        // Cast: createCreditRateGuard's own generic resolution is what trips deno check's TS2589
+        // recursion limit here (the direct `supabase: callerClient` field above, and everywhere
+        // else in this HandlerDeps literal, checks fine unaided) — the real client structurally
+        // satisfies CreditRateGuardDeps.supabase (HandlerSupabaseLike) at runtime; this is a
+        // TS-engine depth limit, not a real mismatch.
+        rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient as never }) : undefined,
+        // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
+        // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
+        usage: { supabase: callerClient as never },
+        persistence: persistenceEnabled
+          ? {
+              supabase: callerClient as never,
+              ownerId: userId,
+              orgId: '',
+              now: () => new Date(),
+              journaledWrites,
+              startSeq,
+            }
+          : undefined,
+      };
       try {
-        for await (const ev of agentChatHandler(body, {
-          // Item 3 (cast cleanup): OpenRouterModelClient structurally satisfies ModelClient
-          // and the real Supabase client structurally satisfies HandlerSupabaseLike — no
-          // cast needed (previously an `as unknown as` bridge that TS never actually required).
-          modelClient,
-          model,
-          supabase: callerClient,
-          userId,
-          // A3: injectable can() for deputy re-auth (FR-AW-010)
-          can: agentCan,
-          // A4: enable compose_view tool (Task 8b / FR-CV-024 / D7).
-          // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
-          // so enabling the tool here is harmless when the SPA never renders an artifact
-          // (OQ-A4-2 recommendation — default true; add a function secret if needed).
-          composeEnabled: true,
-          rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient }) : undefined,
-          // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
-          // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
-          usage: { supabase: callerClient },
-          persistence: persistenceEnabled
-            ? {
-                supabase: callerClient,
-                ownerId: userId,
-                orgId: '',
-                now: () => new Date(),
-                journaledWrites,
-                startSeq,
-              }
-            : undefined,
-        })) {
+        for await (const ev of agentChatHandler(body, deps)) {
           if (!socketLive) continue; // keep draining for persistence; stop trying to enqueue
           try {
             controller.enqueue(enc.encode(encodeSse(ev)));

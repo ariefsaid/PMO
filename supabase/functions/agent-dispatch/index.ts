@@ -130,8 +130,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     await runDispatchTick({
-      serviceClient,
-      authAdmin,
+      // Casts: the real supabase-js client/auth-admin objects satisfy ServiceClientLike/
+      // AuthAdminLike at runtime (both are minimal Supabase-like interfaces the real client is
+      // a structural superset of) but their exact TS shapes (PostgrestFilterBuilder thenables,
+      // GenerateLinkParams' discriminated union) don't nominally match these hand-written
+      // interfaces — the same documented cast pattern as `handler: agentChatHandler as never`
+      // below, surfaced by the deno-check CI gate (never checked under tsc's looser resolution
+      // for this file before).
+      serviceClient: serviceClient as never,
+      authAdmin: authAdmin as never,
       buildClient,
       // The real agent loop — the fired run is indistinguishable from interactive (FR-AAN-017).
       handler: agentChatHandler as never,

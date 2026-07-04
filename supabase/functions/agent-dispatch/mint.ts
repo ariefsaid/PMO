@@ -26,7 +26,7 @@
  * Pure/injectable (REC-1): the Auth admin API and the caller-JWT client builder are injected, so
  * this compiles + unit-tests under Node/Vitest without Deno globals.
  */
-import type { AutomationRow } from './dispatcher';
+import type { AutomationRow } from './dispatcher.ts';
 
 /**
  * The minimal Supabase Auth admin surface this module needs. The dispatcher's index.ts constructs
@@ -39,8 +39,18 @@ import type { AutomationRow } from './dispatcher';
  */
 export interface AuthAdminLike {
   admin: {
-    getUserById?: (id: string) => Promise<{ data: { user: { email?: string } | null } | null; error: unknown }>;
-    generateLink: (params: Record<string, unknown>) => Promise<{
+    getUserById?: (id: string) => PromiseLike<{ data: { user: { email?: string } | null } | null; error: unknown }>;
+    // NOTE (deno-check hardening, 2026-07-04): the real supabase-js `generateLink(params:
+    // GenerateLinkParams)` requires `email` on EVERY magiclink variant — it has no `user_id`
+    // form. The call site below (line ~99) has a `{ type: 'magiclink', user_id: ownerId }`
+    // fallback branch when email resolution fails, which does NOT match any real
+    // GenerateLinkParams member — a pre-existing latent bug (mint silently fails whenever the
+    // owner has no resolvable email), NOT introduced or fixed by this change; flagged for the
+    // Director, out of scope for a deps/CI hardening pass. `index.ts` bridges the real
+    // AuthAdminLike-vs-supabase-js mismatch with an explicit `as never` cast (this codebase's
+    // established pattern for genuine unavoidable structural gaps) rather than papering over
+    // it here with a wider, less-precise param type.
+    generateLink: (params: Record<string, unknown>) => PromiseLike<{
       data: { properties?: { access_token?: string; hashed_token?: string } | null } | null;
       error: unknown;
     }>;

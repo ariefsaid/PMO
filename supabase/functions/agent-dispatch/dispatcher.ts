@@ -4,14 +4,14 @@
  * service_role client, quarantined to metadata enumeration only (FR-AAN-014, NFR-AAN-SEC-002) —
  * never business data. Importable in Vitest (REC-1); no Deno globals here.
  */
-import { cronMatches } from './cron';
-import { readWatermark, advanceWatermark } from './watermark';
-import { isAllowedTriggerSource } from './triggerSources';
-import { mintOwnerJwt, auditMint, type AuthAdminLike } from './mint';
-import { fireAutomation, type FireHandler } from './fire';
-import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition';
-import type { ModelClient } from '../_shared/modelClient';
-import { logStructuredError } from '../_shared/errorLog';
+import { cronMatches } from './cron.ts';
+import { readWatermark, advanceWatermark } from './watermark.ts';
+import { isAllowedTriggerSource } from './triggerSources.ts';
+import { mintOwnerJwt, auditMint, type AuthAdminLike } from './mint.ts';
+import { fireAutomation, type FireHandler } from './fire.ts';
+import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition.ts';
+import type { ModelClient } from '../_shared/modelClient.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 
 /** The minimal automation-row shape the dispatcher's selection queries need. */
 export interface AutomationRow {

@@ -12,8 +12,8 @@
 
 // Relative imports — no .ts extension (Deno + Node/Vitest both resolve these).
 // No @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
-import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port';
+import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import {
   QUERY_ENTITY_SCHEMA,
   CREATE_ACTIVITY_SCHEMA,
@@ -22,12 +22,12 @@ import {
   NOTIFY_SCHEMA,
   CREATE_AUTOMATION_SCHEMA,
   ASK_USER_SCHEMA,
-} from './schema';
-import { cronMatches } from '../agent-dispatch/cron';
-import { TRIGGER_SOURCES, isAllowedTriggerSource } from '../agent-dispatch/triggerSources';
-import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec';
-import type { ModelClient } from '../_shared/modelClient';
-import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
+} from './schema.ts';
+import { cronMatches } from '../agent-dispatch/cron.ts';
+import { TRIGGER_SOURCES, isAllowedTriggerSource } from '../agent-dispatch/triggerSources.ts';
+import { composeSpec, ComposeSpecError } from '../compose-view/composeSpec.ts';
+import type { ModelClient } from '../_shared/modelClient.ts';
+import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 // ── Constants (D5, D6) ────────────────────────────────────────────────────────
 
