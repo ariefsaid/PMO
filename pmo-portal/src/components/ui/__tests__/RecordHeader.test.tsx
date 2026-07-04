@@ -39,6 +39,19 @@ describe('RecordHeader', () => {
     expect(screen.getByText('Cascade Port · PRJ-001')).toBeInTheDocument();
   });
 
+  it('batch-3: gives the record name width priority and lets the action zone wrap below on narrow widths', () => {
+    render(
+      <RecordHeader
+        icon="C"
+        name="Cascade Port Authority — A Very Long Record Name"
+        status={<StatusPill variant="neutral">Client</StatusPill>}
+        actions={<button type="button">Edit</button>}
+      />,
+    );
+    expect(screen.getByRole('heading').className).toContain('break-words');
+    expect(screen.getByTestId('record-header-actions').parentElement?.className).toContain('w-full');
+  });
+
   it('drawer variant renders without the standalone card chrome (host supplies the seam)', () => {
     render(
       <RecordHeader

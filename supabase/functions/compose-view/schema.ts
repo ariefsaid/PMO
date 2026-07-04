@@ -6,7 +6,7 @@
  * to whitelist values; the compiler remains the enforcement authority).
  *
  * Imported by both:
- *   - handler.ts (Deno runtime) — used as tool input_schema for Anthropic tool-forcing
+ *   - handler.ts (Deno runtime) — used as tool parameters schema for model tool-forcing
  *   - pmo-portal/src/lib/agent/schema.test.ts (Node/Vitest) — via relative path (Option B)
  *
  * ADR-0039 decision 7: this is a pure TS module with no Deno/Node runtime dependencies,
@@ -16,11 +16,11 @@
 // Relative imports back into the trusted core.
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions;
 // Deno (when using a deno.json import map) will map these via the importmap entry.
-import { registry } from '../../../pmo-portal/src/lib/viewspec/registry';
+import { registry } from '../../../pmo-portal/src/lib/viewspec/registry.ts';
 import {
   ENTITY_WHITELIST,
   MAX_PANELS_PER_VIEW,
-} from '../../../pmo-portal/src/lib/viewspec/types';
+} from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 /**
  * JSON Schema for CompositionSpec v1.

@@ -63,6 +63,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: mockCreateQuotation, isPending: false, error: null },
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
   }),
 }));
 

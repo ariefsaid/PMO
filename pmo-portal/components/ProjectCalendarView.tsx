@@ -37,11 +37,9 @@ export interface ProjectCalendarViewProps {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** Chip token classes per event kind — text+shape, never color-only (NFR-CAL-A11Y-001). */
-function chipClass(kind: CalEventKind): string {
-  if (kind === 'milestone') return 'bg-primary/10 text-primary';
-  if (kind === 'end') return 'bg-secondary text-foreground border-l-2 border-primary';
-  return 'bg-secondary text-foreground';
+/** Chip token classes — one consistent, high-legibility event treatment in both themes. */
+function chipClass(_kind: CalEventKind): string {
+  return 'border border-border border-l-2 border-primary/40 bg-secondary text-foreground';
 }
 
 /** Derive the flat event list from projects (start/end) + dated milestones. */

@@ -13,13 +13,19 @@
  *
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
-import React, { useEffect, useRef, useCallback, useId } from 'react';
+import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
+import { listAgentThreads } from '@/src/lib/db/agentThreads';
+import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
+import { rateAgentEvent } from '@/src/lib/db/agentEvents';
+import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
+import { ThreadList } from './ThreadList';
+import { StuckRunBanner } from './StuckRunBanner';
 
 // ── Desktop/mobile breakpoint ─────────────────────────────────────────────────
 // The panel goes modal-sheet at 1024px (D-A2-1, design-plan §1.5).
@@ -71,6 +77,19 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
   </div>
 );
 
+// ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
+const OutOfCreditsCard: React.FC = () => (
+  <div
+    role="status"
+    aria-live="polite"
+    className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
+  >
+    <p className="font-medium text-foreground">
+      You&apos;ve used up your assistant credits for now — contact your admin to request more.
+    </p>
+  </div>
+);
+
 // ── Streaming indicator ───────────────────────────────────────────────────────
 const StreamingIndicator: React.FC = () => (
   <div
@@ -89,6 +108,7 @@ export const AssistantPanel: React.FC = () => {
     open,
     transcript,
     phase,
+    runId,
     closePanel,
     send,
     stop,
@@ -96,7 +116,13 @@ export const AssistantPanel: React.FC = () => {
     newConversation,
     approve,
     deny,
+    answerQuestion,
     chipStateMap,
+    answeredMap,
+    isStuck,
+    lastProgressAt,
+    hasPendingQuestion,
+    openThread,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -104,6 +130,66 @@ export const AssistantPanel: React.FC = () => {
   const triggerRef = useRef<HTMLElement | null>(null);
   const [composerValue, setComposerValue] = React.useState('');
   const titleId = useId();
+
+  // ── ThreadList — collapsible History region (FR-AGP-020, AC-AGP-019) ─────
+  // Lazily fetched: listAgentThreads() only fires once the region is expanded,
+  // so the DAL never runs while the panel is merely open/idle.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [threads, setThreads] = useState<AgentThreadListItem[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState(false);
+
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen((wasOpen) => {
+      const next = !wasOpen;
+      if (next) {
+        setThreadsLoading(true);
+        setThreadsError(false);
+        void listAgentThreads()
+          .then((rows) => setThreads(rows))
+          .catch(() => setThreadsError(true))
+          .finally(() => setThreadsLoading(false));
+      }
+      return next;
+    });
+  }, []);
+
+  const handleOpenThread = useCallback(
+    (threadId: string, latestRunId: string | null) => {
+      // ADR-0043 (FR-AGP-021): resume-on-open. listAgentThreads() now returns each
+      // thread's latestRunId (a PostgREST embed on agent_runs, agentThreads.ts) so we
+      // can resume its most recent run directly. A thread with no runs yet
+      // (latestRunId null — created but never sent) has nothing to fetch: just close
+      // History and let the panel show its current (empty) transcript state, no crash.
+      // threadId is forwarded to openThread solely to populate agent_thread_resumed's
+      // thread_id analytics property (FR-APH-010) — the DB query itself is still scoped
+      // by runId alone (RLS scopes ownership; review round item 6, dead param dropped).
+      if (latestRunId !== null) {
+        void openThread(latestRunId, threadId);
+      }
+      setHistoryOpen(false);
+    },
+    [openThread],
+  );
+
+  // ── StuckRunBanner status mapping ────────────────────────────────────────
+  // RunPhase (hook-level) -> AgentRunStatus (StuckRunBanner's active-state check).
+  const bannerStatus: AgentRunStatus =
+    phase === 'running' ? 'running' : phase === 'needs-approval' ? 'needs-approval' : 'completed';
+
+  // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
+  // isStuck is a point-in-time derivation (now - lastProgressAt). The hook's own 5s server-
+  // heartbeat poll (useAssistantPanel.ts, review round item 2) already forces a re-render on
+  // this same cadence by updating `lastProgressAt` state — so the banner surfaces without a
+  // second, purely-local tick here (this component previously owned that timer as a bare
+  // force-rerender; it moved into the hook so the SAME tick can also poll the server).
+
+  const handleRate = useCallback(
+    (eventId: string, rating: 'up' | 'down', reason?: Parameters<typeof rateAgentEvent>[2]) => {
+      void rateAgentEvent(eventId, rating, reason);
+    },
+    [],
+  );
 
   // ── Focus-trap (mobile only) ─────────────────────────────────────────────
   const onTrapKeyDown = useFocusTrap(panelRef, isDesktop /* suspended on desktop */);
@@ -117,9 +203,12 @@ export const AssistantPanel: React.FC = () => {
       const t = setTimeout(() => {
         const root = panelRef.current;
         if (!root) return;
-        // Focus the composer textarea (primary action)
-        const textarea = root.querySelector<HTMLElement>('textarea');
-        if (textarea) {
+        // Focus the composer textarea (primary action) — but only if it can actually receive
+        // focus. FR-AUC-016 (F2, Discover finding): when out-of-credits, the textarea is
+        // disabled and `.focus()` on a disabled control is a silent no-op, leaving focus
+        // stranded on <body>. Fall through to the first non-disabled focusable control instead.
+        const textarea = root.querySelector<HTMLTextAreaElement>('textarea');
+        if (textarea && !textarea.disabled) {
           textarea.focus();
         } else {
           // Fall back to first focusable in the panel
@@ -177,8 +266,10 @@ export const AssistantPanel: React.FC = () => {
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
-    // Block send while running or awaiting an approval decision (A3).
-    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval') return;
+    // Block send while running, awaiting an approval decision (A3), or out of credits
+    // (FR-AUC-016) — the Composer's disabled prop already hard-blocks the UI, this guard
+    // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
+    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
     setComposerValue('');
     void send(text);
@@ -271,6 +362,16 @@ export const AssistantPanel: React.FC = () => {
             Assistant
           </h2>
           <div className="flex items-center gap-1">
+            {/* ADR-0043 (FR-AGP-020): History toggle — expands the ThreadList region. */}
+            <button
+              type="button"
+              onClick={toggleHistory}
+              aria-label="History"
+              aria-expanded={historyOpen}
+              className="touch-target grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring [&_svg]:size-[17px]"
+            >
+              <Icon name="clock" />
+            </button>
             {/* New conversation */}
             <button
               type="button"
@@ -292,21 +393,58 @@ export const AssistantPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* ── History region (collapsible ThreadList, FR-AGP-020/AC-AGP-019) ── */}
+        {historyOpen && (
+          <>
+            {threadsLoading && (
+              <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                Loading conversations…
+              </p>
+            )}
+            {threadsError && (
+              <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
+                Couldn&apos;t load your conversations.
+              </p>
+            )}
+            {!threadsLoading && !threadsError && (
+              <ThreadList threads={threads} onOpen={handleOpenThread} />
+            )}
+          </>
+        )}
+
         {/* ── Transcript region ────────────────────────────────────────── */}
         {/* The Transcript always renders its role="log" aria-live="polite" container so
             the live region is always present in the DOM (AC-AP-021; NFR-AP-A11Y-003).
             EmptyState is rendered inside Transcript when transcript is empty. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* ADR-0043 (FR-AGP-022): stuck-run banner, keyed on the hook's heartbeat-
+              staleness derivation — independent of SSE liveness. */}
+          {isStuck && runId && (
+            <StuckRunBanner
+              status={bannerStatus}
+              lastProgressAt={lastProgressAt}
+              onRetry={handleRetry}
+              onCancel={handleStop}
+            />
+          )}
           <Transcript
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
             chipStateMap={chipStateMap}
+            answeredMap={answeredMap}
+            phase={phase}
             onApprove={() => void approve()}
             onDeny={() => void deny()}
+            onAnswer={(qid, optionId, freeText) => void answerQuestion(qid, optionId, freeText)}
+            onRate={handleRate}
           />
 
-          {/* Streaming indicator — shows while run is active or awaiting approval re-POST */}
-          {(phase === 'running') && <StreamingIndicator />}
+          {/* Streaming indicator — shows while run is active or awaiting approval re-POST.
+              Correctness-remediation (finding 3): suppressed while hasPendingQuestion —
+              the model is not "Working…" once it has asked a clarifying question and is
+              waiting on the human; the distinct "A question awaits your answer" status
+              below already covers that paused state without the misleading busy-copy. */}
+          {phase === 'running' && !hasPendingQuestion && <StreamingIndicator />}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}
@@ -321,8 +459,25 @@ export const AssistantPanel: React.FC = () => {
             </div>
           )}
 
+          {/* Item 6: pending-question announcement — mirrors the approval
+              announcement above (NFR-AW-A11Y-003's pattern extended to the
+              question interaction family, ADR-0045 §2). */}
+          {hasPendingQuestion && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="px-4 py-1 text-xs text-muted-foreground"
+            >
+              A question awaits your answer
+            </div>
+          )}
+
           {/* Error card */}
           {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
+
+          {/* Out-of-credits card (FR-AUC-016) — distinct from the generic ErrorCard */}
+          {phase === 'out-of-credits' && <OutOfCreditsCard />}
         </div>
 
         {/* ── Composer ─────────────────────────────────────────────────── */}
@@ -333,6 +488,7 @@ export const AssistantPanel: React.FC = () => {
           onStop={handleStop}
           running={phase === 'running' || phase === 'needs-approval'}
           needsApproval={phase === 'needs-approval'}
+          disabled={phase === 'out-of-credits'}
         />
       </section>
     </>

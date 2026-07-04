@@ -1,14 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tabs, tabId, tabPanelId, ListState, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectMutations, useProjects } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { useOpportunity } from '@/src/lib/db/opportunity';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
@@ -18,6 +20,9 @@ import BudgetTab from './tabs/BudgetTab';
 import ProcurementTab from './tabs/ProcurementTab';
 import TasksTab from './tabs/TasksTab';
 import DocumentsTab from './tabs/DocumentsTab';
+import ProjectDetailRail from './ProjectDetailRail';
+import ProjectStatusControl from '../../components/ProjectStatusControl';
+import ProjectFormModal from '../../components/ProjectFormModal';
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents';
 
@@ -59,7 +64,11 @@ const ProjectDetail: React.FC = () => {
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const { data, isPending } = useProjects();
+  const { updateHeader } = useProjectMutations();
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
 
   const cached = useMemo(
     () => (data ?? []).find((p) => p.id === projectId),
@@ -103,6 +112,20 @@ const ProjectDetail: React.FC = () => {
   // per-page label hydration is needed once the tab layer is gone.
   const goBack = () => navigate('/projects');
 
+  const openEditProject = () => setEditOpen(true);
+  const closeEditProject = () => setEditOpen(false);
+
+  const saveProjectHeader = async (id: string, input: ProjectHeaderInput) => {
+    await updateHeader.mutateAsync({ id, input });
+    toast('Project updated', input.name, 'success');
+    closeEditProject();
+  };
+
+  const onProjectEditError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
+
   if (!project) {
     if (isPending || oppPending) {
       return (
@@ -133,6 +156,41 @@ const ProjectDetail: React.FC = () => {
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
   const group = projectStatusGroup(project.status as never);
   const isPipeline = group === 'pipeline' || group === 'lost';
+  const canTransitionProject = may('transition', 'project');
+
+  const tabPanel = (
+    <div
+      role="tabpanel"
+      id={tabPanelId('project-detail', tab)}
+      aria-labelledby={tabId('project-detail', tab)}
+    >
+      {tab === 'overview' && (
+        <>
+          <OverviewTab
+            project={project}
+            committedSpend={committedSpend}
+            setTab={setTab}
+            // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
+            // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
+            showFinanceSummary={isDeliveryForward && !isPipeline}
+          />
+          {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
+              the Overview tab is active, and is hidden for pre-win records (no real progress
+              data). Scoping it here (not at shell level) prevents it bleeding into
+              Budget / Procurement / Tasks / Documents. */}
+          {!isPipeline && (
+            <div className="mt-8">
+              <ProjectSCurve projectId={project.id} />
+            </div>
+          )}
+        </>
+      )}
+      {tab === 'budget' && <BudgetTab projectId={project.id} />}
+      {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
+      {tab === 'tasks' && <TasksTab projectId={project.id} />}
+      {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+    </div>
+  );
 
   return (
     <div>
@@ -145,7 +203,6 @@ const ProjectDetail: React.FC = () => {
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           Both are kept on the loading / not-found branches above. The shared header renders
           at every stage so a record's wayfinding is identical regardless of stage. */}
-      <ProjectDetailHeader project={project} committedSpend={committedSpend} />
 
       {/* AC-IFW-RECORD-01 (Lens-D): pre-win layout — sales levers first so the deal
           actions are above the fold; delivery planner is demoted below; S-curve is hidden
@@ -154,15 +211,21 @@ const ProjectDetail: React.FC = () => {
           actionable tab bar surfaces above the fold rather than buried beneath the S-curve. */}
       {isPipeline ? (
         <>
+          <ProjectDetailHeader
+            project={project}
+            committedSpend={committedSpend}
+            onEditProject={openEditProject}
+          />
+
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
-          <div className="mb-4">
+          <div className="mb-8">
             <PipelineLens project={project} />
           </div>
 
           {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
               M2: when empty, collapse to a single-line affordance so the sales levers stay above
               the fold — the full planning prompt is only surfaced on a won (delivery) record. */}
-          <div className="mb-4">
+          <div className="mb-8">
             <MilestoneStrip projectId={project.id} compactWhenEmpty />
           </div>
 
@@ -171,53 +234,72 @@ const ProjectDetail: React.FC = () => {
 
           {/* Delivery tabs rendered for pre-win so budget/tasks/procurement are reachable (ADR-0021). */}
           <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+          {tabPanel}
         </>
       ) : (
         <>
-          {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
-              so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
-          <div className="mb-4">
-            <MilestoneStrip projectId={project.id} />
-          </div>
-
-          {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
-          <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
-        </>
-      )}
-
-      <div
-        role="tabpanel"
-        id={tabPanelId('project-detail', tab)}
-        aria-labelledby={tabId('project-detail', tab)}
-      >
-        {tab === 'overview' && (
-          <>
-            <OverviewTab
+          <div className="grid gap-8 pb-24 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:pb-0">
+            <div className="min-w-0">
+            <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}
-              setTab={setTab}
-              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-              // The finance StatTiles + SoD row render INSIDE this tabpanel (below the tab bar)
-              // rather than in the header above the tabs. Finance-forward roles (Admin·Exec·Finance·PM)
-              // keep the finance block in the header; isDelivery gates to delivery-lens only.
-              showFinanceSummary={isDeliveryForward && !isPipeline}
+              onEditProject={openEditProject}
             />
-            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
-                the Overview tab is active, and is hidden for pre-win records (no real progress
-                data). Scoping it here (not at shell level) prevents it bleeding into
-                Budget / Procurement / Tasks / Documents. */}
-            {!isPipeline && (
-              <div className="mt-4">
-                <ProjectSCurve projectId={project.id} />
+
+            {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
+                so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
+            <div className="mb-8">
+              <MilestoneStrip projectId={project.id} />
+            </div>
+
+            {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
+            <Tabs<PTab> items={TABS} value={tab} onChange={setTab} ariaLabel="Project sections" idBase="project-detail" />
+            {tabPanel}
+          </div>
+
+            <ProjectDetailRail
+              project={project}
+              onEditProject={openEditProject}
+              showActionSection={isDesktop}
+            />
+          </div>
+
+          {!isDesktop && canTransitionProject && (
+            <div
+              data-testid="mobile-sticky-action"
+              className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 pt-3 backdrop-blur-sm"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+            >
+              <div className="mx-auto flex max-w-5xl justify-end">
+                <ProjectStatusControl
+                  project={project}
+                  triggerVariant="primary"
+                  triggerSize="sm"
+                />
               </div>
-            )}
-          </>
-        )}
-        {tab === 'budget' && <BudgetTab projectId={project.id} />}
-        {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-        {tab === 'tasks' && <TasksTab projectId={project.id} />}
-        {tab === 'documents' && <DocumentsTab projectId={project.id} />}
-      </div>
+            </div>
+          )}
+        </>
+      )}
+      {editOpen && (
+        <ProjectFormModal
+          mode="editHeader"
+          initial={{
+            id: project.id,
+            name: project.name,
+            code: project.code,
+            client_id: project.client_id,
+            project_manager_id: project.project_manager_id,
+            clientName: project.client?.name ?? null,
+            pmName: project.pm?.full_name ?? null,
+            start_date: project.start_date,
+            end_date: project.end_date,
+          }}
+          onClose={closeEditProject}
+          onSave={saveProjectHeader}
+          onError={onProjectEditError}
+        />
+      )}
     </div>
   );
 };

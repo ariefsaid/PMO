@@ -34,53 +34,51 @@ test.describe.configure({ retries: 0 });
 
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
 // Given: a PM opens /approvals.
-// When:  they expand the PROC-2026-002 row's budget-impact disclosure.
-// Then:  the row reveals the budget impact + an adjacent Approve/Reject IN PLACE and
-//        the URL STAYS on /approvals — the approve decision is made from the inbox, NOT
-//        on a separate detail screen.
+// When:  they select the PROC-2026-002 queue row in the two-pane inbox.
+// Then:  the preview pane reveals the request details + Approve/Reject there, the URL
+//        STAYS on /approvals, and the PM can approve the request without leaving the inbox.
 //
-// Journey updated (deliberate UX change, per the BDD authoring rule): intent-fix-wave
-// IF-A (AC-IFW-PROC-01) replaced the CW-6 route-away with preview-in-place, so the
-// procurement row now mirrors the timesheet row's expand-and-approve paradigm. The
-// goal-oracle is unchanged — "a PM can act on a procurement approval from the inbox" —
-// only the journey (expand in place vs drill in) moved.
+// Journey updated (deliberate UX change, per the BDD authoring rule): the two-pane inbox
+// now previews the selected queue item in the right pane rather than expanding details
+// inside the queue row. The goal-oracle is unchanged — "a PM can act on a procurement
+// approval from the inbox" — only the journey/selectors moved.
 test(
   'AC-IXD-PROC-W5-3: PM inbox → procurement row previews + approves in place (no navigation)',
   async ({ page }) => {
     await login(page, 'pm@acme.test');
     await page.goto('/approvals?scope=procurement');
 
-    // Procurement section is visible (PM role can approve procurement).
-    const procSection = page.getByRole('region', { name: /purchase requests awaiting you/i });
-    await expect(procSection).toBeVisible({ timeout: 15_000 });
+    const queue = page.getByRole('region', { name: /approvals queue/i });
+    const preview = page.getByRole('region', { name: /approval preview/i });
+    await expect(queue).toBeVisible({ timeout: 15_000 });
+    await expect(preview).toBeVisible({ timeout: 15_000 });
 
-    // PROC-2026-002 listed in the inbox.
-    await expect(procSection.getByText('Safety Equipment & PPE')).toBeVisible({ timeout: 15_000 });
-    await expect(procSection.getByText('PROC-2026-002')).toBeVisible({ timeout: 10_000 });
+    const procurementRows = queue.locator('button[aria-pressed]');
+    await expect(procurementRows.first()).toBeVisible({ timeout: 15_000 });
+    const initialCount = await procurementRows.count();
 
-    // Collapsed: the Approve affordance is NOT yet shown — it lives behind the row's
-    // budget-impact disclosure (preview-before-decide), not on a separate screen.
-    await expect(procSection.getByRole('button', { name: /^approve$/i })).not.toBeVisible();
+    // When: select a procurement queue row. The right pane should preview that request.
+    await procurementRows.first().click();
 
-    // When: expand the row in place via its budget-impact disclosure.
-    await procSection
-      .getByRole('button', { name: /show budget impact for Safety Equipment & PPE/i })
-      .click();
-
-    // Goal oracle 1: NO navigation — the decision is made in the inbox, URL unchanged.
-    await expect(page).toHaveURL(/\/approvals/, { timeout: 5_000 });
+    // Goal oracle 1: NO navigation — still inside /approvals, never on a detail route.
+    await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
     await expect(page).not.toHaveURL(/\/procurement\//);
 
-    // Goal oracle 2: Approve/Reject are now adjacent IN the expanded row (real cross-stack
-    // detail fetch resolved), reachable without drilling in.
-    await expect(procSection.getByRole('button', { name: /^approve$/i })).toBeVisible({ timeout: 15_000 });
-    await expect(procSection.getByRole('button', { name: /^reject$/i })).toBeVisible();
+    // Goal oracle 2: preview + actions render in the right pane for the selected item.
+    const previewTitle = preview.getByRole('heading', { level: 2 });
+    await expect(previewTitle).toBeVisible({ timeout: 15_000 });
+    const title = (await previewTitle.textContent())?.trim() ?? 'request';
+    await expect(preview.getByRole('button', { name: /^approve$/i })).toBeVisible();
+    await expect(preview.getByRole('button', { name: /^reject$/i })).toBeVisible();
 
-    // Goal oracle 3: clicking Approve stages the confirm dialog IN the inbox (still no nav) —
-    // the approval is wired through the same confirm path, from the inbox.
-    await procSection.getByRole('button', { name: /^approve$/i }).click();
-    await expect(page.getByText(/Approve Safety Equipment & PPE\?/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page).toHaveURL(/\/approvals/);
+    // Goal oracle 3: the approval confirms and succeeds from the inbox without route-away.
+    await preview.getByRole('button', { name: /^approve$/i }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText(new RegExp(`Approve ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?`, 'i'), { timeout: 10_000 });
+    await dialog.getByRole('button', { name: /^approve$/i }).click();
+    await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
+    await expect(page.getByRole('status')).toContainText(/request approved/i, { timeout: 15_000 });
+    await expect(queue.getByRole('button')).toHaveCount(initialCount - 1, { timeout: 15_000 });
   },
 );
 
@@ -241,13 +239,15 @@ test(
     await login(page, 'finance@acme.test');
     await page.goto('/approvals');
 
-    // Finance can approve procurement (role: Finance → can('transition','procurement')).
-    const procSection = page.getByRole('region', { name: /purchase requests awaiting you/i });
-    await expect(procSection).toBeVisible({ timeout: 15_000 });
+    const queue = page.getByRole('region', { name: /approvals queue/i });
+    await expect(queue).toBeVisible({ timeout: 15_000 });
 
-    // Finance cannot approve timesheets (Finance excluded from approval.transition).
-    const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
-    await expect(tsSection).not.toBeVisible({ timeout: 5_000 });
+    // Finance can approve procurement, so the procurement queue group is present.
+    await expect(queue.getByRole('heading', { name: /purchase requests/i })).toBeVisible({ timeout: 15_000 });
+
+    // Finance cannot approve timesheets, so there is no timesheet tab/lane in the two-pane inbox.
+    await expect(page.getByRole('tab', { name: /timesheets/i })).toHaveCount(0);
+    await expect(queue.getByRole('heading', { name: /^timesheets$/i })).toHaveCount(0);
   },
 );
 

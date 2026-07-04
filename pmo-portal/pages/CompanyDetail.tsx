@@ -204,7 +204,7 @@ const CompanyDetail: React.FC = () => {
       />
 
       {/* Body — the company's fields (read-only; edit-in-modal). */}
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardHead>Company detail</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -230,7 +230,7 @@ const CompanyDetail: React.FC = () => {
 
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
           T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
-      <Card>
+      <Card variant="bare">
         <CardHead className="flex items-center justify-between">
           <span>Contacts</span>
           {canCreateContact && (
@@ -321,7 +321,7 @@ const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => 
       <dd className="text-[13.5px] text-foreground">
         <Link
           to={`/contacts/${primary.id}`}
-          className="text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           {primary.full_name}
         </Link>
@@ -370,7 +370,7 @@ const RelatedList: React.FC<RelatedListProps> = ({
   listAriaLabel,
   onRetry,
 }) => (
-  <Card className="mb-4">
+  <Card variant="bare" className="mb-4">
     <CardHead>{heading}</CardHead>
     <CardPad>
       {isPending && <ListState variant="loading" rows={2} />}
@@ -624,7 +624,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
   // instead of returning null (which was a dead-end for first-time setup).
   if (contactList.length === 0 && activities.length === 0) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardHead>Activity</CardHead>
         <CardPad>
           <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-4 py-8 text-center">

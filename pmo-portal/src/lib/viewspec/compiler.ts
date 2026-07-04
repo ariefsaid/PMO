@@ -18,7 +18,7 @@ import {
   VALID_TOKENS,
   NUMERIC_AGGREGATE_FNS,
   ValidationError,
-} from './types';
+} from './types.ts';
 import type {
   QuerySpec,
   CompilerContext,
@@ -30,8 +30,8 @@ import type {
   ResolvedAggregate,
   ResolvedTimeRange,
   TokenValue,
-} from './types';
-import { validatePrimitive } from './registry';
+} from './types.ts';
+import { validatePrimitive } from './registry.ts';
 
 // ── Token resolution (FR-VC-035) ──────────────────────────────────────────────
 

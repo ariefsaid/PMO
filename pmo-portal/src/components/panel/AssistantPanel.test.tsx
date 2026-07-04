@@ -18,6 +18,31 @@ import { AssistantPanel } from './AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { axeViolations } from '../__tests__/axe';
 
+// ADR-0043 (D7): ThreadList fetches via listAgentThreads() when its region is
+// expanded — mocked here so these component tests never touch the real
+// supabase client (mirrors the DAL's own mocked-client unit-test pattern).
+const listAgentThreadsMock = vi.fn().mockResolvedValue([]);
+vi.mock('@/src/lib/db/agentThreads', () => ({
+  listAgentThreads: (...args: unknown[]) => listAgentThreadsMock(...args),
+}));
+
+// ADR-0043 (FR-AGP-021): resume-on-open reads a thread's events via listRunEvents —
+// mocked here so a click-to-resume test never touches the real supabase client
+// (mirrors useAssistantPanel.persistence.test.ts's own mock of this DAL).
+const listRunEventsMock = vi.fn().mockResolvedValue([]);
+vi.mock('@/src/lib/db/agentEvents', () => ({
+  listRunEvents: (...args: unknown[]) => listRunEventsMock(...args),
+}));
+
+// Review round item 2: the hook's server-heartbeat poll (useAssistantPanel.ts) calls
+// getRunHeartbeat on its 5s tick while a run is active — mocked here so these component tests
+// never touch the real supabase client. Defaults to a fresh (non-stale) heartbeat; the
+// StuckRunBanner test below overrides this per-case to simulate a genuinely wedged run.
+const getRunHeartbeatMock = vi.fn().mockResolvedValue({ last_progress_at: new Date().toISOString(), status: 'running' });
+vi.mock('@/src/lib/db/agentRuns', () => ({
+  getRunHeartbeat: (...args: unknown[]) => getRunHeartbeatMock(...args),
+}));
+
 // ── Scripted fake runtime ─────────────────────────────────────────────────────
 
 function makeEvent(
@@ -1199,4 +1224,255 @@ describe('AssistantPanel', () => {
 
     expect(panel).not.toHaveAttribute('inert');
   });
+
+  // ── ADR-0043 Phase D: ThreadList + StuckRunBanner wiring ──────────────────
+
+  it('renders a History toggle that expands to a ThreadList region', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Earlier conversation',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: null,
+      },
+    ]);
+    renderPanel();
+
+    const toggle = screen.getByRole('button', { name: /history/i });
+    await user.click(toggle);
+
+    await waitFor(() => {
+      expect(listAgentThreadsMock).toHaveBeenCalled();
+    });
+    expect(await screen.findByRole('list', { name: /recent conversations/i })).toBeInTheDocument();
+    expect(await screen.findByText('Earlier conversation')).toBeInTheDocument();
+  });
+
+  it('does not call listAgentThreads before the History region is expanded', () => {
+    renderPanel();
+    expect(listAgentThreadsMock).not.toHaveBeenCalled();
+  });
+
+  it('clicking a thread in the list closes the History region', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Resume me',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: null,
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /resume me/i });
+    await user.click(threadBtn);
+
+    // Region collapses after selecting a thread.
+    await waitFor(() => {
+      expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('AC-AGP-021 clicking a thread with a latest run resumes and renders its restored transcript', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-1',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Resume me',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: 'run-42',
+      },
+    ]);
+    listRunEventsMock.mockResolvedValueOnce([
+      {
+        id: crypto.randomUUID(),
+        run_id: 'run-42',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        seq: 1,
+        type: 'user',
+        text: 'how many active projects?',
+        payload: null,
+        tool_name: null,
+        tool_args_hash: null,
+        tool_status: null,
+        rating: null,
+        downvote_reason: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+      },
+      {
+        id: crypto.randomUUID(),
+        run_id: 'run-42',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        seq: 2,
+        type: 'assistant',
+        text: 'You have 3 active projects.',
+        payload: null,
+        tool_name: null,
+        tool_args_hash: null,
+        tool_status: null,
+        rating: null,
+        downvote_reason: null,
+        created_at: '2026-07-01T00:00:01.000Z',
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /resume me/i });
+    await user.click(threadBtn);
+
+    await waitFor(() => {
+      expect(listRunEventsMock).toHaveBeenCalledWith('run-42');
+    });
+    expect(await screen.findByText('how many active projects?')).toBeInTheDocument();
+    expect(await screen.findByText('You have 3 active projects.')).toBeInTheDocument();
+  });
+
+  it('AC-AGP-021 clicking a thread with no runs yet opens an empty transcript without crashing', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockResolvedValueOnce([
+      {
+        id: 'thread-empty',
+        org_id: 'org-1',
+        owner_id: 'owner-1',
+        title: 'Never sent',
+        scope: null,
+        pinned_at: null,
+        created_at: '2026-07-01T00:00:00.000Z',
+        updated_at: '2026-07-01T00:00:00.000Z',
+        archived_at: null,
+        latestRunId: null,
+      },
+    ]);
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    const threadBtn = await screen.findByRole('button', { name: /never sent/i });
+    await user.click(threadBtn);
+
+    // No crash; listRunEvents is never called for a thread with no runs; the
+    // History region still closes and the empty-transcript state renders.
+    await waitFor(() => {
+      expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+    });
+    expect(listRunEventsMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a loading state while listAgentThreads is in flight', async () => {
+    const user = userEvent.setup();
+    let resolveThreads!: (rows: unknown[]) => void;
+    listAgentThreadsMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveThreads = resolve;
+      }),
+    );
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+    expect(screen.getByText(/loading conversations/i)).toBeInTheDocument();
+
+    resolveThreads([]);
+    await waitFor(() => {
+      expect(screen.queryByText(/loading conversations/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows an error state when listAgentThreads rejects', async () => {
+    const user = userEvent.setup();
+    listAgentThreadsMock.mockRejectedValueOnce(new Error('denied'));
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /history/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load your conversations/i);
+    // The empty-list ThreadList must not also render alongside the error.
+    expect(screen.queryByRole('list', { name: /recent conversations/i })).not.toBeInTheDocument();
+  });
+
+  it('StuckRunBanner renders inside the transcript region while a run is stale', async () => {
+    const user = userEvent.setup();
+    const runId = 'stuck-run-1';
+    // A runtime whose subscribe() never resolves — the run stays 'running' with no
+    // further progress signal, so lastProgressAt is pinned at the one yielded event.
+    const runtime: FakeRuntime = {
+      createRun: vi.fn().mockResolvedValue({ id: runId, title: 'test', status: 'running' } as AgentRun),
+      followUp: vi.fn().mockResolvedValue(undefined),
+      control: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn().mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield {
+            id: crypto.randomUUID(),
+            runId,
+            type: 'status' as const,
+            payload: { status: 'running' },
+            createdAt: new Date().toISOString(),
+          };
+          await new Promise(() => {}); // never resolves — run stays 'running'
+        },
+      }),
+      createRunSpy: vi.fn(),
+      followUpSpy: vi.fn(),
+      controlSpy: vi.fn(),
+      subscribeSpy: vi.fn(),
+    };
+    renderPanel({ runtime });
+
+    const textarea = screen.getByRole('textbox', { name: /ask a question/i });
+    await user.type(textarea, 'do something slow');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /stop generating/i })).toBeInTheDocument();
+    });
+    // No banner yet — the run just started (fresh heartbeat).
+    expect(
+      screen.queryByRole('status', { name: /taking longer than expected/i }),
+    ).not.toBeInTheDocument();
+
+    // Fast-forward the wall clock past the staleness threshold; the hook's 5s server-heartbeat
+    // poll (real timer, review round item 2) re-evaluates isStuck against the real
+    // elapsed-vs-stale-heartbeat comparison via a stubbed Date.now(). The mock is pinned to a
+    // fixed real-time stamp NOW (before the spy) so the very next poll — whenever it lands —
+    // reads as unambiguously stale once Date.now() is offset, independent of interval timing.
+    const realNow = Date.now();
+    getRunHeartbeatMock.mockResolvedValue({ last_progress_at: new Date(realNow).toISOString(), status: 'running' });
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + 50_000);
+    try {
+      await waitFor(
+        () => {
+          expect(
+            screen.getByRole('status', { name: /taking longer than expected/i }),
+          ).toBeInTheDocument();
+        },
+        { timeout: 8_000, interval: 250 },
+      );
+      expect(screen.getByRole('button', { name: /^retry$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  }, 12_000);
 });

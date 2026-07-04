@@ -23,6 +23,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   createQuotation: vi.fn().mockResolvedValue({ id: 'quote-1' }),
   createReceipt: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
   createInvoice: vi.fn().mockResolvedValue({ id: 'invoice-1' }),
+  captureVendorInvoice: vi.fn().mockResolvedValue({ id: 'invoice-vi-1' }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -36,6 +37,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  captureVendorInvoice,
 } from '@/src/lib/db/procurementLifecycle';
 
 // ---------------------------------------------------------------------------
@@ -170,12 +172,38 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
-  it('mutations are exposed: transition, createQuotation, createReceipt, createInvoice', () => {
+  it('harden #2 (hook): captureVendorInvoice mutation calls the atomic DAL RPC + invalidates the detail key', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.captureVendorInvoice.mutateAsync({
+        status: 'Received',
+        invoiceDate: '2026-06-04',
+        referenceNumber: 'INV-9',
+        amount: 950,
+        notes: 'captured',
+      });
+    });
+
+    // The whole VI capture goes through the ONE atomic RPC (transition + invoice + event),
+    // never the two separate transition + createInvoice writes.
+    expect(captureVendorInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', 'INV-9', 950, 'captured');
+    expect(transitionProcurement).not.toHaveBeenCalled();
+    expect(createInvoice).not.toHaveBeenCalled();
+    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
+  });
+
+  it('mutations are exposed: transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice', () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
     expect(typeof result.current.transition.mutateAsync).toBe('function');
     expect(typeof result.current.createQuotation.mutateAsync).toBe('function');
     expect(typeof result.current.createReceipt.mutateAsync).toBe('function');
     expect(typeof result.current.createInvoice.mutateAsync).toBe('function');
+    expect(typeof result.current.captureVendorInvoice.mutateAsync).toBe('function');
   });
 });

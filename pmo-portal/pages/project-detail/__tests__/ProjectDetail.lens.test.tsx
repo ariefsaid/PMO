@@ -52,6 +52,15 @@ vi.mock('@tanstack/react-query', async (orig) => {
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isError: false,
+    error: null,
+    isPending: false,
+  }),
+}));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: vi.fn().mockResolvedValue(undefined) };

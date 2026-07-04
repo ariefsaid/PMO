@@ -9,11 +9,11 @@
  */
 
 // Relative import — no @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types';
-import type { AgentReadEntity } from './actions';
+import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import type { AgentReadEntity } from './actions.ts';
 
 /**
- * Build the system prompt for the agent-chat Anthropic call.
+ * Build the system prompt for the agent-chat model call.
  *
  * @param entities   The whitelisted entity keys available to the agent (e.g. ['projects','companies']).
  * @param rowCap     The AGENT_READ_ROW_CAP ceiling — injected so tests can verify it appears.

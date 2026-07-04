@@ -141,14 +141,12 @@ export function crmActivityVariant(kind: string): StatusVariant {
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * User role pill — categorical, never workflow-green or action-blue (D consistency fix).
- * Executive is highlighted (violet); all others are neutral (the distinct LABEL carries
- * identity, never color-only). Finance deliberately removed from workflow-green (`won`)
- * to avoid confusing a role with a positive-terminal workflow outcome.
+ * User role pill — neutral-only. The role label carries identity; no single role is
+ * visually elevated as a category accent, and no role borrows workflow/status colours.
  */
 const ROLE_VARIANT: Record<string, StatusVariant> = {
   Admin: 'neutral',
-  Executive: 'violet',
+  Executive: 'neutral',
   'Project Manager': 'neutral',
   Finance: 'neutral',
   Engineer: 'neutral',

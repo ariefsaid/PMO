@@ -132,7 +132,7 @@ export const EngineerDashboard: React.FC = () => {
                         aria-valuemax={maxDay}
                         className="h-[9px] flex-1 overflow-hidden rounded-full bg-secondary"
                       >
-                        <span className="block h-full rounded-full bg-primary" style={{ width: `${(h / maxDay) * 100}%` }} />
+                        <span className="block h-full rounded-full bg-muted-foreground" style={{ width: `${(h / maxDay) * 100}%` }} />
                       </span>
                       <span className="w-12 shrink-0 text-right text-xs font-semibold tabular">{h}h</span>
                     </div>

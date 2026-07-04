@@ -6,6 +6,7 @@ import {
   ErrBanner,
   Icon,
   ListState,
+  SelectField,
   StatusPill,
   TimesheetGrid,
   Toolbar,
@@ -659,36 +660,28 @@ const TimesheetsPage: React.FC = () => {
             {status === TimesheetStatus.Draft || !status ? 'Draft — not submitted' : status}
           </StatusPill>
           {editable && (
-            <label
-              htmlFor="ts-add-project"
-              className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground"
-            >
+            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
               <Icon name="plus" aria-hidden />
-              Add project
-              {/* max-w cap + min-w-0: a native <select> sizes to its widest OPTION
-                  ("Acme Internal Platform"…), bleeding past the viewport at 360px
-                  (AC-MOBILE-OVERFLOW-001). The closed control only shows the short
-                  placeholder, so capping its width is safe; options still show in full. */}
-              <select
-                id="ts-add-project"
-                aria-label="Add a project"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) addProject(e.target.value);
-                }}
-                disabled={pickerOptions.length === 0}
-                className="touch-target h-8 min-w-0 max-w-[160px] rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground disabled:opacity-45"
-              >
-                <option value="">
-                  {pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}
-                </option>
-                {pickerOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <span>Add project</span>
+              {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
+                  so capping its width is safe; options still show in full. Use the shared
+                  DS SelectField so dark mode keeps the tokened field shell. */}
+              <div className="min-w-0 max-w-[160px] flex-1">
+                <SelectField
+                  id="ts-add-project"
+                  hideLabel
+                  label="Add a project"
+                  value=""
+                  onChange={(value) => {
+                    if (value) addProject(value);
+                  }}
+                  disabled={pickerOptions.length === 0}
+                  options={pickerOptions.map((p) => ({ value: p.id, label: p.name }))}
+                  placeholder={pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}
+                  className="touch-target min-w-0 max-w-[160px] text-[13px]"
+                />
+              </div>
+            </div>
           )}
           <span
             data-testid="timesheets-weekly-total"

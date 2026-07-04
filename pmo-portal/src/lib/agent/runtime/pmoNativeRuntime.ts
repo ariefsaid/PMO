@@ -12,7 +12,7 @@
  * FR-AR-022/023/024.
  */
 
-import type { AgentRun, AgentRuntime, AgentEvent, RunContext, NeedsApprovalPayload } from './port';
+import type { AgentRun, AgentRuntime, AgentEvent, RunContext, NeedsApprovalPayload, QuestionPayload, AgentAnswer } from './port';
 import {
   decodeSseStream,
   type AgentChatRequest,
@@ -39,6 +39,12 @@ interface RunState {
   pendingDecision?: AgentDecision;
   /** A3: true when the stream ended in needs-approval (run is paused, not done — preserve Map entry). */
   awaitingDecision?: boolean;
+  /** ADR-0045 §2: questionId from the most recent pending question event. */
+  pendingQuestionId?: string;
+  /** ADR-0045 §2: answer to send on the next re-POST. */
+  pendingAnswer?: AgentAnswer;
+  /** ADR-0045 §2: true when the stream ended awaiting a question answer (run is paused). */
+  awaitingAnswer?: boolean;
 }
 
 /**
@@ -76,11 +82,25 @@ export class PmoNativeRuntime implements AgentRuntime {
 
   async control(
     runId: string,
-    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject',
+    cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject' | 'answer',
+    payload?: AgentAnswer,
   ): Promise<void> {
     if (cmd === 'cancel') {
       const state = this._runs.get(runId);
+      // Abort the client-side fetch (unchanged, existing behavior — stops this browser
+      // tab from continuing to read/render the stream).
       state?.controller.abort();
+      // Correctness-remediation (ADR-0043 §4, finding 4): ALSO drive a server-side
+      // abort — a plain client-side AbortController.abort() only stops THIS browser
+      // from reading the response; it does nothing to agent_runs.status (the edge fn,
+      // per ADR-0043 §6, keeps running the turn server-side to a terminal state even
+      // after the client disconnects — by design, for durable-resume). Fire-and-forget
+      // a SEPARATE POST carrying { cancel: { runId } } so the server sets a persisted
+      // terminal status regardless of what the aborted fetch above does. Deliberately
+      // NOT awaited by the caller in the critical path (stop() should feel instant);
+      // errors are swallowed — a failed cancel-POST is no worse than the pre-fix
+      // behavior (no server-side effect at all).
+      void this._postCancel(runId);
       return;
     }
     if (cmd === 'approve' || cmd === 'reject') {
@@ -90,14 +110,61 @@ export class PmoNativeRuntime implements AgentRuntime {
       state.pendingDecision = { pendingId: state.pendingId, verdict };
       return;
     }
+    if (cmd === 'answer') {
+      const state = this._runs.get(runId);
+      if (!state?.pendingQuestionId || !payload) return; // no pending question to stash
+      state.pendingAnswer = { questionId: state.pendingQuestionId, optionId: payload.optionId, freeText: payload.freeText };
+      return;
+    }
     // pause/resume are no-ops
   }
 
+  /**
+   * Correctness-remediation (ADR-0043 §4, finding 4): fire-and-forget POST carrying
+   * `{ cancel: { runId } }` — a SEPARATE request from the run's own SSE fetch (which
+   * `control('cancel')` already aborts client-side above), so it succeeds even though
+   * that other request's AbortController just fired. A minimal request body is enough:
+   * the handler's cancel branch makes no model call and needs no messages/context — it
+   * only needs `runId` to persist the terminal status.
+   */
+  private async _postCancel(runId: string): Promise<void> {
+    try {
+      const jwt = await this._opts.getJwt();
+      const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
+      const body: AgentChatRequest = {
+        runId,
+        messages: [],
+        cancel: { runId },
+      };
+      await fetchImpl(this._opts.fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // Best-effort — a failed cancel-POST leaves the server's run status un-updated
+      // (no worse than the pre-fix behavior, which never attempted this at all). BUT this
+      // must not be FULLY silent (observability hardening, harden #1 item 3, spike
+      // 2026-07-04): a stuck server-side run with no client-visible signal is a support
+      // dead-end. Emit a structured console.warn — never the raw error's message/stack
+      // (could carry a URL/host/token-adjacent detail) — so the failure is at least
+      // greppable in browser/telemetry logs.
+      console.warn(`[pmo-native-runtime] cancel-POST failed`, {
+        errorCode: 'CANCEL_POST_FAILED',
+        runId,
+      });
+    }
+  }
+
   subscribe(runId: string): AsyncIterable<AgentEvent> {
-    // A3: if the run is awaiting a decision, re-create a fresh run state for the re-POST
-    // (restore the messages + context but NOT the awaitingDecision flag).
+    // A3/ADR-0045 §2: if the run is awaiting a decision or a question answer,
+    // re-create a fresh run state for the re-POST (restore the messages + context
+    // but NOT the awaiting flags).
     const existingState = this._runs.get(runId);
-    if (existingState?.awaitingDecision) {
+    if (existingState?.awaitingDecision || existingState?.awaitingAnswer) {
       // Rehydrate run entry for the next POST (re-create controller; preserve messages+context)
       const newState: RunState = {
         messages: existingState.messages,
@@ -106,6 +173,9 @@ export class PmoNativeRuntime implements AgentRuntime {
         pendingId: existingState.pendingId,
         pendingDecision: existingState.pendingDecision,
         awaitingDecision: false,
+        pendingQuestionId: existingState.pendingQuestionId,
+        pendingAnswer: existingState.pendingAnswer,
+        awaitingAnswer: false,
       };
       this._runs.set(runId, newState);
     }
@@ -147,11 +217,14 @@ export class PmoNativeRuntime implements AgentRuntime {
     const state = this._runs.get(runId);
     if (!state) return;
 
-    // Consume (and clear) any stashed decision so it is sent exactly once.
+    // Consume (and clear) any stashed decision/answer so each is sent exactly once.
     const decision = state.pendingDecision;
     state.pendingDecision = undefined;
+    const answer = state.pendingAnswer;
+    state.pendingAnswer = undefined;
 
     let endedInNeedsApproval = false;
+    let endedInQuestion = false;
 
     try {
       const jwt = await this._opts.getJwt();
@@ -163,6 +236,8 @@ export class PmoNativeRuntime implements AgentRuntime {
         context: state.context,
         // A3: include decision on re-POST if present
         ...(decision ? { decision } : {}),
+        // ADR-0045 §2: include answer on re-POST if present
+        ...(answer ? { answer } : {}),
       };
 
       const resp = await fetchImpl(this._opts.fnUrl, {
@@ -222,22 +297,50 @@ export class PmoNativeRuntime implements AgentRuntime {
               },
             ],
           });
+        } else if (
+          ev.type === 'status' &&
+          (ev.payload as QuestionPayload | undefined)?.kind === 'question'
+        ) {
+          // ADR-0045 §2: stash questionId from question events for the next control()
+          // call, and reconstruct the assistant ask_user tool_use block (mirrors the
+          // needs-approval reconstruction above) so findTrailingQuestion in handler.ts
+          // can locate it on the answer re-POST.
+          const payload = ev.payload as QuestionPayload;
+          state.pendingQuestionId = payload.questionId;
+          endedInQuestion = true;
+
+          state.messages.push({
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: payload.questionId,
+                name: 'ask_user',
+                input: { prompt: payload.prompt, options: payload.options, allowFreeText: payload.allowFreeText },
+              },
+            ],
+          });
         } else if (ev.type === 'status') {
           // Any other status (completed, errored) means the run is no longer paused.
           endedInNeedsApproval = false;
+          endedInQuestion = false;
         }
 
         yield ev;
       }
 
-      // If the last notable status was needs-approval, the run is paused (not done).
+      // If the last notable status was needs-approval/question, the run is paused (not done).
       if (endedInNeedsApproval) {
         state.awaitingDecision = true;
       }
+      if (endedInQuestion) {
+        state.awaitingAnswer = true;
+      }
     } finally {
-      // A3: preserve the Map entry when the stream ended in needs-approval (run is paused).
-      // Delete in all other cases to prevent unbounded Map growth (Blocker 4).
-      if (!state.awaitingDecision) {
+      // A3/ADR-0045 §2: preserve the Map entry when the stream ended in needs-approval
+      // or awaiting a question answer (run is paused). Delete in all other cases to
+      // prevent unbounded Map growth (Blocker 4).
+      if (!state.awaitingDecision && !state.awaitingAnswer) {
         this._runs.delete(runId);
       }
     }

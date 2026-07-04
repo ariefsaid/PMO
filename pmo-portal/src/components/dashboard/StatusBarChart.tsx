@@ -29,6 +29,18 @@ export interface StatusBarChartProps<S extends string> {
    * no behavior change for other callers (AC-JR-W1-10).
    */
   hrefFor?: (status: S) => string;
+  /**
+   * Item 4 (F2, review-remediation): opt-in for a very narrow CONTAINER
+   * (independent of viewport width — e.g. the ~365px agent panel, which
+   * renders on a wide desktop viewport so the existing useIsNarrow()
+   * viewport-width branch never fires). Hides the Y-axis ticks — the
+   * figcaption legend already carries every count, same rationale as the
+   * existing mobile X-axis hide — and pins an explicit domain={[0,'dataMax']}
+   * so a cramped render can never compute a non-monotonic/garbled tick set.
+   * Omitted (the default) is BYTE-UNCHANGED behavior for every existing
+   * caller (dashboards) — this prop is new and off by default.
+   */
+  compactYAxis?: boolean;
 }
 
 /**
@@ -45,6 +57,7 @@ export function StatusBarChart<S extends string>({
   noun,
   height = 260,
   hrefFor,
+  compactYAxis,
 }: StatusBarChartProps<S>) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
@@ -79,12 +92,18 @@ export function StatusBarChart<S extends string>({
               : { tick: axisTickStyle, angle: -30, textAnchor: 'end', height: 64 }
             )}
           />
+          {/* Item 4 (F2): compactYAxis hides the ticks (the figcaption legend
+              carries every count) and pins an explicit domain so a very
+              narrow CONTAINER (e.g. the agent panel) can never compute a
+              non-monotonic/garbled tick set — mirrors the mobile X-axis hide
+              above, but keyed on container width, not viewport width. */}
           <YAxis
             allowDecimals={false}
-            tick={axisTickStyle}
+            tick={compactYAxis ? false : axisTickStyle}
             tickLine={false}
             axisLine={{ stroke: chartTheme.grid }}
-            width={32}
+            width={compactYAxis ? 0 : 32}
+            domain={compactYAxis ? [0, 'dataMax'] : undefined}
           />
           <Tooltip
             contentStyle={tooltipContentStyle}
@@ -119,7 +138,7 @@ export function StatusBarChart<S extends string>({
             <Link
               key={d.status}
               to={hrefFor(d.status)}
-              className="inline-flex items-center gap-1.5 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="inline-flex items-center gap-1.5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {inner}
             </Link>

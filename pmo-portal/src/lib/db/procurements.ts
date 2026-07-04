@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type ProcurementRow = Tables<'procurements'>;
 
@@ -71,10 +72,16 @@ export async function getProjectReservedSpend(projectId: string): Promise<number
 
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
- * scopes rows (FR-DAL-PROC-001). The page filters the cached list client-side this issue.
+ * scopes rows (FR-DAL-PROC-001). Paginated (data-layer performance hardening #4, OPT-IN):
+ * passing `params.page`/`params.pageSize` range-bounds the query; omitting `params` entirely
+ * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
+ * record search, which indexes the full cached list).
  */
-export async function listProcurements(): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase.from('procurements').select(SELECT);
+export async function listProcurements(params?: PageParams): Promise<ProcurementWithRefs[]> {
+  const range = resolveRange(params);
+  let q = supabase.from('procurements').select(SELECT);
+  if (range) q = q.range(range.from, range.to);
+  const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProcurementWithRefs[];
 }

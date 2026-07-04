@@ -114,4 +114,33 @@ describe('StatTiles', () => {
     expect(lastTile.className).toContain('col-span-2');
     expect(lastTile.className).toContain('sm:col-span-1');
   });
+
+  // ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────
+  // The record page renders its finance strip BORDERLESS — the KPIs sit directly on
+  // the canvas (label + value), separated by whitespace + a hairline, not a boxed
+  // card-in-card. `variant="bare"` is the opt-in; default (`framed`) keeps the box.
+  it('variant="bare": borderless strip on the canvas (no card frame, no cell fill)', () => {
+    const { container } = render(<StatTiles tiles={tiles} columns={5} variant="bare" />);
+    const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
+    expect(strip).toBeInTheDocument();
+    // No outer card frame — content-over-containers
+    expect(strip.className).not.toContain('border-border');
+    expect(strip.className).not.toContain('bg-border');
+    expect(strip.className).not.toContain('rounded-lg');
+    // Responsive layout preserved (mobile 2-col + sm:grid-cols-5)
+    expect(strip.className).toContain('grid-cols-2');
+    expect(strip.className).toContain('sm:grid-cols-5');
+    // Cells are borderless too — no card fill, no end-cap rounding
+    const firstCell = container.querySelector('[data-testid="stat-tile"]') as HTMLElement;
+    expect(firstCell.className).not.toContain('bg-card');
+    expect(firstCell.className).not.toContain('rounded-l-lg');
+  });
+
+  it('variant="bare": odd-count clip behavior is preserved (last tile spans mobile)', () => {
+    const { container } = render(<StatTiles tiles={tiles} columns={5} variant="bare" />);
+    const allTiles = container.querySelectorAll('[data-testid="stat-tile"]');
+    const lastTile = allTiles[allTiles.length - 1] as HTMLElement;
+    expect(lastTile.className).toContain('col-span-2');
+    expect(lastTile.className).toContain('sm:col-span-1');
+  });
 });

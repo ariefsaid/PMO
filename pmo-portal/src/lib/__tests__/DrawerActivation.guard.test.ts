@@ -53,21 +53,34 @@ function usesNavigateForRowActivation(src: string): boolean {
   return src.includes('useNavigate') || src.includes('navigate(');
 }
 
+/**
+ * Known limits of this heuristic (source-text scan, not an AST/type-aware check):
+ *   1. It only matches `open={<identifier>` — a Drawer opened via a more complex expression
+ *      (`open={!!selected}`, `open={state.drawerOpen}`, a ternary, etc.) is NOT detected.
+ *   2. It cannot tell whether the matched state variable is actually SET by a row-activation
+ *      handler (onActivate/onRowClick/onClick on a row) vs. some unrelated same-named state —
+ *      a same-file false-positive risk in a page with an unrelated `drawerOpen`-named variable
+ *      used for a non-row-activation Drawer (e.g. a "create new" modal-drawer).
+ *   3. It is scoped to the 4 named primary-list pages below; it does not scan the whole
+ *      pages/ tree, so a NEW primary list added without a corresponding `it(...)` here is
+ *      silently uncovered (the BDD complement doesn't self-discover new pages).
+ * Given these limits, this guard is a fast regression net for the 4 known pages, NOT a proof
+ * that no page anywhere opens a Drawer from row activation — the Playwright/e2e navigation
+ * tests (AC-G3D-GUARD-2's cross-stack proof) are the authoritative check.
+ */
 function hasDrawerWiredToRowActivation(src: string): boolean {
-  // Pattern: a Drawer whose `open` prop is set by the same state variable
-  // that is set by the row-activation handler (setSelected, setOpen, etc.)
-  // Heuristic: look for `<Drawer` AND `open={selected` or `open={drawerOpen`
-  // within the same file.
   const hasDrawer = /<Drawer[\s\n]/.test(src);
   if (!hasDrawer) return false;
-  // Check if any Drawer's open prop references a row-activation state
-  const activationOpenPatterns = [
-    /open=\{selected/,
-    /open=\{drawerOpen/,
-    /open=\{isDrawerOpen/,
-    /open=\{showDrawer/,
-  ];
-  return activationOpenPatterns.some((p) => p.test(src));
+  // Broadened from a fixed 4-name allowlist (selected/drawerOpen/isDrawerOpen/showDrawer) to ANY
+  // `open={<identifier>}`-shaped prop whose identifier name plausibly denotes drawer/selection/
+  // panel state — catches renamed or newly-introduced state variables (e.g. `activeRecord`,
+  // `panelOpen`, `openRow`) that the old hardcoded list would silently miss, while still
+  // excluding unrelated boolean props (e.g. `open={true}`, `open={isPending}` for an unrelated
+  // loading-state Drawer) via the name-shape filter below.
+  const openPropMatches = [...src.matchAll(/open=\{\s*([A-Za-z_$][\w$]*)/g)];
+  if (openPropMatches.length === 0) return false;
+  const activationNameShape = /selected|drawer|panel|active(?:record|row)?|openrow|isopen/i;
+  return openPropMatches.some(([, ident]) => activationNameShape.test(ident));
 }
 
 describe('AC-G3D-GUARD-2: primary lists use navigation, not Drawer, for row activation', () => {
@@ -93,5 +106,41 @@ describe('AC-G3D-GUARD-2: primary lists use navigation, not Drawer, for row acti
     const src = readPage('pmo-portal/pages/Incidents.tsx');
     expect(usesNavigateForRowActivation(src)).toBe(true);
     expect(hasDrawerWiredToRowActivation(src)).toBe(false);
+  });
+});
+
+describe('hasDrawerWiredToRowActivation — broadened state-name detection', () => {
+  it('detects a Drawer wired via a RENAMED state variable the old fixed 4-name list would miss (e.g. `activeRecord`, `panelOpen`)', () => {
+    const violatingSrc = `
+      function List() {
+        const [activeRecord, setActiveRecord] = useState(null);
+        return (
+          <>
+            <Row onActivate={(row) => setActiveRecord(row)} />
+            <Drawer open={activeRecord} onClose={() => setActiveRecord(null)} />
+          </>
+        );
+      }
+    `;
+    expect(hasDrawerWiredToRowActivation(violatingSrc)).toBe(true);
+
+    const violatingSrc2 = `
+      <Drawer open={panelOpen} onClose={closePanel} />
+    `;
+    expect(hasDrawerWiredToRowActivation(violatingSrc2)).toBe(true);
+  });
+
+  it('does NOT flag a Drawer whose open prop is an unrelated boolean (name-shape filter avoids over-matching)', () => {
+    const benignSrc = `
+      <Drawer open={isPending} onClose={reset} />
+    `;
+    expect(hasDrawerWiredToRowActivation(benignSrc)).toBe(false);
+  });
+
+  it('does NOT flag a file with no <Drawer> tag at all, regardless of open= props elsewhere', () => {
+    const noDrawerSrc = `
+      <Modal open={selected} onClose={close} />
+    `;
+    expect(hasDrawerWiredToRowActivation(noDrawerSrc)).toBe(false);
   });
 });

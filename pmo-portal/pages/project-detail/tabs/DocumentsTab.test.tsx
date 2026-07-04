@@ -132,6 +132,13 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getAllByText('Issued').length).toBeGreaterThan(0);
   });
 
+  it('M-3: gives the desktop Status column a dedicated non-clipping width', () => {
+    renderTab();
+    const statusHeader = screen.getByRole('columnheader', { name: 'Status' });
+    expect(statusHeader.className).toContain('min-w-[112px]');
+    expect(statusHeader.className).toContain('w-[112px]');
+  });
+
   it('AC-DOC-001: search filters rows by title/code', async () => {
     renderTab();
     await userEvent.type(screen.getByLabelText(/Search documents/i), 'steel');

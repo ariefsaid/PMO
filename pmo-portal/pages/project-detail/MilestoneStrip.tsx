@@ -113,7 +113,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
 
   if (isPending) {
     return (
-      <div data-testid="milestone-strip-loading" className="rounded-lg border border-border bg-card">
+      <div data-testid="milestone-strip-loading">
         <ListState variant="loading" rows={2} testId="milestone-strip-skeleton" />
       </div>
     );
@@ -137,7 +137,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           /* M2: pre-win compact affordance — one-liner so the sales levers stay above the fold. */
           <div
             data-testid="prewin-compact-planner"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
+            className="flex items-center gap-2 py-1"
           >
             <span className="flex-1 text-[13px] text-muted-foreground">
               Delivery planning starts once this is won
@@ -145,7 +145,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             {canCreate && (
               <button
                 type="button"
-                className="shrink-0 text-[13px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                 onClick={() => setFormTarget({ milestone: null })}
               >
                 Plan delivery phases
@@ -153,7 +153,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             )}
           </div>
         ) : (
-          <div data-testid="milestone-strip-empty" className="rounded-lg border border-border bg-card p-4">
+          <div data-testid="milestone-strip-empty">
             {canCreate ? (
               <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
             ) : (
@@ -162,7 +162,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </div>
         )
       ) : (
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-[14px] font-bold tracking-[-0.01em]">Delivery phases</h2>
             <div className="flex items-center gap-3" aria-label={`Project delivery ${deliveryRollup}%`}>
@@ -281,7 +281,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   const overdue = isOverdueMilestone(milestone);
 
   return (
-    <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
+    <div
+      className={`grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 ${isCurrent ? 'bg-primary/[0.04] ring-1 ring-primary/15' : ''}`}
+    >
       <div className="h-2 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
         <span
           data-testid="milestone-mobile-fill"
@@ -314,7 +316,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           <button
             type="button"
             aria-label={`Edit progress for ${milestone.name}`}
-            className="text-[11px] font-semibold text-primary hover:underline"
+            className="text-[11px] font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
             Edit
@@ -417,7 +419,9 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   return (
     <section
       aria-current={isCurrent ? 'step' : undefined}
-      className="relative min-w-0 rounded-md border border-border bg-background/60 p-3"
+      className={`relative min-w-0 rounded-md border bg-background/60 p-3 ${
+        isCurrent ? 'border-primary/30 ring-1 ring-primary/15' : 'border-border'
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -439,7 +443,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
-              className="mt-1 inline-block text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="mt-1 inline-block text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
             >
               View blocking tasks
             </Link>

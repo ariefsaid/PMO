@@ -4,7 +4,161 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-## ▶ Current state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
+## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening COMPLETE on `dev`
+
+> **RESUME ENTRY POINT.** **`production` UNCHANGED at `fc312eb`/mig 0041 (= `v0.1.0`). `main` = `1c0f747`
+> (pre-reskin, WELL behind). `dev` = `ad1f156`** — carries the reskin (#210) + the ENTIRE batteries-included-A
+> program (#211–#218) + cross-family remediation (#219/#220) + the full-codebase-review remediation & 5-wave
+> hardening (#221–#228). **Migrations through 0057, pgTAP through 0109, ADRs 0043–0046.**
+>
+> **⚑ TWO OWNER GATES OUTSTANDING (nothing else blocks):**
+> 1. **`dev`→`main` promote** (Director-level; PR→main runs the full `verify`+`integration` lane). **⚠ NOT a
+>    fast-forward** (independent review 2026-07-04): `origin/main` has ~5 commits not on `dev` (squash-merge
+>    divergence; content is present on `dev` in equal/superior form), so `git diff dev origin/main` touches
+>    ~382 files — the promote is a real 3-way MERGE, not a clean linear ff. **Do a dry-run
+>    `git merge --no-commit --no-ff origin/main` into a throwaway branch FIRST** to scope conflicts before
+>    scheduling. Also: flag-default precision — `VITE_FEATURES_AGENT_ASSISTANT` + `AGENT_CREDITS_ENFORCED`
+>    default OFF (`=== 'true'`), but the internal `AGENT_PERSISTENCE`/`AGENT_AUTOMATIONS` default ON
+>    (`!== 'false'`) — inert without the parent panel flag, but not literally "all OFF". No `.env.example` in
+>    repo; flag contract is source-only. ~~Fix `mint.ts` `generateLink` latent bug BEFORE flipping
+>    `AGENT_AUTOMATIONS` ON in prod~~ ✅ FIXED (`2de2da8` on dev): mint now fails-closed on unresolvable
+>    owner email, invalid `user_id` fallback removed — the last agent-automations-prod caveat is cleared.
+> 2. **EXPEDITE to `production`: PRs #221 (RED-3 procurement SoD bypass + RED-4 non-admin project hard-delete)**
+>    — these were **LIVE-PROD tenant-security holes** (pre-existing, migs 0002/0010/0038), now fixed on `dev`
+>    (migs 0051/0052), cross-family CONFIRM-CLOSED. Recommend promoting to prod ahead of the rest once the owner
+>    gives the per-instance go. Prod also needs the edge-fn deploy runbook (functions deploy ×3, secrets/GUCs,
+>    live-mint verify) BEFORE enabling the agent tier — all flags default OFF so a DB+FE promote is safe without it.
+>
+> **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
+> is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
+> passed (incl. 2 live-prod); all exploitable ones FIXED (#221–#223), + hardening waves: observability logging
+> +readiness script (#224), reliability atomic RPCs +error-boundary (#225), 12 indexes +pagination (#226),
+> test-hardening +deno-check CI gate +dependabot bumps (#227/#228). **Deferred (non-exploitable, ledgered):**
+> bulk-import idempotency (own slice), ~~`mint.ts` latent bug~~ (✅ fixed `2de2da8`), timesheet
+> entry_date week-range, `.select('*')` trim, MED-1/MED-2 org-seam, deno.lock pin, PostHog dashboards (ops).
+>
+> **What shipped in batteries-included A (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens +
+> rendered-Discover battery per issue):**
+> 1. **#211+#212** — vendor-neutral `ModelClient` + OpenRouter transport (deepseek-v4-flash, DeepInfra-first,
+>    fallbacks on; per-request usage capture). Cross-family pi+gpt-5.5 battery confirmed hardening; live
+>
+> **What shipped (2026-07-03→04, one autonomous session, full SDD/TDD/BDD + 3-lens + rendered-Discover
+> battery per issue):**
+> 1. **#211+#212** — vendor-neutral `ModelClient` + OpenRouter transport (deepseek-v4-flash, DeepInfra-first,
+>    fallbacks on; per-request usage capture). Cross-family pi+gpt-5.5 battery confirmed hardening; live
+>    deepseek gate = **GO-WITH-CAVEATS** (AC-MC-023 evidence in the spec).
+> 2. **#213** — ADR-0043 persistence: `agent_threads/runs/events` (owner-only RLS, seq-ordered, tool-call
+>    journal → durable resume w/ write de-dupe, server heartbeat + stuck-run UX, feedback thumbs), panel
+>    history/resume. Review battery caught + fixed a seq-collision Critical and a heartbeat inversion.
+> 3. **#214** — handler-debt refactor: shared `runToolLoop`, `MALFORMED_TOOL_CALL` repair-turn, cast cleanup.
+> 4. **#215** — PostHog agent events (9 typed builders, no-content privacy NFR proven, `safeTrack`).
+> 5. **#216** — `agent_usage` ledger + credits (mig 0047; unbypassable clamp on untrusted usage; preflight
+>    guard behind `AGENT_CREDITS_ENFORCED` default OFF; out-of-credits UX). Quality lens caught a missing
+>    hot-path index pre-merge.
+> 6. **#217** — ADR-0044 automations + notifications (mig 0048 + **ADR-0046** watermark table; pg_cron→
+>    `agent-dispatch` fn; **minted-owner-JWT background deputy** w/ cross-tenant gate; NL conditions;
+>    bell/inbox). Security lens caught + fixed a HIGH (un-allowlisted trigger source reaching service_role).
+> 7. **#218** — ADR-0045 transcript contracts: typed widgets (twice-validated zod → PMO primitives),
+>    ask-user via `control('answer')`, live-context grounding hints + thread-scope population.
+>
+> **✅ CROSS-FAMILY VERIFICATION PASS (pi+gpt-5.5, 2026-07-04) — #219 + #220.** After the 6 issues merged,
+> ran the whole tier through an independent gpt-5.5 battery (security · ADR-conformance · quality/interaction),
+> which found **11 issues 4 Claude review layers had passed** — incl. a genuine **Critical cross-org tenancy
+> breach** (Org-B `procurement_status_events` event firing an Org-A automation + leaking into its condition
+> prompt; service_role read had no org filter). All fixed + independently re-audited **CONFIRM-CLOSED**:
+> - **#219** (dispatch/tenancy): cross-org org-gate (+ falsy-org hardening), service_role minimal projection,
+>   mint-before-audit on every path, watermark `(created_at,id)` compound cursor, **migration 0049** dropping
+>   the owner-DELETE append-only violation on agent transcript/audit rows, JWT-TTL honesty (`wallClockTimeoutS`).
+> - **#220** (agent-chat/panel): answer-continuation regains write/compose caps, credit-gate ordering (resolve
+>   pending interactions at zero balance), pending-question ≠ stuck-run, server cancel path (ADR-0043 §4).
+> - **ADR amendments** (this commit): 0044 §3 (JWT TTL not bounded — deputy ceiling is the mitigation, not TTL);
+>   0046 (advance-per-attempted, not advance-after-success). **Lesson: cross-family review catches what
+>   same-family passes — make it a launch/version gate, not just issue 1.**
+>
+> **⚠ OPEN before `v0.2.0`→prod (owner-gated):** the promote path deploys DB+FE only — needs
+> `supabase functions deploy agent-chat compose-view agent-dispatch` + prod secrets (`OPENROUTER_API_KEY`,
+> pg_cron `app.settings.service_role_key` GUC) + flag decisions (`VITE_FEATURES_AGENT_ASSISTANT`,
+> `AGENT_CREDITS_ENFORCED`, `AGENT_AUTOMATIONS`) + the **binding live-mint verification** (ADR-0044 —
+> `admin.generateLink` mint for a known user → minted client reads only their rows; edge runtime can't run in CI).
+>
+> **Deferred/owner-pending ledger:** F4 mobile Assistant entry (owner call) · OpenRouter fallback chain
+> (owner will provide) · credit grants admin UI (SQL-only v1) · TOCTOU preflight revisit at ADR-0044-scale
+> concurrency · free-text-question vs composer dual-input + feedback-affordance polish (decisions.md notes) ·
+> chips pending: dependabot vulns (1 high) + `deno check` CI gate for edge-fn entry files (found: they're
+> outside every type gate) · e2e mutation-spec isolation flake (pre-existing, recurring).
+
+## ▶ Prior state (2026-07-01) — agent-native assistant SHIPPED to `main`; versioning adopted
+
+> **RESUME ENTRY POINT.** **`production`(prod) UNCHANGED at `fc312eb` / Cloud DB migration 0041 = the
+> `v0.1.0` versioning baseline (ADR-0042). `main`=`1c0f747` (agent-native epic A1–A4 promoted, PR #200,
+> gated `verify`+`integration` green). `dev` = same content, + the versioning PR landing now.** No prod
+> promote happened this session (main is the autonomous ceiling; prod needs a direct owner go).
+>
+> **What shipped to `main` this session — the agent-native in-app assistant (ADR-0040/0041), the app's
+> first server-side tier:** the ⌘J `AssistantPanel` (A2); a streaming **`agent-chat` Deno edge-function
+> deputy** (A1) with read-only `query_entity` + approve-gated write actions `create_activity`/
+> `update_task_status` (A3) + compose-a-view (A4); the `AgentRuntime` port + `PmoNativeRuntime` adapter.
+> Feature-flagged off by default (`VITE_FEATURES_AGENT_ASSISTANT`). Deputy auth = caller JWT, RLS ceiling,
+> `ANTHROPIC_API_KEY` server-only. **The `dev→main` integration gate caught 7 real defects the verify-only
+> dev lane structurally can't** (pgTAP fixtures, CI flag, SSE-mock shape, panel-hide UX bug, e2e selectors,
+> hotkey-open race, save-mock shape) — each fixed honestly (app-bug→fix app; test-bug→fix test; PRs #201–205).
+>
+> **Versioning adopted (ADR-0042; PR #206):** SemVer, pre-1.0 while single-tenant MVP. `v0.1.0`=current
+> prod; `v0.2.0`=next release = composed views + the agent-native edge-function tier (migs 0042–0045).
+> The bump rule + release manifest are in the ADR; `CHANGELOG.md` is the per-release record.
+>
+> **⚠ OPEN before `v0.2.0` can ship to prod (owner-gated — see OPEN debt):** the promote path deploys only
+> DB+FE — there is **no `supabase functions deploy` step and no prod `ANTHROPIC_API_KEY` secret**, so the
+> agent panel would call a missing endpoint. Edge functions also don't run in CI/this container
+> (`[edge_runtime] enabled=false`) → agent e2e are mocked; **live end-to-end test needs a local session**
+> (`docs/environments.md` → Edge Functions).
+>
+> **▶ DECIDED (owner, 2026-07-03) — agent-native sidecar verdict: CHERRY-PICK; Option A is the ONLY user
+> surface. Binding record + forward plan: ADR-0040 addendum 2026-07-03.** The pilot (branch
+> `feat/agent-native-adoption`, PR #209) was driven live by the owner and the sidecar UI proved
+> **builder/admin-grade, not app-user-grade** (workspace file browsing; "sign up with Builder" upsells on
+> the add-provider/add-DB/hosted-UI flows; sidecar settings editable from the end-user panel) — retired as
+> a user surface on UX/audience grounds, on top of the known ops grounds. Its batteries are host-coupled
+> (Nitro + own `agent_native` Drizzle schema), not liftable. **PR #209 closed unmerged; branch retained as
+> a reference archive** (mine: `server/middleware/deputy.ts` AsyncLocalStorage deputy seam,
+> `server/lib/read-allowlist.ts`, `test/deputy-invariant.gate.test.ts`, OpenRouter/deepseek wiring
+> `f6d6eb1`, scoped-CSS embed plugin).
+>
+> **▶ NEXT BUILD — "batteries-included A" (each item its own SDD → plan → TDD issue):**
+> (1) **OpenRouter provider adapter** in `agent-chat` (cut at the injectable `AnthropicLike` seam,
+> `handler.ts`; OpenRouter = OpenAI-shape; its per-request cost accounting feeds metering). **Owner-decided
+> 2026-07-03:** PMO-central OpenRouter key (function secret; BYO-key maybe later, enterprise) · default model
+> **`deepseek/deepseek-v4-flash` routed DeepInfra-first with fallbacks allowed** (fallback chain TBD, owner
+> will provide) — gate: an across-the-board quality test
+> (chat + read/write tools + `compose_view` structured output) on that model BEFORE any stronger-model
+> fallback is added; per-action model map stays env-configurable · seam renamed **vendor-neutral
+> `ModelClient`** (OpenAI-shape). Note: the pilot's "DeepInfra pin infeasible" was an agent-native
+> settings-store limit — direct OpenRouter API supports `provider: { order: ["DeepInfra"] }`;
+> (2) **`agent_threads` + `agent_events`** persistence (RLS/org_id, owner-private, Companies-slice pattern
+> like `user_views`) — transcript resume + doubles as the agent audit trail;
+> (3) **`agent_usage` ledger + per-user CREDIT balance**, enforced server-side at the existing `RateGuard`
+> injection point — the SaaS metering seam (pricing strategy deliberately deferred);
+> (4) **PostHog agent events** (ADR-0022; no Sentry).
+> **Scope grown by owner 2026-07-03 (Tier-1 + ask-user promoted; ADRs 0043–0045 Accepted, they govern):**
+> item (2) is now **ADR-0043** (binding: thread `scope`, tool-call journal/durable resume, progress
+> heartbeat + stuck-run UX, per-event feedback — fold into its spec);
+> (5) **automations (cron + event-triggered) + notifications inbox** = **ADR-0044** (pg_cron→dispatcher
+> edge fn; minted-owner-JWT background deputy — THE security-sensitive piece, security-auditor owns it;
+> credits preflight from item 3);
+> (6) **transcript interaction contracts** = **ADR-0045** (typed data widgets via renderer registry,
+> ask-user question chips via `control('answer')`, live route/entity context as untrusted hints).
+> Suggested build order: 1 → 2(0043) → 3 → 4 → 6(0045) → 5(0044) — automations last (needs credits + notifications).
+> **Backlogged nice-to-haves (owner 2026-07-03):** view-proposal workflow (user proposes an agent-composed
+> view for promotion into the coded app — ADR-0036 §7) · input-form composition primitives (agent-built
+> data-entry forms; new primitive class, write-path security — own ADR when picked up).
+> **Battery-mining catalog (2026-07-03): `docs/spikes/2026-07-03-agent-native-battery-mining.md`** — the
+> exhaustive pass over agent-native (retired-branch dist + upstream docs) for further end-user batteries.
+> Tier 1 candidates: automations (cron+event) · notifications inbox · progress/stuck-run UX · typed
+> chat-widget results · context awareness. **⚑ Its "design inputs" section is BINDING on items (2)/(4)
+> above** (thread↔entity scope, tool-call journal for durable resume, progress heartbeat, feedback fields);
+> upstream has NO budget/rate-limit system — validates item (3) as a build-not-borrow differentiator.
+
+## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
 > **RESUME ENTRY POINT (model-agnostic).** **`production`(prod) current at `fc312eb` / Cloud DB migration 0041; `main`=`7a65ac7` (the 2026-06-21 procurement IxD + Reserved-budget program promoted, PR #169); `dev`=`d317260`+ a few ahead (the 2 done follow-ups + docs). See IMMEDIATE NEXT ACTION below.** The prod-level case-folder revamp shipped a prior session (owner-direct "push to prod", PRs #158→dev #160→main): the **procurement revamp** — a case folder over ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment; **dual-ID** = minted system# + external ref; **Model-C** = case-spine + optional PO-anchored settlement chain w/ a same-case FK invariant; PO-less is first-class; SoD-gated `transition_procurement` RPC byte-preserved; append-only `procurement_status_events` log; migs **0035–0041**, the 0038 backfill creates PR/PO records from existing prod pr_number/po_number) **+ the tabbed case page** (Overview bento + Progression timeline · Documents dual-ID ledger w/ file view+upload · Vendor-quotes bid comparison) replacing the old accreted stack. Authority: **ADR-0033**; spec `docs/specs/procurement-records.spec.md`; plans `docs/plans/2026-06-19-procurement-{records,ui-revamp}.md`; design `docs/design/procurement-redesign/`. Security-audited (1 Medium fixed); pgTAP 0076–0083; procurement e2e retargeted to the tabs.
 > **⚑ BINDING (owner): work→`dev`→`main`; `main` is the autonomous ceiling. NEVER promote to `production` (FE push or `db-push-prod.sh`) without a DIRECT per-instance owner instruction.** (`fc312eb` was such an instruction.) Promote = `db-push-prod.sh` typed-`prod` (**NO reseed** — seed §R/§S/§T procurement enrichment is local-only) → `git push origin main:production` (clean ff). ⚠ `db-push-prod.sh --check` hangs **silently in `op-get.sh`** if 1Password is locked (zero output; looks like a DB hang but isn't — unlock 1Password first).
@@ -118,6 +272,19 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   Resources/Assets (spine 8), Service/O&M (spine 9). See `docs/roadmap-spines.md`.
 
 ## ▶ OPEN debt / follow-ups (tracked, none mandate-blocking)
+
+### Edge-function operationalization + versioning (from the agent epic + ADR-0042)
+- **Edge-function prod deploy step** [Medium, OWNER-GATED — blocks `v0.2.0` to prod]: the promote path
+  (`docs/environments.md`) deploys only DB+FE. Add `supabase functions deploy agent-chat compose-view` +
+  set the prod `ANTHROPIC_API_KEY` secret (`supabase secrets set`, once). Without it a prod with the agent
+  panel calls a missing endpoint. Runbook + local-dev already documented in `docs/environments.md` → Edge Functions.
+- **Local edge-function dev enablement** [Low, done — scaffolding]: `supabase/functions/.env.example` +
+  the `functions serve` runbook (`docs/environments.md`). Live end-to-end agent testing needs a **local
+  session** (this container has `[edge_runtime] enabled=false` + no `deno.land`/API key). Not automatable here.
+- **`release-please` automation** [Low, ADR-0042 adoption]: GitHub Action on `main` to maintain
+  `CHANGELOG.md` + compute the next `vX.Y.Z` from Conventional Commits, so the version is never hand-argued.
+- **`VITE_APP_VERSION` in-app surfacing** [Low, ADR-0042 adoption]: inline the version at build, show it
+  next to `<EnvBadge>` (`vX.Y.Z · <sha>`) so a running instance reports exactly what it is.
 
 ### Deferred-debt ledger from the 2026-06-14 `dev` burst (fold in before promote where noted)
 - **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit

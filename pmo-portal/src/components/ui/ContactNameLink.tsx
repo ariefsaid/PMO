@@ -46,7 +46,7 @@ export const ContactNameLink: React.FC<ContactNameLinkProps> = ({
       aria-label={ariaLabel ?? `Open ${name}`}
       className={cn(
         'truncate font-medium text-foreground underline-offset-2',
-        'hover:text-primary hover:underline',
+        'hover:text-primary-text hover:underline',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
         className,
       )}

@@ -1,17 +1,18 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * `useEntityForm` — the tiny controlled-form + per-field validation helper that
  * backs every CRUD form (crud-components §2.3). No new dependency.
  *
  * Behavior contract:
- *  - Tracks `values`, `errors`, `touched`, `isDirty`, `isSubmitting`.
+ *  - Tracks `values`, `errors`, `touched`, `hasAttemptedSubmit`, `isDirty`,
+ *    `isSubmitting`.
  *  - **Validate on blur** (not per keystroke): `setValue` never surfaces an
  *    error; `handleBlur(field)` runs `validate` and shows only that field's
  *    error (existing errors on other touched fields are preserved).
  *  - **Validate on submit**: `handleSubmit(onValid)` validates every field,
- *    marks all touched, and only calls `onValid(values)` when the error map is
- *    empty; `isSubmitting` brackets an async `onValid`.
+ *    marks `hasAttemptedSubmit`, and only calls `onValid(values)` when the
+ *    error map is empty; `isSubmitting` brackets an async `onValid`.
  *  - `fieldProps(field)` returns the props a `<TextField>`/`<Combobox>`
  *    consumes ({ id, value, onChange, onBlur, error }).
  */
@@ -46,6 +47,7 @@ export interface UseEntityForm<T> {
   values: T;
   errors: Partial<Record<keyof T, string>>;
   touched: Partial<Record<keyof T, boolean>>;
+  hasAttemptedSubmit: boolean;
   isDirty: boolean;
   isSubmitting: boolean;
   /** No outstanding validation errors against the current values. */
@@ -79,16 +81,32 @@ export function useEntityForm<T extends object>({
   // values updater (keeps `setValue` a pure values-only setState).
   const [surfacedErrors, setSurfacedErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
 
   // Stable id prefix for this form instance (deterministic, no per-render churn).
   const prefixRef = useRef(idPrefix ?? `ef-${++formSeq}`);
   const initialRef = useRef(initialValues);
+  const interactionReadyRef = useRef(false);
 
   const runValidate = useCallback(
     (v: T): Partial<Record<keyof T, string>> => (validate ? validate(v) : {}),
     [validate],
   );
+
+  // Ignore blur events fired during mount-time focus choreography (notably the
+  // React StrictMode double-effect cleanup in dev). Real user interaction only
+  // begins once the first task after mount has elapsed.
+  useEffect(() => {
+    interactionReadyRef.current = false;
+    const timer = window.setTimeout(() => {
+      interactionReadyRef.current = true;
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      interactionReadyRef.current = false;
+    };
+  }, []);
 
   // The live validation result for the current values (memoized per values change).
   const liveErrors = useMemo(() => runValidate(values), [runValidate, values]);
@@ -100,11 +118,13 @@ export function useEntityForm<T extends object>({
     const out: Partial<Record<keyof T, string>> = {};
     for (const k of Object.keys(surfacedErrors) as (keyof T)[]) {
       const msg = surfacedErrors[k];
-      // Keep showing only if the field is still invalid live.
-      if (msg && liveErrors[k]) out[k] = msg;
+      const mayDisplay = touched[k] || hasAttemptedSubmit;
+      // Keep showing only if the field is still invalid live AND the field was
+      // user-touched or the user has tried to submit the form.
+      if (msg && liveErrors[k] && mayDisplay) out[k] = msg;
     }
     return out;
-  }, [surfacedErrors, liveErrors]);
+  }, [surfacedErrors, liveErrors, touched, hasAttemptedSubmit]);
 
   // Pure values-only updater — never schedules a sibling setState.
   const setValue = useCallback(<K extends keyof T>(field: K, value: T[K]) => {
@@ -117,6 +137,7 @@ export function useEntityForm<T extends object>({
 
   const handleBlur = useCallback(
     (field: keyof T) => {
+      if (!interactionReadyRef.current) return;
       setTouched((prev) => ({ ...prev, [field]: true }));
       const fieldErrors = runValidate(values);
       setSurfacedErrors((prev) => {
@@ -132,11 +153,7 @@ export function useEntityForm<T extends object>({
   const handleSubmit = useCallback(
     async (onValid: (values: T) => void | Promise<void>) => {
       const allErrors = runValidate(values);
-      const allTouched = Object.keys(values).reduce(
-        (acc, k) => ({ ...acc, [k]: true }),
-        {} as Partial<Record<keyof T, boolean>>,
-      );
-      setTouched(allTouched);
+      setHasAttemptedSubmit(true);
       setSurfacedErrors(allErrors);
       if (Object.keys(allErrors).length > 0) return;
 
@@ -156,6 +173,7 @@ export function useEntityForm<T extends object>({
     setValuesState(target);
     setSurfacedErrors({});
     setTouched({});
+    setHasAttemptedSubmit(false);
     setSubmitting(false);
   }, []);
 
@@ -195,6 +213,7 @@ export function useEntityForm<T extends object>({
     values,
     errors,
     touched,
+    hasAttemptedSubmit,
     isDirty,
     isSubmitting,
     canSubmit,

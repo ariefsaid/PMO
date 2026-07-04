@@ -11,7 +11,7 @@
  * to none — captured by the user, not auto-wired.
  */
 import React, { useState } from 'react';
-import { Button, Icon, useToast } from '@/src/components/ui';
+import { Button, Icon, SelectField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
@@ -411,26 +411,15 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
 
         {/* Status */}
-        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
-          <label
-            htmlFor={`${formId}-status`}
-            className="text-[12px] font-semibold text-muted-foreground"
-          >
-            Status
-          </label>
-          <select
+        <div className="min-w-[140px] flex-1">
+          <SelectField
             id={`${formId}-status`}
+            label="Status"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={setStatus}
+            options={statusOptions}
             data-testid={cfg.statusTestId}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            {statusOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
@@ -458,28 +447,15 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       {/* [PD-5]: predecessor FK for payment — optional inline-select */}
       {cfg.showInvoiceFk && (
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor={`${formId}-invoice`}
-            className="text-[12px] font-semibold text-muted-foreground"
-          >
-            Links to invoice <span className="font-normal">(optional)</span>
-          </label>
-          <select
-            id={`${formId}-invoice`}
-            value={invoiceId}
-            onChange={(e) => setInvoiceId(e.target.value)}
-            data-testid="payment-invoice-select"
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <option value="">— none —</option>
-            {invoices.map((inv) => (
-              <option key={inv.id} value={inv.id}>
-                {inv.vi_number ?? inv.id}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          id={`${formId}-invoice`}
+          label={<>Links to invoice <span className="font-normal">(optional)</span></>}
+          value={invoiceId}
+          onChange={setInvoiceId}
+          data-testid="payment-invoice-select"
+          placeholder="— none —"
+          options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
+        />
       )}
 
       {/* Action row */}
@@ -542,7 +518,7 @@ export const RecordCaptureTrigger: React.FC<RecordCaptureTriggerProps> = ({
       type="button"
       data-testid={testId}
       onClick={onOpen}
-      className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="plus" className="size-3.5" />
       {label}

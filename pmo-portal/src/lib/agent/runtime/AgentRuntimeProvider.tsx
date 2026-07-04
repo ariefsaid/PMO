@@ -3,7 +3,7 @@
  * Constructs one PmoNativeRuntime when the agentAssistant flag is on.
  * Provides runtime + panel open state to all consumers via AgentRuntimeContext.
  *
- * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/ANTHROPIC key.
+ * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/provider API key.
  * FR-AP-024/025.
  */
 import React, { useMemo, useRef, useState, useCallback } from 'react';
@@ -12,6 +12,8 @@ import type { AgentRuntime } from './port';
 import { PmoNativeRuntime } from './pmoNativeRuntime';
 import { useAuth } from '@/src/auth/useAuth';
 import { isFeatureEnabled } from '@/src/lib/features';
+import { trackAgentPanelOpened } from '@/src/lib/analytics';
+import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 interface AgentRuntimeProviderProps {
   children: React.ReactNode;
@@ -41,7 +43,12 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
     // sessionRef is stable (useRef returns the same object); no deps needed.
   }, []);
 
-  const openPanel = useCallback(() => setOpen(true), []);
+  const openPanel = useCallback(() => {
+    setOpen(true);
+    // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
+    // entry point exists in this codebase yet — every real call site opens unscoped.
+    safeTrack(() => trackAgentPanelOpened(false));
+  }, []);
   const closePanel = useCallback(() => setOpen(false), []);
   const togglePanel = useCallback(() => setOpen((o) => !o), []);
 

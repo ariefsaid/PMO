@@ -14,40 +14,42 @@ export type StatusVariant =
   | 'violet';
 
 /**
- * The Tinted-Status Rule: status = a 6px dot + a pill tinted ~10-18% of the
- * status hue with a DARKENED text variant (preserves DESIGN.md AA values — we
- * never use the base hue as text). Darkened text values are sanctioned inline
- * literals (DESIGN.md "Accessibility posture"). Dot + text means it is never
- * color-only.
+ * The Quiet-Status Rule (ADR-0037 monochrome-calm): status = a small colored
+ * DOT + a colored LABEL on the surrounding surface — NEVER a loud filled slab.
+ * No tinted pill background, no pill chrome (rounded/horizontal padding). The dot
+ * carries the hue; the AA `-text` token carries the label color; the word carries
+ * identity. Dot + label means it is never color-only.
+ *
+ * Label colors are the AA `--status-*-text` / `--warning-foreground` token values
+ * (open=blue, won=success, lost=destructive, warn/overdue=warning, violet=violet)
+ * or `--muted-foreground` for the grey variants (progress/neutral/draft/superseded).
+ * Each clears ≥4.5:1 on the plain canvas/card surface in BOTH themes (verified per
+ * reskin/_app.css §0 — these are the same token values, computed against white +
+ * the dark canvas/card). The dot keeps the per-variant hue.
  */
 interface PillStyle {
-  /** Tailwind tint classes for bg (+ token text where a token exists). */
-  cls: string;
-  /** Darkened AA text color (inline literal) — omitted when a token covers it. */
-  text?: string;
-  /** Dot color (token or literal). */
+  /** Label text color as a Tailwind utility (grey + warn variants). */
+  labelCls?: string;
+  /** Label text color via an AA token (hsl(var(--status-*-text))) — colored variants. */
+  labelColor?: string;
+  /** Dot color (token via hsl(var(--x))). */
   dot: string;
 }
 
 const STYLES: Record<StatusVariant, PillStyle> = {
-  // text values reference the documented --status-*-text tokens in index.css (Wave-6 H3).
-  open: { cls: 'bg-primary/10', text: 'hsl(var(--status-open-text))', dot: 'hsl(var(--primary))' },
-  // I1: quiet neutral in-flight pill — differentiates non-active stages from the
-  // single blue `open` by tint, while the distinct stage LABEL carries identity
-  // (so it is never color-only, and never invents a per-stage hue = the rainbow).
-  progress: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
-  won: { cls: 'bg-success/12', text: 'hsl(var(--status-won-text))', dot: 'hsl(var(--success))' },
-  lost: { cls: 'bg-destructive/10', text: 'hsl(var(--status-lost-text))', dot: 'hsl(var(--destructive))' },
-  warn: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
-  overdue: { cls: 'bg-warning/18 text-warning-foreground', dot: 'hsl(var(--warning))' },
-  neutral: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
-  draft: { cls: 'bg-secondary text-secondary-foreground', dot: 'hsl(var(--muted-foreground))' },
-  // Superseded: neutral grey pill — the word carries the meaning (design-plan §1.4 / Tinted-Status Rule / One Blue Rule).
-  superseded: { cls: 'bg-secondary text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
-  // Categorical violet — NON-interactive categorization only (DESIGN.md: KPI/avatar/
-  // timeline/type pills, never an action color). Tinted violet/12 + the darkened-AA
-  // text token --status-violet-text = hsl(262 60% 42%) (7.4:1 on white).
-  violet: { cls: 'bg-violet/12', text: 'hsl(var(--status-violet-text))', dot: 'hsl(var(--violet))' },
+  // colored variants — label color from the AA --status-*-text token (inline hsl(var()))
+  open: { labelColor: 'hsl(var(--status-open-text))', dot: 'hsl(var(--primary))' },
+  won: { labelColor: 'hsl(var(--status-won-text))', dot: 'hsl(var(--success))' },
+  lost: { labelColor: 'hsl(var(--status-lost-text))', dot: 'hsl(var(--destructive))' },
+  violet: { labelColor: 'hsl(var(--status-violet-text))', dot: 'hsl(var(--violet))' },
+  // warn/overdue — AA amber label via the --warning-foreground token utility
+  warn: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
+  overdue: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
+  // grey variants — quiet muted label + muted dot (label carries identity, not color)
+  progress: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
+  neutral: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
+  draft: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
+  superseded: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
 };
 
 export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -66,11 +68,11 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full pl-2 pr-2 text-[12px] font-semibold whitespace-nowrap',
-        s.cls,
+        'inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold whitespace-nowrap',
+        s.labelCls,
         className
       )}
-      style={s.text ? { color: s.text, ...style } : style}
+      style={s.labelColor ? { color: s.labelColor, ...style } : style}
       {...rest}
     >
       <span

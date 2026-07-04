@@ -45,7 +45,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
             />
             <Link
               to={`/projects/${p.id}`}
-              className="min-w-0 truncate text-[13px] font-semibold hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="min-w-0 truncate text-[13px] font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {p.name}
             </Link>

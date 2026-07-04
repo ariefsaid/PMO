@@ -4,21 +4,27 @@
  *   - composeViewAction / runComposeView (the A4 agent-chat path)
  *
  * Pure: all I/O is injected via ComposeSpecDeps. No Deno globals.
- * Importable in Vitest (Node) with the Anthropic SDK mocked (ADR-0039 decision 7).
+ * Importable in Vitest (Node) with the ModelClient mocked (ADR-0039 decision 7).
  *
  * D2/D3: extracts composeSpec() + ComposeSpecError from handler.ts so both callers share
  * exactly one compose+repair path (D-A4-1 — no second weaker path, ADR-0039).
  *
  * Reconciliation #2: CompilerContext = { userId, orgId } (userId needed for $current_user token).
+ *
+ * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-019/020):
+ *   - ComposeSpecDeps.anthropic (AnthropicLike) → ComposeSpecDeps.modelClient (ModelClient) + model.
+ *   - tool_choice forces compose_view via the OpenAI shape (FR-MC-004).
+ *   - the repair-loop feedback is a single role:'user' text turn (FR-MC-020) — no placeholder.
  */
 
 // Relative imports — no .ts extension; no @-alias (Deno + Node/Vitest both resolve these).
-import { compileCompositionSpec } from '../../../pmo-portal/src/lib/viewspec/compiler';
-import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types';
-import { registry } from '../../../pmo-portal/src/lib/viewspec/registry';
-import { COMPOSITION_SPEC_SCHEMA } from './schema';
-import { buildSystemPrompt } from './prompt';
-import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
+import { compileCompositionSpec } from '../../../pmo-portal/src/lib/viewspec/compiler.ts';
+import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import { registry } from '../../../pmo-portal/src/lib/viewspec/registry.ts';
+import { COMPOSITION_SPEC_SCHEMA } from './schema.ts';
+import { buildSystemPrompt } from './prompt.ts';
+import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 // ── Constants (shared with handler.ts) ───────────────────────────────────────
 
@@ -30,53 +36,19 @@ export const MAX_REPAIR_ATTEMPTS = 2;
 
 // ── Injected interfaces ───────────────────────────────────────────────────────
 
-/**
- * Minimal Anthropic-like interface for the messages.create call.
- * The real @anthropic-ai/sdk is never imported here (NFR: no SDK in pmo-portal).
- * Unit tests mock this; index.ts injects the real SDK instance.
- */
-export interface AnthropicLike {
-  messages: {
-    create(params: AnthropicCreateParams): Promise<AnthropicResponse>;
-  };
-}
-
-export interface AnthropicCreateParams {
-  model: string;
-  max_tokens: number;
-  system: string;
-  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>;
-  tools: Array<{
-    name: string;
-    description: string;
-    input_schema: object;
-  }>;
-  tool_choice: { type: 'tool'; name: string };
-}
-
-export interface AnthropicResponse {
-  content: Array<{
-    type: string;
-    name?: string;
-    input?: unknown;
-  }>;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-  };
-}
-
 export interface ComposeSpecDeps {
-  /** Injected Anthropic-like client — mocked in tests; real SDK in handler/index.ts. */
-  anthropic: AnthropicLike;
+  /** Vendor-neutral model client — mocked in tests; OpenRouterModelClient in handler/index.ts. */
+  modelClient: ModelClient;
   /** Caller user ID — needed for the CompilerContext ($current_user token resolution). */
   userId: string;
+  /** Resolved model id for this call (FR-MC-015 / MC-OD-009). */
+  model: string;
 }
 
 // ── ComposeSpecError ──────────────────────────────────────────────────────────
 
 /**
- * Thrown by composeSpec when the repair loop is exhausted or an upstream SDK error occurs.
+ * Thrown by composeSpec when the repair loop is exhausted or an upstream model-call error occurs.
  * The handler maps this to 422 (REPAIR_EXHAUSTED) or 502 (UPSTREAM_ERROR).
  */
 export class ComposeSpecError extends Error {
@@ -102,38 +74,37 @@ export class ComposeSpecError extends Error {
 // ── Model call helper ─────────────────────────────────────────────────────────
 
 async function callModel(
-  anthropic: AnthropicLike,
+  modelClient: ModelClient,
+  model: string,
   system: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string | object[] }>,
+  messages: ModelMessage[],
 ): Promise<{ spec: CompositionSpec; tokensUsed: number }> {
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
+  const response = await modelClient.create({
+    model,
     max_tokens: 4096,
-    system,
-    messages,
+    messages: [{ role: 'system', content: system }, ...messages],
     tools: [
       {
-        name: 'compose_view',
-        description: "Author a validated CompositionSpec v1 for the user's natural-language request.",
-        input_schema: COMPOSITION_SPEC_SCHEMA,
+        type: 'function',
+        function: {
+          name: 'compose_view',
+          description: "Author a validated CompositionSpec v1 for the user's natural-language request.",
+          parameters: COMPOSITION_SPEC_SCHEMA,
+        },
       },
     ],
-    tool_choice: { type: 'tool', name: 'compose_view' },
+    tool_choice: { type: 'function', function: { name: 'compose_view' } },
   });
 
-  const toolUseBlock = response.content.find(
-    (block) => block.type === 'tool_use' && block.name === 'compose_view',
-  );
-
-  if (!toolUseBlock || toolUseBlock.input == null) {
-    throw new Error('Model did not return compose_view tool_use block');
+  const toolCall = response.message.tool_calls?.[0];
+  if (!toolCall || toolCall.function.name !== 'compose_view') {
+    throw new Error('Model did not return a compose_view tool call');
   }
 
-  const tokensUsed =
-    (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+  const tokensUsed = (response.usage?.prompt_tokens ?? 0) + (response.usage?.completion_tokens ?? 0);
 
   return {
-    spec: toolUseBlock.input as CompositionSpec,
+    spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
     tokensUsed,
   };
 }
@@ -146,7 +117,8 @@ async function callModel(
  * Implements the same tool-forcing + bounded repair loop as the I5 HTTP handler.
  * Called by both composeViewHandler and runComposeView — a single shared path (D-A4-1).
  *
- * Throws ComposeSpecError on exhaustion (REPAIR_EXHAUSTED) or upstream SDK error (UPSTREAM_ERROR).
+ * Throws ComposeSpecError on exhaustion (REPAIR_EXHAUSTED) or upstream model-call error
+ * (UPSTREAM_ERROR).
  *
  * Logging discipline (NFR-CV-SEC-006 / NFR-AS-SEC-004): log only
  * { errorCode, repairAttempts, tokensUsed } — NEVER the prompt text or spec contents.
@@ -156,7 +128,7 @@ export async function composeSpec(
   orgId: string,
   deps: ComposeSpecDeps,
 ): Promise<{ spec: CompositionSpec; repairAttempts: number; tokensUsed: number }> {
-  const { anthropic, userId } = deps;
+  const { modelClient, userId, model } = deps;
 
   const system = buildSystemPrompt(
     ENTITY_WHITELIST,
@@ -167,7 +139,7 @@ export async function composeSpec(
 
   const ctx = { userId, orgId };
 
-  const conversationMessages: Array<{ role: 'user' | 'assistant'; content: string | object[] }> = [
+  const conversationMessages: ModelMessage[] = [
     { role: 'user', content: prompt },
   ];
 
@@ -176,7 +148,7 @@ export async function composeSpec(
 
   try {
     while (true) {
-      const { spec, tokensUsed } = await callModel(anthropic, system, conversationMessages);
+      const { spec, tokensUsed } = await callModel(modelClient, model, system, conversationMessages);
       totalTokensUsed += tokensUsed;
 
       try {
@@ -207,10 +179,8 @@ export async function composeSpec(
           ? `Validation failed: ${err.code} — ${err.detail}. Fix and re-emit a valid CompositionSpec.`
           : `Validation failed: ${err.code}. Fix and re-emit a valid CompositionSpec.`;
 
-        conversationMessages.push({
-          role: 'assistant',
-          content: [{ type: 'tool_use', id: 'repair_placeholder', name: 'compose_view', input: {} }],
-        });
+        // FR-MC-020: a single role:'user' text turn — no placeholder tool_use echo
+        // needed under the OpenAI message shape (unlike Anthropic's requirement).
         conversationMessages.push({ role: 'user', content: repairFeedback });
 
         repairAttempts++;
@@ -220,7 +190,7 @@ export async function composeSpec(
     if (err instanceof ComposeSpecError) {
       throw err;
     }
-    // Upstream SDK or unexpected error
+    // Upstream model-call error or unexpected error
     console.error('[compose-view] UPSTREAM_ERROR', {
       errorCode: 'UPSTREAM_ERROR',
       repairAttempts,

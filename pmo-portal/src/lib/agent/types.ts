@@ -6,7 +6,7 @@
  * ADR-0039, FR-AS-011, FR-AS-012, FR-AS-013.
  * Reconciliation #1: validationError is SINGULAR (the compiler is fail-fast and throws one error).
  */
-import type { CompositionSpec } from '../viewspec/types';
+import type { CompositionSpec } from '../viewspec/types.ts';
 
 // ── Request ────────────────────────────────────────────────────────────────────
 

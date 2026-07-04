@@ -84,6 +84,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
       loading={loading}
       to="/approvals"
       linkLabel={`${label}: ${hasError ? 'unavailable' : `${total} ${total === 1 ? 'item' : 'items'} awaiting`}`}
+      ctaLabel="Review"
     />
   );
 };

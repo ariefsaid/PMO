@@ -13,10 +13,10 @@
  * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
-import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './actions';
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './actions.ts';
 
 // Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
-export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema';
+export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema.ts';
 
 // ── Write action schemas (A3) ─────────────────────────────────────────────────
 
@@ -48,6 +48,55 @@ export const UPDATE_TASK_STATUS_SCHEMA = {
       enum: ['To Do', 'In Progress', 'Done', 'Blocked'] as string[],
       description: 'New task status.',
     },
+  },
+};
+
+// ── notify / create_automation schemas (ADR-0044 §1/§5, FR-AAN-026/029) ──────────
+
+export const NOTIFY_SCHEMA = {
+  type: 'object' as const,
+  required: ['title'] as string[],
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' as const, maxLength: 200, description: 'Short notification title.' },
+    body: { type: 'string' as const, maxLength: 2000, description: 'Optional detail.' },
+    severity: {
+      type: 'string' as const,
+      enum: ['info', 'warning', 'critical'] as string[],
+      description: 'Notification severity; defaults to info.',
+    },
+    metadata: {
+      type: 'object' as const,
+      description:
+        'Optional deep-link context: { source?, automation_id?, run_id?, entity?: {type,id,label} }.',
+    },
+  },
+};
+
+export const CREATE_AUTOMATION_SCHEMA = {
+  type: 'object' as const,
+  required: ['kind', 'prompt'] as string[],
+  additionalProperties: false,
+  properties: {
+    kind: {
+      type: 'string' as const,
+      enum: ['schedule', 'trigger'] as string[],
+      description: 'schedule = cron-driven; trigger = event-driven (procurement status events).',
+    },
+    prompt: { type: 'string' as const, maxLength: 2000, description: 'The goal handed to the agent loop when it fires.' },
+    schedule: { type: 'string' as const, description: "Cron expression; required when kind='schedule'." },
+    trigger_on: {
+      type: 'object' as const,
+      required: ['source', 'event'] as string[],
+      additionalProperties: false,
+      properties: {
+        source: { type: 'string' as const },
+        event: { type: 'string' as const },
+      },
+      description: "{ source, event }; required when kind='trigger'.",
+    },
+    condition: { type: 'string' as const, maxLength: 500, description: 'Optional NL condition, evaluated by a small model.' },
+    timeout_s: { type: 'integer' as const, minimum: 1, maximum: 3600, description: 'Hard wall-clock cap per fired run; defaults to 120.' },
   },
 };
 
@@ -90,6 +139,48 @@ export const QUERY_ENTITY_SCHEMA = {
       maximum: AGENT_READ_ROW_CAP,
       description: `Maximum rows to return. Hard cap is ${AGENT_READ_ROW_CAP}.`,
     },
+    as: {
+      type: 'string' as const,
+      enum: ['table'] as string[],
+      description:
+        'Optional presentation hint (ADR-0045 DEC-2): when "table", the handler renders the result as an inline data table widget instead of describing it in text. Omit for the default text summary.',
+    },
+  },
+};
+
+/**
+ * ASK_USER_SCHEMA — JSON Schema for the ask_user tool input (ADR-0045 §2, FR-ATC-008).
+ * The model calls this to pose a structured clarifying question inline; the handler
+ * emits it as a status{kind:'question'} event and ends the stream (same interaction
+ * family as the A3 needs-approval propose branch — resolved via control('answer')).
+ */
+export const ASK_USER_SCHEMA = {
+  type: 'object' as const,
+  required: ['prompt', 'options'] as string[],
+  additionalProperties: false,
+  properties: {
+    prompt: {
+      type: 'string' as const,
+      maxLength: 300,
+      description: 'The clarifying question to show the user.',
+    },
+    options: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        required: ['id', 'label'] as string[],
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' as const },
+          label: { type: 'string' as const },
+        },
+      },
+      description: 'The choices to present as tappable chips.',
+    },
+    allowFreeText: {
+      type: 'boolean' as const,
+      description: 'Whether to also offer a free-text answer box.',
+    },
   },
 };
 
@@ -98,7 +189,7 @@ export const QUERY_ENTITY_SCHEMA = {
  * the compose_view tool. The model fills in { prompt } with the user's request for a view.
  *
  * NOTE: This is NOT COMPOSITION_SPEC_SCHEMA. COMPOSITION_SPEC_SCHEMA is the inner schema
- * used by composeSpec when tool-forcing the Anthropic model to produce a CompositionSpec.
+ * used by composeSpec when tool-forcing the model to produce a CompositionSpec.
  * These are two different schemas at two different layers (FR-CV-001 / Task 5 NOTE / D-A4-1).
  */
 export const COMPOSE_VIEW_INPUT_SCHEMA = {

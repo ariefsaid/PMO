@@ -6,12 +6,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // the builder for upsert/delete) resolves to the configured { data, error }.
 // ---------------------------------------------------------------------------
 
-const { mockFrom, mockSelect, mockEq, mockOrder, mockInsert, mockSingle, mockUpsert, mockDelete } =
+const { mockFrom, mockSelect, mockEq, mockOrder, mockRange, mockInsert, mockSingle, mockUpsert, mockDelete } =
   vi.hoisted(() => ({
     mockFrom: vi.fn(),
     mockSelect: vi.fn(),
     mockEq: vi.fn(),
     mockOrder: vi.fn(),
+    mockRange: vi.fn(),
     mockInsert: vi.fn(),
     mockSingle: vi.fn(),
     mockUpsert: vi.fn(),
@@ -29,12 +30,13 @@ import {
 } from './timesheets';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 
-/** Build a chainable builder whose terminal await/.single()/.order() resolves to `resolved`. */
+/** Build a chainable builder whose terminal await/.single()/.range() resolves to `resolved`. */
 function builderResolving(resolved: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
-  mockOrder.mockResolvedValue(resolved);
+  mockOrder.mockReturnValue(builder);
+  mockRange.mockResolvedValue(resolved);
   mockInsert.mockReturnValue(builder);
   mockSingle.mockResolvedValue(resolved);
   mockUpsert.mockResolvedValue(resolved);
@@ -42,6 +44,7 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   builder.select = mockSelect;
   builder.eq = mockEq;
   builder.order = mockOrder;
+  builder.range = mockRange;
   builder.insert = mockInsert;
   builder.single = mockSingle;
   builder.upsert = mockUpsert;
@@ -58,6 +61,7 @@ beforeEach(() => {
   mockSelect.mockReset();
   mockEq.mockReset();
   mockOrder.mockReset();
+  mockRange.mockReset();
   mockInsert.mockReset();
   mockSingle.mockReset();
   mockUpsert.mockReset();
@@ -104,6 +108,18 @@ describe('listTimesheets', () => {
   it('throws on PostgREST error (AC-608)', async () => {
     builderResolving({ data: null, error: { message: 'boom' } });
     await expect(listTimesheets('u1')).rejects.toThrow('boom');
+  });
+
+  it('data-layer perf hardening #4: does NOT range-bound the query when called with no page params (opt-in pagination)', async () => {
+    builderResolving({ data: [], error: null });
+    await listTimesheets('u1');
+    expect(mockRange).not.toHaveBeenCalled();
+  });
+
+  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
+    builderResolving({ data: [], error: null });
+    await listTimesheets('u1', { page: 1, pageSize: 12 });
+    expect(mockRange).toHaveBeenCalledWith(12, 23);
   });
 });
 

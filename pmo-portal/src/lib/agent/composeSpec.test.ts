@@ -2,7 +2,8 @@
  * Unit tests for composeSpec — the extracted compose+repair loop.
  * AC-CV-005 (adjacent): the extracted composeSpec matches the behavior the handler used inline.
  *
- * All Anthropic SDK calls are mocked via injected deps.
+ * All ModelClient calls are mocked via injected deps (OpenRouter/OpenAI shape —
+ * docs/specs/agent-model-client.spec.md).
  * Uses the REAL compileCompositionSpec (trusted boundary, ADR-0039 decision 3).
  * No live LLM calls in CI (ADR-0039 decision 7).
  */
@@ -50,20 +51,24 @@ const INVALID_SPEC: CompositionSpec = {
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
-/** Build a mock AnthropicLike that returns the given spec on every call. */
-function mockAnthropicReturning(spec: CompositionSpec): ComposeSpecDeps['anthropic'] {
+/** Build a mock ModelClient that returns the given spec on every call. */
+function mockModelClientReturning(spec: CompositionSpec): ComposeSpecDeps['modelClient'] {
   return {
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'compose_view', input: spec }],
-        usage: { input_tokens: 10, output_tokens: 20 },
-      }),
-    },
+    create: vi.fn().mockResolvedValue({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'c1', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify(spec) } }],
+      },
+      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+      model: 'deepseek/deepseek-v4-flash',
+    }),
   };
 }
 
 /** Build a mock that returns specSequence[i] on the i-th call. */
-function mockAnthropicSequence(items: (CompositionSpec | 'throw')[]) {
+function mockModelClientSequence(items: (CompositionSpec | 'throw')[]) {
   let callCount = 0;
   const create = vi.fn().mockImplementation(() => {
     const idx = callCount++;
@@ -72,47 +77,59 @@ function mockAnthropicSequence(items: (CompositionSpec | 'throw')[]) {
       return Promise.reject(new Error('SECRET upstream error'));
     }
     return Promise.resolve({
-      content: [{ type: 'tool_use', name: 'compose_view', input: item }],
-      usage: { input_tokens: 10, output_tokens: 20 },
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `c${idx}`, type: 'function', function: { name: 'compose_view', arguments: JSON.stringify(item) } }],
+      },
+      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+      model: 'deepseek/deepseek-v4-flash',
     });
   });
-  return { messages: { create }, _create: create };
+  return { create, _create: create };
 }
 
-const BASE_DEPS = (anthropic: ComposeSpecDeps['anthropic']): ComposeSpecDeps => ({
-  anthropic,
+const BASE_DEPS = (modelClient: ComposeSpecDeps['modelClient']): ComposeSpecDeps => ({
+  modelClient,
   userId: 'u-1',
+  model: 'deepseek/deepseek-v4-flash',
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-it('composeSpec returns { spec, repairAttempts:0, tokensUsed } on a first-try valid spec', async () => {
-  const anthropic = mockAnthropicReturning(VALID_SPEC);
-  const result = await composeSpec('show projects', 'org-1', BASE_DEPS(anthropic));
+it('AC-MC-013 composeSpec returns { spec, repairAttempts:0, tokensUsed } on a first-try valid spec (parity with AC-AS-001)', async () => {
+  const modelClient = mockModelClientReturning(VALID_SPEC);
+  const result = await composeSpec('show projects', 'org-1', BASE_DEPS(modelClient));
 
   expect(result.spec).toEqual(VALID_SPEC);
   expect(result.repairAttempts).toBe(0);
   expect(result.tokensUsed).toBeGreaterThanOrEqual(0);
-  expect((anthropic.messages.create as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
+  expect((modelClient.create as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
+  const callArgs = (modelClient.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+  expect(callArgs.tool_choice).toEqual({ type: 'function', function: { name: 'compose_view' } });
 });
 
-it('composeSpec repairs once then succeeds (repairAttempts:1)', async () => {
-  const { messages, _create } = mockAnthropicSequence([INVALID_SPEC, VALID_SPEC]);
-  const result = await composeSpec('show projects', 'org-1', BASE_DEPS({ messages }));
+it('AC-MC-014 composeSpec repairs once then succeeds (repairAttempts:1) (parity with AC-AS-002)', async () => {
+  const { create, _create } = mockModelClientSequence([INVALID_SPEC, VALID_SPEC]);
+  const result = await composeSpec('show projects', 'org-1', BASE_DEPS({ create }));
 
   expect(result.repairAttempts).toBe(1);
   expect(result.spec).toEqual(VALID_SPEC);
   expect(_create).toHaveBeenCalledTimes(2);
+  const secondCallArgs = _create.mock.calls[1][0];
+  const userTurn = secondCallArgs.messages.find((m: { role: string }) => m.role === 'user' && secondCallArgs.messages.indexOf(m) > 0);
+  expect(userTurn).toBeDefined();
 });
 
-it('composeSpec throws ComposeSpecError REPAIR_EXHAUSTED after MAX_REPAIR_ATTEMPTS', async () => {
+it('AC-MC-015 composeSpec throws ComposeSpecError REPAIR_EXHAUSTED after MAX_REPAIR_ATTEMPTS (parity with AC-AS-003)', async () => {
   // Always invalid — causes MAX_REPAIR_ATTEMPTS + 1 calls (initial + repairs)
-  const { messages, _create } = mockAnthropicSequence(
+  const { create, _create } = mockModelClientSequence(
     Array(MAX_REPAIR_ATTEMPTS + 1).fill(INVALID_SPEC),
   );
 
   await expect(
-    composeSpec('show projects', 'org-1', BASE_DEPS({ messages })),
+    composeSpec('show projects', 'org-1', BASE_DEPS({ create })),
   ).rejects.toSatisfy((e: unknown) => {
     expect(e).toBeInstanceOf(ComposeSpecError);
     const err = e as ComposeSpecError;
@@ -124,11 +141,11 @@ it('composeSpec throws ComposeSpecError REPAIR_EXHAUSTED after MAX_REPAIR_ATTEMP
   expect(_create).toHaveBeenCalledTimes(MAX_REPAIR_ATTEMPTS + 1);
 });
 
-it('composeSpec throws ComposeSpecError UPSTREAM_ERROR when the SDK throws', async () => {
-  const { messages } = mockAnthropicSequence(['throw']);
+it('AC-MC-016 composeSpec throws ComposeSpecError UPSTREAM_ERROR when the model call throws (parity with AC-AS-007)', async () => {
+  const { create } = mockModelClientSequence(['throw']);
 
   await expect(
-    composeSpec('show projects', 'org-1', BASE_DEPS({ messages })),
+    composeSpec('show projects', 'org-1', BASE_DEPS({ create })),
   ).rejects.toSatisfy((e: unknown) => {
     expect(e).toBeInstanceOf(ComposeSpecError);
     const err = e as ComposeSpecError;

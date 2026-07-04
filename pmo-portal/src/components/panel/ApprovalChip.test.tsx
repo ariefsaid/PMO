@@ -147,4 +147,11 @@ describe('ApprovalChip', () => {
     const denyBtn = screen.getByRole('button', { name: /deny/i });
     expect(denyBtn.className).toContain('h-8');
   });
+
+  // ── Review-remediation item 6: labeled "Decision required" header ────────────
+
+  it('item 6: renders a "Decision required" header on the chip container', () => {
+    render(<ApprovalChip {...defaultProps} />);
+    expect(screen.getByText(/decision required/i)).toBeInTheDocument();
+  });
 });

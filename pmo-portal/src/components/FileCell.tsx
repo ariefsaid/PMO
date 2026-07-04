@@ -119,7 +119,7 @@ export const FileCell: React.FC<FileCellProps> = ({
         type="button"
         onClick={onUpload}
         aria-label={`Upload file for ${title}`}
-        className="touch-target inline-flex items-center gap-1 text-[12px] text-foreground hover:text-primary font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="touch-target inline-flex items-center gap-1 text-[12px] text-foreground hover:text-primary-text font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5" />
         Upload
@@ -139,7 +139,7 @@ export const FileCell: React.FC<FileCellProps> = ({
             type="button"
             onClick={onReplace}
             aria-label={`Replace file for ${title}`}
-            className="touch-target text-[12px] text-primary hover:underline font-medium shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="touch-target text-[12px] text-primary-text hover:underline font-medium shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             Replace
           </button>
@@ -161,7 +161,7 @@ export const FileCell: React.FC<FileCellProps> = ({
             type="button"
             onClick={onDownload}
             aria-label={`Download file for ${title}`}
-            className="touch-target text-muted-foreground hover:text-primary p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             title="Download file"
           >
             <Icon name="download" className="size-4" />
@@ -172,7 +172,7 @@ export const FileCell: React.FC<FileCellProps> = ({
             type="button"
             onClick={onPreview}
             aria-label={`Preview file for ${title}`}
-            className="touch-target text-muted-foreground hover:text-primary p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             title="Preview file"
           >
             <Icon name="eye" className="size-4" />

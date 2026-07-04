@@ -18,10 +18,9 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
  * history) — lost deals stay in the Pipeline (not the active Projects list), and the dedicated
  * column makes them visible without clipping.
  *
- * C2 de-rainbow: the per-stage dots are a calm neutral-progression — upstream open stages are
- * `muted-foreground`, the closest-to-close open stage (Negotiation, the "active" stage) carries
- * the one blue `primary` accent (One Blue Rule), the terminal Won is `success`, and the terminal
- * Lost is `destructive`. Every dot is an `hsl(var(--…))` token.
+ * Batch-3 polish: open-stage dots are a calm, consistent neutral treatment so the
+ * pipeline's categorical markers do not compete with the page's primary action.
+ * Terminal Won/Lost keep their outcome colors. Every dot is an `hsl(var(--…))` token.
  */
 export interface SalesColumn {
   /** Display title (may differ from the enum, e.g. "Pre-Qual"). */
@@ -64,7 +63,7 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
   {
     title: 'Negotiation',
     statuses: ['Negotiation'],
-    dotColor: 'hsl(var(--primary))', // the one active (closest-to-close) open stage
+    dotColor: 'hsl(var(--muted-foreground))',
     testId: 'stage-Negotiation',
   },
   {

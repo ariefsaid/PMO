@@ -14,6 +14,8 @@ class MockXHR {
   upload: { onprogress: MockUploadProgressHandler | null } = { onprogress: null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
+  timeout = 0;
   status = 200;
   responseText = '';
 
@@ -101,6 +103,39 @@ describe('uploadWithProgress', () => {
       await promise;
     } catch (error) {
       expect((error as TransportError).status).toBe(0);
+    }
+  });
+
+  it('harden #5: sets a default xhr.timeout so a stalled upload cannot hang forever', () => {
+    uploadWithProgress('http://example.com/upload', new Blob(['data']), {
+      contentType: 'application/pdf',
+    });
+    const xhr = xhrInstances[0];
+    // A non-zero timeout MUST be armed (0 = XHR default of "never time out").
+    expect(xhr.timeout).toBeGreaterThan(0);
+  });
+
+  it('harden #5: honors an explicit timeoutMs override', () => {
+    uploadWithProgress('http://example.com/upload', new Blob(['data']), {
+      contentType: 'application/pdf',
+      timeoutMs: 1234,
+    });
+    expect(xhrInstances[0].timeout).toBe(1234);
+  });
+
+  it('harden #5: rejects with a classified timeout TransportError on ontimeout', async () => {
+    const promise = uploadWithProgress('http://example.com/upload', new Blob(['data']), {
+      contentType: 'application/pdf',
+    });
+    const xhr = xhrInstances[0];
+    xhr.ontimeout?.();
+    await expect(promise).rejects.toThrow(TransportError);
+    try {
+      await promise;
+    } catch (error) {
+      // Timeout is distinguishable from a plain network error so the UI can say "timed out".
+      expect((error as TransportError).status).toBe(408);
+      expect(classifyUploadError(error).type).toBe('timeout');
     }
   });
 });

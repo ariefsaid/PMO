@@ -97,7 +97,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
@@ -112,7 +112,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
@@ -128,7 +128,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card className="mb-4">
+      <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
@@ -178,7 +178,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   ];
 
   return (
-    <Card className="mb-4">
+    <Card variant="bare" className="mb-4">
       <CardPad>
         {heading}
 
@@ -186,7 +186,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={3} />
+        <StatTiles tiles={tiles} columns={5} />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
@@ -227,7 +227,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mt-3 pt-3 border-t border-border/50">
           <Link
             to={`/projects/${projectId}`}
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
+            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
             Open project
           </Link>

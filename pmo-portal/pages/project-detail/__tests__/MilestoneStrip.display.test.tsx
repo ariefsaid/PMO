@@ -188,6 +188,41 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.queryByText('PM input')).not.toBeInTheDocument();
   });
 
+  it('gives the current phase card a subtle lifted treatment so it stands out from done/future cards', () => {
+    milestoneState.data = [
+      {
+        id: 'm1',
+        project_id: 'p1',
+        name: 'Engineering design',
+        sort_order: 0,
+        target_date: '2026-08-15',
+        weight: 1,
+        input_pct: 75,
+        task_count: 5,
+        calculated_pct: 60,
+        effective_pct: 75,
+      },
+      {
+        id: 'm2',
+        project_id: 'p1',
+        name: 'Procurement',
+        sort_order: 1,
+        target_date: null,
+        weight: 1,
+        input_pct: null,
+        task_count: 0,
+        calculated_pct: null,
+        effective_pct: 0,
+      },
+    ];
+    render$();
+
+    const currentCard = document.querySelector('[aria-current="step"]') as HTMLElement | null;
+    expect(currentCard).toBeTruthy();
+    expect(currentCard?.className).toMatch(/ring-1/);
+    expect(currentCard?.className).toMatch(/border-primary\/30/);
+  });
+
   it('I2: header shows "Delivery phases" heading and weight-weighted rollup', () => {
     milestoneState.data = [
       {

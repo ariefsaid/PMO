@@ -40,11 +40,11 @@ describe('AC-G3D-GUARD-1: roleVariant lives in statusVariants.ts (not a local ma
 
   it.each([
     ['Admin', 'neutral'],
-    ['Executive', 'violet'],
+    ['Executive', 'neutral'],
     ['Project Manager', 'neutral'],
     ['Finance', 'neutral'],
     ['Engineer', 'neutral'],
-  ] as const)('role %s → %s (categorical tints, no workflow green)', (role, variant) => {
+  ] as const)('role %s → %s (neutral-only role pills)', (role, variant) => {
     expect(roleVariant(role)).toBe(variant);
   });
 

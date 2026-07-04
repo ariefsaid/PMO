@@ -7,13 +7,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockSelect, mockFrom, mockRpc } = vi.hoisted(() => {
+const { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange } = vi.hoisted(() => {
   const mockEq = vi.fn();
   const mockIn = vi.fn();
   const mockSelect = vi.fn();
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
-  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc };
+  const mockRange = vi.fn();
+  return { mockEq, mockIn, mockSelect, mockFrom, mockRpc, mockRange };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
@@ -35,12 +36,14 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     eq: mockEq,
     in: mockIn,
+    range: mockRange,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
   mockSelect.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
+  mockRange.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
@@ -97,6 +100,7 @@ beforeEach(() => {
   mockEq.mockReset();
   mockIn.mockReset();
   mockRpc.mockReset();
+  mockRange.mockReset();
 });
 
 describe('listProjects', () => {
@@ -183,6 +187,18 @@ describe('listProjects', () => {
     await listProjects();
     const pmCalls = mockEq.mock.calls.filter(([k]) => k === 'project_manager_id');
     expect(pmCalls).toHaveLength(0);
+  });
+
+  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects();
+    expect(mockRange).not.toHaveBeenCalled();
+  });
+
+  it('data-layer perf hardening #4: applies an explicit page/pageSize range alongside a status filter', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProjects({ status: 'Loss Tender', page: 1, pageSize: 20 });
+    expect(mockRange).toHaveBeenCalledWith(20, 39);
   });
 });
 

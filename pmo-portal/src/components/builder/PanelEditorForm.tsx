@@ -410,7 +410,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
               type="button"
               aria-label="Add filter"
               onClick={addFilter}
-              className="text-[12px] font-medium text-primary hover:underline"
+              className="text-[12px] font-medium text-primary-text hover:underline"
             >
               + Add filter
             </button>

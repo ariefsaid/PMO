@@ -56,6 +56,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: vi.fn(), isPending: false, error: null },
     createReceipt: { mutateAsync: vi.fn(), isPending: false, error: null },
     createInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
   }),
 }));
 
@@ -236,6 +237,31 @@ describe('AC-SOD-COPY (b): Requested + Finance-approver sees SoD-aware ready cop
 // (c) Vendor Invoiced → Paid: SoD-b payer≠approver teaching in ready copy
 // ---------------------------------------------------------------------------
 describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver cannot pay)', () => {
+  it('AC-SOD-COPY-c: the permitted payer gets a blue Mark-as-Paid primary action', () => {
+    mockRole = 'Finance';
+    mockUserId = 'u-finance'; // NOT the approver
+    detailState.data = {
+      ...base,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-pm',
+      approved_by_id: 'u-exec',
+      po_number: 'PO-001',
+      invoices: [
+        { id: 'vi-1', vi_number: 'VI-001', status: 'Received', invoice_date: '2026-06-18',
+          reference_number: null, amount: 25000, procurement_id: 'proc-sod-001',
+          org_id: 'org-1', created_at: '2026-06-18T00:00:00Z' },
+      ],
+      purchase_orders: [
+        { id: 'po-1', po_number: 'PO-001', reference_number: null, status: 'Issued',
+          date: '2026-06-15', amount: 25000, procurement_id: 'proc-sod-001',
+          org_id: 'org-1', created_at: '2026-06-15T00:00:00Z' },
+      ],
+    };
+    renderPage();
+    const button = screen.getByRole('button', { name: /mark as paid/i });
+    expect(button.className).toMatch(/bg-primary/);
+  });
+
   it('AC-SOD-COPY-c: the GateNotice at Vendor Invoiced (Finance non-approver) mentions payer≠approver', () => {
     mockRole = 'Finance';
     mockUserId = 'u-finance'; // NOT the approver
@@ -261,6 +287,33 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
     const cardText = card.textContent ?? '';
     // Must mention that the approver cannot also pay / SoD-b teaching
     expect(cardText).toMatch(/approver.{0,40}(pay|payment)|separation.of.duties|payer.{0,20}approver/i);
+  });
+
+  it('AC-SOD-COPY-c: an approver who cannot pay does NOT see "Ready to advance" copy', () => {
+    mockRole = 'Finance';
+    mockUserId = 'u-exec'; // IS the approver, so SoD-b blocks payment
+    detailState.data = {
+      ...base,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-pm',
+      approved_by_id: 'u-exec',
+      po_number: 'PO-001',
+      invoices: [
+        { id: 'vi-1', vi_number: 'VI-001', status: 'Received', invoice_date: '2026-06-18',
+          reference_number: null, amount: 25000, procurement_id: 'proc-sod-001',
+          org_id: 'org-1', created_at: '2026-06-18T00:00:00Z' },
+      ],
+      purchase_orders: [
+        { id: 'po-1', po_number: 'PO-001', reference_number: null, status: 'Issued',
+          date: '2026-06-15', amount: 25000, procurement_id: 'proc-sod-001',
+          org_id: 'org-1', created_at: '2026-06-15T00:00:00Z' },
+      ],
+    };
+    renderPage();
+    const card = screen.getByTestId('decision-card');
+    expect(card.textContent).not.toMatch(/Ready to advance/i);
+    expect(card.textContent).toMatch(/different finance user|approver|payment/i);
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
   it('AC-SOD-COPY-c: Vendor Invoiced gate does NOT say the old generic copy verbatim', () => {

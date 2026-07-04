@@ -348,7 +348,7 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
           <button
             type="button"
             onClick={wiz.globalExpand === false ? wiz.expandAll : wiz.collapseAll}
-            className="shrink-0 text-[12px] text-primary hover:underline"
+            className="shrink-0 text-[12px] text-primary-text hover:underline"
           >
             {wiz.globalExpand === false ? 'Expand all' : 'Collapse all'}
           </button>

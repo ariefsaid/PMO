@@ -48,8 +48,10 @@ describe('Button', () => {
     );
     const btn = screen.getByRole('button');
     expect(btn).toBeDisabled();
-    expect(btn.className).toContain('disabled:opacity-45');
     expect(btn.className).toContain('disabled:cursor-not-allowed');
+    expect(btn.className).toContain('disabled:bg-secondary');
+    expect(btn.className).toContain('disabled:text-secondary-foreground');
+    expect(btn.className).toContain('disabled:border-border');
     await userEvent.click(btn);
     expect(onClick).not.toHaveBeenCalled();
   });

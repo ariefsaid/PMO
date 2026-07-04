@@ -41,6 +41,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createQuotation: { mutateAsync: vi.fn(), isPending: false, error: null },
     createReceipt: { mutateAsync: vi.fn(), isPending: false, error: null },
     createInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
+    captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
   }),
 }));
 const docsState = { data: [] as Record<string, unknown>[], isPending: false, isError: false, refetch: vi.fn() };

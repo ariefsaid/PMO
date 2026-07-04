@@ -9,7 +9,9 @@
  * FR-AR-019: typed request/error contract shared by handler + PmoNativeRuntime.
  */
 
-import type { AgentEvent, AgentRunStatus, RunContext } from './port';
+import type { AgentEvent, AgentRunStatus, RunContext, AgentAnswer } from './port.ts';
+
+export type { AgentAnswer };
 
 export type { AgentEvent };
 
@@ -31,6 +33,16 @@ export interface AgentDecision {
   verdict: 'approve' | 'reject';
 }
 
+/**
+ * ADR-0043 §4 (correctness-remediation finding 4): present on a re-POST driving a
+ * server-side abort. `runId` is carried explicitly (rather than relying solely on the
+ * top-level `AgentChatRequest.runId`) so the shape is self-describing on the wire —
+ * mirrors AgentDecision/AgentAnswer's own explicit id fields.
+ */
+export interface AgentCancel {
+  runId: string;
+}
+
 /** The JSON body POSTed to agent-chat for both createRun and followUp (D8/R5). */
 export interface AgentChatRequest {
   /** Present on followUp; omitted on createRun (adapter mints it client-side). */
@@ -41,6 +53,15 @@ export interface AgentChatRequest {
   context?: RunContext;
   /** A3: present on an approve/deny re-POST (D-A3-1, AW-OD-004 Option B). */
   decision?: AgentDecision;
+  /** ADR-0045 §2: present on a re-POST resolving a pending ask-user question (DEC-1). */
+  answer?: AgentAnswer;
+  /**
+   * ADR-0043 §4 (correctness-remediation finding 4): present on a re-POST driving a
+   * server-side abort — `control('cancel')` sends this instead of (or alongside)
+   * aborting the client-side fetch, so `agent_runs.status` reaches a persisted
+   * terminal state even though the browser gave up on the stream.
+   */
+  cancel?: AgentCancel;
 }
 
 /** Typed error shape for non-2xx responses from agent-chat. */
