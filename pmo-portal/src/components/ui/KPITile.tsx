@@ -4,8 +4,11 @@ import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
 import { ViewToggle, type ViewOption } from './ViewToggle';
+import type { KPITone } from './KPITile.types';
 
-export type KPITone = 'blue' | 'violet' | 'amber' | 'red' | 'green';
+// Re-exported (not duplicated) from the pure sibling file (see KPITile.types.ts doc comment) —
+// still the single source of truth `registry.ts`'s `satisfies` drift guard relies on.
+export type { KPITone };
 
 /** Tinted icon-tile tones — all on-palette DESIGN.md hues (Wave-6 H1: off-palette cyan removed). */
 const TONE_CLASS: Record<KPITone, string> = {

@@ -105,6 +105,20 @@ jobs:
         run: npm run build
       - name: Lint
         run: npm run lint:ci
+      - uses: denoland/setup-deno@v2
+        with:
+          # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
+          deno-version: '2.7.11'
+      # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
+      # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      - name: Deno typecheck — edge function entry points + _shared
+        working-directory: .
+        run: |
+          set -e
+          for fn in agent-chat agent-dispatch compose-view; do
+            echo "── deno check supabase/functions/$fn/index.ts ──"
+            deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
+          done
 
   integration:
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant

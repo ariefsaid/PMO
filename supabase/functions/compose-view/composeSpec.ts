@@ -18,13 +18,13 @@
  */
 
 // Relative imports — no .ts extension; no @-alias (Deno + Node/Vitest both resolve these).
-import { compileCompositionSpec } from '../../../pmo-portal/src/lib/viewspec/compiler';
-import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types';
-import { registry } from '../../../pmo-portal/src/lib/viewspec/registry';
-import { COMPOSITION_SPEC_SCHEMA } from './schema';
-import { buildSystemPrompt } from './prompt';
-import type { ModelClient, ModelMessage } from '../_shared/modelClient';
-import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types';
+import { compileCompositionSpec } from '../../../pmo-portal/src/lib/viewspec/compiler.ts';
+import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import { registry } from '../../../pmo-portal/src/lib/viewspec/registry.ts';
+import { COMPOSITION_SPEC_SCHEMA } from './schema.ts';
+import { buildSystemPrompt } from './prompt.ts';
+import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 // ── Constants (shared with handler.ts) ───────────────────────────────────────
 

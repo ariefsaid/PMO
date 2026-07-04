@@ -7,7 +7,7 @@
  * Pure: no Deno globals (fetch/AbortController/setTimeout are Web-standard) —
  * importable in Vitest with fetch mocked (ADR-0039 decision 7).
  */
-import type { ModelClient, ModelClientParams, ModelResponse } from './modelClient';
+import type { ModelClient, ModelClientParams, ModelResponse } from './modelClient.ts';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const REQUEST_TIMEOUT_MS = 30_000;

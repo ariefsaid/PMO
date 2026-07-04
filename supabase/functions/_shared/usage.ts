@@ -3,8 +3,8 @@
  * Deputy invariant by construction: takes the already-injected caller-JWT HandlerSupabaseLike;
  * never constructs a client, never references service_role.
  */
-import type { HandlerSupabaseLike } from '../agent-chat/handler';
-import type { ModelResponse } from './modelClient';
+import type { HandlerSupabaseLike } from '../agent-chat/handler.ts';
+import type { ModelResponse } from './modelClient.ts';
 
 /**
  * Clamp a single provider-reported usage value: Number.isFinite(x) && x >= 0 ? x : 0.
