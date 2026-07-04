@@ -94,7 +94,8 @@ function makeMintDeps(mintedClient: unknown) {
   const generateLink = vi
     .fn()
     .mockResolvedValue({ data: { properties: { access_token: 'MINTED.A' } }, error: null });
-  const authAdmin = { admin: { generateLink } };
+  const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
+  const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockReturnValue(mintedClient);
   return { authAdmin, buildClient, generateLink };
 }

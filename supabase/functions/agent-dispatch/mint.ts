@@ -40,16 +40,13 @@ import type { AutomationRow } from './dispatcher.ts';
 export interface AuthAdminLike {
   admin: {
     getUserById?: (id: string) => PromiseLike<{ data: { user: { email?: string } | null } | null; error: unknown }>;
-    // NOTE (deno-check hardening, 2026-07-04): the real supabase-js `generateLink(params:
-    // GenerateLinkParams)` requires `email` on EVERY magiclink variant — it has no `user_id`
-    // form. The call site below (line ~99) has a `{ type: 'magiclink', user_id: ownerId }`
-    // fallback branch when email resolution fails, which does NOT match any real
-    // GenerateLinkParams member — a pre-existing latent bug (mint silently fails whenever the
-    // owner has no resolvable email), NOT introduced or fixed by this change; flagged for the
-    // Director, out of scope for a deps/CI hardening pass. `index.ts` bridges the real
-    // AuthAdminLike-vs-supabase-js mismatch with an explicit `as never` cast (this codebase's
-    // established pattern for genuine unavoidable structural gaps) rather than papering over
-    // it here with a wider, less-precise param type.
+    // The real supabase-js `generateLink(params: GenerateLinkParams)` requires `email` on EVERY
+    // magiclink variant — there is NO `user_id` form. So mintOwnerJwt resolves the owner's email
+    // first and FAILS CLOSED if it cannot: magiclink is only ever called with `{ type:'magiclink',
+    // email }`. (Previously a `{ type:'magiclink', user_id: ownerId }` fallback existed that matched
+    // no real GenerateLinkParams member and failed opaquely — removed 2026-07-04.) `index.ts` bridges
+    // the AuthAdminLike-vs-supabase-js shape with an explicit `as never` cast (this codebase's
+    // established pattern for genuine structural gaps).
     generateLink: (params: Record<string, unknown>) => PromiseLike<{
       data: { properties?: { access_token?: string; hashed_token?: string } | null } | null;
       error: unknown;
@@ -90,17 +87,20 @@ export async function mintOwnerJwt(deps: MintDeps, automation: AutomationRow): P
   const ownerId = automation.owner_id;
 
   // Resolve the owner's email from owner_id (the ONLY identity input) so generateLink targets the
-  // exact owner. If getUserById is unavailable (older admin surface), fall through with the id —
-  // the mint remains owner_id-scoped either way (never a supplied id).
+  // exact owner. magiclink REQUIRES email — the real Auth admin API has no user_id form — so an
+  // unresolvable owner email is a FAIL-CLOSED mint error, never an invalid-param fallback that
+  // fails opaquely against the real API. (Real users always have an email; a null here means a
+  // genuinely email-less owner, which cannot authenticate anyway.)
   let email: string | undefined;
   if (deps.authAdmin.admin.getUserById) {
     const { data } = await deps.authAdmin.admin.getUserById(ownerId);
     email = data?.user?.email ?? undefined;
   }
+  if (!email) {
+    throw new Error('mint failed'); // scrubbed — fail-closed; never surface the owner id/email
+  }
 
-  const { data, error } = await deps.authAdmin.admin.generateLink(
-    email ? { type: 'magiclink', email } : { type: 'magiclink', user_id: ownerId },
-  );
+  const { data, error } = await deps.authAdmin.admin.generateLink({ type: 'magiclink', email });
   if (error || !data?.properties?.access_token) {
     throw new Error('mint failed'); // scrubbed — never surface the token/owner in the message
   }

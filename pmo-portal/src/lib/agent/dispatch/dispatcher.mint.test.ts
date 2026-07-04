@@ -113,12 +113,14 @@ describe('fireAutomation — FR-AAN-017/020 (the fired run is an ordinary, minte
 describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row owner_id)', () => {
   it('calls the Auth admin API with exactly the automation owner_id and no other id', async () => {
     const automation = makeAutomation({ owner_id: 'user-A', id: 'auto-1' });
-    const createUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-A' } }, error: null });
+    const getUserById = vi
+      .fn()
+      .mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null });
     const generateLink = vi
       .fn()
       .mockResolvedValue({ data: { properties: { access_token: 'MINTED.JWT.A' } }, error: null });
     const buildClient = vi.fn().mockReturnValue({ __identity: 'minted-A' });
-    const authAdmin = { admin: { generateLink, createUser } };
+    const authAdmin = { admin: { getUserById, generateLink } };
 
     const minted = await mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation);
 
@@ -139,19 +141,42 @@ describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row
 
   it('mints only for owner_id even when other automation fields differ (no field leakage)', async () => {
     const automation = makeAutomation({ owner_id: 'user-A', prompt: 'user-B is mentioned in the prompt' });
+    const getUserById = vi
+      .fn()
+      .mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null });
     const generateLink = vi
       .fn()
       .mockResolvedValue({ data: { properties: { access_token: 'JWT' } }, error: null });
     const buildClient = vi.fn().mockReturnValue({});
-    const authAdmin = { admin: { generateLink } };
+    const authAdmin = { admin: { getUserById, generateLink } };
 
     await mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation);
 
-    // The mint identity comes from owner_id ONLY — never the prompt/condition text.
-    const callArg = generateLink.mock.calls[0][0] as { user_id?: string };
-    expect(callArg.user_id ?? JSON.stringify(callArg)).not.toBe('user-B is mentioned in the prompt');
+    // The mint identity comes from owner_id ONLY — never the prompt/condition text. getUserById is
+    // asked for exactly owner_id; generateLink then carries only that owner's resolved email.
+    expect(getUserById).toHaveBeenCalledWith('user-A');
+    const callArg = JSON.stringify(generateLink.mock.calls[0][0]);
+    expect(callArg).not.toContain('user-B');
+    expect(callArg).toContain('user-A@example.com');
     // The buildClient is handed the minted access token, not owner_id-as-identity.
     expect(buildClient).toHaveBeenCalledWith('JWT');
+  });
+
+  it('fails closed when the owner email cannot be resolved — no invalid user_id fallback', async () => {
+    // magiclink has no user_id form; an unresolvable owner email must fail-closed, never fall
+    // through to an invalid param that the real API rejects opaquely (pre-existing latent bug fixed
+    // 2026-07-04). Never attempts the mint, never builds a client.
+    const automation = makeAutomation({ owner_id: 'user-A' });
+    const getUserById = vi.fn().mockResolvedValue({ data: { user: { email: null } }, error: null });
+    const generateLink = vi.fn();
+    const buildClient = vi.fn();
+    const authAdmin = { admin: { getUserById, generateLink } };
+
+    await expect(
+      mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation),
+    ).rejects.toThrow('mint failed');
+    expect(generateLink).not.toHaveBeenCalled();
+    expect(buildClient).not.toHaveBeenCalled();
   });
 });
 
@@ -214,7 +239,7 @@ describe('auditMint — AC-AAN-017 (every mint is audited before use) + AC-AAN-0
 
     // No expiry/ttl/validity option object handed to the admin API.
     expect(src).not.toMatch(/generateLink\([^)]*(?:ttl|expires_in|expiresIn|validity_period|valid_for)/i);
-    // The generateLink call carries only type + the owner identity (email or user_id) — no TTL field.
+    // The generateLink call carries only type + the owner's resolved email — no TTL field.
     expect(src).not.toMatch(/expires_in|expiresIn\s*:/);
 
     // The returned field is the wall-clock fire timeout, not a JWT lifetime — the old `expiresInS`

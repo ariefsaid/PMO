@@ -74,7 +74,8 @@ function makeMintDeps(mintedClientForOwner: (ownerId: string) => unknown) {
   const generateLink = vi.fn().mockImplementation(() =>
     Promise.resolve({ data: { properties: { access_token: 'MINTED' } }, error: null }),
   );
-  const authAdmin = { admin: { generateLink } };
+  const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
+  const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockImplementation(() => mintedClientForOwner('unused'));
   return { authAdmin, buildClient, generateLink };
 }
