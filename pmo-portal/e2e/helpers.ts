@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, request as pwRequest, type Locator, type Page } from '@playwright/test';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
@@ -86,6 +86,53 @@ export async function pickComboboxOption(
     }
   }
   throw new Error(`pickComboboxOption: could not confirm a selection on combobox "${name}"`);
+}
+
+// -----------------------------------------------------------------------
+// Mailpit helpers (auth-production-floor Slice 6, D6). Split into two so
+// each spec controls clear-ordering explicitly (mirrors the canonical
+// e2e/AC-AUTH-005.spec.ts, which does api.delete(...) BEFORE the
+// magic-link trigger, then polls): clear → trigger → poll.
+// -----------------------------------------------------------------------
+
+export const MAILPIT = 'http://127.0.0.1:54324';
+
+/** Clear the Mailpit inbox so the next poll reads the freshest message. Call this BEFORE the
+ *  send/trigger action (button click / service-role invite), mirroring AC-AUTH-005.spec.ts. */
+export async function clearMailpit(): Promise<void> {
+  const api = await pwRequest.newContext();
+  try {
+    await api.delete(`${MAILPIT}/api/v1/messages`);
+  } catch {
+    /* mailbox may already be empty */
+  }
+}
+
+/** Poll Mailpit for the most recent auth email to `email` and return the first http(s) link in the
+ *  body. Does NOT clear the inbox — call clearMailpit() before the trigger action. */
+export async function pollMailpitForAuthLink(email: string, timeout = 15_000): Promise<string> {
+  const api = await pwRequest.newContext();
+  let link: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const listRes = await api.get(`${MAILPIT}/api/v1/messages`);
+        const list = await listRes.json();
+        const msg = (list.messages ?? []).find((m: { To: { Address: string }[] }) =>
+          m.To?.some((t) => t.Address === email)
+        );
+        if (!msg) return false;
+        const bodyRes = await api.get(`${MAILPIT}/api/v1/message/${msg.ID}`);
+        const body = await bodyRes.json();
+        const text: string = `${body.Text ?? ''}\n${body.HTML ?? ''}`;
+        const match = text.match(/https?:\/\/[^\s"'<>]*(?:verify|token|magiclink|otp|recovery|reset)[^\s"'<>]*/i);
+        link = match ? match[0].replace(/&amp;/g, '&') : null;
+        return Boolean(link);
+      },
+      { timeout, intervals: [500, 1000, 1500] }
+    )
+    .toBeTruthy();
+  return link!;
 }
 
 /**

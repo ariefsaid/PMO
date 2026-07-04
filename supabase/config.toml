@@ -180,7 +180,17 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# http://127.0.0.1:3000/** and http://localhost:3000/** added for the auth-production-floor
+# reset/invite flows (FR-AUTHF-015/050, D-AUTHF-8) — resetPasswordForEmail's redirectTo is
+# origin + '/update-password', a DIFFERENT URL from the bare site_url above, so GoTrue requires it
+# on this allowlist (AC-AUTHF-005, AC-AUTHF-020). BOTH origins are needed: the app's own dev/e2e
+# server (Vite + Playwright's playwright.config.ts baseURL/webServer.url) runs at
+# http://localhost:3000, while site_url above is the 127.0.0.1 loopback form — GoTrue only
+# fell back to site_url (dropping the /update-password path) when the browser's real
+# window.location.origin (localhost:3000) wasn't itself on the allowlist. Local-only; the cloud
+# runbook (docs/environments.md §7.2) points this allowlist at the deployed HTTPS origin(s) only
+# (no wildcard, no localhost, in prod, per NFR-AUTHF-CONF-003).
+additional_redirect_urls = ["https://127.0.0.1:3000", "http://127.0.0.1:3000/**", "http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
