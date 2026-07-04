@@ -59,7 +59,6 @@ const UpdatePasswordPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!hasRecoveryParams) return;
     let settled = false;
     const activate = () => {
       if (settled) return;
@@ -67,6 +66,25 @@ const UpdatePasswordPage: React.FC = () => {
       setPhase('active');
       window.history.replaceState({}, '', '/update-password'); // FR-AUTHF-027
     };
+    // RequireInviteAccepted redirects an already-signed-in invite_pending user to /update-password
+    // via <Navigate>, which carries no recovery URL params. That session is still a valid trigger
+    // for the set-password form, so it's checked alongside hasRecoveryParams (spec-conformance fix).
+    const checkSession = ({ session }: { session: { user?: { user_metadata?: Record<string, unknown> } } | null }) => {
+      if (session?.user?.user_metadata?.invite_pending === true) {
+        activate();
+        return true;
+      }
+      return false;
+    };
+    if (!hasRecoveryParams) {
+      void supabase.auth.getSession().then(({ data }) => {
+        if (!checkSession(data) && !settled) {
+          settled = true;
+          setPhase('expired');
+        }
+      });
+      return;
+    }
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY' && s) activate();
     });

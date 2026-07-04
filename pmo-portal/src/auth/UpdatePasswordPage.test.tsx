@@ -162,6 +162,21 @@ describe('UpdatePasswordPage', () => {
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
+  it('AC-AUTHF-034: an invite_pending session with NO recovery params renders the set-password form, not the expired state', async () => {
+    // RequireInviteAccepted redirects a signed-in invite_pending user to /update-password via
+    // <Navigate>, which carries no recovery URL params. The page must still recognize the
+    // already-established session (user_metadata.invite_pending === true) and render the form.
+    window.history.replaceState({}, '', '/update-password');
+    auth.getSession.mockResolvedValueOnce({
+      data: { session: { user: { id: 'u1', user_metadata: { invite_pending: true } } } },
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
+    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /set new password/i })).toBeInTheDocument();
+    expect(screen.queryByText(/invalid or expired/i)).toBeNull();
+  });
+
   it('AC-AUTHF-017: after a recovery session establishes, the URL is the clean /update-password path', async () => {
     window.history.replaceState({}, '', '/update-password?type=recovery&token=abc&refresh_token=xyz');
     auth.getSession.mockResolvedValueOnce({
