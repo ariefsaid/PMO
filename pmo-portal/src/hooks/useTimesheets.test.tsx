@@ -10,6 +10,7 @@ vi.mock('@/src/lib/db/timesheets', () => ({
   createDraftTimesheet: vi.fn(),
   upsertTimesheetEntries: vi.fn(),
   deleteTimesheetEntry: vi.fn(),
+  saveTimesheetWeek: vi.fn(),
   TimesheetWriteError: class TimesheetWriteError extends Error {
     code?: string;
     constructor(message: string, code?: string) {
@@ -30,6 +31,7 @@ import {
   createDraftTimesheet,
   upsertTimesheetEntries,
   deleteTimesheetEntry,
+  saveTimesheetWeek,
   TimesheetWriteError,
 } from '@/src/lib/db/timesheets';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
@@ -52,6 +54,7 @@ beforeEach(() => {
   vi.mocked(createDraftTimesheet).mockReset();
   vi.mocked(upsertTimesheetEntries).mockReset();
   vi.mocked(deleteTimesheetEntry).mockReset();
+  vi.mocked(saveTimesheetWeek).mockReset();
 });
 
 describe('useTimesheets', () => {
@@ -75,52 +78,54 @@ const DIFF: EntryDiff = {
 };
 
 describe('useTimesheetEntryMutations.saveWeek', () => {
-  it("AC-TSE-016: saveWeek creates a Draft then upserts entries then invalidates ['timesheets',orgId,userId] when currentTimesheetId is null", async () => {
-    vi.mocked(createDraftTimesheet).mockResolvedValue({ id: 'ts-new' } as never);
-    vi.mocked(upsertTimesheetEntries).mockResolvedValue(undefined);
+  // harden #1: the Save is now ONE atomic RPC (create-draft + upsert + delete in one transaction).
+  // The goal-oracle is unchanged — the week's edits persist and the own-timesheets key is
+  // invalidated — but the journey no longer issues three separate DAL writes.
+  it("AC-TSE-016: saveWeek commits the week atomically then invalidates ['timesheets',orgId,userId] when currentTimesheetId is null", async () => {
+    vi.mocked(saveTimesheetWeek).mockResolvedValue('ts-new');
     const { wrapper, invalidateSpy } = makeWrapper();
     const { result } = renderHook(() => useTimesheetEntryMutations(), { wrapper });
 
+    let resolved: string | undefined;
     await act(async () => {
-      await result.current.saveWeek.mutateAsync({
+      resolved = await result.current.saveWeek.mutateAsync({
         currentTimesheetId: null,
         weekStartDate: '2026-06-08',
         diff: DIFF,
       });
     });
 
-    expect(createDraftTimesheet).toHaveBeenCalledTimes(1);
-    expect(createDraftTimesheet).toHaveBeenCalledWith('2026-06-08', 'u1');
-    // The upsert is re-targeted at the new sheet id (not the placeholder 'NEW').
-    const upsertArg = vi.mocked(upsertTimesheetEntries).mock.calls[0][0];
-    expect(upsertArg[0].timesheet_id).toBe('ts-new');
+    // One atomic RPC carries the null (create) id, the week, the upserts and the deletes.
+    expect(saveTimesheetWeek).toHaveBeenCalledTimes(1);
+    expect(saveTimesheetWeek).toHaveBeenCalledWith(null, '2026-06-08', DIFF.upserts, DIFF.deletes);
+    // Returns the RPC's resolved sheet id (for chained submit).
+    expect(resolved).toBe('ts-new');
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['timesheets', 'org-1', 'u1'] });
   });
 
-  it('AC-TSE-016: saveWeek with an existing timesheet id upserts against it without creating a Draft', async () => {
-    vi.mocked(upsertTimesheetEntries).mockResolvedValue(undefined);
+  it('AC-TSE-016: saveWeek passes the existing timesheet id + deletes through the atomic RPC', async () => {
+    vi.mocked(saveTimesheetWeek).mockResolvedValue('ts-existing');
     const { wrapper, invalidateSpy } = makeWrapper();
     const { result } = renderHook(() => useTimesheetEntryMutations(), { wrapper });
 
+    const diff = {
+      upserts: [{ timesheet_id: 'ts-existing', project_id: 'p1', entry_date: '2026-06-08', hours: 4, notes: null }],
+      deletes: ['del-1'],
+    };
     await act(async () => {
       await result.current.saveWeek.mutateAsync({
         currentTimesheetId: 'ts-existing',
         weekStartDate: '2026-06-08',
-        diff: {
-          upserts: [{ timesheet_id: 'ts-existing', project_id: 'p1', entry_date: '2026-06-08', hours: 4, notes: null }],
-          deletes: ['del-1'],
-        },
+        diff,
       });
     });
 
-    expect(createDraftTimesheet).not.toHaveBeenCalled();
-    expect(deleteTimesheetEntry).toHaveBeenCalledWith('del-1');
+    expect(saveTimesheetWeek).toHaveBeenCalledWith('ts-existing', '2026-06-08', diff.upserts, diff.deletes);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['timesheets', 'org-1', 'u1'] });
   });
 
   it('AC-TSE-018: saveWeek failure rejects with TimesheetWriteError (code preserved) and does NOT invalidate', async () => {
-    vi.mocked(createDraftTimesheet).mockResolvedValue({ id: 'ts-new' } as never);
-    vi.mocked(upsertTimesheetEntries).mockRejectedValue(new TimesheetWriteError('rls denied', '42501'));
+    vi.mocked(saveTimesheetWeek).mockRejectedValue(new TimesheetWriteError('rls denied', '42501'));
     const { wrapper, invalidateSpy } = makeWrapper();
     const { result } = renderHook(() => useTimesheetEntryMutations(), { wrapper });
 

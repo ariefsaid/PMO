@@ -29,8 +29,8 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('01040000-0000-0000-0000-0000000000b1','01040000-0000-0000-0000-000000000002','Eng B','eng-b@example.com','Engineer');
 
 insert into projects (id, org_id, name, status) values
-  ('01040000-0000-0000-0000-0000000000f1','01040000-0000-0000-0000-000000000001','Proj A','Active'),
-  ('01040000-0000-0000-0000-0000000000f2','01040000-0000-0000-0000-000000000002','Proj B (foreign org)','Active');
+  ('01040000-0000-0000-0000-0000000000f1','01040000-0000-0000-0000-000000000001','Proj A','Ongoing Project'),
+  ('01040000-0000-0000-0000-0000000000f2','01040000-0000-0000-0000-000000000002','Proj B (foreign org)','Ongoing Project');
 
 -- A pre-existing sheet + entry owned by Eng B (used for the delete-pinning proof).
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
