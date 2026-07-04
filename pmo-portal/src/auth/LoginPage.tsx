@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
-import { cn } from '../components/ui/cn';
-import { Icon } from '../components/ui/icons';
+import { SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
 import {
   trackDemoPersonaSelected,
   trackAuthLoginSucceeded,
@@ -15,71 +14,8 @@ import {
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
 // No gray-* / dark: / primary-NNN / raw-hex / shadow / rounded-xl utilities.
 // "Calm control surface": card on tinted ground, one blue, borders-not-shadows.
-// -----------------------------------------------------------------------
-
-/** Tinted success notice (magic-link sent) */
-const SuccessNotice: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-[13px]"
-  >
-    <Icon name="check" className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
-    <span style={{ color: 'hsl(142 60% 30%)' }}>{children}</span>
-  </div>
-);
-
-/** Tinted error banner (credential/network error) */
-const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
-  <div
-    role="alert"
-    aria-live="assertive"
-    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
-  >
-    <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
-    <span style={{ color: 'hsl(0 72% 42%)' }}>{message}</span>
-  </div>
-);
-
-/** Single labeled input block — label above, error below. */
-const InputBlock: React.FC<{
-  id: string;
-  label: string;
-  type: React.HTMLInputTypeAttribute;
-  autoComplete?: string;
-  required?: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  errorId?: string;
-  disabled?: boolean;
-}> = ({ id, label, type, autoComplete, required, value, onChange, errorId, disabled }) => (
-  <div className="flex flex-col gap-1.5">
-    <label
-      htmlFor={id}
-      className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-    >
-      {label}
-    </label>
-    <input
-      id={id}
-      type={type}
-      autoComplete={autoComplete}
-      required={required}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      aria-describedby={errorId}
-      className={cn(
-        'h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] text-foreground',
-        'placeholder:text-muted-foreground',
-        'transition-[border-color,box-shadow] duration-100',
-        'disabled:cursor-not-allowed disabled:opacity-45',
-        // Focus ring delegated to global *:focus-visible (--ring, DESIGN.md §a11y)
-      )}
-    />
-  </div>
-);
-
+// Auth-form primitives (SuccessNotice / ErrorBanner / AuthInput) live in
+// ./authFormPrimitives.tsx and are shared with /reset-password + /update-password.
 // -----------------------------------------------------------------------
 
 // Demo credentials surfaced on the login page in local dev OR a demo build
@@ -167,7 +103,7 @@ const LoginPage: React.FC = () => {
             {notice && <SuccessNotice>{notice}</SuccessNotice>}
 
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
-              <InputBlock
+              <AuthInput
                 id="email"
                 label="Email"
                 type="email"
@@ -178,7 +114,7 @@ const LoginPage: React.FC = () => {
                 disabled={busy}
               />
 
-              <InputBlock
+              <AuthInput
                 id="password"
                 label="Password"
                 type="password"

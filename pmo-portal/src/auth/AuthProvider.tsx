@@ -68,6 +68,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: error?.message ?? null };
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    // FR-AUTHF-015/050: origin-rooted redirectTo (no open redirect; D-AUTHF-8).
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    // FR-AUTHF-035: clear invite_pending in the SAME updateUser call (idempotent for the pure-reset
+    // case, where the flag was never set). data == user_metadata (supabase-js v2).
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { invite_pending: false },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const resendEmailConfirmation = useCallback(async (email: string) => {
+    // FR-AUTHF-041/050: origin-rooted emailRedirectTo (D-AUTHF-8).
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
@@ -81,9 +109,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileError,
       signInWithPassword,
       signInWithMagicLink,
+      requestPasswordReset,
+      updatePassword,
+      resendEmailConfirmation,
       signOut,
     }),
-    [session, currentUser, loading, profileError, signInWithPassword, signInWithMagicLink, signOut]
+    [
+      session,
+      currentUser,
+      loading,
+      profileError,
+      signInWithPassword,
+      signInWithMagicLink,
+      requestPasswordReset,
+      updatePassword,
+      resendEmailConfirmation,
+      signOut,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
