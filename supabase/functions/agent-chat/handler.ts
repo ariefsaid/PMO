@@ -816,6 +816,10 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
  * Gate order (each gate yields terminal status and returns):
  *   (1) 401 UNAUTHORIZED — userId empty (AC-AR-002)
  *   (2) 400 BAD_REQUEST(orgId) — profiles lookup fails (AC-AR-003)
+ *   (ADR-0043 §4 cancel) server-side abort branch — when req.cancel is present.
+ *       Correctness-remediation finding 4: no model call, no deputy context needed;
+ *       emits a terminal errored/CANCELLED status event, persisted via the same
+ *       withPersistence -> setRunStatus call site every other terminal status uses.
  *   (A3-decision) approve/deny branch — when req.decision is present. Correctness-
  *       remediation finding 2: routed BEFORE gate (3) — a reject/approve resolution
  *       (the write_resolved audit event) never itself costs a model call and must
@@ -903,6 +907,20 @@ async function* agentChatHandlerInner(
     initialRole = data.role ?? null;
   } catch {
     yield statusEvent('errored', { error: 'BAD_REQUEST', detail: 'orgId' });
+    return;
+  }
+
+  // ── ADR-0043 §4: Cancel branch (req.cancel present → server-side abort) ──────
+  // Correctness-remediation (finding 4): control('cancel') previously only aborted the
+  // client-side fetch — agent_runs.status never reached a persisted terminal state
+  // server-side. This branch makes NO model call (a cancel is a pure status write, not
+  // a continuation) and emits a terminal errored/CANCELLED status event; withPersistence
+  // (the SAME wrapper every other terminal status already flows through) persists it via
+  // setRunStatus — no new persistence code needed. Routed before the credit gate for the
+  // same reason as decision/answer (finding 2): a cancel never costs a model call and
+  // must never be credit-blocked.
+  if (req.cancel) {
+    yield statusEvent('errored', { error: 'CANCELLED' });
     return;
   }
 

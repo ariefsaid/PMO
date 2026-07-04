@@ -87,7 +87,20 @@ export class PmoNativeRuntime implements AgentRuntime {
   ): Promise<void> {
     if (cmd === 'cancel') {
       const state = this._runs.get(runId);
+      // Abort the client-side fetch (unchanged, existing behavior — stops this browser
+      // tab from continuing to read/render the stream).
       state?.controller.abort();
+      // Correctness-remediation (ADR-0043 §4, finding 4): ALSO drive a server-side
+      // abort — a plain client-side AbortController.abort() only stops THIS browser
+      // from reading the response; it does nothing to agent_runs.status (the edge fn,
+      // per ADR-0043 §6, keeps running the turn server-side to a terminal state even
+      // after the client disconnects — by design, for durable-resume). Fire-and-forget
+      // a SEPARATE POST carrying { cancel: { runId } } so the server sets a persisted
+      // terminal status regardless of what the aborted fetch above does. Deliberately
+      // NOT awaited by the caller in the critical path (stop() should feel instant);
+      // errors are swallowed — a failed cancel-POST is no worse than the pre-fix
+      // behavior (no server-side effect at all).
+      void this._postCancel(runId);
       return;
     }
     if (cmd === 'approve' || cmd === 'reject') {
@@ -104,6 +117,37 @@ export class PmoNativeRuntime implements AgentRuntime {
       return;
     }
     // pause/resume are no-ops
+  }
+
+  /**
+   * Correctness-remediation (ADR-0043 §4, finding 4): fire-and-forget POST carrying
+   * `{ cancel: { runId } }` — a SEPARATE request from the run's own SSE fetch (which
+   * `control('cancel')` already aborts client-side above), so it succeeds even though
+   * that other request's AbortController just fired. A minimal request body is enough:
+   * the handler's cancel branch makes no model call and needs no messages/context — it
+   * only needs `runId` to persist the terminal status.
+   */
+  private async _postCancel(runId: string): Promise<void> {
+    try {
+      const jwt = await this._opts.getJwt();
+      const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
+      const body: AgentChatRequest = {
+        runId,
+        messages: [],
+        cancel: { runId },
+      };
+      await fetchImpl(this._opts.fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // Best-effort — a failed cancel-POST leaves the server's run status un-updated,
+      // no worse than the pre-fix behavior (which never attempted this at all).
+    }
   }
 
   subscribe(runId: string): AsyncIterable<AgentEvent> {

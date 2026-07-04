@@ -410,3 +410,71 @@ it('AC-AW-adapter: control(reject) stashes decision; next subscribe re-POSTs wit
   const body2 = JSON.parse(secondCall2[1].body as string) as AgentChatRequest;
   expect(body2.decision).toEqual({ pendingId: 'p2', verdict: 'reject' });
 });
+
+// ── Correctness-remediation finding 4: control('cancel') drives a server-side abort ──
+// RED (before the fix): control('cancel') only called state.controller.abort() — no
+// second request was ever sent, so agent_runs.status never reached a persisted
+// terminal state server-side (ADR-0043 §4's "cancel sets agent_runs.status" contract
+// was client-fetch-abort-only, not actually implemented server-side).
+
+it('control(cancel) POSTs { cancel: { runId } } in addition to aborting the client fetch', async () => {
+  const runningEvent: AgentEvent = {
+    id: 'e-run-1',
+    runId: 'r-cancel-1',
+    type: 'status',
+    payload: { status: 'running' },
+    createdAt: new Date().toISOString(),
+  };
+
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      // First call: a long-running turn (the client never drains to completion —
+      // simulates the user hitting Cancel mid-stream).
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(runningEvent)) });
+    }
+    // Second call: the cancel POST — a terminal errored/CANCELLED status.
+    return Promise.resolve({
+      ok: true,
+      body: readableFrom(
+        encodeSse({
+          id: 'e-cancelled-1',
+          runId: 'r-cancel-1',
+          type: 'status',
+          payload: { status: 'errored', error: 'CANCELLED' },
+          createdAt: new Date().toISOString(),
+        }),
+      ),
+    });
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'do something slow' });
+  const runsMap = (runtime as unknown as { _runs: Map<string, { controller: AbortController }> })._runs;
+  const state = runsMap.get(run.id)!;
+  const abortSpy = vi.spyOn(state.controller, 'abort');
+
+  // Start draining but don't wait for completion (mirrors a real cancel: the user acts
+  // mid-stream, not after the stream has already ended).
+  const drainPromise = (async () => {
+    for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  })();
+
+  await runtime.control(run.id, 'cancel');
+  await drainPromise;
+
+  // The existing client-side abort still happens (unchanged behavior).
+  expect(abortSpy).toHaveBeenCalled();
+
+  // NEW: a second POST carrying { cancel: { runId } } drives the server-side abort.
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const cancelCall = fetchMock.mock.calls[1] as [string, RequestInit];
+  const cancelBody = JSON.parse(cancelCall[1].body as string) as AgentChatRequest;
+  expect(cancelBody.cancel).toEqual({ runId: run.id });
+});
