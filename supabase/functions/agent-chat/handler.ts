@@ -816,8 +816,17 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
  * Gate order (each gate yields terminal status and returns):
  *   (1) 401 UNAUTHORIZED — userId empty (AC-AR-002)
  *   (2) 400 BAD_REQUEST(orgId) — profiles lookup fails (AC-AR-003)
- *   (3) 429 RATE_LIMITED — rate guard exceeded (D9/AR-OD-002)
- *   (A3-decision) approve/deny branch — when req.decision is present
+ *   (A3-decision) approve/deny branch — when req.decision is present. Correctness-
+ *       remediation finding 2: routed BEFORE gate (3) — a reject/approve resolution
+ *       (the write_resolved audit event) never itself costs a model call and must
+ *       never be credit-blocked.
+ *   (ADR-0045 §2 answer) resolve-question branch — when req.answer is present. Same
+ *       ordering rationale as the decision branch (finding 2): resolving the pending
+ *       question is not itself a model call.
+ *   (3) 429 RATE_LIMITED — rate guard exceeded (D9/AR-OD-002), fresh-send path only
+ *       (only reached when neither req.decision nor req.answer is present — a fresh
+ *       user turn always costs a model call, so gating it here is unchanged from the
+ *       pre-remediation behavior for this path).
  *   (4) tool-use loop — up to MAX_TOOL_ROUNDS (AC-AR-001, AC-AR-004)
  *   (5) 502 UPSTREAM_ERROR — model call throws; error scrubbed (AC-AR-005)
  */
@@ -897,18 +906,6 @@ async function* agentChatHandlerInner(
     return;
   }
 
-  // ── Gate (3): rate guard (AR-OD-002, D9) ─────────────────────────────────
-  if (deps.rateGuard) {
-    const r = await deps.rateGuard.check(deps.userId);
-    if (r.exceeded) {
-      yield statusEvent('errored', {
-        error: 'RATE_LIMITED',
-        retryAfterSeconds: r.retryAfterSeconds,
-      });
-      return;
-    }
-  }
-
   // ── Build deputy context ───────────────────────────────────────────────────
   // Cast: HandlerSupabaseLike vs the port's SupabaseLike is a genuine structural mismatch
   // (see the identical cast + comment in the compose_view dispatch branch above) — deps.supabase
@@ -921,15 +918,44 @@ async function* agentChatHandlerInner(
   };
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
+  // Correctness-remediation (finding 2): routed BEFORE the credit gate below — resolving
+  // a pending decision (the write_resolved audit event + tool_result injection for
+  // reject/approve) never itself costs a model call, so it must never be credit-blocked.
+  // The SUBSEQUENT model turn inside handleDecision's own runLoop call is a genuine new
+  // model call and is not specially exempted here — only the resolution act itself is.
   if (req.decision) {
     yield* handleDecision(req, deps, emit, statusEvent, canFn, deputyCtx, persist);
     return;
   }
 
   // ── ADR-0045 §2: Answer branch (req.answer present → resolve a pending question) ──
+  // Correctness-remediation (finding 2): routed BEFORE the credit gate below, for the
+  // same reason as the decision branch — resolving a pending question (finding the
+  // trailing tool_use + injecting the answer as its tool_result) never itself costs a
+  // model call. The trailing model turn that follows (inside handleAnswer's own
+  // runLoopAfterAnswer call) is a genuine new model call and may legitimately still be
+  // credit-blocked in a deployment with AGENT_CREDITS_ENFORCED on — that is a SEPARATE,
+  // pre-existing gap (the decision/answer continuations never re-checked credits even
+  // before this fix) and is out of scope for this remediation.
   if (req.answer) {
     yield* handleAnswer(req, deps, emit, statusEvent, deputyCtx, persist);
     return;
+  }
+
+  // ── Gate (3): rate guard (AR-OD-002, D9) — fresh-send path only ──────────
+  // Reached only when neither req.decision nor req.answer is present (both branches
+  // above already returned). A fresh user turn always costs at least one model call,
+  // so gating it here (before even echoing the user event) is correct and unchanged
+  // from the pre-remediation behavior for this path.
+  if (deps.rateGuard) {
+    const r = await deps.rateGuard.check(deps.userId);
+    if (r.exceeded) {
+      yield statusEvent('errored', {
+        error: 'RATE_LIMITED',
+        retryAfterSeconds: r.retryAfterSeconds,
+      });
+      return;
+    }
   }
 
   // ── Yield the last user message ────────────────────────────────────────────
