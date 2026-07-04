@@ -10,6 +10,8 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import LoginPage from '@/src/auth/LoginPage';
+import TermsPage from './pages/Terms';
+import PrivacyPage from './pages/Privacy';
 import {
   AppShell,
   Rail,
@@ -404,6 +406,8 @@ const App: React.FC = () => (
           <AnalyticsProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
               <Route element={<RequireAuth />}>
                 <Route path="/*" element={<Shell />} />
               </Route>
