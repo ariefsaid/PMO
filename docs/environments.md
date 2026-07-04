@@ -237,6 +237,48 @@ because the old secret was never live.
 This runs **as part of a `v0.2.0` promote**, ordered with the DB push (below). Tracked in
 `docs/backlog.md` (edge-function operationalization).
 
+### Agent prod-readiness check (`scripts/check-agent-prod-readiness.mjs`)
+
+Before enabling the agent tier against a real deployment (or as a periodic health check),
+run the read-only checklist script:
+
+```bash
+PMO_READINESS_BASE_URL=https://<ref>.supabase.co/functions/v1 \
+PMO_READINESS_BEARER=<a real user JWT, or the service-role key for agent-dispatch> \
+OPENROUTER_API_KEY=<already in your shell if you sourced the prod secrets> \
+node scripts/check-agent-prod-readiness.mjs           # add --live to fire one real agent-chat call
+```
+
+It checks, and reports SKIPPED (not FAILED) when an input is not supplied:
+- **(a) Reachability** — an unauthenticated probe to each of `agent-chat` / `compose-view` /
+  `agent-dispatch` expects **401** (the function is deployed and enforcing auth); an authenticated
+  probe (with `PMO_READINESS_BEARER`) expects **2xx**. A `404` means "not deployed"; a network
+  error means "unreachable"; a `5xx` with auth means "deployed but erroring" — the script reports
+  which, so a failure is diagnosable without opening a dashboard.
+- **(b) Required secrets** — presence-only (never the value) of `OPENROUTER_API_KEY` in the
+  **invoking shell's** own environment. This is NOT a remote check of the deployed project's
+  secrets (no Supabase Management API token is wired) — confirm those separately with
+  `supabase secrets list` against the linked project.
+- **(c) pg_cron GUCs** — `app.settings.dispatch_url` / `app.settings.service_role_key` (migration
+  0048's per-minute tick) are **not remotely checkable** from this script; it prints the exact
+  `SHOW app.settings.…;` command to run against the deployed Postgres to confirm they are set.
+- **(d) Synthetic dry-run** (opt-in, `--live`) — fires one real `agent-chat` POST (spends a token/
+  model call) to confirm the full request path works end-to-end. Off by default so a plain
+  `--check`-style run never spends anything.
+
+It **never reads `.env` files or 1Password** — every input is a plain env var the operator's own
+shell already has (e.g. from `op-get.sh`, per the Secrets section above). This does **not**
+automate the live-mint verify (minting a real owner JWT and firing a real automation against prod
+data stays a manual, owner-instructed step) — it only enumerates and checks what is safe to check
+mechanically. Unit tests for its pure classification logic:
+`scripts/check-agent-prod-readiness.test.mjs` (`node --test`).
+
+**Next step not yet built (flagged, not implemented here):** a durable error-events table /
+webhook alert so a production failure (missing secret, dispatch-tick failure, automation
+mint/audit/fire failure) is pushed to the owner instead of only sitting in Supabase Edge Function
+logs — see the structured `errorCode`s now emitted (`supabase/functions/_shared/errorLog.ts`) as
+the ready-made hook point for that future alerting layer.
+
 ## Prod migration state
 
 **Prod is CURRENT at migration 0041** (`fc312eb`, the procurement case-folder record model pushed

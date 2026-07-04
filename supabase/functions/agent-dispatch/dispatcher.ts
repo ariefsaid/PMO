@@ -11,6 +11,7 @@ import { mintOwnerJwt, auditMint, type AuthAdminLike } from './mint';
 import { fireAutomation, type FireHandler } from './fire';
 import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition';
 import type { ModelClient } from '../_shared/modelClient';
+import { logStructuredError } from '../_shared/errorLog';
 
 /** The minimal automation-row shape the dispatcher's selection queries need. */
 export interface AutomationRow {
@@ -352,6 +353,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       markAttempted(automation.trigger_on!.source, event);
     }
 
+    // Tracks which phase of the unit is in flight so the catch below can log a DISTINCT
+    // errorCode per failure phase (mint vs audit vs fire) without changing any control
+    // flow — set immediately before the call that can throw for that phase.
+    let stage: 'condition' | 'mint' | 'audit' | 'fire' = 'condition';
+
     try {
       // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
       // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
@@ -377,6 +383,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // Mint ONCE per candidate — shared by audit, notify, credit preflight, and fire (one mint per
       // candidate, never a fresh mint per branch). Reached only when the automation will either fire
       // or produce an owner notification (unevaluable condition / over-credit).
+      stage = 'mint';
       const minted = await mintOwnerJwt(deps, automation);
 
       // ── Audit EVERY mint FIRST — before ANY other minted-client DB use (gpt-5.5 audit #3,
@@ -385,7 +392,9 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // audit trail BEFORE its warning notification. Fail-closed — auditMint throws on failure, so a
       // candidate whose audit cannot be written never notifies, credits, or fires. ──
       const runId = newRunId();
+      stage = 'audit';
       await auditMint(minted.client, automation, runId, newMintedAt());
+      stage = 'fire';
 
       // Deferred unevaluable-condition warning (the mint is already audited above, so this notify is
       // never the first minted-client write). No fire follows.
@@ -452,10 +461,18 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // attempted trigger event has already been recorded above (markAttempted), independent of
       // this throw — so a re-thrown automation neither kills the batch nor causes the same event
       // to re-match (and double-fire) on the next tick.
-      console.error('[agent-dispatch] automation failed', {
-        automation_id: automation.id,
-        code: err instanceof Error ? err.name : 'unknown',
-      });
+      //
+      // A DISTINCT errorCode per phase (mint vs audit vs fire) makes a stuck/never-fires
+      // automation greppable by failure class, not just "automation failed" (harden #1).
+      const errorCode =
+        stage === 'mint'
+          ? 'AUTOMATION_MINT_FAILED'
+          : stage === 'audit'
+            ? 'AUTOMATION_AUDIT_FAILED'
+            : stage === 'fire'
+              ? 'AUTOMATION_FIRE_FAILED'
+              : 'AUTOMATION_CONDITION_FAILED';
+      logStructuredError({ fn: 'agent-dispatch', errorCode, contextId: automation.id });
     }
   }
 

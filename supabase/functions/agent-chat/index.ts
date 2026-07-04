@@ -28,6 +28,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import {
@@ -80,6 +81,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 4. Read OPENROUTER_API_KEY from function secrets (NFR-MC-SEC-001) ──────
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
+    logStructuredError({ fn: 'agent-chat', errorCode: 'MISSING_OPENROUTER_API_KEY' });
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

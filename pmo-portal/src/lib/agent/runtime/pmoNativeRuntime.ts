@@ -145,8 +145,17 @@ export class PmoNativeRuntime implements AgentRuntime {
         body: JSON.stringify(body),
       });
     } catch {
-      // Best-effort — a failed cancel-POST leaves the server's run status un-updated,
-      // no worse than the pre-fix behavior (which never attempted this at all).
+      // Best-effort — a failed cancel-POST leaves the server's run status un-updated
+      // (no worse than the pre-fix behavior, which never attempted this at all). BUT this
+      // must not be FULLY silent (observability hardening, harden #1 item 3, spike
+      // 2026-07-04): a stuck server-side run with no client-visible signal is a support
+      // dead-end. Emit a structured console.warn — never the raw error's message/stack
+      // (could carry a URL/host/token-adjacent detail) — so the failure is at least
+      // greppable in browser/telemetry logs.
+      console.warn(`[pmo-native-runtime] cancel-POST failed`, {
+        errorCode: 'CANCEL_POST_FAILED',
+        runId,
+      });
     }
   }
 

@@ -52,12 +52,14 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
       .select()
       .single();
     if (error) {
-      console.error('[agent-usage] insertUsageRow insert failed', {
+      console.error('[agent-usage] USAGE_INSERT_FAILED', {
+        errorCode: 'USAGE_INSERT_FAILED',
         code: (error as { code?: string }).code,
       });
     }
   } catch (err) {
-    console.error('[agent-usage] insertUsageRow threw', {
+    console.error('[agent-usage] USAGE_INSERT_THREW', {
+      errorCode: 'USAGE_INSERT_THREW',
       code: err instanceof Error ? err.name : 'unknown',
     });
   }
