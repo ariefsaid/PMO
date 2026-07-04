@@ -166,6 +166,13 @@ plaintext build env vars — no 1Password needed for the frontend.
     ingestion host.
   - `VITE_ANALYTICS_ENABLED` = `false` for the deployed client demo unless running non-demo analytics.
     Analytics still initializes when `VITE_DEMO_MODE=true`.
+  - **Legal pages (set per client at provisioning, FR-LEG-006/007):** every value has a
+    presentable default so an unset var never renders a bracket placeholder (I6).
+    - `VITE_LEGAL_ENTITY_NAME` = the legal entity name shown on Terms/Privacy (default `PMO Portal`).
+    - `VITE_LEGAL_DOMAIN` = the public domain (default `pmoportal.app`).
+    - `VITE_LEGAL_CONTACT_EMAIL` = the contact/support email (default `support@pmoportal.app`).
+    - `VITE_HELP_WHATSAPP` = E.164 WhatsApp support number, e.g. `6281234567890` (default empty → Help link omitted entirely, FR-LEG-010).
+    - `VITE_HOSTING_LOCATION` = the data-residency location disclosed on Privacy (default `Singapore`; per-client per ADR-0047; staging is Sydney).
 
 ### PostHog demo analytics flags
 
