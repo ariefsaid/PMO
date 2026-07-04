@@ -163,7 +163,8 @@ describe('runDispatchTick — structured errorCode per failure phase (harden #1)
     const mintDeps = makeMintDeps(makeMintedClient().client);
 
     const handler = vi.fn(async function* (): AsyncGenerator<{ runId: string; type: string; payload?: unknown }> {
-      throw new Error('fire boom');
+      if (true as boolean) throw new Error('fire boom');
+      yield { runId: 'unreachable', type: 'status', payload: { status: 'completed' } };
     });
 
     await runDispatchTick({

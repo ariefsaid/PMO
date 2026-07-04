@@ -18,7 +18,10 @@ it('AC-AR-010 no ANTHROPIC_API_KEY literal appears anywhere under pmo-portal/', 
 it('AC-MC-010 no OPENROUTER_API_KEY literal appears anywhere under pmo-portal/', () => {
   const matches = runNegativeGrep('OPENROUTER_API_KEY', {
     cwd: process.cwd(),
-    excludeGlobs: ['noApiKeyInBundle.test.ts'],
+    // errorLog.test.ts references the MISSING_OPENROUTER_API_KEY error CODE string
+    // (harden #1) — not the key value or an env-var read, so it carries no bundling
+    // risk; excluded the same way this gate excludes itself.
+    excludeGlobs: ['noApiKeyInBundle.test.ts', 'errorLog.test.ts'],
   });
   expect(matches.trim()).toBe('');
 });
