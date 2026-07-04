@@ -1,6 +1,13 @@
 /**
  * dispatcher.watermark.test.ts — watermark read/advance + event-trigger selection (AC-AAN-022).
  * [REC-1]: logic lives in supabase/functions/agent-dispatch/*, tests live here.
+ *
+ * SEC-HIGH-2 (migration 0054): the dispatcher no longer reads the tenant `procurement_status_events`
+ * table under service_role — it calls the SECURITY DEFINER `select_trigger_events` RPC. The compound
+ * (created_at, id) watermark cursor + the (org_id, to_status) match now live in SQL; their correctness
+ * is owned by pgTAP 0104 (AC-STE-001..004). These unit tests own the JS contract: that the dispatcher
+ * reads the watermark, passes the correct cursor + org-scoped filters to the RPC, hard-gates a
+ * non-allowlisted source (never round-trips), and pairs the RPC-returned events back to automations.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readWatermark, advanceWatermark } from '../../../../../supabase/functions/agent-dispatch/watermark';
@@ -19,6 +26,31 @@ function makeAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
     archived_at: null,
     ...overrides,
   };
+}
+
+/**
+ * A serviceClient whose watermark read resolves to `watermark` and whose select_trigger_events RPC
+ * resolves to `events`. The source business table is NEVER exposed via .from() (SEC-HIGH-2) — only
+ * agent_dispatch_watermarks is reachable through .from(); anything else throws.
+ */
+function makeServiceClient(
+  events: Array<Record<string, unknown>>,
+  watermark: { last_seen_id: string; last_seen_at: string } | null = null,
+) {
+  const maybeSingleMock = vi.fn().mockResolvedValue({
+    data: watermark ? { source: 'procurement_status_events', ...watermark } : null,
+    error: null,
+  });
+  const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+  const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
+
+  const rpc = vi.fn().mockResolvedValue({ data: events, error: null });
+
+  const from = vi.fn((table: string) => {
+    if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
+    throw new Error(`service_role must never .from() business data; got: ${table}`);
+  });
+  return { from, rpc };
 }
 
 describe('readWatermark / advanceWatermark', () => {
@@ -55,195 +87,105 @@ describe('readWatermark / advanceWatermark', () => {
 });
 
 describe('selectTriggerMatches — SECURITY HIGH-1 hard-gates trigger_on.source against TRIGGER_SOURCES', () => {
-  it('skips a non-allowlisted source without ever calling sb.from(source) — never queries it', async () => {
+  it('skips a non-allowlisted source without ever calling the RPC or .from(source) — never queries it', async () => {
     const automation = makeAutomation({ trigger_on: { source: 'profiles', event: 'Ordered' } });
+    const rpc = vi.fn();
     const fromMock = vi.fn().mockImplementation((table: string) => {
-      throw new Error(`selectTriggerMatches must never call .from() for a non-allowlisted source, got: ${table}`);
+      throw new Error(`must never .from() for a non-allowlisted source, got: ${table}`);
     });
-    const sb = { from: fromMock };
+    const sb = { from: fromMock, rpc };
 
     const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:00:05Z'), [automation]);
 
     expect(matches).toHaveLength(0);
     expect(fromMock).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('still selects matches for an allowlisted source alongside a skipped non-allowlisted one', async () => {
     const good = makeAutomation({ id: 'trig-good', trigger_on: { source: 'procurement_status_events', event: 'Ordered' } });
     const bad = makeAutomation({ id: 'trig-bad', trigger_on: { source: 'agent_automations', event: 'Ordered' } });
     const event = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-
-    const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
-    const orderMock = vi.fn().mockResolvedValue({ data: [event], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      if (table === 'procurement_status_events') return { select: evtSelectMock };
-      throw new Error(`must never query non-allowlisted source: ${table}`);
-    });
-    const sb = { from: fromMock };
+    const sb = makeServiceClient([event]);
 
     const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:00:05Z'), [good, bad]);
 
     expect(matches).toHaveLength(1);
     expect(matches[0].automation.id).toBe('trig-good');
-    expect(fromMock).not.toHaveBeenCalledWith('agent_automations');
+    // The RPC was invoked only for the allowlisted source, never for agent_automations.
+    expect(sb.rpc).toHaveBeenCalledTimes(1);
+    expect(sb.rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({ p_source: 'procurement_status_events' }),
+    );
   });
 });
 
-describe('selectTriggerMatches — AC-AAN-022 watermark advances, no double-fire', () => {
-  it('tick 1: no prior watermark, one matching event is returned', async () => {
+describe('selectTriggerMatches — AC-AAN-022 watermark cursor passed to select_trigger_events', () => {
+  it('tick 1: no prior watermark → null cursor passed to the RPC, one matching event returned', async () => {
     const automation = makeAutomation();
     const event = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-
-    // readWatermark: null (no prior row)
-    const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
-
-    // status-event source query: gte(created_at, epoch).order(...) — the compound cursor (item 4)
-    // queries at-or-after the watermark and filters the exact seen id in-JS.
-    const orderMock = vi.fn().mockResolvedValue({ data: [event], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
-    });
-    const sb = { from: fromMock };
+    const sb = makeServiceClient([event], null);
 
     const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:00:05Z'), [automation]);
 
     expect(matches).toHaveLength(1);
     expect(matches[0].automation.id).toBe('trig-1');
     expect(matches[0].event).toEqual(event);
-    expect(gteMock).toHaveBeenCalledWith('created_at', '1970-01-01');
+    // A null watermark → null cursor to the RPC (the RPC returns all matching rows).
+    expect(sb.rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({
+        p_source: 'procurement_status_events',
+        p_last_seen_at: null,
+        p_last_seen_id: null,
+        p_filters: [{ org_id: 'org-1', event: 'Ordered' }],
+      }),
+    );
   });
 
-  it('tick 2: watermark advanced past the event, zero new events (no double-fire)', async () => {
+  it('tick 2: an advanced watermark is passed as the compound cursor to the RPC', async () => {
     const automation = makeAutomation();
-
-    // readWatermark: returns the previously-advanced watermark.
-    const maybeSingleMock = vi.fn().mockResolvedValue({
-      data: { source: 'procurement_status_events', last_seen_id: 'evt-1', last_seen_at: '2026-07-06T08:00:00Z' },
-      error: null,
-    });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
-
-    // status-event source query now returns zero rows at-or-after the watermark.
-    const orderMock = vi.fn().mockResolvedValue({ data: [], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
-    });
-    const sb = { from: fromMock };
+    // RPC returns zero rows (it excluded already-seen rows via the cursor — see pgTAP 0104 AC-STE-003).
+    const sb = makeServiceClient([], { last_seen_id: 'evt-1', last_seen_at: '2026-07-06T08:00:00Z' });
 
     const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:01:05Z'), [automation]);
 
     expect(matches).toHaveLength(0);
-    expect(gteMock).toHaveBeenCalledWith('created_at', '2026-07-06T08:00:00Z');
+    // The dispatcher hands the RPC the compound (created_at, id) cursor read from the watermark.
+    expect(sb.rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({
+        p_last_seen_at: '2026-07-06T08:00:00Z',
+        p_last_seen_id: 'evt-1',
+      }),
+    );
   });
 
-  it('gpt-5.5 #5: same-timestamp siblings BEFORE the advanced id are NOT re-yielded (no double-fire)', async () => {
-    // tick1 saw A,B,C all at the SAME created_at and advanced the watermark to C (max id at that
-    // instant). tick2 re-reads gte(created_at) — the source table still returns A,B,C (same instant).
-    // The compound (created_at, id) cursor must drop A and B (id ≤ C's), NOT re-yield them. The old
-    // `id === lastSeenId` filter dropped only C, re-firing A and B every tick forever.
-    const automation = makeAutomation();
-    const evtA = { id: 'a', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-    const evtB = { id: 'b', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-    const evtC = { id: 'c', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
+  it('pairs each RPC-returned event to its automation by (org_id, to_status)', async () => {
+    // Two automations, same org, different events; the RPC returns one event per (org, event) pair.
+    const ordered = makeAutomation({ id: 'trig-ord', trigger_on: { source: 'procurement_status_events', event: 'Ordered' } });
+    const received = makeAutomation({ id: 'trig-rcv', trigger_on: { source: 'procurement_status_events', event: 'Received' } });
+    const events = [
+      { id: 'evt-o', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' },
+      { id: 'evt-r', created_at: '2026-07-06T08:00:01Z', to_status: 'Received', org_id: 'org-1' },
+    ];
+    const sb = makeServiceClient(events);
 
-    // watermark advanced to C (the max id at that instant).
-    const maybeSingleMock = vi.fn().mockResolvedValue({
-      data: { source: 'procurement_status_events', last_seen_id: 'c', last_seen_at: '2026-07-06T08:00:00Z' },
-      error: null,
-    });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
+    const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:01:05Z'), [ordered, received]);
 
-    // gte still returns all three same-timestamp rows.
-    const orderMock = vi.fn().mockResolvedValue({ data: [evtA, evtB, evtC], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
-    });
-    const sb = { from: fromMock };
-
-    const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:01:05Z'), [automation]);
-
-    // No re-yield of A or B (nor C) — all are ≤ the (created_at, id) cursor at that instant.
-    expect(matches).toHaveLength(0);
-  });
-
-  it('gpt-5.5 #5: a same-timestamp sibling AFTER the advanced id IS yielded (not skipped)', async () => {
-    // The watermark advanced to B at instant T; a later-inserted sibling D at the SAME instant T with
-    // id > B must still be picked up (strict compound-cursor greater-than, not skipped by the gte).
-    const automation = makeAutomation();
-    const evtB = { id: 'b', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-    const evtD = { id: 'd', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-
-    const maybeSingleMock = vi.fn().mockResolvedValue({
-      data: { source: 'procurement_status_events', last_seen_id: 'b', last_seen_at: '2026-07-06T08:00:00Z' },
-      error: null,
-    });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
-
-    const orderMock = vi.fn().mockResolvedValue({ data: [evtB, evtD], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
-    });
-    const sb = { from: fromMock };
-
-    const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:01:05Z'), [automation]);
-
-    // B is at-or-below the cursor (dropped); D is strictly after (id > b at the same instant) → yielded.
-    expect(matches).toHaveLength(1);
-    expect(matches[0].event.id).toBe('d');
-  });
-
-  it('the exact previously-seen row (same created_at, same id) is filtered out, not re-matched', async () => {
-    const automation = makeAutomation();
-    const seenEvent = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-1' };
-
-    const maybeSingleMock = vi.fn().mockResolvedValue({
-      data: { source: 'procurement_status_events', last_seen_id: 'evt-1', last_seen_at: '2026-07-06T08:00:00Z' },
-      error: null,
-    });
-    const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
-    const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
-
-    // gte still returns the already-seen row (its own instant) — selectTriggerMatches must filter
-    // it out in-JS by id, never re-match it.
-    const orderMock = vi.fn().mockResolvedValue({ data: [seenEvent], error: null });
-    const gteMock = vi.fn().mockReturnValue({ order: orderMock });
-    const evtSelectMock = vi.fn().mockReturnValue({ gte: gteMock });
-
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };
-      return { select: evtSelectMock };
-    });
-    const sb = { from: fromMock };
-
-    const matches = await selectTriggerMatches(sb as never, new Date('2026-07-06T08:01:05Z'), [automation]);
-
-    expect(matches).toHaveLength(0);
+    expect(matches).toHaveLength(2);
+    expect(matches.find((m) => m.automation.id === 'trig-ord')?.event.id).toBe('evt-o');
+    expect(matches.find((m) => m.automation.id === 'trig-rcv')?.event.id).toBe('evt-r');
+    // Both (org, event) filter pairs were deduped-and-passed to the RPC.
+    expect(sb.rpc).toHaveBeenCalledWith(
+      'select_trigger_events',
+      expect.objectContaining({
+        p_filters: [
+          { org_id: 'org-1', event: 'Ordered' },
+          { org_id: 'org-1', event: 'Received' },
+        ],
+      }),
+    );
   });
 });

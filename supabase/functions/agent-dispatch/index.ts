@@ -18,6 +18,9 @@
  * enumerate automation metadata + watermark bookkeeping (serviceClient, quarantined table set), and
  * (b) mint short-lived owner JWTs (authAdmin). The FIRED run runs under the MINTED owner client —
  * never service_role — so RLS stays the ceiling exactly as for an interactive run.
+ * SEC-HIGH-2: trigger-event selection goes through the SECURITY DEFINER select_trigger_events RPC
+ * (serviceClient.rpc), NOT a raw service_role read of the tenant procurement_status_events table —
+ * so no cross-org business row ever crosses the trust boundary into this edge fn.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)

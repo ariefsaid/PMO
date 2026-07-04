@@ -34,9 +34,15 @@ export interface AutomationRow {
   timeout_s?: number;
 }
 
-/** The minimal Supabase-client-like shape the dispatcher needs from its injected service_role client. */
+/**
+ * The minimal Supabase-client-like shape the dispatcher needs from its injected service_role client.
+ * `.rpc()` is used for select_trigger_events (SEC-HIGH-2) — the org-correct event-selection RPC that
+ * REPLACES the direct service_role read of the tenant `procurement_status_events` table. `.from()` stays
+ * for the metadata-only tables (agent_automations, agent_dispatch_watermarks) — never business data.
+ */
 export interface ServiceClientLike {
   from: (table: string) => unknown;
+  rpc?: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 }
 
 /**
@@ -73,11 +79,10 @@ export async function selectDueSchedules(sb: ServiceClientLike, now: Date): Prom
 
 /**
  * A status-event row from a trigger source table (e.g. procurement_status_events), projected to the
- * MINIMAL column set the dispatcher needs (gpt-5.5 audit #2). service_role bypasses RLS, so reading
- * `select('*')` on a tenant business table over-exposes every column of every org's rows to the
- * condition model prompt. We project ONLY: id + created_at (the watermark cursor), to_status (the
- * trigger match key), and org_id (the cross-org tenancy gate). No wide `[key: string]: unknown` —
- * an unforeseen column must never silently flow into a model prompt.
+ * MINIMAL column set the dispatcher needs (gpt-5.5 audit #2). The select_trigger_events RPC returns
+ * exactly this projection: id + created_at (the watermark cursor), to_status (the trigger match key),
+ * and org_id (the cross-org tenancy gate). No wide `[key: string]: unknown` — an unforeseen column
+ * must never silently flow into a model prompt. This is the RPC's `returns table (...)` shape.
  */
 export interface StatusEventRow {
   id: string;
@@ -86,8 +91,14 @@ export interface StatusEventRow {
   org_id: string;
 }
 
-/** The exact minimal column projection read from a trigger source table (gpt-5.5 audit #2). */
+/** The exact minimal column projection returned by select_trigger_events (gpt-5.5 audit #2). */
 export const TRIGGER_EVENT_COLUMNS = 'id, created_at, to_status, org_id';
+
+/** One (org_id, event) filter pair passed to select_trigger_events — the org-correct match key. */
+interface TriggerFilter {
+  org_id: string;
+  event: string;
+}
 
 export interface TriggerMatch {
   automation: AutomationRow;
@@ -96,29 +107,26 @@ export interface TriggerMatch {
 
 /**
  * selectTriggerMatches — poll-since-watermark event-trigger selection (ADR-0044 §2, FR-AAN-012).
- * For each distinct trigger_on.source among the given enabled kind='trigger' automations, reads the
- * source table for rows created AT-OR-AFTER the source's watermark timestamp (or the epoch if none
- * yet), matches each event's status against each automation's trigger_on.event, and returns the
- * matching {automation, event} pairs. Does NOT advance the watermark — that is the caller's
- * (runDispatchTick) responsibility, performed AFTER the batch succeeds, so a failed tick does not
- * skip events (FR-AAN-013).
+ * For each distinct trigger_on.source among the given enabled kind='trigger' automations, it reads
+ * the source's watermark, then calls the SECURITY DEFINER `select_trigger_events` RPC (migration 0054)
+ * with the compound cursor + the exact set of (org_id, event) pairs its automations need. The RPC
+ * returns ONLY events that match one of those pairs on BOTH org_id AND to_status and are strictly
+ * after the cursor — so a cross-org event is never returned to the edge fn at all. It then pairs each
+ * returned event back to its matching automation(s). Does NOT advance the watermark — that is the
+ * caller's (runDispatchTick) responsibility, AFTER the batch, so a failed tick does not skip events.
  *
- * Item 4 + gpt-5.5 audit #5 (TRUE compound (created_at, id) cursor): `created_at` alone is not a
- * unique cursor — two events can share the exact same timestamp (bulk inserts, low-resolution clocks).
- * A plain `gt('created_at', since)` cursor would SKIP any sibling event at the watermark's own
- * timestamp that sorts after the seen one. So we query `gte('created_at', since)` (never narrower than
- * the watermark's own instant) and then apply the FULL compound-cursor predicate in-JS: keep an event
- * iff `created_at > lastSeenAt OR (created_at === lastSeenAt AND id > lastSeenId)`.
+ * SEC-HIGH-2 (the architectural belt): the dispatcher no longer reads the tenant business table
+ * `procurement_status_events` under service_role. The RPC is the ENFORCEMENT authority — the raw table
+ * is never materialised in the edge fn, only the org-correct projection the RPC computed. service_role
+ * still INVOKES the RPC (fine — the RPC does the org-correct filtering internally, and grants execute
+ * only to service_role, ADR-0036 §2 / NFR-AAN-SEC-002).
  *
- * The earlier form filtered only `id === lastSeenId`, which is WRONG: when three same-timestamp
- * siblings A,B,C advance the watermark to C, that filter drops only C and re-yields A,B EVERY tick
- * forever (a double-fire, gpt-5.5 audit #5). The strict `> (lastSeenAt, lastSeenId)` predicate drops
- * A and B too (their id is ≤ C's at the same instant), yielding only genuinely-newer rows.
- *
- * Cross-org tenancy (gpt-5.5 audit #1): each candidate event is additionally gated by
- * `event.org_id === automation.org_id` before it can match — a background automation is a deputy for
- * exactly one tenant, so another org's event must never match, condition-evaluate, notify, credit, or
- * fire it.
+ * The compound (created_at, id) watermark cursor + the (org_id, to_status) match now live in SQL
+ * (gpt-5.5 audit #5/#1). We KEEP the in-JS org gate below as defense-in-depth (belt AND suspenders):
+ * even though the RPC can only return org-correct rows, the pairing loop re-asserts
+ * `event.org_id === automation.org_id` so a future RPC regression (or a hand-mocked client) can never
+ * silently cross-match. The gate is now redundant WITH a correct RPC, but cheap and load-bearing if
+ * the RPC ever changed — so it stays.
  */
 export async function selectTriggerMatches(
   sb: ServiceClientLike,
@@ -137,57 +145,46 @@ export async function selectTriggerMatches(
   const matches: TriggerMatch[] = [];
 
   for (const [source, automations] of bySource) {
-    // SECURITY HIGH-1 (layer 2 — the ENFORCEMENT authority): hard-gate `source` against the SAME
-    // TRIGGER_SOURCES allowlist validateCreateAutomation checks at write time. This is the layer
-    // that actually matters — a row could exist with a non-allowlisted source (pre-dating this
-    // allowlist, or written directly) and must still never be queried. Skip-and-warn, never call
-    // sb.from(source) (not even the watermark read is skipped for this source's cursor logic; the
-    // watermark table itself is fine to touch, but the SOURCE table never is — we skip before any
-    // per-source I/O to keep the gate trivially auditable).
+    // SECURITY HIGH-1 (defense-in-depth): hard-gate `source` against the SAME TRIGGER_SOURCES allowlist
+    // validateCreateAutomation checks at write time, BEFORE any RPC call. The RPC itself also allowlists
+    // the source (returning zero rows for a non-allowlisted one), but skipping here keeps the gate
+    // trivially auditable and avoids a needless round-trip for a source that can never match.
     if (!isAllowedTriggerSource(source)) {
       console.warn('[agent-dispatch] skipping non-allowlisted trigger_on.source', { source });
       continue;
     }
+
     const wm = await readWatermark(sb, source);
     const lastSeenAt = wm?.lastSeenAt ?? null;
     const lastSeenId = wm?.lastSeenId ?? null;
-    const since = lastSeenAt ?? '1970-01-01';
 
-    const builder = sb.from(source) as {
-      select: (cols: string) => {
-        gte: (col: string, val: string) => {
-          order: (col: string) => Promise<{ data: StatusEventRow[] | null; error: unknown }>;
-        };
-      };
-    };
-    // gte (not gt): the compound cursor — see the doc comment above. Same-timestamp siblings of the
-    // watermark's own instant must still be considered; the exact already-seen row is excluded below
-    // by (created_at, id), in-JS. Column projection is MINIMIZED (gpt-5.5 audit #2): never select('*')
-    // on a tenant business table under service_role — only the columns the cursor/match/org-gate need.
-    const { data, error } = await builder
-      .select(TRIGGER_EVENT_COLUMNS)
-      .gte('created_at', since)
-      .order('created_at');
+    // Build the exact (org_id, event) filter set the RPC needs — deduped, so N automations sharing an
+    // (org, event) pair produce one filter. The RPC returns ONLY events matching one of these pairs, so
+    // a cross-org event never crosses the trust boundary into the edge fn (SEC-HIGH-2).
+    const filters = dedupeFilters(automations);
+    if (filters.length === 0) continue;
+
+    if (typeof sb.rpc !== 'function') {
+      // Defensive: the dispatcher's service client must expose .rpc for select_trigger_events. A client
+      // without it cannot select events safely — skip rather than fall back to a raw table read.
+      console.warn('[agent-dispatch] service client has no .rpc — cannot select trigger events', { source });
+      continue;
+    }
+    const { data, error } = await sb.rpc('select_trigger_events', {
+      p_source: source,
+      p_last_seen_at: lastSeenAt,
+      p_last_seen_id: lastSeenId,
+      p_filters: filters,
+    });
     if (error || !data) continue;
+    const events = data as StatusEventRow[];
 
-    for (const event of data) {
-      // Compound (created_at, id) cursor exclusion (gpt-5.5 audit #5): keep an event only if it is
-      // strictly AFTER the watermark — either a later timestamp, or the same timestamp with a greater
-      // id. Same-timestamp siblings that sort BEFORE OR EQUAL the last-seen id were already emitted on
-      // a prior tick; filtering only `id === lastSeenId` would re-yield same-timestamp siblings A,B
-      // forever when the watermark advanced to C. Skipped when there is no prior watermark.
-      if (lastSeenAt !== null && lastSeenId !== null) {
-        const after = event.created_at > lastSeenAt || (event.created_at === lastSeenAt && event.id > lastSeenId);
-        if (!after) continue;
-      }
+    for (const event of events) {
       for (const automation of automations) {
-        // SECURITY CRITICAL cross-org gate (gpt-5.5 audit #1): match ONLY within the automation's own
-        // org. Without this, an Org-B event fires an Org-A automation and Org-B's row is serialized
-        // into Org-A's condition-model prompt. This is the SELECTION-time tenancy authority (RLS still
-        // pins the fired run via the minted owner JWT, but the event never reaches the model here).
-        // Falsy-org hardening (re-audit Low): don't rely on the DB NOT NULL constraint alone —
-        // `null !== null` is false in JS, so two null-org rows would cross-match if that constraint
-        // were ever dropped. Deny unless BOTH orgs are present AND equal.
+        // Defense-in-depth cross-org gate (gpt-5.5 audit #1): the RPC already guarantees org-correct
+        // rows, but re-assert `event.org_id === automation.org_id` so a future RPC regression or a
+        // hand-mocked client can never silently cross-match. Deny unless BOTH orgs are present AND equal
+        // (`null !== null` is false in JS — two null-org rows must never cross-match).
         if (!automation.org_id || !event.org_id || automation.org_id !== event.org_id) continue;
         if (automation.trigger_on?.event === event.to_status) {
           matches.push({ automation, event });
@@ -197,6 +194,22 @@ export async function selectTriggerMatches(
   }
 
   return matches;
+}
+
+/** Dedupe the (org_id, trigger_on.event) filter pairs across a source's automations for the RPC. */
+function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
+  const seen = new Set<string>();
+  const filters: TriggerFilter[] = [];
+  for (const a of automations) {
+    const orgId = a.org_id;
+    const event = a.trigger_on?.event;
+    if (!orgId || !event) continue;
+    const key = `${orgId} ${event}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    filters.push({ org_id: orgId, event });
+  }
+  return filters;
 }
 
 // ── runDispatchTick — the per-tick orchestration (ADR-0044 §2/§3, the safety core) ──────────────
