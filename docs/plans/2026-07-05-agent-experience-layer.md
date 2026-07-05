@@ -35,8 +35,9 @@
   `compose_view` dangling affordance) FIXED in `87412ea`; XSS-test vectors hardened (`faa242c`).
 
 **REMAINING on this plan (for the next agent):**
-- No remaining Agent Experience Layer build items before promote/review. Next build queue is Tier-2:
-  **I5 Cmd+K + conditional approvals**, then **I6 eval harness**, then **I4 attachments**, then **I7 obs-memory**
+- No remaining Agent Experience Layer build items before promote/review. Tier-2 **I5 Cmd+K + conditional
+  approvals** is complete on the 2026-07-05 continuation. Next build queue is **I6 eval harness**, then
+  **I4 attachments**, then **I7 obs-memory**
   (deferred behind token-cost trigger).
 - **⚠ UNVERIFIED against the live model:** Track B's prompt *unit-tests prove the steering text is present*,
   but NOT that **deepseek-v4-flash actually acts on it** (weak tool-selector — spec §1 open-question 2, an

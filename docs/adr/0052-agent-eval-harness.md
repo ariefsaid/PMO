@@ -1,8 +1,8 @@
 # ADR-0052 — Agent eval harness: `*.eval.ts` behavior-regression net against the deployed loop
 
-- **Status:** Proposed (owner sign-off at merge of the Tier-2 eval-harness PR)
+- **Status:** Accepted (implementation landed on `dev` with PR #237 — harness + scorers + isolation + workflow; the deployed-target credentials + nightly cadence remain owner-provisioned per §OQ-1)
 - **Date:** 2026-07-05
-- **Deciders:** Director, eng-planner (owner sign-off pending at merge)
+- **Deciders:** Director, eng-planner
 - **Related:** ADR-0040/0043/0045 (agent loop + SSE contract), ADR-0041 (`ModelClient` seam — reused by `llmJudge`), ADR-0039 (untrusted-output boundary), ADR-0036 §2 / ADR-0016 (deputy invariant), ADR-0030 (QA portfolio — deterministic Layer-1 gate-tests, of which this is the NON-deterministic complement), ADR-0010 (test pyramid).
 - **Spec:** `docs/specs/agent-tier2-capabilities.spec.md` §4 (FR-AT2-EV-001..006), NFR-AT2-SEC-005, §OQ-1.
 - **Plan:** `docs/plans/2026-07-05-agent-eval-harness.md` (Track V).
