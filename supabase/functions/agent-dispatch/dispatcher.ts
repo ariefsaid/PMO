@@ -226,7 +226,7 @@ function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
  * Structurally compatible with handler.ts's interactive `RateGuard`.
  */
 export interface DispatchRateGuard {
-  check(userId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number }>;
+  check(orgId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number; reason?: 'out_of_credits' | 'meter_error' }>;
 }
 
 /**
@@ -421,7 +421,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
       // OWNER CLIENT (never service_role, NFR-AAN-SEC-002/SEC-006) — the preflight runs strictly
       // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
-      const credit = await rateGuard.check(automation.owner_id, minted.client);
+      const credit = await rateGuard.check(automation.org_id, minted.client);
       if (credit.exceeded) {
         await notifyOwner(
           minted.client,

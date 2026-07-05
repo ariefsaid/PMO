@@ -56,11 +56,12 @@ export interface SupabaseLike {
 }
 
 /**
- * Per-user rate guard (AS-OD-002). Undefined in v1 production (disabled).
- * Injected as a testable interface so enabling it later is config, not a rewrite.
+ * Per-org rate guard (AS-OD-002). Undefined in v1 production (disabled). AMENDED by ADR-0049:
+ * the check is per-ORG (orgId), not per-owner; `reason` distinguishes out_of_credits from a meter
+ * RPC failure. Injected as a testable interface so enabling it later is config, not a rewrite.
  */
 export interface RateGuard {
-  check(userId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number }>;
+  check(orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
 }
 
 export interface HandlerDeps {
@@ -172,7 +173,7 @@ export async function composeViewHandler(
 
   // ── Gate (4): rate guard (AC-AS-008, AS-OD-002 — disabled by default) ───────
   if (rateGuard) {
-    const rateResult = await rateGuard.check(userId);
+    const rateResult = await rateGuard.check(profileOrgId);
     if (rateResult.exceeded) {
       return {
         status: 429,

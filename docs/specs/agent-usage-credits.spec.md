@@ -166,6 +166,13 @@ affordance).
 ### Balance computation & server-side enforcement (ADR-0044 §6, the RateGuard injection point)
 
 **FR-AUC-010 — Computed balance = `sum(credits.amount) − sum(agent_usage.cost)`, scoped per owner.**
+
+> **Amended by ADR-0049 / ops-admin-surface (FR-CRE-002):** the balance scope is now per-**ORG**
+> (`org_id`), not per-owner — `(Σ credits.amount where org_id=X, regardless of owner_id) −
+> (Σ agent_usage.cost where org_id=X)`, computed by the `org_credit_balance(p_org_id)` security-
+> definer RPC. The per-owner wording above is the pre-org-pool baseline; a non-null `owner_id` is
+> now BOTH historical attribution AND a live contribution to the org pool (no backfill).
+
 The system shall compute a user's current credit balance as `(sum of that owner_id's credits.amount)
 − (sum of that owner_id's agent_usage.cost)`, computed fresh at check time (never cached/stored) —
 an owner with no `credits` rows has a balance of `0 − spent`, i.e. a negative balance (out of

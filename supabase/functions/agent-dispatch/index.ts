@@ -121,10 +121,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // balance read runs under owner RLS — never service_role (NFR-AAN-SEC-002/SEC-006).
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
   const rateGuard = {
-    check: async (userId: string, mintedClient?: unknown) => {
+    check: async (orgId: string, mintedClient?: unknown) => {
       if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
       const guard = createCreditRateGuard({ supabase: mintedClient as never });
-      return guard.check(userId);
+      return guard.check(orgId);
     },
   };
 

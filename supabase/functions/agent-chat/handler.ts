@@ -135,11 +135,14 @@ export interface HandlerSupabaseLike {
       eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>;
     };
   };
+  /** Invoke a Postgres function (RPC). Used by the credit-backed RateGuard (org_credit_balance). */
+  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
-/** Injectable rate guard (AS-OD-002 — disabled by default). */
+/** Injectable rate guard (AS-OD-002 — disabled by default). AMENDED by ADR-0049: the check is
+ * per-ORG (orgId), not per-owner; `reason` distinguishes out_of_credits from a meter RPC failure. */
 export interface RateGuard {
-  check(userId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number }>;
+  check(orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
 }
 
 /**
@@ -979,7 +982,7 @@ async function* agentChatHandlerInner(
   // so gating it here (before even echoing the user event) is correct and unchanged
   // from the pre-remediation behavior for this path.
   if (deps.rateGuard) {
-    const r = await deps.rateGuard.check(deps.userId);
+    const r = await deps.rateGuard.check(orgId);
     if (r.exceeded) {
       yield statusEvent('errored', {
         error: 'RATE_LIMITED',
@@ -1341,9 +1344,9 @@ async function* handleDecision(
  * model-call continuation itself is gated; the resolution that already happened is
  * never rolled back or hidden.
  */
-async function isCreditExhausted(deps: HandlerDeps): Promise<{ exceeded: boolean; retryAfterSeconds: number } | null> {
+async function isCreditExhausted(deps: HandlerDeps, orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number } | null> {
   if (!deps.rateGuard) return null;
-  const r = await deps.rateGuard.check(deps.userId);
+  const r = await deps.rateGuard.check(orgId);
   return r.exceeded ? r : null;
 }
 
@@ -1365,7 +1368,7 @@ async function* runLoop(
   // RED-2: this continuation is a genuine new model call — gate it. Whatever pure
   // resolution (write_resolved event / stale-decision no-op) the caller already emitted
   // stays intact; only THIS call is blocked.
-  const exhausted = await isCreditExhausted(deps);
+  const exhausted = await isCreditExhausted(deps, deputyCtx.orgId);
   if (exhausted) {
     yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
     return;
@@ -1420,7 +1423,7 @@ async function* runLoopAfterAnswer(
   // RED-2: this continuation is a genuine new model call — gate it. The answer's own
   // resolution (the tool_result append the caller already did, if a real pending question
   // existed) stays intact; only THIS call is blocked.
-  const exhausted = await isCreditExhausted(deps);
+  const exhausted = await isCreditExhausted(deps, deputyCtx.orgId);
   if (exhausted) {
     yield statusEvent('errored', { error: 'RATE_LIMITED', retryAfterSeconds: exhausted.retryAfterSeconds });
     return;

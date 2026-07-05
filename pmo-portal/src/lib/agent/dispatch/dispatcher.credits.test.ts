@@ -1,11 +1,12 @@
 /**
  * dispatcher.credits.test.ts — the credits preflight (ADR-0044 §6, REC-4, FR-AAN-032/033).
  *
- * Automation runs meter against the OWNER's credit balance. The preflight runs BEFORE any fire —
- * over-budget means no `agent_runs` row reaches `running` (no fire) and a `severity='warning'`
- * notification is created for the owner ("automation X skipped — out of credits"), via the MINTED
- * owner client (RLS pins owner_id/org_id, NFR-AAN-SEC-006). [REC-1]: logic lives in
- * supabase/functions/agent-dispatch/*, tests here.
+ * Automation runs meter against the automation's ORG credit pool (AMENDED by ADR-0049 /
+ * ops-admin-surface FR-CRE-002/004 — was the owner's per-owner balance). The preflight runs
+ * BEFORE any fire — over-budget means no `agent_runs` row reaches `running` (no fire) and a
+ * `severity='warning'` notification is created for the owner ("automation X skipped — out of
+ * credits"), via the MINTED owner client (RLS pins owner_id/org_id, NFR-AAN-SEC-006). [REC-1]:
+ * logic lives in supabase/functions/agent-dispatch/*, tests here.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
@@ -122,10 +123,11 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
     // No fire: the handler (and therefore no agent_runs row reaching 'running') is never invoked.
     expect(handler).not.toHaveBeenCalled();
 
-    // The preflight was checked for the automation's OWNER, before any fire — and receives the
-    // MINTED OWNER CLIENT (never service_role) so the real createCreditRateGuard can compute the
-    // balance under owner RLS (ADR-0044 §6, NFR-AAN-SEC-002/SEC-006).
-    expect(rateGuard.check).toHaveBeenCalledWith('user-A', minted.client);
+    // The preflight was checked for the automation's ORG pool (AMENDED by ADR-0049 —
+    // FR-CRE-004: any member's turn reads the same org pool), before any fire — and receives
+    // the MINTED OWNER CLIENT (never service_role) so the real createCreditRateGuard can
+    // compute the balance under owner RLS (ADR-0044 §6, NFR-AAN-SEC-002/SEC-006).
+    expect(rateGuard.check).toHaveBeenCalledWith('org-A', minted.client);
 
     // A severity='warning' notification was created for the owner via the MINTED owner client.
     expect(minted.notifInsert).toHaveBeenCalledTimes(1);
