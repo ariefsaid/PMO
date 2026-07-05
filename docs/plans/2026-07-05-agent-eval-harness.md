@@ -9,6 +9,42 @@
 - **Depends-on ADRs (unchanged, controlling on conflict):** ADR-0040/0043/0045 (the agent loop + SSE contract), ADR-0041 (`ModelClient` seam — reused by `llmJudge`), ADR-0039 (untrusted-output boundary), ADR-0036 §2 / ADR-0016 (deputy invariant — evals run under a TEST-USER JWT, never `service_role`), ADR-0010 (test pyramid — an eval is NOT an ADR-0010 AC-owned test; it is a separate behavior net).
 - **Format model:** `docs/plans/2026-07-05-agent-experience-layer.md`.
 
+## ✅ Progress (updated 2026-07-05 — implementation landed on `dev` via PR #237)
+
+**Built (all V tasks):**
+- **V1+V2 — scorers + deterministic unit tests (AC-AT2-015 scorer half, runs in `verify`):**
+  `evals/harness/scorers.ts` exports `EvalRunResult`, `Scorer`, `usesTool`/`contains`/`llmJudge`
+  + `runScorers`; `evals/harness/scorers.test.ts` (12 tests) proves pass/fail/composition +
+  the fail-closed `llmJudge` (PASS verdict, FAIL reason, malformed body, thrown call).
+- **V3 — dedicated eval Vitest project + isolation (AC-AT2-016 exit half, FR-AT2-EV-004/006):**
+  `vitest.eval.config.ts` (`include: ['evals/cases/**/*.eval.ts']`, `fileParallelism:false`,
+  `testTimeout:60_000`, no coverage); `vite.config.ts` `test.exclude` adds `evals/cases/**` +
+  `evals/harness/runEval.ts`; `package.json` gains `test:evals`. Verified: `npm run test:evals`
+  with no env SKIPS all cases (exit 0); the default `npx vitest run evals/` runs ONLY
+  `scorers.test.ts` (eval cases + the runner module are excluded).
+- **V4 — real-loop drive + first case (AC-AT2-015 loop half, FR-AT2-EV-001/003, DEC-1/DEC-6):**
+  `evals/harness/runEval.ts` — `defineEvalSuite`, `runEvalCase` (test-user JWT via
+  `signInWithPassword` → POST `${EVAL_AGENT_CHAT_URL}` → `decodeSseStream` → fold into
+  `EvalRunResult`), and `runEvalSuite` (emits one Vitest `it` per case; per-case
+  skip-on-missing-env — NFR-AT2-SEC-005). `evals/cases/tool-selection.eval.ts` ships 2 anchor
+  cases (list→`query_entity`, grounded answers).
+- **V5 — convention record:** `evals/README.md` (what an eval is, how to add a case, env vars,
+  secrets discipline, where it runs).
+- **V6 — CI workflow:** `.github/workflows/agent-evals.yml` (nightly cron + `workflow_dispatch`,
+  NEVER push/PR; masks secrets; `npm run test:evals`). Non-merge-blocking by default (DEC-8).
+
+**Verification (binding pre-PR gate):** `npm run typecheck` + `npx eslint evals/ vitest.eval.config.ts`
+green; `npx vitest run evals/` → only `scorers.test.ts` (12 tests) runs; `npm run test:evals`
+with no env → 2 cases SKIP, exit 0. The full `npm run verify` is the pre-PR gate (scorer test
+included; no eval case runs).
+
+**Owner-pending (NOT the build agent's to do — §OQ-1):** provision the GH secrets
+(`EVAL_AGENT_CHAT_URL`, `EVAL_TEST_USER_EMAIL`/`PASSWORD`, `VITE_SUPABASE_URL`/`ANON_KEY`,
+`OPENROUTER_API_KEY`, `EVAL_JUDGE_MODEL`) targeting the STAGING/DEMO Supabase project's
+`agent-chat` + a seeded non-privileged test user; set the nightly cron cadence + cost ceiling.
+Until provisioned, the workflow runs but every case SKIPS (graceful, NFR-AT2-SEC-005) — the
+machinery + isolation + workflow land now and light up the moment the env exists.
+
 > ## ⚠ Read before building
 > - **Current-state audit spot-checked (2026-07-05) — the spec §0 audit is accurate:** no `*.eval.ts` files
 >   exist (`find` → none); no `usesTool`/`contains`/`llmJudge` scorer module. The deployed function is HTTP/SSE

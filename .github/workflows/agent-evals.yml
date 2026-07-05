@@ -1,0 +1,86 @@
+# Agent eval harness — behavior-regression net against the DEPLOYED agent-chat loop.
+# ADR-0052 / FR-AT2-EV-004/005/006. AC-AT2-016 gate half.
+#
+# Runs the `*.eval.ts` suite against the deployed staging `agent-chat` function on
+# the weak prod model (deepseek-v4-flash). Deliberately OFF the merge fast lane:
+# triggers are `schedule` (nightly) + `workflow_dispatch` (manual) — NEVER push/PR.
+# A red suite fails this JOB (signal/alert); it is NOT a required status check on
+# any PR by default (DEC-8). The owner MAY later opt it into a required PR→main
+# check via branch-protection (no code change here).
+#
+# Cost guard (DEC-7): the suite is small + serial (fileParallelism:false in
+# vitest.eval.config.ts) + cheap models + one llmJudge call max per case. The owner
+# sets the cron cadence + any hard cost cap.
+#
+# Secrets discipline (NFR-AT2-SEC-005): test-user JWT only (NEVER service_role); the
+# OpenRouter key + test-user credentials are GH secrets, masked, never logged beyond
+# scorer reasons. A missing required secret → cases SKIP gracefully (never red).
+name: agent-evals
+
+on:
+  schedule:
+    # Nightly at 06:00 UTC — owner-adjustable. A non-merge-blocking regression signal.
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+# Least privilege: the workflow only reads the repo + runs the eval; it never writes.
+permissions:
+  contents: read
+
+# One run at a time per ref — avoid overlapping nightly + manual dispatch cost.
+concurrency:
+  group: agent-evals-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: pmo-portal
+
+jobs:
+  agent-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+
+      - run: npm ci
+
+      # Mask the secrets the harness will read so they never appear in logs.
+      # (GH auto-masks registered secrets, but an explicit add-mask is defense-in-depth
+      # for any value echoed into $GITHUB_ENV below.)
+      - name: Mask eval secrets
+        env:
+          EVAL_AGENT_CHAT_URL: ${{ secrets.EVAL_AGENT_CHAT_URL }}
+          EVAL_TEST_USER_EMAIL: ${{ secrets.EVAL_TEST_USER_EMAIL }}
+          EVAL_TEST_USER_PASSWORD: ${{ secrets.EVAL_TEST_USER_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.EVAL_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.EVAL_SUPABASE_ANON_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL }}
+        run: |
+          for name in EVAL_AGENT_CHAT_URL EVAL_TEST_USER_EMAIL EVAL_TEST_USER_PASSWORD \
+                      VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY OPENROUTER_API_KEY EVAL_JUDGE_MODEL; do
+            val=$(printenv "$name" || true)
+            if [ -n "$val" ]; then
+              echo "::add-mask::$val"
+            fi
+          done
+
+      # FR-AT2-EV-004: Vitest exits non-zero on any failing case → the job fails.
+      # FR-AT2-EV-006: this runs ONLY here — never in the `verify`/`integration` jobs.
+      # A missing required secret → cases SKIP gracefully (NFR-AT2-SEC-005), exit 0.
+      - name: Run agent eval suite
+        env:
+          EVAL_AGENT_CHAT_URL: ${{ secrets.EVAL_AGENT_CHAT_URL }}
+          EVAL_TEST_USER_EMAIL: ${{ secrets.EVAL_TEST_USER_EMAIL }}
+          EVAL_TEST_USER_PASSWORD: ${{ secrets.EVAL_TEST_USER_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.EVAL_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.EVAL_SUPABASE_ANON_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL }}
+        run: npm run test:evals

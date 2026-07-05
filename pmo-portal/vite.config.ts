@@ -47,7 +47,14 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./test/setup.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+    // ADR-0052 / FR-AT2-EV-006: `*.eval.ts` case files are a SEPARATE Vitest project
+    // (vitest.eval.config.ts → `npm run test:evals`). They must NEVER run in the
+    // default suite / `verify` — a leaked eval case would need a live provider key +
+    // deployed target and would flake the deterministic fast lane. The runner module
+    // (`evals/harness/runEval.ts`) is excluded too: it is only imported by `*.eval.ts`
+    // files and pulls in `@supabase/supabase-js` auth + fetch — not unit-test territory.
+    // The scorer unit tests (`evals/harness/scorers.test.ts`) are `.test.ts` and DO run.
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**', 'evals/cases/**', 'evals/harness/runEval.ts'],
     css: false,
     // AUDIT-M17 (2026-07-04 audit): clear mock call history between tests globally — no more
     // relying on per-file afterEach discipline for call-count assertions. (Implementations set
