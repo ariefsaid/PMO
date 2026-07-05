@@ -1074,10 +1074,12 @@ async function* handleAnswer(
 ): AsyncGenerator<AgentEvent> {
   const answer = req.answer!;
 
+  // Track C (DEC-5): the initial-run build site appends buildGroundingHint so the
+  // model keeps the live-context grounding across a follow-up turn — match it here.
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
-  });
+  }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1143,10 +1145,15 @@ async function* handleDecision(
     yield emit('user', { text: lastUserMsg.content });
   }
 
+  // Track C (DEC-5): the initial-run build site appends buildGroundingHint so the
+  // model keeps the live-context grounding across a follow-up turn — match it here.
+  // composeEnabled:false — this decision-continuation pass runs runToolLoop with
+  // allowCompose:false (see :1403), so compose_view is NOT registered here; advertising
+  // it would be a dangling affordance (FR-AXP-010). (Wave-1 code-quality review fix.)
   const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
-    composeEnabled: deps.composeEnabled,
+    composeEnabled: false,
     automationsEnabled: AUTOMATIONS_ENABLED,
-  });
+  }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },

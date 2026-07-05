@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
@@ -35,6 +35,7 @@ import {
   useContactMutations,
 } from '@/src/hooks/useContacts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
@@ -83,6 +84,18 @@ const CompanyDetail: React.FC = () => {
   const [archiveOpen, setArchiveOpen] = useState(false);
   // T14: "Add contact" modal state
   const [addContactOpen, setAddContactOpen] = useState(false);
+
+  // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
+  // follow-up like "summarize this" grounds to the viewed company — grounding only
+  // (NFR-AXP-SEC-003), never an authorization signal. Placed before any early return
+  // (Rules of Hooks) — cleared on unmount/navigate.
+  const { setEntity } = useAgentContext();
+  useEffect(() => {
+    const loaded = query.data;
+    if (!loaded) return;
+    setEntity({ type: 'company', id: loaded.id, label: loaded.name });
+    return () => setEntity(undefined);
+  }, [query.data, setEntity]);
 
   // Master-data directory access = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○.
   // The rail hides Companies for an Engineer but the ROUTE does not — so an Engineer reaching
