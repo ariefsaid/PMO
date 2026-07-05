@@ -49,6 +49,8 @@ describe('ResetPasswordPage', () => {
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /back to sign in/i })).toHaveAttribute('href', '/login');
+    // Landmark: the page exposes a single <main> around the card content.
+    expect(screen.getByRole('main')).toBeInTheDocument();
     // FR-AUTHF-060: no demo panel on this page
     expect(screen.queryByText(/Passw0rd!dev/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /Executive|Admin/i })).toBeNull();

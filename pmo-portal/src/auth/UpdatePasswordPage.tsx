@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
+import { buttonClasses } from '../components/ui/buttonClasses';
 import { Card, CardPad } from '../components/ui/Card';
 import { ErrorBanner, AuthInput } from './authFormPrimitives';
 import { trackAuthLoginSucceeded, trackAuthLoginFailed } from '../lib/analytics';
@@ -129,7 +130,7 @@ const UpdatePasswordPage: React.FC = () => {
 
   if (phase === 'expired') {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+      <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
         <div className="w-full max-w-sm">
           <div className="mb-5 text-center">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
@@ -142,10 +143,10 @@ const UpdatePasswordPage: React.FC = () => {
           <Card>
             <CardPad className="space-y-4">
               <ErrorBanner message="This link is invalid or expired." />
-              <Link to="/reset-password">
-                <Button type="button" variant="primary" className="w-full">
-                  Request a new link
-                </Button>
+              {/* Single <Link> styled as the primary button — NOT a <button> nested in an <a>
+                  (invalid HTML; interactive-in-interactive; two tab stops, same name). */}
+              <Link to="/reset-password" className={buttonClasses('primary', 'default', 'w-full')}>
+                Request a new link
               </Link>
               <Link
                 to="/login"
@@ -156,7 +157,7 @@ const UpdatePasswordPage: React.FC = () => {
             </CardPad>
           </Card>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -178,7 +179,7 @@ const UpdatePasswordPage: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-5 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
@@ -232,7 +233,7 @@ const UpdatePasswordPage: React.FC = () => {
           </CardPad>
         </Card>
       </div>
-    </div>
+    </main>
   );
 };
 

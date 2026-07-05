@@ -151,6 +151,11 @@ describe('UpdatePasswordPage', () => {
       'href',
       '/reset-password'
     );
+    // The 'Request a new link' control is a SINGLE <Link> — no <button> nested in an <a>
+    // (invalid HTML; interactive-in-interactive; was producing two tab stops, same name).
+    expect(screen.queryByRole('button', { name: /request a new link/i })).toBeNull();
+    // Landmark: the page exposes a single <main> around the card content.
+    expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
