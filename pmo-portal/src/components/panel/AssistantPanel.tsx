@@ -27,6 +27,16 @@ import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
+import {
+  clampPanelWidth,
+  readPanelMode,
+  readPanelWidth,
+  writePanelMode,
+  writePanelWidth,
+  PANEL_WIDTH_MIN,
+  PANEL_WIDTH_MAX,
+  type PanelMode,
+} from '@/src/lib/panel/panelPrefs';
 
 // ── Desktop/mobile breakpoint ─────────────────────────────────────────────────
 // The panel goes modal-sheet at 1024px (D-A2-1, design-plan §1.5).
@@ -131,6 +141,78 @@ export const AssistantPanel: React.FC = () => {
   const triggerRef = useRef<HTMLElement | null>(null);
   const [composerValue, setComposerValue] = React.useState('');
   const titleId = useId();
+
+  // ── Drawer UX (Track D, §2.5) — resizable width + dock/overlay mode ─────
+  // Desktop-only (D1/D3 guard via isDesktop below); per-device localStorage
+  // prefs (DEC-6), not server-persisted. FR-AXP-024/025/026.
+  const [width, setWidth] = useState<number>(() => readPanelWidth());
+  const [mode, setMode] = useState<PanelMode>(() => readPanelMode());
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleResizeKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const STEP = 16;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setWidth((prev) => {
+          const next = clampPanelWidth(prev - STEP);
+          writePanelWidth(next);
+          return next;
+        });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setWidth((prev) => {
+          const next = clampPanelWidth(prev + STEP);
+          writePanelWidth(next);
+          return next;
+        });
+      }
+    },
+    [],
+  );
+
+  // Pointer-drag resize. The panel is anchored right, so dragging the left
+  // edge LEFT (negative deltaX) widens it; dragging right narrows it.
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      resizeStateRef.current = { startX: e.clientX, startWidth: width };
+      const target = e.currentTarget;
+      target.setPointerCapture(e.pointerId);
+    },
+    [width],
+  );
+
+  const handleResizePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const state = resizeStateRef.current;
+      if (!state) return;
+      const deltaX = e.clientX - state.startX;
+      setWidth(clampPanelWidth(state.startWidth - deltaX));
+    },
+    [],
+  );
+
+  const handleResizePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!resizeStateRef.current) return;
+      resizeStateRef.current = null;
+      setWidth((current) => {
+        writePanelWidth(current);
+        return current;
+      });
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    },
+    [],
+  );
+
+  const handleToggleMode = useCallback(() => {
+    setMode((prev) => {
+      const next: PanelMode = prev === 'overlay' ? 'docked' : 'overlay';
+      writePanelMode(next);
+      return next;
+    });
+  }, []);
 
   // ── ThreadList — collapsible History region (FR-AGP-020, AC-AGP-019) ─────
   // Lazily fetched: listAgentThreads() only fires once the region is expanded,
@@ -311,19 +393,31 @@ export const AssistantPanel: React.FC = () => {
   const roleProps = isDesktop ? desktopProps : mobileProps;
 
   // ── Panel element — keep-mounted, inert when closed (D-A2-6) ─────────────
-  // On desktop: fixed right overlay (z-[40]), non-modal, border-left + shadow
-  // On mobile: full-screen modal sheet (z-[60])
+  // On desktop: fixed right overlay (z-[40]) in 'overlay' mode (default), or an
+  // in-flow sibling (no `fixed`/inset positioning) in 'docked' mode (Task D4,
+  // FR-AXP-025) — the layout host (AppShell) reserves the equivalent space so
+  // <main> reflows beside it. Width is inline style, not a class (Task D2,
+  // FR-AXP-024 — resizable, no longer the fixed w-[400px]).
+  // On mobile: full-screen modal sheet (z-[60]), mode is irrelevant (FR-AXP-025).
   const panelClasses = isDesktop
-    ? [
-        'fixed right-0 top-0 z-[40] flex flex-col bg-card',
-        'border-l border-border',
-        'shadow-[0_4px_24px_hsl(240_10%_8%/0.12),0_1px_4px_hsl(240_10%_8%/0.06)]',
-        // Desktop drawer width
-        'w-[400px] h-full',
-      ].join(' ')
+    ? mode === 'overlay'
+      ? [
+          'fixed right-0 top-0 z-[40] flex flex-col bg-card',
+          'border-l border-border',
+          'shadow-[0_4px_24px_hsl(240_10%_8%/0.12),0_1px_4px_hsl(240_10%_8%/0.06)]',
+          'h-full',
+        ].join(' ')
+      : [
+          // Docked: in-flow sibling, no fixed/inset overlay positioning.
+          'relative flex flex-col bg-card',
+          'border-l border-border',
+          'h-full',
+        ].join(' ')
     : [
         'fixed inset-0 z-[60] flex flex-col bg-card',
       ].join(' ');
+
+  const panelStyle: React.CSSProperties | undefined = isDesktop ? { width } : undefined;
 
   // The panel + its mobile scrim wrapper must apply the onKeyDown for focus trap
   const panelContent = (
@@ -350,7 +444,32 @@ export const AssistantPanel: React.FC = () => {
         // tree (transcript state). Closed-state unit tests query via querySelector, so
         // display:none does not hide it from them.
         className={open ? panelClasses : `${panelClasses} hidden`}
+        style={panelStyle}
+        // Task D4 (FR-AXP-025): the host reads this to reserve <main> space when
+        // docked. Desktop-only — mobile is always the full-screen sheet.
+        data-panel-mode={isDesktop ? mode : undefined}
       >
+        {/* Resize handle (Task D2, FR-AXP-024/026) — desktop-only, left edge.
+            A sibling control, not part of the focus-trap cycle (trap is
+            mobile-only, see onTrapKeyDown above) — Escape/focus-trap behavior
+            is unchanged. Keyboard: ArrowLeft/Right adjust by 16px, clamped
+            [320,720]. Pointer-drag adjusts the same way. */}
+        {isDesktop && (
+          <div
+            role="slider"
+            aria-label="Resize assistant panel"
+            aria-valuemin={PANEL_WIDTH_MIN}
+            aria-valuemax={PANEL_WIDTH_MAX}
+            aria-valuenow={width}
+            tabIndex={0}
+            onKeyDown={handleResizeKeyDown}
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            className="absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-ew-resize touch-none rounded-full bg-transparent hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        )}
+
         {/* ── Header ───────────────────────────────────────────────────── */}
         <div
           className="flex flex-shrink-0 items-center justify-between border-b border-border px-4"
@@ -363,6 +482,21 @@ export const AssistantPanel: React.FC = () => {
             Assistant
           </h2>
           <div className="flex items-center gap-1">
+            {/* Dock/overlay toggle (Task D4, FR-AXP-025/026) — desktop-only.
+                No dedicated dock/overlay glyph exists in the icon set (DESIGN.md
+                iconPaths.tsx) — a text label keeps this token-pure rather than
+                inventing a new icon. */}
+            {isDesktop && (
+              <button
+                type="button"
+                onClick={handleToggleMode}
+                aria-label={mode === 'overlay' ? 'Dock assistant panel' : 'Switch to overlay'}
+                aria-pressed={mode === 'docked'}
+                className="touch-target grid h-8 place-items-center rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {mode === 'overlay' ? 'Dock' : 'Overlay'}
+              </button>
+            )}
             {/* ADR-0043 (FR-AGP-020): History toggle — expands the ThreadList region. */}
             <button
               type="button"
