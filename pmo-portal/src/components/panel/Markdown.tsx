@@ -22,9 +22,6 @@ function safeUrl(url: string): string {
   }
 }
 
-/**
- * Markdown — the app's SOLE markdown surface (ADR-0049). Renders assistant PROSE only.
- */
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div data-testid="assistant-markdown" className="text-sm text-foreground [&_*]:break-words prose-pmo">
