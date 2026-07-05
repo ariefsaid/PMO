@@ -362,6 +362,14 @@ const ShellChrome: React.FC = () => {
         loading={recordSearch.isPending}
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
+        onAskAi={
+          isFeatureEnabled('agentAssistant')
+            ? (query) => {
+                setPaletteOpen(false);
+                openPanel(query);
+              }
+            : undefined
+        }
       />
     </>
   );

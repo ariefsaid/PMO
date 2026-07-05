@@ -116,6 +116,7 @@ const StreamingIndicator: React.FC = () => (
 
 export const AssistantPanel: React.FC = () => {
   const {
+    consumePrefill,
     open,
     transcript,
     phase,
@@ -134,6 +135,7 @@ export const AssistantPanel: React.FC = () => {
     lastProgressAt,
     hasPendingQuestion,
     openThread,
+    prefillVersion,
   } = useAssistantPanel();
 
   const isDesktop = useIsDesktop();
@@ -141,6 +143,15 @@ export const AssistantPanel: React.FC = () => {
   const triggerRef = useRef<HTMLElement | null>(null);
   const [composerValue, setComposerValue] = React.useState('');
   const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const prefill = consumePrefill();
+    if (!prefill) return;
+    setComposerValue(prefill);
+    const textarea = panelRef.current?.querySelector<HTMLTextAreaElement>('textarea');
+    textarea?.focus();
+  }, [open, prefillVersion, consumePrefill]);
 
   // ── Drawer UX (Track D, §2.5) — resizable width + dock/overlay mode ─────
   // Desktop-only (D1/D3 guard via isDesktop below); per-device localStorage

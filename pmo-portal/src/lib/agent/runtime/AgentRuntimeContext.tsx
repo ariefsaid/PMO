@@ -13,9 +13,13 @@ export interface AgentRuntimeContextValue {
   runtime: AgentRuntime | null;
   /** Panel open/closed — lifted to the provider so Rail + ⌘J + panel share one source (D-A2-5/R-OPEN-STATE). */
   open: boolean;
-  openPanel(): void;
+  openPanel(prefill?: string): void;
   closePanel(): void;
   togglePanel(): void;
+  /** Increments when a new one-shot prefill is available. */
+  prefillVersion?: number;
+  /** One-shot draft prefill consumed by AssistantPanel after openPanel(prefill). */
+  consumePrefill?: () => string | null;
 }
 
 export const AgentRuntimeContext = React.createContext<AgentRuntimeContextValue>({
@@ -24,6 +28,8 @@ export const AgentRuntimeContext = React.createContext<AgentRuntimeContextValue>
   openPanel: () => {},
   closePanel: () => {},
   togglePanel: () => {},
+  prefillVersion: 0,
+  consumePrefill: () => null,
 });
 
 /**

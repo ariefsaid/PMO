@@ -109,7 +109,7 @@ describe('AgentRuntimeProvider', () => {
       return (
         <div>
           <span data-testid="open-state">{ctx.open ? 'open' : 'closed'}</span>
-          <button onClick={ctx.openPanel} data-testid="open-btn">Open</button>
+          <button onClick={() => ctx.openPanel()} data-testid="open-btn">Open</button>
           <button onClick={ctx.closePanel} data-testid="close-btn">Close</button>
           <button onClick={ctx.togglePanel} data-testid="toggle-btn">Toggle</button>
         </div>
@@ -144,7 +144,7 @@ describe('AC-APH-001', () => {
     mockTrackAgentPanelOpened.mockClear();
     const Probe: React.FC = () => {
       const ctx = useAgentRuntimeContext();
-      return <button onClick={ctx.openPanel} data-testid="open-btn">Open</button>;
+      return <button onClick={() => ctx.openPanel()} data-testid="open-btn">Open</button>;
     };
 
     render(

@@ -5,7 +5,9 @@
  * Clicking a chip pre-fills the composer (does NOT auto-submit).
  */
 import React from 'react';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { EXAMPLE_QUESTIONS } from './emptyState.constants';
+import { SUGGESTION_CHIPS } from './suggestionChips.constants';
 
 interface EmptyStateProps {
   /** Called with the selected question text when a chip is clicked. */
@@ -13,6 +15,10 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
+  const { getContext } = useAgentContext();
+  const entityType = getContext().entity?.type;
+  const chips = (entityType && SUGGESTION_CHIPS[entityType]) || EXAMPLE_QUESTIONS;
+
   return (
     <div className="flex flex-col items-start gap-4 px-4 py-6">
       <div>
@@ -23,7 +29,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
       </div>
 
       <div className="flex flex-col gap-2 w-full">
-        {EXAMPLE_QUESTIONS.map((q) => (
+        {chips.map((q) => (
           <button
             key={q}
             type="button"
