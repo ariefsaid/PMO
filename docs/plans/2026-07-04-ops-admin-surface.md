@@ -1,5 +1,56 @@
 # Implementation plan — Ops-Admin surface (GTM / MVP-viability program, item 1)
 
+> ## PROGRESS NOTE — ops-admin-surface S6 (FE slices B+C+D) — 2026-07-05
+>
+> **Shipped (this round, uncommitted on `feat/ops-admin`):**
+> - **S6-B (AC-ENT-003):** `useFeature()` + `<FeatureGate>` + `<FeatureRoute>` rewired to resolve
+>   per-org entitlements via `useOrgFeatures()` (row overrides env default; absence = env default;
+>   core keys always true, never queried). `Rail.tsx` resolves all gated items (incidents/crm/
+>   procurement/timesheets/user_views) through the cached map; CRM rail items (Sales Pipeline/
+>   Companies/Contacts) + deep-link `/crm` redirect-to-`/` gated. `Rail.features.test.tsx` updated
+>   to mock `useOrgFeatures` (assertions intact). `features.ts` keeps the interim `FEATURES` +
+>   `isFeatureEnabled` for env-only sub-flags (`agentAssistant`/`userViews`/`aiComposer`, plan M5);
+>   the new entitlement type is `OrgFeatureKey`/`EntitleableKey` to avoid the `FeatureKey` collision.
+> - **S6-C (AC-ENT-004):** `AdministrationFeatures.tsx` — Operator sees real `<button role="switch"
+>   aria-checked>` toggles calling `repositories.orgFeature.toggle` (react-query mutation +
+>   `['orgFeatures']` invalidation); org-Admin sees a read-only "Included in your plan" list with a
+>   `StatusPill` (no switch controls). Core modules render locked-on, non-toggleable. `core_not_gated`
+>   (P0001) → "Core modules can't be disabled" toast via `classifyMutationError` override.
+> - **S6-D (AC-CRE-004 shape + AC-A11Y-001):** `AdministrationCredits.tsx` — org-pool balance via
+>   `repositories.credits.getOrgBalance` (`org_credit_balance` RPC); Operator "Grant credits" →
+>   `EntityFormModal` (amount numeric > 0 + note) calling `operator_grant_credits`; `amount_positive`
+>   (23514) → "Grant amount must be positive" toast. org-Admin sees read-only balance. Mounted into
+>   `AdminUsers.tsx` (Credits before Features, both after Usage).
+> - **A11y capstone (AC-A11Y-001):** `Administration.a11y.test.tsx` renders the fully-composed
+>   `/administration` (Users + Credits + Usage + Features) for Operator AND org-Admin at desktop +
+>   390px; axe-core reports **zero** critical/serious violations. No axe fixes were needed (the
+>   toggles are real `role="switch"` + `aria-checked` + labelled; pill is dot+label, never
+>   color-only). `vitest-axe`/`jest-axe` were NOT used — the existing `axe-core` helper
+>   (`src/components/__tests__/axe.ts`) is the codebase idiom; reused it.
+>
+> **Repo/DAL/Types additions:** `src/lib/db/orgFeatures.ts` (DAL: `listOwnOrgFeatures`/
+>   `toggleOrgFeature`/`getOrgCreditBalance`/`grantOrgCredits`); `OrgFeatureRepository` +
+>   `CreditsRepository` added to the repository seam (`repositories/{types,index}.ts`) — note the
+>   `Repositories` key is `credits` (plural), not `credit`. `database.types.ts` got additive entries
+>   for `org_features` table + `operator_toggle_feature` + `org_has_feature` RPCs (ahead of the
+>   Director's next `supabase gen` regen, which will overwrite them with the mig-0068 shape).
+>
+> **Deviations / notes:**
+> - `src/auth/useFeature.tsx` is a `.tsx` (contains JSX) — the `.ts` form the plan implied tripped
+>   the oxc parser; renamed.
+> - `App.tsx` `FeatureRoute feature="userViews"` → `"user_views"` (camelCase→snake_case to match
+>   `EntitleableKey`).
+> - Pre-existing AdminUsers tests (`disable`/`heading`/`operatorGate`) updated to wrap in a
+>   `QueryClientProvider` + mock `useOrgFeatures`/`repositories` (the new sections reach react-query
+>   directly, unlike the mocked `useUsage`).
+> - The Operator org-switcher (S5-D) is NOT yet wired — Credits/Features read the caller's own org
+>   (`currentUser.org_id`) for both Operator and org-Admin (deferred to the org-switcher slice).
+>
+> **Deferred / stack-bound (Director to run):** `supabase db reset && supabase test db` (pgTAP
+>   0122/0123 for S6-A, already written by the other agent), `npm run verify` (full suite), and the
+>   Playwright e2e (S7). NOT run this round per the gate (shared Supabase stack in concurrent use).
+> Targeted vitest only: **37/37 green** across 9 files; `npm run typecheck` clean.
+
 - **Date:** 2026-07-04
 - **Issue:** PMO GTM item 1 — the Ops-Admin `/administration` surface (invite/disable, Operator mechanism, org-pool credits, usage view, `org_features` entitlements).
 - **Author:** eng-planner (Claude Opus 4.8 · 1M)

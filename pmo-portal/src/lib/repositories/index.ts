@@ -151,6 +151,12 @@ import {
   archiveUserView,
   deleteUserView,
 } from '@/src/lib/db/userViews';
+import {
+  listOwnOrgFeatures,
+  toggleOrgFeature,
+  getOrgCreditBalance,
+  grantOrgCredits,
+} from '@/src/lib/db/orgFeatures';
 import type {
   Repositories,
   ProjectRepository,
@@ -168,6 +174,8 @@ import type {
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
+  OrgFeatureRepository,
+  CreditsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -358,6 +366,16 @@ const userView: UserViewRepository = {
   delete: (id) => wrap(() => deleteUserView(id)),
 };
 
+const orgFeature: OrgFeatureRepository = {
+  listOwn: () => wrap(() => listOwnOrgFeatures()),
+  toggle: (args) => wrap(() => toggleOrgFeature(args)),
+};
+
+const credits: CreditsRepository = {
+  getOrgBalance: (orgId) => wrap(() => getOrgCreditBalance(orgId)),
+  grant: (args) => wrap(() => grantOrgCredits(args)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -375,6 +393,8 @@ export const repositories: Repositories = {
   userView,
   operator,
   usage,
+  orgFeature,
+  credits,
 };
 
 export type {
@@ -394,4 +414,6 @@ export type {
   UserViewRepository,
   OperatorRepository,
   UsageRepository,
+  OrgFeatureRepository,
+  CreditsRepository,
 } from './types';

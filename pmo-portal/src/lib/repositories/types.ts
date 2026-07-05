@@ -82,6 +82,7 @@ import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/l
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type { PageParams } from '@/src/lib/pagination';
 import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow } from '@/src/lib/db/usage';
+import type { OrgFeatureKey } from '@/src/lib/features';
 
 export interface ProjectRepository {
   list(
@@ -422,4 +423,29 @@ export interface Repositories {
   userView: UserViewRepository;
   operator: OperatorRepository;
   usage: UsageRepository;
+  orgFeature: OrgFeatureRepository;
+  credits: CreditsRepository;
+}
+
+/**
+ * org_features repository (ops-admin-surface S6, FR-ENT-001..004). Read is own-org (RLS-scoped);
+ * toggle is the Operator-only `operator_toggle_feature` RPC (rejects core keys with `P0001`).
+ */
+export interface OrgFeatureRepository {
+  /** The caller's own-org feature rows projected into a map (absent keys = env default upstream). */
+  listOwn(): Promise<Record<OrgFeatureKey, boolean>>;
+  /** Upsert a feature row for an org via the Operator-only RPC. */
+  toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+}
+
+/**
+ * Credits repository (ops-admin-surface S6). Balance read is own-org via the security-definer
+ * `org_credit_balance` RPC (FR-CRE-002); grant is the Operator-only `operator_grant_credits`
+ * RPC (FR-CRE-005, rejects `amount <= 0` with errcode `23514`).
+ */
+export interface CreditsRepository {
+  /** The org's credit-pool balance (grants − usage). */
+  getOrgBalance(orgId: string): Promise<number>;
+  /** Operator-only credit grant into the org pool. */
+  grant(args: { orgId: string; amount: number; note: string }): Promise<void>;
 }

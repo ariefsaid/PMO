@@ -27,7 +27,10 @@ import { useUsage } from '@/src/hooks/useUsage';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import { useAuth } from '@/src/auth/useAuth';
 import { AdministrationUsage } from './AdministrationUsage';
+import { AdministrationCredits } from './AdministrationCredits';
+import { AdministrationFeatures } from './AdministrationFeatures';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -97,6 +100,8 @@ const AdminUsers: React.FC = () => {
   // S6 adds the Operator org-switcher; until then every Usage read targets the caller's own org
   // (org-Admin path) or ALL orgs (Operator path, no filter — operatorOrgId omitted).
   const usageQuery = useUsage();
+  const { currentUser } = useAuth();
+  const ownOrgId = currentUser?.org_id ?? '';
 
   const tableRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
@@ -416,6 +421,17 @@ const AdminUsers: React.FC = () => {
           isError={usageQuery.isError}
           onRetry={() => void usageQuery.refetch()}
         />
+      </div>
+
+      {/* Credits section (ops-admin-surface S6) — org-pool balance + Operator grant. */}
+      <div className="mt-6">
+        <AdministrationCredits isOperator={isOperator} orgId={ownOrgId} />
+      </div>
+
+      {/* Features section (ops-admin-surface S6) — Operator toggles + org-Admin read-only. */}
+      <div className="mt-6">
+        <h2 className="mb-2 text-[16px] font-semibold">Features</h2>
+        <AdministrationFeatures isOperator={isOperator} orgId={ownOrgId} />
       </div>
 
       {/* Edit-role modal */}

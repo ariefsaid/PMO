@@ -36,6 +36,17 @@ vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
+// S6: the Credits + Features sections reach react-query + the repository seam directly.
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({ data: {} }),
+}));
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: {
+    credits: { getOrgBalance: vi.fn().mockResolvedValue(0), grant: vi.fn().mockResolvedValue(undefined) },
+    orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
+  },
+}));
+
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -43,6 +54,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import AdminUsers from './AdminUsers';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const seed = [
   { id: 'u1', full_name: 'Renata Halloway', email: 'renata@meridian.example', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
@@ -54,11 +66,13 @@ const seed = [
 const renderPage = (role: Role = 'Admin') => {
   realRole = role;
   return render(
-    <ToastProvider>
-      <MemoryRouter>
-        <AdminUsers />
-      </MemoryRouter>
-    </ToastProvider>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ToastProvider>
+        <MemoryRouter>
+          <AdminUsers />
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 };
 
@@ -109,7 +123,10 @@ describe('Admin Users — directory (AC-AU-001)', () => {
   it('AC-AU-001: loading skeleton while pending', () => {
     listState.isPending = true;
     renderPage();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // The directory list renders a loading skeleton. (S6 also mounts Credits/Features
+    // sections which render their own loading skeletons while their queries pend — so
+    // at least one liststate-loading region is present.)
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-AU-001: error state with retry', async () => {

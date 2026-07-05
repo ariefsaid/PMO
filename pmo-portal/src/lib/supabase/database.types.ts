@@ -797,6 +797,45 @@ export type Database = {
           },
         ]
       }
+      org_features: {
+        Row: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          feature_key?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_features_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -2798,6 +2837,10 @@ export type Database = {
         }[]
       }
       operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
+      operator_toggle_feature: {
+        Args: { p_enabled: boolean; p_key: string; p_org_id: string }
+        Returns: undefined
+      }
       operator_usage_summary: {
         Args: { p_org_id?: string }
         Returns: {
@@ -2814,6 +2857,10 @@ export type Database = {
         }[]
       }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
+      org_has_feature: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: boolean
+      }
       org_has_member_email: {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean

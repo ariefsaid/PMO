@@ -43,6 +43,16 @@ vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// S6: the Credits + Features sections reach react-query + the repository seam directly.
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({ data: {} }),
+}));
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: {
+    credits: { getOrgBalance: vi.fn().mockResolvedValue(0), grant: vi.fn().mockResolvedValue(undefined) },
+    orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
+  },
+}));
 
 class LockoutError extends Error {
   code = 'P0001';
@@ -52,16 +62,19 @@ class LockoutError extends Error {
 }
 
 import AdminUsers from '../AdminUsers';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Admin">
-      <MemoryRouter>
-        <ToastProvider>
-          <AdminUsers />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter>
+          <ToastProvider>
+            <AdminUsers />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {

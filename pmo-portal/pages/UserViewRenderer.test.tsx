@@ -36,10 +36,20 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: mockUseAuth }));
 
-vi.mock('@/src/lib/features', () => ({
-  isFeatureEnabled: mockFeatureEnabled,
-  FEATURES: { userViews: true },
+// S6: FeatureRoute resolves via useFeature() → useOrgFeatures(); mock it so the
+// imported-real FeatureRoute doesn't need a QueryClient/AuthProvider beyond useAuth above.
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({ data: {} }),
 }));
+
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/src/lib/features')>();
+  return {
+    ...real,
+    isFeatureEnabled: mockFeatureEnabled,
+    FEATURES: { userViews: true },
+  };
+});
 
 // Mock compileCompositionSpec + executeCompiledQuery to isolate renderer logic
 vi.mock('@/src/lib/viewspec/compiler', () => ({
