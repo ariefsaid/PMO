@@ -43,6 +43,17 @@ export type { AgentReadEntity };
 /** Wall-clock timeout for each DB read. D6. */
 export const READ_TIMEOUT_MS = 5000;
 
+/**
+ * ADR-0051: money-value writes at/above this amount require an approval chip.
+ * Server-side only; never client/model supplied.
+ */
+export const AGENT_APPROVAL_MONEY_THRESHOLD = 10_000;
+
+/** ADR-0051 / FR-AT2-APR-005: destructive deletes always require the approval chip. */
+export function isDestructiveDeleteAction(name: string): boolean {
+  return name.startsWith('delete_') || name.endsWith('_delete');
+}
+
 // ── Validated input shape (runtime) ──────────────────────────────────────────
 
 interface QueryEntityFilter {
@@ -280,6 +291,7 @@ export const updateTaskStatusAction: AgentAction & {
   inputSchema: UPDATE_TASK_STATUS_SCHEMA,
   surfaces: ['agent'],
   confirm: true,
+  needsApproval: () => false,
   validate: validateUpdateTaskStatus,
   summarize: (i) => `Set task ${i.taskId} status to "${i.status}"`,
   run: async (input: unknown, ctx: DeputyContext) => {

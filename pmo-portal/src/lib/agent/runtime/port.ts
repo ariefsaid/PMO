@@ -100,6 +100,13 @@ export interface AgentAction {
   surfaces?: ('ui' | 'agent' | 'mcp' | 'cli')[];
   /** A1 read-only actions ⇒ false */
   confirm?: boolean;
+  /**
+   * ADR-0051: optional materiality predicate. Returns true when this specific
+   * validated input should surface the human approval chip; false auto-approves
+   * through the handler's forced dispatch path. UX-only: RLS/RPCs remain the
+   * enforcement authority.
+   */
+  needsApproval?: (input: unknown, ctx: DeputyContext) => boolean;
   run: (input: unknown, ctx: DeputyContext) => Promise<unknown>;
 }
 
