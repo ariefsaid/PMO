@@ -125,6 +125,29 @@ decision (deferred); Supabase Pro billing at first client; take `docs/legal/2026
 to counsel; provide the OpenRouter fallback chain. **Deferred tech follow-up:** `auto_expose_new_tables`
 GRANT migration (see the "Deferred follow-up" note above).
 
+### ⚑ AGENT EXPERIENCE LAYER + TIER-2 — HANDOFF STATE (2026-07-05, parallel build stream — READ THIS to continue)
+
+**Goal (owner `/goal` 2026-07-04):** full SDD→plan→TDD→review→QA cycle to surface the *built-but-not-wired*
+Tier-1 batteries + build Tier-2. Executor: pi+glm first (glm-5.2≈opus / glm-4.7≈sonnet), Claude
+sonnet/opus fallback. **This is a SEPARATE stream from the GTM build above — different files (agent panel /
+edge fn vs auth/ops-admin); coordinate the SHARED single local Supabase stack (no concurrent `db reset`/
+pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
+
+- **SDD (source of truth):** specs `docs/specs/agent-experience-layer.spec.md` (FR-AXP-*) +
+  `docs/specs/agent-tier2-capabilities.spec.md` (FR-AT2-*); plan `docs/plans/2026-07-05-agent-experience-layer.md`
+  (has a **✅ Progress section** — read it first); ADRs **0049** (safe markdown, supersedes D-A2-8) + **0050**
+  (layered agent prompt). Tier-2 open-Q defaults are recorded in the task board / tier-2 spec.
+- **DONE on `dev` (flag-gated, NOT promoted):** I1 safe markdown (`f970a14`), I2 layered prompt/skills
+  (`f970a14`), I3 context completeness (`87412ea`); Wave-1 review battery green (security: no C/H/M; one
+  code-quality Important fixed). Docs commit `4240295`/`3d6df7f`.
+- **NEXT (for the resuming agent), in order:** (D) drawer UX §2.5 [FE, deferrable]; (E) §2.3 surfacing e2e
+  [verification → **CI at promote**, not local]; then Tier-2 per the tier-2 spec — **I5** Cmd+K + conditional
+  approvals (wiring/refinement, low-risk) → **I6** eval harness (also the model-quality gate) → **I4**
+  attachments (biggest new-build) → **I7** obs-memory (DEFERRED behind a token-cost trigger).
+- **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
+  live deepseek-v4-flash** (weak tool-selector). Verify surfacing via a rendered/live check after the next
+  prod deploy, or build the eval harness (I6) as the gate. Promotion dev→main→production is **owner-gated**.
+
 ## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit

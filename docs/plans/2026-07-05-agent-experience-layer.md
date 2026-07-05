@@ -11,6 +11,33 @@
   ADR-0044 (automations/notifications), ADR-0010 (test pyramid), ADR-0016/0017 (real-JWT + repository seam).
 - **Format model:** `docs/plans/2026-07-03-agent-transcript-contracts.md` (same shape / verify discipline).
 
+## ✅ Progress (updated 2026-07-05 — handoff point)
+
+**Shipped to `dev` (flag-gated `VITE_FEATURES_AGENT_ASSISTANT`; NOT yet promoted to `main`/`production`):**
+- **Track A — Safe markdown (§2.1, FR-AXP-001..007):** DONE. `Markdown.tsx` + tests (commit `f970a14`).
+- **Track B — Prompt/skills (§2.2, FR-AXP-008..016):** DONE. Layered `prompt.ts` (charter + tool-index +
+  skills); tool-index matches `handler.ts` `BASE_ACTIONS` exactly (commit `f970a14`).
+- **Track C — Context completeness (§2.4, FR-AXP-021..023):** DONE. `setEntity` on the 4 detail pages +
+  grounding-hint on `handleAnswer`/`handleDecision` (commit `87412ea`).
+- **Review battery (CLAUDE.md loop step 5):** security-auditor (opus) — **no Critical/High/Medium**, markdown
+  XSS boundary verified airtight; code-quality-reviewer (opus) — one Important (the `handleDecision`
+  `compose_view` dangling affordance) FIXED in `87412ea`; XSS-test vectors hardened (`faa242c`).
+
+**REMAINING on this plan (for the next agent):**
+- **Track D — Drawer UX (§2.5, FR-AXP-024..026):** NOT STARTED. FE-only (AssistantPanel resizable width +
+  dock-vs-overlay). Separately acceptable/deferrable (DEC-7). Owner-defaults: overlay stays default, resize
+  handle, dock toggle, bounds 320–720px.
+- **Track E — §2.3 surfacing behavior (FR-AXP-017..020, AC-AXP-017..019):** NOT STARTED. This is
+  *verification*, not a build — e2e that the built batteries actually FIRE from natural phrasing (table widget
+  / ask-user / compose / automation). **Runs on the DB → route to CI `integration` at the dev→main promote,
+  NOT a local run** (a second agent shares the single local Supabase stack — `docs/environments.md` local-stack
+  hygiene).
+- **⚠ UNVERIFIED against the live model:** Track B's prompt *unit-tests prove the steering text is present*,
+  but NOT that **deepseek-v4-flash actually acts on it** (weak tool-selector — spec §1 open-question 2, an
+  NFR-AXP risk). The eval harness (Tier-2, `docs/specs/agent-tier2-capabilities.spec.md` FR-AT2-EV-*) is the
+  intended gate; until then a rendered/live check after the next prod deploy is the verification. Model-bump
+  decision deferred until eval data exists.
+
 > ## ⚠ Read before building
 > - **Current-state audit spot-checked (2026-07-05) — the spec's §1.1 audit is accurate on every point:**
 >   `TranscriptItem.tsx:72-81` renders `{event.text}` verbatim (no markdown, no `whitespace-pre-wrap`);
