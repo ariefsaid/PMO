@@ -23,9 +23,11 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 import { useUsers, useUserMutations } from '@/src/hooks/useUsers';
+import { useUsage } from '@/src/hooks/useUsage';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import { AdministrationUsage } from './AdministrationUsage';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -92,6 +94,9 @@ const AdminUsers: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useUsers();
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
+  // S6 adds the Operator org-switcher; until then every Usage read targets the caller's own org
+  // (org-Admin path) or ALL orgs (Operator path, no filter — operatorOrgId omitted).
+  const usageQuery = useUsage();
 
   const tableRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
@@ -401,6 +406,17 @@ const AdminUsers: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs. */}
+      <div className="mt-6">
+        <h2 className="mb-2 text-[16px] font-semibold">Usage</h2>
+        <AdministrationUsage
+          rows={usageQuery.data ?? []}
+          isPending={usageQuery.isPending}
+          isError={usageQuery.isError}
+          onRetry={() => void usageQuery.refetch()}
+        />
+      </div>
 
       {/* Edit-role modal */}
       {editTarget?.mode === 'role' && (

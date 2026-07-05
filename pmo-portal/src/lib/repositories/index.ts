@@ -47,6 +47,7 @@ import {
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
+import { getOrgUsageSummary, getOperatorUsageSummary, listOperatorOrgs } from '@/src/lib/db/usage';
 import {
   listTasks,
   getTask,
@@ -166,6 +167,7 @@ import type {
   ContactRepository,
   UserViewRepository,
   OperatorRepository,
+  UsageRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -227,6 +229,12 @@ const profile: ProfileRepository = {
 
 const operator: OperatorRepository = {
   isOperator: () => wrap(() => isOperator()),
+};
+
+const usage: UsageRepository = {
+  getOrgUsageSummary: () => wrap(() => getOrgUsageSummary()),
+  getOperatorUsageSummary: (orgId) => wrap(() => getOperatorUsageSummary(orgId)),
+  listOperatorOrgs: () => wrap(() => listOperatorOrgs()),
 };
 
 const task: TaskRepository = {
@@ -366,6 +374,7 @@ export const repositories: Repositories = {
   contact,
   userView,
   operator,
+  usage,
 };
 
 export type {
@@ -384,4 +393,5 @@ export type {
   ContactRepository,
   UserViewRepository,
   OperatorRepository,
+  UsageRepository,
 } from './types';

@@ -311,6 +311,7 @@ export type Database = {
       }
       agent_usage: {
         Row: {
+          action: string
           completion_tokens: number
           cost: number
           created_at: string
@@ -319,9 +320,11 @@ export type Database = {
           org_id: string
           owner_id: string
           prompt_tokens: number
+          provider_cost_usd: number
           run_id: string | null
         }
         Insert: {
+          action?: string
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -330,9 +333,11 @@ export type Database = {
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
+          provider_cost_usd?: number
           run_id?: string | null
         }
         Update: {
+          action?: string
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -341,6 +346,7 @@ export type Database = {
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
+          provider_cost_usd?: number
           run_id?: string | null
         }
         Relationships: [
@@ -2784,11 +2790,47 @@ export type Database = {
         Args: { p_amount: number; p_note: string; p_org_id: string }
         Returns: undefined
       }
+      operator_list_orgs: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
+      operator_usage_summary: {
+        Args: { p_org_id?: string }
+        Returns: {
+          action: string
+          completion_tokens: number
+          cost: number
+          margin_usd: number
+          month: string
+          org_id: string
+          owner_id: string
+          prompt_tokens: number
+          provider_cost_usd: number
+          run_count: number
+        }[]
+      }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
       org_has_member_email: {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean
+      }
+      org_usage_summary: {
+        Args: never
+        Returns: {
+          action: string
+          completion_tokens: number
+          cost: number
+          margin_usd: number
+          month: string
+          owner_id: string
+          prompt_tokens: number
+          provider_cost_usd: number
+          run_count: number
+        }[]
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       save_timesheet_week: {

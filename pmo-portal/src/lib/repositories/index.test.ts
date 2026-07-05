@@ -43,6 +43,11 @@ vi.mock('@/src/lib/db/adminUsers', () => ({
   setUserStatus: vi.fn(),
 }));
 vi.mock('@/src/lib/db/operators', () => ({ isOperator: vi.fn() }));
+vi.mock('@/src/lib/db/usage', () => ({
+  getOrgUsageSummary: vi.fn(),
+  getOperatorUsageSummary: vi.fn(),
+  listOperatorOrgs: vi.fn(),
+}));
 vi.mock('@/src/lib/db/tasks', () => ({
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -138,6 +143,7 @@ import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as operatorsDal from '@/src/lib/db/operators';
+import * as usageDal from '@/src/lib/db/usage';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
@@ -154,7 +160,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'operator', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'userView'].sort(),
+      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'operator', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'usage', 'userView'].sort(),
     );
   });
 
@@ -419,6 +425,21 @@ describe('delegation — methods pass args through and return the DAL result', (
     const result = await repositories.operator.isOperator();
     expect(operatorsDal.isOperator).toHaveBeenCalledTimes(1);
     expect(result).toBe(true);
+  });
+
+  it('AC-USE-001/002: usage methods delegate to the usage DAL', async () => {
+    vi.mocked(usageDal.getOrgUsageSummary).mockResolvedValue([] as never);
+    vi.mocked(usageDal.getOperatorUsageSummary).mockResolvedValue([] as never);
+    vi.mocked(usageDal.listOperatorOrgs).mockResolvedValue([] as never);
+
+    await repositories.usage.getOrgUsageSummary();
+    expect(usageDal.getOrgUsageSummary).toHaveBeenCalledTimes(1);
+
+    await repositories.usage.getOperatorUsageSummary('org-1');
+    expect(usageDal.getOperatorUsageSummary).toHaveBeenCalledWith('org-1');
+
+    await repositories.usage.listOperatorOrgs();
+    expect(usageDal.listOperatorOrgs).toHaveBeenCalledTimes(1);
   });
 
   it('AC-TASK-001..007: task methods delegate to the tasks DAL fns', async () => {

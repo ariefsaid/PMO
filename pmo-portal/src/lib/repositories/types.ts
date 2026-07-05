@@ -81,6 +81,7 @@ import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type { PageParams } from '@/src/lib/pagination';
+import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow } from '@/src/lib/db/usage';
 
 export interface ProjectRepository {
   list(
@@ -136,6 +137,15 @@ export interface ProfileRepository {
 export interface OperatorRepository {
   /** Clarity projection ONLY (ADR-0049) — every Operator power is re-asserted server-side. */
   isOperator(): Promise<boolean>;
+}
+
+export interface UsageRepository {
+  /** The caller's own-org usage aggregate (org-Admin path). Aggregates ONLY — NFR-PRIV-001. */
+  getOrgUsageSummary(): Promise<UsageSummaryRow[]>;
+  /** The Operator's usage aggregate — all orgs when orgId is omitted, one org when supplied. */
+  getOperatorUsageSummary(orgId?: string | null): Promise<OperatorUsageSummaryRow[]>;
+  /** Directory columns ONLY (FR-OPR-004) — the Operator org-switcher source. */
+  listOperatorOrgs(): Promise<OperatorOrgRow[]>;
 }
 
 export interface TaskRepository {
@@ -411,4 +421,5 @@ export interface Repositories {
   contact: ContactRepository;
   userView: UserViewRepository;
   operator: OperatorRepository;
+  usage: UsageRepository;
 }

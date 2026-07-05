@@ -39,6 +39,9 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
+vi.mock('@/src/hooks/useUsage', () => ({
+  useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 import AdminUsers from '../AdminUsers';
 

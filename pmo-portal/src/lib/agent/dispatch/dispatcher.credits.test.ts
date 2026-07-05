@@ -235,4 +235,38 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
     const [, handlerDeps] = handler.mock.calls[0];
     expect(handlerDeps.usage).toMatchObject({ supabase: minted.client });
   });
+
+  it("AC-USE-002 (ops-admin-surface S5): the fired run is threaded usageAction='automation'", async () => {
+    const automation = makeScheduleAutomation();
+    const svc = makeServiceClient([automation]);
+    const minted = makeMintedClient();
+    const mintDeps = makeMintDeps(minted.client);
+
+    const handler = vi.fn(async function* (
+      _req: unknown,
+      _deps: { usageAction?: string },
+    ) {
+      yield { runId: 'run-1', type: 'status', payload: { status: 'completed' } };
+    });
+
+    const rateGuard = { check: vi.fn().mockResolvedValue({ exceeded: false, retryAfterSeconds: 0 }) };
+
+    await runDispatchTick({
+      serviceClient: svc.client as never,
+      authAdmin: mintDeps.authAdmin as never,
+      buildClient: mintDeps.buildClient,
+      handler: handler as never,
+      modelClient: { create: vi.fn() } as never,
+      model: 'anthropic/claude',
+      conditionModel: { create: vi.fn() } as never,
+      conditionModelId: 'cheap',
+      rateGuard,
+      now: () => new Date('2026-07-06T08:00:00Z'),
+      newRunId: () => 'run-1',
+      newMintedAt: () => '2026-07-06T08:00:00.000Z',
+    });
+
+    const [, handlerDeps] = handler.mock.calls[0];
+    expect(handlerDeps.usageAction).toBe('automation');
+  });
 });

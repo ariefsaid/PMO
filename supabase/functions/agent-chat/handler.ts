@@ -186,6 +186,13 @@ export interface HandlerDeps {
    */
   composeEnabled?: boolean;
   /**
+   * ops-admin-surface S5 (FR-USE-001): which usage-summary bucket this run's agent_usage rows
+   * belong to. Omitted/undefined -> 'chat' (the interactive path's default, unchanged); the
+   * agent-dispatch fired-run path sets this to 'automation' so a fired automation's spend is
+   * distinguishable from an interactive turn in org_usage_summary()/operator_usage_summary().
+   */
+  usageAction?: 'chat' | 'compose' | 'automation';
+  /**
    * ADR-0043: optional persistence dep (thread/run/event journal, heartbeat, de-dupe).
    * Optional so flag-off / existing tests pass unchanged (FR-AGP-026 gating) — every
    * persistence call site below is guarded on `deps.persistence` being present.
@@ -559,7 +566,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // of `persist` (persistence flag) — usage recording is unconditional; `run_id` is set
       // only when a run row exists (persist truthy), else null (FR-AUC-004).
       if (deps.usage) {
-        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp);
+        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat');
       }
 
       // Emit any text content as an assistant event.

@@ -440,8 +440,10 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         : {};
       // FR-AUC-002/004/018 parity with interactive: usage recording is unconditional, under the
       // SAME minted owner client as the fire — one agent_usage row per model-call resolution,
-      // scoped to the automation's owner (never service_role).
-      const usageExtras = { usage: { supabase: minted.client } };
+      // scoped to the automation's owner (never service_role). usageAction='automation'
+      // (ops-admin-surface S5, FR-USE-001) so a fired run's spend is distinguishable from an
+      // interactive turn in org_usage_summary()/operator_usage_summary().
+      const usageExtras = { usage: { supabase: minted.client }, usageAction: 'automation' as const };
 
       // Item 3 (reliability): timeout_s → an AbortController per automation. A coarse wall-clock
       // deadline on top of MAX_TOOL_ROUNDS — each automation gets its OWN controller so one fire's

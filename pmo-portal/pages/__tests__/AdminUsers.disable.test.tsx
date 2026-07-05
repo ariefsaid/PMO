@@ -40,6 +40,9 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+vi.mock('@/src/hooks/useUsage', () => ({
+  useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 class LockoutError extends Error {
   code = 'P0001';

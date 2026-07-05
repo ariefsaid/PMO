@@ -32,6 +32,9 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
+vi.mock('@/src/hooks/useUsage', () => ({
+  useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';

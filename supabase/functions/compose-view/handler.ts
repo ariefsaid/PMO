@@ -209,7 +209,7 @@ export async function composeViewHandler(
         // lacks .insert()) requires this bridging cast, mirroring agent-chat/handler.ts's own
         // documented SupabaseLike-vs-port cast.
         { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
-        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0 },
+        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
       );
     }
 
