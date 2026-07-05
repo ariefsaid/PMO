@@ -177,6 +177,17 @@ export interface HandlerDeps {
    */
   can?: CanFn;
   /**
+   * Tier-2 attachments: resolves caller-scoped attachment ids into model-readable
+   * context messages under the SAME deputy context. Optional until the DB/storage
+   * resolver lands; when absent, attachmentIds are ignored rather than elevated.
+   */
+  attachmentResolver?: {
+    resolveAttachmentMessages(
+      attachmentIds: string[],
+      deputyCtx: DeputyContext,
+    ): Promise<ModelMessage[]>;
+  };
+  /**
    * A4: flag-gated compose_view tool registration (FR-CV-024, D7).
    * The AND-result of (agentAssistant && aiComposer) is computed by the caller
    * (SPA → index.ts) and passed here, because Deno can't read Vite FEATURES.
@@ -1094,6 +1105,10 @@ async function* agentChatHandlerInner(
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
+  const attachmentMessages =
+    req.attachmentIds && req.attachmentIds.length > 0 && deps.attachmentResolver
+      ? await deps.attachmentResolver.resolveAttachmentMessages(req.attachmentIds, deputyCtx)
+      : [];
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
     ...req.messages.map((m) => ({
@@ -1103,6 +1118,7 @@ async function* agentChatHandlerInner(
           ? m.content
           : null,
     })),
+    ...attachmentMessages,
   ];
 
   // ── Tool-use loop (AC-AR-001, AC-AR-004) — shared helper, see runToolLoop's
