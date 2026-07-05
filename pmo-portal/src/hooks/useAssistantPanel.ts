@@ -79,9 +79,11 @@ export interface UseAssistantPanel {
    * with the chosen option/free-text indicated (mirrors chipStateMap).
    */
   answeredMap: AnsweredMap;
-  openPanel(): void;
+  openPanel(prefill?: string): void;
   closePanel(): void;
   togglePanel(): void;
+  prefillVersion: number;
+  consumePrefill(): string | null;
   send(text: string): Promise<void>;
   stop(): Promise<void>;
   retry(): Promise<void>;
@@ -176,7 +178,15 @@ function mergeAssistantEvent(
 
 export function useAssistantPanel(): UseAssistantPanel {
   const ctx = useAgentRuntimeContext();
-  const { runtime, open, openPanel, closePanel, togglePanel } = ctx;
+  const {
+    runtime,
+    open,
+    openPanel,
+    closePanel,
+    togglePanel,
+    prefillVersion = 0,
+    consumePrefill = () => null,
+  } = ctx;
   // ADR-0045 §3 (FR-ATC-015/020): live context (route/entity/selection) — a
   // no-op read outside AgentContextProvider (agentContext.getContext() → {}).
   const { getContext } = useAgentContext();
@@ -649,6 +659,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     openPanel,
     closePanel,
     togglePanel,
+    prefillVersion,
+    consumePrefill,
     send,
     stop,
     retry,

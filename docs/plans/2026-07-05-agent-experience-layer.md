@@ -19,19 +19,26 @@
   skills); tool-index matches `handler.ts` `BASE_ACTIONS` exactly (commit `f970a14`).
 - **Track C — Context completeness (§2.4, FR-AXP-021..023):** DONE. `setEntity` on the 4 detail pages +
   grounding-hint on `handleAnswer`/`handleDecision` (commit `87412ea`).
+- **Track D — Drawer UX (§2.5, FR-AXP-024..026):** DONE. `AssistantPanel` desktop resize + overlay/docked
+  toggle landed in `48b932c`; follow-up host reflow is now closed: `AppShell` reserves a right-side grid column
+  when the open panel is docked and reacts to width/mode preference changes. Focused gate green:
+  `AppShell.test.tsx`, `AppShell.mobile.test.tsx`, `AssistantPanel.dock.test.tsx`, `AssistantPanel.resize.test.tsx`
+  (45 tests), plus `typecheck`/`lint:ci`.
+- **Track E — §2.3 surfacing e2e (FR-AXP-017..020, AC-AXP-011/012/013/014/016):** DONE as deterministic
+  Playwright specs. Added `e2e/AC-AXP-011-table-surfacing.spec.ts`, `AC-AXP-012-automation-surfacing.spec.ts`,
+  `AC-AXP-013-ask-user-surfacing.spec.ts`, `AC-AXP-014-markdown-narrative.spec.ts`, and
+  `AC-AXP-016-context-summarize.spec.ts`. `npx playwright test ... --list` sees all 5 tests. Per local-stack
+  hygiene, do not run the DB-backed browser execution locally while the shared Supabase stack is owned by the
+  parallel GTM stream; execute them in the CI `integration` lane at dev→main promote.
 - **Review battery (CLAUDE.md loop step 5):** security-auditor (opus) — **no Critical/High/Medium**, markdown
   XSS boundary verified airtight; code-quality-reviewer (opus) — one Important (the `handleDecision`
   `compose_view` dangling affordance) FIXED in `87412ea`; XSS-test vectors hardened (`faa242c`).
 
 **REMAINING on this plan (for the next agent):**
-- **Track D — Drawer UX (§2.5, FR-AXP-024..026):** NOT STARTED. FE-only (AssistantPanel resizable width +
-  dock-vs-overlay). Separately acceptable/deferrable (DEC-7). Owner-defaults: overlay stays default, resize
-  handle, dock toggle, bounds 320–720px.
-- **Track E — §2.3 surfacing behavior (FR-AXP-017..020, AC-AXP-017..019):** NOT STARTED. This is
-  *verification*, not a build — e2e that the built batteries actually FIRE from natural phrasing (table widget
-  / ask-user / compose / automation). **Runs on the DB → route to CI `integration` at the dev→main promote,
-  NOT a local run** (a second agent shares the single local Supabase stack — `docs/environments.md` local-stack
-  hygiene).
+- No remaining Agent Experience Layer build items before promote/review. Tier-2 **I5 Cmd+K + conditional
+  approvals** is complete on the 2026-07-05 continuation. Next build queue is **I6 eval harness**, then
+  **I4 attachments**, then **I7 obs-memory**
+  (deferred behind token-cost trigger).
 - **⚠ UNVERIFIED against the live model:** Track B's prompt *unit-tests prove the steering text is present*,
   but NOT that **deepseek-v4-flash actually acts on it** (weak tool-selector — spec §1 open-question 2, an
   NFR-AXP risk). The eval harness (Tier-2, `docs/specs/agent-tier2-capabilities.spec.md` FR-AT2-EV-*) is the

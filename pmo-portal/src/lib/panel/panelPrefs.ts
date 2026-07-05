@@ -17,10 +17,24 @@ export const PANEL_WIDTH_DEFAULT = 400;
 
 export type PanelMode = 'overlay' | 'docked';
 export const PANEL_MODE_DEFAULT: PanelMode = 'overlay';
+export const PANEL_PREFS_CHANGED_EVENT = 'pmo.agentPanel.prefsChanged';
+
+export interface PanelPrefsChangedDetail {
+  width?: number;
+  mode?: PanelMode;
+}
 
 export function clampPanelWidth(value: number): number {
   if (!Number.isFinite(value)) return PANEL_WIDTH_DEFAULT;
   return Math.min(PANEL_WIDTH_MAX, Math.max(PANEL_WIDTH_MIN, value));
+}
+
+function notifyPanelPrefsChanged(detail: PanelPrefsChangedDetail): void {
+  try {
+    window.dispatchEvent(new CustomEvent(PANEL_PREFS_CHANGED_EVENT, { detail }));
+  } catch {
+    // Non-browser/test environments without CustomEvent support do not need host reflow.
+  }
 }
 
 export function readPanelWidth(): number {
@@ -35,10 +49,13 @@ export function readPanelWidth(): number {
 }
 
 export function writePanelWidth(width: number): void {
+  const next = clampPanelWidth(width);
   try {
-    window.localStorage.setItem(PANEL_WIDTH_KEY, String(clampPanelWidth(width)));
+    window.localStorage.setItem(PANEL_WIDTH_KEY, String(next));
   } catch {
     // private-mode / storage-disabled: in-memory state still works this session.
+  } finally {
+    notifyPanelPrefsChanged({ width: next });
   }
 }
 
@@ -56,5 +73,7 @@ export function writePanelMode(mode: PanelMode): void {
     window.localStorage.setItem(PANEL_MODE_KEY, mode);
   } catch {
     // private-mode / storage-disabled: in-memory state still works this session.
+  } finally {
+    notifyPanelPrefsChanged({ mode });
   }
 }

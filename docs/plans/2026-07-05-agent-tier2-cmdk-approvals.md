@@ -8,6 +8,29 @@
 - **Depends-on ADRs (unchanged, controlling on conflict):** ADR-0040 (AssistantPanel + A3 chip), ADR-0045 §3 (live-context entity), ADR-0039 (untrusted-output boundary), ADR-0019 (server-enforced SoD/delete — the real authority the predicate must NOT relax), ADR-0016/0017 (real-JWT deputy + repository seam), ADR-0010 (test pyramid).
 - **Format model:** `docs/plans/2026-07-05-agent-experience-layer.md`.
 
+## ✅ Progress (updated 2026-07-05)
+
+- **Track F — Cmd+K Ask AI + prefill seam:** DONE on `dev` continuation. `openPanel(prefill?)` now carries a
+  one-shot draft prefill through `AgentRuntimeProvider`; `AssistantPanel` consumes it into the composer;
+  `CommandPalette` renders an `Ask AI: "{query}"` `role="option"` on zero-result queries only when `onAskAi`
+  is supplied; `App.tsx` supplies that handler only behind `agentAssistant`.
+- **Track G — route-aware suggestion chips:** DONE. `EmptyState` reads `RunContext.entity.type` through
+  `useAgentContext()` and renders static prompts from `suggestionChips.constants.ts` for
+  `project`/`procurement_case`/`company`/`contact`, falling back to `EXAMPLE_QUESTIONS` when no entity is set.
+  No model/network call generates chip text.
+- **Track H — conditional approvals:** DONE. `AgentAction.needsApproval` is implemented; ADR-0051 constants
+  live server-side in `actions.ts`; `update_task_status` auto-approves as the benign demonstration action;
+  static actions without predicates keep their old behavior; destructive-delete action names always require
+  the chip; auto-approved writes still execute through `dispatchActionForced` under the caller JWT.
+- **Track E verification status:** current-tree non-DB gates are green locally:
+  `npm run typecheck && npm run lint:ci && npm run build`, focused I5/deepseek Vitest suites, and
+  `npx playwright test e2e/AC-AT2-007-askai-prefill.spec.ts --list`. A full `npm run verify`
+  run reached 548 Vitest files and exposed one stale `AC-MC-021` expectation that still assumed
+  `update_task_status` was approval-gated; the test has been updated to the I5 auto-approve contract and the
+  focused quality/approval suites are green. Full `npm run verify` still remains the pre-PR gate. DB-backed
+  pgTAP/e2e execution is reserved for the CI integration/promote gate while the shared local Supabase stack is
+  owned by the parallel stream.
+
 > ## ⚠ Read before building
 > - **Current-state audit spot-checked (2026-07-05) — the spec §0 audit is accurate on every point:**
 >   `openPanel(): void` has no prefill arg (`AgentRuntimeContext.tsx:16`, `AgentRuntimeProvider.tsx:46`);
@@ -449,8 +472,8 @@ locally.** `main`/`production` promotes are owner-gated.
 
 ## 6. Sequencing summary (partial-ship seams)
 
-1. **F ‖ G ‖ H** (parallel worktrees) — Cmd+K/prefill, chips, approvals are independent (F/G FE, H edge-fn).
-2. **E** — full verify + rendered Discover + pgTAP-still-green, last.
+1. **F/G/H:** complete on `dev` continuation.
+2. **E:** focused local gates green; full verify + CI integration/rendered Discover remain before promotion.
 Minimum shippable increment: **Track H alone** (approvals) OR **F+G** (Cmd+K + chips) — each is an independent,
 cohesive PR if the owner wants to split; one cohesive PR (all three) is recommended for the Tier-2 story.
 
