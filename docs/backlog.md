@@ -142,14 +142,35 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
   and Track E surfacing specs (`AC-AXP-011/012/013/014/016` Playwright specs added and `--list` verified).
   Latest continuation commit also updates this handoff + the plan progress section. Wave-1 review battery green
   (security: no C/H/M; one code-quality Important fixed).
-- **NEXT (for the resuming agent), in order:** Tier-2 per the tier-2 spec — **I5** Cmd+K + conditional
-  approvals (wiring/refinement, low-risk) → **I6** eval harness (also the model-quality gate) → **I4**
-  attachments (biggest new-build) → **I7** obs-memory (DEFERRED behind a token-cost trigger). Track E browser
-  execution remains a **CI integration/promote gate**, not a local run while the shared Supabase stack is owned
-  by another stream.
+- **Tier-2 progress (2026-07-05, this stream):**
+  - **I5 Cmd+K + conditional approvals — SHIPPED to `dev` via PR #236** (`feat/agent-tier2-cmdk-approvals`):
+    openPanel(prefill?) + consumePrefill() one-shot prefill; CommandPalette "Ask AI" row on zero-result
+    queries behind the flag; route-aware suggestion chips (`suggestionChips.constants.ts`); ADR-0051
+    conditional-approval predicate (`AgentAction.needsApproval`, `resolveNeedsApproval`,
+    `AGENT_APPROVAL_MONEY_THRESHOLD`, `isDestructiveDeleteAction`); `update_task_status` auto-approves;
+    `create_activity`/`create_automation` keep always-chip. AC-AT2-006..013 unit proofs + AC-AT2-007
+    Playwright spec. Full `npm run verify` green (548 files / 4386 tests).
+  - **I6 agent eval harness — SHIPPED to `dev` via PR #237** (`feat/agent-eval-harness`): ADR-0052
+    (Accepted) — the `*.eval.ts` behavior-regression net against the DEPLOYED agent-chat loop.
+    `evals/harness/{scorers,runEval}.ts` (usesTool/contains/llmJudge + runEvalCase via test-user JWT →
+    decodeSseStream), `evals/cases/tool-selection.eval.ts` (2 anchor cases), `vitest.eval.config.ts`
+    (dedicated project; `npm run test:evals`), `vite.config.ts` excludes eval cases from `verify`,
+    `.github/workflows/agent-evals.yml` (nightly + dispatch, never push/PR). AC-AT2-015 scorer half
+    deterministic (12 tests, in `verify`); the real-loop half + exit-code gate light up once the owner
+    provisions the deployed-target GH secrets (§OQ-1). Full `npm run verify` green (545 files / 4388 tests).
+  - **I4 attachments — SDD AUTHORED, build pending:** ADR-0053 + plan
+    `docs/plans/2026-07-05-agent-chat-attachments.md` (table + bucket + provider seam + transcode +
+    untrusted-input boundary + two model paths). The build is the next issue-loop; load-bearing
+    owner-confirmable is the PDF-extraction stack (spec §OQ-3 / plan DEC-8) + the prod model's vision
+    support (DEC-7).
+  - **I7 obs-memory — DEFERRED** behind a token-cost trigger (unchanged).
+- **NEXT (for the resuming agent), in order:** build **I4** attachments per its plan (Tracks A FE ‖ B DB ‖
+  C edge-fn → D e2e; serialize Track B vs the parallel stream's stack) → owner-provision the eval-harness GH
+  secrets (I6 §OQ-1) → **I7** obs-memory (deferred). Track E / AC-AT2-001 browser execution remains a **CI
+  integration/promote gate**, not a local run while the shared Supabase stack is owned by another stream.
 - **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
-  live deepseek-v4-flash** (weak tool-selector). Verify surfacing via a rendered/live check after the next
-  prod deploy, or build the eval harness (I6) as the gate. Promotion dev→main→production is **owner-gated**.
+  live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
+  secrets are provisioned. Promotion dev→main→production is **owner-gated**.
 
 ## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
