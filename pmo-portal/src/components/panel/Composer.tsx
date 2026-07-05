@@ -7,6 +7,14 @@
  */
 import React, { useRef, useEffect } from 'react';
 import { cn } from '@/src/components/ui/cn';
+import { Icon } from '@/src/components/ui/icons';
+import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
+import {
+  AGENT_ATTACHMENT_ACCEPT,
+  classifyAttachmentError,
+  getAgentAttachmentContentType,
+} from '@/src/lib/agent/attachmentMime';
+import { transcodeImage } from '@/src/lib/agent/transcodeImage';
 
 export interface ComposerProps {
   value: string;
@@ -29,6 +37,9 @@ export interface ComposerProps {
    * Additive: existing `running`-only callers (no `disabled` passed) are unaffected.
    */
   disabled?: boolean;
+  /** Optional Tier-2 attachment hook seam. When absent, the composer stays text-only. */
+  onAttachFile?: (file: File) => void | Promise<void>;
+  onAttachmentError?: (error: ClassifiedUploadError) => void;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -40,8 +51,11 @@ export const Composer: React.FC<ComposerProps> = ({
   needsApproval = false,
   textareaRef,
   disabled = false,
+  onAttachFile,
+  onAttachmentError,
 }) => {
   const internalRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const resolvedRef = textareaRef ?? internalRef;
 
   // Auto-grow the textarea up to a reasonable max
@@ -62,6 +76,34 @@ export const Composer: React.FC<ComposerProps> = ({
   };
 
   const composerId = 'assistant-composer-textarea';
+  const attachmentsEnabled = Boolean(onAttachFile);
+  const inputDisabled = running || disabled;
+
+  const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] ?? null;
+    e.target.value = '';
+    if (!selected || !onAttachFile || inputDisabled) return;
+
+    const classified = classifyAttachmentError(selected);
+    if (classified) {
+      onAttachmentError?.(classified);
+      return;
+    }
+
+    const contentType = getAgentAttachmentContentType(selected);
+    const prepared = contentType?.startsWith('image/')
+      ? transcodeImage(selected)
+      : Promise.resolve(selected);
+
+    prepared
+      .then((file) => onAttachFile(file))
+      .catch(() =>
+        onAttachmentError?.({
+          type: 'server',
+          message: 'Upload failed — try again',
+        }),
+      );
+  };
 
   return (
     <div className="border-t border-border p-3">
@@ -69,6 +111,29 @@ export const Composer: React.FC<ComposerProps> = ({
         Ask a question
       </label>
       <div className="flex items-end gap-2">
+        {attachmentsEnabled ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={AGENT_ATTACHMENT_ACCEPT}
+              aria-label="Attach file"
+              className="sr-only"
+              disabled={inputDisabled}
+              onChange={handleAttachChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={inputDisabled}
+              aria-label="Attach file"
+              title="Attach file"
+              className="shrink-0 rounded-md border border-border px-2.5 py-2 text-sm font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Icon name="upload" className="h-4 w-4" />
+            </button>
+          </>
+        ) : null}
         <textarea
           id={composerId}
           ref={resolvedRef}
