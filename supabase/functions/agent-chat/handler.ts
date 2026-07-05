@@ -998,7 +998,10 @@ async function* agentChatHandlerInner(
   }
 
   // ── Build system prompt (+ ADR-0045 §3 untrusted grounding hint) ──────────
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole) + buildGroundingHint(req.context?.entity);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: deps.composeEnabled,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  }) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
@@ -1071,7 +1074,10 @@ async function* handleAnswer(
 ): AsyncGenerator<AgentEvent> {
   const answer = req.answer!;
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: deps.composeEnabled,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  });
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1137,7 +1143,10 @@ async function* handleDecision(
     yield emit('user', { text: lastUserMsg.content });
   }
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: deps.composeEnabled,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  });
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },

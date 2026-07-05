@@ -9,7 +9,8 @@
  *
  * Esc CLOSES the panel (D-A2-4; never cancels). Stop button cancels via runtime.control.
  * Mounted + inert when closed (no unmount) so transcript state survives close→open.
- * Plain-text assistant rendering only — NO dangerouslySetInnerHTML (D-A2-8, NFR-AP-SEC-002).
+ * Assistant text renders as SAFE markdown (react-markdown + remark-gfm, no rehype-raw) — NEVER
+ * dangerouslySetInnerHTML / raw HTML (ADR-0049 supersedes D-A2-8; NFR-AP-SEC-002).
  *
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
