@@ -349,6 +349,106 @@ TRUNCATE budget_line_items, budget_versions, companies, contacts, crm_activities
 -- then re-run scripts/db-seed-prod.sh
 ```
 
+## Production auth configuration (per-client Supabase Cloud project — owner-gated)
+
+> Binding source: `docs/specs/auth-production-floor.spec.md` §7 (NFR-AUTHF-CONF-001…008). This is a
+> **runbook**, not code — it mutates a live Supabase Cloud project per client (ADR-0047) and is an
+> **owner checkpoint at client provisioning**. The Operator completes 7.1–7.6 as the final auth step of
+> "add org"; record completion against the client's registry row below. **No domain or secret is
+> committed** (D-AUTHF-2). Cloud SMTP is configured differently from local (§7.1a local TOML `env()`
+> vs §7.1b cloud dashboard literal key).
+
+### 7.1 SMTP via Resend
+The Resend API key lives in the 1Password client vault (vault `AS` pattern); the sender domain is
+**verified in Resend**, not in this repo (D-AUTHF-2). **Never commit the key.**
+
+- **7.1a Local dev** — `supabase/config.toml` `[auth.email.smtp]` supports `env(RESEND_API_KEY)`
+  substitution. Kept commented in the committed template so local dev keeps using the Inbucket testing
+  server on :54324 (the auth e2e depends on it). To test real SMTP delivery locally: uncomment the block,
+  set `RESEND_API_KEY` in `.env`, `supabase stop && supabase start`.
+- **7.1b Cloud project — dashboard Auth → SMTP Settings (LITERAL key, NOT `env()`).** GoTrue SMTP on a
+  Supabase Cloud project is configured in the dashboard; the dashboard does NOT accept the `env(...)`
+  form — the **literal** API key goes in the SMTP password field. `supabase secrets set RESEND_API_KEY=…`
+  configures **edge-function** secrets and does NOT configure GoTrue SMTP; do not use it for this step.
+  1. Retrieve the key from 1Password (vault `AS`): the `re_…` secret for this client.
+  2. Dashboard → **Authentication → SMTP Settings** → enable **Custom SMTP**.
+  3. Enter: Host `smtp.resend.com`; Port `465` (or `587` per Resend docs); Username `resend`;
+     **Password = the literal `re_…` API key from 1Password** (paste directly — no `env()` wrapping);
+     Sender email = `<sender-address>@<verified-domain>`; Sender name = `<Product or Org name>`;
+     Minimum interval per the project's needs.
+  4. **Save**, then send the dashboard **test email** and confirm receipt.
+
+### 7.2 Redirect allowlist (Auth → URL configuration)
+- `site_url` = the client's deployed **HTTPS** Cloudflare Pages URL (e.g. `https://<client>.<host>`).
+- `additional_redirect_urls` = the same HTTPS origin (covering `/login`, `/update-password`).
+- No `localhost`, no `http`, no wildcard, no second origin (NFR-AUTHF-CONF-003).
+
+### 7.3 Auth toggles
+(source list: `docs/specs/auth-production-floor.spec.md` §7.3)
+- `enable_confirmations = true` (email confirmation required) — NFR-AUTHF-CONF-004.
+- `enable_signup = false` (invite-only — GTM item 1a issues all users) — NFR-AUTHF-CONF-004.
+- `enable_anonymous_sign_ins` stays `false`.
+- `minimum_password_length` / `password_requirements` ≥ local template (`>=10`, `lower_upper_letters_digits`).
+- `secure_password_change = true` — does not affect the recovery/invite flow (those sessions are freshly token-authenticated).
+
+### 7.4 Rate-limit & captcha (Auth → Rate limits / Auth → Captcha)
+The reset/confirm/invite endpoints this issue exposes are the primary abuse surface. Two distinct knobs
+(both verified against the committed `supabase/config.toml` comments):
+- `[auth.rate_limit] email_sent = 2` — **per-hour email count cap** (the `config.toml` comment reads "Number
+  of emails that can be sent per hour"). Intended production value **`2`** (mirrors the committed template;
+  tune per client). Bounds overall volume from the reset/confirm/invite endpoints.
+- `[auth.email] max_frequency = "60s"` — **per-address minimum-seconds throttle** (the `config.toml` comment
+  reads "Controls the minimum amount of time that must pass before sending another signup confirmation or
+  password reset email"). Intended production value **`"60s"`** — one reset/confirm/invite email per address
+  per minute, tighter than the dev template's `"1s"`; the **primary per-address** abuse lever (tune per
+  client).
+- `[auth.captcha]` — enable (hCaptcha / Cloudflare Turnstile per the project) for production once the
+  provider keys are provisioned; `enabled = true` + `provider` + the secret/site-key pair is a per-client
+  provisioning value (**no key committed**). Intended production value: **enabled**.
+- **Rate-limit-vs-enumeration interaction (D-AUTHF-7, NFR-AUTHF-SEC-001):** a sender who is rate-limited
+  learns the endpoint was hit repeatedly for that address — a side channel distinct from the client-rendered
+  message parity the app controls. The app cannot eliminate this (server-side), so the client keeps the
+  rendered notice constant (FR-AUTHF-013) and treats a rate-limit response the same as other transient
+  errors from the user's point of view; `email_sent` (hourly cap) + `max_frequency` (per-address throttle)
+  + captcha bound the leakage rate.
+
+### 7.5 Seed-credential hygiene (real client projects only — not staging/demo)
+- Rotate or disable the `Passw0rd!dev` / `admin@acme.test` user.
+- **Do not run** `scripts/db-seed-prod.sh` or `supabase/seed-admin.sql`.
+- **Do not set** `VITE_DEMO_MODE=true` on the client's CF Pages environment (the login demo panel must not
+  appear) (NFR-AUTHF-CONF-005, FR-AUTHF-060).
+
+### 7.6 Table exposure
+
+> **⚠ BLOCKING FINDING (2026-07-04, implementer — auth-production-floor Slice 5, NOT yet resolved).**
+> `auto_expose_new_tables=false` is the correct target state (NFR-AUTHF-CONF-006), but **activating it
+> locally (`supabase/config.toml`, then `supabase db reset`) strips every DML grant
+> (SELECT/INSERT/UPDATE/DELETE) for `authenticated`/`anon` on ALL 44 `public` tables** — confirmed via
+> `docker exec supabase_db_pmo-portal psql … information_schema.role_table_grants`: 0/44 tables retain
+> any `authenticated` DML grant with the flag active vs 44/44 with it left at the (soon-retired) implicit
+> default. Root cause: **no migration in this repo issues an explicit `GRANT`** on any `public` table to
+> `authenticated`/`anon` — every table has always relied on the implicit auto-expose default that this
+> NFR turns off. Reproduced end-to-end: `e2e/AC-AUTH-005.spec.ts` (pre-existing, unrelated to this issue)
+> passes with the flag commented and fails with `permission denied for table profiles` with it active, on
+> an otherwise-identical `db reset`.
+>
+> **This means activating `auto_expose_new_tables=false` — locally OR on any Supabase Cloud project,
+> including via this exact runbook step — breaks the ENTIRE app** (every table read/write) until a
+> companion migration explicitly `GRANT`s the needed DML to `authenticated` (and `anon` where relevant)
+> per table. That is a cross-cutting, security-relevant schema change requiring per-table review (some
+> tables may deliberately want narrower grants than a blanket `GRANT ALL`) — **out of scope for a single
+> implementer task; needs Director/security-auditor design.** `supabase/config.toml`'s
+> `auto_expose_new_tables = false` line is committed **commented** (not activated) pending that follow-up;
+> see the implementer's final report for the reproduction steps. **Do not activate this line — locally or
+> on a client project — until the companion GRANT migration ships and is verified.**
+
+- `auth.auto_expose_new_tables=false` on the cloud project (Data API settings) — opted-in in the committed
+  `supabase/config.toml` (NFR-AUTHF-CONF-006) **once the companion GRANT migration above ships**.
+
+### 7.7 Provisioning sign-off
+The Operator (glossary) completes 7.1–7.6 as the final step of new-client provisioning (ADR-0047: this *is*
+the "add org" operation's auth step). Recorded against the client's registry row in `## Registry` above.
+
 ## Self-hosted (Docker/VPS) later
 
 Just another target: `supabase db push --db-url postgres://…@your-vps` (store that URL in 1Password too, add a

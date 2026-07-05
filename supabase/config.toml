@@ -17,10 +17,21 @@ extra_search_path = ["public", "extensions"]
 # for accidental or malicious requests.
 max_rows = 1000
 # Controls whether new tables, views, sequences and functions created in the `public` schema by
-# `postgres` are reachable through the Data API roles (`anon`, `authenticated`, `service_role`)
-# without explicit GRANTs. Leave unset today to preserve local behaviour. The implicit default
-# flips to `false` on 2026-05-30 to match the new cloud default, and the field is removed in
-# 2026-10-30 once the always-revoked behaviour is permanent. Set to `false` to opt in early.
+# `postgres` are reachable through the Data API roles without explicit GRANTs. Opted IN to the
+# secure default (false) — matches the production runbook (NFR-AUTHF-CONF-006, auth-floor §7.6).
+#
+# ⚠ DEVIATION (2026-07-04, implementer): kept COMMENTED, not activated, pending Director decision.
+# Verified (docker exec psql) that flipping this to `false` and running `supabase db reset` strips
+# EVERY DML grant (SELECT/INSERT/UPDATE/DELETE) for `authenticated`/`anon` on ALL 44 public tables —
+# no migration in this repo issues an explicit GRANT, so every table relied entirely on the
+# (now-being-retired) implicit auto-expose default. Confirmed root cause: AC-AUTH-005 e2e passes
+# with this line commented and fails ("permission denied for table profiles") with it active,
+# on an otherwise-identical db reset. Activating this line as written would break the ENTIRE app
+# (local dev, and — per §7.6 — the production runbook) until a companion migration explicitly
+# GRANTs the needed DML to authenticated/anon per table. That is a cross-cutting, security-relevant
+# schema change (needs per-table review — some tables may deliberately want narrower grants) beyond
+# this task's scope; escalated to the Director rather than authored unilaterally. See the final
+# implementer report for detail. Task 5.1's OTHER changes (the Resend SMTP template) are applied.
 # auto_expose_new_tables = false
 
 [api.tls]
@@ -169,7 +180,17 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# http://127.0.0.1:3000/** and http://localhost:3000/** added for the auth-production-floor
+# reset/invite flows (FR-AUTHF-015/050, D-AUTHF-8) — resetPasswordForEmail's redirectTo is
+# origin + '/update-password', a DIFFERENT URL from the bare site_url above, so GoTrue requires it
+# on this allowlist (AC-AUTHF-005, AC-AUTHF-020). BOTH origins are needed: the app's own dev/e2e
+# server (Vite + Playwright's playwright.config.ts baseURL/webServer.url) runs at
+# http://localhost:3000, while site_url above is the 127.0.0.1 loopback form — GoTrue only
+# fell back to site_url (dropping the /update-password path) when the browser's real
+# window.location.origin (localhost:3000) wasn't itself on the allowlist. Local-only; the cloud
+# runbook (docs/environments.md §7.2) points this allowlist at the deployed HTTPS origin(s) only
+# (no wildcard, no localhost, in prod, per NFR-AUTHF-CONF-003).
+additional_redirect_urls = ["https://127.0.0.1:3000", "http://127.0.0.1:3000/**", "http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -242,15 +263,20 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Production auth email via Resend over SMTP (D-AUTHF-1; NFR-AUTHF-CONF-001/002; auth-floor §7.1a).
+# LOCAL TEMPLATE ONLY — kept commented so local dev keeps using the Inbucket testing server on :54324
+# (the auth e2e — AC-AUTH-005, AC-AUTHF-005, AC-AUTHF-020 — polls Mailpit there). To test real SMTP
+# delivery locally, uncomment, set RESEND_API_KEY in .env, and `supabase stop && supabase start`.
+# CLOUD is configured in the dashboard with the LITERAL key (no env()) — see docs/environments.md
+# "Production auth configuration" (§7.1b). No domain is hardcoded in this repo (D-AUTHF-2).
 # [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# enabled      = true
+# host         = "smtp.resend.com"                  # confirm against Resend's current SMTP docs at provisioning
+# port         = 465                                 # 465 (SSL) or 587 (STARTTLS) per Resend docs
+# user         = "resend"                            # Resend SMTP user; password = the API key
+# pass         = "env(RESEND_API_KEY)"               # LOCAL ONLY — config.toml resolves this from the dev env
+# admin_email  = "<sender-address>@<verified-domain>"# CONFIG VALUE — no domain hardcoded in repo
+# sender_name  = "<Product or Org name>"             # CONFIG VALUE
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
