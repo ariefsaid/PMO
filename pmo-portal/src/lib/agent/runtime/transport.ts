@@ -51,6 +51,8 @@ export interface AgentChatRequest {
   messages: ConversationMessage[];
   /** Optional UI context hints. */
   context?: RunContext;
+  /** Tier-2 attachments: caller-scoped references, never raw bytes. */
+  attachmentIds?: string[];
   /** A3: present on an approve/deny re-POST (D-A3-1, AW-OD-004 Option B). */
   decision?: AgentDecision;
   /** ADR-0045 §2: present on a re-POST resolving a pending ask-user question (DEC-1). */
