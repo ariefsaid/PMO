@@ -109,8 +109,9 @@ then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 >    the deployed UI**: login → panel → real answer (deputy-JWT → OpenRouter → deepseek-v4-flash); threads persist
 >    (History survives reload). Fixed an edge-fn **boot-crash** in the process (actions↔schema circular-import TDZ
 >    → WORKER_ERROR; `049d1e2`, now CI-guarded by `scripts/deno-boot-smoke.ts`).
->    **⚠ Live agent-chat follow-ups (non-fatal, chips spawned):** 406 on the `agent_runs` heartbeat/progress poll
->    (`.single()` on a not-yet-visible row → race); duplicate "You said:" user bubble (optimistic echo not de-duped).
+>    **Live agent-chat polish — ✅ FIXED + rendered-verified in prod (PR #234, deployed `56a77e9`):** the
+>    `agent_runs` heartbeat 406 (`.single()`→`.maybeSingle()`) and the duplicate user bubble (server `type:'user'`
+>    echo de-duped vs the optimistic add). Verified live: 0 console errors, single bubble.
 >
 > **STILL OWNER-PENDING (separate):**
 > - **Agent AUTOMATIONS in prod** — needs `agent-dispatch` fn deploy + pg_cron GUCs (`app.settings.dispatch_url`/
