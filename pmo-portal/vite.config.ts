@@ -49,6 +49,10 @@ export default defineConfig({
     include: ['**/*.{test,spec}.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     css: false,
+    // AUDIT-M17 (2026-07-04 audit): clear mock call history between tests globally — no more
+    // relying on per-file afterEach discipline for call-count assertions. (Implementations set
+    // via mockReturnValue/mockImplementation are preserved; this clears calls/results only.)
+    clearMocks: true,
     // Dummy Supabase env so client.ts can instantiate in unit tests without a
     // real .env.local (tests that exercise supabase still mock all calls).
     env: {

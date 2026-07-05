@@ -103,3 +103,34 @@ lockfile integrity, Dependabot on.
 - **Phase 2:** L3 vision rendered-acceptance (per-screen question bank) + visual-regression harness.
 - **Phase 3:** L2 `routes×oracles` matrix + specialist oracle agents + the route-maintenance CI gate.
 - **Phase 4:** L0 vendoring pilots (Gantt → SVAR per the spike; date-fns) + adversarial-at-launch.
+
+## Live-verify runbooks (not-CI items — ADR-0030 MVP posture)
+
+Manual runbooks for behavior that is real but deliberately not CI-gated (ADR-0030: no LLM-judge in CI
+for MVP). Run before promoting a corpus / system-prompt change and periodically thereafter; record the
+run date + result inline.
+
+### Deputy-as-help-desk — role-grounded "how do I" answers (AC-DH-005)
+
+**Scope:** the Assistant's product-help answers, grounded in the asking user's role, produced after
+the `helpCorpus.ts` always-on injection (spec `docs/specs/deputy-help.spec.md`).
+
+**Setup:** a live local stack (`supabase db reset` + seed), one signed-in session per role — `Admin`,
+`Executive`, `Project Manager`, `Finance`, `Engineer` (the `ALL` set, `pmo-portal/src/auth/policy.ts:71`).
+
+**For each role, ask the Assistant:**
+1. A term-definition question, e.g. *"What's the difference between Committed and Actual spend?"* →
+   the answer must match the glossary meaning (Committed = Σ procurement records in Ordered…Paid;
+   Actual = the same number, labeled "Actual"; no separate actuals ledger today).
+2. A role-appropriate "how do I" question, e.g. Engineer → *"How do I log my hours?"*, PM → *"How do I
+   approve a timesheet?"*, Admin → *"How do I manage users and roles?"* → the answer must name the real
+   screen/route and the real action.
+3. An **out-of-role** question, e.g. Engineer → *"How do I approve this timesheet?"* → the answer must
+   redirect ("that's a PM/Finance action"), **not** fabricate approval steps (FR-DH-009).
+
+**Pass:** all three behaviors hold across all 5 roles. **On failure:** file a `helpCorpus.ts` follow-up
+(FR-DH-011) and do not promote the change.
+
+| Run date | Runner | Admin | Exec | PM | Finance | Engineer | Notes |
+|---|---|---|---|---|---|---|---|
+| _(run before merge)_ | | | | | | | |

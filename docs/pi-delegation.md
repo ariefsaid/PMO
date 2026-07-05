@@ -24,8 +24,8 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 
 | Substrate | Use for | Analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **Newest GLM (out 2026-06; trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies).** Strong builder; prefer for implementation slices | opus/sonnet |
-| `zai` / `glm-5.1` | Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment | opus |
+| `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies) | opus |
+| `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
 | `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 

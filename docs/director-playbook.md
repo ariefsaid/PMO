@@ -83,6 +83,9 @@ never write app code yourself — you delegate and **verify**.
    current state to go green (see qa-acceptance "Authoring principle").
 8. **Ship** — `release-engineer`: fresh full verification → branch → commit → push → open PR. **It
    never merges.** Then the **Director merges** (see §6) and syncs.
+   - **Help-corpus check (FR-DH-011):** does this change a screen's affordances, a role's permissions,
+     or a glossary term? If yes, update `supabase/functions/agent-chat/helpCorpus.ts` in the same PR
+     and re-run the AC-DH-005 live-verify runbook (`docs/qa-portfolio.md`).
 
 ## 3. Delegation & context discipline
 - **Briefs are self-contained:** tell the agent which files/specs to read; it reads them itself. Don't

@@ -46,6 +46,14 @@ subsidiary dimension** (never a separate org; intra-group visibility OK for MVP)
    + per-role walkthrough videos recorded during onboarding. No written manual until a question
    repeats 3×.
 
+**Deferred follow-up (Director-adjudicated during the build, 2026-07-04):**
+`auto_expose_new_tables=false` (NFR-AUTHF-CONF-006) — cross-family review found flipping it strips
+DML grants on all 44 tables (no migration issues explicit GRANTs), so it needs a dedicated
+per-table GRANT migration + security review, NOT a jam into the auth PR. **Accepted as a tracked
+follow-up issue**, not an auth-floor blocker; the auth email flows are unaffected. `config.toml`
+keeps it commented with the reason; `docs/environments.md` §7.6 carries the blocking-finding note
+for the eventual owner-gated hardening pass.
+
 **CUT from MVP (owner-confirmed):** custom RBAC engine (escape valve = additive read-only
 Viewer role) · Stripe/Midtrans (manual MSA billing) · VPS (exit trigger: >$200/mo Supabase or
 onshore-data contract; sized playbook in ADR-0047) · homegrown accounting (never) · separate
@@ -70,7 +78,7 @@ checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoici
 spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
 then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 
-## ▶ Current state (2026-07-04, late) — BATTERIES-INCLUDED A + full-codebase security/hardening on `dev`+`main`; RED-3/4 security LIVE in prod
+## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
 > `6f75edb` — a real 3-way merge resolving 44 squash-divergence conflicts to `dev`; `git diff origin/main
@@ -92,14 +100,37 @@ then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 >    Legit old-FE flows unaffected — 0051/0052 only block the abuse paths (file-a-PR-as-another-user, non-admin
 >    project delete).
 >
-> **STILL OWNER-PENDING (separate, bigger decisions — NOT done by the security promote):**
-> - **`main`→`production` FE deploy** (Cloudflare `production` branch) — ships the reskin + agent UI (flag-OFF)
->   to live users; a visible change needing its own render-verify + per-instance owner go. The security fix did
->   NOT require it (RLS is DB-enforced). `production` FE still runs the pre-reskin build.
-> - **Enabling the agent tier in prod** — needs the edge-fn deploy runbook (functions deploy ×3, `OPENROUTER_API_KEY`,
->   pg_cron GUCs `app.settings.dispatch_url`/`service_role_key`, live-mint verify). Until then mig 0048's cron is
->   registered-but-idle on prod (fires per-minute against a NULL url → self-pruning no-op, by design). All
->   user-facing agent flags default OFF, so the DB push is safe without it.
+> 3. **`main`→`production` FE deploy + agent tier LIVE — DONE (owner-instructed 2026-07-04, rendered-verified).**
+>    CF Pages `production` = `8e4998e` → https://pmo-bfb.pages.dev (reskin + agent UI). AssistantPanel **flag ON**
+>    via a committed `pmo-portal/.env.production` (`VITE_FEATURES_AGENT_ASSISTANT=true`, `git add -f`) — there is
+>    NO CF Pages API token in op (only `CF-Access-Client-*` = Zero-Trust Access, not Pages-mgmt), so the flag is a
+>    committed build-time toggle (off = revert+rebuild). `agent-chat`+`compose-view` deployed to the Cloud project;
+>    `OPENROUTER_API_KEY` set as a function secret (op `openrouter-api-key`/`credential`). **Live E2E verified in
+>    the deployed UI**: login → panel → real answer (deputy-JWT → OpenRouter → deepseek-v4-flash); threads persist
+>    (History survives reload). Fixed an edge-fn **boot-crash** in the process (actions↔schema circular-import TDZ
+>    → WORKER_ERROR; `049d1e2`, now CI-guarded by `scripts/deno-boot-smoke.ts`).
+>    **Live agent-chat polish — ✅ FIXED + rendered-verified in prod (PR #234, deployed `56a77e9`):** the
+>    `agent_runs` heartbeat 406 (`.single()`→`.maybeSingle()`) and the duplicate user bubble (server `type:'user'`
+>    echo de-duped vs the optimistic add). Verified live: 0 console errors, single bubble.
+>
+> **STILL OWNER-PENDING (separate):**
+> - **Agent AUTOMATIONS in prod** — needs `agent-dispatch` fn deploy + pg_cron GUCs (`app.settings.dispatch_url`/
+>   `service_role_key`) + live-mint verify. Until then mig 0048's cron is registered-but-idle (per-minute NULL-url
+>   → self-pruning no-op, by design). Interactive assistant (above) does NOT need this.
+> - **Credits enforcement** — `AGENT_CREDITS_ENFORCED` default OFF (launch un-enforced per the GTM plan; price after
+>   pilot-margin data). **F4 mobile assistant entry, OpenRouter fallback chain** still open.
+>
+> **Seven-dimension audit + hardening wave (2026-07-04, post-promote):** `docs/spikes/2026-07-04-seven-dimension-audit.md`
+> is the ledger. 7 read-only audits over `dev`@`8869145` (RED-1..4 + SEC-HIGH-1/2 re-verified CLOSED). Same-day
+> fixes on `dev`: **H-1** procurement record tables RPC-only writes + amount CHECKs + Admin-only file DELETE
+> (mig `0058`, pgTAP `0110` — was LIVE in prod DB); **C-1** model-call retry ×3 (429/5xx/network); **H-5**
+> usage-metering fail-closed after 3 consecutive insert failures; **M-1** automation bounds (mig `0059`, pgTAP
+> `0111`); **M-2** dispatcher schedule claim-then-fire (double-fire immunity); **M-4** `AGENT_ALLOWED_ORIGIN`
+> CORS seam; **M-11** AuthProvider getSession `.catch`; **M-17** vitest `clearMocks`; root package.json stray
+> removed. H-2 (credits OFF) + H-3 (TOCTOU) + H-4 = documented owner decisions/v1 tradeoffs, untouched.
+> **Owner-gated follow-ups: push migs 0058–0059 to prod DB + redeploy agent-chat/compose-view (+ set
+> `AGENT_ALLOWED_ORIGIN`).** Deferred (ledgered in the spike): H-6 `strict`, M-16 e2e waits, M-14 god
+> components, M-6/M-7/M-8/M-9/M-12/M-15 + lows.
 >
 > **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
 > is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers

@@ -10,7 +10,8 @@
 
 // Relative import — no @-alias (Deno has no Vite alias).
 import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
-import type { AgentReadEntity } from './actions.ts';
+import type { AgentReadEntity } from './readEntities.ts';
+import { HELP_CORPUS } from './helpCorpus.ts';
 
 /**
  * Build the system prompt for the agent-chat model call.
@@ -22,6 +23,7 @@ import type { AgentReadEntity } from './actions.ts';
 export function buildAgentSystemPrompt(
   entities: ReadonlyArray<AgentReadEntity>,
   rowCap: number,
+  role: string | null = null,
 ): string {
   // Build entity descriptions (schema metadata only — no data rows, NFR-AR-SEC-005)
   const entityDescriptions = entities
@@ -37,9 +39,13 @@ export function buildAgentSystemPrompt(
     })
     .join('\n');
 
+  // FR-DH-007: tell the model the asking user's role so it can ground help answers. Omit the sentence
+  // entirely when no role resolved (AC-DH-003) — never render "null" or a broken sentence.
+  const roleSentence = role ? `\nThe current user's role is ${role}.` : '';
+
   return `You are a read-only deputy assistant for a project management platform.
 You act only within what this user can see — you cannot exceed their access.
-Your reads are scoped by the user's own permissions (RLS); you cannot read other organisations' data.
+Your reads are scoped by the user's own permissions (RLS); you cannot read other organisations' data.${roleSentence}
 
 ## Rules (binding)
 
@@ -48,6 +54,7 @@ Your reads are scoped by the user's own permissions (RLS); you cannot read other
 3. Each query returns at most ${rowCap} rows. If you need more context, narrow your filters.
 4. Never include data rows or cell values in your reasoning — only the tool's returned result.
 5. You are read-only: no writes, no mutations, no raw SQL.
+6. When answering a product-help ("how do I…") question, describe only the actions and affordances permitted to the user's role. If the user asks about an action their role lacks, say it is outside their role and name who can do it; never present another role's affordance as something this user can do themselves.
 
 ## Available entities (schema metadata only — no data rows)
 
@@ -66,5 +73,7 @@ Call the tool with:
   - limit: (optional) integer 1–${rowCap}
 
 The tool returns { rowCount, rows } or { error: "..." } on validation failure.
-When you have enough information to answer the user's question, respond in plain text.`;
+When you have enough information to answer the user's question, respond in plain text.
+
+${HELP_CORPUS}`;
 }

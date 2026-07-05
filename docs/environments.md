@@ -232,6 +232,7 @@ includes the agent panel calls a missing endpoint. The owner-gated release step 
 ```bash
 supabase functions deploy agent-chat compose-view          # deploy the Deno functions
 supabase secrets set OPENROUTER_API_KEY=sk-or-…            # set the prod function secret (once)
+supabase secrets set AGENT_ALLOWED_ORIGIN=https://pmo-bfb.pages.dev  # AUDIT-M4: narrow CORS to the SPA origin (unset ⇒ '*' for local dev)
 ```
 **Migration note (this issue):** the prod Supabase Cloud project currently has NO
 `ANTHROPIC_API_KEY` secret set (never deployed — see the ⚠ gap this section already documents) —
@@ -286,10 +287,13 @@ the ready-made hook point for that future alerting layer.
 
 ## Prod migration state
 
-**Prod is CURRENT at migration 0041** (`fc312eb`, the procurement case-folder record model pushed
-2026-06-21 via owner-direct "push to prod"; migs 0035–0041). This is the **`v0.1.0` versioning
-baseline** (ADR-0042). `main` is now well ahead (migs 0042–0045 + the agent-native edge-function
-tier); a prod promote of that = `v0.2.0` and needs a **direct per-instance owner instruction**.
+**Prod is CURRENT at migration 0057** (pushed 2026-07-04 via owner-direct "push to prod"; migs
+0042–0057 = the never-shipped pre-agent 0042–0045 + the full agent tier 0046–0057, incl. the
+RED-3/RED-4 tenant-security fixes 0051/0052). The **`v0.2.0` agent-tier promote is LIVE**: CF Pages
+`production` = `8e4998e` → https://pmo-bfb.pages.dev with the AssistantPanel flag ON; `agent-chat` +
+`compose-view` edge functions deployed with `OPENROUTER_API_KEY` set; live end-to-end verified.
+> **Prior baseline:** migration 0041 (`fc312eb`, procurement case-folder records, migs 0035–0041) was
+> the `v0.1.0` baseline (ADR-0042), pushed 2026-06-21.
 > **History:** …0028–0033 pushed 2026-06-16 (procurement-files, calendar-milestone RPC, CRM,
 > vendor idx, top-projects spent, at-risk budget); **0035–0041 pushed 2026-06-21** (procurement
 > case-folder records). `docs/backlog.md` "Current state" is the live tracker; this section trails it.

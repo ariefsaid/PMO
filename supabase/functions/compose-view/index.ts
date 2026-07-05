@@ -29,8 +29,10 @@ import { logStructuredError } from '../_shared/errorLog.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  // AUDIT-M4 (2026-07-04 audit): same origin-narrowing seam as agent-chat/index.ts —
+  // set AGENT_ALLOWED_ORIGIN in prod; '*' fallback keeps local dev working.
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': Deno.env.get('AGENT_ALLOWED_ORIGIN') ?? '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
 
