@@ -9,6 +9,8 @@ const { profile } = vi.hoisted(() => ({
     listUsers: vi.fn(),
     updateUserRole: vi.fn(),
     assignUserManager: vi.fn(),
+    inviteUser: vi.fn(),
+    setUserStatus: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile } }));
@@ -33,6 +35,8 @@ beforeEach(() => {
   profile.listUsers.mockResolvedValue(seed);
   profile.updateUserRole.mockResolvedValue(undefined);
   profile.assignUserManager.mockResolvedValue(undefined);
+  profile.inviteUser.mockResolvedValue(undefined);
+  profile.setUserStatus.mockResolvedValue(undefined);
 });
 
 describe('useUsers', () => {
@@ -70,5 +74,27 @@ describe('useUserMutations', () => {
       await result.current.assignManager.mutateAsync({ id: 'u3', managerId: null });
     });
     expect(profile.assignUserManager).toHaveBeenCalledWith('u3', null);
+  });
+
+  it('AC-INV-004: invite invokes the repository and invalidates the users query', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useUserMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.invite.mutateAsync({ email: 'new@example.com', role: 'Engineer' });
+    });
+    expect(profile.inviteUser).toHaveBeenCalledWith({ email: 'new@example.com', role: 'Engineer' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
+  });
+
+  it('AC-OPR-003/AC-INV-004: setStatus invokes the repository and invalidates the users query', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useUserMutations(), { wrapper: wrap(client) });
+    await act(async () => {
+      await result.current.setStatus.mutateAsync({ id: 'u4', status: 'disabled', orgId: 'org-1' });
+    });
+    expect(profile.setUserStatus).toHaveBeenCalledWith({ id: 'u4', status: 'disabled', orgId: 'org-1' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
   });
 });

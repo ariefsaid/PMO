@@ -179,6 +179,7 @@ describe('AnalyticsProvider', () => {
         manager_id: null,
         skills: [],
         utilization: null,
+        status: 'active',
         created_at: '',
         updated_at: '',
       },
@@ -218,6 +219,7 @@ describe('AnalyticsProvider', () => {
       manager_id: null,
       skills: [] as string[],
       utilization: null,
+      status: 'active' as const,
       created_at: '',
       updated_at: '',
     };
@@ -314,6 +316,7 @@ describe('AnalyticsProvider', () => {
       manager_id: null,
       skills: [] as string[],
       utilization: null,
+      status: 'active' as const,
       created_at: '',
       updated_at: '',
     };
@@ -350,6 +353,7 @@ describe('AnalyticsProvider', () => {
           manager_id: null,
           skills: [],
           utilization: null,
+          status: 'active',
           created_at: '',
           updated_at: '',
         },

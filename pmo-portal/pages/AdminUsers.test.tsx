@@ -8,7 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations } = vi.hoisted(() => ({
+const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -18,13 +18,20 @@ const { listState, mutations } = vi.hoisted(() => ({
   mutations: {
     updateRole: { mutateAsync: vi.fn(), isPending: false },
     assignManager: { mutateAsync: vi.fn(), isPending: false },
+    invite: { mutateAsync: vi.fn(), isPending: false },
+    setStatus: { mutateAsync: vi.fn(), isPending: false },
   },
+  isOperatorState: { value: false },
 }));
 
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => listState,
   useUserMutations: () => mutations,
 }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
+}));
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
 
 // usePermission reads the REAL JWT role from the impersonation context.
 let realRole: Role = 'Admin';
@@ -35,10 +42,10 @@ vi.mock('@/src/auth/impersonation', () => ({
 import AdminUsers from './AdminUsers';
 
 const seed = [
-  { id: 'u1', full_name: 'Renata Halloway', email: 'renata@meridian.example', role: 'Admin', manager_id: null, org_id: 'org-1' },
-  { id: 'u2', full_name: 'Desmond Achebe', email: 'desmond@meridian.example', role: 'Project Manager', manager_id: 'u1', org_id: 'org-1' },
-  { id: 'u3', full_name: 'Priya Venkatesh', email: 'priya@meridian.example', role: 'Executive', manager_id: 'u1', org_id: 'org-1' },
-  { id: 'u4', full_name: 'Tobias Lindqvist', email: 'tobias@meridian.example', role: 'Finance', manager_id: 'u1', org_id: 'org-1' },
+  { id: 'u1', full_name: 'Renata Halloway', email: 'renata@meridian.example', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
+  { id: 'u2', full_name: 'Desmond Achebe', email: 'desmond@meridian.example', role: 'Project Manager', manager_id: 'u1', org_id: 'org-1', status: 'active' },
+  { id: 'u3', full_name: 'Priya Venkatesh', email: 'priya@meridian.example', role: 'Executive', manager_id: 'u1', org_id: 'org-1', status: 'active' },
+  { id: 'u4', full_name: 'Tobias Lindqvist', email: 'tobias@meridian.example', role: 'Finance', manager_id: 'u1', org_id: 'org-1', status: 'active' },
 ];
 
 const renderPage = (role: Role = 'Admin') => {
@@ -63,6 +70,7 @@ beforeEach(() => {
     m.isPending = false;
   });
   realRole = 'Admin';
+  isOperatorState.value = false;
 });
 
 describe('Admin Users — directory (AC-AU-001)', () => {
@@ -116,44 +124,34 @@ describe('Admin Users — directory (AC-AU-001)', () => {
 });
 
 describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
-  it('AC-AU-002: Admin sees row Edit role + Change manager (New user is a deferred affordance)', async () => {
+  it('AC-AU-002: Admin sees row Edit role + Change manager + Disable (FR-INV-006)', async () => {
     renderPage('Admin');
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Disable/i })).toBeInTheDocument();
   });
 
-  // T26 (AC-PJ-ADMIN-001): the permanently-disabled dead-end "New user" button is replaced
-  // by a LIVE "Copy invite instructions" affordance. The Admin copies an onboarding message
-  // and emails it to the new user manually. NO edge function, NO service-role key.
-  it('AC-PJ-ADMIN-001: the permanently-disabled "New user" button is GONE — replaced by a live "Copy invite" affordance', () => {
+  // FR-INV-006: the interim "Copy invite instructions" clipboard workaround (T26) is replaced
+  // by a real "Add user" affordance wired to the admin-invite-user edge fn (ops-admin-surface S4).
+  it('FR-INV-006: the old permanently-disabled "New user" dead-end is GONE — replaced by a live "Add user" affordance', () => {
     renderPage('Admin');
-    // The old disabled button with the "user invites arrive soon" label is gone.
     expect(screen.queryByRole('button', { name: /New user \(user invites arrive soon\)/i })).not.toBeInTheDocument();
-    // A live (not disabled) affordance is present.
-    const affordance = screen.getByRole('button', { name: /Copy invite/i });
+    expect(screen.queryByRole('button', { name: /Copy invite/i })).not.toBeInTheDocument();
+    const affordance = screen.getByRole('button', { name: /add user/i });
     expect(affordance).not.toBeDisabled();
   });
 
-  it('AC-PJ-ADMIN-001: Copy invite instructions is only shown to Admin (not Exec read-only)', () => {
+  it('FR-INV-006: "Add user" is only shown to Admin (not Exec read-only)', () => {
     renderPage('Executive');
-    expect(screen.queryByRole('button', { name: /Copy invite/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument();
   });
 
-  it('polish#7: there is NO disable/Status row affordance (deferred — needs a status column)', async () => {
-    renderPage('Admin');
-    await userEvent.click(
-      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
-    );
-    expect(screen.queryByRole('menuitem', { name: /disable/i })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: /status/i })).toBeNull();
-  });
-
-  it('AC-AU-002: Executive gets a read-only directory — no New user, no row actions, a read-only notice', () => {
+  it('AC-AU-002: Executive gets a read-only directory — no Add user, no row actions, a read-only notice', () => {
     renderPage('Executive');
-    expect(screen.queryByRole('button', { name: /New user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
     // Exec can still SEE the directory
     expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
@@ -242,15 +240,34 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   });
 });
 
-describe('Admin Users — invite affordance (AC-AU-005 / AC-PJ-ADMIN-001)', () => {
-  it('AC-AU-005 (updated T26): "Copy invite instructions" is a LIVE affordance — not a disabled dead-end', async () => {
+describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
+  it('AC-AU-005 (superseded by FR-INV-004): "Add user" opens the invite modal and submits via useUserMutations().invite', async () => {
     renderPage('Admin');
-    // T26: the permanently-disabled "New user" dead-end is replaced by a live button
-    // that copies an onboarding message to clipboard. No edge function needed.
-    const btn = screen.getByRole('button', { name: /Copy invite/i });
-    expect(btn).not.toBeDisabled();
-    // It does not call a role mutation (different concern entirely).
+    await userEvent.click(screen.getByRole('button', { name: /add user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'new.person@example.com');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/role/i), 'Finance');
+    await userEvent.click(within(dialog).getByRole('button', { name: /send invite/i }));
+    await waitFor(() =>
+      expect(mutations.invite.mutateAsync).toHaveBeenCalledWith({
+        email: 'new.person@example.com',
+        role: 'Finance',
+        pOrgId: null,
+      }),
+    );
+    // It does not call an unrelated mutation.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(mutations.assignManager.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('a duplicate-email rejection (DUPLICATE_EMAIL) surfaces a classified toast, not a generic one', async () => {
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('conflict', 'DUPLICATE_EMAIL'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /add user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'existing@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /send invite/i }));
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/already in your workspace/i);
   });
 });

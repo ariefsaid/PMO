@@ -45,7 +45,8 @@ import {
   getChildDocument,
 } from '@/src/lib/db/documents';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
-import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
+import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
+import { isOperator } from '@/src/lib/db/operators';
 import {
   listTasks,
   getTask,
@@ -164,6 +165,7 @@ import type {
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,
+  OperatorRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -219,6 +221,12 @@ const profile: ProfileRepository = {
   listUsers: () => wrap(() => listUsers()),
   updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
   assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
+  inviteUser: (input) => wrap(() => inviteUser(input)),
+  setUserStatus: (input) => wrap(() => setUserStatus(input)),
+};
+
+const operator: OperatorRepository = {
+  isOperator: () => wrap(() => isOperator()),
 };
 
 const task: TaskRepository = {
@@ -357,6 +365,7 @@ export const repositories: Repositories = {
   procurementFiles,
   contact,
   userView,
+  operator,
 };
 
 export type {
@@ -374,4 +383,5 @@ export type {
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,
+  OperatorRepository,
 } from './types';

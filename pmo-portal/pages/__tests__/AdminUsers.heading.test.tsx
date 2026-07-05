@@ -20,11 +20,14 @@ vi.mock('@/src/hooks/useUsers', () => ({
   useUserMutations: () => ({
     updateRole: { mutateAsync: vi.fn(), isPending: false },
     assignManager: { mutateAsync: vi.fn(), isPending: false },
+    invite: { mutateAsync: vi.fn(), isPending: false },
+    setStatus: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
 import AdminUsers from '../AdminUsers';
 

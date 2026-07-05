@@ -26,7 +26,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
-import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
@@ -127,6 +127,15 @@ export interface ProfileRepository {
   updateUserRole(id: string, role: UserRole): Promise<void>;
   /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
   assignUserManager(id: string, managerId: string | null): Promise<void>;
+  /** Invite a new user via the admin-invite-user edge fn (Admin-in-org OR Operator). */
+  inviteUser(input: InviteUserInput): Promise<void>;
+  /** Disable/re-enable a user via the admin_set_user_status RPC (Admin-in-org OR Operator). */
+  setUserStatus(input: SetUserStatusInput): Promise<void>;
+}
+
+export interface OperatorRepository {
+  /** Clarity projection ONLY (ADR-0049) — every Operator power is re-asserted server-side. */
+  isOperator(): Promise<boolean>;
 }
 
 export interface TaskRepository {
@@ -401,4 +410,5 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
   userView: UserViewRepository;
+  operator: OperatorRepository;
 }
