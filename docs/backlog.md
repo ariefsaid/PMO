@@ -78,6 +78,53 @@ checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoici
 spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
 then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 
+### ⚑ GTM BUILD — HANDOFF STATE (2026-07-05, for the resuming agent — READ THIS to continue)
+
+**What this is:** the GTM MVP program (the 8 rows above) is mid-build. Every issue has a signed
+**spec + plan** authored via the full 2-model review battery (author → cross-model REVISE review →
+fix round → Director commit; plan reviews caught real defects — a disabled-user write hole, two
+would-be-regressed security fixes, 7 ACs excluded from CI). SDD docs by issue below — **read the
+spec then the plan before touching any issue.** Process is unchanged: `CLAUDE.md` per-issue loop +
+`docs/director-playbook.md`; `docs/pi-delegation.md` for GLM dispatch; the **binding
+`pr-after-review-battery` rule — full battery (3-lens code review + rendered/Discover pass for UI +
+e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main` = autonomous ceiling).
+
+**Per-issue status (branch `feat/<name>` in `../PMO-worktrees/<name>`):**
+| # | Issue | Spec | Plan | Extra | State |
+|---|---|---|---|---|---|
+| 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `docs/plans/2026-07-04-auth-production-floor.md` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
+| 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `docs/plans/2026-07-04-deputy-help.md` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
+| 4 | DR runbooks | — | — | `docs/runbooks/{incident-response,restore-drill}.md` | ✅ **MERGED to `dev` (PR #230)** |
+| 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🔨 **BUILDING** — S1–S3 committed (DB foundation, org-pool credits, invite edge fn); **S4 (AdminUsers UI) · S5 (usage view) · S6 (`org_features`) remain.** Migrations renumbered **0060–0068**, pgTAP **0112+**. After build: **3-lens battery + rendered pass** (AdminUsers/usage/Features UI) → PR to `dev`. |
+| 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `docs/plans/2026-07-04-legal-pages.md` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
+| 3 | Observability | `docs/specs/observability-floor.spec.md` | `docs/plans/2026-07-04-observability-floor.md` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
+| 6 | Onboarding | `docs/specs/onboarding-tooling.spec.md` | `docs/plans/2026-07-04-onboarding-tooling.md` | `OD-ONB-1` in `docs/decisions.md` (on branch) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber at build time. |
+
+**Cross-issue contracts already wired (don't re-derive):** ops-admin's `admin-invite-user` edge fn
+passes `redirectTo:<origin>/update-password` + stamps `user_metadata.invite_pending=true` — the
+auth-floor invite-accept gate consumes these (in the ops-admin plan).
+
+**Two hard constraints for whoever resumes:**
+1. **Single local Supabase stack = serial lock.** `db reset` is global across worktrees, so only
+   **ONE stack-driving task at a time** (build with migrations/pgTAP/e2e, or a rendered pass). Order
+   the remaining stack work: finish ops-admin build → its rendered pass → legal rendered pass →
+   observability build → onboarding build. FE-only/unit/typecheck/lint/build + no-stack reviews may
+   run in parallel.
+2. **Migration/pgTAP numbers keep moving** as parallel sessions merge to `dev`. **Before building #3
+   or #6, `git merge origin/dev` into its branch and re-check `ls supabase/migrations | tail` +
+   `ls supabase/tests | tail`, then renumber that plan (+offset) to the next-free numbers.** (ops-admin
+   was already shifted +2 → 0060–0068 for exactly this reason.)
+
+**Executor at handoff:** GLM (pi) rate-limited until **~12:04** (2026-07-05); **Claude subagents
+available** (reset 03:20). Route per `docs/pi-delegation.md` (glm-5.2 default) when GLM returns;
+else Claude implementer/reviewer agents. The ops-admin completion is currently a **Claude sonnet**
+agent (owns the stack).
+
+**Owner-pending (not the build agent's to do):** wire `RESEND_API_KEY` + real DNS/sender + domain
+decision (deferred); Supabase Pro billing at first client; take `docs/legal/2026-07-04-msa-brief.md`
+to counsel; provide the OpenRouter fallback chain. **Deferred tech follow-up:** `auto_expose_new_tables`
+GRANT migration (see the "Deferred follow-up" note above).
+
 ## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
