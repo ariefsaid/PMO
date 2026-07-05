@@ -348,6 +348,7 @@ const ShellChrome: React.FC = () => {
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
+        assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
       >

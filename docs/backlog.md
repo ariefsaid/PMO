@@ -138,12 +138,15 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
   (has a **✅ Progress section** — read it first); ADRs **0049** (safe markdown, supersedes D-A2-8) + **0050**
   (layered agent prompt). Tier-2 open-Q defaults are recorded in the task board / tier-2 spec.
 - **DONE on `dev` (flag-gated, NOT promoted):** I1 safe markdown (`f970a14`), I2 layered prompt/skills
-  (`f970a14`), I3 context completeness (`87412ea`); Wave-1 review battery green (security: no C/H/M; one
-  code-quality Important fixed). Docs commit `4240295`/`3d6df7f`.
-- **NEXT (for the resuming agent), in order:** (D) drawer UX §2.5 [FE, deferrable]; (E) §2.3 surfacing e2e
-  [verification → **CI at promote**, not local]; then Tier-2 per the tier-2 spec — **I5** Cmd+K + conditional
+  (`f970a14`), I3 context completeness (`87412ea`), Track D drawer UX (`48b932c` + AppShell reflow follow-up),
+  and Track E surfacing specs (`AC-AXP-011/012/013/014/016` Playwright specs added and `--list` verified).
+  Latest continuation commit also updates this handoff + the plan progress section. Wave-1 review battery green
+  (security: no C/H/M; one code-quality Important fixed).
+- **NEXT (for the resuming agent), in order:** Tier-2 per the tier-2 spec — **I5** Cmd+K + conditional
   approvals (wiring/refinement, low-risk) → **I6** eval harness (also the model-quality gate) → **I4**
-  attachments (biggest new-build) → **I7** obs-memory (DEFERRED behind a token-cost trigger).
+  attachments (biggest new-build) → **I7** obs-memory (DEFERRED behind a token-cost trigger). Track E browser
+  execution remains a **CI integration/promote gate**, not a local run while the shared Supabase stack is owned
+  by another stream.
 - **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
   live deepseek-v4-flash** (weak tool-selector). Verify surfacing via a rendered/live check after the next
   prod deploy, or build the eval harness (I6) as the gate. Promotion dev→main→production is **owner-gated**.
