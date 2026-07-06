@@ -163,29 +163,35 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
     `.github/workflows/agent-evals.yml` (nightly + dispatch, never push/PR). AC-AT2-015 scorer half
     deterministic (12 tests, in `verify`); the real-loop half + exit-code gate light up once the owner
     provisions the deployed-target GH secrets (§OQ-1). Full `npm run verify` green (545 files / 4388 tests).
-  - **I4 attachments — PARTIAL BUILD on branch `codex/agent-attachments-track-a` (draft PR #239).** ADR-0053 +
-    plan `docs/plans/2026-07-05-agent-chat-attachments.md`. ⚠ **STOPPED MID-SLICE 2026-07-05 — split into
-    COMMITTED vs UNCOMMITTED; the resuming agent MUST re-verify the tree before continuing:**
-    - **COMMITTED (5 commits ahead of `origin/dev`, `8f9ef82`→`30d9094`):** MIME/size guard + image transcode
-      primitives (`8f9ef82`), Composer attach preflight (`d4ad525`), `attachmentIds`/`threadId` runtime carry
-      (`440a2b2`), handler attachment context boundary (`58dcd1d`).
-    - **⚠ UNCOMMITTED in the working tree (agent stopped here — 19 modified + 6 new files; safe on disk but NOT
-      committed/pushed, so NOT in PR #239):** the final wiring layer — `useAgentAttachments` hook +
-      `agentAttachments.ts` DB repo (new), **migration `0060_agent_attachments.sql` + pgTAP
-      `0112_agent_attachments.test.sql` (both untracked — the schema itself is uncommitted)**, `database.types.ts`
-      regen, threading into `AssistantPanel`/`useAssistantPanel`/runtime `port.ts`/`transport.ts`/
-      `pmoNativeRuntime.ts` + edge-fn `handler.ts`/`persistence.ts`/`index.ts`/`attachments.ts`. The earlier
-      "verified (Vitest/typecheck/`supabase test db` incl. `0112`)" note was the building agent's report on THIS
-      uncommitted tree — **a full `npm run verify` on the final tree was NOT run.**
-    - **RESUME = (1) commit the uncommitted wiring layer (WIP) so it's not lost; (2) full `npm run verify` +
-      `deno check`/boot-smoke; (3)** then finish: AC-AT2-001 browser/e2e (I4's own Track D, not started), real
-      Deno PDF extractor (DEC-8; graceful-skipped), image-vision `ModelMessage` contract (DEC-7; honest-skipped);
-      (4) 3-lens + design review battery; (5) PR→`dev`.
+  - **I4 attachments — BUILD COMPLETE + FULL BATTERY GREEN on branch `codex/agent-attachments-track-a` @ `b269f9a`
+    (pushed; draft PR #239 body still stale — REFRESH it before marking ready).** ADR-0053 + plan
+    `docs/plans/2026-07-05-agent-chat-attachments.md`. ✅ **2026-07-06 (Opus Director, pi-orchestrated):**
+    - **Committed & verified (11 commits ahead of `origin/dev`, `8f9ef82`→`b269f9a`):** Tracks A/B/C primitives +
+      wiring (`8f9ef82`→`58dcd1d`), WIP wiring snapshot (`930947f`), wiring-greened (`9cd612e`), AC-AT2-001
+      cross-stack e2e (`692afcf`), **3-lens review battery applied — all 10 findings fixed & verified (`b269f9a`)**.
+    - **Review battery (cross-family gpt-5.4): security SHIP, spec+code-quality BLOCK → 1 Critical + 6 Important +
+      3 Minor, ALL fixed** (glm-5.2 via TDD; Director-verified): sticky-thread conversation-mixing (Critical);
+      resolver ordering, composer error-classification collapse, a11y duplicate "Attach file", per-conversation
+      thread-scope on the resolver, honest "could not read / do not fabricate" degradation (FR-009), drag-drop
+      target (FR-001) (Important); ADR-0017 seam for `createAgentThread`, e2e id-shape tightening, pgTAP 0112
+      hardening (forged path/owner + bucket MIME/size) (Minor).
+    - **GATES GREEN (Director-run on the final tree):** `npm run verify` 555 files / **4430 tests** · `supabase
+      test db` 121 files / **973 tests** (hardened `0112` ok) · `playwright AC-AT2-001` **1 passed** (flag on) ·
+      typecheck 0. Migration `0060_agent_attachments.sql`, pgTAP `0112`.
+    - **DEC-7 (image vision) + DEC-8 (PDF text extraction) ship as HONEST graceful-skip** — an unreadable file now
+      injects an explicit refuse-don't-fabricate block. Both are **owner-confirmable follow-ups** (supply-chain
+      vetting of a Deno PDF extractor; whether prod `deepseek-v4-flash` supports vision) — NOT blockers; the
+      capability is spec-complete for text-readable PDFs + the degradation path.
+    - **REMAINING before PR→`dev` (the ONLY open I4 work): (1) rendered Discover pass** on the composer attach +
+      drag-drop + error/ready states, dark+light (the design/taste lens — not yet done; z.ai was rate-limited so
+      no `agent-browser` render); **(2) refresh PR #239 body → open/ready to `dev`.** Nothing else.
+    - **Untracked junk NOT in the commits (leave or clean separately):** `prod-*.png`, `docs/design-mockups/redesign/_refs/agent-native/*.png`, `.claude/launch.json`, the 3 `deno.lock`s.
   - **I7 obs-memory — DEFERRED** behind a token-cost trigger (unchanged).
-- **PROGRESS ≈ 90% (2026-07-05, sonnet-audited):** I1–I3 + Track D (incl. AppShell reflow) + Track E + I5 + I6
-  = DONE & committed; **I4 is the only remaining build** (partial — see split above); I7 deferred by design.
-- **NEXT (for the resuming agent), in order:** finish **I4** attachments (RESUME steps in the I4 bullet —
-  **commit the uncommitted layer FIRST**) → owner-provision the eval-harness GH secrets (I6 §OQ-1) → **I7**
+- **PROGRESS ≈ 97% (2026-07-06, Opus Director):** I1–I3 + Track D + Track E + I5 + I6 DONE & on `origin/dev`;
+  **I4 build + full test/review battery COMPLETE & pushed (`b269f9a`)** — only the rendered pass + PR→`dev` remain;
+  I7 deferred by design.
+- **NEXT (for the resuming agent), in order:** **rendered Discover pass on I4 composer attach/drag-drop/error
+  states → refresh + open PR #239 to `dev`** → owner-provision the eval-harness GH secrets (I6 §OQ-1) → **I7**
   obs-memory (deferred).
 - **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
   live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
