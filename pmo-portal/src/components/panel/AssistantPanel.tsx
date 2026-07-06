@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
+import { useAgentAttachments } from '@/src/hooks/useAgentAttachments';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import { rateAgentEvent } from '@/src/lib/db/agentEvents';
@@ -142,7 +143,9 @@ export const AssistantPanel: React.FC = () => {
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const [composerValue, setComposerValue] = React.useState('');
+  const [pendingAttachmentIds, setPendingAttachmentIds] = React.useState<string[]>([]);
   const titleId = useId();
+  const attachments = useAgentAttachments(null);
 
   useEffect(() => {
     if (!open) return;
@@ -365,9 +368,14 @@ export const AssistantPanel: React.FC = () => {
     // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
     if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
+    const attachmentIds = pendingAttachmentIds;
     setComposerValue('');
-    void send(text);
-  }, [composerValue, phase, send]);
+    setPendingAttachmentIds([]);
+    void send(text, {
+      attachmentIds,
+      threadId: attachments.threadId ?? undefined,
+    });
+  }, [attachments.threadId, composerValue, pendingAttachmentIds, phase, send]);
 
   const handleStop = useCallback(() => {
     void stop();
@@ -384,7 +392,20 @@ export const AssistantPanel: React.FC = () => {
   const handleNewConversation = useCallback(() => {
     newConversation();
     setComposerValue('');
-  }, [newConversation]);
+    setPendingAttachmentIds([]);
+    attachments.clearError();
+    // CRITICAL-1 (review): clear the sticky prepared thread so an attachment uploaded
+    // after "New conversation" binds to a fresh thread, not the previous conversation's.
+    attachments.resetThread();
+  }, [attachments, newConversation]);
+
+  const handleAttachFile = useCallback(
+    async (file: File) => {
+      const attachmentId = await attachments.uploadAttachment(file);
+      setPendingAttachmentIds((prev) => [...prev, attachmentId]);
+    },
+    [attachments],
+  );
 
   // ── Determine if we show the empty state ─────────────────────────────────
   const isEmpty = transcript.length === 0;
@@ -626,6 +647,20 @@ export const AssistantPanel: React.FC = () => {
           {phase === 'out-of-credits' && <OutOfCreditsCard />}
         </div>
 
+        {(attachments.error || pendingAttachmentIds.length > 0 || Object.keys(attachments.progress).length > 0) && (
+          <div
+            role={attachments.error ? 'alert' : 'status'}
+            aria-live={attachments.error ? 'assertive' : 'polite'}
+            className="border-t border-border px-3 py-2 text-xs text-muted-foreground"
+          >
+            {attachments.error
+              ? attachments.error.message
+              : Object.keys(attachments.progress).length > 0
+                ? 'Uploading attachment…'
+                : `${pendingAttachmentIds.length} attachment${pendingAttachmentIds.length === 1 ? '' : 's'} ready`}
+          </div>
+        )}
+
         {/* ── Composer ─────────────────────────────────────────────────── */}
         <Composer
           value={composerValue}
@@ -635,6 +670,8 @@ export const AssistantPanel: React.FC = () => {
           running={phase === 'running' || phase === 'needs-approval'}
           needsApproval={phase === 'needs-approval'}
           disabled={phase === 'out-of-credits'}
+          onAttachFile={handleAttachFile}
+          onAttachmentError={attachments.reportError}
         />
       </section>
     </>

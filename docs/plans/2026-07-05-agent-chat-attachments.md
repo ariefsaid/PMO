@@ -8,23 +8,47 @@
 - **Depends-on ADRs (unchanged, controlling on conflict):** ADR-0040/0043/0045 (agent loop + persistence + transcript contracts), ADR-0041 (`ModelClient` seam — vision path), ADR-0039 (untrusted boundary — extended to extracted text), ADR-0036 §2 / ADR-0016 (deputy invariant), ADR-0019 (server-enforced SoD/delete), ADR-0018 (soft-archive), ADR-0010 (test pyramid), ADR-0001 (org_id seam).
 - **Format model:** `docs/plans/2026-07-05-agent-experience-layer.md`.
 
-## ✅ Progress (updated 2026-07-05 — ADR + plan authored; build pending)
+## ✅ Progress (updated 2026-07-06 — Track A/B/C implementation in draft PR #239)
 
-**Status:** SDD layer complete (spec §1 already signed; ADR-0053 + this plan authored). The
-build is the next issue-loop. Owner-confirmable open questions are flagged in §7 (the
-PDF-extraction stack is the load-bearing one — spec §OQ-3).
+**Status:** I4 attachments are partially built on draft PR #239 (`codex/agent-attachments-track-a`).
+Tracks A/B/C are implemented enough for the app to preflight/upload attachment references, persist
+owner-private metadata, pass caller-scoped attachment ids to `agent-chat`, and inject bounded
+untrusted attachment context in the handler. Track D cross-stack/browser proof remains pending.
+
+Completed in this build slice:
+- **Track A — FE/upload seam:** MIME/size constants, image WebP transcode, optional Composer attach
+  affordance, `useAgentAttachments`, `agentAttachment` repository seam, upload progress/error state,
+  pre-created thread support for attach-before-send, and runtime `attachmentIds`/`threadId` transport.
+- **Track B — DB/RLS:** migration `0060_agent_attachments.sql` creates `agent_attachments`, bucket
+  `agent-attachments`, path-based Storage policies, owner/thread RLS, and soft cleanup. pgTAP
+  `0112_agent_attachments.test.sql` proves owner read, same-org/cross-org zero rows, insert spoof
+  denial, and anon invisibility.
+- **Track C — edge resolver:** `createAttachmentResolver()` selects rows under the caller JWT, downloads
+  only RLS-returned Storage objects, injects extracted text as bounded `role:'user'` content, treats
+  foreign ids as zero rows, and degrades unsupported image/PDF extraction paths honestly.
+
+Verification so far:
+- `npm run typecheck` — exit 0.
+- Focused Vitest: attachment DAL/hook/runtime/panel/handler suites green.
+- `supabase test db` — 121 files / 968 tests PASS, including `0112_agent_attachments.test.sql`.
+- `supabase db reset --yes` applied through `0060_agent_attachments.sql` and seeded, but the CLI exited
+  1 on local Storage container health during restart; subsequent `supabase status` showed the stack
+  running and `supabase test db` passed.
+
+Remaining before I4 can be called complete:
+- **Track D:** AC-AT2-001 Playwright/browser journey with a real uploaded fixture and proof that the
+  request body carries `attachmentIds`, not raw bytes.
+- **DEC-8:** choose and integrate a Deno-compatible PDF text extractor. Current default is graceful
+  `skipped`; the interface is present and unit-tested with an injected extractor.
+- **DEC-7:** upgrade/confirm the model message contract for image vision blocks. Current image path
+  degrades honestly because `ModelMessage.content` is still string-only.
+- Full `npm run verify`, PR ready/merge to `dev`, and promotion gates.
 
 > ## ⚠ Read before building
-> - **NO build has started.** Re-grep anchor line numbers before editing — the AC/FR mapping
->   does not change if a line moved, only the insertion point.
-> - **This plan touches the shared local Supabase stack** (a migration + pgTAP). Per
->   `docs/environments.md` local-stack hygiene, serialize the DB-driving work vs any parallel
->   stream (the MVP-readiness stream owns the stack as of 2026-07-05). The FE-only / unit /
->   typecheck / lint work can proceed in parallel.
-> - **Migration/pgTAP numbers keep moving** as parallel sessions merge to `dev`. Before
->   building, `git merge origin/dev` and re-check `ls supabase/migrations | tail` +
->   `ls supabase/tests | tail`, then renumber this plan's placeholders (NEXT_MIG / NEXT_PGTAP)
->   to the next-free numbers.
+> - Continue from PR #239, not from the stale placeholder filenames below.
+> - Re-grep anchor line numbers before editing; the AC/FR mapping does not change if a line moved.
+> - The local Supabase stack was reset for Track B on 2026-07-06. Coordinate before additional
+>   DB-driving work.
 
 ---
 
@@ -42,8 +66,8 @@ PDF-extraction stack is the load-bearing one — spec §OQ-3).
 | **DEC-8 — PDF extraction** | the Deno-compatible extractor | **Owner-confirmable (§OQ-3 / spec §OQ-3).** Default: a vetted Deno-compatible PDF text extractor (e.g. `pdf-lib`-style text pull, or a small Wasm extractor). If none is acceptable on supply-chain/perf grounds, PDFs degrade to `extracted_text_status='skipped'` + a graceful "can't read this PDF yet" answer (images still work). The extraction is a swappable strategy behind an `extractPdfText(bytes): Promise<{text, status}>` interface. |
 
 **File layout:**
-- `supabase/migrations/NEXT_MIG_agent_attachments.sql` (NEW) — table + indexes + RLS + bucket.
-- `supabase/tests/NEXT_PGTAP_agent_attachments.sql` (NEW) — owner-isolation + INSERT re-pin + anon-read=0 pgTAP (AC-AT2-004).
+- `supabase/migrations/0060_agent_attachments.sql` (NEW) — table + indexes + RLS + bucket.
+- `supabase/tests/0112_agent_attachments.test.sql` (NEW) — owner-isolation + INSERT re-pin + anon-read=0 pgTAP (AC-AT2-004).
 - `pmo-portal/src/lib/agent/transcodeImage.ts` (NEW) + `.test.ts` — the canvas transcode util (AC-AT2-003).
 - `pmo-portal/src/lib/repositories/agentAttachment.ts` (NEW) + `.test.ts` — FE repository (prepareUpload/confirmUpload/cleanup).
 - `pmo-portal/src/hooks/useAgentAttachments.ts` (NEW) + `.test.ts` — the upload/progress/error hook.

@@ -177,6 +177,20 @@ export interface HandlerDeps {
    */
   can?: CanFn;
   /**
+   * Tier-2 attachments: resolves caller-scoped attachment ids into model-readable
+   * context messages under the SAME deputy context. Optional until the DB/storage
+   * resolver lands; when absent, attachmentIds are ignored rather than elevated.
+   * The optional `threadId` scopes the resolve to the request's conversation so an
+   * attachment id replayed from a different thread resolves to zero rows.
+   */
+  attachmentResolver?: {
+    resolveAttachmentMessages(
+      attachmentIds: string[],
+      deputyCtx: DeputyContext,
+      threadId?: string,
+    ): Promise<ModelMessage[]>;
+  };
+  /**
    * A4: flag-gated compose_view tool registration (FR-CV-024, D7).
    * The AND-result of (agentAssistant && aiComposer) is computed by the caller
    * (SPA → index.ts) and passed here, because Deno can't read Vite FEATURES.
@@ -943,7 +957,7 @@ export async function* agentChatHandler(
   // row, created BEFORE any event is persisted (insertEvent's run_id FK requires the run to
   // exist first). Only on a genuinely new run — a resume/decision re-POST already carries
   // req.runId and its thread/run rows already exist.
-  if (persist && !req.runId) {
+  if (persist && (!req.runId || req.threadId)) {
     const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1);
     const title =
       lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
@@ -954,7 +968,12 @@ export async function* agentChatHandler(
     // never durably scoped to the thread). Review-remediation item 2 (Security
     // Lows): narrowScope also clamps label and drops any unknown keys, so a
     // forged/oversized entity object can't widen or bloat the persisted scope.
-    await createThreadAndRun(persist.deps, { runId, title, scope: narrowEntityScope(req.context?.entity) });
+    await createThreadAndRun(persist.deps, {
+      runId,
+      title,
+      scope: narrowEntityScope(req.context?.entity),
+      threadId: req.threadId,
+    });
   }
 
   yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId);
@@ -1094,6 +1113,10 @@ async function* agentChatHandlerInner(
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
+  const attachmentMessages =
+    req.attachmentIds && req.attachmentIds.length > 0 && deps.attachmentResolver
+      ? await deps.attachmentResolver.resolveAttachmentMessages(req.attachmentIds, deputyCtx, req.threadId)
+      : [];
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
     ...req.messages.map((m) => ({
@@ -1103,6 +1126,7 @@ async function* agentChatHandlerInner(
           ? m.content
           : null,
     })),
+    ...attachmentMessages,
   ];
 
   // ── Tool-use loop (AC-AR-001, AC-AR-004) — shared helper, see runToolLoop's

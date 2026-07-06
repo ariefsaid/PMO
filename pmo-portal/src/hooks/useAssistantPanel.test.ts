@@ -135,6 +135,29 @@ describe('useAssistantPanel', () => {
     expect(runtime.subscribeSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('AC-AT2-001 send() forwards attachment references and prepared thread id to createRun', async () => {
+    const completedEvent = makeEvent('status', {
+      payload: { status: 'completed' },
+    });
+    const runtime = makeFakeRuntime([completedEvent]);
+    const wrapper = makeWrapper(runtime);
+
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await act(async () => {
+      await result.current.send('what does this say?', {
+        attachmentIds: ['att-1'],
+        threadId: 'thread-1',
+      });
+    });
+
+    expect(runtime.createRunSpy).toHaveBeenCalledWith({
+      goal: 'what does this say?',
+      attachmentIds: ['att-1'],
+      threadId: 'thread-1',
+    });
+  });
+
   it('AC-AP-019 stop() calls control(runId, cancel) and returns to idle', async () => {
     // Set up a runtime where createRun resolves and the stream runs
     const runId = 'stop-run';

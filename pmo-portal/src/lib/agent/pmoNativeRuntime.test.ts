@@ -295,6 +295,51 @@ it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs
   expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
 });
 
+it('AC-AT2-001 adapter carries attachmentIds on createRun and consumes them for that POST', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    body: readableFrom(encodeSse(EVENTS[2])),
+  });
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'read this file', attachmentIds: ['att-1'], threadId: 'thread-1' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+
+  const call = fetchMock.mock.calls[0] as [string, RequestInit];
+  const body = JSON.parse(call[1].body as string) as AgentChatRequest;
+  expect(body.attachmentIds).toEqual(['att-1']);
+  expect(body.threadId).toBe('thread-1');
+});
+
+it('AC-AT2-001 adapter carries attachmentIds on followUp without changing text-only callers', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    body: readableFrom(encodeSse(EVENTS[2])),
+  });
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  const run = await runtime.createRun({ goal: 'hello' });
+  await runtime.followUp(run.id, 'now read this', { attachmentIds: ['att-2'], threadId: 'thread-2' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+
+  const call = fetchMock.mock.calls[0] as [string, RequestInit];
+  const body = JSON.parse(call[1].body as string) as AgentChatRequest;
+  expect(body.messages).toEqual([
+    { role: 'user', content: 'hello' },
+    { role: 'user', content: 'now read this' },
+  ]);
+  expect(body.attachmentIds).toEqual(['att-2']);
+  expect(body.threadId).toBe('thread-2');
+});
+
 it('AC-ATC-adapter: on question, re-POST messages include assistant tool_use block for ask_user', async () => {
   const questionEvent: AgentEvent = {
     id: 'q-evt-2',
