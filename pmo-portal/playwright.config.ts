@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import os from 'node:os';
+import path from 'node:path';
 
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({
@@ -6,7 +8,22 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // CI runs serially (one worker): every spec does a REAL password sign-in, and the
+  // local single-instance GoTrue/Postgres saturates under many concurrent bcrypt
+  // verifications on a CI runner — surfacing as intermittent "Invalid login
+  // credentials" (a valid password mis-rejected under load, NOT a rate-limit 429).
+  // Serial e2e is the repo's standing lesson; ~68 specs fit well inside the 30-min
+  // job. Locally, workers stays unset (parallel) for speed.
+  workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+  // Write ephemeral artifacts (traces, screenshots, error-context) OUTSIDE the worktree. Two reasons:
+  //   1. They are gitignored throwaway output — `/tmp` is the honest home for them.
+  //   2. Locally, `supabase functions serve` runs an in-process edge runtime with a project file
+  //      watcher. When Playwright wrote `test-results/…` into the worktree mid-run, that watcher
+  //      RESTARTED the edge runtime — which returned a transient 503 (cold-start) or, worse,
+  //      interrupted `admin-invite-user` mid-invite and surfaced a 502. Moving the artifacts out of
+  //      the watched tree stops the restart churn and stabilizes AC-INV-001 (and every other spec).
+  outputDir: path.join(os.tmpdir(), 'pmo-portal-test-results'),
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',

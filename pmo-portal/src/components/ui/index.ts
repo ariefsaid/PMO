@@ -6,6 +6,7 @@ export { ICON_PATHS, type IconName } from './iconPaths';
 export { chartTheme, type ChartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
+export { buttonClasses } from './buttonClasses';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, type CardProps } from './Card';
@@ -47,6 +48,7 @@ export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
+export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
 export { tabId, tabPanelId } from './tabIds';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';

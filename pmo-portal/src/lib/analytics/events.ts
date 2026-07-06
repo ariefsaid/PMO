@@ -40,10 +40,15 @@ export type AnalyticsEventName =
 // ---------------------------------------------------------------------------
 
 /** Known authentication methods. */
-export type AuthMethod = 'password' | 'magic_link';
+export type AuthMethod = 'password' | 'magic_link' | 'password_reset' | 'invite_accept';
 
 /** Known authentication failure reason codes. */
-export type AuthFailureReason = 'invalid_credentials' | 'auth_error';
+export type AuthFailureReason =
+  | 'invalid_credentials'
+  | 'auth_error'
+  | 'email_not_confirmed'
+  | 'weak_password'
+  | 'expired_token';
 
 /** Known demo persona labels (matches DEMO_PERSONAS in LoginPage). */
 export type DemoPersonaLabel = 'Executive' | 'Project Manager' | 'Finance' | 'Engineer' | 'Admin';

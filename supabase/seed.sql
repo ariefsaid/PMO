@@ -1986,3 +1986,31 @@ values
    '2025-06-20T11:00:00Z')
 on conflict (id) do nothing;
 
+
+
+-- §U  platform operator (ADR-0049; FR-OPR-003). Seeded Operator = arief.said@gmail.com.
+--     Mirror in docs/environments.md provisioning runbook (ADR-0047) for real projects.
+--     FK note: platform_operators.user_id → profiles(id); profiles seeded in §D above, so this
+--     end-of-file append is FK-safe.
+insert into auth.users
+  (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+   confirmation_token, recovery_token, email_change, email_change_token_new,
+   email_change_token_current, reauthentication_token)
+values
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000ff',
+   'authenticated','authenticated','arief.said@gmail.com',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', '')
+on conflict (id) do nothing;
+
+insert into profiles (id, org_id, full_name, email, role, title) values
+  ('00000000-0000-0000-0000-0000000000ff',
+   '00000000-0000-0000-0000-000000000001',
+   'Arief Said','arief.said@gmail.com','Admin','Platform Operator')
+on conflict (id) do nothing;
+
+insert into platform_operators (user_id, granted_by) values
+  ('00000000-0000-0000-0000-0000000000ff','00000000-0000-0000-0000-0000000000ff')
+on conflict (user_id) do nothing;

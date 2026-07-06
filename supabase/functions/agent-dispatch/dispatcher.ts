@@ -226,7 +226,7 @@ function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
  * Structurally compatible with handler.ts's interactive `RateGuard`.
  */
 export interface DispatchRateGuard {
-  check(userId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number }>;
+  check(orgId: string, mintedClient?: unknown): Promise<{ exceeded: boolean; retryAfterSeconds?: number; reason?: 'out_of_credits' | 'meter_error' }>;
 }
 
 /**
@@ -354,11 +354,23 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     }
 
     // Tracks which phase of the unit is in flight so the catch below can log a DISTINCT
-    // errorCode per failure phase (mint vs audit vs fire) without changing any control
-    // flow — set immediately before the call that can throw for that phase.
-    let stage: 'condition' | 'mint' | 'audit' | 'fire' = 'condition';
+    // errorCode per failure phase (claim vs mint vs audit vs fire) without changing any
+    // control flow — set immediately before the call that can throw for that phase.
+    let stage: 'claim' | 'condition' | 'mint' | 'audit' | 'fire' = 'claim';
 
     try {
+      // ── AUDIT-M2 (2026-07-04 audit): schedule fires are CLAIMED atomically before any other
+      // work. Overlapping ticks (a slow tick still running when the next pg_cron minute fires,
+      // or a retried invocation) both see cronMatches()==true for the same minute; the
+      // conditional last_fired_at UPDATE lets exactly ONE of them win. Claim-then-fire =
+      // at-most-once per matched minute (a fire that then throws waits for the next cron
+      // match rather than double-firing) — deliberately trading FR-AAN-015's
+      // "stamp only on actual fire" for double-fire immunity on schedules.
+      if (automation.kind === 'schedule') {
+        const claimed = await claimScheduleFire(deps.serviceClient, automation.id, now);
+        if (!claimed) continue;
+      }
+      stage = 'condition';
       // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
       // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
       // case) never mints at all — no audit run, no minted-client write, nothing to leak. This is the
@@ -409,7 +421,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
       // OWNER CLIENT (never service_role, NFR-AAN-SEC-002/SEC-006) — the preflight runs strictly
       // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
-      const credit = await rateGuard.check(automation.owner_id, minted.client);
+      const credit = await rateGuard.check(automation.org_id, minted.client);
       if (credit.exceeded) {
         await notifyOwner(
           minted.client,
@@ -428,8 +440,10 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         : {};
       // FR-AUC-002/004/018 parity with interactive: usage recording is unconditional, under the
       // SAME minted owner client as the fire — one agent_usage row per model-call resolution,
-      // scoped to the automation's owner (never service_role).
-      const usageExtras = { usage: { supabase: minted.client } };
+      // scoped to the automation's owner (never service_role). usageAction='automation'
+      // (ops-admin-surface S5, FR-USE-001) so a fired run's spend is distinguishable from an
+      // interactive turn in org_usage_summary()/operator_usage_summary().
+      const usageExtras = { usage: { supabase: minted.client }, usageAction: 'automation' as const };
 
       // Item 3 (reliability): timeout_s → an AbortController per automation. A coarse wall-clock
       // deadline on top of MAX_TOOL_ROUNDS — each automation gets its OWN controller so one fire's
@@ -453,8 +467,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         clearTimeout(timer);
       }
 
-      // FR-AAN-015: stamp last_fired_at only on an actual fire (service_role, quarantined metadata).
-      await stampLastFired(deps.serviceClient, automation.id, now.toISOString());
+      // FR-AAN-015: stamp last_fired_at on fire. Schedules were already stamped by their claim
+      // (AUDIT-M2 above) — only triggers stamp here (watermark is their dedupe authority).
+      if (automation.kind === 'trigger') {
+        await stampLastFired(deps.serviceClient, automation.id, now.toISOString());
+      }
     } catch (err) {
       // Item 2 (reliability): isolate this unit's failure — log code-only (NFR-AAN-SEC-007/008,
       // never the prompt/condition text), continue to the next unit. The watermark for an
@@ -471,7 +488,9 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
             ? 'AUTOMATION_AUDIT_FAILED'
             : stage === 'fire'
               ? 'AUTOMATION_FIRE_FAILED'
-              : 'AUTOMATION_CONDITION_FAILED';
+              : stage === 'claim'
+                ? 'AUTOMATION_CLAIM_FAILED'
+                : 'AUTOMATION_CONDITION_FAILED';
       logStructuredError({ fn: 'agent-dispatch', errorCode, contextId: automation.id });
     }
   }
@@ -517,4 +536,32 @@ async function stampLastFired(sb: ServiceClientLike, automationId: string, at: s
     };
   };
   await builder.update({ last_fired_at: at }).eq('id', automationId);
+}
+
+/**
+ * AUDIT-M2: atomically claim a schedule automation's fire for this cron minute. The conditional
+ * UPDATE (`last_fired_at is null OR last_fired_at < <minute floor>`) is the mutual exclusion —
+ * PostgREST executes it as a single UPDATE, so of N overlapping ticks exactly one gets the row
+ * back and fires; the rest see 0 rows and skip. Fail-closed: a claim-query ERROR returns false
+ * (no fire) — an unreachable metadata table must never produce an unclaimed fire.
+ * (service_role, agent_automations metadata — within quarantine.)
+ */
+export async function claimScheduleFire(sb: ServiceClientLike, automationId: string, now: Date): Promise<boolean> {
+  const minuteFloor = new Date(Math.floor(now.getTime() / 60_000) * 60_000).toISOString();
+  const builder = sb.from('agent_automations') as {
+    update: (patch: Record<string, unknown>) => {
+      eq: (col: string, val: string) => {
+        or: (filter: string) => {
+          select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await builder
+    .update({ last_fired_at: now.toISOString() })
+    .eq('id', automationId)
+    .or(`last_fired_at.is.null,last_fired_at.lt."${minuteFloor}"`)
+    .select('id');
+  if (error) return false;
+  return (data ?? []).length > 0;
 }

@@ -1,6 +1,6 @@
 /**
  * errorLog — the ONE structured-error-logging choke point for every edge function
- * (agent-chat, compose-view, agent-dispatch). Observability hardening (spike
+ * (agent-chat, compose-view, agent-dispatch, admin-invite-user). Observability hardening (spike
  * 2026-07-04, harden #1): every error/failure path must log a STRUCTURED line
  * carrying an error CODE + an optional context id, and NEVER a secret value or
  * prompt/PII text.
@@ -14,7 +14,7 @@
  * just a runtime discipline).
  */
 
-export type EdgeFunctionName = 'agent-chat' | 'compose-view' | 'agent-dispatch';
+export type EdgeFunctionName = 'agent-chat' | 'compose-view' | 'agent-dispatch' | 'admin-invite-user';
 
 export interface StructuredErrorContext {
   /** Which edge function emitted this log line. */

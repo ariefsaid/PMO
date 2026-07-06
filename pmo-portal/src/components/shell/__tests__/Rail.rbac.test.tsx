@@ -31,6 +31,23 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+// S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: {
+      incidents: false,
+      crm: true,
+      procurement: true,
+      timesheets: true,
+      import_export: true,
+      agent_assistant: false,
+      user_views: false,
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 let testRole: string = 'Project Manager';
 
 import { Rail } from '../Rail';

@@ -5,11 +5,14 @@ import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
+import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import LoginPage from '@/src/auth/LoginPage';
+import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
+import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
 import {
   AppShell,
   Rail,
@@ -127,24 +130,24 @@ export const AppRoutes: React.FC = () => (
       {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
       <Route
         path="/views"
-        element={<FeatureRoute feature="userViews" element={<MyViewsPage />} />}
+        element={<FeatureRoute feature="user_views" element={<MyViewsPage />} />}
       />
       {/* I4: Create builder — literal 'new' before /:viewId param */}
       <Route
         path="/views/new"
-        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="create" />} />}
+        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="create" />} />}
       />
       {/* I4: Edit builder — /:viewId/edit is more specific than /:viewId alone */}
       <Route
         path="/views/:viewId/edit"
-        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="edit" />} />}
+        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="edit" />} />}
       />
       {/* I3: User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
           FeatureRoute redirects to / when FEATURES.userViews is false.
           Declared after /views/new and /views/:viewId/edit to avoid wildcard collision. */}
       <Route
         path="/views/:viewId"
-        element={<FeatureRoute feature="userViews" element={<UserViewRenderer />} />}
+        element={<FeatureRoute feature="user_views" element={<UserViewRenderer />} />}
       />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
@@ -345,6 +348,7 @@ const ShellChrome: React.FC = () => {
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
+        assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
       >
@@ -358,6 +362,14 @@ const ShellChrome: React.FC = () => {
         loading={recordSearch.isPending}
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
+        onAskAi={
+          isFeatureEnabled('agentAssistant')
+            ? (query) => {
+                setPaletteOpen(false);
+                openPanel(query);
+              }
+            : undefined
+        }
       />
     </>
   );
@@ -404,8 +416,12 @@ const App: React.FC = () => (
           <AnalyticsProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/update-password" element={<UpdatePasswordPage />} />
               <Route element={<RequireAuth />}>
-                <Route path="/*" element={<Shell />} />
+                <Route element={<RequireInviteAccepted />}>
+                  <Route path="/*" element={<Shell />} />
+                </Route>
               </Route>
             </Routes>
           </AnalyticsProvider>

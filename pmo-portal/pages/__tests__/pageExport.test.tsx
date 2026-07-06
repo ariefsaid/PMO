@@ -185,13 +185,16 @@ let ProcurementPage: React.ComponentType;
 let SalesPipeline: React.ComponentType;
 let ProjectsPage: React.ComponentType;
 
+// 60s timeout: these five page graphs are the heaviest imports in the suite (recharts + the
+// export stack) and can exceed the default 10s hookTimeout on a loaded machine — pre-existing
+// flake (reproduced on pristine HEAD), surfaced by the 2026-07-04 audit-wave verify runs.
 beforeAll(async () => {
   ({ default: Companies } = await import('../Companies'));
   ({ default: Incidents } = await import('../Incidents'));
   ({ default: ProcurementPage } = await import('../Procurement'));
   ({ default: SalesPipeline } = await import('../SalesPipeline'));
   ({ default: ProjectsPage } = await import('../Projects'));
-});
+}, 60_000);
 
 describe('Page-level Export button integration (AC-EXP-008)', () => {
   it('AC-EXP-008: Companies page renders a live (enabled) Export button', () => {

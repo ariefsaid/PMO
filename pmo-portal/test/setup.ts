@@ -1,6 +1,49 @@
 import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
 
+// Some local Node/Vitest combinations expose jsdom but do not install a usable
+// localStorage global. Several app primitives persist per-device UI prefs, so
+// unit tests need a Storage-compatible shim when the environment lacks one.
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: () => store.clear(),
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+  };
+}
+
+if (typeof window !== 'undefined') {
+  let storage: Storage | undefined;
+  try {
+    storage = window.localStorage;
+  } catch {
+    storage = undefined;
+  }
+
+  if (!storage) {
+    storage = createMemoryStorage();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: storage,
+    });
+  }
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: storage,
+  });
+}
+
 // jsdom implements no layout/scroll APIs. Element.scrollIntoView is used by
 // keyboard-driven list components (e.g. Combobox active-option tracking); shim
 // it as a no-op so production code can call it and tests can spy on it.
