@@ -12,6 +12,7 @@ import { fireAutomation, type FireHandler } from './fire.ts';
 import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition.ts';
 import type { ModelClient } from '../_shared/modelClient.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { recordErrorEvent } from '../_shared/errorEvent.ts';
 
 /** The minimal automation-row shape the dispatcher's selection queries need. */
 export interface AutomationRow {
@@ -492,6 +493,16 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
                 ? 'AUTOMATION_CLAIM_FAILED'
                 : 'AUTOMATION_CONDITION_FAILED';
       logStructuredError({ fn: 'agent-dispatch', errorCode, contextId: automation.id });
+      // Cast: ServiceClientLike.from() returns `unknown` (a deliberately minimal metadata-only
+      // interface, §41-47 above) but the real injected client structurally satisfies
+      // ErrorEventSupabaseLike at runtime — the same documented cast pattern used elsewhere in
+      // this file for the real supabase-js client (see index.ts's `as never` casts).
+      void recordErrorEvent(deps.serviceClient as never, {
+        fn: 'agent-dispatch',
+        errorCode,
+        contextId: automation.id,
+        orgId: automation.org_id,
+      });
     }
   }
 

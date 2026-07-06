@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/src/auth/useAuth';
 import { getAnalyticsConfig, persistDemoContext } from './config';
 import { analyticsClient } from './client';
+import { safeTrack } from './safeTrack';
 import { routeAnalyticsForPath } from './route';
 
 const baseSuperProperties = (cfg: {
@@ -52,6 +53,35 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       analyticsClient.register(superProperties);
     }
   }, [currentUser?.id, currentUser?.org_id, role, superProperties]);
+
+  // Global exception capture (FR-OF-013) — registered once, routed through safeTrack so a
+  // PostHog fault can never propagate into the window's own event-dispatch machinery.
+  useEffect(() => {
+    if (!config.enabled) return;
+    const onError = (event: ErrorEvent) => {
+      safeTrack(() =>
+        analyticsClient.captureException({
+          name: event.error?.name ?? 'Error',
+          message: event.message,
+        }),
+      );
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      safeTrack(() =>
+        analyticsClient.captureException({
+          name: reason instanceof Error ? reason.name : 'UnhandledRejection',
+          message: reason instanceof Error ? reason.message : String(reason),
+        }),
+      );
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, [config.enabled]);
 
   // Route tracking on every navigation — fire only when pathname+search actually
   // change, NOT when role hydrates on the same route.

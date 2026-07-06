@@ -26,6 +26,7 @@ import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -79,6 +80,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
     logStructuredError({ fn: 'compose-view', errorCode: 'MISSING_OPENROUTER_API_KEY' });
+    // Cast: the real supabase-js client's .from().insert() returns a thenable
+    // PostgrestFilterBuilder, not a plain Promise — a structural superset of
+    // ErrorEventSupabaseLike at runtime, but not nominally assignable.
+    void recordErrorEvent(verifierClient as never, { fn: 'compose-view', errorCode: 'MISSING_OPENROUTER_API_KEY' });
     return new Response(
       JSON.stringify({ status: 502, error: 'UPSTREAM_ERROR', detail: 'model call failed' }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

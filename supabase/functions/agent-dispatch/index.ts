@@ -30,6 +30,7 @@ import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { recordErrorEvent } from '../_shared/errorEvent.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
@@ -79,6 +80,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? 'MISSING_SUPABASE_ANON_KEY'
         : 'MISSING_OPENROUTER_API_KEY';
     logStructuredError({ fn: 'agent-dispatch', errorCode });
+    if (supabaseUrl) {
+      // Cast: see the errorEvent.ts note in the catch block below — the real
+      // supabase-js client structurally satisfies ErrorEventSupabaseLike at
+      // runtime but is not nominally assignable (thenable PostgrestFilterBuilder
+      // vs a plain Promise).
+      void recordErrorEvent(createClient(supabaseUrl, serviceRoleKey) as never, { fn: 'agent-dispatch', errorCode });
+    }
     return new Response(JSON.stringify({ error: 'MISCONFIGURED' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -169,6 +177,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     // Scrub — never surface a mint/owner detail. Log the error name only (NFR-AAN-SEC-007/008).
     logStructuredError({
+      fn: 'agent-dispatch',
+      errorCode: 'DISPATCH_TICK_FAILED',
+      contextId: err instanceof Error ? err.name : 'unknown',
+    });
+    // Cast: the real supabase-js client's .from().insert() returns a thenable
+    // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
+    // ErrorEventSupabaseLike at runtime, not nominally assignable.
+    void recordErrorEvent(serviceClient as never, {
       fn: 'agent-dispatch',
       errorCode: 'DISPATCH_TICK_FAILED',
       contextId: err instanceof Error ? err.name : 'unknown',
