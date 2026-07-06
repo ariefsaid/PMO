@@ -24,7 +24,7 @@
  */
 
 // Relative import — no @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import { resolveAgentEntity } from './entityCatalog.ts';
 import type { AgentReadEntity } from './readEntities.ts';
 import { HELP_CORPUS } from './helpCorpus.ts';
 
@@ -57,7 +57,8 @@ export function buildAgentSystemPrompt(
   // Build entity descriptions (schema metadata only — no data rows, NFR-AR-SEC-005)
   const entityDescriptions = entities
     .map((entityKey) => {
-      const entry = ENTITY_WHITELIST[entityKey];
+      const entry = resolveAgentEntity(entityKey);
+      if (!entry) return null; // unseen key — skip (the runtime whitelist still rejects it)
       const columns = Array.from(entry.allowedColumns).join(', ');
       const requiredFilter = entry.requiredFilter
         ? `\n    - REQUIRED FILTER: you MUST include a filter on "${entry.requiredFilter}" (eq or in operator)`
@@ -66,6 +67,7 @@ export function buildAgentSystemPrompt(
     - table: ${entry.table}
     - allowed columns: ${columns}${requiredFilter}`;
     })
+    .filter((line): line is string => line !== null)
     .join('\n');
 
   // FR-DH-007: tell the model the asking user's role so it can ground help answers. Omit the sentence

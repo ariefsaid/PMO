@@ -18,13 +18,18 @@ it('injects only whitelisted entity/column names + the row cap + deputy framing,
   expect(p).toContain(String(AGENT_READ_ROW_CAP));
   // deputy framing — must say something about acting within what the user can see
   expect(p).toMatch(/cannot exceed|only within what (you|this user) can see/i);
-  // tasks is NOT in A1 entities (D5). The help corpus legitimately mentions tasks as a product
-  // concept (FR-DH-001), so assert tasks is not a query_entity entity by the entity-bullet format,
-  // not that the word "tasks" is absent from the whole prompt.
-  expect(p).not.toContain('  - tasks\n    - table:');
+  // Defect 2: the read scope is broadened beyond the original D5 projects/companies pair to the
+  // full RLS-readable business set. The reused entities (tasks, incidents, contacts) AND the
+  // agent-curated entities (procurements, milestones, timesheets) now appear as query_entity
+  // entities by the entity-bullet format.
+  expect(p).toContain('  - tasks\n    - table: tasks');
+  expect(p).toContain('  - incidents\n    - table: incident_reports');
+  expect(p).toContain('  - procurements\n    - table: procurements');
+  expect(p).toContain('  - milestones\n    - table: project_milestones');
+  expect(p).toContain('  - timesheets\n    - table: timesheets');
 });
 
-it('includes allowed column names from ENTITY_WHITELIST for each entity', () => {
+it('includes allowed column names for each entity (reused ENTITY_WHITELIST + agent-curated)', () => {
   const p = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
   // projects columns
   expect(p).toContain('name');
