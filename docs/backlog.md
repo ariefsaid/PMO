@@ -163,20 +163,30 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
     `.github/workflows/agent-evals.yml` (nightly + dispatch, never push/PR). AC-AT2-015 scorer half
     deterministic (12 tests, in `verify`); the real-loop half + exit-code gate light up once the owner
     provisions the deployed-target GH secrets (§OQ-1). Full `npm run verify` green (545 files / 4388 tests).
-  - **I4 attachments — PARTIAL BUILD in draft PR #239** (`codex/agent-attachments-track-a`): ADR-0053 +
-    plan `docs/plans/2026-07-05-agent-chat-attachments.md`. Implemented: MIME/size guard, image
-    transcode, Composer attach affordance, `useAgentAttachments`, `agentAttachment` repository seam,
-    attach-before-send thread prep, `attachmentIds`/`threadId` runtime transport, migration
-    `0060_agent_attachments.sql`, pgTAP `0112_agent_attachments.test.sql`, and caller-JWT edge resolver
-    with bounded untrusted context. Verified: focused Vitest green, `npm run typecheck` green,
-    `supabase test db` PASS (121 files / 968 tests, including `0112`). Still pending for full I4:
-    AC-AT2-001 browser/e2e, real Deno PDF extractor (DEC-8; currently graceful skipped), image vision
-    `ModelMessage` contract/model support (DEC-7; currently honest skipped), full `npm run verify`, PR
-    ready/merge to `dev`.
+  - **I4 attachments — PARTIAL BUILD on branch `codex/agent-attachments-track-a` (draft PR #239).** ADR-0053 +
+    plan `docs/plans/2026-07-05-agent-chat-attachments.md`. ⚠ **STOPPED MID-SLICE 2026-07-05 — split into
+    COMMITTED vs UNCOMMITTED; the resuming agent MUST re-verify the tree before continuing:**
+    - **COMMITTED (5 commits ahead of `origin/dev`, `8f9ef82`→`30d9094`):** MIME/size guard + image transcode
+      primitives (`8f9ef82`), Composer attach preflight (`d4ad525`), `attachmentIds`/`threadId` runtime carry
+      (`440a2b2`), handler attachment context boundary (`58dcd1d`).
+    - **⚠ UNCOMMITTED in the working tree (agent stopped here — 19 modified + 6 new files; safe on disk but NOT
+      committed/pushed, so NOT in PR #239):** the final wiring layer — `useAgentAttachments` hook +
+      `agentAttachments.ts` DB repo (new), **migration `0060_agent_attachments.sql` + pgTAP
+      `0112_agent_attachments.test.sql` (both untracked — the schema itself is uncommitted)**, `database.types.ts`
+      regen, threading into `AssistantPanel`/`useAssistantPanel`/runtime `port.ts`/`transport.ts`/
+      `pmoNativeRuntime.ts` + edge-fn `handler.ts`/`persistence.ts`/`index.ts`/`attachments.ts`. The earlier
+      "verified (Vitest/typecheck/`supabase test db` incl. `0112`)" note was the building agent's report on THIS
+      uncommitted tree — **a full `npm run verify` on the final tree was NOT run.**
+    - **RESUME = (1) commit the uncommitted wiring layer (WIP) so it's not lost; (2) full `npm run verify` +
+      `deno check`/boot-smoke; (3)** then finish: AC-AT2-001 browser/e2e (I4's own Track D, not started), real
+      Deno PDF extractor (DEC-8; graceful-skipped), image-vision `ModelMessage` contract (DEC-7; honest-skipped);
+      (4) 3-lens + design review battery; (5) PR→`dev`.
   - **I7 obs-memory — DEFERRED** behind a token-cost trigger (unchanged).
-- **NEXT (for the resuming agent), in order:** finish **I4** attachments on PR #239 (DEC-8 PDF extractor +
-  DEC-7 image/model contract decision if in scope → AC-AT2-001 browser/e2e → full verify → ready/merge to
-  `dev`) → owner-provision the eval-harness GH secrets (I6 §OQ-1) → **I7** obs-memory (deferred).
+- **PROGRESS ≈ 90% (2026-07-05, sonnet-audited):** I1–I3 + Track D (incl. AppShell reflow) + Track E + I5 + I6
+  = DONE & committed; **I4 is the only remaining build** (partial — see split above); I7 deferred by design.
+- **NEXT (for the resuming agent), in order:** finish **I4** attachments (RESUME steps in the I4 bullet —
+  **commit the uncommitted layer FIRST**) → owner-provision the eval-harness GH secrets (I6 §OQ-1) → **I7**
+  obs-memory (deferred).
 - **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
   live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
   secrets are provisioned. Promotion dev→main→production is **owner-gated**.
