@@ -1,0 +1,4 @@
+case_ref,type,title,project_code,terminal_status,total_value,reference_number,status,date,amount,vendor
+CASE-H001,PR,Inverter Replacement,PRJ-2024-011,Paid,42000,,Approved,2024-09-01,,
+CASE-H001,PO,,,Paid,42000,PO-VENDOR-5521,Ordered,2024-09-10,42000,
+CASE-H001,VI,,,Paid,42000,INV-5521-A,Paid,2024-10-01,42000,SunGear Supply Co
