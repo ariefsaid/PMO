@@ -32,6 +32,7 @@ import {
   notifyAction,
   createAutomationAction,
   askUserAction,
+  isDestructiveDeleteAction,
   AGENT_READ_ENTITIES,
   AGENT_READ_ROW_CAP,
 } from './actions.ts';
@@ -46,7 +47,7 @@ import {
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
 import { recordUsage } from '../_shared/usage.ts';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts';
-import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets/schema.ts';
 
@@ -178,6 +179,20 @@ export interface HandlerDeps {
    * Production: pass `can` from src/auth/policy.ts.
    */
   can?: CanFn;
+  /**
+   * Tier-2 attachments: resolves caller-scoped attachment ids into model-readable
+   * context messages under the SAME deputy context. Optional until the DB/storage
+   * resolver lands; when absent, attachmentIds are ignored rather than elevated.
+   * The optional `threadId` scopes the resolve to the request's conversation so an
+   * attachment id replayed from a different thread resolves to zero rows.
+   */
+  attachmentResolver?: {
+    resolveAttachmentMessages(
+      attachmentIds: string[],
+      deputyCtx: DeputyContext,
+      threadId?: string,
+    ): Promise<ModelMessage[]>;
+  };
   /**
    * A4: flag-gated compose_view tool registration (FR-CV-024, D7).
    * The AND-result of (agentAssistant && aiComposer) is computed by the caller
@@ -441,9 +456,25 @@ async function dispatchAction(
 async function dispatchActionForced(
   action: AgentAction,
   validatedInput: unknown,
-  ctx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
+  ctx: DeputyContext,
 ): Promise<unknown> {
   return action.run(validatedInput, ctx);
+}
+
+/**
+ * ADR-0051: decide whether a write needs the human A3 chip. UX-only; this gates
+ * only chip visibility, never RLS/RPC enforcement. Destructive deletes are
+ * always material. Without a predicate, the existing static confirm behavior is
+ * preserved.
+ */
+export function resolveNeedsApproval(
+  action: AgentAction,
+  input: unknown,
+  ctx: DeputyContext,
+): boolean {
+  if (isDestructiveDeleteAction(action.name)) return true;
+  if (action.needsApproval) return action.needsApproval(input, ctx);
+  return action.confirm ?? false;
 }
 
 // ── Action-to-can() mapping (FR-AW-010) ──────────────────────────────────────
@@ -764,18 +795,90 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           continue;
         }
 
-        // Valid args → emit needs-approval and END the stream (D-A3-1)
-        const pendingId = makeId();
-        const humanSummary = writeAction.summarize(validation.value);
+        const requiresApproval = resolveNeedsApproval(action, validation.value, deputyCtx);
+        if (requiresApproval) {
+          // Valid material args → emit needs-approval and END the stream (D-A3-1)
+          const pendingId = makeId();
+          const humanSummary = writeAction.summarize(validation.value);
 
-        yield statusEvent('needs-approval', {
-          pendingId,
-          actionName: action.name,
-          humanSummary,
-          structuredArgs: validation.value as object,
+          yield statusEvent('needs-approval', {
+            pendingId,
+            actionName: action.name,
+            humanSummary,
+            structuredArgs: validation.value as object,
+          });
+          // End the stream — the client re-POSTs with decision on the next turn
+          return;
+        }
+
+        // ADR-0051: low-materiality write → auto-approve, but still execute
+        // only through the forced confirmed-write path under the caller JWT.
+        const permCheck = getPermissionCheck(toolName);
+        if (permCheck) {
+          let reAuthRole: string | null = null;
+          try {
+            const { data, error } = await deps.supabase
+              .from('profiles')
+              .select('org_id, role')
+              .eq('id', deps.userId)
+              .single();
+
+            if (error || !data) {
+              yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
+              return;
+            }
+            reAuthRole = data.role ?? null;
+          } catch {
+            yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
+            return;
+          }
+
+          const canFn = deps.can ?? (() => false);
+          const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });
+          if (!allowed) {
+            yield statusEvent('errored', { error: 'PERMISSION_DENIED' });
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolId,
+              name: toolName,
+              content: JSON.stringify({ error: 'Permission denied. You do not have access to perform this action.' }),
+            });
+            return;
+          }
+        }
+
+        const journaled = persist ? findJournaledWrite(persist, toolName, hashToolArgs(validation.value)) : undefined;
+        let toolResult: unknown;
+        if (journaled) {
+          toolResult = journaled.payload;
+        } else {
+          try {
+            toolResult = await dispatchActionForced(action, validation.value, deputyCtx);
+          } catch {
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolId,
+              name: toolName,
+              content: JSON.stringify({ error: 'Write failed; database error.' }),
+            });
+            continue;
+          }
+        }
+
+        yield emit('tool', {
+          payload: {
+            name: toolName,
+            input: validation.value,
+            result: toolResult,
+          },
         });
-        // End the stream — the client re-POSTs with decision on the next turn
-        return;
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolId,
+          name: toolName,
+          content: JSON.stringify(toolResult),
+        });
+        continue;
       }
 
       // ── Read action (confirm:false) — dispatch immediately ─────────────────
@@ -864,7 +967,7 @@ export async function* agentChatHandler(
   // row, created BEFORE any event is persisted (insertEvent's run_id FK requires the run to
   // exist first). Only on a genuinely new run — a resume/decision re-POST already carries
   // req.runId and its thread/run rows already exist.
-  if (persist && !req.runId) {
+  if (persist && (!req.runId || req.threadId)) {
     const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1);
     const title =
       lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
@@ -875,7 +978,12 @@ export async function* agentChatHandler(
     // never durably scoped to the thread). Review-remediation item 2 (Security
     // Lows): narrowScope also clamps label and drops any unknown keys, so a
     // forged/oversized entity object can't widen or bloat the persisted scope.
-    await createThreadAndRun(persist.deps, { runId, title, scope: narrowEntityScope(req.context?.entity) });
+    await createThreadAndRun(persist.deps, {
+      runId,
+      title,
+      scope: narrowEntityScope(req.context?.entity),
+      threadId: req.threadId,
+    });
   }
 
   yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId);
@@ -1008,10 +1116,17 @@ async function* agentChatHandlerInner(
   }
 
   // ── Build system prompt (+ ADR-0045 §3 untrusted grounding hint) ──────────
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole) + buildGroundingHint(req.context?.entity);
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: deps.composeEnabled,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  }) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
+  const attachmentMessages =
+    req.attachmentIds && req.attachmentIds.length > 0 && deps.attachmentResolver
+      ? await deps.attachmentResolver.resolveAttachmentMessages(req.attachmentIds, deputyCtx, req.threadId)
+      : [];
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
     ...req.messages.map((m) => ({
@@ -1021,6 +1136,7 @@ async function* agentChatHandlerInner(
           ? m.content
           : null,
     })),
+    ...attachmentMessages,
   ];
 
   // ── Tool-use loop (AC-AR-001, AC-AR-004) — shared helper, see runToolLoop's
@@ -1081,7 +1197,12 @@ async function* handleAnswer(
 ): AsyncGenerator<AgentEvent> {
   const answer = req.answer!;
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
+  // Track C (DEC-5): the initial-run build site appends buildGroundingHint so the
+  // model keeps the live-context grounding across a follow-up turn — match it here.
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: deps.composeEnabled,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1147,7 +1268,15 @@ async function* handleDecision(
     yield emit('user', { text: lastUserMsg.content });
   }
 
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole);
+  // Track C (DEC-5): the initial-run build site appends buildGroundingHint so the
+  // model keeps the live-context grounding across a follow-up turn — match it here.
+  // composeEnabled:false — this decision-continuation pass runs runToolLoop with
+  // allowCompose:false (see :1403), so compose_view is NOT registered here; advertising
+  // it would be a dangling affordance (FR-AXP-010). (Wave-1 code-quality review fix.)
+  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+    composeEnabled: false,
+    automationsEnabled: AUTOMATIONS_ENABLED,
+  }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },

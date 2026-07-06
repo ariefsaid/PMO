@@ -6,7 +6,7 @@
  * status, recorded by the Director/Task 21).
  *
  * AC-MC-020: read-tool answer quality, deterministic fixture.
- * AC-MC-021: write-tool call correctness, approve-gated, deterministic fixture.
+ * AC-MC-021: write-tool call correctness, conditional-approval auto-approve fixture.
  */
 import { it, expect, vi } from 'vitest';
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
@@ -36,6 +36,39 @@ function mockOrgSupabase(rows: unknown[]): HandlerDeps['supabase'] {
         select: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue({ data: rows, error: null }),
           eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: rows, error: null }) }),
+        }),
+      };
+    }),
+  } as unknown as HandlerDeps['supabase'];
+}
+
+function mockWritableTaskSupabase(): HandlerDeps['supabase'] {
+  return {
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'tasks') {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+          select: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
         }),
       };
     }),
@@ -82,35 +115,46 @@ it('AC-MC-020 chat answer quality: read tool, deepseek-shaped fixture ends compl
   expect(completed).toBeDefined();
 });
 
-it('AC-MC-021 write-tool call correctness: update_task_status, approve-gated, deepseek-shaped fixture', async () => {
-  const create = vi.fn().mockResolvedValueOnce({
-    finish_reason: 'tool_calls',
-    message: {
-      role: 'assistant',
-      content: null,
-      tool_calls: [{
-        id: 'call_def456',
-        type: 'function',
-        function: { name: 'update_task_status', arguments: JSON.stringify({ taskId: 'task-1', status: 'Done' }) },
-      }],
-    },
-    usage: { prompt_tokens: 300, completion_tokens: 20, total_tokens: 320 },
-    model: 'deepseek/deepseek-v4-flash',
-  });
+it('AC-MC-021 write-tool call correctness: update_task_status auto-approves, deepseek-shaped fixture', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{
+          id: 'call_def456',
+          type: 'function',
+          function: { name: 'update_task_status', arguments: JSON.stringify({ taskId: 'task-1', status: 'Done' }) },
+        }],
+      },
+      usage: { prompt_tokens: 300, completion_tokens: 20, total_tokens: 320 },
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Task task-1 is now Done.' },
+      usage: { prompt_tokens: 360, completion_tokens: 10, total_tokens: 370 },
+      model: 'deepseek/deepseek-v4-flash',
+    });
 
   const req: AgentChatRequest = { messages: [{ role: 'user', content: 'mark task-1 as done' }] };
   const events = await collect(agentChatHandler(req, {
     modelClient: { create },
-    supabase: mockOrgSupabase([]),
+    supabase: mockWritableTaskSupabase(),
     userId: 'user-1',
     model: 'deepseek/deepseek-v4-flash',
     can: vi.fn().mockReturnValue(true),
   }));
 
   const needsApproval = events.find((e) => e.type === 'status' && (e.payload as { status?: string })?.status === 'needs-approval');
-  expect(needsApproval).toBeDefined();
-  expect((needsApproval!.payload as { actionName: string }).actionName).toBe('update_task_status');
-  expect((needsApproval!.payload as { humanSummary: string }).humanSummary).toContain('task-1');
-  expect((needsApproval!.payload as { structuredArgs: { status: string } }).structuredArgs.status).toBe('Done');
-  expect(events.find((e) => e.type === 'tool')).toBeUndefined(); // no write dispatched pre-approval
+  expect(needsApproval).toBeUndefined();
+  expect(events.find((e) => e.type === 'tool')).toMatchObject({
+    payload: {
+      name: 'update_task_status',
+      input: { taskId: 'task-1', status: 'Done' },
+      result: { taskId: 'task-1', status: 'Done' },
+    },
+  });
+  expect(events.find((e) => e.type === 'assistant' && e.text?.includes('Done'))).toBeDefined();
 });

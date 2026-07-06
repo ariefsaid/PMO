@@ -25,6 +25,16 @@ function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
 }
 
+export async function createAgentThread(title: string = 'New conversation'): Promise<AgentThreadRow> {
+  const { data, error } = await supabase
+    .from('agent_threads')
+    .insert({ title })
+    .select('*')
+    .single();
+  if (error) throwWrite(error);
+  return data as AgentThreadRow;
+}
+
 /** Row shape returned by the query before the embed is flattened. */
 type AgentThreadRowWithRunsEmbed = AgentThreadRow & { agent_runs?: Array<{ id: string }> | null };
 

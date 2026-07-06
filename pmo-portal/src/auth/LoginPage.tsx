@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
-import { cn } from '../components/ui/cn';
-import { Icon } from '../components/ui/icons';
+import { SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
 import {
   trackDemoPersonaSelected,
   trackAuthLoginSucceeded,
@@ -15,71 +14,8 @@ import {
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
 // No gray-* / dark: / primary-NNN / raw-hex / shadow / rounded-xl utilities.
 // "Calm control surface": card on tinted ground, one blue, borders-not-shadows.
-// -----------------------------------------------------------------------
-
-/** Tinted success notice (magic-link sent) */
-const SuccessNotice: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div
-    role="status"
-    aria-live="polite"
-    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-[13px]"
-  >
-    <Icon name="check" className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
-    <span style={{ color: 'hsl(142 60% 30%)' }}>{children}</span>
-  </div>
-);
-
-/** Tinted error banner (credential/network error) */
-const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
-  <div
-    role="alert"
-    aria-live="assertive"
-    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
-  >
-    <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
-    <span style={{ color: 'hsl(0 72% 42%)' }}>{message}</span>
-  </div>
-);
-
-/** Single labeled input block — label above, error below. */
-const InputBlock: React.FC<{
-  id: string;
-  label: string;
-  type: React.HTMLInputTypeAttribute;
-  autoComplete?: string;
-  required?: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  errorId?: string;
-  disabled?: boolean;
-}> = ({ id, label, type, autoComplete, required, value, onChange, errorId, disabled }) => (
-  <div className="flex flex-col gap-1.5">
-    <label
-      htmlFor={id}
-      className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
-    >
-      {label}
-    </label>
-    <input
-      id={id}
-      type={type}
-      autoComplete={autoComplete}
-      required={required}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      aria-describedby={errorId}
-      className={cn(
-        'h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] text-foreground',
-        'placeholder:text-muted-foreground',
-        'transition-[border-color,box-shadow] duration-100',
-        'disabled:cursor-not-allowed disabled:opacity-45',
-        // Focus ring delegated to global *:focus-visible (--ring, DESIGN.md §a11y)
-      )}
-    />
-  </div>
-);
-
+// Auth-form primitives (SuccessNotice / ErrorBanner / AuthInput) live in
+// ./authFormPrimitives.tsx and are shared with /reset-password + /update-password.
 // -----------------------------------------------------------------------
 
 // Demo credentials surfaced on the login page in local dev OR a demo build
@@ -99,11 +35,16 @@ const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' =
   return message.toLowerCase().includes('invalid') ? 'invalid_credentials' : 'auth_error';
 };
 
+// FR-AUTHF-043: classification is driven SOLELY by the GoTrue error string, not a build flag —
+// the confirm-required state is unreachable in dev by construction (enable_confirmations=false).
+const isEmailNotConfirmed = (message: string) => /email not confirmed/i.test(message);
+const isRateLimited = (message: string) => /for security purposes|rate limit|once every/i.test(message);
+
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
     import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-  const { signInWithPassword, signInWithMagicLink } = useAuth();
+  const { signInWithPassword, signInWithMagicLink, resendEmailConfirmation } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -111,6 +52,11 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // FR-AUTHF-040..043: confirm-required state + Resend action.
+  const [confirmRequired, setConfirmRequired] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,12 +66,34 @@ const LoginPage: React.FC = () => {
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
     if (error) {
+      if (isEmailNotConfirmed(error)) {
+        trackAuthLoginFailed('password', 'email_not_confirmed'); // FR-AUTHF-061
+        setConfirmRequired(true);
+        return;
+      }
       trackAuthLoginFailed('password', authReasonCode(error));
       setError(error);
       return;
     }
     trackAuthLoginSucceeded('password');
     navigate('/', { replace: true });
+  };
+
+  const onResend = async () => {
+    setError(null);
+    setNotice(null);
+    setResendBusy(true);
+    const { error } = await resendEmailConfirmation(email); // FR-AUTHF-041 — origin redirect
+    setResendBusy(false);
+    if (error) {
+      if (isRateLimited(error)) {
+        setRateLimited(true); // FR-AUTHF-042 — disable until retry
+        return;
+      }
+      setError(error);
+      return;
+    }
+    setNotice('Confirmation sent. Check your email.'); // FR-AUTHF-042 — role=status (SuccessNotice)
   };
 
   const onMagicLink = async () => {
@@ -163,11 +131,36 @@ const LoginPage: React.FC = () => {
             {/* Error banner (network / credential failure) */}
             {error && <ErrorBanner message={error} />}
 
-            {/* Magic-link sent confirmation */}
+            {/* Magic-link sent / resend-confirmation-sent confirmation */}
             {notice && <SuccessNotice>{notice}</SuccessNotice>}
 
+            {/* FR-AUTHF-040..043: confirm-required state replaces the form when GoTrue rejects
+                sign-in with "email not confirmed" (prod only — unreachable in dev by construction). */}
+            {confirmRequired ? (
+              <div className="space-y-4">
+                <p className="text-[13.5px] text-foreground">
+                  Confirm your email to finish signing in. We can resend the confirmation link.
+                </p>
+                {rateLimited && (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Too many requests — please try again in a minute.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={resendBusy}
+                  disabled={resendBusy || rateLimited}
+                  className="w-full"
+                  onClick={onResend}
+                >
+                  Resend confirmation
+                </Button>
+              </div>
+            ) : (
+              <>
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
-              <InputBlock
+              <AuthInput
                 id="email"
                 label="Email"
                 type="email"
@@ -178,7 +171,7 @@ const LoginPage: React.FC = () => {
                 disabled={busy}
               />
 
-              <InputBlock
+              <AuthInput
                 id="password"
                 label="Password"
                 type="password"
@@ -187,6 +180,15 @@ const LoginPage: React.FC = () => {
                 onChange={setPassword}
                 disabled={busy}
               />
+
+              <div className="flex justify-end">
+                <Link
+                  to="/reset-password"
+                  className="text-[12px] font-semibold text-primary-text hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               {/* PRIMARY action — bg-primary, full-width */}
               <Button
@@ -250,6 +252,8 @@ const LoginPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+            )}
+              </>
             )}
           </CardPad>
         </Card>

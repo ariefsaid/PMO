@@ -22,6 +22,8 @@ interface AgentRuntimeProviderProps {
 export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ children }) => {
   const { session } = useAuth();
   const [open, setOpen] = useState(false);
+  const pendingPrefillRef = useRef<string | null>(null);
+  const [prefillVersion, setPrefillVersion] = useState(0);
 
   // Keep a mutable ref to the current session so getJwt always reads the latest
   // token even after Supabase silently refreshes it (~55 min interval).
@@ -43,18 +45,28 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
     // sessionRef is stable (useRef returns the same object); no deps needed.
   }, []);
 
-  const openPanel = useCallback(() => {
+  const openPanel = useCallback((prefill?: string) => {
+    const nextPrefill = typeof prefill === 'string' ? prefill.trim() : '';
+    if (nextPrefill) {
+      pendingPrefillRef.current = nextPrefill;
+      setPrefillVersion((v) => v + 1);
+    }
     setOpen(true);
     // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
     // entry point exists in this codebase yet — every real call site opens unscoped.
     safeTrack(() => trackAgentPanelOpened(false));
   }, []);
+  const consumePrefill = useCallback(() => {
+    const prefill = pendingPrefillRef.current;
+    pendingPrefillRef.current = null;
+    return prefill;
+  }, []);
   const closePanel = useCallback(() => setOpen(false), []);
   const togglePanel = useCallback(() => setOpen((o) => !o), []);
 
   const ctxValue = useMemo(
-    () => ({ runtime, open, openPanel, closePanel, togglePanel }),
-    [runtime, open, openPanel, closePanel, togglePanel],
+    () => ({ runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill }),
+    [runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill],
   );
 
   return (

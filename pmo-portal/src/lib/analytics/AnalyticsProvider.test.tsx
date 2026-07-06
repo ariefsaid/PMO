@@ -58,6 +58,9 @@ function makeAuthCtx(overrides: Partial<AuthContextValue> = {}): AuthContextValu
     profileError: null,
     signInWithPassword: vi.fn(),
     signInWithMagicLink: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    updatePassword: vi.fn(),
+    resendEmailConfirmation: vi.fn(),
     signOut: vi.fn(),
     ...overrides,
   };

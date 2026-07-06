@@ -5,11 +5,14 @@ import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
+import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import LoginPage from '@/src/auth/LoginPage';
+import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
+import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
 import {
   AppShell,
   Rail,
@@ -345,6 +348,7 @@ const ShellChrome: React.FC = () => {
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
+        assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
       >
@@ -358,6 +362,14 @@ const ShellChrome: React.FC = () => {
         loading={recordSearch.isPending}
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
+        onAskAi={
+          isFeatureEnabled('agentAssistant')
+            ? (query) => {
+                setPaletteOpen(false);
+                openPanel(query);
+              }
+            : undefined
+        }
       />
     </>
   );
@@ -404,8 +416,12 @@ const App: React.FC = () => (
           <AnalyticsProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/update-password" element={<UpdatePasswordPage />} />
               <Route element={<RequireAuth />}>
-                <Route path="/*" element={<Shell />} />
+                <Route element={<RequireInviteAccepted />}>
+                  <Route path="/*" element={<Shell />} />
+                </Route>
               </Route>
             </Routes>
           </AnalyticsProvider>

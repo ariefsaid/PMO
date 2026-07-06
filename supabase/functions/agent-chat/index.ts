@@ -25,6 +25,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
+import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
@@ -218,6 +219,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
         // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
         usage: { supabase: callerClient as never },
+        attachmentResolver: createAttachmentResolver(),
         persistence: persistenceEnabled
           ? {
               supabase: callerClient as never,

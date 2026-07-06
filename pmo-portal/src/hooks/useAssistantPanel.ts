@@ -79,10 +79,12 @@ export interface UseAssistantPanel {
    * with the chosen option/free-text indicated (mirrors chipStateMap).
    */
   answeredMap: AnsweredMap;
-  openPanel(): void;
+  openPanel(prefill?: string): void;
   closePanel(): void;
   togglePanel(): void;
-  send(text: string): Promise<void>;
+  prefillVersion: number;
+  consumePrefill(): string | null;
+  send(text: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void>;
   stop(): Promise<void>;
   retry(): Promise<void>;
   newConversation(): void;
@@ -176,7 +178,15 @@ function mergeAssistantEvent(
 
 export function useAssistantPanel(): UseAssistantPanel {
   const ctx = useAgentRuntimeContext();
-  const { runtime, open, openPanel, closePanel, togglePanel } = ctx;
+  const {
+    runtime,
+    open,
+    openPanel,
+    closePanel,
+    togglePanel,
+    prefillVersion = 0,
+    consumePrefill = () => null,
+  } = ctx;
   // ADR-0045 §3 (FR-ATC-015/020): live context (route/entity/selection) — a
   // no-op read outside AgentContextProvider (agentContext.getContext() → {}).
   const { getContext } = useAgentContext();
@@ -337,8 +347,23 @@ export function useAssistantPanel(): UseAssistantPanel {
             }
           }
 
-          // All other event types (tool, system, artifact, user echo) append directly.
-          setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
+          // All other event types (tool, system, artifact, user echo) append directly —
+          // EXCEPT a 'user' echo that duplicates send()'s optimistic append. send() appends
+          // the user's message locally immediately; the stream then re-delivers the SAME
+          // message as a server-echoed type:'user' event, which would otherwise render a
+          // second, identical bubble (mirrors mergeAssistantEvent's de-dupe spirit). Skip the
+          // echo only when the most recent existing user entry already has identical text
+          // (that entry IS the optimistic add this echo mirrors); otherwise append it,
+          // preserving any user event not already shown — a repeated identical message is
+          // still exactly one optimistic entry ahead of its own echo, so this rule never
+          // suppresses a genuinely new turn.
+          setTranscript((prev) => {
+            if (ev.type === 'user') {
+              const lastUser = [...prev].reverse().find((e) => e.event.type === 'user');
+              if (lastUser && lastUser.event.text === ev.text) return prev;
+            }
+            return [...prev, { key: makeKey(), event: ev }];
+          });
         }
       } catch {
         // Stream aborted (e.g. via stop()) — handled by stop().
@@ -349,7 +374,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
   // ── send ────────────────────────────────────────────────────────────────────
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, input?: { attachmentIds?: string[]; threadId?: string }) => {
       if (!runtime) return;
 
       // Append the user's message locally immediately.
@@ -369,9 +394,14 @@ export function useAssistantPanel(): UseAssistantPanel {
         setLastGoal(text);
         // FR-ATC-015/020: thread live context only when the flag is on — flag-off,
         // getContext() is never called and no context is sent.
-        const run = await runtime.createRun(
-          isFeatureEnabled('agentAssistant') ? { goal: text, context: getContext() } : { goal: text },
-        );
+        // Only attach optional keys when present, so the no-attachment path (the
+        // common case) keeps its exact { goal } / { goal, context } shape.
+        const run = await runtime.createRun({
+          goal: text,
+          ...(isFeatureEnabled('agentAssistant') ? { context: getContext() } : {}),
+          ...(input?.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}),
+          ...(input?.threadId ? { threadId: input.threadId } : {}),
+        });
         activeRunId = run.id;
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
@@ -386,7 +416,14 @@ export function useAssistantPanel(): UseAssistantPanel {
       } else {
         // Follow-up: append to the existing run.
         activeRunId = runIdRef.current;
-        await runtime.followUp(activeRunId, text);
+        const turnInput = input?.attachmentIds?.length || input?.threadId
+          ? { attachmentIds: input?.attachmentIds, threadId: input?.threadId }
+          : undefined;
+        if (turnInput) {
+          await runtime.followUp(activeRunId, text, turnInput);
+        } else {
+          await runtime.followUp(activeRunId, text);
+        }
       }
 
       setPhase('running');
@@ -634,6 +671,8 @@ export function useAssistantPanel(): UseAssistantPanel {
     openPanel,
     closePanel,
     togglePanel,
+    prefillVersion,
+    consumePrefill,
     send,
     stop,
     retry,

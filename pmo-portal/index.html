@@ -5,6 +5,9 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Security L1: caps the Referer header on outbound links (e.g. from the auth pages) so a
+         recovery/invite token never leaks in the URL's query/hash to a third-party origin. -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <!-- Inter variable webfont (ADR-0037): the single UI family, opsz 14..32 + 400/500/600.
          display=swap so system-ui renders instantly and swaps without a FOIT. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

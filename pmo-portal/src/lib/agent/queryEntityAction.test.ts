@@ -12,6 +12,7 @@ import {
   runQueryEntity,
   AGENT_READ_ROW_CAP,
 } from '../../../../supabase/functions/agent-chat/actions';
+import { AGENT_READ_ENTITIES } from '../../../../supabase/functions/agent-chat/readEntities';
 import type { DeputyContext } from './runtime/port';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
@@ -262,4 +263,89 @@ it('in-filter with multiple values calls .in() directly on the builder — not .
   // .eq() must NOT have been called at all (would AND-constrain)
   expect(eqSpy).not.toHaveBeenCalled();
   expect(res.rowCount).toBe(2);
+});
+
+// ── Defect 2: broadened read scope — every RLS-readable business entity is exposed, each mapped
+//    to its real table, and curated entities enforce a conservative column allowlist. RLS is still
+//    the enforcement authority (the caller-JWT client caps every row); the agent adds no privilege.
+
+it('Defect-2 AGENT_READ_ENTITIES exposes the full business-entity set (not just projects/companies)', () => {
+  // The pre-defect scope was exactly ['projects','companies']. The broadened catalogue must include
+  // the core business domains the user asks about: CRM (companies/contacts), delivery (tasks),
+  // spend (procurements), safety (incidents), planning (milestones), time (timesheets).
+  const keys = [...AGENT_READ_ENTITIES];
+  for (const required of ['projects', 'companies', 'tasks', 'incidents', 'contacts', 'procurements', 'milestones', 'timesheets']) {
+    expect(keys, `AGENT_READ_ENTITIES must expose ${required}`).toContain(required);
+  }
+});
+
+it('Defect-2 a curated entity maps to its REAL table — procurements → procurements table', async () => {
+  const fromSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+  });
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+
+  await runQueryEntity({ entity: 'procurements', columns: ['id'] }, ctx);
+  expect(fromSpy).toHaveBeenCalledWith('procurements');
+});
+
+it('Defect-2 milestones maps to its real table project_milestones (friendly key ≠ table name)', async () => {
+  const fromSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+  });
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+
+  await runQueryEntity({ entity: 'milestones', columns: ['id'] }, ctx);
+  expect(fromSpy).toHaveBeenCalledWith('project_milestones');
+});
+
+it('Defect-2 timesheets is accepted and maps to the timesheets table', async () => {
+  const fromSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+  });
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+
+  const res = await runQueryEntity({ entity: 'timesheets', columns: ['id', 'status'] }, ctx);
+  expect((res as { error?: string }).error).toBeUndefined();
+  expect(fromSpy).toHaveBeenCalledWith('timesheets');
+});
+
+it('Defect-2 curated entities keep a conservative column allowlist — procurements rejects org_id (tenancy seam) and approval_notes', async () => {
+  // org_id must never be selectable (would surface the tenancy column); approval_notes is sensitive
+  // rationale. Both must be refused at the column-whitelist gate with NO DB read.
+  for (const blocked of ['org_id', 'approval_notes', 'rejection_notes', 'approved_by_id']) {
+    const fromSpy = vi.fn();
+    const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+    const res = await runQueryEntity({ entity: 'procurements', columns: [blocked] }, ctx) as { error: string };
+    expect(res.error, `procurements.${blocked} must be blocked`).toMatch(/unknown column/i);
+    expect(fromSpy, `procurements.${blocked} must not reach the DB`).not.toHaveBeenCalled();
+  }
+});
+
+it('Defect-2 tasks (reused from ENTITY_WHITELIST) now exposed and requires its project_id filter', async () => {
+  // tasks is in the broadened set; its requiredFilter (project_id) still enforces — a bare tasks
+  // query is refused (no cross-project task dump), and supplying project_id is accepted.
+  const fromSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [{ id: 't1' }], error: null }) }),
+    }),
+  });
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+
+  const refused = await runQueryEntity({ entity: 'tasks' }, ctx) as { error?: string };
+  expect(refused.error).toMatch(/requires a filter on column project_id/i);
+
+  const ok = await runQueryEntity({ entity: 'tasks', filter: { column: 'project_id', op: 'eq', value: 'p1' } }, ctx) as { rowCount?: number; error?: string };
+  expect(ok.error).toBeUndefined();
+  expect(ok.rowCount).toBe(1);
+  expect(fromSpy).toHaveBeenCalledWith('tasks');
+});
+
+it('Defect-2 an entity still NOT in the catalogue is refused (no privilege widening beyond the allowlist)', async () => {
+  // e.g. budget_line_items is deliberately deferred (granular; budgets are readable via projects).
+  const fromSpy = vi.fn();
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+  const res = await runQueryEntity({ entity: 'budget_line_items' }, ctx) as { error: string };
+  expect(res.error).toMatch(/unknown entity/i);
+  expect(fromSpy).not.toHaveBeenCalled();
 });
