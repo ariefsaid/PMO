@@ -80,11 +80,16 @@ then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 
 ### ⚑ GTM BUILD — HANDOFF STATE (2026-07-05, for the resuming agent — READ THIS to continue)
 
-**What this is:** the GTM MVP program (the 8 rows above) is mid-build. Every issue has a signed
-**spec + plan** authored via the full 2-model review battery (author → cross-model REVISE review →
-fix round → Director commit; plan reviews caught real defects — a disabled-user write hole, two
-would-be-regressed security fixes, 7 ACs excluded from CI). SDD docs by issue below — **read the
-spec then the plan before touching any issue.** Process is unchanged: `CLAUDE.md` per-issue loop +
+**What this is:** the GTM MVP program (the 8 rows above) is mid-build. **Build ≈ 72% done** (2026-07-05):
+3 issues merged to `dev` (auth #235, deputy-help #233, DR #230), ops-admin built+verified awaiting
+rendered-pass+PR, legal code-complete awaiting rendered-pass+PR, observability + onboarding
+signed-but-not-built, Entity dimension deferred-conditional (Entity #7 excluded from the denominator
+until a group client signs). **Build% ≠ ready-for-first-client%** — the gap also needs the owner-side
+wiring + promote gates listed at the bottom of this block. Every issue has a signed **spec + plan**
+authored via the full 2-model review battery (author → cross-model REVISE review → fix round →
+Director commit; plan reviews caught real defects — a disabled-user write hole, two would-be-regressed
+security fixes, 7 ACs excluded from CI). SDD docs by issue below — **read the spec then the plan
+before touching any issue.** Process is unchanged: `CLAUDE.md` per-issue loop +
 `docs/director-playbook.md`; `docs/pi-delegation.md` for GLM dispatch; the **binding
 `pr-after-review-battery` rule — full battery (3-lens code review + rendered/Discover pass for UI +
 e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main` = autonomous ceiling).
@@ -95,7 +100,7 @@ e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main
 | 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `docs/plans/2026-07-04-auth-production-floor.md` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
 | 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `docs/plans/2026-07-04-deputy-help.md` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
 | 4 | DR runbooks | — | — | `docs/runbooks/{incident-response,restore-drill}.md` | ✅ **MERGED to `dev` (PR #230)** |
-| 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🔨 **ALL 7 SLICES BUILT + review-fixes applied — needs re-verify then battery/PR** (branch `feat/ops-admin` @ **`b445f84`, pushed**; a 2nd agent continued past the S5 handoff and ran out of context mid-review-fix). Landed since: **S6** (`eae9d47` — `org_features` mig **0068**, `useFeature`/`FeatureGate`, Features/Credits sections, a11y capstone; pgTAP **0122/0123**), **S7** (`9c978c2` — 3 curated e2e: AC-INV-001 invite, AC-CRE-004 grant, AC-ENT-005 toggle). Migrations **0060–0068**, pgTAP through **0123**. Then a **security + code-quality review-fix batch** (TOCTOU disable-lock, disabled-Operator RPC re-checks, credit-attribution-forgery close, CORS fail-closed, server-controlled invite `redirectTo`, canonical `FEATURE_KEY_SET`, env-gated read-only "Preview") was applied but **committed UNVERIFIED as `b445f84`** — the prior agent never re-ran gates. ⏭ **RESUME:** `cd ../PMO-worktrees/ops-admin` → `supabase db reset && npm run verify && supabase test db` to confirm the WIP fixes are green → if red, fix → then the **3-lens battery + rendered pass** (AdminUsers/Usage/Features UI) → PR to `dev`. **Deviations to carry:** CI extended for `admin-invite-user` deno-check/boot-smoke; `errorLog.ts` `EdgeFunctionName` widened; `classifyMutationError` `overrides` param; `AdminUsers.mailto.test.tsx` deleted (FR-INV-006); `deno.lock`s untracked per repo pattern. |
+| 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🟢 **ALL 7 SLICES BUILT + 3-lens battery hardening VERIFIED — needs only rendered pass + PR** (branch `feat/ops-admin` @ **`e4e135b`, pushed; NO PR yet**). Slices: S1–S5 (`8cd0faa`), **S6** (`eae9d47` — `org_features` mig **0068**, `useFeature`/`FeatureGate`, Features/Credits sections, a11y capstone; pgTAP **0122/0123**), **S7** (`9c978c2` — 3 curated e2e: AC-INV-001 invite, AC-CRE-004 grant, AC-ENT-005 toggle). Migrations **0060–0068**, pgTAP through **0123**. **3-lens review battery ran (spec+code+security)** → hardening applied in `e4e135b` (sec M1 disabled-Operator RPC entry-guards, M2 invite redirectTo from `SITE_URL` not Origin header, L1/L3 credit-attribution + entitlement-probe close, L4 TOCTOU sole-admin `SHARE ROW EXCLUSIVE` lock, L5, code I1/I2/I3, spec I1). **Verified: pgTAP 1041/1041 green + typecheck/lint clean.** ⏭ **RESUME:** rendered Discover pass (AdminUsers/Usage/Features UI) → open PR to `dev`. **Deviations to carry:** CI extended for `admin-invite-user` deno-check/boot-smoke; `errorLog.ts` `EdgeFunctionName` widened; `classifyMutationError` `overrides` param; `AdminUsers.mailto.test.tsx` deleted (FR-INV-006); `deno.lock`s untracked per repo pattern. |
 | 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `docs/plans/2026-07-04-legal-pages.md` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
 | 3 | Observability | `docs/specs/observability-floor.spec.md` | `docs/plans/2026-07-04-observability-floor.md` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
 | 6 | Onboarding | `docs/specs/onboarding-tooling.spec.md` | `docs/plans/2026-07-04-onboarding-tooling.md` | `OD-ONB-1` in `docs/decisions.md` (on branch) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber at build time. |
@@ -158,16 +163,20 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
     `.github/workflows/agent-evals.yml` (nightly + dispatch, never push/PR). AC-AT2-015 scorer half
     deterministic (12 tests, in `verify`); the real-loop half + exit-code gate light up once the owner
     provisions the deployed-target GH secrets (§OQ-1). Full `npm run verify` green (545 files / 4388 tests).
-  - **I4 attachments — SDD AUTHORED, build pending:** ADR-0053 + plan
-    `docs/plans/2026-07-05-agent-chat-attachments.md` (table + bucket + provider seam + transcode +
-    untrusted-input boundary + two model paths). The build is the next issue-loop; load-bearing
-    owner-confirmable is the PDF-extraction stack (spec §OQ-3 / plan DEC-8) + the prod model's vision
-    support (DEC-7).
+  - **I4 attachments — PARTIAL BUILD in draft PR #239** (`codex/agent-attachments-track-a`): ADR-0053 +
+    plan `docs/plans/2026-07-05-agent-chat-attachments.md`. Implemented: MIME/size guard, image
+    transcode, Composer attach affordance, `useAgentAttachments`, `agentAttachment` repository seam,
+    attach-before-send thread prep, `attachmentIds`/`threadId` runtime transport, migration
+    `0060_agent_attachments.sql`, pgTAP `0112_agent_attachments.test.sql`, and caller-JWT edge resolver
+    with bounded untrusted context. Verified: focused Vitest green, `npm run typecheck` green,
+    `supabase test db` PASS (121 files / 968 tests, including `0112`). Still pending for full I4:
+    AC-AT2-001 browser/e2e, real Deno PDF extractor (DEC-8; currently graceful skipped), image vision
+    `ModelMessage` contract/model support (DEC-7; currently honest skipped), full `npm run verify`, PR
+    ready/merge to `dev`.
   - **I7 obs-memory — DEFERRED** behind a token-cost trigger (unchanged).
-- **NEXT (for the resuming agent), in order:** build **I4** attachments per its plan (Tracks A FE ‖ B DB ‖
-  C edge-fn → D e2e; serialize Track B vs the parallel stream's stack) → owner-provision the eval-harness GH
-  secrets (I6 §OQ-1) → **I7** obs-memory (deferred). Track E / AC-AT2-001 browser execution remains a **CI
-  integration/promote gate**, not a local run while the shared Supabase stack is owned by another stream.
+- **NEXT (for the resuming agent), in order:** finish **I4** attachments on PR #239 (DEC-8 PDF extractor +
+  DEC-7 image/model contract decision if in scope → AC-AT2-001 browser/e2e → full verify → ready/merge to
+  `dev`) → owner-provision the eval-harness GH secrets (I6 §OQ-1) → **I7** obs-memory (deferred).
 - **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
   live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
   secrets are provisioned. Promotion dev→main→production is **owner-gated**.
