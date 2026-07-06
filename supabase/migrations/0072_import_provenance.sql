@@ -61,27 +61,36 @@ alter table payments
   add column imported_at     timestamptz,
   add column import_key      text;
 
--- Index the (org_id, import_key, import_batch_id) skip-query shape on the case header (highest-
--- traffic dedupe check: one per case, run before every case-header insert).
-create index procurements_import_key_batch_idx
+-- DB-enforced idempotency (fix-round A4, TOCTOU-safe): a PARTIAL UNIQUE index on the skip-query
+-- key. The application skip lookup is a check-then-insert (a race between two concurrent import
+-- runs could both pass the check and both insert); this unique index closes that hole by making a
+-- duplicate (import_key, batch) insert raise 23505, which the write path treats as "already
+-- imported → skip" (commit.ts / import-historical.mjs both handle 23505 as a skip). The index also
+-- serves the read-side skip-query shape (one per case/record, run before every insert), so no
+-- separate non-unique index is needed. `where import_key is not null` keeps the constraint scoped
+-- to imported rows only — every non-import write path leaves import_key NULL and is unaffected.
+--
+-- Case header: scoped by (org_id, import_key, import_batch_id).
+create unique index procurements_import_key_batch_uidx
   on procurements (org_id, import_key, import_batch_id)
   where import_key is not null;
 
--- Index the (procurement_id, import_key, import_batch_id) skip-query shape on each record table
--- (one per child row, run before every record insert).
-create index purchase_requests_import_key_batch_idx
+-- Record tables: scoped by (procurement_id, import_key, import_batch_id) — the natural per-case
+-- dedupe key (a record's uniqueness is within its case, mirroring the skip lookup's procurement_id
+-- scope).
+create unique index purchase_requests_import_key_batch_uidx
   on purchase_requests (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index rfqs_import_key_batch_idx
+create unique index rfqs_import_key_batch_uidx
   on rfqs (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index procurement_quotations_import_key_batch_idx
+create unique index procurement_quotations_import_key_batch_uidx
   on procurement_quotations (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index purchase_orders_import_key_batch_idx
+create unique index purchase_orders_import_key_batch_uidx
   on purchase_orders (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index procurement_receipts_import_key_batch_idx
+create unique index procurement_receipts_import_key_batch_uidx
   on procurement_receipts (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index procurement_invoices_import_key_batch_idx
+create unique index procurement_invoices_import_key_batch_uidx
   on procurement_invoices (procurement_id, import_key, import_batch_id) where import_key is not null;
-create index payments_import_key_batch_idx
+create unique index payments_import_key_batch_uidx
   on payments (procurement_id, import_key, import_batch_id) where import_key is not null;
 
 -- ============================================================================

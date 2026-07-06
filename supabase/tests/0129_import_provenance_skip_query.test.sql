@@ -8,7 +8,7 @@
 --               5-positional-arg call site into the now-8-param create_procurement_invoice keeps
 --               working via the 3 new trailing params' defaults (fix-round finding #2).
 begin;
-select plan(7);
+select plan(9);
 
 insert into organizations (id, name) values
   ('01290000-0000-0000-0000-000000000001', 'Idem Org A');
@@ -93,6 +93,32 @@ select is(
   'capture_vendor_invoice still succeeds post-0072 (5-positional-arg call site into the extended create_procurement_invoice)');
 
 reset role;
+
+-- AC-IDEM-DB-001 (fix-round A4): the partial unique index rejects a duplicate
+-- (org_id, import_key, import_batch_id) on procurements — DB-enforced idempotency (TOCTOU-safe).
+-- Row '...0011' already occupies (org A, 'CASE-REF-001', batch ba01); a second insert of the same
+-- tuple must raise unique_violation (23505).
+select throws_ok(
+  $$insert into procurements
+      (org_id, title, status, requested_by_id, import_key, import_batch_id, imported_at)
+    values
+      ('01290000-0000-0000-0000-000000000001','Dup Imported Case','Draft',
+       '01290000-0000-0000-0000-0000000000a1',
+       'CASE-REF-001','01290000-0000-0000-0000-00000000ba01', now())$$,
+  '23505',
+  null,
+  'AC-IDEM-DB-001: unique index rejects a duplicate (org_id, import_key, import_batch_id) on procurements');
+
+-- The SAME import_key in a DIFFERENT batch is NOT a unique violation (cross-batch is app-level
+-- skip, not a hard DB constraint) — proves the index key includes import_batch_id.
+select lives_ok(
+  $$insert into procurements
+      (org_id, title, status, requested_by_id, import_key, import_batch_id, imported_at)
+    values
+      ('01290000-0000-0000-0000-000000000001','Same Key Diff Batch','Draft',
+       '01290000-0000-0000-0000-0000000000a1',
+       'CASE-REF-001','01290000-0000-0000-0000-00000000ba02', now())$$,
+  'AC-IDEM-DB-001: same import_key in a different batch is allowed (unique key includes batch)');
 
 select * from finish();
 rollback;

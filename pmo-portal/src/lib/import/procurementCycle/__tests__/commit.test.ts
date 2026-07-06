@@ -535,3 +535,57 @@ describe('commitGroups — FR-IDEM-006: cross-batch collision is skipped at comm
     expect(createPurchaseOrder).not.toHaveBeenCalled();
   });
 });
+
+describe('commitGroups — A4: a 23505 unique-violation on insert is treated as "already imported → skipped" (TOCTOU-safe)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('records a header as skipped (not failed) when createProcurement raises 23505', async () => {
+    // Both skip probes miss (the concurrent run inserted between the check and this insert),
+    // then the DB unique index fires.
+    vi.mocked(createProcurement).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
+    // First skip-check misses (null); after the 23505 the concurrent row is now visible.
+    const skipLookup = makeStubSkipLookup({
+      findExistingCase: vi.fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({ id: 'raced-proc' }),
+    });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: { caseRef: 'CASE-RACE', attrs: { title: 'Race Case', project: undefined, caseStatus: undefined }, rows: [], errors: [] },
+      rows: [],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(result.cases[0].headerStatus).toBe('skipped');
+    expect(result.failed).toBe(0);
+  });
+
+  it('records a record as skipped (not failed) when its create fn raises 23505', async () => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-race' } as never);
+    vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
+    const skipLookup = makeStubSkipLookup();
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-RACE2', attrs: { title: 'Case', project: undefined, caseStatus: undefined },
+        rows: [
+          { caseRef: 'CASE-RACE2', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO-R', status: 'Ordered', date: '2025-02-01', amount: '900', rowNumber: 1 },
+        ],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(result.cases[0].records[0].status).toBe('skipped');
+    expect(result.failed).toBe(0);
+  });
+});

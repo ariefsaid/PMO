@@ -92,6 +92,14 @@ function parseRef(raw: string | undefined): string | null {
   return raw?.trim() || null;
 }
 
+/** A4: the DB partial-unique index (0072) makes a duplicate (import_key, batch) insert raise
+ *  23505. That is the TOCTOU-safe outcome of a race between two concurrent import runs — treat it
+ *  as "already imported → skip", not a failure. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof (err as { code?: unknown })?.code === 'string'
+    && (err as { code: string }).code === '23505';
+}
+
 // ─── Per-record dispatch ───────────────────────────────────────────────────────
 
 /**
@@ -228,11 +236,30 @@ async function commitCase(
         procurementId = header.id;
         headerStatus = 'created';
       } catch (err) {
-        const { headline, detail } = classifyMutationError(err);
-        return {
-          caseRef: group.caseRef, headerStatus: 'failed',
-          headerError: `${headline}: ${detail}`, records: [],
-        };
+        if (isUniqueViolation(err)) {
+          // A concurrent run created this case between our skip-check and this insert. The row
+          // now exists; re-resolve it so the still-missing children can proceed (FR-IDEM-004a).
+          const raced = caseImportKey
+            ? await skipLookup.findExistingCase(caseImportKey, importBatchId)
+            : null;
+          if (raced) {
+            procurementId = raced.id;
+            headerStatus = 'skipped';
+            headerSkipReason = `already imported concurrently (batch ${importBatchId})`;
+          } else {
+            const { headline, detail } = classifyMutationError(err);
+            return {
+              caseRef: group.caseRef, headerStatus: 'failed',
+              headerError: `${headline}: ${detail}`, records: [],
+            };
+          }
+        } else {
+          const { headline, detail } = classifyMutationError(err);
+          return {
+            caseRef: group.caseRef, headerStatus: 'failed',
+            headerError: `${headline}: ${detail}`, records: [],
+          };
+        }
       }
     }
   } else {
@@ -305,6 +332,19 @@ async function commitCase(
       if (row.type === 'VI') groupInvoiceId = id;
       records.push({ rowNumber: row.rowNumber, type: row.type, id, status: 'created' });
     } catch (err) {
+      if (isUniqueViolation(err)) {
+        // A concurrent run created this record between our skip-check and this insert (A4).
+        const table = TYPE_TO_TABLE[row.type as CycleType];
+        const raced = table && recordImportKey
+          ? await skipLookup?.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
+          : null;
+        if (raced && row.type === 'VI') groupInvoiceId = raced.id;
+        records.push({
+          rowNumber: row.rowNumber, type: row.type, id: raced?.id,
+          status: 'skipped', skipReason: `already imported concurrently (batch ${importBatchId})`,
+        });
+        continue;
+      }
       const { headline, detail } = classifyMutationError(err);
       records.push({
         rowNumber: row.rowNumber,
