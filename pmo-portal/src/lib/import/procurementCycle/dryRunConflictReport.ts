@@ -45,11 +45,11 @@ export async function buildDryRunConflictReport(
 
     // ── Case header ──
     const caseKey = computeCaseImportKey(group);
-    const existingCase = await skipLookup.findExistingCase('', caseKey, importBatchId);
+    const existingCase = await skipLookup.findExistingCase(caseKey, importBatchId);
     if (existingCase) {
       wouldSkip++;
     } else {
-      const collision = await skipLookup.findCrossBatchCollision('procurements', 'org_id', '', caseKey, importBatchId);
+      const collision = await skipLookup.findCrossBatchCollision('procurements', caseKey, importBatchId);
       if (collision) wouldCollide++;
       else wouldCreate++;
     }
@@ -58,9 +58,8 @@ export async function buildDryRunConflictReport(
     // Mirrors the case-level check exactly: the existence probe is scoped by the case's
     // procurement_id when a case was found in THIS batch (existingCase.id); when no case
     // exists yet in this batch (new case, or the case itself is a cross-batch collision),
-    // the record-level cross-batch-collision probe still runs (scope resolved server-side
-    // by the live implementation, same '' placeholder pattern as the case-level org_id
-    // check above) — a record can collide on its own key even before its case does.
+    // the record-level cross-batch-collision probe still runs org-wide (RLS-scoped) on the
+    // record key alone — a record can collide on its own key even before its case does.
     const validRowNumbers = new Set(validated.rows.filter((r) => r.valid).map((r) => r.rowNumber));
     for (const row of group.rows.filter((r) => validRowNumbers.has(r.rowNumber))) {
       const table = TYPE_TO_TABLE[row.type as CycleType];
@@ -72,8 +71,10 @@ export async function buildDryRunConflictReport(
       if (existingRecord) {
         wouldSkip++;
       } else {
+        // Scope the record-level collision probe to the case when one exists in this batch;
+        // otherwise the probe runs org-wide (RLS-scoped) on the record key alone.
         const collision = await skipLookup.findCrossBatchCollision(
-          table, 'procurement_id', existingCase?.id ?? '', recordKey, importBatchId,
+          table, recordKey, importBatchId, existingCase?.id,
         );
         if (collision) wouldCollide++;
         else wouldCreate++;

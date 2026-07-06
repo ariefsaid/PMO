@@ -203,11 +203,7 @@ async function commitCase(
 
   if (importBatchId && skipLookup && caseImportKey) {
     // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
-    const existing = await skipLookup.findExistingCase(
-      /* orgId resolved via the caller's session RLS scope */ '',
-      caseImportKey,
-      importBatchId,
-    );
+    const existing = await skipLookup.findExistingCase(caseImportKey, importBatchId);
     if (existing) {
       procurementId = existing.id;
       headerStatus = 'skipped';
