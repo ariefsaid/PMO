@@ -95,18 +95,22 @@ export interface ValidatedGroup {
 export interface CommitRecordResult {
   rowNumber: number;
   type: string;
-  /** Created record id, if successful. */
+  /** Created (or pre-existing, if skipped) record id. */
   id?: string;
-  status: 'created' | 'failed';
+  status: 'created' | 'failed' | 'skipped';
   error?: string;
+  /** Present only when status === 'skipped': the reason (AC-IDEM-003/006). */
+  skipReason?: string;
 }
 
 export interface CommitCaseResult {
   caseRef: string;
-  /** The created procurement header id, if successful. */
+  /** The created (or pre-existing, if skipped) procurement header id. */
   procurementId?: string;
-  headerStatus: 'created' | 'failed';
+  headerStatus: 'created' | 'failed' | 'skipped';
   headerError?: string;
+  /** Present only when headerStatus === 'skipped' (AC-IDEM-003/006). */
+  headerSkipReason?: string;
   records: CommitRecordResult[];
 }
 

@@ -11,6 +11,12 @@
  * Invalid groups (valid=false) are silently skipped.
  *
  * org_id is NEVER client-supplied — RLS/RPC stamps it.
+ *
+ * Import idempotency (Deliverable 2, D-ONB-1/D-ONB-3): when `importBatchId` + `skipLookup`
+ * are supplied, the case-header skip and each child record's skip are INDEPENDENT decisions
+ * (FR-IDEM-003/005) — a header skip does not skip its still-missing children. NULL/absent
+ * `importBatchId` preserves the legacy create-only behavior exactly (opt-in, never changes
+ * existing non-import callers).
  */
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { createProcurement } from '@/src/lib/db/procurementCrud';
@@ -27,6 +33,8 @@ import {
 } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
+import type { ImportSkipLookup, RecordTableName } from '@/src/lib/db/procurementImportSkip';
+import { computeCaseImportKey, computeRecordImportKey } from './importKey';
 import type {
   ValidatedGroup,
   CycleRow,
@@ -47,7 +55,22 @@ export interface CommitOptions {
   requestedById: string;
   projectLookup: RefLookup;
   vendorLookup: RefLookup;
+  /** Present only when the caller wants re-run-safe skip semantics (import commit path).
+   *  Absent (undefined) ⇒ legacy create-only behavior (opt-in, FR-IDEM-003 NULL-key note) —
+   *  used by any future non-import caller of commitGroups, preserving old behavior exactly. */
+  importBatchId?: string;
+  skipLookup?: ImportSkipLookup;
 }
+
+const TYPE_TO_TABLE: Record<CycleType, RecordTableName> = {
+  PR: 'purchase_requests',
+  RFQ: 'rfqs',
+  Quotation: 'procurement_quotations',
+  PO: 'purchase_orders',
+  GR: 'procurement_receipts',
+  VI: 'procurement_invoices',
+  Payment: 'payments',
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +103,9 @@ async function createRecord(
   procurementId: string,
   groupInvoiceId: string | null,
   vendorLookup: RefLookup,
+  importKey?: string,
+  importBatchId?: string,
+  importedAt?: string,
 ): Promise<{ id: string }> {
   const type = row.type as CycleType;
   const ref = parseRef(row.externalRef);
@@ -89,17 +115,17 @@ async function createRecord(
 
   switch (type) {
     case 'PR': {
-      const result = await createPurchaseRequest(procurementId, ref, status, date, amount);
+      const result = await createPurchaseRequest(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
       return { id: result.id };
     }
 
     case 'RFQ': {
-      const result = await createRfq(procurementId, ref, status, date, amount);
+      const result = await createRfq(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
       return { id: result.id };
     }
 
     case 'PO': {
-      const result = await createPurchaseOrder(procurementId, ref, status, date, amount);
+      const result = await createPurchaseOrder(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
       return { id: result.id };
     }
 
@@ -111,19 +137,22 @@ async function createRecord(
         vendorIdStr ?? '',
         amount ?? 0,
         date ?? '',
+        importKey,
+        importBatchId,
+        importedAt,
       );
       return { id: result.id };
     }
 
     case 'GR': {
       const grStatus = (status ?? '') as GrStatus;
-      const result = await createReceipt(procurementId, grStatus, date ?? '', ref);
+      const result = await createReceipt(procurementId, grStatus, date ?? '', ref, importKey, importBatchId, importedAt);
       return { id: result.id };
     }
 
     case 'VI': {
       const viStatus = (status ?? '') as ViStatus;
-      const result = await createInvoice(procurementId, viStatus, date ?? '', ref, amount);
+      const result = await createInvoice(procurementId, viStatus, date ?? '', ref, amount, importKey, importBatchId, importedAt);
       return { id: result.id };
     }
 
@@ -135,6 +164,9 @@ async function createRecord(
         status,
         date,
         amount,
+        importKey,
+        importBatchId,
+        importedAt,
       );
       return { id: result.id };
     }
@@ -148,7 +180,7 @@ async function createRecord(
 
 async function commitCase(
   validated: ValidatedGroup,
-  { requestedById, projectLookup, vendorLookup }: CommitOptions,
+  { requestedById, projectLookup, vendorLookup, importBatchId, skipLookup }: CommitOptions,
 ): Promise<CommitCaseResult> {
   const { group, rows: validatedRows } = validated;
   const { attrs } = group;
@@ -161,32 +193,65 @@ async function commitCase(
     ? refId(vendorLookup, quotationRow.vendor)
     : null;
 
-  // Step 1: create procurement header
+  const caseImportKey = importBatchId ? computeCaseImportKey(group) : null;
+  const importedAtIso = importBatchId ? new Date().toISOString() : undefined;
+
+  // ── Case-header: skip-if-exists (FR-IDEM-003, independent of per-record decisions) ──
   let procurementId: string;
-  try {
-    const header = await createProcurement(
-      {
-        title: attrs.title ?? attrs.project ?? group.caseRef,
-        projectId,
-        vendorId,
-      },
-      requestedById,
+  let headerStatus: 'created' | 'skipped';
+  let headerSkipReason: string | undefined;
+
+  if (importBatchId && skipLookup && caseImportKey) {
+    // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
+    const existing = await skipLookup.findExistingCase(
+      /* orgId resolved via the caller's session RLS scope */ '',
+      caseImportKey,
+      importBatchId,
     );
-    procurementId = header.id;
-  } catch (err) {
-    const { headline, detail } = classifyMutationError(err);
-    return {
-      caseRef: group.caseRef,
-      headerStatus: 'failed',
-      headerError: `${headline}: ${detail}`,
-      records: [],
-    };
+    if (existing) {
+      procurementId = existing.id;
+      headerStatus = 'skipped';
+      headerSkipReason = `already imported (batch ${importBatchId})`;
+    } else {
+      try {
+        const header = await createProcurement(
+          {
+            title: attrs.title ?? attrs.project ?? group.caseRef, projectId, vendorId,
+            importKey: caseImportKey ?? undefined, importBatchId, importedAt: importedAtIso,
+          },
+          requestedById,
+        );
+        procurementId = header.id;
+        headerStatus = 'created';
+      } catch (err) {
+        const { headline, detail } = classifyMutationError(err);
+        return {
+          caseRef: group.caseRef, headerStatus: 'failed',
+          headerError: `${headline}: ${detail}`, records: [],
+        };
+      }
+    }
+  } else {
+    try {
+      const header = await createProcurement(
+        { title: attrs.title ?? attrs.project ?? group.caseRef, projectId, vendorId },
+        requestedById,
+      );
+      procurementId = header.id;
+      headerStatus = 'created';
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      return {
+        caseRef: group.caseRef, headerStatus: 'failed',
+        headerError: `${headline}: ${detail}`, records: [],
+      };
+    }
   }
 
   // Build a map from rowNumber → validated row (for valid-row filtering)
   const validRowNumbers = new Set(validatedRows.filter((r) => r.valid).map((r) => r.rowNumber));
 
-  // Step 2: sort valid rows in canonical order, then create records best-effort
+  // Sort valid rows in canonical order, then create records best-effort
   const validRows = group.rows.filter((r) => validRowNumbers.has(r.rowNumber));
   validRows.sort((a, b) => {
     const ai = CYCLE_ORDER.indexOf(a.type as CycleType);
@@ -195,13 +260,34 @@ async function commitCase(
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
 
-  // First pass: track the VI created in this group (for Payment FK settlement)
+  // Track the VI created (or pre-existing, if skipped) in this group (for Payment FK settlement)
   let groupInvoiceId: string | null = null;
   const records: CommitRecordResult[] = [];
 
   for (const row of validRows) {
+    const recordImportKey = importBatchId ? computeRecordImportKey(row) : null;
+
+    // ── Per-record: skip-if-exists, evaluated INDEPENDENTLY of the header decision (FR-IDEM-003/005) ──
+    if (importBatchId && skipLookup && recordImportKey) {
+      const table = TYPE_TO_TABLE[row.type as CycleType];
+      const existing = table
+        ? await skipLookup.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
+        : null;
+      if (existing) {
+        if (row.type === 'VI') groupInvoiceId = existing.id; // preserve Payment FK settlement on skip
+        records.push({
+          rowNumber: row.rowNumber, type: row.type, id: existing.id,
+          status: 'skipped', skipReason: `already imported (batch ${importBatchId})`,
+        });
+        continue;
+      }
+    }
+
     try {
-      const { id } = await createRecord(row, procurementId, groupInvoiceId, vendorLookup);
+      const { id } = await createRecord(
+        row, procurementId, groupInvoiceId, vendorLookup,
+        recordImportKey ?? undefined, importBatchId, importedAtIso,
+      );
       // If this was a VI, capture its id for subsequent Payment rows
       if (row.type === 'VI') groupInvoiceId = id;
       records.push({ rowNumber: row.rowNumber, type: row.type, id, status: 'created' });
@@ -216,12 +302,7 @@ async function commitCase(
     }
   }
 
-  return {
-    caseRef: group.caseRef,
-    procurementId,
-    headerStatus: 'created',
-    records,
-  };
+  return { caseRef: group.caseRef, procurementId, headerStatus, headerSkipReason, records };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -232,9 +313,11 @@ async function commitCase(
  * Groups where `valid=false` are silently skipped (no DB writes, not counted).
  * Per-case: header failure → children skipped; recorded as a failed case.
  * Per-record: best-effort — one failure does NOT abort the rest of the group.
+ * When `importBatchId`/`skipLookup` are supplied, case-header and per-record skip
+ * decisions are independent (FR-IDEM-003/005) — see module docstring.
  *
  * @param validatedGroups - Output of validateGroups.
- * @param options - requestedById (the importing user's id) + ref lookups.
+ * @param options - requestedById (the importing user's id) + ref lookups (+ optional import provenance).
  * @returns CommitResult with aggregate created/failed counts + per-case detail.
  */
 export async function commitGroups(
@@ -250,15 +333,13 @@ export async function commitGroups(
     if (!validated.valid) continue;
 
     const caseResult = await commitCase(validated, options);
-    if (caseResult.headerStatus === 'created') {
-      cases.push(caseResult);
+    cases.push(caseResult);
+    if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
       for (const rec of caseResult.records) {
         if (rec.status === 'created') created++;
-        else failed++;
+        else if (rec.status === 'failed') failed++;
+        // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
       }
-    } else {
-      // Header-failed cases ARE included in 'cases' so the result UI can surface the failure reason.
-      cases.push(caseResult);
     }
   }
 

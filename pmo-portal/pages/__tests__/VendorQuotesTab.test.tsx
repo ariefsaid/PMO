@@ -49,6 +49,9 @@ const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
   rfq_id: null,
   file_url: null,
   org_id: 'org-1',
+  import_batch_id: null,
+  import_key: null,
+  imported_at: null,
   ...overrides,
 });
 

@@ -87,6 +87,9 @@ describe('commitGroups — AC-CYCLE-COMMIT-001: VI+Payment settlement FK', () =>
       '2025-01-15',
       'EXT-001',
       5000,
+      undefined,
+      undefined,
+      undefined,
     );
 
     // createPayment called with invoiceId = 'inv-1' (the VI created in this group)
@@ -97,6 +100,9 @@ describe('commitGroups — AC-CYCLE-COMMIT-001: VI+Payment settlement FK', () =>
       'Paid',
       '2025-02-01',
       5000,
+      undefined,
+      undefined,
+      undefined,
     );
   });
 
@@ -136,6 +142,9 @@ describe('commitGroups — AC-CYCLE-COMMIT-001: VI+Payment settlement FK', () =>
       'Paid',
       '2025-03-01',
       2500,
+      undefined,
+      undefined,
+      undefined,
     );
     expect(result.created).toBe(1);
   });
@@ -335,5 +344,127 @@ describe('commitGroups — AC-CYCLE-COMMIT-005: invalid groups are skipped', () 
     expect(createProcurement).not.toHaveBeenCalled();
     expect(result.created).toBe(0);
     expect(result.cases).toHaveLength(0);
+  });
+});
+
+// ─── AC-IDEM-002/003/004/004a: import-idempotency skip semantics ─────────────
+
+import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
+
+const BATCH_ID = 'batch-aaa';
+
+function makeStubSkipLookup(overrides: Partial<ImportSkipLookup> = {}): ImportSkipLookup {
+  return {
+    findExistingCase: vi.fn().mockResolvedValue(null),
+    findExistingRecord: vi.fn().mockResolvedValue(null),
+    findCrossBatchCollision: vi.fn().mockResolvedValue(null),
+    ...overrides,
+  };
+}
+
+describe('commitGroups — AC-IDEM-002: case-level skip within the same batch', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('skips the header insert when an existing case matches (org_id, import_key, batch) and does not call createProcurement', async () => {
+    const skipLookup = makeStubSkipLookup({
+      findExistingCase: vi.fn().mockResolvedValue({ id: 'existing-proc-1' }),
+    });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: { caseRef: 'CASE-DUP', attrs: { title: 'Dup Case', project: undefined, caseStatus: undefined }, rows: [], errors: [] },
+      rows: [],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(createProcurement).not.toHaveBeenCalled();
+    expect(result.cases[0].headerStatus).toBe('skipped');
+    expect(result.cases[0].procurementId).toBe('existing-proc-1');
+  });
+});
+
+describe('commitGroups — AC-IDEM-004a: header skip does NOT skip its still-missing children', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('re-runs a case whose header + 2 of 5 records already exist: skips header + those 2, creates the remaining 3', async () => {
+    vi.mocked(createPurchaseOrder).mockResolvedValue({ id: 'po-new' } as never);
+    vi.mocked(createInvoice).mockResolvedValue({ id: 'vi-new' } as never);
+    vi.mocked(createPayment).mockResolvedValue({ id: 'pay-new' } as never);
+
+    const skipLookup = makeStubSkipLookup({
+      findExistingCase: vi.fn().mockResolvedValue({ id: 'existing-proc-2' }),
+      findExistingRecord: vi.fn().mockImplementation(async (table: string) => {
+        // PR and RFQ already succeeded on the crashed prior run; PO/VI/Payment did not.
+        if (table === 'purchase_requests' || table === 'rfqs') return { id: 'already-there' };
+        return null;
+      }),
+    });
+
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-CRASH', attrs: { title: 'Crashed Case', project: undefined, caseStatus: undefined },
+        rows: [
+          { caseRef: 'CASE-CRASH', type: 'PR', title: 'Crashed Case', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PR-1', status: 'Approved', date: '2025-01-01', amount: '100', rowNumber: 1 },
+          { caseRef: 'CASE-CRASH', type: 'RFQ', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'RFQ-1', status: null as unknown as string, date: null as unknown as string, amount: null as unknown as string, rowNumber: 2 },
+          { caseRef: 'CASE-CRASH', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO-1', status: 'Ordered', date: '2025-02-01', amount: '900', rowNumber: 3 },
+          { caseRef: 'CASE-CRASH', type: 'VI', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'VI-1', status: 'Received', date: '2025-03-01', amount: '900', rowNumber: 4 },
+          { caseRef: 'CASE-CRASH', type: 'Payment', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PAY-1', status: 'Paid', date: '2025-04-01', amount: '900', rowNumber: 5 },
+        ],
+        errors: [],
+      },
+      rows: [1, 2, 3, 4, 5].map((n) => ({ rowNumber: n, valid: true, errors: [] })),
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(result.cases[0].headerStatus).toBe('skipped');
+    const byType = Object.fromEntries(result.cases[0].records.map((r) => [r.type, r.status]));
+    expect(byType.PR).toBe('skipped');
+    expect(byType.RFQ).toBe('skipped');
+    expect(byType.PO).toBe('created');
+    expect(byType.VI).toBe('created');
+    expect(byType.Payment).toBe('created');
+    expect(createPurchaseRequest).not.toHaveBeenCalled(); // skipped, not re-created
+    expect(createRfq).not.toHaveBeenCalled();
+    expect(createPurchaseOrder).toHaveBeenCalled();
+  });
+});
+
+describe('commitGroups — AC-IDEM-004: exact re-run of the same batch creates zero new rows', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reports every case and record as skipped when everything already exists in this batch', async () => {
+    const skipLookup = makeStubSkipLookup({
+      findExistingCase: vi.fn().mockResolvedValue({ id: 'existing-proc-3' }),
+      findExistingRecord: vi.fn().mockResolvedValue({ id: 'already-there' }),
+    });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-REPEAT', attrs: { title: 'Repeat Case', project: undefined, caseStatus: undefined },
+        rows: [
+          { caseRef: 'CASE-REPEAT', type: 'PR', title: 'Repeat Case', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PR-R', status: 'Approved', date: '2025-01-01', amount: '100', rowNumber: 1 },
+        ],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(result.created).toBe(0);
+    expect(result.cases[0].headerStatus).toBe('skipped');
+    expect(result.cases[0].records[0].status).toBe('skipped');
+    expect(createPurchaseRequest).not.toHaveBeenCalled();
   });
 });

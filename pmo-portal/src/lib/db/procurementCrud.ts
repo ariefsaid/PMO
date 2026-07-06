@@ -55,6 +55,10 @@ export interface NewProcurementInput {
   title: string;
   projectId: string | null;
   vendorId: string | null;
+  /** Import provenance (Deliverable 2/3) — undefined for every non-import caller. */
+  importKey?: string;
+  importBatchId?: string;
+  importedAt?: string;
 }
 
 /**
@@ -78,6 +82,9 @@ export async function createProcurement(
       requested_by_id: requestedById,
       project_id: input.projectId,
       vendor_id: input.vendorId,
+      ...(input.importKey !== undefined ? { import_key: input.importKey } : {}),
+      ...(input.importBatchId !== undefined ? { import_batch_id: input.importBatchId } : {}),
+      ...(input.importedAt !== undefined ? { imported_at: input.importedAt } : {}),
     })
     .select()
     .single();

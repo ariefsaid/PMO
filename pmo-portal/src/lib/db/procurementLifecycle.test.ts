@@ -290,6 +290,9 @@ describe('createReceipt', () => {
       p_status: 'Partial',
       p_receipt_date: '2026-06-04',
       p_reference_number: null,
+      p_import_key: null,
+      p_import_batch_id: null,
+      p_imported_at: null,
     });
     expect(result).toMatchObject({ id: 'receipt-1', gr_number: 'GR-2606040001' });
   });
@@ -321,6 +324,9 @@ describe('createInvoice', () => {
       p_invoice_date: '2026-06-04',
       p_reference_number: null,
       p_amount: null,
+      p_import_key: null,
+      p_import_batch_id: null,
+      p_imported_at: null,
     });
     expect(result).toMatchObject({ id: 'invoice-1', vi_number: 'VI-2606040001' });
   });
@@ -354,6 +360,9 @@ describe('createQuotation', () => {
       p_vendor_id: 'vendor-1',
       p_total_amount: 50000,
       p_received_date: '2026-06-04',
+      p_import_key: null,
+      p_import_batch_id: null,
+      p_imported_at: null,
     });
     expect(result).toMatchObject({ id: 'quote-1', vq_number: 'VQ-2606040001' });
   });
