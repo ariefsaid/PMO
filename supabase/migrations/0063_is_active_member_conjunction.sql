@@ -1,10 +1,10 @@
--- 0061_is_active_member_conjunction.sql — conjoin is_active_member() into EVERY business-table
+-- 0063_is_active_member_conjunction.sql — conjoin is_active_member() into EVERY business-table
 -- policy (FR-INV-003, AC-INV-002). The C1 gap: the prior conjunction pass covered select|all only
 -- and silently missed ~30 write policies (INSERT/UPDATE/DELETE) — a disabled user with a still-valid
 -- JWT could still WRITE. This mechanical pass closes it by appending
 --   "and public.is_active_member()"
 -- to the USING and/or WITH CHECK clause of EVERY business-table policy (all 5 kinds: SELECT, INSERT,
--- UPDATE, DELETE, ALL), single-sourced through is_active_member() (0060, security-definer — bypasses
+-- UPDATE, DELETE, ALL), single-sourced through is_active_member() (0062, security-definer — bypasses
 -- RLS to avoid recursion when conjoined into profiles_select itself).
 --
 -- Implementation choice (robust, no transcription error): a DO block reads pg_policies AT APPLY TIME
@@ -13,7 +13,7 @@
 -- permissive/restrictive nature of each policy is preserved verbatim (a restrictive policy recreated
 -- as permissive would OR-in and BROADEN access — a real regression), so we read pg_policies.permissive
 -- and re-emit `as permissive`/`as restrictive`. Predicates are preserved VERBATIM from pg_policies
--- (the canonical stored form). pgTAP 0112 proves the read-deny AND the write-deny.
+-- (the canonical stored form). pgTAP 0125 proves the read-deny AND the write-deny.
 --
 -- EXCLUDED (NOT member-business tables — conjoining would be wrong or redundant):
 --   organizations.organizations_select — the tenant boundary; auth_org_id() is security-definer and
@@ -21,7 +21,7 @@
 --   pipeline_stage_config.* — read by RPC, not a user-facing member table.
 --   procurement_doc_counters.* — read by the doc-number RPC, not user-facing.
 -- (agent_dispatch_watermarks has RLS forced + no policy → default-deny already; platform_operators
---  is created in 0062 with its own ONE policy and is intentionally NOT conjoined.)
+--  is created in 0064 with its own ONE policy and is intentionally NOT conjoined.)
 --
 -- Reversibility (ADR-0006): supabase db reset (the original policies are re-created by 0002+later on
 -- reset). There is no manual per-policy reverse — the canonical reverse is db reset.

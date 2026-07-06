@@ -1,4 +1,4 @@
--- 0062_platform_operators.sql — platform_operators (platform-level grant, NOT a 6th role) +
+-- 0064_platform_operators.sql — platform_operators (platform-level grant, NOT a 6th role) +
 -- is_operator() helper. FR-OPR-001/002, AC-OPR-001/002.
 --
 -- Design (ADR-0049): RLS enabled+FORCED; EXACTLY ONE policy — FOR SELECT USING (user_id = auth.uid())
@@ -30,7 +30,7 @@ create policy platform_operators_self_select on public.platform_operators
   for select using (user_id = auth.uid());
 -- DELIBERATELY no INSERT/UPDATE/DELETE policy => default-deny writes for every ordinary role;
 -- only service_role (RLS bypass) / seed SQL ever writes it (FR-OPR-001 / FR-OPR-003). NOTE:
--- is_active_member() is intentionally NOT conjoined here (0061's pass excluded this table) — a
+-- is_active_member() is intentionally NOT conjoined here (0063's pass excluded this table) — a
 -- disabled Operator's platform grant is a platform concern, not an org-membership concern, and
 -- conjoining would make is_operator() false for a disabled operator, which is out of scope for v1.
 

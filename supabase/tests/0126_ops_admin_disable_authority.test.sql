@@ -1,4 +1,4 @@
--- 0113_ops_admin_disable_authority.test.sql
+-- 0126_ops_admin_disable_authority.test.sql
 -- AC-INV-003 [pgTAP]: disable authority is Admin-in-target-org OR Operator; sole-/self-Admin lockout
 -- is CALLER-AGNOSTIC (rejects even an Operator). Pins FR-INV-002: admin_set_user_status(p_profile_id,
 -- p_status, p_org_id) security-definer RPC re-asserts authority + revokes the session (banned_until).

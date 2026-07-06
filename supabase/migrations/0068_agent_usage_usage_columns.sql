@@ -1,4 +1,4 @@
--- 0066_agent_usage_usage_columns.sql — agent_usage gains provider_cost_usd + action (FR-USE-001,
+-- 0068_agent_usage_usage_columns.sql — agent_usage gains provider_cost_usd + action (FR-USE-001,
 -- ops-admin-surface S5). `cost` stays the CREDIT charge (unchanged, org-pool metering); the new
 -- `provider_cost_usd` is the same underlying ModelResponse.usage.total_cost captured alongside it
 -- (today equal — they diverge only once a pricing rate is introduced, a pricing-issue change, not

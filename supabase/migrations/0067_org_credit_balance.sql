@@ -1,10 +1,10 @@
--- 0065_org_credit_balance.sql — org_credit_balance() + operator_grant_credits() (FR-CRE-002/005,
+-- 0067_org_credit_balance.sql — org_credit_balance() + operator_grant_credits() (FR-CRE-002/005,
 -- FR-OPR-004, AC-CRE-001/004).
 --   balance = sum(credits.amount where org_id=X regardless of owner_id) − sum(agent_usage.cost where org_id=X).
 --   Security-definer so ANY member of the org can read their own pool for the RateGuard metering path
 --   WITHOUT needing credits SELECT (credits SELECT is Admin+Exec only — FR-CRE-003). Asserts p_org_id =
 --   auth_org_id() so a member reads only their own org; the Operator cross-org path is
---   operator_usage_summary (0067), not this fn.
+--   operator_usage_summary (0069), not this fn.
 --   operator_grant_credits: Operator-only; asserts the org exists; writes owner_id NULL (FR-CRE-001).
 -- Reversibility (ADR-0006): supabase db reset. Manual:
 --   drop function if exists public.operator_grant_credits(uuid,numeric,text);
@@ -37,10 +37,10 @@ create or replace function public.operator_grant_credits(
   language plpgsql security definer set search_path = public as $$
 begin
   -- is_active_member() entry guard (security review M1): platform_operators is intentionally exempt
-  -- from the 0061 RLS conjunction, so a disabled Operator's cached JWT still drives auth.uid() in
+  -- from the 0063 RLS conjunction, so a disabled Operator's cached JWT still drives auth.uid() in
   -- PostgREST (GoTrue stops issuing NEW JWTs via banned_until, but cannot revoke a cached one).
   -- Re-asserting is_active_member() here closes the disabled-Operator elevation on every Operator
-  -- power, mirroring org_credit_balance / admin_set_user_status. (Inverse-consistent with 0062.)
+  -- power, mirroring org_credit_balance / admin_set_user_status. (Inverse-consistent with 0064.)
   if not public.is_active_member() then
     raise exception 'inactive' using errcode = '42501';
   end if;

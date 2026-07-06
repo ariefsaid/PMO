@@ -56,7 +56,7 @@ select is((select count(*)::int from org_features), 1,
 -- (b) WRITE-deny for an org member (Admin or Engineer): INSERT is REJECTED (42501 — no matching
 --     FOR INSERT WITH CHECK for a non-Operator); UPDATE/DELETE silently affect 0 rows (USING
 --     filters rows out — Operator-only). The Operator is the sole writer; everyone else is
---     append-only-by-omission. (Mirrors the 0112 write-deny pattern.)
+--     append-only-by-omission. (Mirrors the 0125 write-deny pattern.)
 -- ════════════════════════════════════════════════════════════════════════════
 set local request.jwt.claims = '{"sub":"01220000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
@@ -84,7 +84,7 @@ select is((select count(*)::int from org_features where org_id = '01220000-0000-
 
 -- The Operator reads ALL orgs (no org_id filter in the SELECT policy — wait, the policy pins
 -- org_id = auth_org_id(); so the Operator reads their HOME org only via direct SELECT, but writes
--- any org via the FOR ALL policy. Cross-org reads go via operator_usage_summary (0067), not here.
+-- any org via the FOR ALL policy. Cross-org reads go via operator_usage_summary (0069), not here.
 -- Confirm the Operator's direct SELECT returns their home-org rows (A) only:
 select is((select count(*)::int from org_features where org_id = '01220000-0000-0000-0000-000000000001'), 2,
   'AC-ENT-001 Operator reads HOME org entitlements via direct SELECT');

@@ -1,4 +1,4 @@
--- 0067_usage_summary_rpcs.sql — usage aggregate RPCs (FR-USE-002/003/004/006, FR-OPR-004,
+-- 0069_usage_summary_rpcs.sql — usage aggregate RPCs (FR-USE-002/003/004/006, FR-OPR-004,
 -- ops-admin-surface S5). AGGREGATES ONLY — never read agent_events/agent_runs/agent_threads
 -- (NFR-PRIV-001, AC-PRIV-001). margin_usd is conditional on app.credits_per_usd (null when unset,
 -- FR-USE-006). operator_list_orgs returns directory columns only (no business-data aggregates).
@@ -53,7 +53,7 @@ language sql stable security definer set search_path = public as $$
          end
     from public.agent_usage
    where public.is_operator()
-     and public.is_active_member()                 -- security review M1: disabled-Operator guard (0062 exempts the table; re-assert here)
+     and public.is_active_member()                 -- security review M1: disabled-Operator guard (0064 exempts the table; re-assert here)
      and (p_org_id is null or org_id = p_org_id)
    group by org_id, owner_id, action, date_trunc('month', created_at)
    order by month desc, org_id, owner_id, action

@@ -1,4 +1,4 @@
--- 0114_ops_admin_operator_rpc_only.test.sql
+-- 0127_ops_admin_operator_rpc_only.test.sql
 -- AC-OPR-001 [pgTAP]: Operator powers are RPC-only; platform_operators is append-only-by-omission.
 -- Pins FR-OPR-001: exactly ONE policy FOR SELECT USING (user_id = auth.uid()); NO write policy for
 -- any role → append-only-by-omission (INSERT throws 42501; UPDATE/DELETE silently affect 0 rows).

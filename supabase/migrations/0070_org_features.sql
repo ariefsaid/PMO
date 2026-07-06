@@ -1,4 +1,4 @@
--- 0068_org_features.sql — org_features (FR-ENT-001..004, ops-admin-surface S6, ADR-0049).
+-- 0070_org_features.sql — org_features (FR-ENT-001..004, ops-admin-surface S6, ADR-0049).
 -- PK (org_id, feature_key); CHECK registry of gatable feature keys; core-never-gated guard at
 -- insert. RLS: read = every member of the org (entitlements are not intra-org secrets → useFeature
 -- reads directly, AC-ENT-001 FLIPS the 2026-06-15 admin-write note); write = Operator-only via
@@ -67,7 +67,7 @@ begin
 end $$;
 
 -- operator_toggle_feature: upsert a row; reject core keys; assert Operator + org exists.
--- is_active_member() entry guard (security review M1): see org_credit_balance / 0065.
+-- is_active_member() entry guard (security review M1): see org_credit_balance / 0067.
 create or replace function public.operator_toggle_feature(
   p_org_id uuid, p_key text, p_enabled boolean
 ) returns void

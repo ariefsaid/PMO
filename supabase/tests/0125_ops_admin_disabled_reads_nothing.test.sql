@@ -1,4 +1,4 @@
--- 0112_ops_admin_disabled_reads_nothing.test.sql
+-- 0125_ops_admin_disabled_reads_nothing.test.sql
 -- AC-INV-002 [pgTAP]: disabled member reads nothing AND cannot write.
 -- Pins FR-INV-003: is_active_member() conjoined into EVERY business-table policy — SELECT USING
 -- AND the write policies' USING/WITH CHECK (INSERT/UPDATE/DELETE) alike. A disabled user with a
@@ -24,7 +24,7 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
   ('01120000-0000-0000-0000-0000000c0001','01120000-0000-0000-0000-000000000001','PR','01120000-0000-0000-0000-0000000b0001','01120000-0000-0000-0000-0000000000a2','Draft');
 insert into agent_usage (id, org_id, owner_id, model, cost) values
   ('01120000-0000-0000-0000-0000000d0001','01120000-0000-0000-0000-000000000001','01120000-0000-0000-0000-0000000000a2','gpt-test',5);
--- org_features row (mig 0068) seeded AS TABLE OWNER so the read-deny is real, not an empty table.
+-- org_features row (mig 0070) seeded AS TABLE OWNER so the read-deny is real, not an empty table.
 insert into org_features (org_id, feature_key, enabled, updated_by) values
   ('01120000-0000-0000-0000-000000000001','incidents',true,'01120000-0000-0000-0000-0000000000a1');
 

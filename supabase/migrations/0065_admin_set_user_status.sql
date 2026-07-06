@@ -1,4 +1,4 @@
--- 0063_admin_set_user_status.sql — admin_set_user_status security-definer RPC (FR-INV-002/003,
+-- 0065_admin_set_user_status.sql — admin_set_user_status security-definer RPC (FR-INV-002/003,
 -- AC-INV-003/004) + the two invite-helper RPCs (FR-INV-005, folded here so S3 is a no-new-migration
 -- slice per the plan's Task S1-F).
 --
