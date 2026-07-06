@@ -1,0 +1,41 @@
+-- 0061_agent_persistence_org_default.sql — fix agent persistence org-stamp (Defect 1, ADR-0043 §6).
+--
+-- ROOT CAUSE: agent_threads/agent_runs/agent_events carried a CONSTANT seed-org column default
+-- ('00000000-…-0001'). The agent-chat persistence layer (persistence.ts createThreadAndRun /
+-- insertEvent / heartbeat / setRunStatus) sends NO org_id — it relies on the column default under
+-- the deputy invariant ("never send org_id; RLS stamps it"). But RLS INSERT WITH CHECK requires
+-- `org_id = auth_org_id()`. For any caller NOT in the seed org, the constant default ≠ the caller's
+-- real org, so every persistence insert was rejected with 42501 and silently swallowed → 0 runs
+-- persisted in production (the seed-org demo users worked by coincidence; any real/multi-tenant
+-- user's agent transcript was dead on arrival).
+--
+-- FIX: make the three org_id DEFAULTs resolve to the caller's real org via
+-- coalesce(auth_org_id(), 'seed'). The app still sends NO org_id (deputy invariant unchanged); the
+-- default now stamps the correct org for EVERY tenant; RLS WITH CHECK (org_id = auth_org_id())
+-- still enforces — a caller cannot forge a foreign org_id, the default just stops being wrong.
+-- Seed-org callers are unchanged (auth_org_id() returns the seed org for them).
+--
+-- Why COALESCE: auth_org_id() returns NULL when there is no authenticated caller (auth.uid() is
+-- NULL — e.g. a superuser/table-owner insert, a service-side backfill, or a pgTAP fixture that runs
+-- before `set local role authenticated`). A bare auth_org_id() default would then yield NULL and
+-- trip the NOT NULL constraint on those paths. COALESCE falls back to the seed org outside an auth
+-- context — harmless there (RLS is bypassed by superuser; a genuine service-side insert sends
+-- org_id explicitly) and never reached by an authenticated caller, for whom auth_org_id() resolves
+-- to their real org and WITH CHECK then enforces it.
+--
+-- This is the agent-scoped fix for a latent pattern bug shared by other seed-org-default tables
+-- (companies/projects/user_views …); those are out of scope here and remain addressed per-table if
+-- they ever host a non-seed-org user. The agent is the one being reported dead now.
+--
+-- Deputy invariant (ADR-0036/0043 §6): unchanged — caller-JWT throughout, RLS is the sole
+-- enforcement authority, service_role is never used on these tables.
+--
+-- Reversibility (pre-production, ADR-0006): `supabase db reset`. Manual rollback:
+--   alter table agent_threads alter column org_id set default '00000000-0000-0000-0000-000000000001';
+--   alter table agent_runs    alter column org_id set default '00000000-0000-0000-0000-000000000001';
+--   alter table agent_events  alter column org_id set default '00000000-0000-0000-0000-000000000001';
+-- (the original constant seed-org default that caused the silent 42501 persistence failure)
+
+alter table agent_threads alter column org_id set default coalesce(auth_org_id(), '00000000-0000-0000-0000-000000000001');
+alter table agent_runs    alter column org_id set default coalesce(auth_org_id(), '00000000-0000-0000-0000-000000000001');
+alter table agent_events  alter column org_id set default coalesce(auth_org_id(), '00000000-0000-0000-0000-000000000001');
