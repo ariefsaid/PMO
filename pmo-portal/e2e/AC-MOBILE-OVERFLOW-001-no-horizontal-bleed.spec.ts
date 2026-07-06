@@ -51,6 +51,9 @@ const ROUTES: { path: string; label: string }[] = [
   { path: '/companies', label: 'companies' },
   { path: '/contacts', label: 'contacts' },
   { path: '/administration', label: 'administration' },
+  // Legal pages (FR-LEG-029): public bare pages, swept at 390/360px for no-bleed.
+  { path: '/terms', label: 'terms' },
+  { path: '/privacy', label: 'privacy' },
 ];
 
 const PHONE_WIDTHS = [390, 360];

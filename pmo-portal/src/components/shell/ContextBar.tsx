@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -6,6 +7,7 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { isFeatureEnabled } from '@/src/lib/features';
+import { HELP_URL } from '@/src/lib/legalConfig';
 import { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
@@ -115,7 +117,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
       {/* Desktop right-cluster (≥640px): role-switcher + user chip + Sign out, inline.
           On phones this whole cluster collapses behind the avatar menu below. */}
-      <div className="hidden items-center gap-3.5 sm:flex">
+      <div data-testid="desktop-account-cluster" className="hidden items-center gap-3.5 sm:flex">
       {/* Admin-only client-side impersonation (ADR-0008): view-only, does NOT
           change RLS/server identity. Behavior preserved from Header.tsx. */}
       {canImpersonate && (
@@ -176,6 +178,21 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         </span>
       </div>
 
+      {/* FR-LEG-028 / AC-LEG-025: ONE inline Help icon-link (wa.me) next to Sign out.
+          No new dropdown; no Terms/Privacy on desktop chrome (reachable via login
+          footer, legal cross-links, direct URL). Omitted when HELP_WHATSAPP unset. */}
+      {HELP_URL && (
+        <a
+          href={HELP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Contact support via WhatsApp"
+          className="touch-target inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-input bg-background px-2.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-[17px]"
+        >
+          <Icon name="message" />
+        </a>
+      )}
+
       {/* Sign out. `shrink-0` + `whitespace-nowrap` guarantee the label never
           wraps to two lines / clips past the right edge at phone widths; ≤920px
           the cluster compacts (tighter padding) since the user name/role hide. */}
@@ -193,7 +210,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       {/* Mobile (<640px) account menu — the avatar IS the trigger; it holds the
           role-switcher (admins) + Sign out so the desktop cluster doesn't squash
           the breadcrumb to "Da…" at phone widths. */}
-      <div className="relative sm:hidden" ref={acctRef}>
+      <div data-testid="mobile-account-menu" className="relative sm:hidden" ref={acctRef}>
         <button
           type="button"
           aria-haspopup="menu"
@@ -241,6 +258,40 @@ export const ContextBar: React.FC<ContextBarProps> = ({
                 ))}
               </>
             )}
+            <div className="my-1 border-t border-border" />
+            <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Legal &amp; support
+            </div>
+            {/* FR-LEG-027 / AC-LEG-023: Terms / Privacy route links + Help (wa.me new tab). */}
+            <Link
+              to="/terms"
+              role="menuitem"
+              onClick={() => setAcctOpen(false)}
+              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
+            >
+              Terms
+            </Link>
+            <Link
+              to="/privacy"
+              role="menuitem"
+              onClick={() => setAcctOpen(false)}
+              className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
+            >
+              Privacy
+            </Link>
+            {HELP_URL && (
+              <a
+                href={HELP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                role="menuitem"
+                aria-label="Contact support via WhatsApp"
+                className="flex h-9 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent"
+              >
+                Help
+              </a>
+            )}
+
             <div className="my-1 border-t border-border" />
             <button
               role="menuitem"

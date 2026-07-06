@@ -9,6 +9,7 @@ import {
   trackAuthLoginSucceeded,
   trackAuthLoginFailed,
 } from '../lib/analytics';
+import { HELP_URL } from '../lib/legalConfig';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -257,6 +258,33 @@ const LoginPage: React.FC = () => {
             )}
           </CardPad>
         </Card>
+
+        {/* Footer — Terms · Privacy · Help (FR-LEG-023, AC-LEG-021).
+            Help opens the wa.me URL in a new tab; omitted entirely when HELP_WHATSAPP
+            is unset so no broken link renders (FR-LEG-010). */}
+        <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[12px] text-muted-foreground">
+          <Link to="/terms" className="font-medium text-primary-text hover:underline">
+            Terms
+          </Link>
+          <span aria-hidden>·</span>
+          <Link to="/privacy" className="font-medium text-primary-text hover:underline">
+            Privacy
+          </Link>
+          {HELP_URL && (
+            <>
+              <span aria-hidden>·</span>
+              <a
+                href={HELP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Contact support via WhatsApp"
+                className="font-medium text-primary-text hover:underline"
+              >
+                Help
+              </a>
+            </>
+          )}
+        </footer>
       </div>
     </div>
   );
