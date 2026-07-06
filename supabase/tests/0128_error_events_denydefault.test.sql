@@ -2,7 +2,7 @@
 -- AC-OF-004: public.error_events is service-role-only — no authenticated or anon
 -- role may SELECT or INSERT (append-only operator telemetry, never user-facing).
 begin;
-select plan(5);
+select plan(7);
 
 select has_table('public', 'error_events', 'AC-OF-004 error_events table exists');
 
@@ -37,6 +37,27 @@ select is(
   (select count(*)::int from error_events),
   0,
   'AC-OF-004 anon SELECT on error_events returns 0 rows'
+);
+reset role;
+
+-- Simulate an authenticated caller: INSERT is denied (no policy → RLS blocks the write).
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select throws_ok(
+  $$ insert into error_events (fn, error_code) values ('agent-chat', 'TEST_CODE') $$,
+  '42501',
+  null,
+  'AC-OF-004 authenticated INSERT on error_events is denied (RLS, no policy)'
+);
+reset role;
+
+-- Simulate anon: same.
+set local role anon;
+select throws_ok(
+  $$ insert into error_events (fn, error_code) values ('agent-chat', 'TEST_CODE') $$,
+  '42501',
+  null,
+  'AC-OF-004 anon INSERT on error_events is denied (RLS, no policy)'
 );
 reset role;
 

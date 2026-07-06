@@ -394,7 +394,7 @@ describe('AnalyticsProvider', () => {
     );
   });
 
-  it('AC-OF-014: disabled analytics registers no error/unhandledrejection listener (no captureException call on a synthetic error)', () => {
+  it('FR-OF-014: disabled analytics registers no error/unhandledrejection listener (no captureException call on a synthetic error)', () => {
     const originalEnabled = mockConfig.enabled;
     mockConfig.enabled = false;
     renderTree(makeAuthCtx());

@@ -38,7 +38,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const { data: unnotified } = await serviceClient
       .from('error_events')
-      .select('error_code, fn, context_id, org_id, created_at')
+      .select('id, error_code, fn, context_id, org_id, created_at')
       .is('notified_at', null);
 
     const { data: lastNotifiedRows } = await serviceClient
@@ -53,12 +53,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const rows = (unnotified ?? []) as {
-      error_code: string; fn: string; context_id: string | null; org_id: string | null; created_at: string;
+      id: string; error_code: string; fn: string; context_id: string | null; org_id: string | null; created_at: string;
     }[];
-    const groups = groupIntoMessages(rows, lastNotifiedByCode, Deno.env.get('APP_ENV') ?? 'production', cooldownSec);
+    const groups = groupIntoMessages(rows, lastNotifiedByCode, cooldownSec);
 
     if (!botToken || !chatId) {
-      logStructuredError({ fn: 'agent-dispatch', errorCode: 'TELEGRAM_SECRET_MISSING' });
+      logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
       // Leave notified_at NULL for everything — retried next tick once secrets are wired.
       await pingHeartbeat(heartbeatUrl);
       return new Response(JSON.stringify({ ok: true, skipped: 'secrets unset' }), {
@@ -68,7 +68,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     for (const group of groups) {
-      const codeRows = rows.filter((r) => r.error_code === group.errorCode);
       if (!group.suppressed) {
         const payload = buildTelegramPayload(group);
         const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -81,10 +80,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
           continue;
         }
       }
-      // Sent OR intentionally suppressed within cooldown: stamp notified_at for this group's rows.
-      const ids = codeRows.map((r) => (r as unknown as { id: string }).id).filter(Boolean);
-      if (ids.length > 0) {
-        await serviceClient.from('error_events').update({ notified_at: new Date().toISOString() }).in('id', ids);
+      // Sent OR intentionally suppressed within cooldown: stamp notified_at for exactly
+      // this group's ids (Fix 1 — groupIntoMessages is the source of truth, no re-filter).
+      if (group.ids.length > 0) {
+        await serviceClient.from('error_events').update({ notified_at: new Date().toISOString() }).in('id', group.ids);
       }
     }
 
@@ -95,7 +94,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (err) {
     logStructuredError({
-      fn: 'agent-dispatch',
+      fn: 'telegram-notify',
       errorCode: 'TELEGRAM_DRAIN_FAILED',
       contextId: err instanceof Error ? err.name : 'unknown',
     });

@@ -29,15 +29,50 @@ let activeConfig: AnalyticsConfig | null = null;
 const MAX_EXCEPTION_TEXT_LENGTH = 2000;
 
 /**
- * Redact one exception-shaped string (FR-OF-011, NFR-OF-PRIV-002): strip query
- * strings from anything URL-shaped, drop any FORBIDDEN_PROPERTY_KEYS shape (e.g.
- * "token=xyz"), and bound the length.
+ * Redact one exception-shaped string (FR-OF-011, NFR-OF-PRIV-002). Hardened (fix
+ * round) against 4 leak vectors the original query-string/`key=value` scrub missed:
+ *   1. A JWT (or other high-entropy token) in a URL PATH, not just a query string.
+ *   2. A `Bearer <token>` / `sk-...`-shaped secret with no `key=`/`key:` prefix.
+ *   3. A JSON-shaped forbidden key (`"key":value`, no `=`) — redacts the key name too.
+ *   4. A bare email address with no key prefix at all.
+ * Order matters: JWTs/URLs/bearer-tokens are stripped FIRST so a later generic
+ * high-entropy scrub doesn't need to re-discover them inside an already-redacted
+ * substring, then the JSON/key=value/email scrubs run, then a final generic
+ * high-entropy catch-all, then the length bound.
  */
 function redactExceptionText(text: string): string {
-  let out = text.replace(/\?[^\s'")]*/g, '');
+  let out = text;
+
+  // 1. JWTs anywhere (path, query, bare) — header.payload.signature, base64url triplet.
+  out = out.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[redacted]');
+
+  // Query strings (existing behavior — kept for anything the JWT pass didn't own).
+  out = out.replace(/\?[^\s'")]*/g, '');
+
+  // 2. `Bearer <token>` / `sk-...`-shaped API keys, no `key=` shape required.
+  out = out.replace(/Bearer\s+\S+/gi, 'Bearer [redacted]');
+  out = out.replace(/\bsk-[a-z0-9-]+/gi, '[redacted]');
+
+  // 3. JSON-shaped forbidden key: "key": value (redact the key name AND the value).
+  for (const key of FORBIDDEN_PROPERTY_KEYS) {
+    out = out.replace(
+      new RegExp(`"${key}"\\s*:\\s*(?:"[^"]*"|[^\\s,}]+)`, 'gi'),
+      '[redacted]',
+    );
+  }
+
+  // Existing key=value / key:value shape (no quotes).
   for (const key of FORBIDDEN_PROPERTY_KEYS) {
     out = out.replace(new RegExp(`${key}[=:][^\\s'")&]*`, 'gi'), '[redacted]');
   }
+
+  // 4. Bare email address, no key prefix required.
+  out = out.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[redacted]');
+
+  // Generic high-entropy secret catch-all: 32+ run of letters/digits with no
+  // separators — covers stray API keys/tokens the named patterns above didn't match.
+  out = out.replace(/\b[A-Za-z0-9]{32,}\b/g, '[redacted]');
+
   return out.slice(0, MAX_EXCEPTION_TEXT_LENGTH);
 }
 

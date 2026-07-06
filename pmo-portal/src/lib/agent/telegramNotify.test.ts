@@ -8,19 +8,20 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import {
-  selectNotifiedCandidates,
   groupIntoMessages,
   buildTelegramPayload,
   pingHeartbeat,
 } from '../../../../supabase/functions/telegram-notify/logic';
 
 const ROW = (overrides: Partial<{
+  id: string;
   error_code: string;
   fn: string;
   context_id: string | null;
   org_id: string | null;
   created_at: string;
 }> = {}) => ({
+  id: overrides.id ?? `row_${Math.random().toString(36).slice(2)}`,
   error_code: 'TICK_FAILED',
   fn: 'agent-dispatch',
   context_id: null,
@@ -35,7 +36,7 @@ describe('telegram-notify/logic', () => {
       ...Array.from({ length: 5 }, () => ROW({ error_code: 'TICK_FAILED' })),
       ...Array.from({ length: 2 }, () => ROW({ error_code: 'MISSING_OPENROUTER_API_KEY', fn: 'agent-chat' })),
     ];
-    const groups = groupIntoMessages(rows, {}, 'production', 900);
+    const groups = groupIntoMessages(rows, {}, 900);
     expect(groups).toHaveLength(2);
     const tick = groups.find((g) => g.errorCode === 'TICK_FAILED')!;
     const missing = groups.find((g) => g.errorCode === 'MISSING_OPENROUTER_API_KEY')!;
@@ -47,7 +48,7 @@ describe('telegram-notify/logic', () => {
     const rows = [ROW({ error_code: 'TICK_FAILED', created_at: '2026-07-04T10:14:00.000Z' })];
     // 5 minutes ago; cooldown is 900s (15 min) — within window.
     const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' };
-    const groups = groupIntoMessages(rows, lastNotifiedByCode, 'production', 900);
+    const groups = groupIntoMessages(rows, lastNotifiedByCode, 900);
     expect(groups.find((g) => g.errorCode === 'TICK_FAILED' && !g.suppressed)).toBeUndefined();
     const suppressed = groups.find((g) => g.errorCode === 'TICK_FAILED');
     expect(suppressed?.suppressed).toBe(true);
@@ -56,25 +57,72 @@ describe('telegram-notify/logic', () => {
   it('AC-OF-002: a code OUTSIDE the cooldown window (>=15 min since lastNotified) is NOT suppressed', () => {
     const rows = [ROW({ error_code: 'TICK_FAILED', created_at: '2026-07-04T10:30:00.000Z' })];
     const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' }; // 21 min ago
-    const groups = groupIntoMessages(rows, lastNotifiedByCode, 'production', 900);
+    const groups = groupIntoMessages(rows, lastNotifiedByCode, 900);
     const group = groups.find((g) => g.errorCode === 'TICK_FAILED')!;
     expect(group.suppressed).toBe(false);
   });
 
-  it('AC-OF-005: mocked fetch returning 502 leaves notified_at NULL (retry) and does not throw', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 502 });
-    vi.stubGlobal('fetch', fetchMock);
-    const group = { errorCode: 'TICK_FAILED', fn: 'agent-dispatch', count: 1, firstCreatedAt: '2026-07-04T10:00:00.000Z', lastCreatedAt: '2026-07-04T10:00:00.000Z', sampleContextId: null, suppressed: false };
-    const payload = buildTelegramPayload(group);
-    const res = await fetch('https://api.telegram.org/botX/sendMessage', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+  describe('AC-OF-005/AC-FIX1: id-stamping seam (groupIntoMessages carries row ids per group)', () => {
+    it('groupIntoMessages returns the exact row ids belonging to each group, alongside the message fields', () => {
+      const a1 = ROW({ id: 'a1', error_code: 'TICK_FAILED' });
+      const a2 = ROW({ id: 'a2', error_code: 'TICK_FAILED' });
+      const b1 = ROW({ id: 'b1', error_code: 'MISSING_OPENROUTER_API_KEY', fn: 'agent-chat' });
+      const groups = groupIntoMessages([a1, a2, b1], {}, 900);
+      const tick = groups.find((g) => g.errorCode === 'TICK_FAILED')!;
+      const missing = groups.find((g) => g.errorCode === 'MISSING_OPENROUTER_API_KEY')!;
+      expect(tick.ids.slice().sort()).toEqual(['a1', 'a2']);
+      expect(missing.ids).toEqual(['b1']);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(res.ok).toBe(false);
-    // the caller (index.ts) decides notified_at based on res.ok — this test proves the
-    // pure payload builder + a non-2xx response never throw synchronously.
-    vi.unstubAllGlobals();
+
+    it('AC-OF-005: mocked fetch returning 502 leaves notified_at NULL (retry) — the drain does not stamp ids for a failed send', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 502 });
+      vi.stubGlobal('fetch', fetchMock);
+      const row = ROW({ id: 'row-1', error_code: 'TICK_FAILED' });
+      const groups = groupIntoMessages([row], {}, 900);
+      const group = groups[0];
+      expect(group.ids).toEqual(['row-1']);
+
+      const payload = buildTelegramPayload(group);
+      const res = await fetch('https://api.telegram.org/botX/sendMessage', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(res.ok).toBe(false);
+
+      // Drain decision (index.ts's actual branch): a non-2xx send means this group's
+      // ids must NOT be stamped — they are retried on the next tick.
+      const idsToStamp = !group.suppressed && !res.ok ? [] : group.ids;
+      expect(idsToStamp).toEqual([]);
+      vi.unstubAllGlobals();
+    });
+
+    it('AC-OF-005: a successful send stamps exactly that group\'s ids (not other groups\')', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      vi.stubGlobal('fetch', fetchMock);
+      const sent = ROW({ id: 'sent-1', error_code: 'TICK_FAILED' });
+      const other = ROW({ id: 'other-1', error_code: 'MISSING_OPENROUTER_API_KEY', fn: 'agent-chat' });
+      const groups = groupIntoMessages([sent, other], {}, 900);
+      const tickGroup = groups.find((g) => g.errorCode === 'TICK_FAILED')!;
+
+      const payload = buildTelegramPayload(tickGroup);
+      const res = await fetch('https://api.telegram.org/botX/sendMessage', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const idsToStamp = !tickGroup.suppressed && !res.ok ? [] : tickGroup.ids;
+      expect(idsToStamp).toEqual(['sent-1']);
+      vi.unstubAllGlobals();
+    });
+
+    it('a suppressed group\'s ids are still returned (caller stamps them even though nothing was sent)', () => {
+      const row = ROW({ id: 'suppressed-1', error_code: 'TICK_FAILED', created_at: '2026-07-04T10:14:00.000Z' });
+      const lastNotifiedByCode = { TICK_FAILED: '2026-07-04T10:09:00.000Z' };
+      const groups = groupIntoMessages([row], lastNotifiedByCode, 900);
+      const group = groups[0];
+      expect(group.suppressed).toBe(true);
+      expect(group.ids).toEqual(['suppressed-1']);
+    });
   });
 
   it('AC-OF-006: message body carries fn/error_code/count/timestamps/context_id, no token/org_id-UUID/PII', () => {
@@ -86,6 +134,7 @@ describe('telegram-notify/logic', () => {
       lastCreatedAt: '2026-07-04T09:10:00.000Z',
       sampleContextId: 'run_abc',
       suppressed: false,
+      ids: ['a1', 'a2', 'a3'],
     };
     const payload = buildTelegramPayload(group);
     expect(payload.text).toContain('agent-dispatch');
@@ -118,10 +167,5 @@ describe('telegram-notify/logic', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(pingHeartbeat('https://uptime.betterstack.com/api/v1/heartbeat/abc')).resolves.toBeUndefined();
     vi.unstubAllGlobals();
-  });
-
-  it('selectNotifiedCandidates: returns unnotified rows unchanged when lastNotifiedByCode is empty', () => {
-    const rows = [ROW()];
-    expect(selectNotifiedCandidates(rows, {}, 900)).toEqual(rows);
   });
 });

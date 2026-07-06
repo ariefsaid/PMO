@@ -226,7 +226,7 @@ describe('analyticsClient', () => {
       expect(passedError.componentStack).toBe('    in Foo');
     });
 
-    it('AC-OF-011: the before_send hook registered at init() redacts $exception_* properties on an outbound exception event', () => {
+    it('FR-OF-011: the before_send hook registered at init() redacts $exception_* properties on an outbound exception event', () => {
       analyticsClient.__resetForTests();
       analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
       // Pull the registered hook straight off the posthog.init call — proves redaction is wired
@@ -252,13 +252,62 @@ describe('analyticsClient', () => {
       expect(result.properties.other_prop).toBe('unchanged');
     });
 
-    it('AC-OF-011: the before_send hook passes through a non-exception event unchanged', () => {
+    it('FR-OF-011: the before_send hook passes through a non-exception event unchanged', () => {
       analyticsClient.__resetForTests();
       analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
       const [, initOpts] = posthog.init.mock.calls[0];
       const beforeSend = initOpts.before_send as (cr: unknown) => unknown;
       const rawEvent = { uuid: 'u2', event: 'app_route_viewed', properties: { route: '/projects' } };
       expect(beforeSend(rawEvent)).toEqual(rawEvent);
+    });
+
+    describe('FR-OF-011: redaction hardening — 4 named leak vectors (fix round)', () => {
+      function redactViaBeforeSend(exceptionMessage: string): string {
+        analyticsClient.__resetForTests();
+        analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+        const [, initOpts] = posthog.init.mock.calls[0];
+        const beforeSend = initOpts.before_send as (cr: unknown) => { properties: { $exception_message: string } };
+        const result = beforeSend({
+          uuid: 'u1',
+          event: '$exception',
+          properties: { $exception_message: exceptionMessage },
+        });
+        return result.properties.$exception_message;
+      }
+
+      it('vector 1 — a JWT in a URL PATH (not a query string) is redacted', () => {
+        const jwt =
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PYb4LddF';
+        const redacted = redactViaBeforeSend(`GET https://api/reset/${jwt} failed`);
+        expect(redacted).not.toContain(jwt);
+        expect(redacted).not.toMatch(/eyJ[\w-]+\.[\w-]+\./);
+      });
+
+      it('vector 2 — a bearer token with no `key=` shape is redacted', () => {
+        const redacted = redactViaBeforeSend('Authorization: Bearer sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890');
+        expect(redacted).not.toContain('sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890');
+        expect(redacted).not.toMatch(/Bearer\s+sk-/);
+      });
+
+      it('vector 3 — a JSON-shaped forbidden key ("key":value, no `key=`) is redacted, including the key name', () => {
+        const redacted = redactViaBeforeSend(
+          'Failed to save {"contract_value":5000000,"notes":"secret"}',
+        );
+        expect(redacted).not.toContain('5000000');
+        expect(redacted).not.toContain('secret');
+        expect(redacted).not.toMatch(/"contract_value"\s*:/);
+        expect(redacted).not.toMatch(/"notes"\s*:/);
+      });
+
+      it('vector 4 — a bare email (no key= / key: prefix) is redacted', () => {
+        const redacted = redactViaBeforeSend('User alice@acme.com not found');
+        expect(redacted).not.toContain('alice@acme.com');
+      });
+
+      it('a generic 32+ char high-entropy secret-looking token is redacted even with no keyword nearby', () => {
+        const redacted = redactViaBeforeSend('token dump: abcdEFGH1234ijklMNOP5678qrstUVWX');
+        expect(redacted).not.toContain('abcdEFGH1234ijklMNOP5678qrstUVWX');
+      });
     });
   });
 });

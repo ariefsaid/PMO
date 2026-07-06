@@ -7,6 +7,7 @@
  */
 
 export interface ErrorEventRow {
+  id: string;
   error_code: string;
   fn: string;
   context_id: string | null;
@@ -22,6 +23,10 @@ export interface MessageGroup {
   lastCreatedAt: string;
   sampleContextId: string | null;
   suppressed: boolean;
+  /** The exact `error_events.id`s that make up this group — the caller (index.ts)
+   * stamps `notified_at` for precisely these ids, never a re-filter of the raw rows
+   * (Fix 1: this is the seam that had zero coverage and silently never stamped). */
+  ids: string[];
 }
 
 export interface TelegramPayload {
@@ -31,45 +36,21 @@ export interface TelegramPayload {
 }
 
 /**
- * selectNotifiedCandidates — filters unnotified rows to those NOT currently
- * suppressed by an active cooldown (FR-OF-005/009). `lastNotifiedByCode` is the
- * drain's second query result: Record<error_code, ISO timestamp | undefined>.
- * A code with no entry (never notified before) is never suppressed.
- *
- * The cooldown clock is measured relative to each row's OWN `created_at` (the
- * drain-tick time it was observed), never wall-clock `Date.now()` — a drain tick
- * that runs minutes or hours after the row was written must still evaluate the
- * cooldown as of when the error actually happened, not as of when the tick
- * happens to run.
- */
-export function selectNotifiedCandidates(
-  rows: ErrorEventRow[],
-  lastNotifiedByCode: Record<string, string | undefined>,
-  cooldownSec: number,
-): ErrorEventRow[] {
-  return rows.filter((row) => {
-    const last = lastNotifiedByCode[row.error_code];
-    if (!last) return true;
-    const elapsedSec = (new Date(row.created_at).getTime() - new Date(last).getTime()) / 1000;
-    return elapsedSec >= cooldownSec;
-  });
-}
-
-/**
  * groupIntoMessages — collapses unnotified rows into one group per error_code
  * (FR-OF-005/006, LD-OF-005), each carrying a `suppressed` flag computed from
- * `lastNotifiedByCode` + `cooldownSec` (I-2's cross-drain cooldown input). A
- * suppressed group's rows are still marked notified_at by the caller (index.ts) —
- * this function only decides WHICH groups send, never performs the DB write.
+ * `lastNotifiedByCode` + `cooldownSec` (I-2's cross-drain cooldown input) AND the
+ * group's own row `ids` (Fix 1). A suppressed group's rows are still marked
+ * notified_at by the caller (index.ts) — this function only decides WHICH groups
+ * send + WHICH ids belong to each group, never performs the DB write.
  *
  * The cooldown clock is measured relative to the group's OWN `lastCreatedAt` (the
- * most recent row's timestamp), never wall-clock `Date.now()` — see
- * selectNotifiedCandidates' doc comment for the rationale.
+ * most recent row's timestamp), never wall-clock `Date.now()` — a drain tick that
+ * runs minutes or hours after the row was written must still evaluate the cooldown
+ * as of when the error actually happened, not as of when the tick happens to run.
  */
 export function groupIntoMessages(
   rows: ErrorEventRow[],
   lastNotifiedByCode: Record<string, string | undefined>,
-  _env: string,
   cooldownSec: number,
 ): MessageGroup[] {
   const byCode = new Map<string, ErrorEventRow[]>();
@@ -94,6 +75,7 @@ export function groupIntoMessages(
       lastCreatedAt: sorted[sorted.length - 1].created_at,
       sampleContextId: sorted.find((r) => r.context_id)?.context_id ?? null,
       suppressed,
+      ids: sorted.map((r) => r.id),
     });
   }
   return groups;

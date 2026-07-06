@@ -1,9 +1,9 @@
 /**
  * errorLog — the ONE structured-error-logging choke point for every edge function
- * (agent-chat, compose-view, agent-dispatch, admin-invite-user). Observability hardening (spike
- * 2026-07-04, harden #1): every error/failure path must log a STRUCTURED line
- * carrying an error CODE + an optional context id, and NEVER a secret value or
- * prompt/PII text.
+ * (agent-chat, compose-view, agent-dispatch, admin-invite-user, telegram-notify).
+ * Observability hardening (spike 2026-07-04, harden #1): every error/failure path
+ * must log a STRUCTURED line carrying an error CODE + an optional context id, and
+ * NEVER a secret value or prompt/PII text.
  *
  * Pure: takes a plain object, no Deno globals — importable in Vitest (mirrors
  * modelResolution.ts / usage.ts's ADR-0039 decision-7 pattern).
@@ -14,7 +14,12 @@
  * just a runtime discipline).
  */
 
-export type EdgeFunctionName = 'agent-chat' | 'compose-view' | 'agent-dispatch' | 'admin-invite-user';
+export type EdgeFunctionName =
+  | 'agent-chat'
+  | 'compose-view'
+  | 'agent-dispatch'
+  | 'admin-invite-user'
+  | 'telegram-notify';
 
 export interface StructuredErrorContext {
   /** Which edge function emitted this log line. */
