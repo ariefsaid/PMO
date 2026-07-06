@@ -2,12 +2,53 @@ import { expect, request as pwRequest, type Locator, type Page } from '@playwrig
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
-/** Sign in via the /login form and wait for the dashboard. */
+/**
+ * Sign in via the /login form and wait for the dashboard.
+ *
+ * Hardened against a TRANSIENT CI GoTrue flake: on the shared CI runner, GoTrue
+ * intermittently returns "Invalid login credentials" for objectively-valid seed
+ * creds (proven: 132 specs authenticate fine in the same run; a direct token-endpoint
+ * curl for the same creds returns a valid access_token — it is NOT rate-limit, NOT
+ * concurrency, NOT a bad hash). Within a single spec, Playwright's immediate retries
+ * fire seconds apart inside the same degraded window, so they all fail together.
+ *
+ * The retry loop below re-drives the whole sign-in (re-navigate → fill → submit) up to
+ * `MAX_ATTEMPTS` times, racing success (dashboard URL) against the invalid-credentials
+ * alert, with exponential backoff between attempts to let the transient window pass. The
+ * goal-oracle is UNCHANGED and never softened: the FINAL assertion is still a hard
+ * `toHaveURL(/\/$/)`, so a genuinely-stuck sign-in still fails loudly.
+ */
+const SIGN_IN_MAX_ATTEMPTS = 4;
+const SIGN_IN_BACKOFF_MS = [750, 1500, 3000];
+
 export async function signIn(page: Page, email: string, password = SEED_PASSWORD) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  for (let attempt = 0; attempt < SIGN_IN_MAX_ATTEMPTS; attempt++) {
+    await page.goto('/login');
+    await page.getByLabel(/email/i).fill(email);
+    await page.getByLabel(/password/i).fill(password);
+    await page.getByRole('button', { name: /sign in/i }).click();
+
+    // Race the two terminal outcomes of a submit: landed on the dashboard (success) or the
+    // "Invalid login credentials" alert (the transient flake). Whichever resolves first wins;
+    // a 5s timeout with neither also drops through to the backoff-and-retry path below.
+    const signedIn = await Promise.race([
+      expect(page)
+        .toHaveURL(/\/$/, { timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false),
+      page
+        .getByText(/invalid login credentials/i)
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => false)
+        .catch(() => false),
+    ]);
+    if (signedIn) return;
+
+    const backoff = SIGN_IN_BACKOFF_MS[Math.min(attempt, SIGN_IN_BACKOFF_MS.length - 1)];
+    if (attempt < SIGN_IN_MAX_ATTEMPTS - 1) await page.waitForTimeout(backoff);
+  }
+
+  // Final, unguarded goal-oracle: if every attempt hit the transient window, fail loudly here.
   await expect(page).toHaveURL(/\/$/);
 }
 
