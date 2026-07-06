@@ -84,7 +84,7 @@ export interface UseAssistantPanel {
   togglePanel(): void;
   prefillVersion: number;
   consumePrefill(): string | null;
-  send(text: string): Promise<void>;
+  send(text: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void>;
   stop(): Promise<void>;
   retry(): Promise<void>;
   newConversation(): void;
@@ -374,7 +374,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
   // ── send ────────────────────────────────────────────────────────────────────
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, input?: { attachmentIds?: string[]; threadId?: string }) => {
       if (!runtime) return;
 
       // Append the user's message locally immediately.
@@ -394,9 +394,14 @@ export function useAssistantPanel(): UseAssistantPanel {
         setLastGoal(text);
         // FR-ATC-015/020: thread live context only when the flag is on — flag-off,
         // getContext() is never called and no context is sent.
-        const run = await runtime.createRun(
-          isFeatureEnabled('agentAssistant') ? { goal: text, context: getContext() } : { goal: text },
-        );
+        // Only attach optional keys when present, so the no-attachment path (the
+        // common case) keeps its exact { goal } / { goal, context } shape.
+        const run = await runtime.createRun({
+          goal: text,
+          ...(isFeatureEnabled('agentAssistant') ? { context: getContext() } : {}),
+          ...(input?.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}),
+          ...(input?.threadId ? { threadId: input.threadId } : {}),
+        });
         activeRunId = run.id;
         setRunId(activeRunId);
         runIdRef.current = activeRunId;
@@ -411,7 +416,14 @@ export function useAssistantPanel(): UseAssistantPanel {
       } else {
         // Follow-up: append to the existing run.
         activeRunId = runIdRef.current;
-        await runtime.followUp(activeRunId, text);
+        const turnInput = input?.attachmentIds?.length || input?.threadId
+          ? { attachmentIds: input?.attachmentIds, threadId: input?.threadId }
+          : undefined;
+        if (turnInput) {
+          await runtime.followUp(activeRunId, text, turnInput);
+        } else {
+          await runtime.followUp(activeRunId, text);
+        }
       }
 
       setPhase('running');
