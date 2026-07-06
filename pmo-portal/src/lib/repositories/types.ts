@@ -25,6 +25,7 @@ import type {
   ProjectDocumentInput,
   DocStatus,
 } from '@/src/lib/db/documents';
+import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -181,6 +182,21 @@ export interface DocumentRepository {
   ): Promise<ProjectDocumentRow>;
   /** Get the child (successor) document for lineage display. */
   getChild(parentId: string): Promise<ProjectDocumentRow | null>;
+}
+
+export interface AgentAttachmentRepository {
+  /** Prepare a signed upload URL by creating the owner-private metadata row first. */
+  prepareUpload(threadId: string, file: File): Promise<PreparedAgentAttachmentUpload>;
+  /** Confirm a successfully uploaded object so the resolver can pick it up. */
+  confirmUpload(attachmentId: string): Promise<void>;
+  /** Best-effort object cleanup + metadata soft-archive. */
+  cleanupObject(path: string): Promise<void>;
+  /**
+   * Create an agent thread for an attach-before-send upload (ADR-0017 seam — the hook
+   * never imports the DAL directly). The thread is owner-private + org-scoped at rest
+   * (RLS stamps org_id/owner_id via defaults; ADR-0001/0043).
+   */
+  createThread(title?: string): Promise<{ id: string }>;
 }
 
 export interface ProcurementRepository {
@@ -391,6 +407,7 @@ export interface Repositories {
   project: ProjectRepository;
   company: CompanyRepository;
   document: DocumentRepository;
+  agentAttachment: AgentAttachmentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
   timesheet: TimesheetRepository;

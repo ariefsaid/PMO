@@ -194,6 +194,76 @@ export type Database = {
           },
         ]
       }
+      agent_attachments: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          extracted_text: string | null
+          extracted_text_chars: number | null
+          extracted_text_status: string
+          id: string
+          mime_type: string
+          org_id: string
+          original_filename: string
+          owner_id: string
+          size_bytes: number
+          storage_path: string
+          thread_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          extracted_text_chars?: number | null
+          extracted_text_status?: string
+          id?: string
+          mime_type: string
+          org_id?: string
+          original_filename: string
+          owner_id?: string
+          size_bytes: number
+          storage_path?: string
+          thread_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          extracted_text_chars?: number | null
+          extracted_text_status?: string
+          id?: string
+          mime_type?: string
+          org_id?: string
+          original_filename?: string
+          owner_id?: string
+          size_bytes?: number
+          storage_path?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_attachments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_attachments_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_attachments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "agent_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_runs: {
         Row: {
           created_at: string
@@ -3036,4 +3106,3 @@ export const Constants = {
     },
   },
 } as const
-

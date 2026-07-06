@@ -152,3 +152,10 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
 schema to prod with `scripts/db-push-prod.sh` (typed `prod` confirm + explicit `--db-url`), never raw.
 The cloud DB secret is fetched from 1Password (vault `AS`) via `op-get.sh` — **NEVER read `~/.op-token` / the
 SA-key file**. `seed.sql` = local ONLY, **never prod**; never hand-edit a cloud schema; run `supabase` from the repo root.
+
+**⚑ Parallel-agent hygiene (binding — the local stack is ONE shared Docker DB):** multiple agents share it, so
+(a) **wrap every DB-driving command in `scripts/with-db-lock.sh`** (`scripts/with-db-lock.sh supabase db reset` /
+`… supabase test db` / `… npx playwright test`) — a cross-process mutex that serializes DB work (concurrent
+`db reset`/`test db`/e2e corrupt each other); (b) **assume parallel — never work in the shared working tree:**
+each dispatch/agent uses its OWN `git worktree` off `dev` on a **feature branch → PR to `dev`** (copy `.env.local`
+in; worktrees isolate FILES, not the one DB). Worktrees don't remove the DB contention — the lock does.

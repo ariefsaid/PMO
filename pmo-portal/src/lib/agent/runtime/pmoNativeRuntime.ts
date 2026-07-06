@@ -33,6 +33,8 @@ interface RunState {
   messages: ConversationMessage[];
   controller: AbortController;
   context?: RunContext;
+  attachmentIds?: string[];
+  threadId?: string;
   /** A3: pendingId from the most recent needs-approval event (stashed to send on re-POST). */
   pendingId?: string;
   /** A3: decision to send on the next re-POST (approve or reject). */
@@ -47,6 +49,11 @@ interface RunState {
   awaitingAnswer?: boolean;
 }
 
+function normalizeAttachmentIds(ids: string[] | undefined): string[] | undefined {
+  const normalized = ids?.map((id) => id.trim()).filter(Boolean) ?? [];
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 /**
  * PmoNativeRuntime implements AgentRuntime.
  * Holds a per-run transcript client-side; re-POSTs the full message list each turn (D8).
@@ -59,12 +66,14 @@ export class PmoNativeRuntime implements AgentRuntime {
     this._opts = opts;
   }
 
-  async createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun> {
+  async createRun(input: { goal: string; context?: RunContext; attachmentIds?: string[]; threadId?: string }): Promise<AgentRun> {
     const runId = crypto.randomUUID();
     const state: RunState = {
       messages: [{ role: 'user', content: input.goal }],
       controller: new AbortController(),
       context: input.context,
+      attachmentIds: normalizeAttachmentIds(input.attachmentIds),
+      threadId: input.threadId,
     };
     this._runs.set(runId, state);
     return {
@@ -74,10 +83,12 @@ export class PmoNativeRuntime implements AgentRuntime {
     };
   }
 
-  async followUp(runId: string, message: string): Promise<void> {
+  async followUp(runId: string, message: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void> {
     const state = this._runs.get(runId);
     if (!state) return;
     state.messages.push({ role: 'user', content: message });
+    state.attachmentIds = normalizeAttachmentIds(input?.attachmentIds);
+    state.threadId = input?.threadId ?? state.threadId;
   }
 
   async control(
@@ -229,11 +240,15 @@ export class PmoNativeRuntime implements AgentRuntime {
     try {
       const jwt = await this._opts.getJwt();
       const fetchImpl = this._opts.fetchImpl ?? globalThis.fetch;
+      const attachmentIds = state.attachmentIds;
+      state.attachmentIds = undefined;
 
       const body: AgentChatRequest = {
         runId,
+        ...(state.threadId ? { threadId: state.threadId } : {}),
         messages: state.messages,
         context: state.context,
+        ...(attachmentIds ? { attachmentIds } : {}),
         // A3: include decision on re-POST if present
         ...(decision ? { decision } : {}),
         // ADR-0045 §2: include answer on re-POST if present

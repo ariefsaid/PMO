@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -11,6 +11,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
@@ -97,6 +98,16 @@ const ProjectDetail: React.FC = () => {
       org_id: '',
     } as ProjectWithRefs;
   }, [cached, opp]);
+
+  // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
+  // follow-up like "summarize this" grounds to the viewed project — grounding only
+  // (NFR-AXP-SEC-003), never an authorization signal. Cleared on unmount/navigate.
+  const { setEntity } = useAgentContext();
+  useEffect(() => {
+    if (!project) return;
+    setEntity({ type: 'project', id: project.id, label: project.name });
+    return () => setEntity(undefined);
+  }, [project, setEntity]);
 
   // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
   // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.

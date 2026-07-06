@@ -8,7 +8,7 @@ const h = vi.hoisted(() => {
     from: [] as unknown[],
     select: [] as unknown[],
     eq: [] as unknown[],
-    single: [] as unknown[],
+    maybeSingle: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -17,8 +17,8 @@ const h = vi.hoisted(() => {
   };
   builder.select = chain('select');
   builder.eq = chain('eq');
-  builder.single = () => {
-    calls.single.push(true);
+  builder.maybeSingle = () => {
+    calls.maybeSingle.push(true);
     return Promise.resolve(result.value);
   };
   const from = vi.fn((table: string) => {
@@ -56,9 +56,17 @@ describe('AC-AGP-022 getRunHeartbeat', () => {
     expect(row).toEqual({ last_progress_at: '2026-07-03T00:00:10Z', status: 'running' });
   });
 
-  it('returns null when supabase returns null data (row not found / RLS-hidden)', async () => {
+  it('returns null when maybeSingle resolves 0 rows (row not found / RLS-hidden), no PGRST116 error path', async () => {
+    // maybeSingle's 0-row contract: { data: null, error: null } — never a PGRST116 error,
+    // and never a 406 (unlike .single()'s 0-row behavior).
     h.result.value = { data: null, error: null };
     await expect(getRunHeartbeat('run-missing')).resolves.toBeNull();
+  });
+
+  it('uses maybeSingle (not single) as the terminal builder call — avoids the 406-on-0-rows console spam', async () => {
+    h.result.value = { data: null, error: null };
+    await getRunHeartbeat('run-1');
+    expect(h.calls.maybeSingle.length).toBe(1);
   });
 
   it('throws AppError preserving the PG code on a read error', async () => {

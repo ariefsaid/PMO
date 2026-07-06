@@ -135,6 +135,29 @@ describe('useAssistantPanel', () => {
     expect(runtime.subscribeSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('AC-AT2-001 send() forwards attachment references and prepared thread id to createRun', async () => {
+    const completedEvent = makeEvent('status', {
+      payload: { status: 'completed' },
+    });
+    const runtime = makeFakeRuntime([completedEvent]);
+    const wrapper = makeWrapper(runtime);
+
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await act(async () => {
+      await result.current.send('what does this say?', {
+        attachmentIds: ['att-1'],
+        threadId: 'thread-1',
+      });
+    });
+
+    expect(runtime.createRunSpy).toHaveBeenCalledWith({
+      goal: 'what does this say?',
+      attachmentIds: ['att-1'],
+      threadId: 'thread-1',
+    });
+  });
+
   it('AC-AP-019 stop() calls control(runId, cancel) and returns to idle', async () => {
     // Set up a runtime where createRun resolves and the stream runs
     const runId = 'stop-run';
@@ -277,6 +300,29 @@ describe('useAssistantPanel', () => {
     await waitFor(() => {
       expect(result.current.phase).toBe('out-of-credits');
     });
+  });
+
+  it('send() does not duplicate the user bubble when the server echoes the same message back over the stream', async () => {
+    // Bug: send() optimistically appends a type:'user' transcript entry, then the SSE
+    // stream's catch-all also appends the server's echoed type:'user' event for the
+    // SAME message — rendering two identical bubbles. The stream handler must de-dupe
+    // against the most recent existing user entry when the text matches.
+    const runId = 'echo-run';
+    const userEchoEvent = makeEvent('user', { runId, text: 'hi' });
+    const completedEvent = makeEvent('status', { runId, payload: { status: 'completed' } });
+    const runtime = makeFakeRuntime([userEchoEvent, completedEvent], runId);
+    const wrapper = makeWrapper(runtime);
+
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await act(async () => {
+      await result.current.send('hi');
+    });
+
+    const userBubbles = result.current.transcript.filter(
+      (e) => e.event.type === 'user' && e.event.text === 'hi',
+    );
+    expect(userBubbles).toHaveLength(1);
   });
 
   it('RATE_LIMITED with retryAfterSeconds>0 (hypothetical future throttle) stays the generic error phase', async () => {
