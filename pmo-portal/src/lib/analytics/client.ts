@@ -26,6 +26,59 @@ export const POSTHOG_PROPERTY_DENYLIST = Array.from(FORBIDDEN_PROPERTY_KEYS).fil
 let initialized = false;
 let activeConfig: AnalyticsConfig | null = null;
 
+const MAX_EXCEPTION_TEXT_LENGTH = 2000;
+
+/**
+ * Redact one exception-shaped string (FR-OF-011, NFR-OF-PRIV-002): strip query
+ * strings from anything URL-shaped, drop any FORBIDDEN_PROPERTY_KEYS shape (e.g.
+ * "token=xyz"), and bound the length.
+ */
+function redactExceptionText(text: string): string {
+  let out = text.replace(/\?[^\s'")]*/g, '');
+  for (const key of FORBIDDEN_PROPERTY_KEYS) {
+    out = out.replace(new RegExp(`${key}[=:][^\\s'")&]*`, 'gi'), '[redacted]');
+  }
+  return out.slice(0, MAX_EXCEPTION_TEXT_LENGTH);
+}
+
+/**
+ * The `before_send` hook registered at `posthog.init()` (DC-OF-002, FR-OF-011): applied to EVERY
+ * outbound event, not just ones built by `captureException`. Only touches the `$exception_*`
+ * properties PostHog's exception schema populates (`$exception_message`, `$exception_list`,
+ * `$exception_values`, `$exception_stack_trace_raw`) — every other event/property passes through
+ * unchanged, so this hook is additive to (never a replacement for) `buildEventProperties`'s
+ * existing scrub on ordinary `capture()` calls.
+ */
+function redactExceptionProperties(
+  captureResult: import('@posthog/types').CaptureResult | null,
+): import('@posthog/types').CaptureResult | null {
+  if (!captureResult) return captureResult;
+  const properties = captureResult.properties as Record<string, unknown>;
+  if (typeof properties.$exception_message === 'string') {
+    properties.$exception_message = redactExceptionText(properties.$exception_message);
+  }
+  if (typeof properties.$exception_stack_trace_raw === 'string') {
+    properties.$exception_stack_trace_raw = redactExceptionText(properties.$exception_stack_trace_raw);
+  }
+  if (Array.isArray(properties.$exception_list)) {
+    properties.$exception_list = (properties.$exception_list as Array<Record<string, unknown>>).map(
+      (entry) => (typeof entry?.value === 'string' ? { ...entry, value: redactExceptionText(entry.value) } : entry),
+    );
+  }
+  if (Array.isArray(properties.$exception_values)) {
+    properties.$exception_values = (properties.$exception_values as unknown[]).map((v) =>
+      typeof v === 'string' ? redactExceptionText(v) : v,
+    );
+  }
+  return captureResult;
+}
+
+export interface CaptureExceptionInput {
+  name: string;
+  message: string;
+  componentStack?: string;
+}
+
 /**
  * Redact query strings from captured network request URLs in session replay.
  * Accepts the full CapturedNetworkRequest shape from @posthog/types but only
@@ -71,6 +124,7 @@ export const analyticsClient = {
         recordBody: false,
         maskCapturedNetworkRequestFn: redactUrl,
       },
+      before_send: redactExceptionProperties,
     });
     initialized = true;
   },
@@ -78,6 +132,16 @@ export const analyticsClient = {
   capture(event: AnalyticsEventName, properties: SafeProperties = {}) {
     if (!initialized || !activeConfig?.enabled) return;
     posthog.capture(event, buildEventProperties(event, properties, activeConfig.isProd));
+  },
+
+  captureException(input: CaptureExceptionInput) {
+    if (!initialized || !activeConfig?.enabled) return;
+    const err = new Error(input.message) as Error & { componentStack?: string };
+    err.name = input.name;
+    if (input.componentStack !== undefined) {
+      err.componentStack = input.componentStack;
+    }
+    posthog.captureException(err);
   },
 
   identify(input: { userId: string; role: string; orgId: string }) {

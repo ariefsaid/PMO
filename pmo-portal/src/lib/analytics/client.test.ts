@@ -17,6 +17,7 @@ const posthog = vi.hoisted(() => ({
   identify: vi.fn(),
   register: vi.fn(),
   reset: vi.fn(),
+  captureException: vi.fn(),
 }));
 
 vi.mock('posthog-js', () => ({ default: posthog }));
@@ -43,6 +44,7 @@ beforeEach(() => {
   posthog.identify.mockReset();
   posthog.register.mockReset();
   posthog.reset.mockReset();
+  posthog.captureException.mockReset();
   analyticsClient.__resetForTests();
 });
 
@@ -191,6 +193,72 @@ describe('analyticsClient', () => {
       expect(result).not.toHaveProperty('responseBody');
       // name should still be present (with query stripped)
       expect(result.name).toBe('https://api.example.com/data');
+    });
+  });
+
+  describe('captureException', () => {
+    it('AC-OF-008: no-ops (no posthog call) when not initialized', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.captureException({ name: 'TypeError', message: 'boom' });
+      expect(posthog.captureException).not.toHaveBeenCalled();
+    });
+
+    it('AC-OF-008: no-ops when initialized but activeConfig.enabled is false', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: false });
+      analyticsClient.captureException({ name: 'TypeError', message: 'boom' });
+      expect(posthog.captureException).not.toHaveBeenCalled();
+    });
+
+    it('AC-OF-009: enabled analytics calls posthog.captureException (not a hand-rolled $exception event)', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      analyticsClient.captureException({ name: 'TypeError', message: 'boom' });
+      expect(posthog.captureException).toHaveBeenCalledTimes(1);
+      expect(posthog.capture).not.toHaveBeenCalledWith('$exception', expect.anything());
+    });
+
+    it('AC-OF-009: componentStack is attached to the synthetic Error when supplied', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      analyticsClient.captureException({ name: 'TypeError', message: 'boom', componentStack: '    in Foo' });
+      const passedError = posthog.captureException.mock.calls[0][0] as Error & { componentStack?: string };
+      expect(passedError.componentStack).toBe('    in Foo');
+    });
+
+    it('AC-OF-011: the before_send hook registered at init() redacts $exception_* properties on an outbound exception event', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      // Pull the registered hook straight off the posthog.init call — proves redaction is wired
+      // as a before_send hook at init(), not as inline string-munging inside captureException
+      // itself (FR-OF-011/DC-OF-002: "via a before_send / payload-transform hook", not the call site).
+      const [, initOpts] = posthog.init.mock.calls[0];
+      const beforeSend = initOpts.before_send as (cr: unknown) => unknown;
+      expect(typeof beforeSend).toBe('function');
+
+      const rawEvent = {
+        uuid: 'u1',
+        event: '$exception',
+        properties: {
+          $exception_message: 'Cannot read props of /projects/abc?token=secret123',
+          $exception_list: [{ value: 'token=secret123 in stack' }],
+          other_prop: 'unchanged',
+        },
+      };
+      const result = beforeSend(rawEvent) as typeof rawEvent;
+      expect(result.properties.$exception_message).not.toContain('?token=secret123');
+      expect(result.properties.$exception_message).not.toMatch(/token/i);
+      expect(JSON.stringify(result.properties.$exception_list)).not.toMatch(/token/i);
+      expect(result.properties.other_prop).toBe('unchanged');
+    });
+
+    it('AC-OF-011: the before_send hook passes through a non-exception event unchanged', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      const [, initOpts] = posthog.init.mock.calls[0];
+      const beforeSend = initOpts.before_send as (cr: unknown) => unknown;
+      const rawEvent = { uuid: 'u2', event: 'app_route_viewed', properties: { route: '/projects' } };
+      expect(beforeSend(rawEvent)).toEqual(rawEvent);
     });
   });
 });
