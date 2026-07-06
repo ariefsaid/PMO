@@ -197,6 +197,24 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
   live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
   secrets are provisioned. Promotion dev→main→production is **owner-gated**.
 
+## ▶ Current state (2026-07-06) — AGENT-EXPERIENCE + TIER-2 WAVE SHIPPED TO PRODUCTION (owner-instructed)
+
+> **RESUME ENTRY POINT (2026-07-06).** The full agent-experience + Tier-2 program (I1 markdown · I2 layered
+> prompts · I3 context+drawer · Track D/E · I4 attachments · I5 Cmd+K/approvals · I6 eval harness; I7 deferred)
+> is on **`main` = `dev` = `production` in content**, all at **`94ce615`**. **Shipped to prod 2026-07-06 (owner
+> "ship to production"):** (1) prod Cloud DB (`prwccpsiumjzvnwjlkwq`) migrated **0057→0060** (0058 procurement
+> write-hardening, 0059 agent-automation-bounds, 0060 agent_attachments table+bucket+RLS) via `db-push-prod.sh`;
+> (2) edge fns **agent-chat + agent-dispatch + compose-view redeployed** (I2 prompt, I4 attachments resolver,
+> help corpus, mint fix); (3) FE **`git push origin origin/main:production`** → CF Pages `94ce615`
+> (https://pmo-bfb.pages.dev). **Verified:** agent-chat + compose-view boot clean (401 invalid-JWT, no
+> WORKER_ERROR); CF serves 200. **Promote flow this session:** dev→main #240 (agent-xp wave) then #241 (I4);
+> the recurring dev→main integration-red was **AC-AUTHF-005 mutating the shared `pm@acme.test` password** (fixed:
+> afterEach service-role restore + serial `workers:1` + signIn retry — see [[e2e-shared-auth-mutation-trap]]).
+> **Still owner-gated follow-ups:** DEC-7 image-vision + DEC-8 PDF-text (ship as honest graceful-skip), F4 mobile
+> assistant entry, OpenRouter fallback chain, agent automations pg_cron GUCs (`app.settings.dispatch_url`/
+> `service_role_key`), credits enforcement (default OFF). **Final logged-in UI render-check on prod needs owner
+> creds** (db-push never seeds prod). **⚠ SHAs move fast — trust this line + git, not memory.**
+
 ## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
