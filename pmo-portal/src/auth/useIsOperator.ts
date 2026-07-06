@@ -3,7 +3,7 @@ import { repositories } from '@/src/lib/repositories';
 
 /**
  * useIsOperator — AC-OPR-003 (ops-admin-surface S4, ADR-0049). A CLARITY PROJECTION ONLY: it
- * gates which Operator-only affordances render (the "Add user" cross-org picker, Grant credits,
+ * gates which Operator-only affordances render (the "Invite user" cross-org picker, Grant credits,
  * Feature toggles). Every Operator power is re-asserted server-side by its own RPC
  * (`admin_set_user_status`, `operator_grant_credits`, `operator_toggle_feature`, …) — this hook
  * is UX only, never an authorization boundary (mirrors `usePermission`/`can()`, ADR-0016).
