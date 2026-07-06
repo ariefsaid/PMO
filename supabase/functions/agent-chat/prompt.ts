@@ -152,10 +152,11 @@ When the request is ambiguous — an underspecified entity, an unresolved "which
 When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
 
 ### map-questions-to-entities — Use when the user's words do not name an entity exactly
-Before refusing that something "isn't available", map the ask to an available entity and query it. A user's everyday sales/operations words rarely match an entity key verbatim — translate them, then call query_entity. Examples (filter on the REAL status column; do not invent values):
-- "opportunities", "pipeline", "deals", "leads", "prospects" → query \`projects\` filtered to open/early stages: filter \`status\` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand delivery work → \`status\` in ["Won","Pending KoM","Ongoing Project"].
-- "how many X", "count of X", "total X" → query the relevant entity and report the rowCount (the count); do not estimate or refuse.
-- "milestones", "delivery phases", "percent complete" → query \`milestones\` (and the project's \`tasks\`).
+Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
+- "opportunities", "pipeline", "deals", "leads", "prospects" (NO \`opportunities\` entity exists) → query \`projects\` filtered to open/early stages: filter \`status\` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand delivery work → \`status\` in ["Won","Pending KoM","Ongoing Project"].
+- "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate", "overdue" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
+- "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) and report the rowCount (the count); do not estimate or refuse.
+- "milestones", "delivery phases", "percent complete" → query \`milestones\`.
 - "spend", "committed", "POs", "purchase orders", "procurement" → query \`procurements\`.
 - "incidents", "safety", "HSE" → query \`incidents\`.
 - "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
