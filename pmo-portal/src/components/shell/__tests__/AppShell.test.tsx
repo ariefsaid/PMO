@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 import { AppShell } from '../AppShell';
@@ -133,6 +133,7 @@ describe('AppShell', () => {
       <AppShell
         rail={null}
         header={null}
+        assistantOpen={false}
         assistant={
           <aside
             role="complementary"
@@ -152,5 +153,108 @@ describe('AppShell', () => {
     expect(main.contains(asst)).toBe(false);
     // Must have the inert attribute (closed state)
     expect(asst).toHaveAttribute('inert');
+  });
+
+  it('AC-AXP-019 dock/overlay reflow + persists: docked open assistant reserves a shell column', () => {
+    localStorage.setItem('pmo.agentPanel.mode', 'docked');
+    localStorage.setItem('pmo.agentPanel.width', '512');
+
+    const { container } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<div>bar</div>}
+        assistantOpen
+        assistant={
+          <aside
+            role="complementary"
+            aria-label="Agent assistant"
+            data-testid="asst"
+          />
+        }
+      >
+        <div>x</div>
+      </AppShell>
+    );
+
+    const grid = container.querySelector<HTMLElement>('.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.style.gridTemplateColumns).toBe(
+      'var(--rail-w) minmax(0, 1fr) 512px'
+    );
+    expect(grid!.style.gridTemplateAreas).toBe(
+      '"rail header assistant" "rail main assistant"'
+    );
+
+    const assistantSlot = screen.getByTestId('asst').parentElement;
+    expect(assistantSlot).toHaveAttribute('data-assistant-dock-slot', 'true');
+    expect(assistantSlot).toHaveStyle({ gridArea: 'assistant' });
+  });
+
+  it('AC-AXP-019 dock/overlay reflow + persists: overlay or closed assistant does not add a shell column', () => {
+    localStorage.setItem('pmo.agentPanel.mode', 'overlay');
+    localStorage.setItem('pmo.agentPanel.width', '512');
+
+    const { container, rerender } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<div>bar</div>}
+        assistantOpen
+        assistant={<aside role="complementary" aria-label="Agent assistant" />}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+
+    const grid = container.querySelector<HTMLElement>('.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
+    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
+
+    localStorage.setItem('pmo.agentPanel.mode', 'docked');
+    rerender(
+      <MemoryRouter>
+        <AppShell
+          rail={<div>nav</div>}
+          header={<div>bar</div>}
+          assistantOpen={false}
+          assistant={<aside role="complementary" aria-label="Agent assistant" />}
+        >
+          <div>x</div>
+        </AppShell>
+      </MemoryRouter>
+    );
+
+    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
+    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
+  });
+
+  it('AC-AXP-019 dock/overlay reflow + persists: shell reacts when panel prefs change', () => {
+    localStorage.setItem('pmo.agentPanel.mode', 'overlay');
+    localStorage.setItem('pmo.agentPanel.width', '400');
+
+    const { container } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<div>bar</div>}
+        assistantOpen
+        assistant={<aside role="complementary" aria-label="Agent assistant" />}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+
+    const grid = container.querySelector<HTMLElement>('.grid');
+    expect(grid).not.toBeNull();
+    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
+
+    localStorage.setItem('pmo.agentPanel.mode', 'docked');
+    localStorage.setItem('pmo.agentPanel.width', '544');
+    act(() => {
+      window.dispatchEvent(new Event('pmo.agentPanel.prefsChanged'));
+    });
+
+    expect(grid!.style.gridTemplateColumns).toBe(
+      'var(--rail-w) minmax(0, 1fr) 544px'
+    );
   });
 });

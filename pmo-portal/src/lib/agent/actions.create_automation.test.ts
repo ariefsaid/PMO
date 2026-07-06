@@ -281,3 +281,38 @@ it('AC-AAN-029 approving create_automation writes the row under the caller-JWT c
   expect(insertedRow.kind).toBe('schedule');
   expect(insertedRow.schedule).toBe('0 8 * * 1');
 });
+
+// ── AUDIT-M1 (2026-07-04 audit): validate mirrors migration 0059's cost-amplification bounds ──
+describe('createAutomationAction.validate (AUDIT-M1 bounds)', () => {
+  it('rejects a prompt over 4000 characters', () => {
+    const result = createAutomationAction.validate({
+      kind: 'schedule', prompt: 'x'.repeat(4001), schedule: '0 9 * * *',
+    }) as { ok: false; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/4000/);
+  });
+
+  it('accepts a prompt of exactly 4000 characters', () => {
+    const result = createAutomationAction.validate({
+      kind: 'schedule', prompt: 'x'.repeat(4000), schedule: '0 9 * * *',
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects timeout_s outside [10, 900]', () => {
+    for (const timeout_s of [5, 901, 0, -1]) {
+      const result = createAutomationAction.validate({
+        kind: 'schedule', prompt: 'p', schedule: '0 9 * * *', timeout_s,
+      }) as { ok: false; error: string };
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/10 and 900/);
+    }
+  });
+
+  it('accepts timeout_s inside the bounds', () => {
+    const result = createAutomationAction.validate({
+      kind: 'schedule', prompt: 'p', schedule: '0 9 * * *', timeout_s: 300,
+    });
+    expect(result.ok).toBe(true);
+  });
+});

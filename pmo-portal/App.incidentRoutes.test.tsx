@@ -29,8 +29,17 @@ vi.mock('./pages/IncidentDetail', () => ({
   default: () => <div data-testid="incident-detail-page">Incident Detail</div>,
 }));
 
+// S6 entitlement rewire: <FeatureRoute feature="incidents"> now resolves via useFeature() →
+// useOrgFeatures() (which calls useAuth). Mock the org-features hook so the incidents
+// entitlement is controllable without an AuthProvider/QueryClient.
+const { featuresState } = vi.hoisted(() => ({
+  featuresState: { value: { incidents: false } as Record<string, boolean | undefined> },
+}));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({ data: featuresState.value }),
+}));
+
 import { AppRoutes } from './App';
-import * as features from '@/src/lib/features';
 
 const renderAt = (path: string) =>
   render(
@@ -39,30 +48,34 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  featuresState.value = { incidents: false };
+});
 
 describe('AppRoutes — Incidents feature gate (real router)', () => {
   it('flag OFF: /incidents redirects to the dashboard, not the Incidents page', async () => {
+    featuresState.value = { incidents: false };
     renderAt('/incidents');
     expect(await screen.findByTestId('exec-dashboard')).toBeInTheDocument();
     expect(screen.queryByTestId('incidents-page')).toBeNull();
   });
 
   it('flag OFF: /incidents/:id redirects to the dashboard, not the detail page', async () => {
+    featuresState.value = { incidents: false };
     renderAt('/incidents/some-uuid');
     expect(await screen.findByTestId('exec-dashboard')).toBeInTheDocument();
     expect(screen.queryByTestId('incident-detail-page')).toBeNull();
   });
 
   it('flag ON: /incidents renders the Incidents page', async () => {
-    vi.spyOn(features, 'isFeatureEnabled').mockReturnValue(true);
+    featuresState.value = { incidents: true };
     renderAt('/incidents');
     expect(await screen.findByTestId('incidents-page')).toBeInTheDocument();
     expect(screen.queryByTestId('exec-dashboard')).toBeNull();
   });
 
   it('flag ON: /incidents/:id renders the Incident detail page', async () => {
-    vi.spyOn(features, 'isFeatureEnabled').mockReturnValue(true);
+    featuresState.value = { incidents: true };
     renderAt('/incidents/abc-123');
     expect(await screen.findByTestId('incident-detail-page')).toBeInTheDocument();
     expect(screen.queryByTestId('exec-dashboard')).toBeNull();

@@ -100,12 +100,26 @@ export interface AgentAction {
   surfaces?: ('ui' | 'agent' | 'mcp' | 'cli')[];
   /** A1 read-only actions ⇒ false */
   confirm?: boolean;
+  /**
+   * ADR-0051: optional materiality predicate. Returns true when this specific
+   * validated input should surface the human approval chip; false auto-approves
+   * through the handler's forced dispatch path. UX-only: RLS/RPCs remain the
+   * enforcement authority.
+   */
+  needsApproval?: (input: unknown, ctx: DeputyContext) => boolean;
   run: (input: unknown, ctx: DeputyContext) => Promise<unknown>;
 }
 
+export interface AgentTurnAttachments {
+  /** Tier-2 attachments: caller-scoped references, never raw bytes. */
+  attachmentIds?: string[];
+  /** Existing persisted thread to bind a fresh run to, used by pre-uploaded attachments. */
+  threadId?: string;
+}
+
 export interface AgentRuntime {
-  createRun(input: { goal: string; context?: RunContext }): Promise<AgentRun>;
-  followUp(runId: string, message: string): Promise<void>;
+  createRun(input: { goal: string; context?: RunContext } & AgentTurnAttachments): Promise<AgentRun>;
+  followUp(runId: string, message: string, input?: AgentTurnAttachments): Promise<void>;
   control(
     runId: string,
     cmd: 'pause' | 'resume' | 'cancel' | 'approve' | 'reject' | 'answer',

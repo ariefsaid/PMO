@@ -55,4 +55,21 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
   it('non-Error value → generic headline + fallback detail', () => {
     expect(classifyMutationError('weird')).toEqual({ headline: 'Update failed', detail: 'An error occurred' });
   });
+
+  it('AC-INV: an optional overrides map classifies a caller-specific code (e.g. an edge-fn error code)', () => {
+    const e = new AppError('DUPLICATE_EMAIL', 'DUPLICATE_EMAIL');
+    expect(
+      classifyMutationError(e, { DUPLICATE_EMAIL: 'That person is already in your workspace.' }),
+    ).toEqual({ headline: 'That person is already in your workspace.', detail: 'DUPLICATE_EMAIL' });
+  });
+
+  it('AC-INV: overrides take precedence over the built-in Postgres-code mapping for the same code', () => {
+    const e = Object.assign(new Error('nope'), { code: '42501' });
+    expect(classifyMutationError(e, { '42501': 'Custom message' }).headline).toBe('Custom message');
+  });
+
+  it('AC-INV: an unmatched code falls through to the generic headline even with overrides present', () => {
+    const e = Object.assign(new Error('boom'), { code: 'UNKNOWN_ONE' });
+    expect(classifyMutationError(e, { DUPLICATE_EMAIL: 'x' }).headline).toBe('Update failed');
+  });
 });

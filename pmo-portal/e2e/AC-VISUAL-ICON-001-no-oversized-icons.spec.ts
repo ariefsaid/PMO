@@ -41,6 +41,9 @@ const ROUTES: { path: string; label: string }[] = [
   { path: '/companies', label: 'companies' },
   { path: '/contacts', label: 'contacts' },
   { path: '/administration', label: 'administration' },
+  // Legal pages (FR-LEG-029): swept at desktop + mobile for no oversized shared icons.
+  { path: '/terms', label: 'terms' },
+  { path: '/privacy', label: 'privacy' },
 ];
 
 const VIEWPORTS = [

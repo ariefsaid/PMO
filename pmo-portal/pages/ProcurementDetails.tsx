@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   RecordHeader,
@@ -44,6 +44,7 @@ import {
   type ProcurementDetail,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import {
   lifecycleSteps,
   pillVariantForStatus,
@@ -271,6 +272,17 @@ const ProcurementDetails: React.FC = () => {
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   const data = detailQuery.data;
+
+  // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
+  // follow-up like "summarize this" grounds to the viewed procurement case —
+  // grounding only (NFR-AXP-SEC-003), never an authorization signal. Placed before
+  // any early return (Rules of Hooks) — cleared on unmount/navigate.
+  const { setEntity } = useAgentContext();
+  useEffect(() => {
+    if (!data) return;
+    setEntity({ type: 'procurement_case', id: data.id, label: data.title });
+    return () => setEntity(undefined);
+  }, [data, setEntity]);
 
   // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record title from the cached list in App.tsx.

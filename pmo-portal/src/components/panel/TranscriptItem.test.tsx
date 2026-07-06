@@ -15,10 +15,14 @@ const { mockAgentAssistant } = vi.hoisted(() => ({
   mockAgentAssistant: { value: true },
 }));
 
-vi.mock('@/src/lib/features', () => ({
-  isFeatureEnabled: (key: string) => (key === 'agentAssistant' ? mockAgentAssistant.value : false),
-  FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
-}));
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/features')>();
+  return {
+    ...actual,
+    isFeatureEnabled: (key: string) => (key === 'agentAssistant' ? mockAgentAssistant.value : false),
+    FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
+  };
+});
 
 import { TranscriptItem } from './TranscriptItem';
 import type { TranscriptEntry } from '@/src/hooks/useAssistantPanel';

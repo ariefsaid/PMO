@@ -22,11 +22,45 @@ export interface UsageDeps {
   runId: string | null;
 }
 
+/** The three call-site kinds (ops-admin-surface S5, FR-USE-001) — matches the DB CHECK. */
+export type UsageAction = 'chat' | 'compose' | 'automation';
+
 export interface UsageFields {
   model: string;
   prompt_tokens: number;
   completion_tokens: number;
   cost: number;
+  /**
+   * The USD cost reported by the provider (ops-admin-surface S5, FR-USE-001). Today captured
+   * from the SAME `ModelResponse.usage.total_cost` value as `cost` — they are equal now and
+   * diverge only once a pricing rate is introduced (a pricing-issue change, not this one).
+   * Defaults to the clamped `cost` when omitted (interim call-sites that haven't been updated
+   * to pass it explicitly still populate a sane, non-null value).
+   */
+  provider_cost_usd?: number;
+  /** Which call-site produced this row. Defaults to 'chat' when omitted. */
+  action?: UsageAction;
+}
+
+// AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
+// grant unbounded unmetered model calls. A single transient failure is still swallowed
+// (NFR-AUC-SEC-006 — never blocks the turn on a blip), but after FAIL_CLOSED_THRESHOLD
+// CONSECUTIVE failures insertUsageRow throws, which the handlers surface as an errored turn —
+// metering stays fail-closed until an insert succeeds again. Per-isolate counter by design:
+// each edge-runtime isolate self-heals independently.
+const FAIL_CLOSED_THRESHOLD = 3;
+let consecutiveInsertFailures = 0;
+
+/** Test seam — reset the fail-closed counter between tests. */
+export function resetUsageFailureCounter(): void {
+  consecutiveInsertFailures = 0;
+}
+
+export class UsageMeteringUnavailableError extends Error {
+  constructor() {
+    super('usage metering unavailable');
+    this.name = 'UsageMeteringUnavailableError';
+  }
 }
 
 /**
@@ -34,12 +68,15 @@ export interface UsageFields {
  * one row per modelClient.create() resolution, or one row per compose-view invocation).
  * Every field is (re-)clamped here — the single site that constructs the insert payload
  * (NFR-AUC-SEC-004) — so a caller that forgets to clamp upstream still cannot persist an
- * unclamped value. Swallows errors (NFR-AUC-SEC-006 — logs count/code only, never blocks
- * the turn), mirroring persistence.ts's discipline. Unconditional — NOT gated on
- * deps.persistence (FR-AUC-004/018).
+ * unclamped value. Swallows TRANSIENT errors (NFR-AUC-SEC-006 — logs count/code only, never
+ * blocks the turn), mirroring persistence.ts's discipline — but fails closed after
+ * FAIL_CLOSED_THRESHOLD consecutive failures (AUDIT-H5, see above). Unconditional — NOT
+ * gated on deps.persistence (FR-AUC-004/018).
  */
 export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Promise<void> {
+  let failed = false;
   try {
+    const cost = clampUsageValue(fields.cost);
     const { error } = await deps.supabase
       .from('agent_usage')
       .insert({
@@ -47,34 +84,54 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
         model: fields.model,
         prompt_tokens: clampUsageValue(fields.prompt_tokens),
         completion_tokens: clampUsageValue(fields.completion_tokens),
-        cost: clampUsageValue(fields.cost),
+        cost,
+        // fields.provider_cost_usd is independently clamped (never inherits an unclamped value);
+        // omitted -> defaults to the already-clamped cost (today-equal, FR-USE-001 note above).
+        provider_cost_usd: fields.provider_cost_usd === undefined ? cost : clampUsageValue(fields.provider_cost_usd),
+        action: fields.action ?? 'chat',
       })
       .select()
       .single();
     if (error) {
+      failed = true;
       console.error('[agent-usage] USAGE_INSERT_FAILED', {
         errorCode: 'USAGE_INSERT_FAILED',
         code: (error as { code?: string }).code,
       });
     }
   } catch (err) {
+    failed = true;
     console.error('[agent-usage] USAGE_INSERT_THREW', {
       errorCode: 'USAGE_INSERT_THREW',
       code: err instanceof Error ? err.name : 'unknown',
     });
+  }
+  if (!failed) {
+    consecutiveInsertFailures = 0;
+    return;
+  }
+  consecutiveInsertFailures++;
+  if (consecutiveInsertFailures >= FAIL_CLOSED_THRESHOLD) {
+    console.error('[agent-usage] USAGE_METERING_FAIL_CLOSED', {
+      errorCode: 'USAGE_METERING_FAIL_CLOSED',
+      consecutiveFailures: consecutiveInsertFailures,
+    });
+    throw new UsageMeteringUnavailableError();
   }
 }
 
 /**
  * Insert one agent_usage row for a single ModelResponse (agent-chat's model-call choke
  * point). Thin wrapper over insertUsageRow — extracts + clamps the ModelResponse.usage
- * fields into the flat shape.
+ * fields into the flat shape. `action` defaults to 'chat' (agent-chat's own call-site);
+ * agent-dispatch's fired-run call-site passes 'automation' explicitly.
  */
-export async function recordUsage(deps: UsageDeps, resp: ModelResponse): Promise<void> {
+export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?: UsageAction): Promise<void> {
   return insertUsageRow(deps, {
     model: resp.model,
     prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
     completion_tokens: clampUsageValue(resp.usage?.completion_tokens),
     cost: clampUsageValue(resp.usage?.total_cost),
+    action,
   });
 }

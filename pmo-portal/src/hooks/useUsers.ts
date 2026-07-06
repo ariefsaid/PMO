@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -29,10 +29,11 @@ export interface AssignManagerArgs {
 }
 
 /**
- * Admin user-management mutations over the repository seam: change a role and
- * assign a manager. Each invalidates the `['users', …]` query family on success
- * so the directory refetches. Errors propagate as `AppError` (code preserved,
- * e.g. `42501` when profiles_admin_write denies a non-Admin) for the caller to
+ * Admin user-management mutations over the repository seam: change a role, assign a manager,
+ * invite a new user (FR-INV-004), and disable/re-enable a user (FR-INV-002/003, AC-INV-003/004).
+ * Each invalidates the `['users', …]` query family on success so the directory refetches. Errors
+ * propagate as `AppError` (code preserved — Postgres codes like `42501`/`P0001`, or the
+ * admin-invite-user edge fn's `DUPLICATE_EMAIL`/`INVITE_UNAUTHORIZED`/etc.) for the caller to
  * classify via `classifyMutationError`.
  */
 export function useUserMutations() {
@@ -50,5 +51,15 @@ export function useUserMutations() {
     onSuccess: invalidate,
   });
 
-  return { updateRole, assignManager };
+  const invite = useMutation({
+    mutationFn: (input: InviteUserInput) => repositories.profile.inviteUser(input),
+    onSuccess: invalidate,
+  });
+
+  const setStatus = useMutation({
+    mutationFn: (input: SetUserStatusInput) => repositories.profile.setUserStatus(input),
+    onSuccess: invalidate,
+  });
+
+  return { updateRole, assignManager, invite, setStatus };
 }

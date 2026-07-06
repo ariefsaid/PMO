@@ -85,8 +85,20 @@ else
   echo "    !! agent-browser not installed. Install: npm i -g agent-browser && agent-browser install"
 fi
 
+# --- skill-creator (claude-plugins-official) — meta-skill for authoring PREDICTABLE agent skills ---
+# Used to author the agent-chat query-skills (deterministic "Use when…" recipes) that make the weak
+# deepseek-v4-flash reliably map questions to query_entity calls (evals/query-selection-probe.ts is the gate).
+echo "==> skill-creator (claude-plugins-official) — author predictable agent query-skills"
+SC_SRC="$HOME/.claude/plugins/marketplaces/claude-plugins-official/plugins/skill-creator/skills/skill-creator"
+if [ -d "$SC_SRC" ]; then
+  rm -rf "${DEST:?}/skill-creator"
+  cp -R "$SC_SRC" "$DEST/skill-creator"
+else
+  echo "    !! skill-creator plugin not found. Install: claude plugin install skill-creator@claude-plugins-official --scope project"
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs agent-browser impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling"
 echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
 node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only
 echo "superpowers (plugin) — install once with:"

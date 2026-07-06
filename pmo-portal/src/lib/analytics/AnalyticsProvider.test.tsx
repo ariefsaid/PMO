@@ -58,6 +58,9 @@ function makeAuthCtx(overrides: Partial<AuthContextValue> = {}): AuthContextValu
     profileError: null,
     signInWithPassword: vi.fn(),
     signInWithMagicLink: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    updatePassword: vi.fn(),
+    resendEmailConfirmation: vi.fn(),
     signOut: vi.fn(),
     ...overrides,
   };
@@ -179,6 +182,7 @@ describe('AnalyticsProvider', () => {
         manager_id: null,
         skills: [],
         utilization: null,
+        status: 'active',
         created_at: '',
         updated_at: '',
       },
@@ -218,6 +222,7 @@ describe('AnalyticsProvider', () => {
       manager_id: null,
       skills: [] as string[],
       utilization: null,
+      status: 'active' as const,
       created_at: '',
       updated_at: '',
     };
@@ -314,6 +319,7 @@ describe('AnalyticsProvider', () => {
       manager_id: null,
       skills: [] as string[],
       utilization: null,
+      status: 'active' as const,
       created_at: '',
       updated_at: '',
     };
@@ -350,6 +356,7 @@ describe('AnalyticsProvider', () => {
           manager_id: null,
           skills: [],
           utilization: null,
+          status: 'active',
           created_at: '',
           updated_at: '',
         },

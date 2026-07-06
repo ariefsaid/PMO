@@ -1,13 +1,14 @@
 /**
  * TranscriptItem — renders one AgentEvent entry in the transcript.
  * Switches on event.type to choose the right visual treatment.
- * FR-AP-013/014/017; D-A2-7 (tool label); D-A2-8 (plain text).
+ * FR-AP-013/014/017; D-A2-7 (tool label); assistant text → safe <Markdown> (ADR-0049, supersedes D-A2-8).
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
 import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
+import { Markdown } from './Markdown';
 import { ToolCallCard } from './ToolCallCard';
 import { ApprovalChip } from './ApprovalChip';
 import { ArtifactSlot } from './ArtifactSlot';
@@ -74,7 +75,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
         <div data-transcript-item className="max-w-[90%]">
           <div data-testid="assistant-bubble" className="text-sm text-foreground">
             <span className="sr-only">Assistant: </span>
-            {event.text}
+            <Markdown text={event.text ?? ''} />
           </div>
           {onRate && <FeedbackControl eventId={event.id} onRate={onRate} />}
         </div>

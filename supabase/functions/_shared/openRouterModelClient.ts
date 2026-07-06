@@ -11,9 +11,18 @@ import type { ModelClient, ModelClientParams, ModelResponse } from './modelClien
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const REQUEST_TIMEOUT_MS = 30_000;
+// AUDIT-C1 (2026-07-04 audit, Reliability C-1): bounded retry on transient upstream failures
+// (network error, 429, 5xx) so a single provider blip no longer terminates the whole turn.
+// NOT retried: timeouts (30s × retries would blow the edge-fn wall clock), non-429 4xx (caller
+// error), malformed bodies (response already consumed). Usage stays single-recorded — only the
+// final successful attempt returns a usage block to the handler.
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 400;
 
 export interface OpenRouterModelClientOptions {
   apiKey: string;
+  /** Test seam — override the retry backoff base (default 400ms). */
+  retryBaseDelayMs?: number;
 }
 
 interface OpenRouterChoice {
@@ -52,18 +61,25 @@ function isValidChoice(choice: unknown): choice is OpenRouterChoice {
 
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
+  private readonly retryBaseDelayMs: number;
 
   constructor(options: OpenRouterModelClientOptions) {
     this.apiKey = options.apiKey;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS;
   }
 
-  async create(params: ModelClientParams): Promise<ModelResponse> {
+  /** Exponential backoff + proportional jitter: ~400ms, ~800ms at the default base. */
+  private backoff(attempt: number): Promise<void> {
+    const delay = this.retryBaseDelayMs * 2 ** (attempt - 1) * (1 + Math.random() * 0.25);
+    return new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  /** One transport attempt: fetch with the 30s abort window, throwing the scrubbed errors. */
+  private async attemptFetch(params: ModelClientParams): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    let response: Response;
     try {
-      response = await fetch(OPENROUTER_URL, {
+      return await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -89,9 +105,27 @@ export class OpenRouterModelClient implements ModelClient {
     } finally {
       clearTimeout(timer);
     }
+  }
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter request failed: ${response.status}`);
+  async create(params: ModelClientParams): Promise<ModelResponse> {
+    let response!: Response;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        response = await this.attemptFetch(params);
+      } catch (err) {
+        // Timeouts are terminal (30s × retries would blow the fn wall clock); plain network
+        // failures ('OpenRouter request failed', no status suffix) are transient.
+        if (!(err instanceof Error) || err.message !== 'OpenRouter request failed') throw err;
+        if (attempt === MAX_ATTEMPTS) throw err;
+        await this.backoff(attempt);
+        continue;
+      }
+      if (response.ok) break;
+      const transientError = new Error(`OpenRouter request failed: ${response.status}`);
+      // 429 + 5xx are transient upstream conditions; other non-2xx are terminal caller errors.
+      if (response.status !== 429 && response.status < 500) throw transientError;
+      if (attempt === MAX_ATTEMPTS) throw transientError;
+      await this.backoff(attempt);
     }
 
     let body: OpenRouterResponseBody;

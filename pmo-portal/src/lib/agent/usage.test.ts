@@ -3,8 +3,14 @@
  * AC-AUC-012/013/014: untrusted ModelResponse.usage values are clamped before
  * persistence (Number.isFinite(x) && x >= 0 ? x : 0), never thrown, never coerced.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { clampUsageValue, recordUsage, insertUsageRow } from '../../../../supabase/functions/_shared/usage';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  clampUsageValue,
+  recordUsage,
+  insertUsageRow,
+  resetUsageFailureCounter,
+  UsageMeteringUnavailableError,
+} from '../../../../supabase/functions/_shared/usage';
 import type { UsageDeps } from '../../../../supabase/functions/_shared/usage';
 import type { ModelResponse } from '../../../../supabase/functions/_shared/modelClient';
 
@@ -29,6 +35,11 @@ it('AC-AUC-014 valid usage passes through unchanged', () => {
   expect(clampUsageValue(45)).toBe(45);
   expect(clampUsageValue(0.0031)).toBe(0.0031);
   expect(clampUsageValue(0)).toBe(0);
+});
+
+// AUDIT-H5: the fail-closed counter is module state — reset it so failure tests don't bleed.
+beforeEach(() => {
+  resetUsageFailureCounter();
 });
 
 describe('recordUsage', () => {
@@ -154,5 +165,101 @@ describe('recordUsage', () => {
     expect(insertSpy).toHaveBeenCalledWith(
       expect.objectContaining({ run_id: null, model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0 }),
     );
+  });
+
+  // AC-USE-002 (ops-admin-surface S5, FR-USE-001): provider_cost_usd + action are captured
+  // alongside the existing cost/tokens fields, at the SAME choke point.
+  it('AC-USE-002 insertUsageRow defaults provider_cost_usd to the clamped cost and action to "chat" when omitted', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0.05 },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ provider_cost_usd: 0.05, action: 'chat' }),
+    );
+  });
+
+  it('AC-USE-002 insertUsageRow accepts an explicit action + provider_cost_usd (clamped independently of cost)', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: 0.09, action: 'automation' },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ provider_cost_usd: 0.09, action: 'automation', cost: 0.02 }),
+    );
+  });
+
+  it('AC-USE-002 insertUsageRow clamps a non-finite explicit provider_cost_usd to 0', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: NaN, action: 'compose' },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ provider_cost_usd: 0, action: 'compose' }));
+  });
+
+  it('AC-USE-002 recordUsage passes action through (call-sites resolve action literal) and defaults provider_cost_usd from usage.total_cost', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-3' }, resp, 'compose');
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'compose', provider_cost_usd: 0 }));
+  });
+
+  it('AC-USE-002 recordUsage defaults action to "chat" when the caller omits it', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-4' }, resp);
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'chat' }));
+  });
+});
+
+// ── AUDIT-H5 (2026-07-04 audit): fail-closed after 3 consecutive usage-insert failures ──
+describe('usage metering fail-closed', () => {
+  function failingSupabase() {
+    return {
+      from: vi.fn().mockImplementation(() => ({
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: null, error: { code: '42501' } }),
+          }),
+        }),
+      })),
+    } as unknown as UsageDeps['supabase'];
+  }
+  function okSupabase() {
+    return {
+      from: vi.fn().mockImplementation(() => ({
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: { id: 'usage-1' }, error: null }),
+          }),
+        }),
+      })),
+    } as unknown as UsageDeps['supabase'];
+  }
+  const fields = { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0 };
+
+  it('AUDIT-H5 swallows the first two consecutive failures, throws on the third', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = failingSupabase();
+    await expect(insertUsageRow({ supabase, runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase, runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase, runId: null }, fields)).rejects.toBeInstanceOf(
+      UsageMeteringUnavailableError,
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('AUDIT-H5 a successful insert resets the consecutive-failure counter', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = failingSupabase();
+    await insertUsageRow({ supabase: failing, runId: null }, fields);
+    await insertUsageRow({ supabase: failing, runId: null }, fields);
+    // success resets…
+    await insertUsageRow({ supabase: okSupabase(), runId: null }, fields);
+    // …so two more failures are swallowed again (counter restarted, no throw).
+    await expect(insertUsageRow({ supabase: failing, runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase: failing, runId: null }, fields)).resolves.toBeUndefined();
+    consoleSpy.mockRestore();
   });
 });

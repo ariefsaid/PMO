@@ -115,7 +115,7 @@ jobs:
         working-directory: .
         run: |
           set -e
-          for fn in agent-chat agent-dispatch compose-view; do
+          for fn in agent-chat agent-dispatch compose-view admin-invite-user; do
             echo "── deno check supabase/functions/$fn/index.ts ──"
             deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
           done
@@ -127,7 +127,7 @@ jobs:
         working-directory: .
         run: |
           set -e
-          for fn in agent-chat agent-dispatch compose-view; do
+          for fn in agent-chat agent-dispatch compose-view admin-invite-user; do
             echo "── boot-smoke supabase/functions/$fn/index.ts ──"
             deno run --allow-all --config "supabase/functions/$fn/deno.json" \
               scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"

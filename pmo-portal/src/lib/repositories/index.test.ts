@@ -39,6 +39,14 @@ vi.mock('@/src/lib/db/adminUsers', () => ({
   listUsers: vi.fn(),
   updateUserRole: vi.fn(),
   assignUserManager: vi.fn(),
+  inviteUser: vi.fn(),
+  setUserStatus: vi.fn(),
+}));
+vi.mock('@/src/lib/db/operators', () => ({ isOperator: vi.fn() }));
+vi.mock('@/src/lib/db/usage', () => ({
+  getOrgUsageSummary: vi.fn(),
+  getOperatorUsageSummary: vi.fn(),
+  listOperatorOrgs: vi.fn(),
 }));
 vi.mock('@/src/lib/db/tasks', () => ({
   listTasks: vi.fn(),
@@ -134,6 +142,8 @@ import * as companiesDal from '@/src/lib/db/companies';
 import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as adminUsersDal from '@/src/lib/db/adminUsers';
+import * as operatorsDal from '@/src/lib/db/operators';
+import * as usageDal from '@/src/lib/db/usage';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
@@ -150,7 +160,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['budget', 'company', 'contact', 'document', 'incident', 'milestone', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'userView'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'incident', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'usage', 'userView'].sort(),
     );
   });
 
@@ -192,7 +202,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.profile).sort()).toEqual(
-      ['assignUserManager', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'updateUserRole'].sort(),
+      ['assignUserManager', 'inviteUser', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'setUserStatus', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
       ['addDependency', 'create', 'delete', 'get', 'list', 'removeDependency', 'update', 'updateStatus'].sort(),
@@ -397,6 +407,39 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.profile.assignUserManager('u3', null);
     expect(adminUsersDal.assignUserManager).toHaveBeenLastCalledWith('u3', null);
+  });
+
+  it('AC-INV/OPR: profile.inviteUser and profile.setUserStatus delegate to the adminUsers DAL', async () => {
+    vi.mocked(adminUsersDal.inviteUser).mockResolvedValue(undefined);
+    vi.mocked(adminUsersDal.setUserStatus).mockResolvedValue(undefined);
+
+    await repositories.profile.inviteUser({ email: 'new@example.com', role: 'Engineer' as never });
+    expect(adminUsersDal.inviteUser).toHaveBeenCalledWith({ email: 'new@example.com', role: 'Engineer' });
+
+    await repositories.profile.setUserStatus({ id: 'u4', status: 'disabled', orgId: 'org-1' });
+    expect(adminUsersDal.setUserStatus).toHaveBeenCalledWith({ id: 'u4', status: 'disabled', orgId: 'org-1' });
+  });
+
+  it('AC-OPR-003: operator.isOperator delegates to the operators DAL', async () => {
+    vi.mocked(operatorsDal.isOperator).mockResolvedValue(true);
+    const result = await repositories.operator.isOperator();
+    expect(operatorsDal.isOperator).toHaveBeenCalledTimes(1);
+    expect(result).toBe(true);
+  });
+
+  it('AC-USE-001/002: usage methods delegate to the usage DAL', async () => {
+    vi.mocked(usageDal.getOrgUsageSummary).mockResolvedValue([] as never);
+    vi.mocked(usageDal.getOperatorUsageSummary).mockResolvedValue([] as never);
+    vi.mocked(usageDal.listOperatorOrgs).mockResolvedValue([] as never);
+
+    await repositories.usage.getOrgUsageSummary();
+    expect(usageDal.getOrgUsageSummary).toHaveBeenCalledTimes(1);
+
+    await repositories.usage.getOperatorUsageSummary('org-1');
+    expect(usageDal.getOperatorUsageSummary).toHaveBeenCalledWith('org-1');
+
+    await repositories.usage.listOperatorOrgs();
+    expect(usageDal.listOperatorOrgs).toHaveBeenCalledTimes(1);
   });
 
   it('AC-TASK-001..007: task methods delegate to the tasks DAL fns', async () => {

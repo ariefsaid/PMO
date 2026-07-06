@@ -37,6 +37,24 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+// S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+// CRM enabled so the Sales Pipeline item is visible (Project Manager role).
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: {
+      incidents: false,
+      crm: true,
+      procurement: true,
+      timesheets: true,
+      import_export: true,
+      agent_assistant: false,
+      user_views: false,
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 import { Rail } from '../Rail';
 
 /** Render Rail at a /projects/:id URL so NavLink URL-based logic would otherwise pick Projects. */

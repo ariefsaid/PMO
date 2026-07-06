@@ -44,8 +44,16 @@ import {
   createDocumentRevision,
   getChildDocument,
 } from '@/src/lib/db/documents';
+import {
+  prepareAgentAttachmentFileUpload,
+  confirmAgentAttachmentUpload,
+  cleanupAgentAttachmentObject,
+} from '@/src/lib/db/agentAttachments';
+import { createAgentThread } from '@/src/lib/db/agentThreads';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
-import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
+import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
+import { isOperator } from '@/src/lib/db/operators';
+import { getOrgUsageSummary, getOperatorUsageSummary, listOperatorOrgs } from '@/src/lib/db/usage';
 import {
   listTasks,
   getTask,
@@ -149,11 +157,18 @@ import {
   archiveUserView,
   deleteUserView,
 } from '@/src/lib/db/userViews';
+import {
+  listOwnOrgFeatures,
+  toggleOrgFeature,
+  getOrgCreditBalance,
+  grantOrgCredits,
+} from '@/src/lib/db/orgFeatures';
 import type {
   Repositories,
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
@@ -164,6 +179,10 @@ import type {
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,
+  OperatorRepository,
+  UsageRepository,
+  OrgFeatureRepository,
+  CreditsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -213,12 +232,31 @@ const document: DocumentRepository = {
   getChild: (parentId) => wrap(() => getChildDocument(parentId)),
 };
 
+const agentAttachment: AgentAttachmentRepository = {
+  prepareUpload: (threadId, file) => wrap(() => prepareAgentAttachmentFileUpload(threadId, file)),
+  confirmUpload: (attachmentId) => wrap(() => confirmAgentAttachmentUpload(attachmentId)),
+  cleanupObject: (path) => wrap(() => cleanupAgentAttachmentObject(path)),
+  createThread: (title) => wrap(() => createAgentThread(title)),
+};
+
 const profile: ProfileRepository = {
   listProjectManagers: () => wrap(() => listProjectManagers()),
   listOrgProfiles: () => wrap(() => listOrgProfiles()),
   listUsers: () => wrap(() => listUsers()),
   updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
   assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
+  inviteUser: (input) => wrap(() => inviteUser(input)),
+  setUserStatus: (input) => wrap(() => setUserStatus(input)),
+};
+
+const operator: OperatorRepository = {
+  isOperator: () => wrap(() => isOperator()),
+};
+
+const usage: UsageRepository = {
+  getOrgUsageSummary: () => wrap(() => getOrgUsageSummary()),
+  getOperatorUsageSummary: (orgId) => wrap(() => getOperatorUsageSummary(orgId)),
+  listOperatorOrgs: () => wrap(() => listOperatorOrgs()),
 };
 
 const task: TaskRepository = {
@@ -342,11 +380,22 @@ const userView: UserViewRepository = {
   delete: (id) => wrap(() => deleteUserView(id)),
 };
 
+const orgFeature: OrgFeatureRepository = {
+  listOwn: () => wrap(() => listOwnOrgFeatures()),
+  toggle: (args) => wrap(() => toggleOrgFeature(args)),
+};
+
+const credits: CreditsRepository = {
+  getOrgBalance: (orgId) => wrap(() => getOrgCreditBalance(orgId)),
+  grant: (args) => wrap(() => grantOrgCredits(args)),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
   company,
   document,
+  agentAttachment,
   profile,
   procurement,
   timesheet,
@@ -357,6 +406,10 @@ export const repositories: Repositories = {
   procurementFiles,
   contact,
   userView,
+  operator,
+  usage,
+  orgFeature,
+  credits,
 };
 
 export type {
@@ -364,6 +417,7 @@ export type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
@@ -374,4 +428,8 @@ export type {
   ProcurementFileRepository,
   ContactRepository,
   UserViewRepository,
+  OperatorRepository,
+  UsageRepository,
+  OrgFeatureRepository,
+  CreditsRepository,
 } from './types';

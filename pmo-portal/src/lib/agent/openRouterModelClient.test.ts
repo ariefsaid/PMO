@@ -147,7 +147,8 @@ it('AC-MC-005 throws a scrubbed Error on non-2xx and never logs the raw body', a
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   mockFetchOnce({ error: 'sk-secret-looking-value-should-never-be-logged' }, 500);
 
-  const client = new OpenRouterModelClient({ apiKey: 'k' });
+  // retryBaseDelayMs: 0 — a 500 is transient (AUDIT-C1) so it retries; zero the backoff for speed.
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
   await expect(
     client.create({ model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
   ).rejects.toThrow(Error);
@@ -316,4 +317,91 @@ it('never leaks the raw body text into the thrown error message for any malforme
 
   expect(consoleSpy).not.toHaveBeenCalled();
   consoleSpy.mockRestore();
+});
+
+// ── AUDIT-C1 (2026-07-04 audit, Reliability C-1): bounded retry on transient upstream failures ──
+
+const OK_BODY = {
+  model: 'm',
+  choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'ok' } }],
+};
+
+/** Mock fetch resolving/rejecting a fixed sequence, one entry per attempt. */
+function mockFetchSequence(seq: Array<{ status: number; body?: unknown } | 'network-error'>) {
+  const fn = vi.fn();
+  for (const entry of seq) {
+    if (entry === 'network-error') {
+      fn.mockRejectedValueOnce(new TypeError('fetch failed'));
+    } else {
+      fn.mockResolvedValueOnce({
+        ok: entry.status >= 200 && entry.status < 300,
+        status: entry.status,
+        json: () => Promise.resolve(entry.body),
+        text: () => Promise.resolve(JSON.stringify(entry.body)),
+      });
+    }
+  }
+  vi.stubGlobal('fetch', fn);
+  return fn;
+}
+
+const PARAMS = { model: 'x', max_tokens: 10, messages: [{ role: 'user' as const, content: 'hi' }] };
+
+it('AUDIT-C1 retries a 500 and succeeds on the second attempt', async () => {
+  const fn = mockFetchSequence([{ status: 500, body: {} }, { status: 200, body: OK_BODY }]);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  const res = await client.create(PARAMS);
+  expect(res.message.content).toBe('ok');
+  expect(fn).toHaveBeenCalledTimes(2);
+});
+
+it('AUDIT-C1 retries 429s and succeeds on the third attempt', async () => {
+  const fn = mockFetchSequence([{ status: 429, body: {} }, { status: 429, body: {} }, { status: 200, body: OK_BODY }]);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  const res = await client.create(PARAMS);
+  expect(res.message.content).toBe('ok');
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+
+it('AUDIT-C1 retries a network-level fetch failure', async () => {
+  const fn = mockFetchSequence(['network-error', { status: 200, body: OK_BODY }]);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  const res = await client.create(PARAMS);
+  expect(res.message.content).toBe('ok');
+  expect(fn).toHaveBeenCalledTimes(2);
+});
+
+it('AUDIT-C1 gives up after 3 attempts and surfaces the scrubbed error', async () => {
+  const fn = mockFetchSequence([{ status: 503, body: {} }, { status: 503, body: {} }, { status: 503, body: {} }]);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  await expect(client.create(PARAMS)).rejects.toThrow('OpenRouter request failed: 503');
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+
+it('AUDIT-C1 does NOT retry a terminal 4xx (caller error)', async () => {
+  const fn = mockFetchSequence([{ status: 400, body: {} }, { status: 200, body: OK_BODY }]);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  await expect(client.create(PARAMS)).rejects.toThrow('OpenRouter request failed: 400');
+  expect(fn).toHaveBeenCalledTimes(1);
+});
+
+it('AUDIT-C1 does NOT retry a timeout (single attempt only)', async () => {
+  vi.useFakeTimers();
+  const fn = vi.fn((_url: string, init: RequestInit) => {
+    return new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => {
+        const err = new Error('The operation was aborted');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    });
+  });
+  vi.stubGlobal('fetch', fn);
+  const client = new OpenRouterModelClient({ apiKey: 'k', retryBaseDelayMs: 0 });
+  const promise = client.create(PARAMS);
+  const assertion = expect(promise).rejects.toThrow('OpenRouter request timed out');
+  await vi.advanceTimersByTimeAsync(30_000);
+  await assertion;
+  expect(fn).toHaveBeenCalledTimes(1);
+  vi.useRealTimers();
 });

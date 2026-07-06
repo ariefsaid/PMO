@@ -665,3 +665,11 @@ field) honest about reusing the same input rather than inventing a second identi
 **Enforced by:** the `procurement_cases.csv` contract (record rows use `reference_number`, not
 `external_ref`); FR-HIST-015 (ERPNext seam) cites ADR-0048, not OD-PROC-3; FR-IDEM-002's `import_key`
 fallback chain documents `reference_number` as its preferred stable source.
+
+## OD-SECTION-HEADER — Section-header molecule (ops-admin Discover round, 2026-07-06)
+
+**Decision:** `/administration`'s Users/Credits/Usage/Features sections previously had inconsistent
+header markup (Usage/Features had a parent-rendered bare `<h2>`; Credits rolled its own internal
+`<h2>` + Grant-button row). Hoisted to one shared molecule, `SectionHeader`
+(`pmo-portal/src/components/ui/SectionHeader.tsx`): an `<h2>` title + an optional trailing action
+slot. Credits passes its "Grant credits" button into the action slot; Usage/Features pass none.
