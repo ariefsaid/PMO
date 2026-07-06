@@ -61,6 +61,11 @@ test('AC-AXP-014 narrative answer renders formatted markdown', async ({ page }) 
     timeout: 15_000,
   });
   await expect(panel.locator('strong', { hasText: 'For your role:' })).toBeVisible();
-  await expect(panel.getByRole('listitem', { name: /check budget impact/i })).toBeVisible();
+  // The GFM `- Check budget impact.` must render as a real list item (role=listitem), NOT raw `- ` text.
+  // Match by text content via .filter({ hasText }) — the ARIA `listitem` role does not take its
+  // accessible name from descendant text (name-from-content is false for listitem), so a `{ name: ... }`
+  // filter never matches an `<li>` here even when the item renders correctly. The oracle is unchanged:
+  // a genuine `<li>` bearing this text proves the markdown list rendered.
+  await expect(panel.getByRole('listitem').filter({ hasText: /check budget impact/i })).toBeVisible();
   await expect(panel.getByText('**For your role:**', { exact: false })).toHaveCount(0);
 });
