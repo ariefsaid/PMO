@@ -26,6 +26,8 @@ export interface CommandPaletteProps {
   error?: boolean;
   /** Re-run the failed record-list queries (wired to the retry affordance). */
   onRetry?: () => void;
+  /** Optional agent fallback for zero-result queries; App gates this behind agentAssistant. */
+  onAskAi?: (query: string) => void;
 }
 
 /** Skeleton rows shown while the record lists load. */
@@ -56,6 +58,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   loading = false,
   error = false,
   onRetry,
+  onAskAi,
 }) => {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -102,7 +105,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Flat list of the rendered (capped) options — the roving-selection order.
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
-  const resultCount = flatItems.length;
+  const askAiQuery = debounced.trim();
+  const showAskAi = !!onAskAi && !loading && flatItems.length === 0 && askAiQuery.length > 0;
+  const resultCount = flatItems.length + (showAskAi ? 1 : 0);
 
   // Reset + focus the input on open.
   useEffect(() => {
@@ -145,6 +150,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       const item = flatItems[selected];
       if (item) {
         item.run();
+        onClose();
+      } else if (showAskAi) {
+        onAskAi?.(askAiQuery);
         onClose();
       }
     } else if (e.key === 'Tab') {
@@ -246,54 +254,86 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               No results for “{query}”
             </div>
           ) : (
-            groups.map((group) => (
-              <div key={group.name}>
-                <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                  {group.name}
-                </div>
-                {group.items.map((item) => {
-                  flatIndex += 1;
-                  const isSel = flatIndex === selected;
-                  return (
-                    <div
-                      key={item.id}
-                      role="option"
-                      aria-selected={isSel}
-                      onClick={() => {
-                        item.run();
-                        onClose();
-                      }}
-                      className={cn(
-                        'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
-                        isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
-                      )}
-                    >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-secondary text-muted-foreground [&_svg]:size-[15px]">
-                        <Icon name={item.icon} />
-                      </span>
-                      <span className="flex min-w-0 flex-1 flex-col gap-px">
-                        <span className="truncate font-medium leading-tight">{item.title}</span>
-                        {item.sub && (
-                          <span className="text-[11.5px] leading-tight text-muted-foreground">
-                            {item.sub}
+            <>
+              {groups.map((group) => (
+                <div key={group.name}>
+                  <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                    {group.name}
+                  </div>
+                  {group.items.map((item) => {
+                    flatIndex += 1;
+                    const isSel = flatIndex === selected;
+                    return (
+                      <div
+                        key={item.id}
+                        role="option"
+                        aria-selected={isSel}
+                        onClick={() => {
+                          item.run();
+                          onClose();
+                        }}
+                        className={cn(
+                          'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                          isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
+                        )}
+                      >
+                        <span className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-secondary text-muted-foreground [&_svg]:size-[15px]">
+                          <Icon name={item.icon} />
+                        </span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-px">
+                          <span className="truncate font-medium leading-tight">{item.title}</span>
+                          {item.sub && (
+                            <span className="text-[11.5px] leading-tight text-muted-foreground">
+                              {item.sub}
+                            </span>
+                          )}
+                        </span>
+                        {item.code && (
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                            {item.code}
                           </span>
                         )}
-                      </span>
-                      {item.code && (
-                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                          {item.code}
-                        </span>
-                      )}
+                      </div>
+                    );
+                  })}
+                  {group.overflow > 0 && (
+                    <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                      +{group.overflow} more — refine your search
                     </div>
-                  );
-                })}
-                {group.overflow > 0 && (
-                  <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                    +{group.overflow} more — refine your search
+                  )}
+                </div>
+              ))}
+              {showAskAi && (() => {
+                flatIndex += 1;
+                const isSel = flatIndex === selected;
+                return (
+                  <div
+                    role="option"
+                    aria-selected={isSel}
+                    onClick={() => {
+                      onAskAi(askAiQuery);
+                      onClose();
+                    }}
+                    className={cn(
+                      'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                      isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
+                    )}
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-secondary text-muted-foreground [&_svg]:size-[15px]">
+                      <Icon name="search" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-px">
+                      <span className="truncate font-medium leading-tight">
+                        Ask AI: &quot;{askAiQuery}&quot;
+                      </span>
+                      <span className="text-[11.5px] leading-tight text-muted-foreground">
+                        Open the assistant with this draft
+                      </span>
+                    </span>
                   </div>
-                )}
-              </div>
-            ))
+                );
+              })()}
+            </>
           )}
         </div>
       </div>

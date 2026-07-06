@@ -6,6 +6,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // CI runs serially (one worker): every spec does a REAL password sign-in, and the
+  // local single-instance GoTrue/Postgres saturates under many concurrent bcrypt
+  // verifications on a CI runner — surfacing as intermittent "Invalid login
+  // credentials" (a valid password mis-rejected under load, NOT a rate-limit 429).
+  // Serial e2e is the repo's standing lesson; ~68 specs fit well inside the 30-min
+  // job. Locally, workers stays unset (parallel) for speed.
+  workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:3000',

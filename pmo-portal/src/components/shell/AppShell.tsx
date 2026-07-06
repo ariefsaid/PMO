@@ -1,8 +1,15 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
+import {
+  PANEL_PREFS_CHANGED_EVENT,
+  readPanelMode,
+  readPanelWidth,
+  type PanelMode,
+  type PanelPrefsChangedDetail,
+} from '@/src/lib/panel/panelPrefs';
 
 export interface AppShellProps {
   rail: React.ReactNode;
@@ -17,11 +24,13 @@ export interface AppShellProps {
   /**
    * Agent AssistantPanel — rendered as a sibling of <main> when the
    * agentAssistant feature flag is on (FR-AP-002, AC-AP-001/002, D-A2-6).
-   * The panel owns its own positioning (fixed overlay); AppShell simply mounts
-   * it outside <main> so it is never inside the main landmark.
+   * The panel owns its own positioning in overlay mode. In docked mode, AppShell
+   * reserves a right-side grid column so <main> reflows beside it (AC-AXP-019).
    * When undefined (flag off), nothing is rendered and the layout is unchanged.
    */
   assistant?: React.ReactNode;
+  /** Whether the keep-mounted assistant is currently open/visible. */
+  assistantOpen?: boolean;
 }
 
 /**
@@ -47,12 +56,40 @@ export const AppShell: React.FC<AppShellProps> = ({
   railOpen = false,
   onCloseRail,
   assistant,
+  assistantOpen = false,
 }) => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   // The element focused before the drawer opened (restored on close).
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
+  const [assistantPrefs, setAssistantPrefs] = useState<{
+    mode: PanelMode;
+    width: number;
+  }>(() => ({
+    mode: readPanelMode(),
+    width: readPanelWidth(),
+  }));
+
+  useEffect(() => {
+    if (!assistant) return;
+    const onPrefsChanged = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent
+          ? (event.detail as PanelPrefsChangedDetail | undefined)
+          : undefined;
+      setAssistantPrefs((current) => ({
+        mode: detail?.mode ?? readPanelMode(),
+        width: detail?.width ?? readPanelWidth() ?? current.width,
+      }));
+    };
+    window.addEventListener(PANEL_PREFS_CHANGED_EVENT, onPrefsChanged);
+    return () => window.removeEventListener(PANEL_PREFS_CHANGED_EVENT, onPrefsChanged);
+  }, [assistant]);
+
+  const assistantDocked = Boolean(
+    assistant && assistantOpen && assistantPrefs.mode === 'docked'
+  );
 
   // Move focus to main on route change (a11y: focus-on-route-change) and reset
   // scroll. Skip the very first mount so we don't yank focus on load.
@@ -133,9 +170,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         // main column past the viewport at narrow widths — clipping right-edge
         // content (e.g. the Companies toolbar search at 375px). The 0 minimum lets
         // the track shrink so inner `overflow-x-auto` scrollers own their width.
-        gridTemplateColumns: 'var(--rail-w) minmax(0, 1fr)',
+        gridTemplateColumns: assistantDocked
+          ? `var(--rail-w) minmax(0, 1fr) ${assistantPrefs.width}px`
+          : 'var(--rail-w) minmax(0, 1fr)',
         gridTemplateRows: 'var(--header-h) 1fr',
-        gridTemplateAreas: '"rail header" "rail main"',
+        gridTemplateAreas: assistantDocked
+          ? '"rail header assistant" "rail main assistant"'
+          : '"rail header" "rail main"',
       }}
     >
       <a
@@ -187,11 +228,19 @@ export const AppShell: React.FC<AppShellProps> = ({
       </main>
 
       {/* FR-AP-002 / AC-AP-001/002: AssistantPanel is mounted outside <main> as
-          a sibling so it is never inside the main landmark. When the assistant
-          prop is undefined (flag off) nothing is rendered and the layout is
-          byte-identical. The panel owns its own fixed-position overlay; no
-          grid track is added here (design-plan §1.1, D-A2-6). */}
-      {assistant}
+          a sibling so it is never inside the main landmark. In overlay mode the
+          wrapper is display:contents and the panel owns fixed positioning. In
+          docked mode this wrapper occupies the reserved assistant grid area so
+          <main> reflows beside the panel (AC-AXP-019). */}
+      {assistant && (
+        <div
+          data-assistant-dock-slot={assistantDocked ? 'true' : undefined}
+          className={assistantDocked ? 'min-h-0 min-w-0' : 'contents'}
+          style={assistantDocked ? { gridArea: 'assistant' } : undefined}
+        >
+          {assistant}
+        </div>
+      )}
 
       {/* C3: Mobile rail drawer overlay (≤920px) — proper modal dialog.
           - role=dialog aria-modal for AT

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
@@ -25,6 +25,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useContact, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
@@ -57,6 +58,18 @@ const ContactDetail: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+
+  // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
+  // follow-up like "summarize this" grounds to the viewed contact — grounding only
+  // (NFR-AXP-SEC-003), never an authorization signal. Placed before any early return
+  // (Rules of Hooks) — cleared on unmount/navigate.
+  const { setEntity } = useAgentContext();
+  useEffect(() => {
+    const loaded = query.data;
+    if (!loaded) return;
+    setEntity({ type: 'contact', id: loaded.id, label: loaded.full_name });
+    return () => setEntity(undefined);
+  }, [query.data, setEntity]);
 
   // CRM directory access = the master-data roles (Engineer = ○) — mirrors Companies §D.
   const canView = may('view', 'contact');

@@ -78,6 +78,100 @@ checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoici
 spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
 then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 
+### ⚑ GTM BUILD — HANDOFF STATE (2026-07-05, for the resuming agent — READ THIS to continue)
+
+**What this is:** the GTM MVP program (the 8 rows above) is mid-build. Every issue has a signed
+**spec + plan** authored via the full 2-model review battery (author → cross-model REVISE review →
+fix round → Director commit; plan reviews caught real defects — a disabled-user write hole, two
+would-be-regressed security fixes, 7 ACs excluded from CI). SDD docs by issue below — **read the
+spec then the plan before touching any issue.** Process is unchanged: `CLAUDE.md` per-issue loop +
+`docs/director-playbook.md`; `docs/pi-delegation.md` for GLM dispatch; the **binding
+`pr-after-review-battery` rule — full battery (3-lens code review + rendered/Discover pass for UI +
+e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main` = autonomous ceiling).
+
+**Per-issue status (branch `feat/<name>` in `../PMO-worktrees/<name>`):**
+| # | Issue | Spec | Plan | Extra | State |
+|---|---|---|---|---|---|
+| 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `docs/plans/2026-07-04-auth-production-floor.md` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
+| 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `docs/plans/2026-07-04-deputy-help.md` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
+| 4 | DR runbooks | — | — | `docs/runbooks/{incident-response,restore-drill}.md` | ✅ **MERGED to `dev` (PR #230)** |
+| 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🔨 **PARTIAL — S1–S5 committed** (branch `feat/ops-admin` @ `8cd0faa`, **unpushed**): DB foundation (migs 0060–0063), org-pool credits (0064–0065, revenue-hole INSERT flip), `admin-invite-user` edge fn, AdminUsers invite/disable UI, usage view (0066–0067). **Verified green through S5: 4352 unit + 1021 pgTAP + all edge-fn boot-smoke.** ⏭ **REMAIN: S6** (`org_features` + `useFeature`/`FeatureGate` + Features section + route gating + a11y capstone) **· S7** (e2e capstone) — resume at plan §"SLICE S6", **next-free migration `0068`, pgTAP `0122`**. Then **3-lens battery + rendered pass** (AdminUsers/Usage/Features UI) → PR. **Build deviations to carry:** CI (`.github/workflows/ci.yml`) extended with `admin-invite-user` deno-check/boot-smoke; `errorLog.ts` `EdgeFunctionName` widened; `classifyMutationError` gained an optional `overrides` param; `AdminUsers.mailto.test.tsx` deleted (FR-INV-006 replaced it); `deno.lock`s untracked per existing repo pattern. |
+| 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `docs/plans/2026-07-04-legal-pages.md` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
+| 3 | Observability | `docs/specs/observability-floor.spec.md` | `docs/plans/2026-07-04-observability-floor.md` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
+| 6 | Onboarding | `docs/specs/onboarding-tooling.spec.md` | `docs/plans/2026-07-04-onboarding-tooling.md` | `OD-ONB-1` in `docs/decisions.md` (on branch) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber at build time. |
+
+**Cross-issue contracts already wired (don't re-derive):** ops-admin's `admin-invite-user` edge fn
+passes `redirectTo:<origin>/update-password` + stamps `user_metadata.invite_pending=true` — the
+auth-floor invite-accept gate consumes these (in the ops-admin plan).
+
+**Two hard constraints for whoever resumes:**
+1. **Single local Supabase stack = serial lock.** `db reset` is global across worktrees, so only
+   **ONE stack-driving task at a time** (build with migrations/pgTAP/e2e, or a rendered pass). Order
+   the remaining stack work: finish ops-admin build → its rendered pass → legal rendered pass →
+   observability build → onboarding build. FE-only/unit/typecheck/lint/build + no-stack reviews may
+   run in parallel.
+2. **Migration/pgTAP numbers keep moving** as parallel sessions merge to `dev`. **Before building #3
+   or #6, `git merge origin/dev` into its branch and re-check `ls supabase/migrations | tail` +
+   `ls supabase/tests | tail`, then renumber that plan (+offset) to the next-free numbers.** (ops-admin
+   was already shifted +2 → 0060–0068 for exactly this reason.)
+
+**Executor at handoff:** GLM (pi) rate-limited until **~12:04** (2026-07-05); **Claude subagents
+available** (reset 03:20). Route per `docs/pi-delegation.md` (glm-5.2 default) when GLM returns;
+else Claude implementer/reviewer agents. The ops-admin completion is currently a **Claude sonnet**
+agent (owns the stack).
+
+**Owner-pending (not the build agent's to do):** wire `RESEND_API_KEY` + real DNS/sender + domain
+decision (deferred); Supabase Pro billing at first client; take `docs/legal/2026-07-04-msa-brief.md`
+to counsel; provide the OpenRouter fallback chain. **Deferred tech follow-up:** `auto_expose_new_tables`
+GRANT migration (see the "Deferred follow-up" note above).
+
+### ⚑ AGENT EXPERIENCE LAYER + TIER-2 — HANDOFF STATE (2026-07-05, parallel build stream — READ THIS to continue)
+
+**Goal (owner `/goal` 2026-07-04):** full SDD→plan→TDD→review→QA cycle to surface the *built-but-not-wired*
+Tier-1 batteries + build Tier-2. Executor: pi+glm first (glm-5.2≈opus / glm-4.7≈sonnet), Claude
+sonnet/opus fallback. **This is a SEPARATE stream from the GTM build above — different files (agent panel /
+edge fn vs auth/ops-admin); coordinate the SHARED single local Supabase stack (no concurrent `db reset`/
+pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
+
+- **SDD (source of truth):** specs `docs/specs/agent-experience-layer.spec.md` (FR-AXP-*) +
+  `docs/specs/agent-tier2-capabilities.spec.md` (FR-AT2-*); plan `docs/plans/2026-07-05-agent-experience-layer.md`
+  (has a **✅ Progress section** — read it first); ADRs **0049** (safe markdown, supersedes D-A2-8) + **0050**
+  (layered agent prompt). Tier-2 open-Q defaults are recorded in the task board / tier-2 spec.
+- **DONE on `dev` (flag-gated, NOT promoted):** I1 safe markdown (`f970a14`), I2 layered prompt/skills
+  (`f970a14`), I3 context completeness (`87412ea`), Track D drawer UX (`48b932c` + AppShell reflow follow-up),
+  and Track E surfacing specs (`AC-AXP-011/012/013/014/016` Playwright specs added and `--list` verified).
+  Latest continuation commit also updates this handoff + the plan progress section. Wave-1 review battery green
+  (security: no C/H/M; one code-quality Important fixed).
+- **Tier-2 progress (2026-07-05, this stream):**
+  - **I5 Cmd+K + conditional approvals — SHIPPED to `dev` via PR #236** (`feat/agent-tier2-cmdk-approvals`):
+    openPanel(prefill?) + consumePrefill() one-shot prefill; CommandPalette "Ask AI" row on zero-result
+    queries behind the flag; route-aware suggestion chips (`suggestionChips.constants.ts`); ADR-0051
+    conditional-approval predicate (`AgentAction.needsApproval`, `resolveNeedsApproval`,
+    `AGENT_APPROVAL_MONEY_THRESHOLD`, `isDestructiveDeleteAction`); `update_task_status` auto-approves;
+    `create_activity`/`create_automation` keep always-chip. AC-AT2-006..013 unit proofs + AC-AT2-007
+    Playwright spec. Full `npm run verify` green (548 files / 4386 tests).
+  - **I6 agent eval harness — SHIPPED to `dev` via PR #237** (`feat/agent-eval-harness`): ADR-0052
+    (Accepted) — the `*.eval.ts` behavior-regression net against the DEPLOYED agent-chat loop.
+    `evals/harness/{scorers,runEval}.ts` (usesTool/contains/llmJudge + runEvalCase via test-user JWT →
+    decodeSseStream), `evals/cases/tool-selection.eval.ts` (2 anchor cases), `vitest.eval.config.ts`
+    (dedicated project; `npm run test:evals`), `vite.config.ts` excludes eval cases from `verify`,
+    `.github/workflows/agent-evals.yml` (nightly + dispatch, never push/PR). AC-AT2-015 scorer half
+    deterministic (12 tests, in `verify`); the real-loop half + exit-code gate light up once the owner
+    provisions the deployed-target GH secrets (§OQ-1). Full `npm run verify` green (545 files / 4388 tests).
+  - **I4 attachments — SDD AUTHORED, build pending:** ADR-0053 + plan
+    `docs/plans/2026-07-05-agent-chat-attachments.md` (table + bucket + provider seam + transcode +
+    untrusted-input boundary + two model paths). The build is the next issue-loop; load-bearing
+    owner-confirmable is the PDF-extraction stack (spec §OQ-3 / plan DEC-8) + the prod model's vision
+    support (DEC-7).
+  - **I7 obs-memory — DEFERRED** behind a token-cost trigger (unchanged).
+- **NEXT (for the resuming agent), in order:** build **I4** attachments per its plan (Tracks A FE ‖ B DB ‖
+  C edge-fn → D e2e; serialize Track B vs the parallel stream's stack) → owner-provision the eval-harness GH
+  secrets (I6 §OQ-1) → **I7** obs-memory (deferred). Track E / AC-AT2-001 browser execution remains a **CI
+  integration/promote gate**, not a local run while the shared Supabase stack is owned by another stream.
+- **⚠ Load-bearing caveat:** the prompt STEERING is unit-tested (text present) but **unverified against the
+  live deepseek-v4-flash** (weak tool-selector). The eval harness (I6, shipped) IS the gate once its GH
+  secrets are provisioned. Promotion dev→main→production is **owner-gated**.
+
 ## ▶ Current state (2026-07-04, late) — AGENT TIER LIVE IN PRODUCTION (reskin + assistant panel, rendered-verified) + full security/hardening on `dev`=`main`
 
 > **RESUME ENTRY POINT.** **`dev` = `main` in content** (promoted 2026-07-04 via PR #229, merge commit
@@ -109,8 +203,9 @@ then price, then enforce) · Google OAuth · PostHog product-analytics widening.
 >    the deployed UI**: login → panel → real answer (deputy-JWT → OpenRouter → deepseek-v4-flash); threads persist
 >    (History survives reload). Fixed an edge-fn **boot-crash** in the process (actions↔schema circular-import TDZ
 >    → WORKER_ERROR; `049d1e2`, now CI-guarded by `scripts/deno-boot-smoke.ts`).
->    **⚠ Live agent-chat follow-ups (non-fatal, chips spawned):** 406 on the `agent_runs` heartbeat/progress poll
->    (`.single()` on a not-yet-visible row → race); duplicate "You said:" user bubble (optimistic echo not de-duped).
+>    **Live agent-chat polish — ✅ FIXED + rendered-verified in prod (PR #234, deployed `56a77e9`):** the
+>    `agent_runs` heartbeat 406 (`.single()`→`.maybeSingle()`) and the duplicate user bubble (server `type:'user'`
+>    echo de-duped vs the optimistic add). Verified live: 0 console errors, single bubble.
 >
 > **STILL OWNER-PENDING (separate):**
 > - **Agent AUTOMATIONS in prod** — needs `agent-dispatch` fn deploy + pg_cron GUCs (`app.settings.dispatch_url`/

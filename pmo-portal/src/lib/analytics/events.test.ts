@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   buildEventProperties,
   trackFormValidationFailed,
@@ -6,6 +6,7 @@ import {
   trackPermissionDeniedSeen,
   trackEmptyStateSeen,
 } from './events';
+import type { AuthMethod, AuthFailureReason } from './events';
 
 describe('analytics event sanitizer', () => {
   it('AC-PH-014: blocks forbidden property keys in dev/test', () => {
@@ -102,5 +103,23 @@ describe('analytics event sanitizer', () => {
       role: 'Project Manager',
       module: 'projects',
     });
+  });
+});
+
+describe('auth analytics unions (FR-AUTHF-061)', () => {
+  it('AC-AUTHF-061: AuthMethod includes password_reset + invite_accept', () => {
+    const m: AuthMethod[] = ['password', 'magic_link', 'password_reset', 'invite_accept'];
+    expectTypeOf(m).toEqualTypeOf<AuthMethod[]>();
+  });
+
+  it('AC-AUTHF-061: AuthFailureReason includes email_not_confirmed + weak_password + expired_token', () => {
+    const r: AuthFailureReason[] = [
+      'invalid_credentials',
+      'auth_error',
+      'email_not_confirmed',
+      'weak_password',
+      'expired_token',
+    ];
+    expectTypeOf(r).toEqualTypeOf<AuthFailureReason[]>();
   });
 });

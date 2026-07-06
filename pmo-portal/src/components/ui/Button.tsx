@@ -1,8 +1,11 @@
 import React from 'react';
-import { cn } from './cn';
+import { buttonClasses } from './buttonClasses';
+import type { ButtonVariant, ButtonSize } from './buttonClasses';
 
-export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive' | 'success';
-export type ButtonSize = 'default' | 'sm' | 'icon';
+// Variant/size types + the shared `buttonClasses` composer live in ./buttonClasses so
+// this file stays a clean fast-refresh boundary (component-only exports). Re-exported
+// here to preserve the public `from './Button'` / ui barrel API.
+export type { ButtonVariant, ButtonSize } from './buttonClasses';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -12,34 +15,6 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** 32px square icon button. Requires an aria-label for a11y. */
   iconOnly?: boolean;
 }
-
-const base =
-  'inline-flex items-center justify-center gap-[7px] rounded-lg border ' +
-  'text-sm font-medium whitespace-nowrap select-none ' +
-  'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ' +
-  'active:translate-y-px ' +
-  'disabled:cursor-not-allowed disabled:pointer-events-none ' +
-  '[&_svg]:size-[15px] [&_svg]:shrink-0';
-
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    'border-transparent bg-primary text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)] hover:bg-primary/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
-  outline: 'border-input bg-background text-foreground hover:bg-accent disabled:opacity-60',
-  ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent disabled:opacity-60',
-  destructive: 'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
-  success: 'border-transparent bg-success text-success-foreground hover:bg-success/90 disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
-};
-
-const sizeClasses: Record<ButtonSize, string> = {
-  default: 'h-8 px-3',
-  // C6 touch-target sweep (OD-W4-4 / WCAG 2.5.5): sm (28px) and icon (32px) both fall
-  // below the 44px touch-target floor on coarse pointers. The `.touch-target` utility
-  // extends the hit area via a transparent ::before overlay on coarse pointers ONLY —
-  // desktop visual size is unchanged. Applied automatically so every sm/icon consumer
-  // inherits it without per-callsite annotation.
-  sm: 'touch-target h-7 px-[9px] text-[13px]',
-  icon: 'touch-target h-8 w-8 p-0',
-};
 
 const Spinner: React.FC = () => (
   <svg
@@ -82,7 +57,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={disabled || loading}
         aria-busy={loading || undefined}
-        className={cn(base, variantClasses[variant], sizeClasses[resolvedSize], className)}
+        className={buttonClasses(variant, resolvedSize, className)}
         {...rest}
       >
         {loading && <Spinner />}
