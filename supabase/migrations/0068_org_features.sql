@@ -33,32 +33,49 @@ create policy org_features_select on public.org_features for select
   using (org_id = public.auth_org_id() and public.is_active_member());
 
 -- WRITE: Operator-only (the flip). No UPDATE-via-Admin, no DELETE for anyone — the RPC is the
--- sole write path, so this FOR ALL policy exists only to let the security-definer RPC's
--- `set role authenticated` session satisfy RLS on INSERT/UPDATE. A non-Operator caller is denied
--- both here and inside the RPC (defense-in-depth). NB: no `org_id in (organizations)` subquery
--- here — that subquery runs UNDER RLS, so the Operator would only "see" their home org and the
--- cross-org write path would break. The FK on org_id already rejects a nonexistent-org insert,
--- and operator_toggle_feature re-validates org existence (security-definer, RLS-bypassing).
+-- sole write path. The table is `force row level security`, so the table OWNER (which runs the
+-- security-definer operator_toggle_feature) is ITSELF subject to RLS — this FOR ALL policy is what
+-- permits the RPC's INSERT/UPDATE (without it, the owner-bypassed-by-force-RLS would deny the
+-- write). A non-Operator caller is denied both here and inside the RPC (defense-in-depth).
+-- NB: no `org_id in (organizations)` subquery here — that subquery runs UNDER RLS, so the
+-- Operator would only "see" their home org and the cross-org write path would break. The FK on
+-- org_id already rejects a nonexistent-org insert, and operator_toggle_feature re-validates org
+-- existence (security-definer).
 create policy org_features_write on public.org_features for all
   using (public.is_operator() and public.is_active_member())
   with check (public.is_operator() and public.is_active_member());
 
 -- org_has_feature: core keys always true; else the row's enabled (absence = included = true).
 -- FUTURE server-enforcement hook ONLY (not used by FE, not yet used by gated-table RLS).
+-- Guards (security review L1 / code review I2): the fn is security-definer + granted to
+-- `authenticated`, so it must re-assert org membership + active status itself — relying on the
+-- table's RLS would (a) make p_org_id a lie (the inner SELECT is silently scoped to auth_org_id())
+-- and (b) leak entitlement state to any caller probing another org. Mirrors org_credit_balance.
 create or replace function public.org_has_feature(p_org_id uuid, p_key text) returns boolean
-language sql stable security definer set search_path = public as $$
-  select case when p_key in ('projects','dashboard','approvals','administration') then true
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_active_member() then
+    raise exception 'inactive' using errcode = '42501';
+  end if;
+  if p_org_id is null or p_org_id <> public.auth_org_id() then
+    raise exception 'org_mismatch' using errcode = '42501';
+  end if;
+  return case when p_key in ('projects','dashboard','approvals','administration') then true
               else coalesce((select enabled from public.org_features
                               where org_id = p_org_id and feature_key = p_key), true)
-             end
-$$;
+             end;
+end $$;
 
 -- operator_toggle_feature: upsert a row; reject core keys; assert Operator + org exists.
+-- is_active_member() entry guard (security review M1): see org_credit_balance / 0065.
 create or replace function public.operator_toggle_feature(
   p_org_id uuid, p_key text, p_enabled boolean
 ) returns void
 language plpgsql security definer set search_path = public as $$
 begin
+  if not public.is_active_member() then
+    raise exception 'inactive' using errcode = '42501';
+  end if;
   if not public.is_operator() then
     raise exception 'operator_only' using errcode = '42501';
   end if;

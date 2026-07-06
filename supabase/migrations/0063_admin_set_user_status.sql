@@ -63,6 +63,10 @@ begin
       raise exception 'cannot disable yourself' using errcode = 'P0001';
     end if;
     if v_target_role = 'Admin' then
+      -- TOCTOU guard (security review L4): take a self-serializing lock so two concurrent
+      -- disable calls can't both pass the <= 1 check and leave the org with zero Admins.
+      -- SHARE ROW EXCLUSIVE is the weakest mode that conflicts with itself + writes.
+      lock table public.profiles in share row exclusive mode;
       select count(*) into v_admin_count
         from public.profiles
        where org_id = v_target_org and role = 'Admin' and status = 'active';
@@ -90,9 +94,11 @@ grant execute on function public.admin_set_user_status(uuid,public.profile_statu
 -- ── Invite-helper RPCs (FR-INV-005, consumed by the admin-invite-user edge fn in S3). ──────────
 
 -- operator_org_exists: Operator-only org existence probe (the edge fn validates p_org_id).
+-- is_active_member() conjunct (security review M1): disabled-Operator cached-JWT guard.
 create or replace function public.operator_org_exists(p_org_id uuid) returns boolean
   language sql stable security definer set search_path = public as $$
-  select public.is_operator() and exists (select 1 from public.organizations where id = p_org_id)
+  select public.is_operator() and public.is_active_member()
+     and exists (select 1 from public.organizations where id = p_org_id)
 $$;
 revoke all on function public.operator_org_exists(uuid) from public;
 grant execute on function public.operator_org_exists(uuid) to authenticated;
@@ -105,6 +111,7 @@ create or replace function public.org_has_member_email(p_org_id uuid, p_email te
   select exists (
     select 1 from public.profiles pr
      where lower(pr.email) = lower(p_email)
+       and public.is_active_member()                      -- security review M1 (operator path)
        and (
          public.is_operator()
          or (pr.org_id = p_org_id and p_org_id = public.auth_org_id() and public.auth_role() = 'Admin')

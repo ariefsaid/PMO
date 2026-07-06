@@ -37,7 +37,10 @@ function json(body: unknown, status: number, corsHeaders: Record<string, string>
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = {
-    'Access-Control-Allow-Origin': Deno.env.get('AGENT_ALLOWED_ORIGIN') ?? '*',
+    // L5 (security review): fail-closed to SITE_URL when AGENT_ALLOWED_ORIGIN is unset (the loose
+    // `*` default let a misconfigured prod silently accept any origin). Auth is Bearer-token so
+    // browsers can't combine `*` with credentialed requests, but the explicit default is safer.
+    'Access-Control-Allow-Origin': Deno.env.get('AGENT_ALLOWED_ORIGIN') ?? Deno.env.get('SITE_URL') ?? '',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
 
@@ -97,13 +100,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 4. Service-role issuance — ONLY reached for an authorized caller. ──
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
   const email = (body.email ?? '').trim();
-  const origin = req.headers.get('origin') ?? Deno.env.get('SITE_URL') ?? '';
+  // M2 (security review): resolve the redirect origin from a SERVER-CONTROLLED source only — the
+  // request `Origin` header is attacker-controllable, and redirectTo is a privilege-bearing URL
+  // (the invitee sets their password there). Trusting Origin lets a compromised Operator craft an
+  // invite whose link points at an attacker domain. SITE_URL is the deploy root; the GoTrue
+  // redirect-URL allowlist (Supabase dashboard) is the second defense layer.
+  const siteUrl = Deno.env.get('SITE_URL') ?? '';
+  if (!siteUrl) {
+    logStructuredError({ fn: 'admin-invite-user', errorCode: 'MISCONFIGURED_SITE_URL' });
+    return json({ error: 'MISCONFIGURED' }, 500, corsHeaders);
+  }
 
   const { data: invite, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
     // Cross-issue contract (auth-production-floor, 2026-07-04): without redirectTo, GoTrue
     // resolves the invite link to the bare site_url and the invitee never reaches the
     // set-password page.
-    redirectTo: `${origin}/update-password`,
+    redirectTo: `${siteUrl}/update-password`,
     data: { invite_pending: true },
   });
   if (inviteError || !invite?.user) {

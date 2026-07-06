@@ -34,4 +34,5 @@ create policy credits_insert on public.credits for insert
     public.is_operator()
     and org_id = public.auth_org_id()       -- caller-org-pinned (Operator's home org; cross-org via RPC)
     and public.is_active_member()           -- defense-in-depth (FR-INV-003)
+    and owner_id is null                    -- security review L3: a direct INSERT can't forge attribution; matches operator_grant_credits (0065 writes owner_id NULL)
   );

@@ -43,7 +43,17 @@ export function isFeatureEnabled(key: FeatureKey): boolean {
 // for the env-only sub-flags (plan M5 note). The new entitlement path (`useFeature`) is the
 // forward system; the two coexist until the env flags are folded into entitlements (future issue).
 
-/** Gatable per-org entitlement keys persisted in `public.org_features` (FR-ENT-001). */
+/**
+ * Gatable per-org entitlement keys persisted in `public.org_features` (FR-ENT-001).
+ *
+ * `agent_assistant` + `user_views` are INCLUDED in the registry (an Operator may toggle them —
+ * the row is the forward system) but they are NOT in `FEATURE_KEYS_TOGGLEABLE`: their EFFECTIVE
+ * gate today is still the env flag at the call site (AssistantPanel/ViewBuilder read
+ * `isFeatureEnabled('agentAssistant'|'userViews')` directly, plan M5). So in the Admin › Features
+ * UI these two render as a read-only "Preview" until the env flags are folded into entitlements
+ * (future issue) — toggling them would otherwise look like a no-op. The other keys take effect
+ * immediately via `useFeature` (Rail/FeatureRoute).
+ */
 export const FEATURE_KEYS = [
   'incidents',
   'crm',
@@ -54,6 +64,19 @@ export const FEATURE_KEYS = [
   'user_views',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
+
+/**
+ * The subset whose toggle takes effect IMMEDIATELY in the UI ( Rail/FeatureRoute resolve them via
+ * `useFeature`). The env-gated keys (`agent_assistant`/`user_views`) are excluded — they render
+ * read-only in the Features section because their effective gate is still the deployment env flag.
+ */
+export const FEATURE_KEYS_TOGGLEABLE: readonly OrgFeatureKey[] = [
+  'incidents',
+  'crm',
+  'procurement',
+  'timesheets',
+  'import_export',
+];
 
 /** Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002). */
 export const CORE_FEATURES = ['projects', 'dashboard', 'approvals', 'administration'] as const;

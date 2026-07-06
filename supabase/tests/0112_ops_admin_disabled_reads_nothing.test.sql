@@ -5,7 +5,7 @@
 -- still-valid JWT must be unable to WRITE, not just read (the C1 gap — the prior conjunction pass
 -- covered select|all only and silently missed ~30 write policies).
 begin;
-select plan(13);
+select plan(14);
 
 -- ── Fixtures: org A, an active Admin, and a DISABLED member M. ──
 insert into organizations (id, name) values
@@ -24,6 +24,9 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
   ('01120000-0000-0000-0000-0000000c0001','01120000-0000-0000-0000-000000000001','PR','01120000-0000-0000-0000-0000000b0001','01120000-0000-0000-0000-0000000000a2','Draft');
 insert into agent_usage (id, org_id, owner_id, model, cost) values
   ('01120000-0000-0000-0000-0000000d0001','01120000-0000-0000-0000-000000000001','01120000-0000-0000-0000-0000000000a2','gpt-test',5);
+-- org_features row (mig 0068) seeded AS TABLE OWNER so the read-deny is real, not an empty table.
+insert into org_features (org_id, feature_key, enabled, updated_by) values
+  ('01120000-0000-0000-0000-000000000001','incidents',true,'01120000-0000-0000-0000-0000000000a1');
 
 -- Write-deny target rows (owned by M) seeded as table owner so an UPDATE that "should succeed"
 -- proves the deny is the is_active_member conjunct, not row-invisibility from a different scope.
@@ -46,6 +49,7 @@ select is((select count(*)::int from profiles),    0,'AC-INV-002 disabled M read
 select is((select count(*)::int from projects),    0,'AC-INV-002 disabled M reads 0 projects');
 select is((select count(*)::int from procurements),0,'AC-INV-002 disabled M reads 0 procurements');
 select is((select count(*)::int from agent_usage), 0,'AC-INV-002 disabled M reads 0 agent_usage');
+select is((select count(*)::int from org_features), 0,'AC-INV-002 disabled M reads 0 org_features (entitlements respect is_active_member)');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- WRITE-deny (C1 fix): INSERT via the previously-missed write policies is rejected; UPDATE on

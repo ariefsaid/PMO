@@ -36,6 +36,14 @@ create or replace function public.operator_grant_credits(
 ) returns void
   language plpgsql security definer set search_path = public as $$
 begin
+  -- is_active_member() entry guard (security review M1): platform_operators is intentionally exempt
+  -- from the 0061 RLS conjunction, so a disabled Operator's cached JWT still drives auth.uid() in
+  -- PostgREST (GoTrue stops issuing NEW JWTs via banned_until, but cannot revoke a cached one).
+  -- Re-asserting is_active_member() here closes the disabled-Operator elevation on every Operator
+  -- power, mirroring org_credit_balance / admin_set_user_status. (Inverse-consistent with 0062.)
+  if not public.is_active_member() then
+    raise exception 'inactive' using errcode = '42501';
+  end if;
   if not public.is_operator() then
     raise exception 'operator_only' using errcode = '42501';
   end if;

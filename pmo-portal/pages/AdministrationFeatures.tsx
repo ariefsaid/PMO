@@ -6,6 +6,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import {
   FEATURE_KEYS,
+  FEATURE_KEYS_TOGGLEABLE,
   FEATURE_LABELS,
   FEATURE_ENV_DEFAULT,
   CORE_FEATURES,
@@ -73,13 +74,19 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
     toggleMutation.mutate({ orgId, key, enabled: !current });
   };
 
-  const gated: OrgFeatureKey[] = [...FEATURE_KEYS];
+  // Toggleable keys (take effect immediately via useFeature → Rail/FeatureRoute). The env-gated
+  // keys (agent_assistant/user_views) are excluded — their effective gate is still the deployment
+  // env flag (plan M5), so toggling them would look like a no-op; render them read-only instead.
+  const toggleable: OrgFeatureKey[] = [...FEATURE_KEYS_TOGGLEABLE];
+  const envGated: OrgFeatureKey[] = ([...FEATURE_KEYS] as OrgFeatureKey[]).filter(
+    (k) => !FEATURE_KEYS_TOGGLEABLE.includes(k),
+  );
   const core: EntitleableKey[] = [...CORE_FEATURES];
 
   return (
     <div className="rounded-lg border border-border bg-card">
       <ul className="divide-y divide-border">
-        {gated.map((key) => {
+        {toggleable.map((key) => {
           const enabled = resolve(key);
           const label = FEATURE_LABELS[key];
           if (isOperator) {
@@ -114,6 +121,19 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
               <span className="text-[13.5px] font-medium">{label}</span>
               <StatusPill variant={enabled ? 'won' : 'neutral'}>
                 {enabled ? 'Included in your plan' : 'Hidden'}
+              </StatusPill>
+            </li>
+          );
+        })}
+        {envGated.map((key) => {
+          // Read-only for BOTH personas: the toggle has no immediate effect (env flag is the
+          // effective gate at the call site). Shown as a "Preview" so the UI is honest about that.
+          const enabled = resolve(key);
+          return (
+            <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[13.5px] font-medium">{FEATURE_LABELS[key]}</span>
+              <StatusPill variant={enabled ? 'won' : 'neutral'}>
+                {enabled ? 'Preview — on' : 'Preview — off'}
               </StatusPill>
             </li>
           );

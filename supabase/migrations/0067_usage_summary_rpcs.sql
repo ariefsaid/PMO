@@ -45,6 +45,7 @@ language sql stable security definer set search_path = public as $$
          end
     from public.agent_usage
    where public.is_operator()
+     and public.is_active_member()                 -- security review M1: disabled-Operator guard (0062 exempts the table; re-assert here)
      and (p_org_id is null or org_id = p_org_id)
    group by org_id, owner_id, action, date_trunc('month', created_at)
    order by month desc, org_id, owner_id, action
@@ -54,7 +55,9 @@ $$;
 create or replace function public.operator_list_orgs()
 returns table (id uuid, name text)
 language sql stable security definer set search_path = public as $$
-  select id, name from public.organizations where public.is_operator() order by name
+  select id, name from public.organizations
+   where public.is_operator() and public.is_active_member()    -- security review M1
+   order by name
 $$;
 
 revoke all on function public.org_usage_summary() from public;

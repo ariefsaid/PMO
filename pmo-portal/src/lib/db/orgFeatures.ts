@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import type { OrgFeatureKey } from '@/src/lib/features';
+import { FEATURE_KEYS, type OrgFeatureKey } from '@/src/lib/features';
 
 /**
  * org_features DAL (ops-admin-surface S6, FR-ENT-001..004). The read path selects own-org rows
@@ -36,15 +36,10 @@ export async function listOwnOrgFeatures(): Promise<Record<OrgFeatureKey, boolea
   return out as Record<OrgFeatureKey, boolean>;
 }
 
-const FEATURE_KEY_SET = new Set<string>([
-  'incidents',
-  'crm',
-  'procurement',
-  'timesheets',
-  'import_export',
-  'agent_assistant',
-  'user_views',
-]);
+// Derive the validation set from the CANONICAL FEATURE_KEYS registry (code review I1: a
+// hand-maintained copy would silently drop toggled rows when the SQL CHECK + FEATURE_KEYS list
+// diverged — the Operator's toggle would persist yet the FE would ignore it).
+const FEATURE_KEY_SET: ReadonlySet<string> = new Set<string>(FEATURE_KEYS);
 function isValidFeatureKey(key: string): key is OrgFeatureKey {
   return FEATURE_KEY_SET.has(key);
 }
