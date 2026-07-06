@@ -12,8 +12,8 @@
 
 // Relative imports — no .ts extension (Deno + Node/Vitest both resolve these).
 // No @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import { resolveAgentEntity } from './entityCatalog.ts';
 import {
   QUERY_ENTITY_SCHEMA,
   CREATE_ACTIVITY_SCHEMA,
@@ -101,7 +101,12 @@ export async function runQueryEntity(
     return { error: `unknown entity: ${inp.entity}` };
   }
 
-  const entry = ENTITY_WHITELIST[entityKey];
+  const entry = resolveAgentEntity(entityKey);
+  // Unreachable for a key in AGENT_READ_ENTITIES (the catalogue resolves every listed key), but
+  // defended defensively: never proceed without a resolved {table, allowedColumns}.
+  if (!entry) {
+    return { error: `unknown entity: ${inp.entity}` };
+  }
 
   // ── Step 2: column whitelist check (AC-AR-006) ────────────────────────────
   const requestedCols = inp.columns ?? [...entry.allowedColumns];
