@@ -1,12 +1,35 @@
 import { test, expect } from '@playwright/test';
+import { createClient, type User } from '@supabase/supabase-js';
 import { clearMailpit, pollMailpitForAuthLink } from './helpers';
 
 // AC-AUTHF-005 — password-reset round-trip via local Mailpit (FR-AUTHF-011/015/020/024).
-test('AC-AUTHF-005: request reset → Mailpit → /update-password → set password → signed in with the new password', async ({
+//
+// ⚠ This test PERMANENTLY changes pm@acme.test's password (the reset is real). E2e run
+// serially against ONE shared DB with no per-spec reset, so WITHOUT the cleanup below every
+// later spec that signs in as pm@acme.test gets "Invalid login credentials" (the promote's
+// 16 deterministic integration failures). The afterEach restores the seed password via the
+// service-role admin API; the test therefore only runs where that key is available (mirrors
+// AC-AUTHF-020's service-role gate) — otherwise it would poison the shared DB with no way back.
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const RESET_EMAIL = 'pm@acme.test';
+const SEED_PASSWORD = 'Passw0rd!dev';
+
+// Restore pm@acme.test's seed password after the test (runs even on failure) so subsequent
+// serially-run specs can still sign in as the PM persona.
+test.afterEach(async () => {
+  if (!SERVICE_ROLE_KEY) return;
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const { data } = await admin.auth.admin.listUsers();
+  const pm = (data?.users as User[] | undefined)?.find((u) => u.email === RESET_EMAIL);
+  if (pm) await admin.auth.admin.updateUserById(pm.id, { password: SEED_PASSWORD });
+});
+
+(SERVICE_ROLE_KEY ? test : test.skip)('AC-AUTHF-005: request reset → Mailpit → /update-password → set password → signed in with the new password', async ({
   page,
   browser,
 }) => {
-  const email = 'pm@acme.test';
+  const email = RESET_EMAIL;
   const newPassword = 'BrandNewPass1!';
 
   // 0. Clear Mailpit BEFORE the send action (mirrors AC-AUTH-005: clear → trigger → poll).
