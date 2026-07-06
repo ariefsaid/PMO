@@ -24,12 +24,17 @@ import { signIn } from './helpers';
 
 test.setTimeout(120_000);
 
-/** Read the numeric org-credit-balance shown in the Credits section. */
+/**
+ * Read the numeric org-credit-balance shown in the Credits section. The readout carries a
+ * "credits" unit suffix (e.g. "737.5 credits", ops-admin Discover fix) — extract the leading
+ * numeric token rather than assuming the text is bare-numeric.
+ */
 async function readBalance(page: Page): Promise<number> {
   const cell = page.getByTestId('org-credit-balance');
   await expect(cell).toBeVisible({ timeout: 20_000 });
   const text = (await cell.textContent()) ?? '';
-  const n = Number(text.replace(/[, ]/g, ''));
+  const match = text.match(/-?[\d,]+(?:\.\d+)?/);
+  const n = match ? Number(match[0].replace(/,/g, '')) : NaN;
   expect(Number.isFinite(n), `balance readout "${text}" was not numeric`).toBeTruthy();
   return n;
 }

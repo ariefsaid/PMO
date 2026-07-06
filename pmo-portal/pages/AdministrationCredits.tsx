@@ -7,6 +7,7 @@ import {
   FormSection,
   TextField,
   ListState,
+  SectionHeader,
   useToast,
   useEntityForm,
 } from '@/src/components/ui';
@@ -84,15 +85,17 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[16px] font-semibold">Credits</h2>
-        {isOperator && (
-          <Button variant="primary" onClick={() => setGrantOpen(true)}>
-            <Icon name="plus" />
-            Grant credits
-          </Button>
-        )}
-      </div>
+      <SectionHeader
+        title="Credits"
+        action={
+          isOperator && (
+            <Button variant="primary" onClick={() => setGrantOpen(true)}>
+              <Icon name="plus" />
+              Grant credits
+            </Button>
+          )
+        }
+      />
 
       {balanceQuery.isPending && (
         <div className="rounded-lg border border-border bg-card">
@@ -111,7 +114,8 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <span className="text-[13px] text-muted-foreground">Org balance</span>
           <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
-            {numberFormatter.format(balanceQuery.data)}
+            {numberFormatter.format(balanceQuery.data)}{' '}
+            <span className="text-[13px] font-semibold text-muted-foreground">credits</span>
           </span>
         </div>
       )}

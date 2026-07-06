@@ -17,7 +17,6 @@ const baseRow: UsageSummaryRow = {
   run_count: 3,
   prompt_tokens: 100,
   completion_tokens: 40,
-  provider_cost_usd: 0.03,
   cost: 0.1,
   margin_usd: null,
 };

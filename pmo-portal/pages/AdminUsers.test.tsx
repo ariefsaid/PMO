@@ -155,23 +155,23 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   });
 
   // FR-INV-006: the interim "Copy invite instructions" clipboard workaround (T26) is replaced
-  // by a real "Add user" affordance wired to the admin-invite-user edge fn (ops-admin-surface S4).
-  it('FR-INV-006: the old permanently-disabled "New user" dead-end is GONE — replaced by a live "Add user" affordance', () => {
+  // by a real "Invite user" affordance wired to the admin-invite-user edge fn (ops-admin-surface S4).
+  it('FR-INV-006: the old permanently-disabled "New user" dead-end is GONE — replaced by a live "Invite user" affordance', () => {
     renderPage('Admin');
     expect(screen.queryByRole('button', { name: /New user \(user invites arrive soon\)/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Copy invite/i })).not.toBeInTheDocument();
-    const affordance = screen.getByRole('button', { name: /add user/i });
+    const affordance = screen.getByRole('button', { name: /invite user/i });
     expect(affordance).not.toBeDisabled();
   });
 
-  it('FR-INV-006: "Add user" is only shown to Admin (not Exec read-only)', () => {
+  it('FR-INV-006: "Invite user" is only shown to Admin (not Exec read-only)', () => {
     renderPage('Executive');
-    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 
-  it('AC-AU-002: Executive gets a read-only directory — no Add user, no row actions, a read-only notice', () => {
+  it('AC-AU-002: Executive gets a read-only directory — no Invite user, no row actions, a read-only notice', () => {
     renderPage('Executive');
-    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
     // Exec can still SEE the directory
     expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
@@ -261,13 +261,13 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
 });
 
 describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
-  it('AC-AU-005 (superseded by FR-INV-004): "Add user" opens the invite modal and submits via useUserMutations().invite', async () => {
+  it('AC-AU-005 (superseded by FR-INV-004): "Invite user" opens the invite modal and submits via useUserMutations().invite', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /add user/i }));
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/email/i), 'new.person@example.com');
     await userEvent.selectOptions(within(dialog).getByLabelText(/role/i), 'Finance');
-    await userEvent.click(within(dialog).getByRole('button', { name: /send invite/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     await waitFor(() =>
       expect(mutations.invite.mutateAsync).toHaveBeenCalledWith({
         email: 'new.person@example.com',
@@ -283,10 +283,10 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
   it('a duplicate-email rejection (DUPLICATE_EMAIL) surfaces a classified toast, not a generic one', async () => {
     mutations.invite.mutateAsync.mockRejectedValue(new AppError('conflict', 'DUPLICATE_EMAIL'));
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /add user/i }));
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/email/i), 'existing@example.com');
-    await userEvent.click(within(dialog).getByRole('button', { name: /send invite/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/already in your workspace/i);
   });

@@ -1,6 +1,6 @@
 /**
  * AC-OPR-003 — Operator-only affordance gating (ops-admin-surface S4). Renders the page for
- * (a) the seeded Operator → the "Add user" control accepts inviting into ANY org (the
+ * (a) the seeded Operator → the "Invite user" control accepts inviting into ANY org (the
  * cross-org p_org_id path is exercised through useIsOperator=true), and (b) a plain org-Admin
  * → the invite path is pinned to their own org only (useIsOperator=false). The Credits/Features
  * *sections* land in S5/S6 (this test asserts the affordance-gate contract via useIsOperator,
@@ -74,18 +74,18 @@ beforeEach(() => {
 });
 
 describe('AdminUsers — Operator affordance gating (AC-OPR-003)', () => {
-  it('an org-Admin (non-Operator) sees the "Add user" control gated to their own org', async () => {
+  it('an org-Admin (non-Operator) sees the "Invite user" control gated to their own org', async () => {
     isOperatorState.value = false;
     renderPage();
-    const addBtn = screen.getByRole('button', { name: /add user/i });
+    const addBtn = screen.getByRole('button', { name: /invite user/i });
     expect(addBtn).toBeInTheDocument();
     expect(addBtn).not.toBeDisabled();
   });
 
-  it('the seeded Operator ALSO sees the "Add user" control (Operator may invite even without org-Admin role)', async () => {
+  it('the seeded Operator ALSO sees the "Invite user" control (Operator may invite even without org-Admin role)', async () => {
     isOperatorState.value = true;
     renderPage();
-    const addBtn = screen.getByRole('button', { name: /add user/i });
+    const addBtn = screen.getByRole('button', { name: /invite user/i });
     expect(addBtn).toBeInTheDocument();
     expect(addBtn).not.toBeDisabled();
   });

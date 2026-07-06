@@ -8,6 +8,11 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usag
  * agent_events/agent_runs/agent_threads read ever reaches this component. `margin_usd` renders
  * conditionally (AC-USE-003): when every row's margin is null (CREDITS_PER_USD unset server-side,
  * FR-USE-006), the column is hidden and a "Pricing not yet configured" note explains why.
+ *
+ * AC-USE-007 (owner decision, ops-admin Discover round 2026-07-06): "Provider cost" is PMO's raw
+ * provider spend (the markup over credits charged) — Operator-only. `org_usage_summary()` (org-Admin
+ * rows) no longer returns `provider_cost_usd` at all; the column renders ONLY when the rows carry
+ * that field (Operator rows, from `operator_usage_summary()`).
  */
 
 type UsageRow = UsageSummaryRow | OperatorUsageSummaryRow;
@@ -69,6 +74,10 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   // AC-USE-003: the margin column renders ONLY when at least one row has a computed margin
   // (CREDITS_PER_USD set server-side); otherwise it is hidden entirely (not shown as all-dashes).
   const hasMargin = rows.some((r) => r.margin_usd !== null);
+  // AC-USE-007: Provider cost is Operator-only — org_usage_summary() rows never carry
+  // provider_cost_usd at all, so its presence on the FIRST row is the structural signal (every row
+  // in a given render comes from the same RPC/persona; a mixed shape can't occur in practice).
+  const hasProviderCost = rows.length > 0 && 'provider_cost_usd' in rows[0];
 
   const columns: Column<UsageRow>[] = [
     { key: 'month', header: 'Month', cell: (r) => r.month },
@@ -79,7 +88,15 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       header: 'Tokens',
       cell: (r) => `${r.prompt_tokens.toLocaleString()} / ${r.completion_tokens.toLocaleString()}`,
     },
-    { key: 'providerCost', header: 'Provider cost', cell: (r) => formatUsd(r.provider_cost_usd) },
+    ...(hasProviderCost
+      ? [
+          {
+            key: 'providerCost',
+            header: 'Provider cost',
+            cell: (r: UsageRow) => ('provider_cost_usd' in r ? formatUsd(r.provider_cost_usd) : '—'),
+          } as Column<UsageRow>,
+        ]
+      : []),
     { key: 'cost', header: 'Credits spent', cell: (r) => formatUsd(r.cost) },
     ...(hasMargin
       ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatUsd(r.margin_usd)) } as Column<UsageRow>]

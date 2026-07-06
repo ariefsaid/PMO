@@ -47,6 +47,7 @@ export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
+export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
 export { tabId, tabPanelId } from './tabIds';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';

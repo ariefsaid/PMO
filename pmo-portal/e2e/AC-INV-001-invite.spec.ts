@@ -5,7 +5,7 @@ import { signIn } from './helpers';
  * AC-INV-001  Administration › Users › Invite — real cross-stack journey (ops-admin-surface S7
  * capstone, ADR-0010). Covers FR-INV-004/005/006.
  *
- * Given an org-Admin signed in on /administration, when they click "Add user", fill a FRESH email +
+ * Given an org-Admin signed in on /administration, when they click "Invite user", fill a FRESH email +
  * role "Engineer" and submit, then:
  *   1. the `admin-invite-user` edge fn is invoked with that email (asserted by OBSERVING the live
  *      network response — the call is let through to the real stack, never stubbed), AND
@@ -29,16 +29,16 @@ async function waitReady(page: Page) {
 }
 
 /**
- * Click "Send invite" and return the admin-invite-user edge-fn response. Arms the response waiter
- * BEFORE the click so the response is never missed. Returns the live Response — the caller asserts
- * on its status (and retries on a transient gateway 503, see the spec body).
+ * Click "Invite user" (submit) and return the admin-invite-user edge-fn response. Arms the response
+ * waiter BEFORE the click so the response is never missed. Returns the live Response — the caller
+ * asserts on its status (and retries on a transient gateway 503, see the spec body).
  */
 async function submitInvite(page: Page, dialog: ReturnType<Page['getByRole']>) {
   const edgeFnResponse = page.waitForResponse(
     (res) => res.url().includes('/functions/v1/admin-invite-user') && res.request().method() === 'POST',
     { timeout: 30_000 },
   );
-  await dialog.getByRole('button', { name: /send invite/i }).click();
+  await dialog.getByRole('button', { name: /invite user/i }).click();
   return edgeFnResponse;
 }
 
@@ -52,11 +52,11 @@ test(
     await page.goto('/administration');
     await waitReady(page);
 
-    // The "Add user" affordance (FR-INV-004/006) is visible to an Admin.
-    await expect(page.getByRole('button', { name: /add user/i })).toBeVisible({ timeout: 10_000 });
+    // The "Invite user" affordance (FR-INV-004/006) is visible to an Admin.
+    await expect(page.getByRole('button', { name: /invite user/i })).toBeVisible({ timeout: 10_000 });
 
     // Open the InviteFormModal.
-    await page.getByRole('button', { name: /add user/i }).click();
+    await page.getByRole('button', { name: /invite user/i }).click();
     const inviteDialog = page.getByRole('dialog');
     await expect(inviteDialog).toBeVisible({ timeout: 8_000 });
     await expect(inviteDialog.getByText(/invite someone/i)).toBeVisible();
@@ -84,7 +84,7 @@ test(
     // Submit, capturing the edge-fn response. A transient gateway 503 (edge runtime cold-start) is
     // retried — it is a pure infrastructure signal, never the function's own contract (401/400/200/
     // 403/502). The FE keeps the modal open on error and resets its loading state, so re-clicking
-    // "Send invite" re-submits the same filled form. We retry on 503 ONLY; any other non-2xx fails
+    // "Invite user" re-submits the same filled form. We retry on 503 ONLY; any other non-2xx fails
     // the test honestly with the real status code. (The primary fix for the 503 churn — Playwright
     // writing artifacts into the edge-runtime's watched tree — is the out-of-worktree `outputDir` in
     // playwright.config.ts; this retry is defence-in-depth for an occasional first-call cold-start.)

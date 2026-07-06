@@ -2875,7 +2875,6 @@ export type Database = {
           month: string
           owner_id: string
           prompt_tokens: number
-          provider_cost_usd: number
           run_count: number
         }[]
       }

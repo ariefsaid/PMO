@@ -3,12 +3,21 @@
 -- (NFR-PRIV-001, AC-PRIV-001). margin_usd is conditional on app.credits_per_usd (null when unset,
 -- FR-USE-006). operator_list_orgs returns directory columns only (no business-data aggregates).
 -- Reversibility (ADR-0006): supabase db reset. Manual: drop the 3 fns below.
+--
+-- AC-USE-007 (owner decision, ops-admin Discover round 2026-07-06): org_usage_summary() does NOT
+-- return provider_cost_usd — that is PMO's raw provider spend (the markup), which an org-Admin
+-- must never see next to their own credits-spent figure. operator_usage_summary() KEEPS it (the
+-- Operator/platform persona is the only one entitled to provider cost).
+
+-- Return-column shape changed (provider_cost_usd removed, AC-USE-007): CREATE OR REPLACE cannot
+-- change OUT columns, so drop first (this migration is unmerged/never-deployed — in-place edit).
+drop function if exists public.org_usage_summary();
 
 create or replace function public.org_usage_summary()
 returns table (
   owner_id uuid, action text, month date,
   run_count bigint, prompt_tokens bigint, completion_tokens bigint,
-  provider_cost_usd numeric, cost numeric, margin_usd numeric
+  cost numeric, margin_usd numeric
 )
 language sql stable security definer set search_path = public as $$
   with rates as (
@@ -18,7 +27,6 @@ language sql stable security definer set search_path = public as $$
          count(*)::bigint,
          coalesce(sum(prompt_tokens),0)::bigint,
          coalesce(sum(completion_tokens),0)::bigint,
-         coalesce(sum(provider_cost_usd),0),
          coalesce(sum(cost),0),
          case when (select cpu from rates) is null or (select cpu from rates) <= 0 then null
               else (coalesce(sum(cost),0) / (select cpu from rates)) - coalesce(sum(provider_cost_usd),0)

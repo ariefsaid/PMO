@@ -12,6 +12,7 @@ import {
   Combobox,
   FormSection,
   GateNotice,
+  SectionHeader,
   useEntityForm,
   useToast,
   Button,
@@ -414,7 +415,7 @@ const AdminUsers: React.FC = () => {
 
       {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs. */}
       <div className="mt-6">
-        <h2 className="mb-2 text-[16px] font-semibold">Usage</h2>
+        <SectionHeader title="Usage" />
         <AdministrationUsage
           rows={usageQuery.data ?? []}
           isPending={usageQuery.isPending}
@@ -430,7 +431,7 @@ const AdminUsers: React.FC = () => {
 
       {/* Features section (ops-admin-surface S6) — Operator toggles + org-Admin read-only. */}
       <div className="mt-6">
-        <h2 className="mb-2 text-[16px] font-semibold">Features</h2>
+        <SectionHeader title="Features" />
         <AdministrationFeatures isOperator={isOperator} orgId={ownOrgId} />
       </div>
 
@@ -509,10 +510,11 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void }> = ({ canI
     </div>
     {canInvite && (
       /* FR-INV-004/006: a real, working invite affordance (admin-invite-user edge fn) —
-         replaces the interim "Copy invite instructions" clipboard workaround. */
+         replaces the interim "Copy invite instructions" clipboard workaround. Create-verb
+         consistency (DESIGN.md §7): button / modal title / submit all say "Invite user". */
       <Button variant="primary" onClick={onInvite}>
         <Icon name="plus" />
-        Add user
+        Invite user
       </Button>
     )}
   </div>
@@ -570,13 +572,13 @@ const InviteFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title="Add user"
+      title="Invite user"
       subtitle={
         isOperator
           ? "Invite someone by email — they'll set their own password and role takes effect immediately."
           : "Invite someone to your workspace by email — they'll set their own password."
       }
-      submitLabel="Send invite"
+      submitLabel="Invite user"
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
