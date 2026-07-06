@@ -11,7 +11,7 @@ import { HELP_URL } from '@/src/lib/legalConfig';
  * page cannot inherit the shell's <main> (M10).
  *
  * DESIGN.md tokens: page-title (h1 24/700/-0.02em), heading (h2 20/700/-0.01em),
- * body (14/1.45), overline (11/600/0.06em). Calm control surface: content on the
+ * body (14/1.6), overline (11/600/0.06em). Calm control surface: content on the
  * tinted secondary ground, hairline border, muted-foreground secondary text —
  * no shadows (Flat-By-Default). Links use text-primary-text (the AA blue token,
  * index.css:46) — NOT text-primary (the action fill, sub-AA on dark per DESIGN.md).
