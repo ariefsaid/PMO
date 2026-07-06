@@ -204,10 +204,18 @@ async function commitCase(
   if (importBatchId && skipLookup && caseImportKey) {
     // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
     const existing = await skipLookup.findExistingCase(caseImportKey, importBatchId);
-    if (existing) {
-      procurementId = existing.id;
+    // FR-IDEM-006: a case with the same import_key from an EARLIER batch must be skipped, not
+    // duplicated. Checked only when the same-batch lookup missed (same-batch is the common path).
+    const collision = existing
+      ? null
+      : await skipLookup.findCrossBatchCollision('procurements', caseImportKey, importBatchId);
+    const priorCase = existing ?? collision;
+    if (priorCase) {
+      procurementId = priorCase.id;
       headerStatus = 'skipped';
-      headerSkipReason = `already imported (batch ${importBatchId})`;
+      headerSkipReason = existing
+        ? `already imported (batch ${importBatchId})`
+        : `already imported by an earlier batch (${(collision as { import_batch_id: string }).import_batch_id})`;
     } else {
       try {
         const header = await createProcurement(
@@ -269,11 +277,20 @@ async function commitCase(
       const existing = table
         ? await skipLookup.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
         : null;
-      if (existing) {
-        if (row.type === 'VI') groupInvoiceId = existing.id; // preserve Payment FK settlement on skip
+      // FR-IDEM-006: a record with the same import_key from an EARLIER batch (under this case)
+      // must be skipped, not duplicated. Checked only when the same-batch lookup missed.
+      const collision = table && !existing
+        ? await skipLookup.findCrossBatchCollision(table, recordImportKey, importBatchId, procurementId)
+        : null;
+      const priorRecord = existing ?? collision;
+      if (priorRecord) {
+        if (row.type === 'VI') groupInvoiceId = priorRecord.id; // preserve Payment FK settlement on skip
         records.push({
-          rowNumber: row.rowNumber, type: row.type, id: existing.id,
-          status: 'skipped', skipReason: `already imported (batch ${importBatchId})`,
+          rowNumber: row.rowNumber, type: row.type, id: priorRecord.id,
+          status: 'skipped',
+          skipReason: existing
+            ? `already imported (batch ${importBatchId})`
+            : `already imported by an earlier batch (${(collision as { import_batch_id: string }).import_batch_id})`,
         });
         continue;
       }

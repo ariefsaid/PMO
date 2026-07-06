@@ -468,3 +468,70 @@ describe('commitGroups — AC-IDEM-004: exact re-run of the same batch creates z
     expect(createPurchaseRequest).not.toHaveBeenCalled();
   });
 });
+
+describe('commitGroups — FR-IDEM-006: cross-batch collision is skipped at commit time, not duplicated', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('skips a case whose import_key exists in a DIFFERENT batch (findExistingCase null, findCrossBatchCollision hit)', async () => {
+    const skipLookup = makeStubSkipLookup({
+      // Nothing in THIS batch...
+      findExistingCase: vi.fn().mockResolvedValue(null),
+      // ...but the same import_key was imported by an earlier batch.
+      findCrossBatchCollision: vi.fn().mockImplementation(
+        async (table: string) =>
+          table === 'procurements'
+            ? { id: 'earlier-batch-proc', import_batch_id: 'batch-earlier' }
+            : null,
+      ),
+    });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: { caseRef: 'CASE-XBATCH', attrs: { title: 'Cross-batch Case', project: undefined, caseStatus: undefined }, rows: [], errors: [] },
+      rows: [],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(createProcurement).not.toHaveBeenCalled();
+    expect(result.cases[0].headerStatus).toBe('skipped');
+    expect(result.cases[0].procurementId).toBe('earlier-batch-proc');
+  });
+
+  it('skips a RECORD whose import_key exists in a different batch under the same case', async () => {
+    // Header is a fresh create in this batch; the PO record already exists in an earlier batch.
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-new' } as never);
+    const skipLookup = makeStubSkipLookup({
+      findExistingCase: vi.fn().mockResolvedValue(null),
+      findExistingRecord: vi.fn().mockResolvedValue(null),
+      findCrossBatchCollision: vi.fn().mockImplementation(
+        async (table: string) =>
+          table === 'purchase_orders'
+            ? { id: 'earlier-po', import_batch_id: 'batch-earlier' }
+            : null,
+      ),
+    });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-XREC', attrs: { title: 'Case', project: undefined, caseStatus: undefined },
+        rows: [
+          { caseRef: 'CASE-XREC', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO-X', status: 'Ordered', date: '2025-02-01', amount: '900', rowNumber: 1 },
+        ],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(result.cases[0].records[0].status).toBe('skipped');
+    expect(result.cases[0].records[0].id).toBe('earlier-po');
+    expect(createPurchaseOrder).not.toHaveBeenCalled();
+  });
+});
