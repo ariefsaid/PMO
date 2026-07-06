@@ -954,7 +954,7 @@ export async function* agentChatHandler(
   // row, created BEFORE any event is persisted (insertEvent's run_id FK requires the run to
   // exist first). Only on a genuinely new run — a resume/decision re-POST already carries
   // req.runId and its thread/run rows already exist.
-  if (persist && !req.runId) {
+  if (persist && (!req.runId || req.threadId)) {
     const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1);
     const title =
       lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'
@@ -965,7 +965,12 @@ export async function* agentChatHandler(
     // never durably scoped to the thread). Review-remediation item 2 (Security
     // Lows): narrowScope also clamps label and drops any unknown keys, so a
     // forged/oversized entity object can't widen or bloat the persisted scope.
-    await createThreadAndRun(persist.deps, { runId, title, scope: narrowEntityScope(req.context?.entity) });
+    await createThreadAndRun(persist.deps, {
+      runId,
+      title,
+      scope: narrowEntityScope(req.context?.entity),
+      threadId: req.threadId,
+    });
   }
 
   yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId);

@@ -113,6 +113,8 @@ export interface AgentAction {
 export interface AgentTurnAttachments {
   /** Tier-2 attachments: caller-scoped references, never raw bytes. */
   attachmentIds?: string[];
+  /** Existing persisted thread to bind a fresh run to, used by pre-uploaded attachments. */
+  threadId?: string;
 }
 
 export interface AgentRuntime {

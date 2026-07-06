@@ -44,6 +44,11 @@ import {
   createDocumentRevision,
   getChildDocument,
 } from '@/src/lib/db/documents';
+import {
+  prepareAgentAttachmentFileUpload,
+  confirmAgentAttachmentUpload,
+  cleanupAgentAttachmentObject,
+} from '@/src/lib/db/agentAttachments';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
 import {
@@ -154,6 +159,7 @@ import type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,
@@ -211,6 +217,12 @@ const document: DocumentRepository = {
   createRevision: (parentId, input, authorId) =>
     wrap(() => createDocumentRevision(parentId, input, authorId)),
   getChild: (parentId) => wrap(() => getChildDocument(parentId)),
+};
+
+const agentAttachment: AgentAttachmentRepository = {
+  prepareUpload: (threadId, file) => wrap(() => prepareAgentAttachmentFileUpload(threadId, file)),
+  confirmUpload: (attachmentId) => wrap(() => confirmAgentAttachmentUpload(attachmentId)),
+  cleanupObject: (path) => wrap(() => cleanupAgentAttachmentObject(path)),
 };
 
 const profile: ProfileRepository = {
@@ -347,6 +359,7 @@ export const repositories: Repositories = {
   project,
   company,
   document,
+  agentAttachment,
   profile,
   procurement,
   timesheet,
@@ -364,6 +377,7 @@ export type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
   TimesheetRepository,

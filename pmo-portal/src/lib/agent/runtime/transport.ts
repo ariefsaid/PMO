@@ -51,6 +51,8 @@ export interface AgentChatRequest {
   messages: ConversationMessage[];
   /** Optional UI context hints. */
   context?: RunContext;
+  /** Existing persisted thread to bind a fresh run to, used by pre-uploaded attachments. */
+  threadId?: string;
   /** Tier-2 attachments: caller-scoped references, never raw bytes. */
   attachmentIds?: string[];
   /** A3: present on an approve/deny re-POST (D-A3-1, AW-OD-004 Option B). */

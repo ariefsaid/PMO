@@ -4,6 +4,7 @@ import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/hand
 import {
   AGENT_ATTACHMENT_TEXT_CHAR_CAP,
   buildAttachmentContextMessages,
+  createAttachmentResolver,
 } from '../../../../supabase/functions/agent-chat/attachments';
 import type { ModelMessage } from '../../../../supabase/functions/_shared/modelClient';
 import type { AgentEvent } from './runtime/port';
@@ -129,5 +130,96 @@ describe('agent-chat attachment boundary', () => {
     expect(messages[0].content).toContain('quote.pdf');
     expect(messages[0].content).toContain('[truncated]');
     expect(messages[0].content).not.toContain('A'.repeat(AGENT_ATTACHMENT_TEXT_CHAR_CAP + 1));
+  });
+
+  it('AC-AT2-004 resolver reads rows and downloads bytes through the caller-scoped deputy client', async () => {
+    const calls: string[] = [];
+    const supabase = {
+      from: vi.fn((table: string) => {
+        calls.push(`from:${table}`);
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: 'att-1',
+                    original_filename: 'quote.pdf',
+                    mime_type: 'application/pdf',
+                    storage_path: 'org/org-1/agent-attachments/att-1',
+                    extracted_text_status: 'pending',
+                    extracted_text: null,
+                    archived_at: null,
+                  },
+                ],
+                error: null,
+              }),
+            })),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          })),
+        };
+      }),
+      storage: {
+        from: vi.fn(() => ({
+          download: vi.fn().mockResolvedValue({
+            data: new Blob(['pdf bytes'], { type: 'application/pdf' }),
+            error: null,
+          }),
+        })),
+      },
+    };
+    const extractPdfText = vi.fn().mockResolvedValue({ text: 'Known quoted amount is 42.', status: 'ready' as const });
+    const resolver = createAttachmentResolver({ extractPdfText });
+
+    const messages = await resolver.resolveAttachmentMessages(['att-1'], {
+      jwt: 'jwt',
+      userId: 'user-1',
+      orgId: 'org-1',
+      supabase: supabase as never,
+    });
+
+    expect(calls).toContain('from:agent_attachments');
+    expect(supabase.storage.from).toHaveBeenCalledWith('agent-attachments');
+    expect(extractPdfText).toHaveBeenCalledWith(expect.any(Uint8Array));
+    expect(messages[0].content).toContain('Known quoted amount is 42.');
+  });
+
+  it('AC-AT2-004 resolver treats foreign attachment ids as zero rows', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
+
+    await expect(
+      resolver.resolveAttachmentMessages(['foreign-att'], {
+        jwt: 'jwt',
+        userId: 'user-1',
+        orgId: 'org-1',
+        supabase: supabase as never,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('AC-AT2-001 image attachments degrade honestly until ModelMessage supports vision blocks', async () => {
+    const messages = buildAttachmentContextMessages([
+      {
+        id: 'img-1',
+        originalFilename: 'photo.webp',
+        mimeType: 'image/webp',
+        extractedTextStatus: 'skipped',
+        extractedText: null,
+      },
+    ]);
+
+    expect(messages[0].content).toContain("cannot read this attachment's text yet");
+    expect(messages[0].content).toContain('image/webp');
   });
 });

@@ -106,21 +106,25 @@ export interface JournaledWrite {
  */
 export async function createThreadAndRun(
   deps: PersistenceDeps,
-  input: { runId: string; title: string; scope?: unknown },
+  input: { runId: string; title: string; scope?: unknown; threadId?: string },
 ): Promise<void> {
   try {
-    const { data: thread, error: threadError } = await deps.supabase
-      .from('agent_threads')
-      .insert({ title: input.title, scope: input.scope ?? null })
-      .select()
-      .single();
-    if (threadError || !thread) {
-      console.error('[agent-chat] persistence createThreadAndRun thread insert failed', {
-        code: (threadError as { code?: string } | null)?.code,
-      });
-      return;
+    let threadId = input.threadId;
+    if (!threadId) {
+      const { data: thread, error: threadError } = await deps.supabase
+        .from('agent_threads')
+        .insert({ title: input.title, scope: input.scope ?? null })
+        .select()
+        .single();
+      if (threadError || !thread) {
+        console.error('[agent-chat] persistence createThreadAndRun thread insert failed', {
+          code: (threadError as { code?: string } | null)?.code,
+        });
+        return;
+      }
+      threadId = (thread as { id?: string }).id;
     }
-    const threadId = (thread as { id?: string }).id;
+    if (!threadId) return;
     const { error: runError } = await deps.supabase
       .from('agent_runs')
       .insert({ id: input.runId, thread_id: threadId, title: input.title, status: 'running' })
