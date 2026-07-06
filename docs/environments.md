@@ -349,6 +349,40 @@ TRUNCATE budget_line_items, budget_versions, companies, contacts, crm_activities
 -- then re-run scripts/db-seed-prod.sh
 ```
 
+## Provisioning an Operator (per client) — ADR-0049 / FR-OPR-003
+
+The **Operator** is a platform-level grant (the vendor operating PMO), NOT a 6th `user_role`. It
+lives on `platform_operators(user_id)` (RLS forced; one SELECT policy, no write policy —
+append-only-by-omission). There is no in-app Operator-of-Operators affordance in v1; an Operator is
+provisioned against a real project's cloud DB via service-role `psql` (the same path the local
+`seed.sql` §U uses for the staging/demo Operator `arief.said@gmail.com`). Out-of-band, set a strong
+password for the auth user after creating it.
+
+```sql
+-- 1. auth user (GoTrue). Set email_confirmed_at so they can sign in; set a bf password out-of-band.
+insert into auth.users
+  (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+   confirmation_token, recovery_token, email_change, email_change_token_new,
+   email_change_token_current, reauthentication_token)
+values
+  ('00000000-0000-0000-0000-000000000000', '<a fresh uuid>',
+   'authenticated','authenticated','<operator@example.com>',
+   crypt('<strong-password>', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', '');
+-- 2. a profiles row (role 'Admin' for shell access; org_id = the client's single org).
+insert into profiles (id, org_id, full_name, email, role, title)
+  values ('<same uuid>', '<the client org id>', '<Name>', '<operator@example.com>', 'Admin', 'Platform Operator');
+-- 3. the platform grant (service-role/psql ONLY — never any client API).
+insert into platform_operators (user_id) values ('<same uuid>');
+```
+
+`is_operator()` (plain `SECURITY INVOKER`) resolves `true` only under an Operator's own JWT (their own
+`platform_operators` row is visible via the SELECT policy); every Operator power is re-asserted
+server-side by the security-definer RPCs (`admin_set_user_status`, `operator_grant_credits`,
+`operator_toggle_feature`, `operator_usage_summary`, `operator_list_orgs`).
+
 ## Production auth configuration (per-client Supabase Cloud project — owner-gated)
 
 > Binding source: `docs/specs/auth-production-floor.spec.md` §7 (NFR-AUTHF-CONF-001…008). This is a

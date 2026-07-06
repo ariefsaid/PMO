@@ -22,6 +22,27 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+// S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+// Mock it so these pre-entitlement tests don't need an AuthProvider. Defaults
+// mirror FEATURE_ENV_DEFAULT except CRM is enabled so the original assertions
+// (Executive sees Sales Pipeline / Companies) still hold — CRM is now entitlement-
+// driven, and these tests' intent predates that gate (the org has CRM enabled).
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: {
+      incidents: false,
+      crm: true,
+      procurement: true,
+      timesheets: true,
+      import_export: true,
+      agent_assistant: false,
+      user_views: false,
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 const renderRail = () =>
   render(
     <MemoryRouter>

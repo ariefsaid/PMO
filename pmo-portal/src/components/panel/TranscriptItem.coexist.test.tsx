@@ -14,6 +14,10 @@ const { mockAgentAssistant } = vi.hoisted(() => ({
 vi.mock('@/src/lib/features', () => ({
   isFeatureEnabled: (key: string) => (key === 'agentAssistant' ? mockAgentAssistant.value : false),
   FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
+  // FEATURE_KEYS: consumed transitively (orgFeatures.ts, imported via repositories/index.ts) by
+  // TranscriptItem's widget registry — this test doesn't exercise org-feature gating, so it's a
+  // module-load-safety stub, not a scenario mock.
+  FEATURE_KEYS: ['incidents', 'crm', 'procurement', 'timesheets', 'import_export', 'agent_assistant', 'user_views'],
 }));
 
 import { TranscriptItem } from './TranscriptItem';

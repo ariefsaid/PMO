@@ -2,6 +2,8 @@
  * Tests for agent-chat's credit-backed RateGuard wiring + unconditional usage recording.
  * AC-AUC-016: a zero-or-negative balance blocks before any modelClient.create() call.
  * AC-AUC-018: a usage row is still inserted even when persistence (ADR-0043 flag) is off.
+ * AMENDED by ADR-0049 / ops-admin-surface (FR-CRE-002/004): the balance is the ORG pool, read
+ * via the `org_credit_balance` RPC — not a per-owner `.from('credits')/.from('agent_usage')` sum.
  */
 import { it, expect, vi } from 'vitest';
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
@@ -18,41 +20,17 @@ async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
 
 const REQ: AgentChatRequest = { messages: [{ role: 'user', content: 'how many active projects?' }] };
 
-/** profiles lookup works; 'credits'/'agent_usage' select path returns the given fixture rows. */
-function mockOrgCreditsAndUsage(opts: {
-  grants: Array<{ amount: number }>;
-  usage: Array<{ cost: number }>;
-}): HandlerDeps['supabase'] {
+/** profiles lookup works; the org_credit_balance RPC returns the given fixture balance. */
+function mockOrgBalance(balance: number): HandlerDeps['supabase'] {
   return {
-    from: vi.fn().mockImplementation((table: string) => {
-      if (table === 'profiles') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Engineer' }, error: null }),
-            }),
-          }),
-        };
-      }
-      if (table === 'credits' || table === 'agent_usage') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue(
-                table === 'credits' ? { data: opts.grants, error: null } : { data: opts.usage, error: null },
-              ),
-            }),
-          }),
-        };
-      }
-      // All other tables — empty rows (no entity reads exercised in these tests).
-      return {
-        select: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-          eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    from: vi.fn().mockImplementation(() => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Engineer' }, error: null }),
         }),
-      };
-    }),
+      }),
+    })),
+    rpc: vi.fn().mockResolvedValue({ data: balance, error: null }),
   } as unknown as HandlerDeps['supabase'];
 }
 
@@ -89,7 +67,7 @@ function mockOrgAndUsageInsert(insertSpy: (row: object) => void): HandlerDeps['s
 
 it('AC-AUC-016 zero-or-negative balance blocks before model call', async () => {
   const create = vi.fn();
-  const supabase = mockOrgCreditsAndUsage({ grants: [], usage: [{ cost: 5 }] }); // balance = -5
+  const supabase = mockOrgBalance(-5);
   const events = await collect(
     agentChatHandler(REQ, {
       modelClient: { create },

@@ -60,3 +60,63 @@ export async function assignUserManager(id: string, managerId: string | null): P
   const { error } = await supabase.from('profiles').update({ manager_id: managerId }).eq('id', id);
   if (error) throwWrite(error);
 }
+
+export interface InviteUserInput {
+  email: string;
+  role: UserRole;
+  /** Operator-only: target a specific org (server-validated). Ignored for a non-Operator caller. */
+  pOrgId?: string | null;
+}
+
+/**
+ * Invite a new user (FR-INV-004/005, ops-admin-surface S4/S3). Calls the `admin-invite-user`
+ * edge fn — issuance only (Supabase auth invite + profiles row insert). Authorization (Admin-
+ * in-org OR Operator) is re-asserted server-side; the edge fn's error `code` (e.g.
+ * `DUPLICATE_EMAIL`, `INVITE_UNAUTHORIZED`, `INVALID_ROLE`, `UNKNOWN_ORG`) is preserved on the
+ * thrown `AppError` so the UI can classify it. org_id is NEVER client-decided for an org-Admin
+ * (the edge fn pins it to the caller's own org); `pOrgId` is the Operator-only override.
+ */
+export async function inviteUser(input: InviteUserInput): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{ error?: string }>('admin-invite-user', {
+    body: { email: input.email, role: input.role, p_org_id: input.pOrgId ?? null },
+  });
+  if (error) {
+    // FunctionsHttpError doesn't parse the JSON body — read our error code off the raw Response
+    // when present (context is the Response for FunctionsHttpError), falling back to the
+    // generic error message otherwise.
+    const context = (error as { context?: Response }).context;
+    let code: string | undefined;
+    if (context && typeof context.clone === 'function') {
+      try {
+        const body = (await context.clone().json()) as { error?: string };
+        code = body.error;
+      } catch {
+        // non-JSON body — fall through with no code.
+      }
+    }
+    throw new AppError(code ?? error.message ?? 'Invite failed', code);
+  }
+  if (data?.error) throw new AppError(data.error, data.error);
+}
+
+export interface SetUserStatusInput {
+  id: string;
+  status: 'active' | 'disabled';
+  /** Re-validated server-side against the target's real org (admin_set_user_status RPC). */
+  orgId: string;
+}
+
+/**
+ * Disable or re-enable a user (AC-INV-003/004, ops-admin-surface S1/S4). Calls the
+ * `admin_set_user_status` security-definer RPC — Admin-in-org OR Operator authority, with a
+ * caller-agnostic sole-/self-Admin lockout guard (raises `P0001` "lockout", classified by
+ * `classifyMutationError`). Throws an `AppError` (code preserved) on failure.
+ */
+export async function setUserStatus(input: SetUserStatusInput): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_user_status', {
+    p_profile_id: input.id,
+    p_status: input.status,
+    p_org_id: input.orgId,
+  });
+  if (error) throwWrite(error);
+}

@@ -55,6 +55,10 @@ export async function prepareAgentAttachmentUpload(
 ): Promise<PreparedAgentAttachmentUpload> {
   validateAttachmentUpload(input);
 
+  // storage_path has no SQL DEFAULT (only a `before insert` trigger stamps it,
+  // 0060_agent_attachments.sql), so the generated Insert type marks it required
+  // even though the client must never supply it — the trigger derives it from
+  // org_id/id and the INSERT policy would reject a client-supplied value.
   const { data: row, error: insertError } = await supabase
     .from('agent_attachments')
     .insert({
@@ -62,7 +66,7 @@ export async function prepareAgentAttachmentUpload(
       mime_type: input.mimeType,
       size_bytes: input.sizeBytes,
       original_filename: input.fileName,
-    })
+    } as never)
     .select('id, storage_path')
     .single();
   if (insertError) throwWrite(insertError);

@@ -34,6 +34,76 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_attachments: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          extracted_text: string | null
+          extracted_text_chars: number | null
+          extracted_text_status: string
+          id: string
+          mime_type: string
+          org_id: string
+          original_filename: string
+          owner_id: string
+          size_bytes: number
+          storage_path: string
+          thread_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          extracted_text_chars?: number | null
+          extracted_text_status?: string
+          id?: string
+          mime_type: string
+          org_id?: string
+          original_filename: string
+          owner_id?: string
+          size_bytes: number
+          storage_path: string
+          thread_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          extracted_text_chars?: number | null
+          extracted_text_status?: string
+          id?: string
+          mime_type?: string
+          org_id?: string
+          original_filename?: string
+          owner_id?: string
+          size_bytes?: number
+          storage_path?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_attachments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_attachments_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_attachments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "agent_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_automations: {
         Row: {
           archived_at: string | null
@@ -194,76 +264,6 @@ export type Database = {
           },
         ]
       }
-      agent_attachments: {
-        Row: {
-          archived_at: string | null
-          created_at: string
-          extracted_text: string | null
-          extracted_text_chars: number | null
-          extracted_text_status: string
-          id: string
-          mime_type: string
-          org_id: string
-          original_filename: string
-          owner_id: string
-          size_bytes: number
-          storage_path: string
-          thread_id: string
-        }
-        Insert: {
-          archived_at?: string | null
-          created_at?: string
-          extracted_text?: string | null
-          extracted_text_chars?: number | null
-          extracted_text_status?: string
-          id?: string
-          mime_type: string
-          org_id?: string
-          original_filename: string
-          owner_id?: string
-          size_bytes: number
-          storage_path?: string
-          thread_id: string
-        }
-        Update: {
-          archived_at?: string | null
-          created_at?: string
-          extracted_text?: string | null
-          extracted_text_chars?: number | null
-          extracted_text_status?: string
-          id?: string
-          mime_type?: string
-          org_id?: string
-          original_filename?: string
-          owner_id?: string
-          size_bytes?: number
-          storage_path?: string
-          thread_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_attachments_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agent_attachments_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "agent_attachments_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "agent_threads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       agent_runs: {
         Row: {
           created_at: string
@@ -381,6 +381,7 @@ export type Database = {
       }
       agent_usage: {
         Row: {
+          action: string
           completion_tokens: number
           cost: number
           created_at: string
@@ -389,9 +390,11 @@ export type Database = {
           org_id: string
           owner_id: string
           prompt_tokens: number
+          provider_cost_usd: number
           run_id: string | null
         }
         Insert: {
+          action?: string
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -400,9 +403,11 @@ export type Database = {
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
+          provider_cost_usd?: number
           run_id?: string | null
         }
         Update: {
+          action?: string
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -411,6 +416,7 @@ export type Database = {
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
+          provider_cost_usd?: number
           run_id?: string | null
         }
         Relationships: [
@@ -624,7 +630,7 @@ export type Database = {
           id: string
           note: string | null
           org_id: string
-          owner_id: string
+          owner_id: string | null
         }
         Insert: {
           amount: number
@@ -633,7 +639,7 @@ export type Database = {
           id?: string
           note?: string | null
           org_id?: string
-          owner_id: string
+          owner_id?: string | null
         }
         Update: {
           amount?: number
@@ -642,7 +648,7 @@ export type Database = {
           id?: string
           note?: string | null
           org_id?: string
-          owner_id?: string
+          owner_id?: string | null
         }
         Relationships: [
           {
@@ -861,6 +867,45 @@ export type Database = {
           },
         ]
       }
+      org_features: {
+        Row: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          feature_key?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_features_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -1017,6 +1062,39 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_operators: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_operators_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_operators_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1668,6 +1746,7 @@ export type Database = {
           org_id: string
           role: Database["public"]["Enums"]["user_role"]
           skills: string[]
+          status: Database["public"]["Enums"]["profile_status"]
           title: string | null
           updated_at: string
           utilization: number | null
@@ -1684,6 +1763,7 @@ export type Database = {
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
+          status?: Database["public"]["Enums"]["profile_status"]
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -1700,6 +1780,7 @@ export type Database = {
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
+          status?: Database["public"]["Enums"]["profile_status"]
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -2540,6 +2621,14 @@ export type Database = {
         Args: { version_id: string }
         Returns: undefined
       }
+      admin_set_user_status: {
+        Args: {
+          p_org_id: string
+          p_profile_id: string
+          p_status: Database["public"]["Enums"]["profile_status"]
+        }
+        Returns: undefined
+      }
       auth_org_id: { Args: never; Returns: string }
       auth_role: {
         Args: never
@@ -2799,11 +2888,66 @@ export type Database = {
       }
       get_sales_pipeline: { Args: never; Returns: Json }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
+      is_active_member: { Args: never; Returns: boolean }
+      is_operator: { Args: never; Returns: boolean }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
+      operator_grant_credits: {
+        Args: { p_amount: number; p_note: string; p_org_id: string }
+        Returns: undefined
+      }
+      operator_list_orgs: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
+      operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
+      operator_toggle_feature: {
+        Args: { p_enabled: boolean; p_key: string; p_org_id: string }
+        Returns: undefined
+      }
+      operator_usage_summary: {
+        Args: { p_org_id?: string }
+        Returns: {
+          action: string
+          completion_tokens: number
+          cost: number
+          margin_usd: number
+          month: string
+          org_id: string
+          owner_id: string
+          prompt_tokens: number
+          provider_cost_usd: number
+          run_count: number
+        }[]
+      }
+      org_credit_balance: { Args: { p_org_id: string }; Returns: number }
+      org_has_feature: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: boolean
+      }
+      org_has_member_email: {
+        Args: { p_email: string; p_org_id: string }
+        Returns: boolean
+      }
+      org_usage_summary: {
+        Args: never
+        Returns: {
+          action: string
+          completion_tokens: number
+          cost: number
+          margin_usd: number
+          month: string
+          owner_id: string
+          prompt_tokens: number
+          run_count: number
+        }[]
+      }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       save_timesheet_week: {
         Args: {
@@ -2817,6 +2961,20 @@ export type Database = {
       select_procurement_quote: {
         Args: { p_quotation_id: string }
         Returns: undefined
+      }
+      select_trigger_events: {
+        Args: {
+          p_filters: Json
+          p_last_seen_at: string
+          p_last_seen_id: string
+          p_source: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          org_id: string
+          to_status: string
+        }[]
       }
       set_project_contract_value: {
         Args: { p_id: string; p_value: number }
@@ -2894,6 +3052,7 @@ export type Database = {
         | "Vendor Invoiced"
         | "Paid"
         | "Cancelled"
+      profile_status: "active" | "disabled"
       project_status:
         | "Leads"
         | "PQ Submitted"
@@ -3081,6 +3240,7 @@ export const Constants = {
         "Paid",
         "Cancelled",
       ],
+      profile_status: ["active", "disabled"],
       project_status: [
         "Leads",
         "PQ Submitted",
@@ -3106,3 +3266,4 @@ export const Constants = {
     },
   },
 } as const
+

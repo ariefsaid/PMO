@@ -4,7 +4,12 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
-import { isFeatureEnabled, type FeatureKey } from '@/src/lib/features';
+import { isFeatureEnabled } from '@/src/lib/features';
+import {
+  FEATURE_ENV_DEFAULT,
+  type OrgFeatureKey,
+} from '@/src/lib/features';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
@@ -30,20 +35,21 @@ interface NavItem {
   /** Owning rail group. */
   group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce';
   /**
-   * Optional feature gate: when set, the item renders only if `isFeatureEnabled(feature)`
-   * (interim UI-hide flag — src/lib/features.ts). Generalizes the per-module hide so the
-   * next gated module is a data change here, not a special-case in the filter.
+   * Optional per-org entitlement gate (ops-admin-surface S6, FR-ENT-005). When set, the item
+   * renders only if the org's `org_features` row (or the env default when absent) resolves the
+   * key to true. An Operator may toggle these for an org (Admin › Features); core modules
+   * (projects/dashboard/approvals/administration) are NEVER gated and stay ungated here.
    */
-  feature?: FeatureKey;
+  feature?: OrgFeatureKey;
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'grid', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipe', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/procurement', text: 'Procurement', icon: 'cart', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
   // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
   // "sheets from your reports" which is misleading. Finance is now included: Finance approves
@@ -52,9 +58,9 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/approvals', text: 'Approvals', icon: 'check', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
-  { to: '/companies', text: 'Companies', icon: 'doc', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies', text: 'Companies', icon: 'doc', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
-  { to: '/contacts', text: 'Contacts', icon: 'doc', group: 'CRM', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/contacts', text: 'Contacts', icon: 'doc', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -111,12 +117,20 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
   const { data: userViews } = useUserViews();
+  // ops-admin-surface S6: resolve per-org entitlements ONCE. `data` is undefined while loading;
+  // each gated item then falls back to its FEATURE_ENV_DEFAULT (the rail resolves gracefully on
+  // first paint — an always-on module is never hidden by a loading state).
+  const { data: orgFeatures } = useOrgFeatures();
+  const featureEnabled = (key: OrgFeatureKey): boolean =>
+    orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
 
   if (!role) return null;
 
   const items = ALL_ITEMS.filter(
-    (i) => i.roles.includes(role) && (!i.feature || isFeatureEnabled(i.feature)),
+    (i) => i.roles.includes(role) && (!i.feature || featureEnabled(i.feature)),
   );
+  // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
+  // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
   const showMyViews =
     isFeatureEnabled('userViews') &&
     Array.isArray(userViews) &&

@@ -19,6 +19,9 @@
  * genuine-reject continuation, and the genuine-answer continuation.
  *
  * [REC-1]: handler unit tests live under pmo-portal/src/lib/agent/*.test.ts.
+ *
+ * AMENDED by ADR-0049 / ops-admin-surface (FR-CRE-002/004): the balance is the ORG pool, read
+ * via the `org_credit_balance` RPC — not a per-owner `.from('credits')/.from('agent_usage')` sum.
  */
 import { it, expect, vi } from 'vitest';
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
@@ -33,37 +36,17 @@ async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   return out;
 }
 
-/** profiles lookup works; credits/agent_usage select yields a ZERO (exhausted) balance. */
+/** profiles lookup works; the org_credit_balance RPC yields a ZERO (exhausted) balance. */
 function mockZeroBalanceSupabase(): HandlerDeps['supabase'] {
   return {
-    from: vi.fn().mockImplementation((table: string) => {
-      if (table === 'profiles') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
-            }),
-          }),
-        };
-      }
-      if (table === 'credits' || table === 'agent_usage') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue(
-                table === 'credits' ? { data: [], error: null } : { data: [{ cost: 5 }], error: null },
-              ),
-            }),
-          }),
-        };
-      }
-      return {
-        select: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-          eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    from: vi.fn().mockImplementation(() => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }),
         }),
-      };
-    }),
+      }),
+    })),
+    rpc: vi.fn().mockResolvedValue({ data: 0, error: null }),
   } as unknown as HandlerDeps['supabase'];
 }
 

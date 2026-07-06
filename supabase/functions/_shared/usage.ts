@@ -22,11 +22,24 @@ export interface UsageDeps {
   runId: string | null;
 }
 
+/** The three call-site kinds (ops-admin-surface S5, FR-USE-001) — matches the DB CHECK. */
+export type UsageAction = 'chat' | 'compose' | 'automation';
+
 export interface UsageFields {
   model: string;
   prompt_tokens: number;
   completion_tokens: number;
   cost: number;
+  /**
+   * The USD cost reported by the provider (ops-admin-surface S5, FR-USE-001). Today captured
+   * from the SAME `ModelResponse.usage.total_cost` value as `cost` — they are equal now and
+   * diverge only once a pricing rate is introduced (a pricing-issue change, not this one).
+   * Defaults to the clamped `cost` when omitted (interim call-sites that haven't been updated
+   * to pass it explicitly still populate a sane, non-null value).
+   */
+  provider_cost_usd?: number;
+  /** Which call-site produced this row. Defaults to 'chat' when omitted. */
+  action?: UsageAction;
 }
 
 // AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
@@ -63,6 +76,7 @@ export class UsageMeteringUnavailableError extends Error {
 export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Promise<void> {
   let failed = false;
   try {
+    const cost = clampUsageValue(fields.cost);
     const { error } = await deps.supabase
       .from('agent_usage')
       .insert({
@@ -70,7 +84,11 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
         model: fields.model,
         prompt_tokens: clampUsageValue(fields.prompt_tokens),
         completion_tokens: clampUsageValue(fields.completion_tokens),
-        cost: clampUsageValue(fields.cost),
+        cost,
+        // fields.provider_cost_usd is independently clamped (never inherits an unclamped value);
+        // omitted -> defaults to the already-clamped cost (today-equal, FR-USE-001 note above).
+        provider_cost_usd: fields.provider_cost_usd === undefined ? cost : clampUsageValue(fields.provider_cost_usd),
+        action: fields.action ?? 'chat',
       })
       .select()
       .single();
@@ -105,13 +123,15 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
 /**
  * Insert one agent_usage row for a single ModelResponse (agent-chat's model-call choke
  * point). Thin wrapper over insertUsageRow — extracts + clamps the ModelResponse.usage
- * fields into the flat shape.
+ * fields into the flat shape. `action` defaults to 'chat' (agent-chat's own call-site);
+ * agent-dispatch's fired-run call-site passes 'automation' explicitly.
  */
-export async function recordUsage(deps: UsageDeps, resp: ModelResponse): Promise<void> {
+export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?: UsageAction): Promise<void> {
   return insertUsageRow(deps, {
     model: resp.model,
     prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
     completion_tokens: clampUsageValue(resp.usage?.completion_tokens),
     cost: clampUsageValue(resp.usage?.total_cost),
+    action,
   });
 }

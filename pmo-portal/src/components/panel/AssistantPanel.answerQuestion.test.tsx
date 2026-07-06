@@ -10,10 +10,14 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('@/src/lib/features', () => ({
-  isFeatureEnabled: (key: string) => key === 'agentAssistant',
-  FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
-}));
+vi.mock('@/src/lib/features', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/features')>();
+  return {
+    ...actual,
+    isFeatureEnabled: (key: string) => key === 'agentAssistant',
+    FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
+  };
+});
 
 const listAgentThreadsMock = vi.fn().mockResolvedValue([]);
 vi.mock('@/src/lib/db/agentThreads', () => ({
