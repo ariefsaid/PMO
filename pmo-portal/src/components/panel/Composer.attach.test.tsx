@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Composer } from './Composer';
@@ -18,7 +18,9 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>
 }
 
 function attachInput(): HTMLInputElement {
-  return screen.getByLabelText('Attach file', { selector: 'input' }) as HTMLInputElement;
+  // IMPORTANT-4: the hidden file input is taken out of the a11y tree (no aria-label), so
+  // query it by element type rather than by accessible name.
+  return document.querySelector('input[type="file"]') as HTMLInputElement;
 }
 
 function mockLargeImageTranscode() {
@@ -88,5 +90,83 @@ describe('Composer attachment affordance', () => {
     const prepared = onAttachFile.mock.calls[0][0] as File;
     expect(prepared.name).toBe('photo.webp');
     expect(prepared.type).toBe('image/webp');
+  });
+
+  it('IMPORTANT-3 an upload failure is not collapsed to a generic server error (hook owns classification)', async () => {
+    // FR-AT2-ATT-009: a network/timeout upload error must surface its SPECIFIC classification
+    // (timeout/cancel/network), set inside useAgentAttachments — the Composer must NOT
+    // override it with a generic {type:'server'} message.
+    const onAttachmentError = vi.fn();
+    const onAttachFile = vi.fn().mockRejectedValue(new Error('network down'));
+    renderComposer({ onAttachmentError, onAttachFile });
+
+    const input = attachInput();
+    fireEvent.change(input, {
+      target: { files: { 0: new File(['pdf'], 'quote.pdf', { type: 'application/pdf' }), length: 1 } },
+    });
+
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalled());
+    // The hook recorded its own classified error before rejecting; the Composer does not
+    // translate/override it.
+    expect(onAttachmentError).not.toHaveBeenCalled();
+  });
+
+  it('IMPORTANT-3 a transcode failure surfaces a transcode-specific error (not a generic upload error)', async () => {
+    const onAttachmentError = vi.fn();
+    const onAttachFile = vi.fn();
+    // transcodeImage rejects (e.g. a corrupt bitmap) — the Composer owns THIS classification.
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => { throw new Error('bad bitmap'); }));
+    renderComposer({ onAttachmentError, onAttachFile });
+
+    const input = attachInput();
+    fireEvent.change(input, {
+      target: { files: { 0: new File(['x'], 'photo.jpg', { type: 'image/jpeg' }), length: 1 } },
+    });
+
+    await waitFor(() =>
+      expect(onAttachmentError).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'type' }),
+      ),
+    );
+    // The upload handler is never reached when the transcode itself fails.
+    expect(onAttachFile).not.toHaveBeenCalled();
+  });
+
+  it('IMPORTANT-4 the visible button is the sole accessible "Attach file" control', () => {
+    renderComposer({ onAttachFile: vi.fn(), onAttachmentError: vi.fn() });
+
+    // Exactly one accessible control is named "Attach file" — the visible button.
+    expect(screen.getAllByRole('button', { name: /attach file/i })).toHaveLength(1);
+
+    // The hidden file input is functional (for programmatic click + Playwright setInputFiles)
+    // but removed from the a11y + tab tree so it does not double the accessible name.
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.getAttribute('aria-label')).toBeNull();
+    expect(input.getAttribute('aria-hidden')).toBe('true');
+    expect(input.tabIndex).toBe(-1);
+  });
+
+  it('IMPORTANT-9 dropping a file routes through the same upload handler as the attach button', async () => {
+    const onAttachFile = vi.fn().mockResolvedValue(undefined);
+    renderComposer({ onAttachFile });
+
+    // The composer container (the drop target) wraps the input row.
+    const dropzone = document.querySelector('input[type="file"]')
+      ?.closest('div')?.parentElement as HTMLElement;
+    expect(dropzone).not.toBeNull();
+
+    fireEvent.dragOver(dropzone, {
+      dataTransfer: { files: [new File(['pdf'], 'drop.pdf', { type: 'application/pdf' })] },
+    });
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [new File(['pdf'], 'drop.pdf', { type: 'application/pdf' })] },
+    });
+
+    await waitFor(() =>
+      expect(onAttachFile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'drop.pdf' }),
+      ),
+    );
   });
 });

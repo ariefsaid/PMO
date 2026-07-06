@@ -191,6 +191,12 @@ export interface AgentAttachmentRepository {
   confirmUpload(attachmentId: string): Promise<void>;
   /** Best-effort object cleanup + metadata soft-archive. */
   cleanupObject(path: string): Promise<void>;
+  /**
+   * Create an agent thread for an attach-before-send upload (ADR-0017 seam — the hook
+   * never imports the DAL directly). The thread is owner-private + org-scoped at rest
+   * (RLS stamps org_id/owner_id via defaults; ADR-0001/0043).
+   */
+  createThread(title?: string): Promise<{ id: string }>;
 }
 
 export interface ProcurementRepository {

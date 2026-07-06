@@ -86,12 +86,17 @@ test('AC-AT2-001 user attaches a PDF and asks about it', async ({ page }) => {
   // ASSERT a: the captured agent-chat POST body carries attachmentIds as a
   // NON-EMPTY array of reference ids (the real uuid minted by the INSERT) —
   // FR-AT2-ATT-007/DEC-6: the reference reached the handler, not the bytes.
+  //
+  // This e2e owns ONLY the cross-stack shape (one reference, no bytes). Handler-side
+  // resolution/extraction/degradation is owned by the UNIT tests (handlerAttachments.test.ts)
+  // per ADR-0010, not this e2e — do not add a live-model assertion here.
   expect(capturedAgentChatBody).not.toBeNull();
   const parsedBody = JSON.parse(capturedAgentChatBody!);
   expect(Array.isArray(parsedBody.attachmentIds)).toBe(true);
-  expect(parsedBody.attachmentIds.length).toBeGreaterThan(0);
+  // Exactly the one file attached in this fresh conversation, and it must be a uuid.
+  expect(parsedBody.attachmentIds).toHaveLength(1);
+  expect(parsedBody.attachmentIds[0]).toMatch(/^[0-9a-f-]{36}$/i);
   expect(typeof parsedBody.attachmentIds[0]).toBe('string');
-  expect(parsedBody.attachmentIds[0].length).toBeGreaterThan(0);
 
   // ASSERT b: the POST body does NOT carry raw PDF bytes inline — references, not bytes.
   const bodySize = capturedAgentChatBody!.length;

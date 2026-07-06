@@ -1,6 +1,6 @@
 -- 0112_agent_attachments.test.sql — agent_attachments owner isolation + Storage RLS.
 begin;
-select plan(12);
+select plan(17);
 
 insert into organizations (id, name) values
   ('01120000-0000-0000-0000-000000000002','Agent Attachments Org B');
@@ -58,6 +58,24 @@ select lives_ok(
   $$ insert into agent_attachments (id, thread_id, mime_type, size_bytes, original_filename)
        values ('01120000-0000-0000-0000-000000000021','01120000-0000-0000-0000-000000000010','image/png',128,'photo.png') $$,
   'AC-AT2-004: owner can prepare an attachment row under own thread');
+
+-- SEC-10 (review): a forged storage_path is rejected by the INSERT with-check policy.
+-- The BEFORE trigger only stamps a NULL storage_path, so an explicit spoofed path is
+-- preserved and then rejected because it does not match the org-scoped path convention.
+select throws_ok(
+  $$ insert into agent_attachments (id, thread_id, storage_path, mime_type, size_bytes, original_filename)
+       values ('01120000-0000-0000-0000-000000000030','01120000-0000-0000-0000-000000000010','org/forged/agent-attachments/x','application/pdf',256,'forged-path.pdf') $$,
+  '42501', null,
+  'SEC-10: forged storage_path is rejected by the INSERT with-check policy');
+
+-- SEC-10 (review): a forged owner_id is rejected. The trigger only stamps owner_id when it
+-- is NULL or equals auth.uid(), so an explicit foreign owner_id is preserved and rejected
+-- by the with-check (owner_id = auth.uid()).
+select throws_ok(
+  $$ insert into agent_attachments (id, thread_id, owner_id, mime_type, size_bytes, original_filename)
+       values ('01120000-0000-0000-0000-000000000031','01120000-0000-0000-0000-000000000010','01120000-0000-0000-0000-0000000000a2','application/pdf',256,'forged-owner.pdf') $$,
+  '42501', null,
+  'SEC-10: forged owner_id is rejected by the INSERT with-check policy');
 
 reset role;
 
@@ -120,6 +138,29 @@ select is(
   (select count(*)::int from storage.objects where bucket_id = 'agent-attachments'),
   0,
   'AC-AT2-004: anon reads zero agent-attachments storage objects');
+
+reset role;
+
+-- SEC-10 (review): the bucket carries the allowed MIME set + the 8MB size cap so a future
+-- migration that loosens either turns CI red (defense-in-depth; FR-AT2-ATT-004, NFR-AT2-SEC-007).
+select is(
+  (select allowed_mime_types from storage.buckets where id = 'agent-attachments'),
+  ARRAY['application/pdf','image/png','image/jpeg','image/webp'],
+  'SEC-10: agent-attachments bucket enforces the allowed MIME set');
+
+select is(
+  (select file_size_limit from storage.buckets where id = 'agent-attachments'),
+  8388608::bigint,
+  'SEC-10: agent-attachments bucket enforces the 8MB (8388608 byte) file size limit');
+
+-- SEC-10 (review): the table-level CHECK rejects a disallowed MIME even when the caller is
+-- the thread owner (RLS would pass) — the DB CHECK is the server-side floor, never trusting
+-- the client. Runs as superuser so only the CHECK constraint can reject (23514 check_violation).
+select throws_ok(
+  $$ insert into agent_attachments (id, thread_id, mime_type, size_bytes, original_filename)
+       values ('01120000-0000-0000-0000-000000000032','01120000-0000-0000-0000-000000000010','application/x-msdownload',256,'malware.exe') $$,
+  '23514', null,
+  'SEC-10: agent_attachments CHECK rejects a disallowed MIME type');
 
 select * from finish();
 rollback;

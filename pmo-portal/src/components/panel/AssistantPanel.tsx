@@ -394,6 +394,9 @@ export const AssistantPanel: React.FC = () => {
     setComposerValue('');
     setPendingAttachmentIds([]);
     attachments.clearError();
+    // CRITICAL-1 (review): clear the sticky prepared thread so an attachment uploaded
+    // after "New conversation" binds to a fresh thread, not the previous conversation's.
+    attachments.resetThread();
   }, [attachments, newConversation]);
 
   const handleAttachFile = useCallback(

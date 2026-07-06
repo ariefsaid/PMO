@@ -33,6 +33,9 @@ interface AttachmentStorageLike {
   from(table: string): {
     select(columns: string): {
       in(column: string, values: string[]): {
+        // IMPORTANT-5: an optional thread_id eq filter is added when a threadId is provided,
+        // so an attachment id replayed from a different conversation resolves to zero rows.
+        eq(column: string, value: string): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
         limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
       };
     };
@@ -65,11 +68,22 @@ function boundText(text: string): { text: string; truncated: boolean } {
 
 function contextForAttachment(attachment: ResolvedAttachment): string {
   if (attachment.extractedTextStatus !== 'ready' || !attachment.extractedText) {
+    // IMPORTANT-6 (FR-AT2-ATT-009): an unreadable/skipped/failed file is announced honestly
+    // — name + reason + an explicit instruction NOT to fabricate its contents, so the model
+    // does not invent text for a file it could not read. Stays a bounded role:'user' block
+    // (ADR-0039 — never a system instruction, never widens access).
+    const reason =
+      attachment.extractedTextStatus === 'failed'
+        ? 'extraction failed'
+        : attachment.extractedTextStatus === 'skipped'
+          ? 'this file type is not supported yet'
+          : 'extraction has not completed';
     return [
       `[Untrusted attachment content: ${attachment.originalFilename}]`,
       `Attachment id: ${attachment.id}`,
       `MIME type: ${attachment.mimeType}`,
-      `Status: ${attachment.extractedTextStatus}. The assistant cannot read this attachment's text yet.`,
+      `The assistant could not read "${attachment.originalFilename}" (${reason}).`,
+      `Do not fabricate, invent, or guess the contents of this file. Tell the user you cannot read this file.`,
       '[/Untrusted attachment content]',
     ].join('\n');
   }
@@ -120,18 +134,35 @@ async function updateExtractionStatus(
   }
 }
 
-async function resolveAttachmentRows(ids: string[], ctx: DeputyContext): Promise<AttachmentRow[]> {
+async function resolveAttachmentRows(
+  ids: string[],
+  ctx: DeputyContext,
+  threadId?: string,
+): Promise<AttachmentRow[]> {
   const cleanIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   if (cleanIds.length === 0) return [];
 
   const supabase = ctx.supabase as unknown as AttachmentStorageLike;
-  const { data, error } = await supabase
+  // IMPORTANT-5: scope the SELECT by thread_id when a threadId is carried on the request,
+  // so an attachment id replayed from a different conversation resolves to zero rows.
+  const inQuery = supabase
     .from('agent_attachments')
     .select('id, original_filename, mime_type, storage_path, extracted_text_status, extracted_text, archived_at')
-    .in('id', cleanIds)
-    .limit(cleanIds.length);
+    .in('id', cleanIds);
+  const scopedQuery = threadId ? inQuery.eq('thread_id', threadId) : inQuery;
+  const { data, error } = await scopedQuery.limit(cleanIds.length);
   if (error || !data) return [];
-  return (data as AttachmentRow[]).filter((row) => !row.archived_at);
+
+  // IMPORTANT-2: `.in('id', cleanIds)` does not guarantee a return order; reorder the resolved
+  // rows to match the requested id order before building messages (a "compare first file to
+  // second" reply must not swap files based on arbitrary DB row order).
+  const rowsById = new Map<string, AttachmentRow>();
+  for (const row of data as AttachmentRow[]) {
+    if (!row.archived_at) rowsById.set(row.id, row);
+  }
+  return cleanIds
+    .map((id) => rowsById.get(id))
+    .filter((row): row is AttachmentRow => Boolean(row));
 }
 
 async function resolveOneAttachment(
@@ -185,12 +216,12 @@ async function resolveOneAttachment(
 export function createAttachmentResolver(
   opts: { extractPdfText?: ExtractPdfText } = {},
 ): {
-  resolveAttachmentMessages(attachmentIds: string[], deputyCtx: DeputyContext): Promise<ModelMessage[]>;
+  resolveAttachmentMessages(attachmentIds: string[], deputyCtx: DeputyContext, threadId?: string): Promise<ModelMessage[]>;
 } {
   const extractPdfText = opts.extractPdfText ?? defaultExtractPdfText;
   return {
-    async resolveAttachmentMessages(attachmentIds, deputyCtx) {
-      const rows = await resolveAttachmentRows(attachmentIds, deputyCtx);
+    async resolveAttachmentMessages(attachmentIds, deputyCtx, threadId) {
+      const rows = await resolveAttachmentRows(attachmentIds, deputyCtx, threadId);
       const resolved = await Promise.all(
         rows.map((row) => resolveOneAttachment(row, deputyCtx, extractPdfText)),
       );

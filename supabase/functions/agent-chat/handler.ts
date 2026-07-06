@@ -180,11 +180,14 @@ export interface HandlerDeps {
    * Tier-2 attachments: resolves caller-scoped attachment ids into model-readable
    * context messages under the SAME deputy context. Optional until the DB/storage
    * resolver lands; when absent, attachmentIds are ignored rather than elevated.
+   * The optional `threadId` scopes the resolve to the request's conversation so an
+   * attachment id replayed from a different thread resolves to zero rows.
    */
   attachmentResolver?: {
     resolveAttachmentMessages(
       attachmentIds: string[],
       deputyCtx: DeputyContext,
+      threadId?: string,
     ): Promise<ModelMessage[]>;
   };
   /**
@@ -1112,7 +1115,7 @@ async function* agentChatHandlerInner(
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
   const attachmentMessages =
     req.attachmentIds && req.attachmentIds.length > 0 && deps.attachmentResolver
-      ? await deps.attachmentResolver.resolveAttachmentMessages(req.attachmentIds, deputyCtx)
+      ? await deps.attachmentResolver.resolveAttachmentMessages(req.attachmentIds, deputyCtx, req.threadId)
       : [];
   const messages: ModelMessage[] = [
     { role: 'system', content: system },

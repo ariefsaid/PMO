@@ -49,6 +49,7 @@ import {
   confirmAgentAttachmentUpload,
   cleanupAgentAttachmentObject,
 } from '@/src/lib/db/agentAttachments';
+import { createAgentThread } from '@/src/lib/db/agentThreads';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listUsers, updateUserRole, assignUserManager } from '@/src/lib/db/adminUsers';
 import {
@@ -223,6 +224,7 @@ const agentAttachment: AgentAttachmentRepository = {
   prepareUpload: (threadId, file) => wrap(() => prepareAgentAttachmentFileUpload(threadId, file)),
   confirmUpload: (attachmentId) => wrap(() => confirmAgentAttachmentUpload(attachmentId)),
   cleanupObject: (path) => wrap(() => cleanupAgentAttachmentObject(path)),
+  createThread: (title) => wrap(() => createAgentThread(title)),
 };
 
 const profile: ProfileRepository = {

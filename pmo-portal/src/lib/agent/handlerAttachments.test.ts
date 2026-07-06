@@ -95,6 +95,7 @@ describe('agent-chat attachment boundary', () => {
     expect(resolveAttachmentMessages).toHaveBeenCalledWith(
       ['att-1'],
       expect.objectContaining({ userId: 'user-1', orgId: 'org-1', supabase }),
+      undefined,
     );
 
     const sentMessages = create.mock.calls[0][0].messages as ModelMessage[];
@@ -208,6 +209,140 @@ describe('agent-chat attachment boundary', () => {
     ).resolves.toEqual([]);
   });
 
+  it('IMPORTANT-5 handler forwards req.threadId to the attachment resolver', async () => {
+    const resolveAttachmentMessages = vi.fn().mockResolvedValue([]);
+    const supabase = mockSupabase();
+
+    const req: AgentChatRequest = {
+      messages: [{ role: 'user', content: 'what does this say?' }],
+      attachmentIds: ['att-1'],
+      threadId: 'thread-42',
+    };
+
+    await collect(
+      agentChatHandler(
+        req,
+        baseDeps({
+          supabase,
+          attachmentResolver: { resolveAttachmentMessages },
+        }),
+      ),
+    );
+
+    // IMPORTANT-5: the per-conversation threadId is threaded into the resolver so a
+    // replayed attachment id from thread A cannot resolve inside thread B.
+    expect(resolveAttachmentMessages).toHaveBeenCalledWith(
+      ['att-1'],
+      expect.objectContaining({ userId: 'user-1', orgId: 'org-1', supabase }),
+      'thread-42',
+    );
+  });
+
+  it('IMPORTANT-2 resolver returns context in the same order as the requested ids', async () => {
+    // The DB returns rows in REVERSED order; the resolver must reorder to match input.
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'att-B',
+                  original_filename: 'second.png',
+                  mime_type: 'image/png',
+                  storage_path: 'org/o/agent-attachments/att-B',
+                  extracted_text_status: 'pending',
+                  extracted_text: null,
+                  archived_at: null,
+                },
+                {
+                  id: 'att-A',
+                  original_filename: 'first.png',
+                  mime_type: 'image/png',
+                  storage_path: 'org/o/agent-attachments/att-A',
+                  extracted_text_status: 'pending',
+                  extracted_text: null,
+                  archived_at: null,
+                },
+              ],
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
+
+    const messages = await resolver.resolveAttachmentMessages(['att-A', 'att-B'], {
+      jwt: 'jwt',
+      userId: 'user-1',
+      orgId: 'org-1',
+      supabase: supabase as never,
+    });
+
+    // IMPORTANT-2: order follows the REQUESTED id order (first.png before second.png),
+    // not the arbitrary DB return order.
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).toContain('first.png');
+    expect(messages[1].content).toContain('second.png');
+  });
+
+  it('IMPORTANT-5 resolver scopes the SELECT by thread_id when threadId is provided', async () => {
+    const eqCalls: Array<{ column: string; value: string }> = [];
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            eq: vi.fn((column: string, value: string) => {
+              eqCalls.push({ column, value });
+              return {
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              };
+            }),
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
+
+    await resolver.resolveAttachmentMessages(
+      ['att-1'],
+      { jwt: 'jwt', userId: 'user-1', orgId: 'org-1', supabase: supabase as never },
+      'thread-42',
+    );
+
+    // IMPORTANT-5: a thread_id filter is added so an attachment id from a different
+    // thread resolves to zero rows (per-conversation scope).
+    expect(eqCalls).toContainEqual({ column: 'thread_id', value: 'thread-42' });
+  });
+
+  it('IMPORTANT-5 an attachment id belonging to a different thread resolves to zero rows', async () => {
+    // The DB returns a row, but the thread_id eq filter (added when threadId is passed)
+    // excludes it — the handler never sees cross-thread attachment content.
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            })),
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
+
+    const messages = await resolver.resolveAttachmentMessages(
+      ['att-foreign'],
+      { jwt: 'jwt', userId: 'user-1', orgId: 'org-1', supabase: supabase as never },
+      'thread-A',
+    );
+
+    expect(messages).toEqual([]);
+  });
+
   it('AC-AT2-001 image attachments degrade honestly until ModelMessage supports vision blocks', async () => {
     const messages = buildAttachmentContextMessages([
       {
@@ -219,7 +354,31 @@ describe('agent-chat attachment boundary', () => {
       },
     ]);
 
-    expect(messages[0].content).toContain("cannot read this attachment's text yet");
     expect(messages[0].content).toContain('image/webp');
+    // IMPORTANT-6: an unreadable/skipped file is announced honestly — name + reason +
+    // explicit do-not-fabricate instruction.
+    expect(messages[0].content).toContain('photo.webp');
+    expect(messages[0].content).toMatch(/could not read|cannot read|can't read/i);
+    expect(messages[0].content).toMatch(/do not fabricate|do not invent|do not guess/i);
+  });
+
+  it('IMPORTANT-6 a skipped/unreadable file is announced honestly and not fabricated', () => {
+    const messages = buildAttachmentContextMessages([
+      {
+        id: 'att-skip',
+        originalFilename: 'scan.pdf',
+        mimeType: 'application/pdf',
+        extractedTextStatus: 'skipped',
+        extractedText: null,
+      },
+    ]);
+
+    // ADR-0039: always a bounded role:'user' block, never a system instruction.
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe('user');
+    const content = messages[0].content as string;
+    expect(content).toContain('scan.pdf');
+    expect(content).toMatch(/could not read|cannot read|can't read/i);
+    expect(content).toMatch(/do not fabricate|do not invent|do not guess/i);
   });
 });

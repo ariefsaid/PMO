@@ -23,18 +23,16 @@ vi.mock('@/src/lib/repositories', () => ({
       }),
       confirmUpload: vi.fn().mockResolvedValue(undefined),
       cleanupObject: vi.fn().mockResolvedValue(undefined),
+      // MINOR-7 (review): the hook routes thread creation through the repository seam
+      // (ADR-0017), never importing the DAL directly.
+      createThread: vi.fn().mockResolvedValue({ id: 'prepared-thread' }),
     },
   },
-}));
-
-vi.mock('@/src/lib/db/agentThreads', () => ({
-  createAgentThread: vi.fn().mockResolvedValue({ id: 'prepared-thread' }),
 }));
 
 import { useAgentAttachments } from './useAgentAttachments';
 import { repositories } from '@/src/lib/repositories';
 import { uploadWithProgress } from '@/src/lib/uploadTransport';
-import { createAgentThread } from '@/src/lib/db/agentThreads';
 
 function wrapper() {
   const queryClient = new QueryClient({
@@ -97,11 +95,49 @@ describe('useAgentAttachments upload flow', () => {
       await result.current.uploadAttachment(new File(['pdf'], 'quote.pdf', { type: 'application/pdf' }));
     });
 
-    expect(createAgentThread).toHaveBeenCalledWith();
+    expect(repositories.agentAttachment.createThread).toHaveBeenCalledWith();
     expect(repositories.agentAttachment.prepareUpload).toHaveBeenCalledWith(
       'prepared-thread',
       expect.any(File),
     );
     expect(result.current.threadId).toBe('prepared-thread');
+  });
+
+  it('CRITICAL-1 resetThread clears the sticky prepared thread so the next upload mints a new thread', async () => {
+    // Two successive uploads must bind to two DIFFERENT threads once a New Conversation
+    // reset has fired — proving the preparedThreadId does NOT leak across conversations
+    // (review finding CRITICAL-1).
+    vi.mocked(repositories.agentAttachment.createThread)
+      .mockResolvedValueOnce({ id: 'thread-T1' })
+      .mockResolvedValueOnce({ id: 'thread-T2' });
+
+    const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
+    const file = new File(['pdf'], 'quote.pdf', { type: 'application/pdf' });
+
+    await act(async () => {
+      await result.current.uploadAttachment(file);
+    });
+    expect(result.current.threadId).toBe('thread-T1');
+    expect(repositories.agentAttachment.prepareUpload).toHaveBeenLastCalledWith(
+      'thread-T1',
+      expect.any(File),
+    );
+
+    // New conversation resets the prepared thread back to the prop (null).
+    act(() => {
+      result.current.resetThread();
+    });
+    expect(result.current.threadId).toBeNull();
+
+    await act(async () => {
+      await result.current.uploadAttachment(file);
+    });
+    // The next upload mints a fresh thread — NOT the stale T1.
+    expect(result.current.threadId).toBe('thread-T2');
+    expect(result.current.threadId).not.toBe('thread-T1');
+    expect(repositories.agentAttachment.prepareUpload).toHaveBeenLastCalledWith(
+      'thread-T2',
+      expect.any(File),
+    );
   });
 });

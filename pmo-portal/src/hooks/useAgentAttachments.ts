@@ -3,7 +3,6 @@ import { repositories } from '@/src/lib/repositories';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
 import { AGENT_ATTACHMENT_MAX_MB, getAgentAttachmentContentType } from '@/src/lib/agent/attachmentMime';
-import { createAgentThread } from '@/src/lib/db/agentThreads';
 
 export function useAgentAttachments(threadId: string | null) {
   const [preparedThreadId, setPreparedThreadId] = useState<string | null>(threadId);
@@ -20,7 +19,9 @@ export function useAgentAttachments(threadId: string | null) {
 
   const uploadAttachment = useCallback(
     async (file: File): Promise<string> => {
-      const activeThreadId = preparedThreadId ?? (await createAgentThread()).id;
+      // MINOR-7 (review, ADR-0017): thread creation routes through the repository seam, not a
+      // direct DAL import — the rest of the hook already uses repositories.agentAttachment.
+      const activeThreadId = preparedThreadId ?? (await repositories.agentAttachment.createThread()).id;
       if (!preparedThreadId) setPreparedThreadId(activeThreadId);
 
       setError(null);
@@ -51,5 +52,21 @@ export function useAgentAttachments(threadId: string | null) {
   const clearError = useCallback(() => setError(null), []);
   const reportError = useCallback((nextError: ClassifiedUploadError) => setError(nextError), []);
 
-  return { uploadAttachment, progress, error, clearError, reportError, threadId: preparedThreadId };
+  // CRITICAL-1 (review): a New Conversation must NOT inherit the previous conversation's
+  // prepared thread — otherwise an attachment uploaded after "New conversation" binds to
+  // the stale thread and leaks across conversations. resetThread() returns preparedThreadId
+  // to the threadId prop (null when the panel passes no existing thread).
+  const resetThread = useCallback(() => {
+    setPreparedThreadId(threadId);
+  }, [threadId]);
+
+  return {
+    uploadAttachment,
+    progress,
+    error,
+    clearError,
+    reportError,
+    threadId: preparedThreadId,
+    resetThread,
+  };
 }
