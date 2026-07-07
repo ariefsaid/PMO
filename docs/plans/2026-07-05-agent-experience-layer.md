@@ -4,7 +4,7 @@
 - **Issue:** PMO agent-experience-layer — make the deployed `AssistantPanel` stop feeling like a raw chatbot.
 - **Author:** eng-planner (Claude Opus 4.8 · 1M)
 - **Spec:** `docs/specs/agent-experience-layer.spec.md` (FR-AXP-001..026, OBS-AXP-001..005, NFR-AXP-*, AC-AXP-001..019 + traceability)
-- **Binding ADRs (authored with this plan):** `docs/adr/0049-transcript-safe-markdown-rendering.md`
+- **Binding ADRs (authored with this plan):** `docs/adr/0054-transcript-safe-markdown-rendering.md`
   (supersedes design-plan D-A2-8 plain-text-only), `docs/adr/0050-layered-agent-prompt-charter-and-skills.md`.
 - **Depends-on ADRs (unchanged, controlling on conflict):** ADR-0045 (widget/ask-user/context contracts),
   ADR-0039 (untrusted-output boundary), ADR-0036 §2/§5 (deputy invariant + declarative-artifact rule),
@@ -70,9 +70,9 @@
 
 | ID | Choice | Resolution (binding for this plan) |
 |---|---|---|
-| **DEC-1 — markdown dependency** | which renderer | **`react-markdown` + `remark-gfm`** (ADR-0049 §2). Safe-by-default: no raw-HTML unless a `rehype-raw` plugin is added — **we add none**. `remark-gfm` gives pipe tables. ~40–60 KB gz behind the flag-gated panel. **NO** `marked`/`markdown-it`/`DOMPurify`/`dangerouslySetInnerHTML`. |
+| **DEC-1 — markdown dependency** | which renderer | **`react-markdown` + `remark-gfm`** (ADR-0054 §2). Safe-by-default: no raw-HTML unless a `rehype-raw` plugin is added — **we add none**. `remark-gfm` gives pipe tables. ~40–60 KB gz behind the flag-gated panel. **NO** `marked`/`markdown-it`/`DOMPurify`/`dangerouslySetInnerHTML`. |
 | **DEC-2 — lockfile trap** | how to add the dep without CI EUSAGE | **Do NOT run a bare `npm install` on the darwin dev machine** (it prunes rolldown's linux optionals → CI `npm ci` fails EUSAGE / @emnapi, the recurring trap). Add the two `dependencies` lines by editing `package.json`, then regenerate the lockfile with the CI-proven approach: `npm install --package-lock-only` (writes lockfile only, no darwin-pruned `node_modules`) followed by a local `npm ci` to prove resolution. If `npm ci` errors on rolldown optionals, splice the new dep subtree into the existing lockfile rather than a full regen (MEMORY: `npm ci`-not-`npm install` for lockfiles). |
-| **DEC-3 — renderer component location** | where the shared markdown renderer lives | **`pmo-portal/src/components/panel/Markdown.tsx`** — a single configured `<Markdown>` wrapper (the ONLY markdown surface in the app, ADR-0049). `TranscriptItem`'s `assistant` case imports it. |
+| **DEC-3 — renderer component location** | where the shared markdown renderer lives | **`pmo-portal/src/components/panel/Markdown.tsx`** — a single configured `<Markdown>` wrapper (the ONLY markdown surface in the app, ADR-0054). `TranscriptItem`'s `assistant` case imports it. |
 | **DEC-4 — prompt builder signature** | how skills gate on tool registration (FR-AXP-010) | The tool index + gated skills must match the **per-request** registered tool set. `buildAgentSystemPrompt` gains an **optional options arg**: `buildAgentSystemPrompt(entities, rowCap, role, opts?: { composeEnabled?: boolean; automationsEnabled?: boolean })`. Defaulting both to `false` keeps every existing call compiling; the handler passes the real gate values. **Additive, non-breaking** (AC-AXP-009 proves gating). |
 | **DEC-5 — grounding hint on continuation** | close the `:1074`/`:1140` omission (FR-AXP-022) | Append `buildGroundingHint(req.context?.entity)` to the `system` string in BOTH `handleAnswer` and `handleDecision`, identical to `handler.ts:1001`. One-line each. `buildGroundingHint` already exists + is grounding-only (ADR-0045 §3); no new function. |
 | **DEC-6 — drawer persistence** | where width/mode persist | **`localStorage`** keys `pmo.agentPanel.width` (number px) + `pmo.agentPanel.dock` (`'overlay'|'docked'`), read on mount, written on change. Bounds **320–720px** (spec §2.5 proposal, owner-confirmed default overlay). No server/DB persistence (per-device UX preference). |
@@ -177,7 +177,7 @@ behaviors surface) — it is **Track E** (final e2e + gate), not a parallel buil
 
 ---
 
-## TRACK A — Safe markdown rendering (§2.1) — ADR-0049
+## TRACK A — Safe markdown rendering (§2.1) — ADR-0054
 
 > Pure FE. NEW `Markdown.tsx` + one edit to `TranscriptItem`'s `assistant` case. Parallel with Track B.
 
@@ -209,14 +209,14 @@ Import `{ Markdown }` from `'./Markdown'`. Render inside `<MemoryRouter>` (links
 
 **Verify (fails):** `npx vitest run src/components/panel/Markdown.test.tsx` → module-not-found.
 
-### Task A2 — `Markdown.tsx` (GREEN for A1) — FR-AXP-001/002/003/004, NFR-AXP-A11Y-001, ADR-0049 §2
+### Task A2 — `Markdown.tsx` (GREEN for A1) — FR-AXP-001/002/003/004, NFR-AXP-A11Y-001, ADR-0054 §2
 **File:** `pmo-portal/src/components/panel/Markdown.tsx` (NEW)
 ```tsx
 import React, { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-/** Safe href schemes (FR-AXP-003, ADR-0049 §2). Same-origin relative paths pass (no scheme). */
+/** Safe href schemes (FR-AXP-003, ADR-0054 §2). Same-origin relative paths pass (no scheme). */
 const SAFE_SCHEMES = ['http:', 'https:', 'mailto:'];
 function safeUrl(url: string): string {
   try {
@@ -229,19 +229,19 @@ function safeUrl(url: string): string {
 }
 
 /**
- * Markdown — the app's SOLE markdown surface (ADR-0049). Renders assistant PROSE only.
+ * Markdown — the app's SOLE markdown surface (ADR-0054). Renders assistant PROSE only.
  * SECURITY (ADR-0039 boundary applied to prose, NFR-AXP-SEC-001):
  *   - NO rehype-raw / NO dangerouslySetInnerHTML → raw HTML in the model text is escaped/dropped, never executed.
  *   - disallowedElements + unwrapDisallowed strips script/style/iframe/form controls even if a plugin emitted them.
  *   - urlTransform (safeUrl) restricts link schemes; components.a forces rel + safe target.
- * Do NOT add rehype-raw or widen SAFE_SCHEMES without a security review (ADR-0049 §2).
+ * Do NOT add rehype-raw or widen SAFE_SCHEMES without a security review (ADR-0054 §2).
  */
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div data-testid="assistant-markdown" className="text-sm text-foreground [&_*]:break-words prose-pmo">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        /* no rehypePlugins — raw HTML stays inert (ADR-0049 §2) */
+        /* no rehypePlugins — raw HTML stays inert (ADR-0054 §2) */
         urlTransform={safeUrl}
         disallowedElements={['script', 'style', 'iframe', 'form', 'input', 'button', 'object', 'embed', 'link', 'meta']}
         unwrapDisallowed
@@ -290,7 +290,7 @@ the polish pass at Track E).
 - any surviving `<a>` carries `rel` containing `noopener` and `nofollow`.
 Title: `AC-AXP-003 hostile markdown never executes`.
 Because A2 already ships the safe config, this test should pass on first run against A2 — if any assertion is
-RED, the `Markdown.tsx` config is the bug (do NOT weaken the test; fix the config, ADR-0049 §2).
+RED, the `Markdown.tsx` config is the bug (do NOT weaken the test; fix the config, ADR-0054 §2).
 
 **Verify (green):** `npx vitest run src/components/panel/Markdown.security.test.tsx` → pass. **Negative grep gate:**
 `rg -n "rehype-raw|dangerouslySetInnerHTML|dompurify" pmo-portal/src/components/panel/` → no matches.
@@ -648,7 +648,7 @@ locally** (MEMORY: pr-after-review-battery). `main`/`production` promotes are ow
   `+ buildGroundingHint(req.context?.entity)` append (C2 makes :1074/:1140 match :1001).
 - **`Markdown({ text: string })`** — the single markdown component (DEC-3); imported ONLY by `TranscriptItem`'s
   `assistant` case (A4). The `safeUrl`/`disallowedElements`/`components.a` config is the security contract
-  (ADR-0049 §2) — no second markdown renderer, no `rehype-raw`, no `dangerouslySetInnerHTML` anywhere.
+  (ADR-0054 §2) — no second markdown renderer, no `rehype-raw`, no `dangerouslySetInnerHTML` anywhere.
 - **`setEntity({ type, id, label })`** — same `{type:string,id:string,label:string}` shape at all four callers
   (C3–C5), matching `AgentContextValue.setEntity` (`agentContextInternal.ts:18`) and `RunContext.entity`. Each
   caller clears on unmount (`return () => setEntity(undefined)`).
@@ -660,10 +660,10 @@ locally** (MEMORY: pr-after-review-battery). `main`/`production` promotes are ow
 
 - **Markdown parse is bounded + memoized (NFR-AXP-PERF-001):** one parse per assistant message, memoized by
   `memo` on the message text; no re-parse on unrelated transcript re-render; no network round-trip. Bundle cost
-  (~40–60 KB gz) is behind the flag-gated panel — acceptable; flagged in ADR-0049.
+  (~40–60 KB gz) is behind the flag-gated panel — acceptable; flagged in ADR-0054.
 - **Markdown = the app's ONLY markdown surface (Existing-repo lens):** if a second markdown need appears later,
   it MUST reuse `Markdown.tsx` (the configured safe renderer), never add a second dep or a `rehype-raw` variant.
-  Reviewers guard this (ADR-0049 Consequences).
+  Reviewers guard this (ADR-0054 Consequences).
 - **Prompt scales by adding a skill, not rewriting (Architecture lens, ADR-0050):** a future tool = one index
   line + one "Use when…" skill + a gate check; no monolith rewrite. Progressive disclosure keeps token cost
   bounded (NFR-AXP-PERF-002).

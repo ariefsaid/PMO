@@ -425,7 +425,7 @@
 @keyframes cmdkShimmer { to { transform: translateX(100%); } }
 
 /* =============================================================================
-   PROSE-PMO — react-markdown styling for agent responses (ADR-0049).
+   PROSE-PMO — react-markdown styling for agent responses (ADR-0054).
    Scoped to the narrow chat panel; uses design tokens only. Tables scroll
    horizontally to fit the drawer; headings are modest (not page-scale).
    ============================================================================= */

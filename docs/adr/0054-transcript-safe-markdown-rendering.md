@@ -1,4 +1,4 @@
-# ADR-0049 — Safe markdown rendering in the agent transcript (reversing the plain-text-only stance)
+# ADR-0054 — Safe markdown rendering in the agent transcript (reversing the plain-text-only stance)
 
 - **Status:** Proposed (owner accepts at merge of the agent-experience-layer PR)
 - **Date:** 2026-07-05
@@ -134,7 +134,7 @@ Markdown rendering is part of the panel; with `agentAssistant` off the panel and
 ## Verification
 
 - **Decision-level:** owner sign-off at merge → Status → Accepted; `docs/README.md` ADR range updated to
-  include `0049`; the D-A2-8 supersession noted.
+  include `0054`; the D-A2-8 supersession noted.
 - **Renderer safety:** AC-AXP-003 (hostile-markdown gate) + AC-AXP-001/002 (formatted output) + AC-AXP-004
   (streaming no-throw) + AC-AXP-005 (user bubble literal) + AC-AXP-006 (typed widget still via registry) —
   Vitest/RTL, per the plan's Track A.
