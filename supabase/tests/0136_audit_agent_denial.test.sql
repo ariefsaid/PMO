@@ -28,7 +28,7 @@ insert into auth.users (id, email) values
   ('a136a000-0000-0000-0000-0000000000a2','agentdeny-a-inactive@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('a136a000-0000-0000-0000-0000000000a1','a136a000-0000-0000-0000-000000000001','A Admin','agentdeny-a-admin@example.com','Admin','active'),
-  ('a136a000-0000-0000-0000-0000000000a2','a136a000-0000-0000-0000-000000000001','A Inactive','agentdeny-a-inactive@example.com','Admin','inactive');
+  ('a136a000-0000-0000-0000-0000000000a2','a136a000-0000-0000-0000-000000000001','A Inactive','agentdeny-a-inactive@example.com','Admin','disabled');
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 -- Structural: the wrapper exists in public and is SECURITY DEFINER (the property that lets it
