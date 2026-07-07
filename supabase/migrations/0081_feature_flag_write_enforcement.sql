@@ -145,7 +145,7 @@ begin
     select tablename, policyname, permissive, cmd, qual, with_check
     from pg_policies
     where schemaname = 'public'
-      and cmd in ('insert','update','delete','all')   -- WRITE policies only (never SELECT)
+      and cmd in ('INSERT','UPDATE','DELETE','ALL')   -- WRITE policies only (never SELECT). NB: pg_policies.cmd is UPPERCASE ('ALL'/'INSERT'/…) — lowercase literals match NOTHING (the DO loop would no-op and gate nothing).
       and tablename in (
         'incident_reports',                                                   -- incidents
         'companies','contacts','crm_activities',                              -- crm
