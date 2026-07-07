@@ -38,12 +38,12 @@ insert into platform_operators (user_id) values ('a133a000-0000-0000-0000-000000
 -- a document D1 on P1 (transition target, authored by the Engineer so the approver differs), a
 -- standalone company C1 (delete target), and a standalone project P2 (delete target).
 insert into projects (id, org_id, name, status, contract_value) values
-  ('a133a000-0000-0000-0000-0000000000p1','a133a000-0000-0000-0000-000000000001','P1 value-set','Leads',0),
-  ('a133a000-0000-0000-0000-0000000000p2','a133a000-0000-0000-0000-000000000001','P2 delete','Leads',0);
+  ('a133a000-0000-0000-0000-0000000000f1','a133a000-0000-0000-0000-000000000001','P1 value-set','Leads',0),
+  ('a133a000-0000-0000-0000-0000000000f2','a133a000-0000-0000-0000-000000000001','P2 delete','Leads',0);
 insert into companies (id, org_id, name, type) values
   ('a133a000-0000-0000-0000-0000000000c1','a133a000-0000-0000-0000-000000000001','C1 delete','Client');
 insert into project_documents (id, org_id, project_id, category, title, status, author_id) values
-  ('a133a000-0000-0000-0000-0000000000d1','a133a000-0000-0000-0000-000000000001','a133a000-0000-0000-0000-0000000000p1','Contract','Doc one','Draft','a133a000-0000-0000-0000-0000000000a2');
+  ('a133a000-0000-0000-0000-0000000000d1','a133a000-0000-0000-0000-000000000001','a133a000-0000-0000-0000-0000000000f1','Contract','Doc one','Draft','a133a000-0000-0000-0000-0000000000a2');
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 -- Structural: table + FORCE RLS + exactly one (SELECT) policy + the log_audit() helper exists.
@@ -72,7 +72,7 @@ select lives_ok(
 -- hard-delete C1 and P2 (Admin-only destructive deletes gated by 0013/0052 restrictive policies).
 set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('a133a000-0000-0000-0000-0000000000p1', 5000) $$,
+  $$ select set_project_contract_value('a133a000-0000-0000-0000-0000000000f1', 5000) $$,
   'AC-AUDIT-002 set_project_contract_value succeeds (Admin sets pre-win value)');
 select lives_ok(
   $$ select transition_document_status('a133a000-0000-0000-0000-0000000000d1', 'Issued') $$,
@@ -81,7 +81,7 @@ select lives_ok(
   $$ delete from companies where id = 'a133a000-0000-0000-0000-0000000000c1' $$,
   'AC-AUDIT-004 Admin hard-deletes company C1');
 select lives_ok(
-  $$ delete from projects where id = 'a133a000-0000-0000-0000-0000000000p2' $$,
+  $$ delete from projects where id = 'a133a000-0000-0000-0000-0000000000f2' $$,
   'AC-AUDIT-005 Admin hard-deletes project P2');
 reset role;
 
@@ -95,15 +95,15 @@ select is((select (array_agg(org_id))[1] from audit_events where action = 'credi
 select is((select (array_agg(actor_id))[1] from audit_events where action = 'credits.grant'),
   'a133a000-0000-0000-0000-0000000000cf'::uuid,
   'AC-AUDIT-001c credits.grant row records the Operator actor');
-select is((select (detail ->> 'amount')::numeric from audit_events where action = 'credits.grant'), 100,
+select is((select (detail ->> 'amount')::numeric from audit_events where action = 'credits.grant'), 100::numeric,
   'AC-AUDIT-001d credits.grant detail captures the granted amount');
 
 select is((select count(*)::int from audit_events where action = 'project.contract_value.set'
-            and entity_id = 'a133a000-0000-0000-0000-0000000000p1'), 1,
+            and entity_id = 'a133a000-0000-0000-0000-0000000000f1'), 1,
   'AC-AUDIT-002a contract-value set wrote one audit row for P1');
-select is((select (detail ->> 'from')::numeric from audit_events where action = 'project.contract_value.set'), 0,
+select is((select (detail ->> 'from')::numeric from audit_events where action = 'project.contract_value.set'), 0::numeric,
   'AC-AUDIT-002b contract-value detail captures the OLD value');
-select is((select (detail ->> 'to')::numeric from audit_events where action = 'project.contract_value.set'), 5000,
+select is((select (detail ->> 'to')::numeric from audit_events where action = 'project.contract_value.set'), 5000::numeric,
   'AC-AUDIT-002c contract-value detail captures the NEW value');
 
 select is((select count(*)::int from audit_events where action = 'project_document.transition'
@@ -121,7 +121,7 @@ select is((select (array_agg(actor_id))[1] from audit_events where action = 'com
   'AC-AUDIT-004b company.delete row records the Admin actor');
 
 select is((select count(*)::int from audit_events where action = 'project.delete'
-            and entity_id = 'a133a000-0000-0000-0000-0000000000p2'), 1,
+            and entity_id = 'a133a000-0000-0000-0000-0000000000f2'), 1,
   'AC-AUDIT-005 project hard-delete wrote one audit row (AFTER DELETE trigger)');
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
