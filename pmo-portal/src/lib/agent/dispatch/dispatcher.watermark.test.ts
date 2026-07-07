@@ -84,6 +84,22 @@ describe('readWatermark / advanceWatermark', () => {
       }),
     );
   });
+
+  it('advanceWatermark surfaces WATERMARK_ADVANCE_FAILED (not swallowed) when the upsert errors', async () => {
+    // Rel-Med (audit): a failed watermark write must be VISIBLE — otherwise the same event window is
+    // reprocessed silently every tick. logStructuredError → console.error, so spy on that.
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const upsertMock = vi.fn().mockResolvedValue({ data: null, error: { code: '55P03', message: 'lock' } });
+    const sb = { from: vi.fn().mockReturnValue({ upsert: upsertMock }) };
+
+    await advanceWatermark(sb as never, 'procurement_status_events', { id: 'evt-1', at: '2026-07-06T08:00:00Z' });
+
+    expect(errSpy).toHaveBeenCalledWith(
+      '[agent-dispatch] WATERMARK_ADVANCE_FAILED',
+      expect.objectContaining({ errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: 'procurement_status_events' }),
+    );
+    errSpy.mockRestore();
+  });
 });
 
 describe('selectTriggerMatches — SECURITY HIGH-1 hard-gates trigger_on.source against TRIGGER_SOURCES', () => {
