@@ -4,6 +4,12 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ GTM wave status + post-audit follow-ups (2026-07-07)
+- **7-issue GTM wave: ALL 7 merged to `dev`** (ops-admin #243 · legal #247 · obs-floor #248 · onboarding #249 · auth-floor #235 · deputy-help #233 · DR #230). Each ran the full spec→build→3-lens→rendered/Discover→fix→PR loop. dev at migration `0073`, pgTAP `0130`.
+- **org_id-seam hardening MERGED** (#250, migration `0074`): `stamp_org_id()` `before insert` trigger on 42 tables stamps `org_id := auth_org_id()` for authenticated callers when org_id is null/seed-default (narrow variant = the documented convention), so non-seed-org writes now succeed + cross-org forgery still hard-rejects (42501). `credits` + `org_features` excluded (cross-org Operator RPCs). Security-auditor SHIP; pgTAP 1119. Closes the post-audit MED-1/2 finding → forward-compatible B2B seam is now real.
+- **gpt-5.5 charter audit (2026-07-07):** first run hit a **STALE `dev` checkout** (verdict NOT-READY invalid — every "missing" surface is present on `origin/dev`; its 4441-test count predates the wave). **Re-run against synced `dev` pending** (`git fetch && git reset --hard origin/dev`).
+- **Deferred follow-ups (tracked, non-blocking):** (a) **Avatar AA-contrast a11y** — shared `Avatar` white initials on categorical `avatarHue()` fail 4.5:1 (amber 1.96:1); darken hues + add axe gate (own branch, needs rendered cycle); (b) **execute a restore drill** before first real client (runbook exists, drill deferred); (c) **bundle-split** exceljs (~930 kB) + main chunk (~671 kB); (d) **codify production auth config** (signup-off/confirmations/Resend SMTP/redirect allowlist) into the `docs/environments.md` deploy checklist — it lives on the cloud project, not the committed local `config.toml`.
+
 ## ▶ GTM / MVP-viability program (owner grill, 2026-07-04 — supersedes scattered GTM notes)
 
 **Decisions of record from the grill (all owner-confirmed):** ADR-0047 (per-client Supabase Cloud
