@@ -42,6 +42,22 @@ export const AGENT_READ_ENTITIES = [
   'milestones',
   'timesheets',
   'crm_activities',
+  // Procure-to-pay lifecycle records (each RLS-scoped; columns curated below):
+  'purchase_requests',
+  'rfqs',
+  'procurement_quotations',
+  'purchase_orders',
+  'procurement_receipts',
+  'procurement_invoices',
+  'payments',
+  'procurement_items',
+  'procurement_status_events',
+  // Planning / spend / team / docs / alerts:
+  'budget_line_items',
+  'project_documents',
+  'procurement_documents',
+  'profiles',
+  'notifications',
 ] as const;
 export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
 
@@ -94,5 +110,87 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
       'id', 'contact_id', 'company_id', 'project_id', 'kind',
       'subject', 'body', 'occurred_at', 'logged_by_id', 'created_at',
     ],
+  },
+
+  // ── Procure-to-pay lifecycle ────────────────────────────────────────────────
+  // Each record links to its procurement case via procurement_id (RLS caps rows to the caller's
+  // access). Every entry EXCLUDES: org_id (tenancy seam); import_batch_id/imported_at/import_key
+  // (internal ETL plumbing); file_url/link (raw storage refs). Business doc number + status +
+  // amount + date are the fields a user asks about ("where's the PO?", "was it paid?").
+  purchase_requests: {
+    table: 'purchase_requests',
+    allowedColumns: ['id', 'procurement_id', 'pr_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
+  },
+  rfqs: {
+    table: 'rfqs',
+    allowedColumns: ['id', 'procurement_id', 'rfq_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
+  },
+  // Vendor quotations. Excludes file_url (raw storage) + org_id + import_* plumbing.
+  procurement_quotations: {
+    table: 'procurement_quotations',
+    allowedColumns: [
+      'id', 'procurement_id', 'rfq_id', 'vendor_id', 'vq_number', 'reference',
+      'total_amount', 'received_date', 'valid_until', 'is_selected',
+    ],
+  },
+  purchase_orders: {
+    table: 'purchase_orders',
+    allowedColumns: ['id', 'procurement_id', 'po_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
+  },
+  // Goods receipts (GRN). po_id links to the ordering PO.
+  procurement_receipts: {
+    table: 'procurement_receipts',
+    allowedColumns: ['id', 'procurement_id', 'po_id', 'gr_number', 'reference_number', 'status', 'receipt_date', 'created_at'],
+  },
+  procurement_invoices: {
+    table: 'procurement_invoices',
+    allowedColumns: ['id', 'procurement_id', 'po_id', 'vi_number', 'reference_number', 'status', 'invoice_date', 'amount', 'created_at'],
+  },
+  payments: {
+    table: 'payments',
+    allowedColumns: ['id', 'procurement_id', 'invoice_id', 'pay_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
+  },
+  // Line items within a procurement case (name/qty/rate/amount). Capped at the row cap like any read.
+  procurement_items: {
+    table: 'procurement_items',
+    allowedColumns: ['id', 'procurement_id', 'name', 'description', 'quantity', 'rate', 'amount'],
+  },
+  // Procurement status history (the case's stage transitions). Excludes `notes` (approver
+  // rationale — sensitive, consistent with procurements' excluded approval_notes) + org_id.
+  procurement_status_events: {
+    table: 'procurement_status_events',
+    allowedColumns: ['id', 'procurement_id', 'from_status', 'to_status', 'actor_id', 'created_at'],
+  },
+
+  // ── Spend detail / docs / team / alerts ─────────────────────────────────────
+  // Budget line items (category-level budgeted vs actual). Linked via budget_version_id.
+  budget_line_items: {
+    table: 'budget_line_items',
+    allowedColumns: ['id', 'budget_version_id', 'category', 'description', 'budgeted_amount', 'actual_amount'],
+  },
+  // Project document METADATA only — never the file. Excludes file_path (raw storage), org_id,
+  // parent_document_id (internal revision linkage).
+  project_documents: {
+    table: 'project_documents',
+    allowedColumns: [
+      'id', 'project_id', 'code', 'category', 'title', 'revision',
+      'status', 'doc_date', 'author_id', 'created_at',
+    ],
+  },
+  // Procurement document metadata. Excludes link (raw storage) + org_id.
+  procurement_documents: {
+    table: 'procurement_documents',
+    allowedColumns: ['id', 'procurement_id', 'type', 'reference_number', 'status', 'date'],
+  },
+  // Team directory (resolve "who is the PM/assignee"). Excludes org_id (tenancy) + email &
+  // avatar_url (PII / raw storage) + skills/utilization (not needed for identity) + timestamps.
+  profiles: {
+    table: 'profiles',
+    allowedColumns: ['id', 'full_name', 'role', 'title', 'location', 'company_id', 'manager_id', 'status'],
+  },
+  // The caller's own notifications (owner_id is RLS-implied). Excludes org_id + metadata (internal JSON).
+  notifications: {
+    table: 'notifications',
+    allowedColumns: ['id', 'severity', 'title', 'body', 'read_at', 'created_at'],
   },
 });

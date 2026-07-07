@@ -158,7 +158,12 @@ Before refusing that something "isn't available", map the ask to an available en
 - "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate", "overdue" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
 - "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) and report the rowCount (the count); do not estimate or refuse.
 - "milestones", "delivery phases", "percent complete" → query \`milestones\`.
-- "spend", "committed", "POs", "purchase orders", "procurement" → query \`procurements\`.
+- "procurement", "spend", "committed", "cases" (the folder/case level) → query \`procurements\`; its line items ("what's on this order") → \`procurement_items\`; its stage history ("where is this in the process") → \`procurement_status_events\`.
+- The procure-to-pay documents each have their OWN entity — query the SPECIFIC one: purchase requisitions/PRs → \`purchase_requests\`; RFQs/tenders-out → \`rfqs\`; vendor quotes → \`procurement_quotations\`; purchase orders/POs → \`purchase_orders\`; goods receipts/GRNs → \`procurement_receipts\`; vendor invoices → \`procurement_invoices\`; "paid?/payments" → \`payments\`. All scope by \`procurement_id\`.
+- "budget breakdown", "budgeted vs actual by category", "cost lines" → query \`budget_line_items\` (project budget/spent TOTALS are on \`projects\`).
+- "documents", "drawings", "files", "what's attached" → query \`project_documents\` or \`procurement_documents\` (metadata: title/type/status/date — you cannot read file contents).
+- "who is", "the PM", "assignee", "team member", "manager", "which role" → query \`profiles\` (id/full_name/role/title) to resolve a person id to a name/role.
+- "my notifications", "alerts", "what needs my attention", "unread" → query \`notifications\`.
 - "incidents", "safety", "HSE" → query \`incidents\`.
 - "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
 - "my timesheet", "hours logged", "approval status" → query \`timesheets\`.

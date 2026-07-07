@@ -12,7 +12,8 @@ import {
   runQueryEntity,
   AGENT_READ_ROW_CAP,
 } from '../../../../supabase/functions/agent-chat/actions';
-import { AGENT_READ_ENTITIES } from '../../../../supabase/functions/agent-chat/readEntities';
+import { AGENT_READ_ENTITIES, AGENT_ENTITY_TABLES } from '../../../../supabase/functions/agent-chat/readEntities';
+import { resolveAgentEntity } from '../../../../supabase/functions/agent-chat/entityCatalog';
 import type { DeputyContext } from './runtime/port';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
@@ -279,6 +280,34 @@ it('Defect-2 AGENT_READ_ENTITIES exposes the full business-entity set (not just 
   }
 });
 
+it('broadened read scope exposes the procure-to-pay lifecycle + docs/team/notifications', () => {
+  const keys = [...AGENT_READ_ENTITIES];
+  for (const required of [
+    'purchase_requests', 'rfqs', 'procurement_quotations', 'purchase_orders', 'procurement_receipts',
+    'procurement_invoices', 'payments', 'procurement_items', 'procurement_status_events',
+    'budget_line_items', 'project_documents', 'procurement_documents', 'profiles', 'notifications',
+  ]) {
+    expect(keys, `AGENT_READ_ENTITIES must expose ${required}`).toContain(required);
+  }
+});
+
+it('TENANCY INVARIANT: no curated entity ever exposes org_id, and every read entity resolves to a table', () => {
+  // The single most important guard for a broad read scope: org_id is the tenancy seam and must
+  // NEVER be selectable/filterable — RLS caps rows, but a leaked org_id would let the model reason
+  // across the seam. Assert it for every curated allowlist AND that every AGENT_READ_ENTITIES key
+  // resolves (no dangling entity the prompt advertises but the runtime can't serve).
+  for (const [key, entry] of Object.entries(AGENT_ENTITY_TABLES)) {
+    expect(entry.allowedColumns, `${key} must not expose org_id`).not.toContain('org_id');
+    // No raw-storage / ETL plumbing columns either (defense-in-depth against a copy-paste slip).
+    for (const banned of ['file_url', 'file_path', 'link', 'avatar_url', 'import_key', 'import_batch_id']) {
+      expect(entry.allowedColumns, `${key} must not expose ${banned}`).not.toContain(banned);
+    }
+  }
+  for (const key of AGENT_READ_ENTITIES) {
+    expect(resolveAgentEntity(key), `${key} must resolve to a table`).toBeDefined();
+  }
+});
+
 it('crm_activities is readable, maps to its table, and never exposes org_id (tenancy seam)', async () => {
   // Follow-up finding (2026-07-07): the agent could not answer "any activities in the CRM?" because
   // crm_activities had no read entity. Now exposed (RLS still caps rows to the caller). The column
@@ -369,10 +398,11 @@ it('Defect-2 tasks (reused from ENTITY_WHITELIST) now exposed and requires its p
 });
 
 it('Defect-2 an entity still NOT in the catalogue is refused (no privilege widening beyond the allowlist)', async () => {
-  // e.g. budget_line_items is deliberately deferred (granular; budgets are readable via projects).
+  // `credits` is deliberately NOT exposed — billing internals, not a user-facing business domain
+  // (see the skip list: agent_*/credits/audit_events/organizations/*_files are never exposed).
   const fromSpy = vi.fn();
   const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
-  const res = await runQueryEntity({ entity: 'budget_line_items' }, ctx) as { error: string };
+  const res = await runQueryEntity({ entity: 'credits' }, ctx) as { error: string };
   expect(res.error).toMatch(/unknown entity/i);
   expect(fromSpy).not.toHaveBeenCalled();
 });
