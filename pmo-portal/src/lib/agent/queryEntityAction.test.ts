@@ -349,3 +349,36 @@ it('Defect-2 an entity still NOT in the catalogue is refused (no privilege widen
   expect(res.error).toMatch(/unknown entity/i);
   expect(fromSpy).not.toHaveBeenCalled();
 });
+
+// ── Live-loop finding (2026-07-07): a DB error must be SURFACED, not swallowed ──────
+// The model filtered projects.status with a value split out of the comma-containing enum
+// label "Won, Pending KoM" → Postgres 22P02. The old code returned an opaque
+// "query_entity db error" with no code/detail, so the model had NO signal to self-correct
+// and the run died. The tool must now return the DB error code + message so the model can
+// recover (retry with a valid value). No row data is leaked (the message only echoes the
+// caller's own filter input + the enum/column name, already implied by the whitelist).
+it('surfaces the DB error code + detail on a query failure (so the model can self-correct)', async () => {
+  const dbError = {
+    code: '22P02',
+    message: 'invalid input value for enum project_status: "Won"',
+  };
+  const supabase = {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: null, error: dbError }),
+        }),
+      }),
+    }),
+  };
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase } as unknown as DeputyContext;
+
+  const res = (await runQueryEntity(
+    { entity: 'projects', columns: ['id', 'name', 'status'], filter: { column: 'status', op: 'in', value: ['Won', 'Pending KoM'] } },
+    ctx,
+  )) as { error: string; code?: string; detail?: string };
+
+  expect(res.error).toBeTruthy();
+  expect(res.code).toBe('22P02');
+  expect(res.detail).toMatch(/invalid input value for enum/i);
+});
