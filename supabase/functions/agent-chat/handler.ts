@@ -57,6 +57,29 @@ import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets
 /** Hard cap on tool-use rounds per run. D7. */
 export const MAX_TOOL_ROUNDS = 8;
 
+// ── Live step trail (ephemeral UI hint) ───────────────────────────────────────
+
+/** Present-tense one-line label for the tool about to run — powers the panel's live step
+ *  trail. Purely cosmetic; never an authorization or persistence input.
+ *
+ *  Emitted as a transient `status` event with payload `{kind:'step', label}` right before
+ *  each tool dispatches (see runToolLoop). It is surfaced to the panel in place of the
+ *  static "Working…" line and is NEVER persisted (withPersistence skips `kind:'step'`
+ *  status events) so it cannot reappear on a durable-resume/history reload. */
+export function stepLabel(toolName: string, input: unknown): string {
+  const entity = (input as { entity?: string } | undefined)?.entity;
+  switch (toolName) {
+    case 'query_entity':
+      return entity ? `Looking up ${entity.replace(/_/g, ' ')}…` : 'Looking up your data…';
+    case 'create_activity': return 'Logging an activity…';
+    case 'update_task_status': return 'Updating a task…';
+    case 'compose_view': return 'Building a view…';
+    case 'create_automation': return 'Setting up an automation…';
+    case 'notify': return 'Preparing a notification…';
+    default: return 'Working…';
+  }
+}
+
 // ── Action registry (A3) ──────────────────────────────────────────────────────
 
 /** Minimal ambient shape for Deno.env — avoids depending on the Deno global lib.d.ts, which
@@ -402,6 +425,12 @@ async function* withPersistence(
   runId: string,
 ): AsyncGenerator<AgentEvent> {
   for await (const ev of inner) {
+    // Step events are ephemeral live-trail hints — surfaced to the panel, never persisted
+    // (they must not reappear on a durable-resume/history reload).
+    if (ev.type === 'status' && (ev.payload as { kind?: string } | undefined)?.kind === 'step') {
+      yield ev;
+      continue;
+    }
     if (persist) {
       let journal: ToolJournal | undefined;
       if (ev.type === 'tool') {
@@ -700,6 +729,13 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         // as MALFORMED_TOOL_CALL when later rounds are merely missing a tool call.
         lastRoundMalformed = false;
       }
+
+      // Live step trail: announce the tool about to run as a present-tense status hint
+      // (purely cosmetic — see stepLabel). Emitted BEFORE dispatch so the panel swaps the
+      // static "Working…" for the current action while it executes. {kind:'step'} rides the
+      // existing `status` channel (mirrors {kind:'question'}) and is NEVER persisted
+      // (withPersistence skips it) — it must not reappear on a durable-resume reload.
+      yield emit('status', { payload: { kind: 'step', label: stepLabel(toolName, toolInput) } });
 
       // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
       // Divergence 1: only reachable when allowCompose (main pass).
