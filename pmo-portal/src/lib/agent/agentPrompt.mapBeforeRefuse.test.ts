@@ -40,3 +40,18 @@ it('Defect-3 keeps the deputy/RLS framing intact (no privilege widening from the
   // The map-before-refuse guidance must not promise data beyond the caller's reach.
   expect(p).toMatch(/caller|this user/i);
 });
+
+// ── Live-loop regression (2026-07-07): the comma-in-enum-label footgun ───────────────
+// The real `project_status` enum has a single label "Won, Pending KoM" that CONTAINS a comma.
+// The prompt previously listed the on-hand statuses as ["Won","Pending KoM","Ongoing Project"] —
+// splitting that one label into two invalid values. The model used them verbatim → Postgres
+// 22P02 → the "how many active projects" run died. Lock the corrected value in.
+it('prompt on-hand project statuses use the exact comma-containing enum label (not a mis-split)', () => {
+  const p = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP);
+  // The single, comma-containing enum label must appear verbatim…
+  expect(p).toContain('Won, Pending KoM');
+  // …and the broken split ("Won" immediately followed by a separate "Pending KoM" value) must not.
+  expect(p).not.toMatch(/"Won"\s*,\s*"Pending KoM"/);
+  // And the model must be explicitly told these values are opaque — never split on the comma.
+  expect(p).toMatch(/never split|copy .*exactly|single (enum )?(value|label)/i);
+});
