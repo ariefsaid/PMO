@@ -69,6 +69,12 @@ export interface UseAssistantPanel {
   lastGoal: string | null;
   runId: string | null;
   /**
+   * Live step-trail label for the tool currently executing ("Looking up projects…"), or
+   * null when between steps / after the run ends. Surfaced in the streaming indicator in
+   * place of the static "Working…". Purely cosmetic; never persisted or in the transcript.
+   */
+  currentStep: string | null;
+  /**
    * A3: chip state keyed by pendingId.
    * Each needs-approval event has its own entry; resolved via the matching pendingId.
    */
@@ -195,6 +201,10 @@ export function useAssistantPanel(): UseAssistantPanel {
   const [phase, setPhase] = useState<RunPhase>('idle');
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  // Live step trail: the present-tense label of the tool currently executing (transient UI
+  // hint only — never in the transcript or persisted; cleared when the tool drains or the
+  // run reaches a terminal state).
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
   // FR-AGP-022: last observed progress signal for the active run — a coarse client-side
   // proxy (updated on every drained event) for the server's heartbeat, used to derive
   // isStuck. Null when no run has ever progressed.
@@ -234,7 +244,22 @@ export function useAssistantPanel(): UseAssistantPanel {
           setLastProgressAt(new Date().toISOString());
 
           if (ev.type === 'assistant') {
+            // Live step trail: the model has resumed narrating/answering, so the previous step's
+            // work is done — clear the label back to the neutral "Working…". Clearing HERE (not on
+            // the tool event) lets a step label linger through the whole tool execution + the
+            // follow-up model turn, so it is actually READABLE rather than flashing sub-second
+            // between the tool call and its result (render finding 2026-07-07).
+            setCurrentStep(null);
             setTranscript((prev) => mergeAssistantEvent(prev, ev));
+            continue;
+          }
+
+          // Live step trail: a transient {kind:'step'} status hint — the present-tense label
+          // of the tool about to run. Intercept it BEFORE the status/phase logic so it never
+          // reaches the transcript or is treated as a run-lifecycle status frame; it only
+          // drives the streaming indicator's copy.
+          if (ev.type === 'status' && (ev.payload as { kind?: string } | undefined)?.kind === 'step') {
+            setCurrentStep((ev.payload as { label?: string }).label ?? null);
             continue;
           }
 
@@ -243,6 +268,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
             if (payload?.status === 'completed') {
               setPhase('idle');
+              setCurrentStep(null);
               // No extra transcript entry for a clean completion.
               const startedAt = runStartedAt.get(drainRunId);
               runStartedAt.delete(drainRunId);
@@ -262,6 +288,7 @@ export function useAssistantPanel(): UseAssistantPanel {
               const pendingId = naPayload?.pendingId ?? makeKey();
               activePendingIdRef.current = pendingId;
               setPhase('needs-approval');
+              setCurrentStep(null);
               // Key the chip state by pendingId (Blocker-8: not a single global atom).
               setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
               safeTrack(() => trackAgentApprovalShown(drainRunId));
@@ -274,6 +301,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
             if (payload?.status === 'errored') {
               setPhase('idle');
+              setCurrentStep(null);
               // RunStatusPayload (port.ts, #215) doesn't carry retryAfterSeconds — it's
               // RATE_LIMITED-specific (AgentChatError, transport.ts). Extend the shared
               // status-payload type rather than a fully ad-hoc shape, per FR-AUC-013.
@@ -327,6 +355,9 @@ export function useAssistantPanel(): UseAssistantPanel {
           // A3: tool event with pendingId → write was approved and executed.
           if (ev.type === 'tool') {
             toolRoundCount += 1;
+            // Live step trail: do NOT clear the label here — it stays through the tool result and
+            // the next model turn (cleared when the model resumes narrating, in the 'assistant'
+            // branch above, or on a terminal status). Keeps the step readable, not a sub-second flash.
             const toolPayload = ev.payload as { pendingId?: string } | undefined;
             if (toolPayload?.pendingId) {
               const pid = toolPayload.pendingId;
@@ -550,6 +581,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setLastGoal(null);
     setChipStateMap({});
     setAnsweredMap({});
+    setCurrentStep(null);
   }, [runtime]);
 
   // ── openThread — resume-on-open (FR-AGP-021, AC-AGP-021) ─────────────────────
@@ -666,6 +698,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     phase,
     lastGoal,
     runId,
+    currentStep,
     chipStateMap,
     answeredMap,
     openPanel,
