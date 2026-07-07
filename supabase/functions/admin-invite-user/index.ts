@@ -133,6 +133,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
   if (profileError) {
     logStructuredError({ fn: 'admin-invite-user', errorCode: 'PROFILE_CREATE_FAILED' });
+    // Compensate (saga rollback): the invite above already created an auth.users row. Without a
+    // matching profiles row it is orphaned — the email is now "taken" (a retry fails at invite
+    // issuance) and the account can partially authenticate with no org/role. Delete the just-created
+    // Auth user so the invite is atomic (all-or-nothing) and the email can be retried.
+    const { error: cleanupError } = await serviceClient.auth.admin.deleteUser(invite.user.id);
+    if (cleanupError) {
+      // Best-effort — if cleanup ALSO fails, surface a distinct code so the orphan is
+      // visible/alertable, not silently swallowed.
+      logStructuredError({ fn: 'admin-invite-user', errorCode: 'PROFILE_CREATE_CLEANUP_FAILED' });
+    }
     return json({ error: 'PROFILE_CREATE_FAILED' }, 502, corsHeaders);
   }
 
