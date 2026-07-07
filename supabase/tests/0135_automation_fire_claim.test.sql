@@ -9,7 +9,7 @@ select plan(7);
 -- ════════════════════════════════════════════════════════════════════════════
 -- Table existence + RLS posture (mirrors 0048 agent_dispatch_watermarks pattern)
 -- ════════════════════════════════════════════════════════════════════════════
-select table_exists('public', 'agent_automation_fires', 'AC-AUTOFIRE-001: table agent_automation_fires exists');
+select has_table('public', 'agent_automation_fires', 'AC-AUTOFIRE-001: table agent_automation_fires exists');
 
 select is(
   (select relrowsecurity from pg_class where relname = 'agent_automation_fires'),
@@ -38,8 +38,9 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role) values
   ('01350000-0000-0000-0000-0000000000a1','01350000-0000-0000-0000-000000000001','AFC User','afc-user@example.com','Admin');
 
-insert into agent_automations (id, owner_id, org_id, kind, prompt, enabled) values
-  ('01350000-0000-0000-0000-0000000000a2','01350000-0000-0000-0000-0000000000a1','01350000-0000-0000-0000-000000000001','trigger','test',true);
+insert into agent_automations (id, owner_id, org_id, kind, prompt, enabled, trigger_on) values
+  ('01350000-0000-0000-0000-0000000000a2','01350000-0000-0000-0000-0000000000a1','01350000-0000-0000-0000-000000000001','trigger','test',true,
+   '{"source":"procurement_status_events","event":"status_change"}'::jsonb);
 
 -- Fixture event id (not inserted into real table — just a UUID for the claim)
 select '01350000-0000-0000-0000-0000000000e3'::uuid as fixture_event_id \gset
