@@ -1,5 +1,5 @@
 /**
- * ChatBubble — user echo stays literal, never markdown-parsed (ADR-0049 §3, D-A2-8).
+ * ChatBubble — user echo stays literal, never markdown-parsed (ADR-0054 §3, D-A2-8).
  * FR-AXP-006.
  */
 import React from 'react';

@@ -1,7 +1,7 @@
 /**
  * TranscriptItem — renders one AgentEvent entry in the transcript.
  * Switches on event.type to choose the right visual treatment.
- * FR-AP-013/014/017; D-A2-7 (tool label); assistant text → safe <Markdown> (ADR-0049, supersedes D-A2-8).
+ * FR-AP-013/014/017; D-A2-7 (tool label); assistant text → safe <Markdown> (ADR-0054, supersedes D-A2-8).
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
