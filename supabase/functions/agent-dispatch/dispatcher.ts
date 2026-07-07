@@ -371,6 +371,17 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         const claimed = await claimScheduleFire(deps.serviceClient, automation.id, now);
         if (!claimed) continue;
       }
+
+      // CRITICAL fix (2026-07-07): trigger fires are CLAIMED atomically before any other work.
+      // Overlapping ticks or a failed watermark write can cause the same (automation_id,
+      // event_id) to be selected and dispatched twice. The agent_automation_fires table
+      // (migration 0078) enforces at-most-once via its UNIQUE (automation_id, event_id) primary
+      // key. Claim-then-fire = at-most-once per (automation, event). A fire that then throws
+      // still counts as claimed (it won't re-fire for that event), matching the schedule posture.
+      if (automation.kind === 'trigger' && event) {
+        const claimed = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
+        if (!claimed) continue;
+      }
       stage = 'condition';
       // ── Trigger + NL condition FIRST — BEFORE the mint (gpt-5.5 audit #3). Condition eval uses the
       // CHEAP MODEL + the event, never the minted client, so a silent condition-false skip (the common
@@ -573,6 +584,30 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
     .eq('id', automationId)
     .or(`last_fired_at.is.null,last_fired_at.lt."${minuteFloor}"`)
     .select('id');
+  if (error) return false;
+  return (data ?? []).length > 0;
+}
+
+/**
+ * CRITICAL fix (2026-07-07): atomically claim a trigger automation's fire for a specific event.
+ * The agent_automation_fires table (migration 0078) enforces at-most-once via its UNIQUE
+ * (automation_id, event_id) primary key. insert ... on conflict do nothing is the mutual
+ * exclusion — of N overlapping ticks exactly one inserts a row and fires; the rest see 0 rows
+ * and skip. Fail-closed: a claim-query ERROR returns false (no fire) — an unreachable bookkeeping
+ * table must never produce an unclaimed fire. (service_role, agent_automation_fires metadata —
+ * within quarantine.)
+ */
+export async function claimTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string): Promise<boolean> {
+  const builder = sb.from('agent_automation_fires') as {
+    insert: (row: Record<string, unknown>) => {
+      select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
+    };
+  };
+  const { data, error } = await builder
+    .insert({ automation_id: automationId, event_id: eventId })
+    .on('conflict')
+    .ignore()
+    .select('automation_id');
   if (error) return false;
   return (data ?? []).length > 0;
 }
