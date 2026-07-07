@@ -244,6 +244,12 @@ export function useAssistantPanel(): UseAssistantPanel {
           setLastProgressAt(new Date().toISOString());
 
           if (ev.type === 'assistant') {
+            // Live step trail: the model has resumed narrating/answering, so the previous step's
+            // work is done — clear the label back to the neutral "Working…". Clearing HERE (not on
+            // the tool event) lets a step label linger through the whole tool execution + the
+            // follow-up model turn, so it is actually READABLE rather than flashing sub-second
+            // between the tool call and its result (render finding 2026-07-07).
+            setCurrentStep(null);
             setTranscript((prev) => mergeAssistantEvent(prev, ev));
             continue;
           }
@@ -349,9 +355,9 @@ export function useAssistantPanel(): UseAssistantPanel {
           // A3: tool event with pendingId → write was approved and executed.
           if (ev.type === 'tool') {
             toolRoundCount += 1;
-            // Live step trail: a tool event draining means the in-flight step finished —
-            // revert the indicator to the neutral "Working…" until the next step arrives.
-            setCurrentStep(null);
+            // Live step trail: do NOT clear the label here — it stays through the tool result and
+            // the next model turn (cleared when the model resumes narrating, in the 'assistant'
+            // branch above, or on a terminal status). Keeps the step readable, not a sub-second flash.
             const toolPayload = ev.payload as { pendingId?: string } | undefined;
             if (toolPayload?.pendingId) {
               const pid = toolPayload.pendingId;

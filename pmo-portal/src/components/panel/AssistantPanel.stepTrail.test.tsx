@@ -2,9 +2,10 @@
  * AssistantPanel step-trail tests — the live "step trail" status line.
  *
  * The panel's streaming indicator swaps "Working…" for the present-tense label of the tool
- * currently executing ("Looking up projects…") while a run is active, then reverts to
- * "Working…" once that tool finishes (a `tool` event drains). Step events are ephemeral —
- * they never reach the transcript or the status/phase logic.
+ * currently executing ("Looking up projects…") while a run is active. The label LINGERS through
+ * the tool result and the follow-up model turn (so it is readable, not a sub-second flash), then
+ * reverts to "Working…" when the model resumes narrating (an `assistant` event) or on a terminal
+ * status. Step events are ephemeral — they never reach the transcript or the status/phase logic.
  *
  * Harness mirrors AssistantPanel.test.tsx (scripted fake runtime via AgentRuntimeContext,
  * DAL mocks incl. getRunHeartbeat). No live agent-chat call.
@@ -109,16 +110,20 @@ describe('AssistantPanel live step trail', () => {
     document.body.style.overflow = '';
   });
 
-  it('shows the step label while a tool runs, then reverts to "Working…" when the tool finishes', async () => {
+  it('shows the step label, keeps it through the tool result, and reverts when the model resumes', async () => {
     const user = userEvent.setup();
     const runId = 'step-run';
 
-    // A gated iterable so we can assert the INTERMEDIATE states:
-    //   (a) after the step event drains → indicator shows the step label;
-    //   (b) after the tool event drains → indicator reverts to "Working…".
+    // A gated iterable so we can assert the INTERMEDIATE states. The label must LINGER (render
+    // finding 2026-07-07 — a sub-second flash between the tool call and its result is unreadable):
+    //   (a) step event drains → indicator shows the label;
+    //   (b) tool event drains → label STILL shows (does not revert);
+    //   (c) assistant narration drains → label reverts to "Working…".
     let releaseTool!: () => void;
+    let releaseAssistant!: () => void;
     let releaseComplete!: () => void;
     const toolGate = new Promise<void>((r) => (releaseTool = r));
+    const assistantGate = new Promise<void>((r) => (releaseAssistant = r));
     const completeGate = new Promise<void>((r) => (releaseComplete = r));
 
     const runtime = makeFakeRuntime(
@@ -126,15 +131,16 @@ describe('AssistantPanel live step trail', () => {
         [Symbol.asyncIterator]: async function* () {
           // 1) step event — the live trail hint (ephemeral, never in the transcript).
           yield makeEvent('status', { payload: { kind: 'step', label: 'Looking up projects…' } });
-          // gate: assert the label is showing above
           await toolGate;
-          // 2) tool event — the step finished; trail must revert.
+          // 2) tool event — the tool finished; the label must PERSIST (no flash).
           yield makeEvent('tool', {
             payload: { name: 'query_entity', input: { entity: 'projects' }, result: { rowCount: 0, rows: [] } },
           });
-          // gate: assert it reverted above
+          await assistantGate;
+          // 3) assistant narration — the model resumed; the label reverts to "Working…".
+          yield makeEvent('assistant', { runId, text: 'You have 0 projects.' });
           await completeGate;
-          // 3) terminal — run done, indicator unmounts.
+          // 4) terminal — run done, indicator unmounts.
           yield makeEvent('status', { payload: { status: 'completed' } });
         },
       }),
@@ -156,8 +162,15 @@ describe('AssistantPanel live step trail', () => {
     // The step label is ephemeral: it is NOT added to the transcript as a card.
     expect(screen.queryAllByTestId('assistant-bubble')).toHaveLength(0);
 
-    // (b) Release the tool event → the step finished → trail reverts to "Working…".
+    // (b) Release the tool event → the label PERSISTS (lingers through the tool result).
     act(() => releaseTool());
+    await waitFor(() => {
+      expect(screen.getByText('Looking up projects…')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Working…')).not.toBeInTheDocument();
+
+    // (c) Release the assistant narration → the model resumed → label reverts to "Working…".
+    act(() => releaseAssistant());
     await waitFor(() => {
       expect(screen.getByText('Working…')).toBeInTheDocument();
     });
