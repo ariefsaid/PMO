@@ -28,6 +28,8 @@ import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
+import { ActivityTrail } from './ActivityTrail';
+import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import {
   clampPanelWidth,
   readPanelMode,
@@ -123,6 +125,7 @@ export const AssistantPanel: React.FC = () => {
     phase,
     runId,
     currentStep,
+    activityTrail,
     closePanel,
     send,
     stop,
@@ -274,6 +277,16 @@ export const AssistantPanel: React.FC = () => {
   // RunPhase (hook-level) -> AgentRunStatus (StuckRunBanner's active-state check).
   const bannerStatus: AgentRunStatus =
     phase === 'running' ? 'running' : phase === 'needs-approval' ? 'needs-approval' : 'completed';
+
+  // ── Activity trail → reassuring long-run copy (FR-AGP-022) ────────────────
+  // The stuck-run banner reads as reassurance, not alarm, when the panel can share how much
+  // the agent has already done. doneCount = completed trail steps; lastActivity = the friendly
+  // label of the most recent completed step. Derived from the same activityTrail the
+  // ActivityTrail component renders, so the banner and the trail stay in sync.
+  const doneSteps = activityTrail.filter((s) => s.done);
+  const doneCount = doneSteps.length;
+  const lastDoneStep = doneSteps[doneSteps.length - 1];
+  const lastActivity = lastDoneStep ? friendlyActivity(lastDoneStep.label) : undefined;
 
   // ── Staleness re-render tick (FR-AGP-022) ────────────────────────────────
   // isStuck is a point-in-time derivation (now - lastProgressAt). The hook's own 5s server-
@@ -591,6 +604,8 @@ export const AssistantPanel: React.FC = () => {
             <StuckRunBanner
               status={bannerStatus}
               lastProgressAt={lastProgressAt}
+              doneCount={doneCount}
+              lastActivity={lastActivity}
               onRetry={handleRetry}
               onCancel={handleStop}
             />
@@ -607,12 +622,22 @@ export const AssistantPanel: React.FC = () => {
             onRate={handleRate}
           />
 
-          {/* Streaming indicator — shows while run is active or awaiting approval re-POST.
+          {/* Streaming indicator / activity trail — shows while run is active or awaiting
+              approval re-POST. Once the first step has landed, the persistent ActivityTrail
+              REPLACES the static "Working…" line: it carries the live spinner on the current
+              row plus the accumulated checklist of done steps, so a slow run is transparent.
+              Before any step (or while waiting on a clarifying question) the neutral
+              StreamingIndicator covers the pre-first-step "Working…" case.
               Correctness-remediation (finding 3): suppressed while hasPendingQuestion —
               the model is not "Working…" once it has asked a clarifying question and is
               waiting on the human; the distinct "A question awaits your answer" status
               below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion && <StreamingIndicator label={currentStep} />}
+          {phase === 'running' && !hasPendingQuestion &&
+            (activityTrail.length > 0 ? (
+              <ActivityTrail items={activityTrail} />
+            ) : (
+              <StreamingIndicator label={currentStep} />
+            ))}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}

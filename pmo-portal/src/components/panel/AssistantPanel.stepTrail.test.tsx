@@ -110,15 +110,18 @@ describe('AssistantPanel live step trail', () => {
     document.body.style.overflow = '';
   });
 
-  it('shows the step label, keeps it through the tool result, and reverts when the model resumes', async () => {
+  it('renders the step as a persistent trail row, flips it done on the tool result, and keeps it through the model turn', async () => {
     const user = userEvent.setup();
     const runId = 'step-run';
 
-    // A gated iterable so we can assert the INTERMEDIATE states. The label must LINGER (render
-    // finding 2026-07-07 — a sub-second flash between the tool call and its result is unreadable):
-    //   (a) step event drains → indicator shows the label;
-    //   (b) tool event drains → label STILL shows (does not revert);
-    //   (c) assistant narration drains → label reverts to "Working…".
+    // A gated iterable so we can assert the INTERMEDIATE states. The persistent activity
+    // trail carries the step row through the whole tool round + the follow-up model turn
+    // (render finding 2026-07-07 — a sub-second flash between the tool call and its result
+    // is unreadable), so it REPLACES the static "Working…" line once a step has landed:
+    //   (a) step event drains → trail shows the friendly current row (spinner);
+    //   (b) tool event drains → that row flips to done (✓ + "0 found");
+    //   (c) assistant narration drains → the trail PERSISTS (it does NOT revert to "Working…"
+    //       — the persistent checklist is the whole point); only a terminal status clears it.
     let releaseTool!: () => void;
     let releaseAssistant!: () => void;
     let releaseComplete!: () => void;
@@ -132,15 +135,15 @@ describe('AssistantPanel live step trail', () => {
           // 1) step event — the live trail hint (ephemeral, never in the transcript).
           yield makeEvent('status', { payload: { kind: 'step', label: 'Looking up projects…' } });
           await toolGate;
-          // 2) tool event — the tool finished; the label must PERSIST (no flash).
+          // 2) tool event — the tool finished; the row flips to done with a result detail.
           yield makeEvent('tool', {
             payload: { name: 'query_entity', input: { entity: 'projects' }, result: { rowCount: 0, rows: [] } },
           });
           await assistantGate;
-          // 3) assistant narration — the model resumed; the label reverts to "Working…".
+          // 3) assistant narration — the model resumed; the trail persists (no revert).
           yield makeEvent('assistant', { runId, text: 'You have 0 projects.' });
           await completeGate;
-          // 4) terminal — run done, indicator unmounts.
+          // 4) terminal — run done, trail clears + indicator unmounts.
           yield makeEvent('status', { payload: { status: 'completed' } });
         },
       }),
@@ -153,36 +156,40 @@ describe('AssistantPanel live step trail', () => {
     await user.type(textarea, 'how many projects?');
     await user.keyboard('{Enter}');
 
-    // (a) Step event drained → indicator shows the step label, NOT the neutral "Working…".
+    // (a) Step event drained → the persistent trail shows the friendly current row, NOT the
+    // neutral "Working…" (the trail replaces the streaming indicator once a step has landed).
     await waitFor(() => {
-      expect(screen.getByText('Looking up projects…')).toBeInTheDocument();
+      expect(screen.getByText(/Checking your projects/)).toBeInTheDocument();
     });
     expect(screen.queryByText('Working…')).not.toBeInTheDocument();
 
-    // The step label is ephemeral: it is NOT added to the transcript as a card.
+    // The step is ephemeral: it is NOT added to the transcript as a card or bubble.
     expect(screen.queryAllByTestId('assistant-bubble')).toHaveLength(0);
 
-    // (b) Release the tool event → the label PERSISTS (lingers through the tool result).
+    // (b) Release the tool event → the row flips to done (✓ + the rowCount detail). The trail
+    // still carries the friendly label; it does not revert to "Working…".
     act(() => releaseTool());
     await waitFor(() => {
-      expect(screen.getByText('Looking up projects…')).toBeInTheDocument();
+      expect(screen.getByText(/0 found/)).toBeInTheDocument();
     });
     expect(screen.queryByText('Working…')).not.toBeInTheDocument();
 
-    // (c) Release the assistant narration → the model resumed → label reverts to "Working…".
+    // (c) Release the assistant narration → the model resumed → the trail PERSISTS (it does
+    // NOT revert to "Working…"; the persistent checklist is the whole point).
     act(() => releaseAssistant());
     await waitFor(() => {
-      expect(screen.getByText('Working…')).toBeInTheDocument();
+      expect(screen.getByText(/You have 0 projects/)).toBeInTheDocument();
     });
-    expect(screen.queryByText('Looking up projects…')).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking your projects/)).toBeInTheDocument();
+    expect(screen.queryByText('Working…')).not.toBeInTheDocument();
 
-    // Finish the run.
+    // Finish the run → terminal clears the trail and the indicator unmounts entirely.
     act(() => releaseComplete());
     await waitFor(() => {
-      // Terminal completed → indicator unmounts entirely.
+      expect(screen.queryByText(/Checking your projects/)).not.toBeInTheDocument();
       expect(screen.queryByText('Working…')).not.toBeInTheDocument();
     });
-  });
+  }, 15_000);
 
   it('falls back to "Working…" when no step event has been emitted', async () => {
     const user = userEvent.setup();

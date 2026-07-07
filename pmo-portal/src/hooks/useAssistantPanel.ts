@@ -43,6 +43,19 @@ export interface TranscriptEntry {
   event: AgentEvent;
 }
 
+/**
+ * One row of the persistent activity trail (useAssistantPanel.activityTrail). `label` is the
+ * raw backend step label ("Looking up projects…"); `done` flips true when the matching tool
+ * event drains; `detail` carries a short result summary ("4 found") when available. The
+ * trail is reset per-run and never persisted — purely a legibility affordance for a live run.
+ */
+export interface TrailStep {
+  id: string;
+  label: string;
+  done: boolean;
+  detail?: string;
+}
+
 /** A3: chip state for a pending write approval chip. */
 export type ApprovalChipState = 'pending' | 'approving' | 'approved' | 'denied';
 
@@ -74,6 +87,14 @@ export interface UseAssistantPanel {
    * place of the static "Working…". Purely cosmetic; never persisted or in the transcript.
    */
   currentStep: string | null;
+  /**
+   * Persistent activity trail — the legible, per-run checklist of what the agent has done
+   * (done rows, ✓ + detail) and is doing (the current row, spinner). Driven from the SAME
+   * step/tool events as `currentStep`, accumulated so a slow run stays transparent instead
+   * of a frozen "Working…". Reset on terminal status / newConversation / a fresh createRun.
+   * Purely cosmetic; never persisted or in the transcript.
+   */
+  activityTrail: TrailStep[];
   /**
    * A3: chip state keyed by pendingId.
    * Each needs-approval event has its own entry; resolved via the matching pendingId.
@@ -205,6 +226,10 @@ export function useAssistantPanel(): UseAssistantPanel {
   // hint only — never in the transcript or persisted; cleared when the tool drains or the
   // run reaches a terminal state).
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  // Persistent activity trail — the legible per-run checklist (done ✓ rows + the current
+  // spinner row). Accumulated from the SAME step/tool events that drive `currentStep`, so a
+  // slow or thrashing run shows what the agent has done and is doing, not a frozen mystery.
+  const [activityTrail, setActivityTrail] = useState<TrailStep[]>([]);
   // FR-AGP-022: last observed progress signal for the active run — a coarse client-side
   // proxy (updated on every drained event) for the server's heartbeat, used to derive
   // isStuck. Null when no run has ever progressed.
@@ -259,7 +284,15 @@ export function useAssistantPanel(): UseAssistantPanel {
           // reaches the transcript or is treated as a run-lifecycle status frame; it only
           // drives the streaming indicator's copy.
           if (ev.type === 'status' && (ev.payload as { kind?: string } | undefined)?.kind === 'step') {
-            setCurrentStep((ev.payload as { label?: string }).label ?? null);
+            const stepLabel = (ev.payload as { label?: string }).label ?? null;
+            setCurrentStep(stepLabel);
+            // Persistent activity trail: append the step as the new "current" (in-progress) row,
+            // IN ADDITION to the transient currentStep label. The matching tool event later
+            // flips this row done (with a result detail). A slow run thus accumulates a
+            // legible checklist of what the agent has done and is doing.
+            if (stepLabel) {
+              setActivityTrail((prev) => [...prev, { id: makeKey(), label: stepLabel, done: false }]);
+            }
             continue;
           }
 
@@ -269,6 +302,7 @@ export function useAssistantPanel(): UseAssistantPanel {
             if (payload?.status === 'completed') {
               setPhase('idle');
               setCurrentStep(null);
+              setActivityTrail([]);
               // No extra transcript entry for a clean completion.
               const startedAt = runStartedAt.get(drainRunId);
               runStartedAt.delete(drainRunId);
@@ -289,6 +323,7 @@ export function useAssistantPanel(): UseAssistantPanel {
               activePendingIdRef.current = pendingId;
               setPhase('needs-approval');
               setCurrentStep(null);
+              setActivityTrail([]);
               // Key the chip state by pendingId (Blocker-8: not a single global atom).
               setChipStateMap((prev) => ({ ...prev, [pendingId]: 'pending' }));
               safeTrack(() => trackAgentApprovalShown(drainRunId));
@@ -302,6 +337,7 @@ export function useAssistantPanel(): UseAssistantPanel {
             if (payload?.status === 'errored') {
               setPhase('idle');
               setCurrentStep(null);
+              setActivityTrail([]);
               // RunStatusPayload (port.ts, #215) doesn't carry retryAfterSeconds — it's
               // RATE_LIMITED-specific (AgentChatError, transport.ts). Extend the shared
               // status-payload type rather than a fully ad-hoc shape, per FR-AUC-013.
@@ -363,6 +399,24 @@ export function useAssistantPanel(): UseAssistantPanel {
               const pid = toolPayload.pendingId;
               setChipStateMap((prev) => ({ ...prev, [pid]: 'approved' }));
             }
+            // Persistent activity trail: mark the most recent not-yet-done step done, and attach
+            // a short result summary ("4 found") when the tool carried a rowCount. The matching
+            // step is always the last not-done row (step emits before its tool runs), so we walk
+            // back from the end to find it. Read tools without a rowCount (writes, etc.) still mark
+            // done but leave detail undefined.
+            const result = (ev.payload as { result?: { rowCount?: unknown } } | undefined)?.result;
+            const rowCount = result?.rowCount;
+            const detail = typeof rowCount === 'number' ? `${rowCount} found` : undefined;
+            setActivityTrail((prev) => {
+              const next = [...prev];
+              for (let i = next.length - 1; i >= 0; i--) {
+                if (!next[i].done) {
+                  next[i] = { ...next[i], done: true, detail: detail ?? next[i].detail };
+                  break;
+                }
+              }
+              return next;
+            });
           }
 
           // A3: system write_resolved → update chip state for the specific pendingId.
@@ -423,6 +477,11 @@ export function useAssistantPanel(): UseAssistantPanel {
       if (!runIdRef.current) {
         // First message in this conversation: create a new run.
         setLastGoal(text);
+        // Persistent activity trail: a fresh turn starts clean — drop any trail left over
+        // from a prior run (a terminal status / newConversation already cleared it, but a
+        // createRun after a non-terminal reset, e.g. a follow-up that became a new run, must
+        // not inherit the previous run's steps).
+        setActivityTrail([]);
         // FR-ATC-015/020: thread live context only when the flag is on — flag-off,
         // getContext() is never called and no context is sent.
         // Only attach optional keys when present, so the no-attachment path (the
@@ -582,6 +641,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setChipStateMap({});
     setAnsweredMap({});
     setCurrentStep(null);
+    setActivityTrail([]);
   }, [runtime]);
 
   // ── openThread — resume-on-open (FR-AGP-021, AC-AGP-021) ─────────────────────
@@ -699,6 +759,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     lastGoal,
     runId,
     currentStep,
+    activityTrail,
     chipStateMap,
     answeredMap,
     openPanel,
