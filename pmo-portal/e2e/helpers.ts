@@ -3,6 +3,22 @@ import { expect, request as pwRequest, type Locator, type Page } from '@playwrig
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
 /**
+ * Require SUPABASE_SERVICE_ROLE_KEY for specs that need service-role admin access.
+ * Fails loudly in CI (throws) but skips gracefully in local development.
+ *
+ * Pattern: in a beforeAll or at the top of a spec file:
+ *   const svcKey = requireServiceRoleKey();
+ *   if (!svcKey) test.skip(true, 'SERVICE_ROLE_KEY not set (local) — skipping');
+ */
+export function requireServiceRoleKey(): string | undefined {
+  const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY;
+  if (!svcKey && process.env.CI) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY missing in CI — this spec cannot silently skip');
+  }
+  return svcKey;
+}
+
+/**
  * Sign in via the /login form and wait for the dashboard.
  *
  * Hardened against a TRANSIENT CI GoTrue flake: on the shared CI runner, GoTrue

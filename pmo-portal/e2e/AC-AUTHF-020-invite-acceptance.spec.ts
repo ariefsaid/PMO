@@ -1,16 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { clearMailpit, pollMailpitForAuthLink } from './helpers';
+import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';
 
 // AC-AUTHF-020 — invite-acceptance round-trip (FR-AUTHF-030/031/032/034/035). Test setup stands in for
 // GTM item 1a issuance: service-role inviteUserByEmail + user_metadata.invite_pending=true + a profiles
 // row. Honest boundary (D6): service-role key from process.env; skip cleanly when absent.
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_ROLE_KEY = requireServiceRoleKey();
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 
 test.setTimeout(120_000);
 
-(SERVICE_ROLE_KEY ? test : test.skip)(
+test.skip(!SERVICE_ROLE_KEY, 'SERVICE_ROLE_KEY not set (local) — skipping');
+
+test(
   'AC-AUTHF-020: invite link → /update-password → set password → signed in; gate clears',
   async ({ page }) => {
     const email = `invitee-${Date.now()}@example.com`;

@@ -103,13 +103,13 @@ const OutOfCreditsCard: React.FC = () => (
 );
 
 // ── Streaming indicator ───────────────────────────────────────────────────────
-const StreamingIndicator: React.FC = () => (
+const StreamingIndicator: React.FC<{ label?: string | null }> = ({ label }) => (
   <div
     aria-live="polite"
     aria-atomic="true"
     className="px-4 py-1 text-xs text-muted-foreground motion-reduce:animate-none"
   >
-    Working…
+    {label ?? 'Working…'}
   </div>
 );
 
@@ -122,6 +122,7 @@ export const AssistantPanel: React.FC = () => {
     transcript,
     phase,
     runId,
+    currentStep,
     closePanel,
     send,
     stop,
@@ -611,7 +612,7 @@ export const AssistantPanel: React.FC = () => {
               the model is not "Working…" once it has asked a clarifying question and is
               waiting on the human; the distinct "A question awaits your answer" status
               below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion && <StreamingIndicator />}
+          {phase === 'running' && !hasPendingQuestion && <StreamingIndicator label={currentStep} />}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}

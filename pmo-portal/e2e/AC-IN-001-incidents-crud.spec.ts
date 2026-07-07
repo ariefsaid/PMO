@@ -27,6 +27,7 @@ import { login } from './helpers';
 // (src/lib/features.ts `incidents: false`, "UI-hide-first" — docs/backlog.md §OPEN feature tracks).
 // The /incidents routes now redirect home, so this journey is intentionally unreachable. Behaviour
 // is preserved in code/DAL/RLS; un-skip these tests when the module is re-enabled (flip the flag).
+// QUARANTINE: feature flag incidents=false — un-skip when src/lib/features.ts incidents is true
 test.setTimeout(120_000);
 
 /** Wait for the Incidents page to finish its initial data fetch. */
@@ -54,7 +55,7 @@ async function openRowMenu(page: Page, row: ReturnType<typeof page.locator>) {
 // ── AC-IN-006 / AC-IN-007 — Engineer files; cannot investigate/close ─────────
 
 test.skip(
-  'AC-IN-001 + AC-IN-003 + AC-IN-006 + AC-IN-007: engineer files an incident and sees no investigate/close actions — goal oracle: row present after filing, no manager row menu',
+  'QUARANTINE: feature flag incidents=false — un-skip when src/lib/features.ts incidents is true (AC-IN-001 + AC-IN-003 + AC-IN-006 + AC-IN-007)',
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Incident-${runId}`;
@@ -99,7 +100,7 @@ test.skip(
 // ── AC-IN-004 — a manager (PM) drives the Open→Investigating→Closed workflow ──
 
 test.skip(
-  'AC-IN-004: a manager (PM) advances an incident Open→Investigating→Closed — goal oracle: status badge updates in the list at each step',
+  'QUARANTINE: feature flag incidents=false — un-skip when src/lib/features.ts incidents is true (AC-IN-004)',
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Workflow-${runId}`;
