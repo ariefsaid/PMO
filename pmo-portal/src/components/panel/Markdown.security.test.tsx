@@ -1,5 +1,5 @@
 /**
- * Markdown security gate — hostile-markdown never executes (ADR-0049 §2).
+ * Markdown security gate — hostile-markdown never executes (ADR-0054 §2).
  * FR-AXP-002/003, NFR-AXP-SEC-001.
  */
 import React from 'react';

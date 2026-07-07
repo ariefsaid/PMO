@@ -92,7 +92,10 @@ function timeoutPromise<T>(ms: number): Promise<T> {
 export async function runQueryEntity(
   input: unknown,
   ctx: DeputyContext,
-): Promise<{ rowCount: number; rows: unknown[] } | { error: string }> {
+): Promise<
+  | { rowCount: number; rows: unknown[] }
+  | { error: string; code?: string; detail?: string }
+> {
   const inp = input as QueryEntityInput;
 
   // ── Step 1: entity whitelist check (AC-AR-006) ────────────────────────────
@@ -173,7 +176,20 @@ export async function runQueryEntity(
   }
 
   if (result.error) {
-    return { error: 'query_entity db error' };
+    // Surface the DB error code + message so the model can SELF-CORRECT rather than dying on an
+    // opaque failure. The canonical case (live-loop finding 2026-07-07): `project_status` has an
+    // enum label containing a comma — "Won, Pending KoM" — so a model that splits it into "Won" +
+    // "Pending KoM" hits `22P02 invalid input value for enum project_status: "Won"`. Returning that
+    // code + message lets the next turn retry with a valid value (values are DB-authoritative — no
+    // hardcoded enum list to drift). No row data is leaked: the message only echoes the caller's own
+    // filter input and the enum/column name, both already implied by the whitelisted schema. RLS
+    // (caller JWT) remains the row-level authority.
+    const dbErr = result.error as { code?: string; message?: string };
+    return {
+      error: 'query_entity db error',
+      ...(dbErr.code ? { code: dbErr.code } : {}),
+      ...(dbErr.message ? { detail: dbErr.message } : {}),
+    };
   }
 
   const rows = result.data ?? [];

@@ -5,6 +5,8 @@
  * (which bypasses RLS) can reach it. Pure, importable in Vitest (REC-1).
  */
 
+import { logStructuredError } from '../_shared/errorLog.ts';
+
 export interface Watermark {
   lastSeenId: string | null;
   lastSeenAt: string | null;
@@ -44,10 +46,13 @@ export async function advanceWatermark(
   const builder = sb.from('agent_dispatch_watermarks') as {
     upsert: (row: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
   };
-  await builder.upsert({
+  const { error } = await builder.upsert({
     source,
     last_seen_id: seen.id,
     last_seen_at: seen.at,
     updated_at: new Date().toISOString(),
   });
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: source });
+  }
 }

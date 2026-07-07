@@ -1,5 +1,5 @@
 /**
- * Markdown — safe GFM markdown rendering for assistant transcript prose (ADR-0049).
+ * Markdown — safe GFM markdown rendering for assistant transcript prose (ADR-0054).
  * FR-AXP-001/002/004.
  */
 import React from 'react';

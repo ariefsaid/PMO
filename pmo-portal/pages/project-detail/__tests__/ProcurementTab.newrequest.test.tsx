@@ -170,13 +170,12 @@ describe('AC-JR-T13: clicking New request opens NewProcurementModal with project
 // ── AC-JR-T13: loading + error states unaffected ─────────────────────────────
 
 describe('AC-JR-T13: loading and error states', () => {
-  it('AC-JR-T13: loading state renders, no button visible in skeleton area', () => {
+  it('AC-JR-T13: loading state renders the aria-busy loading skeleton', () => {
     procState.isPending = true;
     renderTab('Project Manager');
-    // The header button should still be visible during loading (it is in the header,
-    // not the list body which is loading)
-    // Loading skeleton renders
-    expect(document.querySelector('[aria-busy]') || screen.queryByText(/loading/i) || true).toBeTruthy();
+    // The tab returns early with ListState variant="loading", which renders an
+    // aria-busy="true" wrapper around the skeleton rows (see ListState.tsx).
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
   it('AC-JR-T13: error state shows retry, header button still visible', () => {

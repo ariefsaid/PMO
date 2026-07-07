@@ -1,5 +1,5 @@
 /**
- * TranscriptItem coexistence — markdown assistant prose vs typed widget registry (ADR-0049 §4).
+ * TranscriptItem coexistence — markdown assistant prose vs typed widget registry (ADR-0054 §4).
  * FR-AXP-005/007.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -53,7 +53,7 @@ function widgetEvent(): AgentEvent {
   };
 }
 
-describe('TranscriptItem coexistence (ADR-0049 §4)', () => {
+describe('TranscriptItem coexistence (ADR-0054 §4)', () => {
   it('AC-AXP-006 typed data_table still renders via registry', () => {
     mockAgentAssistant.value = true;
     renderItem(widgetEvent());

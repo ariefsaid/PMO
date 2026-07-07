@@ -237,6 +237,12 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
         }) };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: upsertMock };
+      // agent_automation_fires: the per-(automation,event) trigger-claim (migration 0078). A metadata
+      // table like watermarks — the claim insert().select() must SUCCEED (return a claimed row) so the
+      // trigger proceeds to the mint/condition path this test exercises.
+      if (table === 'agent_automation_fires') {
+        return { insert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
+      }
       throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
     const svcClient = { from, rpc };
@@ -294,7 +300,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       expect.objectContaining({ p_source: 'procurement_status_events' }),
     );
     for (const t of new Set(tablesTouched)) {
-      expect(['agent_automations', 'agent_dispatch_watermarks']).toContain(t);
+      expect(['agent_automations', 'agent_dispatch_watermarks', 'agent_automation_fires']).toContain(t);
     }
   });
 
