@@ -41,6 +41,7 @@ export const AGENT_READ_ENTITIES = [
   'procurements',
   'milestones',
   'timesheets',
+  'crm_activities',
 ] as const;
 export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
 
@@ -82,5 +83,16 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   timesheets: {
     table: 'timesheets',
     allowedColumns: ['id', 'user_id', 'week_start_date', 'status', 'submitted_at', 'approved_at'],
+  },
+  // CRM activity log (calls/emails/meetings/notes against a company/contact/project). The read
+  // counterpart to the create_activity write — lets the agent answer "what activity is there on
+  // this deal?". Excludes org_id (tenancy). `subject`+`body` are the user's OWN logged notes
+  // (RLS-scoped to their access), so surfacing them is in-scope; `kind` is the activity type.
+  crm_activities: {
+    table: 'crm_activities',
+    allowedColumns: [
+      'id', 'contact_id', 'company_id', 'project_id', 'kind',
+      'subject', 'body', 'occurred_at', 'logged_by_id', 'created_at',
+    ],
   },
 });

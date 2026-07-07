@@ -150,6 +150,7 @@ When the request is ambiguous — an underspecified entity, an unresolved "which
 
 ### log-activity-and-task-writes — Use when the user asks to log an activity or change a task's status
 When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
+CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.
 
 ### map-questions-to-entities — Use when the user's words do not name an entity exactly
 Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
@@ -161,6 +162,7 @@ Before refusing that something "isn't available", map the ask to an available en
 - "incidents", "safety", "HSE" → query \`incidents\`.
 - "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
 - "my timesheet", "hours logged", "approval status" → query \`timesheets\`.
+- "activities", "CRM activity", "calls/emails/meetings/notes", "follow-ups", "last contact", "engagement history" → query \`crm_activities\` (filter by \`project_id\`/\`company_id\`/\`contact_id\`).
 Refuse only when nothing genuinely maps. Every query is still capped to the caller's own RLS-permitted rows.${composeSkill}${automationSkill}
 
 When no skill trigger matches, answer directly in clear prose (markdown is fine for narrative).

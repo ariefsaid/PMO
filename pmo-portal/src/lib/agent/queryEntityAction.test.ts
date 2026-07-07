@@ -274,9 +274,36 @@ it('Defect-2 AGENT_READ_ENTITIES exposes the full business-entity set (not just 
   // the core business domains the user asks about: CRM (companies/contacts), delivery (tasks),
   // spend (procurements), safety (incidents), planning (milestones), time (timesheets).
   const keys = [...AGENT_READ_ENTITIES];
-  for (const required of ['projects', 'companies', 'tasks', 'incidents', 'contacts', 'procurements', 'milestones', 'timesheets']) {
+  for (const required of ['projects', 'companies', 'tasks', 'incidents', 'contacts', 'procurements', 'milestones', 'timesheets', 'crm_activities']) {
     expect(keys, `AGENT_READ_ENTITIES must expose ${required}`).toContain(required);
   }
+});
+
+it('crm_activities is readable, maps to its table, and never exposes org_id (tenancy seam)', async () => {
+  // Follow-up finding (2026-07-07): the agent could not answer "any activities in the CRM?" because
+  // crm_activities had no read entity. Now exposed (RLS still caps rows to the caller). The column
+  // allowlist must carry the useful business columns AND must never include org_id.
+  const fromSpy = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [{ id: 'a1' }], error: null }) }),
+    }),
+  });
+  const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
+
+  const ok = await runQueryEntity(
+    { entity: 'crm_activities', filter: { column: 'project_id', op: 'eq', value: 'p1' } },
+    ctx,
+  ) as { rowCount?: number; error?: string };
+  expect(ok.error).toBeUndefined();
+  expect(ok.rowCount).toBe(1);
+  expect(fromSpy).toHaveBeenCalledWith('crm_activities');
+
+  // org_id is the tenancy seam — filtering on it must be rejected (not in the allowlist).
+  const seam = await runQueryEntity(
+    { entity: 'crm_activities', filter: { column: 'org_id', op: 'eq', value: 'x' } },
+    ctx,
+  ) as { error?: string };
+  expect(seam.error).toMatch(/unknown filter column|org_id/i);
 });
 
 it('Defect-2 a curated entity maps to its REAL table — procurements → procurements table', async () => {
