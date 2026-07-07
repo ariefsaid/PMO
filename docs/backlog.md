@@ -6,6 +6,8 @@
 
 ## ⚑ RESUME HANDOFF (2026-07-07) — Agent prod-readiness (/goal) + the dev force-reset incident
 
+> **STATUS 2026-07-07 late:** PR #246 MERGED to main (4f3f974). Prod deploy STARTED then PAUSED -- production UNCHANGED (94ce615, still the OLD prompt). Migs 0061-0070 + edge-fn redeploy + FE = NOT done. HONEST verification: VERIFIED = query-selection eval (100 pct call rate) + pgTAP 0113/0114 + security SHIP + CI verify/integration green; NOT VERIFIED = the live answer+render loop (real question to correct grounded answer to render to run-persists) -- the browser harness failed, so it is component-verified, NOT proven-in-production. dev diverged to 2ae91e9 (another agent).
+
 > **The complete, verified state lives on branch `promote/dev-main-20260707` (tip `ead5d9a`)** — the PR #246
 > head, `dev`→`main`. It carries: the agent "actually works" slice (mig **`0061`** persistence-for-all-orgs —
 > the real prod bug: `org_id` default was seed-only so non-seed users' runs failed RLS silently; 8-entity
