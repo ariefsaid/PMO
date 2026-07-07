@@ -48,14 +48,16 @@ defaults:
     working-directory: pmo-portal
 
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
-# PR → dev    → `verify` only (typecheck · lint · unit tests · build). Fast lane.
+# PR → dev    → `verify` + `pgtap` (typecheck · lint · unit tests · build; Supabase +
+#               pgTAP only — no browser, fast). Fast lane.
 # PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
 #               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
-#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate.
-# push main   → `verify` smoke only (integration skipped — see its `if`).
+#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
+#               here — cheap, and this job must stand alone as the merge-gate proof.)
+# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`).
 # No push CI on dev/feature branches (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
-# CI-unused containers (studio/realtime/vector).
+# CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
@@ -137,11 +139,48 @@ jobs:
               scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
           done
 
+  pgtap:
+    # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
+    # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
+    # dev, not just at the dev→main promote. The Playwright/e2e/visual portion stays reserved
+    # for the `integration` job (PR→main only) below — this job does NOT duplicate it.
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        # supabase CLI must be run from repo root (where supabase/config.toml lives)
+        working-directory: .
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.105.0
+
+      # Docker is pre-installed on ubuntu-latest; storage + edge_runtime are disabled in
+      # config.toml. Also exclude CI-unused containers to shave the stack-up time:
+      # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
+      # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
+      # storage/inbucket — those are e2e-only concerns).
+      - name: Start local Supabase stack
+        run: supabase start -x studio,realtime,vector
+
+      # Applies every migration in order and re-seeds from supabase/seed.sql so tests
+      # always start from a clean, known state.
+      - name: Reset DB (migrations + seed)
+        run: supabase db reset --yes
+
+      # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
+      - name: pgTAP integration tests
+        run: supabase test db
+
   integration:
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
     # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
     # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
-    # is redundant. PRs targeting dev get `verify` only (fast lane — see tiering comment above).
+    # is redundant. PRs targeting dev get pgTAP only via the `pgtap` job above (fast lane — see
+    # tiering comment below).
     # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
