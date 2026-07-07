@@ -4,8 +4,16 @@
 # Operator's "add org" operation at <~5-deployment scale — no in-app UI). Mirrors
 # db-push-prod.sh's shape exactly: typed-confirm + op-get.sh + explicit --db-url + --check.
 #
-#   scripts/provision-client.sh <slug>            provision (after a typed slug confirm)
-#   scripts/provision-client.sh <slug> --check    resolve the secret + confirm reachability, NO writes
+#   scripts/provision-client.sh <slug>                 provision (after a typed slug confirm)
+#   scripts/provision-client.sh <slug> --check         resolve the secret + confirm reachability, NO writes
+#   scripts/provision-client.sh <slug> --skip-auth-check
+#                                                       provision but SKIP the auth-floor pre-flight —
+#                                                       ONLY for the shared STAGING/DEMO project, never
+#                                                       for a real client tenant (loud warning printed)
+#
+# Runs scripts/check-auth-floor.mjs as a HARD gate before `db push` (audit follow-up, #1
+# MVP-blocker) — requires SUPABASE_ACCESS_TOKEN (a Management API PAT, e.g. via op-get.sh) in
+# this shell and OP_CLIENT_PROJECT_REF in the client's op env file.
 #
 # NEVER seeds (FR-PROV-005 — a real client project is never demo-seeded). Manual-vs-CLI split is
 # documented in docs/environments.md's per-client registry section (added by this issue).
@@ -14,8 +22,19 @@ cd "$(dirname "$0")/.."
 
 export PATH="/opt/homebrew/opt/libpq/bin:/usr/local/opt/libpq/bin:$PATH"
 
-SLUG="${1:?Usage: scripts/provision-client.sh <client-slug> [--check]}"
+SLUG="${1:?Usage: scripts/provision-client.sh <client-slug> [--check|--skip-auth-check]}"
 CHECK_MODE="${2:-}"
+
+# Auth-floor pre-flight (audit follow-up, #1 MVP-blocker): docs/environments.md's "Production
+# auth floor" checklist was a PRINTED reminder only — a real tenant could go live with open
+# self-signup if a step were skipped. --skip-auth-check is ONLY for the shared STAGING/DEMO
+# project (prwccpsiumjzvnwjlkwq, intentionally open per docs/environments.md) — never for a
+# real client project.
+SKIP_AUTH_CHECK=0
+if [ "$CHECK_MODE" = "--skip-auth-check" ]; then
+  SKIP_AUTH_CHECK=1
+  CHECK_MODE=""
+fi
 
 ENV_FILE="supabase/op.${SLUG}.env"
 : "${ENV_FILE:?}"
@@ -54,6 +73,21 @@ read -r -p "   Type '$SLUG' to confirm: " ans
 if [ "$ans" != "$SLUG" ]; then
   echo "Aborted." >&2
   exit 1
+fi
+
+if [ "$SKIP_AUTH_CHECK" = "1" ]; then
+  echo "⚠⚠⚠  --skip-auth-check: SKIPPING the production auth-floor pre-flight for '$SLUG'." >&2
+  echo "     This is ONLY valid for the shared STAGING/DEMO project. If '$SLUG' is a REAL" >&2
+  echo "     client tenant, stop now — do not skip this check." >&2
+else
+  echo "→ Verifying the production auth floor on ${OP_CLIENT_PROJECT_REF:-<unset ref>} (pre-flight, read-only)…"
+  : "${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN (a Management API PAT, e.g. via op-get.sh) before running.}"
+  : "${OP_CLIENT_PROJECT_REF:?OP_CLIENT_PROJECT_REF must be set in $ENV_FILE to run the auth-floor check.}"
+  if ! SUPABASE_PROJECT_REF="$OP_CLIENT_PROJECT_REF" node scripts/check-auth-floor.mjs; then
+    echo "✗ Auth floor not configured on $OP_CLIENT_PROJECT_REF — configure signup-off + confirmations +" >&2
+    echo "  HTTPS-only redirects per docs/environments.md, then re-run." >&2
+    exit 1
+  fi
 fi
 
 echo "→ Linking repo to the target project…"

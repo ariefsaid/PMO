@@ -315,6 +315,28 @@ before that client goes live — this is the binding checklist:
 (Note: for the shared STAGING/DEMO project `prwccpsiumjzvnwjlkwq`, demo seed + open settings are
 intentional — this checklist governs *real* per-client tenants only.)
 
+**⚑ This checklist is no longer just a manual reminder — it is an ENFORCED pre-flight
+(audit follow-up, #1 MVP-blocker, 2026-07-07).** A manually-executed checklist is not a strong
+enough floor for a public repo (a real client's project ref is discoverable) — one skipped step
+could leave open self-signup on a real tenant. `scripts/check-auth-floor.mjs` calls the Supabase
+**Management API** (`GET /v1/projects/{ref}/config/auth`, read-only) and asserts the three
+machine-checkable items above (signup disabled, confirmations required, no localhost in the
+redirect allowlist/`site_url`) against the *actual deployed config* — not a human's memory of the
+dashboard. `scripts/provision-client.sh` runs it as a **hard gate before `db push`**: it refuses to
+provision if the auth floor isn't configured yet. (SMTP config and seed-credential rotation are not
+Management-API-checkable today and remain manual/checklist items above.)
+
+```bash
+SUPABASE_ACCESS_TOKEN=<a Management API personal access token, e.g. via op-get.sh> \
+SUPABASE_PROJECT_REF=<the client project's ref> \
+node scripts/check-auth-floor.mjs
+```
+
+Exit 0 = all three settings verified production-safe; exit 1 = at least one FAIL (or the
+token/ref wasn't supplied — can't verify, so it never reports a pass). `provision-client.sh <slug>`
+runs this automatically before applying migrations; `--skip-auth-check` bypasses it and is valid
+**only** for the shared STAGING/DEMO project, never a real client tenant (prints a loud warning).
+
 ### Agent prod-readiness check (`scripts/check-agent-prod-readiness.mjs`)
 
 Before enabling the agent tier against a real deployment (or as a periodic health check),
