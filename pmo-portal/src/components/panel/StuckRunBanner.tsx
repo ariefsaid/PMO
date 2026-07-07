@@ -53,7 +53,7 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
       ? `This is a bigger question — ${completedSteps} step${
           completedSteps === 1 ? '' : 's'
         } done so far${lastActivity ? ` (last: ${lastActivity})` : ''}. You can keep waiting or stop.`
-      : "The assistant hasn't made progress in a while. You can retry or cancel.";
+      : 'This is taking a little longer than usual — you can keep waiting, or stop and try again.';
 
   return (
     <div

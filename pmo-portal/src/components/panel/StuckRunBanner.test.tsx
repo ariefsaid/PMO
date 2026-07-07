@@ -88,7 +88,7 @@ describe('StuckRunBanner', () => {
       />,
     );
 
-    expect(screen.getByText(/hasn.t made progress in a while/i)).toBeInTheDocument();
+    expect(screen.getByText(/taking a little longer than usual/i)).toBeInTheDocument();
     expect(screen.queryByText(/bigger question/i)).not.toBeInTheDocument();
   });
 
