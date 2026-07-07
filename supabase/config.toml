@@ -20,19 +20,16 @@ max_rows = 1000
 # `postgres` are reachable through the Data API roles without explicit GRANTs. Opted IN to the
 # secure default (false) — matches the production runbook (NFR-AUTHF-CONF-006, auth-floor §7.6).
 #
-# ⚠ DEVIATION (2026-07-04, implementer): kept COMMENTED, not activated, pending Director decision.
-# Verified (docker exec psql) that flipping this to `false` and running `supabase db reset` strips
-# EVERY DML grant (SELECT/INSERT/UPDATE/DELETE) for `authenticated`/`anon` on ALL 44 public tables —
-# no migration in this repo issues an explicit GRANT, so every table relied entirely on the
-# (now-being-retired) implicit auto-expose default. Confirmed root cause: AC-AUTH-005 e2e passes
-# with this line commented and fails ("permission denied for table profiles") with it active,
-# on an otherwise-identical db reset. Activating this line as written would break the ENTIRE app
-# (local dev, and — per §7.6 — the production runbook) until a companion migration explicitly
-# GRANTs the needed DML to authenticated/anon per table. That is a cross-cutting, security-relevant
-# schema change (needs per-table review — some tables may deliberately want narrower grants) beyond
-# this task's scope; escalated to the Director rather than authored unilaterally. See the final
-# implementer report for detail. Task 5.1's OTHER changes (the Resend SMTP template) are applied.
-# auto_expose_new_tables = false
+# ACTIVATED (2026-07-07, audit finding #4): the 2026-07-04 deviation noted above blocked activation
+# because no migration issued an explicit GRANT — every existing table relied entirely on the
+# implicit auto-expose default, so flipping this naked would have stripped ALL DML access
+# ("permission denied for table profiles"). That is now fixed: migration 0075_explicit_api_grants.sql
+# mirrors, per table, the EXACT `authenticated`/`anon` privileges that were previously implicit
+# (byte-for-byte, captured from `information_schema.role_table_grants`/`role_column_grants` on a
+# db reset taken with this flag still off) — zero behavior change for existing tables. Only FUTURE
+# tables stop being auto-exposed (the actual security win; pgTAP 0132_auto_expose_lockdown proves
+# both halves: existing access unchanged, new tables get zero privileges by default).
+auto_expose_new_tables = false
 
 [api.tls]
 # Enable HTTPS endpoints locally using a self-signed certificate.
