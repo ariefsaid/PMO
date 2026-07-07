@@ -16,7 +16,7 @@
 -- RLS is the enforcement authority; the FE gating (rbac-visibility.md §G — managers-only investigate/close, the FE
 -- being stricter than the RLS Finance-inclusive update set) is only a clarity projection.
 begin;
-select plan(10);
+select plan(11);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- "Org-A" is the DEFAULT org ('00000000-…-0001'): incident_reports.org_id defaults to that literal
@@ -80,12 +80,21 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00520000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 
--- AC-IN-104: org-B PM INSERT explicitly stamped with org-A's (default) org_id violates the WITH CHECK → 42501.
-select throws_ok(
-  $$ insert into incident_reports (org_id, incident_date, type, severity)
-       values ('00000000-0000-0000-0000-000000000001','2026-06-08','Cross Incident','Low') $$,
-  '42501', null,
-  'AC-IN-104: cross-org INSERT (org-A org_id by an org-B PM) is denied by WITH CHECK → 42501');
+-- AC-IN-104 (AMENDED — harden/org-id-seam, 0074 stamp trigger, narrow variant): org-B PM INSERT
+-- explicitly stamped with org-A's org_id, which IS the seed-org literal (per the fixture note above) —
+-- the stamp_org_id() trigger treats the seed literal as "no real org_id supplied" and coerces it to the
+-- caller's (org-B's) own org, so the insert SUCCEEDS in org B rather than being rejected. NOT a tenancy
+-- regression: the row still lands in the caller's own org, never org A. (A GENUINELY-foreign, non-seed
+-- org_id is unchanged and still hard-rejected with 42501 — 0131_org_stamp_trigger.test.sql
+-- AC-ORGSTAMP-004c.)
+select lives_ok(
+  $$ insert into incident_reports (id, org_id, incident_date, type, severity)
+       values ('00520000-0000-0000-0000-000000000099','00000000-0000-0000-0000-000000000001','2026-06-08','Cross Incident','Low') $$,
+  'AC-IN-104: org-B PM INSERT with the seed-org-literal org_id succeeds (trigger coerces to org-B, not a real forgery)');
+select is(
+  (select org_id from incident_reports where id = '00520000-0000-0000-0000-000000000099'),
+  '00520000-0000-0000-0000-000000000002'::uuid,
+  'AC-IN-104: the inserted row lands in org B (caller''s own org), never org A — isolation holds');
 
 -- AC-IN-104: org-B PM UPDATE of an org-A incident runs without error but the USING clause hides it → 0-row no-op.
 select lives_ok(

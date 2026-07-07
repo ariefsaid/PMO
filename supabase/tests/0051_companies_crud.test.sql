@@ -20,7 +20,7 @@
 -- ADR-0018: archive (UPDATE archived_at) stays open to all four write-roles server-side; the
 -- "archive = Admin/Exec" split in §D is an FE-only convention.
 begin;
-select plan(21);
+select plan(22);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 -- "Org-A" is the DEFAULT org ('00000000-…-0001'): the org_id column default is that literal (0001 schema),
@@ -122,12 +122,22 @@ select ok(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 
--- AC-CO-108: org-B PM INSERT explicitly stamped with org-A's (default) org_id violates the WITH CHECK → 42501.
-select throws_ok(
-  $$ insert into companies (org_id, name, type)
-       values ('00000000-0000-0000-0000-000000000001','Cross Org Co','Vendor') $$,
-  '42501', null,
-  'AC-CO-108: cross-org INSERT (org-A org_id by an org-B PM) is denied by WITH CHECK → 42501');
+-- AC-CO-108 (AMENDED — harden/org-id-seam, 0074 stamp trigger, narrow variant): org-B PM INSERT
+-- explicitly stamped with org-A's org_id, which IS the seed-org literal ('00000000-…-0001', per the
+-- fixture note above) — the stamp_org_id() trigger treats the seed literal as "no real org_id
+-- supplied" and coerces it to the caller's (org-B's) own org, so the insert SUCCEEDS in org B rather
+-- than being rejected. This is NOT a tenancy regression: the row still lands in the caller's own org,
+-- never in org A — cross-org isolation holds. (A GENUINELY-foreign, non-seed-literal org_id is
+-- unchanged and still hard-rejected with 42501 — proven in 0131_org_stamp_trigger.test.sql
+-- AC-ORGSTAMP-004c.)
+select lives_ok(
+  $$ insert into companies (id, org_id, name, type)
+       values ('00510000-0000-0000-0000-000000000099','00000000-0000-0000-0000-000000000001','Cross Org Co','Vendor') $$,
+  'AC-CO-108: org-B PM INSERT with the seed-org-literal org_id succeeds (trigger coerces to org-B, not a real forgery)');
+select is(
+  (select org_id from companies where id = '00510000-0000-0000-0000-000000000099'),
+  '00510000-0000-0000-0000-000000000002'::uuid,
+  'AC-CO-108: the inserted row lands in org B (caller''s own org), never org A — isolation holds');
 
 -- AC-CO-108: org-B PM UPDATE of an org-A company runs without error but the USING clause hides it → 0-row no-op.
 select lives_ok(
