@@ -190,10 +190,16 @@ begin
     -- Append the feature conjunct to whichever clause(s) this policy's command kind has
     -- (INSERT → with_check only; UPDATE/ALL → both; DELETE → qual only). The LIVE qual/with_check
     -- already carry the 0063 is_active_member() append, which is preserved verbatim.
+    -- PRECEDENCE (Director hardening): wrap the existing predicate in parens before the ` and <feature>`
+    -- conjunct. `and` binds tighter than `or`, so an un-wrapped `A or B` + ` and F` would parse as
+    -- `A or (B and F)` — the feature gate BYPASSED on the A branch. `(A or B) and F` is correct for
+    -- ANY policy shape regardless of how pg_get_expr parenthesises the deparsed qual. (Doubled parens
+    -- on an already-wrapped qual are harmless.) NB: 0063 appends the same way un-wrapped — a latent
+    -- risk there too, proven-safe only empirically by the RLS suite; tracked as a follow-up.
     q  := case when r.qual       is null then null
-               else r.qual       || ' and public.org_feature_enabled(public.auth_org_id(), ' || quote_literal(feat) || ')' end;
+               else '(' || r.qual       || ') and public.org_feature_enabled(public.auth_org_id(), ' || quote_literal(feat) || ')' end;
     wc := case when r.with_check is null then null
-               else r.with_check || ' and public.org_feature_enabled(public.auth_org_id(), ' || quote_literal(feat) || ')' end;
+               else '(' || r.with_check || ') and public.org_feature_enabled(public.auth_org_id(), ' || quote_literal(feat) || ')' end;
     using_clause := case when q  is null then '' else ' using (' || q  || ')' end;
     check_clause := case when wc is null then '' else ' with check (' || wc || ')' end;
 
