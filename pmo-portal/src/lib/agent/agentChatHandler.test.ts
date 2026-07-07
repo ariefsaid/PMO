@@ -191,7 +191,12 @@ it('AC-MC-008 tool-use loop parity: happy read path, same event order (OpenRoute
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
-  expect(events.map((e) => e.type)).toEqual(['user', 'tool', 'assistant', 'status']);
+  // The live step-trail hint is a transient `status` event emitted right BEFORE each tool runs
+  // (payload.kind==='step'); it rides the same stream (persistence skips it, the panel intercepts
+  // it into the indicator). So the happy read path is: user → status(step) → tool → assistant →
+  // status(completed).
+  expect(events.map((e) => e.type)).toEqual(['user', 'status', 'tool', 'assistant', 'status']);
+  expect(events[1]).toMatchObject({ type: 'status', payload: { kind: 'step' } });
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   expect(create).toHaveBeenCalledTimes(2);
 });
