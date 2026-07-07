@@ -591,11 +591,12 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
 /**
  * CRITICAL fix (2026-07-07): atomically claim a trigger automation's fire for a specific event.
  * The agent_automation_fires table (migration 0078) enforces at-most-once via its UNIQUE
- * (automation_id, event_id) primary key. insert ... on conflict do nothing is the mutual
- * exclusion — of N overlapping ticks exactly one inserts a row and fires; the rest see 0 rows
- * and skip. Fail-closed: a claim-query ERROR returns false (no fire) — an unreachable bookkeeping
- * table must never produce an unclaimed fire. (service_role, agent_automation_fires metadata —
- * within quarantine.)
+ * (automation_id, event_id) primary key — the INSERT itself is the mutual exclusion: of N
+ * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation
+ * (surfaced as `error`) and skip. Fail-closed on ANY error (conflict OR a real query failure):
+ * return false = do not fire — a duplicate must never fire, and an unreachable bookkeeping table
+ * must never produce an unclaimed fire. (service_role, agent_automation_fires metadata — within
+ * quarantine.)
  */
 export async function claimTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string): Promise<boolean> {
   const builder = sb.from('agent_automation_fires') as {
@@ -605,8 +606,6 @@ export async function claimTriggerFire(sb: ServiceClientLike, automationId: stri
   };
   const { data, error } = await builder
     .insert({ automation_id: automationId, event_id: eventId })
-    .on('conflict')
-    .ignore()
     .select('automation_id');
   if (error) return false;
   return (data ?? []).length > 0;
