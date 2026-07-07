@@ -58,6 +58,14 @@
 -- must NOT receive the blanket stamp. (The three agent tables keep their 0061 coalesce-default too; the
 -- trigger simply overrides to the same value for an authenticated caller there.)
 --
+-- NOTE (future-proofing, security audit 2026-07-07): `org_features` is the SECOND cross-org
+-- authenticated-JWT insert path — operator_toggle_feature() (0070) inserts for p_org_id ≠ auth_org_id()
+-- under an Operator JWT, structurally identical to credits. It is correctly ABSENT from the list below
+-- only because `org_features.org_id` has NO seed-org column default, so the "enumerate by seed-org
+-- default" construction never picked it up (the trigger never fires on it → no corruption). If a future
+-- migration adds a seed-org default to `org_features` and re-runs this enumeration, it MUST stay
+-- excluded here for the same reason as credits.
+--
 -- ── Reversibility (pre-production, ADR-0006): supabase db reset. Manual rollback:
 --   drop each `<tbl>_stamp_org_id` trigger, then `drop function public.stamp_org_id();`.
 
