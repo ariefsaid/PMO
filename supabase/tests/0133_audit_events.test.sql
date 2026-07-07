@@ -26,13 +26,13 @@ insert into auth.users (id, email) values
   ('a133a000-0000-0000-0000-0000000000a1','audit-a-admin@example.com'),
   ('a133a000-0000-0000-0000-0000000000a2','audit-a-engineer@example.com'),
   ('a133a000-0000-0000-0000-0000000000b1','audit-b-admin@example.com'),
-  ('a133a000-0000-0000-0000-0000000000op','audit-operator@example.com');
+  ('a133a000-0000-0000-0000-0000000000cf','audit-operator@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('a133a000-0000-0000-0000-0000000000a1','a133a000-0000-0000-0000-000000000001','A Admin','audit-a-admin@example.com','Admin','active'),
   ('a133a000-0000-0000-0000-0000000000a2','a133a000-0000-0000-0000-000000000001','A Engineer','audit-a-engineer@example.com','Engineer','active'),
   ('a133a000-0000-0000-0000-0000000000b1','a133a000-0000-0000-0000-000000000002','B Admin','audit-b-admin@example.com','Admin','active'),
-  ('a133a000-0000-0000-0000-0000000000op','a133a000-0000-0000-0000-000000000001','Operator','audit-operator@example.com','Admin','active');
-insert into platform_operators (user_id) values ('a133a000-0000-0000-0000-0000000000op');
+  ('a133a000-0000-0000-0000-0000000000cf','a133a000-0000-0000-0000-000000000001','Operator','audit-operator@example.com','Admin','active');
+insert into platform_operators (user_id) values ('a133a000-0000-0000-0000-0000000000cf');
 
 -- Business rows in Org A (superuser insert → bypasses RLS): a pre-win project P1 (value-set target),
 -- a document D1 on P1 (transition target, authored by the Engineer so the approver differs), a
@@ -63,7 +63,7 @@ select is(
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 -- Operator grants credits to Org A (own org).
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000op","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000cf","role":"authenticated"}';
 select lives_ok(
   $$ select operator_grant_credits('a133a000-0000-0000-0000-000000000001', 100, 'audit test grant') $$,
   'AC-AUDIT-001 operator_grant_credits succeeds (Operator grants own-org credits)');
@@ -93,7 +93,7 @@ select is((select (array_agg(org_id))[1] from audit_events where action = 'credi
   'a133a000-0000-0000-0000-000000000001'::uuid,
   'AC-AUDIT-001b credits.grant row stamped with the caller org (Org A)');
 select is((select (array_agg(actor_id))[1] from audit_events where action = 'credits.grant'),
-  'a133a000-0000-0000-0000-0000000000op'::uuid,
+  'a133a000-0000-0000-0000-0000000000cf'::uuid,
   'AC-AUDIT-001c credits.grant row records the Operator actor');
 select is((select (detail ->> 'amount')::numeric from audit_events where action = 'credits.grant'), 100,
   'AC-AUDIT-001d credits.grant detail captures the granted amount');
@@ -151,12 +151,14 @@ select throws_ok(
   $$ insert into audit_events (action, entity_type) values ('forged','x') $$,
   '42501', null,
   'AC-AUDIT-009 authenticated INSERT denied (no INSERT policy → append-only)');
-with upd as (update audit_events set action = 'forged' returning id)
-select is((select count(*)::int from upd), 0,
-  'AC-AUDIT-010 authenticated UPDATE affects 0 rows (no UPDATE policy)');
-with del as (delete from audit_events returning id)
-select is((select count(*)::int from del), 0,
-  'AC-AUDIT-011 authenticated DELETE affects 0 rows (no DELETE policy)');
+select throws_ok(
+  $$ update audit_events set action = 'forged' $$,
+  '42501', null,
+  'AC-AUDIT-010 authenticated UPDATE denied (no UPDATE grant → append-only, privilege-denied)');
+select throws_ok(
+  $$ delete from audit_events $$,
+  '42501', null,
+  'AC-AUDIT-011 authenticated DELETE denied (no DELETE grant → append-only, privilege-denied)');
 reset role;
 
 set local role anon;

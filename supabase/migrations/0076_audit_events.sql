@@ -18,13 +18,13 @@
 -- and security-definer AFTER-DELETE triggers (owned by postgres) call it, and postgres (owner)
 -- retains implicit EXECUTE. No client (authenticated/anon) can forge a row.
 --
--- ── GRANTS (deviation from the initial brief, FORCED by the frozen test) ─────────────────────────
--- The brief said "select only". But AC-AUDIT-010/011 assert that an authenticated UPDATE/DELETE
--- *affects 0 rows* (`select is(count,0)`), not that it errors. A statement lacking the table
--- privilege ERRORS with 42501 (permission denied) and aborts the pgTAP tx — it never returns 0.
--- So authenticated/anon MUST hold UPDATE+DELETE (RLS default-deny then yields 0 rows). INSERT is
--- intentionally NOT granted: AC-AUDIT-009/012 then get 42501 at the privilege check (append-only),
--- independent of RLS. The single SELECT policy still scopes reads (own-org Admin/Operator only).
+-- ── GRANTS (append-only, defense-in-depth — Director hardening 2026-07-07) ───────────────────────
+-- ONLY `select` is granted (to authenticated; the policy then scopes reads to own-org Admin/Operator).
+-- INSERT/UPDATE/DELETE are granted to NO client role, so a direct write is denied at the PRIVILEGE
+-- check (42501) — a stronger barrier for an audit trail than relying on RLS-default-deny to yield
+-- 0 rows. AC-AUDIT-009/010/011/012 all assert throws_ok 42501. (This tightens the test's original
+-- "UPDATE/DELETE affects 0 rows" oracle into a privilege-denied one; immutability is now guarded by
+-- BOTH the absent grant AND FORCE-RLS's absent policy.)
 --
 -- ── entity_type column ───────────────────────────────────────────────────────────────────────────
 -- AC-AUDIT-009/012 INSERT-denial statements reference `audit_events (action, entity_type)`. Without
@@ -66,11 +66,12 @@ create policy audit_events_select on public.audit_events
          and public.is_active_member());
 
 -- ============================================================================
--- 2. Grants (see header). SELECT scopes reads via the policy; UPDATE/DELETE are granted so the
---    no-policy default-deny surfaces as 0 rows (not a privilege error). NO insert grant (append-only).
+-- 2. Grants (see header). Append-only, defense-in-depth: SELECT scopes reads via the policy;
+--    INSERT/UPDATE/DELETE are granted to NO client role → a direct write hits 42501 at the privilege
+--    check (a stronger barrier than relying on RLS-default-deny for an audit trail). log_audit() (a
+--    postgres-owned SECURITY DEFINER, below) is the sole write path.
 -- ============================================================================
-grant select, update, delete on public.audit_events to authenticated;
-grant select, update, delete on public.audit_events to anon;
+grant select on public.audit_events to authenticated;
 
 -- ============================================================================
 -- 3. log_audit() — the SOLE writer. SECURITY DEFINER (postgres owner → BYPASSRLS) so its INSERT
@@ -218,31 +219,34 @@ begin
 end; $$;
 
 -- ============================================================================
--- 7. transition_document_status (0017) — audit after the UPDATE. Body copied verbatim from 0017;
---    v_from already holds the OLD status, so only the trailing `perform log_audit(...)` is added.
---    The org/role/status-map/approver≠author SoD guards + errcodes are intact.
+-- 7. transition_document_status — audit after the UPDATE. Body copied from the CURRENT canonical
+--    definition in 0025_document_file_upload.sql (which SUPERSEDED 0017: adds the 'Superseded' legal
+--    entry + the auto-Supersede-parent block — proven by 0066_document_superseded). v_from already
+--    holds the OLD status; only the trailing `perform log_audit(...)` is added. All guards intact.
+--    (Director fix 2026-07-07: GLM's first pass copied the STALE 0017 body and dropped the supersede
+--    logic → 0066 regressed; re-based on 0025.)
 -- ============================================================================
 create or replace function transition_document_status(p_doc_id uuid, p_to doc_status)
   returns void language plpgsql security definer set search_path = public as $$
 declare
-  v_from   doc_status;
-  v_org    uuid;
-  v_author uuid;
-  v_uid    uuid      := auth.uid();
-  v_role   user_role := auth_role();
-  -- The legal status map (config seam, mirrored by the FE DocumentsTab). Draft → Issued → either
-  -- Approved or Rejected → Closed; Rejected may also reopen to Draft for rework. Terminal: Closed.
+  v_from      doc_status;
+  v_org       uuid;
+  v_author    uuid;
+  v_parent_id uuid;
+  v_uid       uuid      := auth.uid();
+  v_role      user_role := auth_role();
   v_legal jsonb := jsonb_build_object(
-    'Draft',    jsonb_build_array('Issued'),
-    'Issued',   jsonb_build_array('Approved','Rejected'),
-    'Approved', jsonb_build_array('Closed'),
-    'Rejected', jsonb_build_array('Draft','Closed'),
-    'Closed',   jsonb_build_array()
+    'Draft',      jsonb_build_array('Issued'),
+    'Issued',     jsonb_build_array('Approved','Rejected'),
+    'Approved',   jsonb_build_array('Closed'),
+    'Rejected',   jsonb_build_array('Draft','Closed'),
+    'Closed',     jsonb_build_array(),
+    'Superseded', jsonb_build_array()
   );
 begin
   -- Load + lock the row (serializes concurrent transitions on the SAME document). P0002 if absent.
-  select status, org_id, author_id
-    into v_from, v_org, v_author
+  select status, org_id, author_id, parent_document_id
+    into v_from, v_org, v_author, v_parent_id
     from public.project_documents where id = p_doc_id for update;
   if v_from is null then
     raise exception 'document not found' using errcode = 'P0002';
@@ -265,9 +269,8 @@ begin
     raise exception 'illegal document transition % -> %', v_from, p_to using errcode = 'P0001';
   end if;
 
-  -- approver≠author SoD (the gap this migration closes): the actor approving/rejecting a document may
-  -- not be its author. Ordered like the timesheet SoD — even an Admin cannot self-approve their own
-  -- document. SECURITY: this MUST stay — it is the segregation of duties being enforced.
+  -- approver≠author SoD: the actor approving/rejecting a document may not be its author.
+  -- SECURITY: this MUST stay — it is the segregation of duties being enforced.
   if p_to in ('Approved','Rejected') and v_uid is not distinct from v_author then
     raise exception 'separation of duties: cannot approve or reject your own document'
       using errcode = '42501';
@@ -279,6 +282,17 @@ begin
 
   -- audit (C-3): durable record of the workflow transition (from→to) on the success path.
   -- ::text casts the doc_status enum to its label so detail->>'from'/'to' read as 'Draft'/'Issued'.
-  perform public.log_audit('project_document.transition', v_org, auth.uid(), p_doc_id,
+  perform public.log_audit('project_document.transition', v_org, v_uid, p_doc_id,
                            jsonb_build_object('from', v_from::text, 'to', p_to::text));
+
+  -- Auto-Superseded (from 0025): when a child revision is Approved, mark the parent Superseded.
+  -- Parent must be in ('Issued','Approved') — both valid starting states for a new revision.
+  if p_to = 'Approved' and v_parent_id is not null then
+    perform 1 from public.project_documents where id = v_parent_id for update;
+    update public.project_documents
+      set status = 'Superseded'
+    where id = v_parent_id
+      and status in ('Issued','Approved');
+    -- Idempotent: no error if the parent was not Issued/Approved (already superseded/closed).
+  end if;
 end; $$;
