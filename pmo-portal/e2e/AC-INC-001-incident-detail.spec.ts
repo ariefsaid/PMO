@@ -19,6 +19,7 @@ import { login } from './helpers';
 // (src/lib/features.ts `incidents: false`, "UI-hide-first" — docs/backlog.md §OPEN feature tracks).
 // The /incidents routes redirect home, so this journey is intentionally unreachable. Un-skip when
 // the module is re-enabled (flip the flag); behaviour is preserved in code/DAL/RLS.
+// QUARANTINE: feature flag incidents=false — un-skip when src/lib/features.ts incidents is true
 test.setTimeout(120_000);
 
 /** Wait for the Incidents page to finish its initial data fetch. */
@@ -27,7 +28,7 @@ async function waitReady(page: Page) {
 }
 
 test.skip(
-  'AC-INC-001: an Engineer opens an incident from the list to its detail page and returns — goal oracle: the incident opens to a real /incidents/:id page (dead-end gone)',
+  'QUARANTINE: feature flag incidents=false — un-skip when src/lib/features.ts incidents is true (AC-INC-001)',
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Detail-${runId}`;
