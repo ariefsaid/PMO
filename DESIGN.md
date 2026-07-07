@@ -183,6 +183,26 @@ color/semantic token for a first-class dark theme.** Every value below is copied
 | `--tooltip-muted` | `240 5% 75%` | `240 5% 75%` | muted text on the constant-dark tooltip |
 | `--scrim` | `240 8% 6%` | `0 0% 0%` | overlay COLOR (app applies `/0.4` itself) |
 
+### Avatar categorical solids (AA harden, 2026-07-07)
+Closes the gap flagged in "Solid fills" below: the raw `--primary`/`--violet`/`--success`/`--warning`/
+`--muted-foreground` hues were not all AA-safe as a SOLID FILL under BOLD WHITE initials (two independent
+audits: raw `--warning` `#faa805` = 1.96:1, raw `--success` `#2bab5a` = 2.96:1 — both well under 4.5:1).
+`--avatar-1..5` are the SAME hue family (same H/S as their source token) with L darkened until white text
+clears **4.5:1 in both themes**. Avatar-only — never use for status dots/pills/text, which keep their own
+AA-verified `-text` tokens above.
+
+| Token | Light | Dark | White-text ratio (light / dark) | Source hue |
+|---|---|---|---|---|
+| `--avatar-1` | `221.2 83.2% 55%` | `221 83% 55%` | 4.86 / 4.83 | `--primary` family |
+| `--avatar-2` | `255 50% 57%` | `255 60% 57%` | 5.14 / 5.57 | `--violet` family |
+| `--avatar-3` | `142 60% 32%` | `142 55% 33%` | 4.80 / 4.78 | `--success` family |
+| `--avatar-4` | `40 96% 31%` | `43 90% 30%` | 4.79 / 4.90 | `--warning` family |
+| `--avatar-5` | `240 4% 46%` | `240 4% 46%` | 4.86 / 4.86 | `--muted-foreground` family |
+
+Deterministic gate: `pmo-portal/pages/__tests__/AdminUsers.avatarContrast.test.ts` (`AC-A11Y-AVATAR-001`)
+re-derives WCAG contrast for every `--avatar-*` token straight from `index.css` on every test run — a
+future retune that drops any hue below 4.5:1 fails CI.
+
 ### Lines / fields
 | Token | Light | Dark | Role |
 |---|---|---|---|
@@ -539,6 +559,13 @@ surface slices — **not a token-layer concern**. Until then, surface agents MUS
 `--destructive` (light `50%` / dark `62%` L) with white text were not contrast-verified in §0 — §0's
 AA-passing solids are darker `-solid` variants (primary-solid 47%/52%, destructive-solid 44%/46%) the app
 has not yet split out. Treat solid status-button contrast as pending the surface slices.
+
+**Avatar categorical solids — CLOSED (2026-07-06 audits → fixed 2026-07-07).** The `Avatar` in
+`pages/AdminUsers.tsx` renders bold WHITE initials on a raw categorical hue picked from
+`--primary`/`--violet`/`--success`/`--warning`/`--muted-foreground` — two of those (raw `--success`
+2.96:1, raw `--warning` 1.96:1) failed AA as a solid white-text fill. Fixed via dedicated `--avatar-1..5`
+tokens (same H/S family, darkened L) — see the "Avatar categorical solids" table above. Deterministic gate:
+`AdminUsers.avatarContrast.test.ts` (`AC-A11Y-AVATAR-001`).
 
 **Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid

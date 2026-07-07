@@ -68,13 +68,21 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Stable avatar background from the existing categorical palette (token-driven hues only). */
-const AVATAR_HUES = [
-  'hsl(var(--primary))',
-  'hsl(var(--violet))',
-  'hsl(var(--success))',
-  'hsl(var(--warning))',
-  'hsl(var(--muted-foreground))',
+/**
+ * Stable avatar background from the categorical palette (token-driven hues only).
+ * These `--avatar-*` tokens are AA-hardened solids (index.css) — same H/S family as
+ * `--primary`/`--violet`/`--success`/`--warning`/`--muted-foreground` but darkened so
+ * BOLD WHITE initials clear 4.5:1 in both themes (the raw tokens do not — e.g. raw
+ * `--warning` is 1.97:1 with white text). Exported so tests can enumerate every hue
+ * the picker can return and re-verify contrast (the durable AA gate).
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- token array co-located with the Avatar it feeds; HMR-only lint concern
+export const AVATAR_HUES = [
+  'hsl(var(--avatar-1))',
+  'hsl(var(--avatar-2))',
+  'hsl(var(--avatar-3))',
+  'hsl(var(--avatar-4))',
+  'hsl(var(--avatar-5))',
 ];
 function avatarHue(id: string): string {
   let h = 0;
