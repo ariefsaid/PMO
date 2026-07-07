@@ -497,6 +497,32 @@ function getPermissionCheck(
   }
 }
 
+/**
+ * Audit Observability-High #1: durably record an agent authorization REFUSAL — the handler
+ * denying a tool/action for SoD/permission reasons — so a misconfigured automation or a
+ * prompt-injection escalation attempt survives the SSE-stream close. Wraps the
+ * `audit_agent_denial` SECURITY DEFINER RPC (migration 0079), which stamps org/actor
+ * SERVER-SIDE from the live JWT (non-forgeable) and writes via log_audit (0076); the caller
+ * supplies only `reason` + `detail` (the attempted tool/action, thread/run id), which land in
+ * `audit_events.detail`.
+ *
+ * FAIL-OPEN: a failed audit write MUST NOT change the refusal behavior or break the user's
+ * turn — this is observability, not a gate. Errors are swallowed + console.error'd (same
+ * posture as recordErrorEvent's self-swallowing, but awaited so the row lands before the
+ * stream closes when possible).
+ */
+async function auditAgentDenial(
+  supabase: HandlerSupabaseLike,
+  reason: string,
+  detail: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await supabase.rpc('audit_agent_denial', { p_reason: reason, p_detail: detail });
+  } catch (err) {
+    console.error('audit_agent_denial_failed', err);
+  }
+}
+
 // ── Tool catalog builder (FR-MC-017) ──────────────────────────────────────────
 
 function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
@@ -839,6 +865,16 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           const canFn = deps.can ?? (() => false);
           const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });
           if (!allowed) {
+            // Audit Obs-High #1: durably record the SoD refusal (survives the SSE-stream close)
+            // via the 0079 RPC before returning the denial. FAIL-OPEN: a failed write must not
+            // change the refusal behavior or break the turn. Identity (org/actor) is stamped
+            // server-side by the RPC — non-forgeable; only the annotation below is caller-supplied.
+            await auditAgentDenial(deps.supabase, 'permission_denied', {
+              tool: toolName,
+              action: permCheck.action,
+              entity: permCheck.entity,
+              run_id: runId,
+            });
             // Observability floor (audit Obs-High): the SoD refusal is a security signal that
             // must survive the SSE-stream close. recordErrorEvent is fire-and-forget (never
             // awaited, swallows its own failure) — same mechanism as index.ts:95.
@@ -1394,6 +1430,19 @@ async function* handleDecision(
   if (permCheck) {
     const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });
     if (!allowed) {
+      // Audit Obs-High #1: durably record the SoD refusal (survives the SSE-stream close)
+      // via the 0079 RPC before returning the denial. FAIL-OPEN: a failed write must not
+      // change the refusal behavior or break the turn. Identity (org/actor) is stamped
+      // server-side by the RPC — non-forgeable; only the annotation below is caller-supplied.
+      // `pending_id` marks this as the stateless approve/deny re-POST path (vs runToolLoop).
+      await auditAgentDenial(deps.supabase, 'permission_denied', {
+        tool: toolName,
+        action: permCheck.action,
+        entity: permCheck.entity,
+        run_id: req.runId ?? null,
+        thread_id: req.threadId ?? null,
+        pending_id: pendingId,
+      });
       // Observability floor (audit Obs-High): the SoD refusal is a security signal that
       // must survive the SSE-stream close. recordErrorEvent is fire-and-forget (never
       // awaited, swallows its own failure) — same mechanism as index.ts:95.
