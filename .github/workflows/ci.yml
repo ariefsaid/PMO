@@ -196,6 +196,11 @@ jobs:
           # default; the panel + its journeys only render when this is 'true'. The agent e2e
           # journeys (AC-AR-013, AC-AW-012, AC-CV-015) need it ON in CI.
           echo "VITE_FEATURES_AGENT_ASSISTANT=true" >> pmo-portal/.env.local
+          # ops-admin (#243) added per-org feature-gating; `crm` (Sales Pipeline / Companies /
+          # Contacts) env-defaults to OFF (features.ts FEATURE_ENV_DEFAULT.crm). The pre-existing
+          # CRM e2e (AC-AUTH-003 nav, AC-SP-* pipeline, AC-INV-001) assert those surfaces, so the
+          # CRM module must be ON in CI — restore the always-on-before behavior.
+          echo "VITE_FEATURES_CRM=true" >> pmo-portal/.env.local
           # The ownership e2e (AC-VR-020) seeds two users via an admin client, reading these
           # from process.env (the local-stack service-role key is the well-known demo key —
           # ephemeral, not a production secret). Exported to GITHUB_ENV for the Playwright step.
