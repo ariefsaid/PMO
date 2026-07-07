@@ -46,6 +46,7 @@ import {
 } from './persistence.ts';
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
 import { recordUsage } from '../_shared/usage.ts';
+import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts';
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -816,6 +817,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         const permCheck = getPermissionCheck(toolName);
         if (permCheck) {
           let reAuthRole: string | null = null;
+          let reAuthOrg: string | null = null;
           try {
             const { data, error } = await deps.supabase
               .from('profiles')
@@ -828,6 +830,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
               return;
             }
             reAuthRole = data.role ?? null;
+            reAuthOrg = data.org_id ?? null;
           } catch {
             yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
             return;
@@ -836,6 +839,15 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           const canFn = deps.can ?? (() => false);
           const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });
           if (!allowed) {
+            // Observability floor (audit Obs-High): the SoD refusal is a security signal that
+            // must survive the SSE-stream close. recordErrorEvent is fire-and-forget (never
+            // awaited, swallows its own failure) — same mechanism as index.ts:95.
+            void recordErrorEvent(deps.supabase as never, {
+              fn: 'agent-chat',
+              errorCode: 'AGENT_PERMISSION_DENIED',
+              contextId: toolName,
+              orgId: reAuthOrg ?? undefined,
+            });
             yield statusEvent('errored', { error: 'PERMISSION_DENIED' });
             messages.push({
               role: 'tool',
@@ -1358,6 +1370,7 @@ async function* handleDecision(
 
   // Step 2: Deputy re-auth — re-derive org + role (AC-AW-004)
   let reAuthRole: string | null = null;
+  let reAuthOrg: string | null = null;
   try {
     const { data, error } = await deps.supabase
       .from('profiles')
@@ -1370,6 +1383,7 @@ async function* handleDecision(
       return;
     }
     reAuthRole = data.role ?? null;
+    reAuthOrg = data.org_id ?? null;
   } catch {
     yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
     return;
@@ -1380,6 +1394,15 @@ async function* handleDecision(
   if (permCheck) {
     const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });
     if (!allowed) {
+      // Observability floor (audit Obs-High): the SoD refusal is a security signal that
+      // must survive the SSE-stream close. recordErrorEvent is fire-and-forget (never
+      // awaited, swallows its own failure) — same mechanism as index.ts:95.
+      void recordErrorEvent(deps.supabase as never, {
+        fn: 'agent-chat',
+        errorCode: 'AGENT_PERMISSION_DENIED',
+        contextId: toolName,
+        orgId: reAuthOrg ?? undefined,
+      });
       yield statusEvent('errored', { error: 'PERMISSION_DENIED' });
       // Also append a model-readable tool_result so the model can explain
       messages.push({

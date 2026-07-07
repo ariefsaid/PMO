@@ -98,6 +98,14 @@ function mockSupabase(opts: {
           }),
         };
       }
+      // error_events: the observability-floor insert path driven by recordErrorEvent
+      // (AC-OF-AGENT-DENIED-001). Returns a thenable resolving to {error:null} so
+      // recordErrorEvent's await completes — mirroring the real client shape.
+      if (table === 'error_events') {
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
       // Default: read-only entity
       return {
         select: vi.fn().mockReturnValue({
@@ -440,6 +448,72 @@ it('AC-AW-008 approve but can() denies the role → PERMISSION_DENIED, no write'
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
   const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
+});
+
+// ── Observability floor (audit Obs-High): durable AGENT_PERMISSION_DENIED event ──
+// AC-OF-AGENT-DENIED-001: when can() refuses a SoD-gated write, the security signal must
+// survive the SSE-stream close — i.e. a durable error_events row is inserted via
+// recordErrorEvent (same mechanism as agent-chat/index.ts:95). Covers the decision-path
+// denial site (handler.ts Site B); the confirmed-write re-auth site (Site A) shares the
+// identical wiring.
+
+it('AC-OF-AGENT-DENIED-001 can() denies → durable error_events row recorded with fn/contextId/orgId, before stream errored', async () => {
+  const validArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
+  const toolId = 'tool-use-id-9';
+
+  const req: AgentChatRequest = {
+    runId: 'run-9',
+    messages: [
+      { role: 'user', content: 'log a call' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: toolId, name: 'create_activity', input: validArgs },
+        ],
+      },
+    ],
+    decision: { pendingId: 'pending-9', verdict: 'approve' },
+  };
+
+  // profileData.org_id is the orgId the durable row must carry.
+  const supabaseMock = mockSupabase({ profileData: { org_id: 'org-1', role: 'Sales' } });
+  const canMock = vi.fn().mockReturnValue(false); // denies
+
+  const events = await collect(
+    agentChatHandler(req, baseDeps({
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Permission denied.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
+      },
+      supabase: supabaseMock,
+      can: canMock,
+    })),
+  );
+
+  // The stream still errored (the durable recording must NOT change the user-facing signal)
+  expect(events.find(
+    (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
+  )).toBeDefined();
+
+  // AND a durable error_events row was inserted (the audit signal survives the stream close).
+  // The error_events branch in mockSupabase returns {insert: spy}; correlate via the .from()
+  // call index — from is a single vi.fn, so mock.calls[i] and mock.results[i] line up.
+  const fromMock = supabaseMock.from as ReturnType<typeof vi.fn>;
+  const errorEventsCallIdx = fromMock.mock.calls.findIndex(([t]: [string]) => t === 'error_events');
+  expect(errorEventsCallIdx).toBeGreaterThanOrEqual(0);
+  const errorEventsBranch = fromMock.mock.results[errorEventsCallIdx].value as { insert: ReturnType<typeof vi.fn> };
+  const insertedRow = errorEventsBranch.insert.mock.calls[0]?.[0] as {
+    fn: string; error_code: string; context_id?: string; org_id?: string;
+  };
+  expect(insertedRow).toBeDefined();
+  expect(insertedRow.fn).toBe('agent-chat');
+  expect(insertedRow.error_code).toBe('AGENT_PERMISSION_DENIED');
+  expect(insertedRow.context_id).toBe('create_activity');
+  expect(insertedRow.org_id).toBe('org-1');
 });
 
 // ── Task 16 (RED→GREEN): AC-AW-005 malformed args → no needs-approval ─────────
