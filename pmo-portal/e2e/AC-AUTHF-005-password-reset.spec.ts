@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type User } from '@supabase/supabase-js';
-import { clearMailpit, pollMailpitForAuthLink } from './helpers';
+import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';
 
 // AC-AUTHF-005 — password-reset round-trip via local Mailpit (FR-AUTHF-011/015/020/024).
 //
@@ -10,7 +10,7 @@ import { clearMailpit, pollMailpitForAuthLink } from './helpers';
 // 16 deterministic integration failures). The afterEach restores the seed password via the
 // service-role admin API; the test therefore only runs where that key is available (mirrors
 // AC-AUTHF-020's service-role gate) — otherwise it would poison the shared DB with no way back.
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_ROLE_KEY = requireServiceRoleKey();
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const RESET_EMAIL = 'pm@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
@@ -25,7 +25,9 @@ test.afterEach(async () => {
   if (pm) await admin.auth.admin.updateUserById(pm.id, { password: SEED_PASSWORD });
 });
 
-(SERVICE_ROLE_KEY ? test : test.skip)('AC-AUTHF-005: request reset → Mailpit → /update-password → set password → signed in with the new password', async ({
+test.skip(!SERVICE_ROLE_KEY, 'SERVICE_ROLE_KEY not set (local) — skipping');
+
+test('AC-AUTHF-005: request reset → Mailpit → /update-password → set password → signed in with the new password', async ({
   page,
   browser,
 }) => {

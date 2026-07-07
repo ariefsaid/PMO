@@ -116,8 +116,9 @@ test(
 // the reload-safe oracle asserts 0 prior-week rows remain, but a concurrent worker's timesheet
 // mutation can leave one → false red (not an app defect). TODO(backlog): make parallel-safe
 // (serial e2e project, or self-isolating per-test fixtures) then remove .fixme.
+// QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures
 test.fixme(
-  'AC-IXD-TS-W5-3: PM bulk-approves ≥2 awaiting timesheets; dialog closes, toast fires, approved weeks leave queue (reload-safe)',
+  'QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures (AC-IXD-TS-W5-3)',
   async ({ page }) => {
     // Step 1: pm@ opens /approvals — ≥2 prior-week Submitted sheets are already in the
     // queue (seeded as Submitted; no UI-submit step needed).
