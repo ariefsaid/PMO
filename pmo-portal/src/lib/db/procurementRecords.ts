@@ -17,6 +17,9 @@ import { ProcurementError } from './procurementLifecycle';
 //     .code (42501 role/org denial, P0002 proc-not-found, …) so the UI can
 //     classify the toast via classifyMutationError.
 //   • Reference-number is bounded client-side at the form layer (Slice 6).
+//   • Import provenance (Deliverable 2, migration 0072): the trailing
+//     importKey/importBatchId/importedAt params are undefined for every
+//     non-import caller (form/Assistant), resolving to the RPC's NULL defaults.
 // ---------------------------------------------------------------------------
 
 export type PurchaseRequestRow = Tables<'purchase_requests'>;
@@ -45,6 +48,9 @@ export async function createPurchaseRequest(
   status: string | null,
   date: string | null,
   amount: number | null,
+  importKey?: string,
+  importBatchId?: string,
+  importedAt?: string,
 ): Promise<PurchaseRequestRow> {
   const { data, error } = (await supabase.rpc('create_purchase_request', {
     p_procurement_id: procurementId,
@@ -52,6 +58,9 @@ export async function createPurchaseRequest(
     p_status: status,
     p_date: date,
     p_amount: amount,
+    p_import_key: importKey ?? null,
+    p_import_batch_id: importBatchId ?? null,
+    p_imported_at: importedAt ?? null,
   })) as unknown as { data: PurchaseRequestRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -67,6 +76,9 @@ export async function createRfq(
   status: string | null,
   date: string | null,
   amount: number | null,
+  importKey?: string,
+  importBatchId?: string,
+  importedAt?: string,
 ): Promise<RfqRow> {
   const { data, error } = (await supabase.rpc('create_rfq', {
     p_procurement_id: procurementId,
@@ -74,6 +86,9 @@ export async function createRfq(
     p_status: status,
     p_date: date,
     p_amount: amount,
+    p_import_key: importKey ?? null,
+    p_import_batch_id: importBatchId ?? null,
+    p_imported_at: importedAt ?? null,
   })) as unknown as { data: RfqRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -89,6 +104,9 @@ export async function createPurchaseOrder(
   status: string | null,
   date: string | null,
   amount: number | null,
+  importKey?: string,
+  importBatchId?: string,
+  importedAt?: string,
 ): Promise<PurchaseOrderRow> {
   const { data, error } = (await supabase.rpc('create_purchase_order', {
     p_procurement_id: procurementId,
@@ -96,6 +114,9 @@ export async function createPurchaseOrder(
     p_status: status,
     p_date: date,
     p_amount: amount,
+    p_import_key: importKey ?? null,
+    p_import_batch_id: importBatchId ?? null,
+    p_imported_at: importedAt ?? null,
   })) as unknown as { data: PurchaseOrderRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -113,6 +134,9 @@ export async function createPayment(
   status: string | null,
   date: string | null,
   amount: number | null,
+  importKey?: string,
+  importBatchId?: string,
+  importedAt?: string,
 ): Promise<PaymentRow> {
   const { data, error } = (await supabase.rpc('create_payment', {
     p_procurement_id: procurementId,
@@ -121,6 +145,9 @@ export async function createPayment(
     p_status: status,
     p_date: date,
     p_amount: amount,
+    p_import_key: importKey ?? null,
+    p_import_batch_id: importBatchId ?? null,
+    p_imported_at: importedAt ?? null,
   })) as unknown as { data: PaymentRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

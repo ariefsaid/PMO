@@ -1,0 +1,11 @@
+{
+  "name": "pmo-onboarding-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator onboarding scripts (D1 provisioning, D3 historical import). Run: `npm --prefix scripts install` once, then `node scripts/<script>.mjs`. See docs/environments.md.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "pg": "^8.13.0"
+  }
+}

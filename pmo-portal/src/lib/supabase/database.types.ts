@@ -985,6 +985,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           invoice_id: string | null
           org_id: string
           pay_number: string | null
@@ -997,6 +1000,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           invoice_id?: string | null
           org_id?: string
           pay_number?: string | null
@@ -1009,6 +1015,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           invoice_id?: string | null
           org_id?: string
           pay_number?: string | null
@@ -1236,6 +1245,9 @@ export type Database = {
           amount: number | null
           created_at: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           invoice_date: string | null
           org_id: string
           po_id: string | null
@@ -1248,6 +1260,9 @@ export type Database = {
           amount?: number | null
           created_at?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           invoice_date?: string | null
           org_id?: string
           po_id?: string | null
@@ -1260,6 +1275,9 @@ export type Database = {
           amount?: number | null
           created_at?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           invoice_date?: string | null
           org_id?: string
           po_id?: string | null
@@ -1399,6 +1417,9 @@ export type Database = {
         Row: {
           file_url: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           is_selected: boolean
           org_id: string
           procurement_id: string
@@ -1413,6 +1434,9 @@ export type Database = {
         Insert: {
           file_url?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           is_selected?: boolean
           org_id?: string
           procurement_id: string
@@ -1427,6 +1451,9 @@ export type Database = {
         Update: {
           file_url?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           is_selected?: boolean
           org_id?: string
           procurement_id?: string
@@ -1529,6 +1556,9 @@ export type Database = {
           created_at: string
           gr_number: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           po_id: string | null
           procurement_id: string
@@ -1540,6 +1570,9 @@ export type Database = {
           created_at?: string
           gr_number?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_id?: string | null
           procurement_id: string
@@ -1551,6 +1584,9 @@ export type Database = {
           created_at?: string
           gr_number?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_id?: string | null
           procurement_id?: string
@@ -1644,6 +1680,9 @@ export type Database = {
           code: string | null
           created_at: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           po_number: string | null
           pr_number: string | null
@@ -1663,6 +1702,9 @@ export type Database = {
           code?: string | null
           created_at?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_number?: string | null
           pr_number?: string | null
@@ -1682,6 +1724,9 @@ export type Database = {
           code?: string | null
           created_at?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_number?: string | null
           pr_number?: string | null
@@ -2083,6 +2128,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           po_number: string | null
           procurement_id: string
@@ -2094,6 +2142,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_number?: string | null
           procurement_id: string
@@ -2105,6 +2156,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           po_number?: string | null
           procurement_id?: string
@@ -2189,6 +2243,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           pr_number: string | null
           procurement_id: string
@@ -2200,6 +2257,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           pr_number?: string | null
           procurement_id: string
@@ -2211,6 +2271,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           pr_number?: string | null
           procurement_id?: string
@@ -2295,6 +2358,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           procurement_id: string
           reference_number: string | null
@@ -2306,6 +2372,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           procurement_id: string
           reference_number?: string | null
@@ -2317,6 +2386,9 @@ export type Database = {
           created_at?: string
           date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
           procurement_id?: string
           reference_number?: string | null
@@ -2647,6 +2719,9 @@ export type Database = {
           amount: number | null
           created_at: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           invoice_date: string | null
           org_id: string
           po_id: string | null
@@ -2668,6 +2743,9 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_invoice_id: string
           p_procurement_id: string
           p_reference_number: string
@@ -2678,6 +2756,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           invoice_id: string | null
           org_id: string
           pay_number: string | null
@@ -2695,6 +2776,9 @@ export type Database = {
       create_procurement_invoice: {
         Args: {
           p_amount?: number
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_invoice_date: string
           p_procurement_id: string
           p_reference_number?: string
@@ -2704,6 +2788,9 @@ export type Database = {
           amount: number | null
           created_at: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           invoice_date: string | null
           org_id: string
           po_id: string | null
@@ -2721,6 +2808,9 @@ export type Database = {
       }
       create_procurement_quotation: {
         Args: {
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_received_date: string
           p_total_amount: number
@@ -2729,6 +2819,9 @@ export type Database = {
         Returns: {
           file_url: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           is_selected: boolean
           org_id: string
           procurement_id: string
@@ -2749,6 +2842,9 @@ export type Database = {
       }
       create_procurement_receipt: {
         Args: {
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_receipt_date: string
           p_reference_number?: string
@@ -2758,6 +2854,9 @@ export type Database = {
           created_at: string
           gr_number: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           po_id: string | null
           procurement_id: string
@@ -2776,6 +2875,9 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_reference_number: string
           p_status: string
@@ -2785,6 +2887,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           po_number: string | null
           procurement_id: string
@@ -2802,6 +2907,9 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_reference_number: string
           p_status: string
@@ -2811,6 +2919,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           pr_number: string | null
           procurement_id: string
@@ -2828,6 +2939,9 @@ export type Database = {
         Args: {
           p_amount: number
           p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_reference_number: string
           p_status: string
@@ -2837,6 +2951,9 @@ export type Database = {
           created_at: string
           date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
           procurement_id: string
           reference_number: string | null

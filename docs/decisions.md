@@ -640,6 +640,32 @@ present two separate text-entry surfaces at once, a dual-input mental model wort
 FeedbackControl (thumbs) affordance could use a polish pass. Both are tracked here for a future round, not
 in scope of the review-remediation items actually shipped (items 1-7).
 
+## OD-ONB — Client onboarding tooling (GTM item 6, spec review 2026-07-04)
+
+### OD-ONB-1 — Historical import carries a dual reference (`reference_number` + `import_key`), not a fictional `external_ref`
+
+**Decision (locked this round):** the historical-import CSV contract's legacy/external identifier lands
+in the record tables' **real** `reference_number` column (migrations 0035/0040/0041) — there is no
+`external_ref` column anywhere in the schema, and none is added. The legacy number serves **two**
+independent purposes, kept conceptually distinct: (1) it is stamped into `reference_number` so a human
+or a future ERPNext adapter (ADR-0048) can reconcile the record against the source system it came from;
+(2) when present, it is *also* the source material for that record's stable `import_key` (the
+re-run-idempotency fingerprint from Deliverable 2). A case header has no `reference_number` column at
+all (`procurements` carries only the system-minted `code`) — the case's `import_key` is derived from the
+CSV's `case_ref` grouping column instead, never persisted as a reference number.
+
+**Why:** the spec's first draft invented `external_ref` and mis-cited OD-PROC-3 ("Auto-generated
+reference numbers" — the system-minted `PR-YYMMDD####` format) as its authority, which is the *opposite*
+concept (system-assigned, not external/legacy). The real reconciliation need — letting a future ERPNext
+adapter match a PMO record back to the legacy/source document it was imported from — is exactly the
+seam ADR-0048 names for the ERPNext integration leg. Naming the real column and the real ADR keeps the
+CSV contract implementable and keeps the idempotency key derivation (which also needs a stable source
+field) honest about reusing the same input rather than inventing a second identity for it.
+
+**Enforced by:** the `procurement_cases.csv` contract (record rows use `reference_number`, not
+`external_ref`); FR-HIST-015 (ERPNext seam) cites ADR-0048, not OD-PROC-3; FR-IDEM-002's `import_key`
+fallback chain documents `reference_number` as its preferred stable source.
+
 ## OD-SECTION-HEADER — Section-header molecule (ops-admin Discover round, 2026-07-06)
 
 **Decision:** `/administration`'s Users/Credits/Usage/Features sections previously had inconsistent

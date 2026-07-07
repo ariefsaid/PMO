@@ -26,6 +26,44 @@ different connection target** for that same schema.
 | `local` | — (Docker) | `http://127.0.0.1:54321` | local key in `pmo-portal/.env.local` | `npm run dev` | `supabase db reset` | `seed.sql` (auto) |
 | `prod` (cloud) | `prwccpsiumjzvnwjlkwq` | `https://prwccpsiumjzvnwjlkwq.supabase.co` | anon key in CF env vars | **Cloudflare Pages** `production` branch → https://pmo-bfb.pages.dev | `scripts/db-push-prod.sh` | **demo-deploy posture:** full demo seed via `scripts/db-seed-prod.sh` (see below). For a *real* tenant: never seed. |
 | `selfhost` (later) | n/a (VPS) | `https://<domain>` | `<fill-in>` | a `selfhost` host env | `db push --db-url …@vps` | reference data only |
+| _(one row per real client, appended by `scripts/provision-client.sh`'s registry-row emit at the end of a provisioning run — never a secret)_ | | | | | | |
+
+### Per-client provisioning (real production, GTM — ADR-0047)
+
+Each paying client gets its OWN Supabase Cloud Pro project + Cloudflare Pages project (never the
+legacy `prod` cloud project above, which is reclassified staging/demo per the Topology section).
+Provisioned via `scripts/provision-client.sh <slug>` (typed-confirm + `op-get.sh` + `--check`
+read-only mode, mirrors `db-push-prod.sh`) — this **is** the Operator's "add org" operation at the
+<~5-deployment scale (no in-app UI). Coordinates for a new client live in `supabase/op.<slug>.env`
+(copy `supabase/op.CLIENT-SLUG.env.template`, gitignored per-client secrets file convention already
+used by `op.*.env` files). Readiness is verified by `scripts/check-client-readiness.mjs` (sibling of
+`scripts/check-agent-prod-readiness.mjs` — same presence-only-secrets / SKIPPED-not-FAILED
+philosophy). Manual-vs-CLI split + full runbook: `docs/plans/2026-07-04-onboarding-tooling.md`
+§Slice 5 + `docs/specs/onboarding-tooling.spec.md` §"Deliverable 1". The registry row above is
+appended automatically at the end of a successful provisioning run (public-safe fields only — ref/
+URL/anon key/frontend/migrations/seed — never a secret).
+
+### Onboarding scripts have their own dependencies (`scripts/package.json`)
+
+`scripts/import-historical.mjs` needs `@supabase/supabase-js` and `scripts/lib/provisionOrgAdmin.mjs`
+needs `pg`, but the repo has **no root `node_modules`** (the app's deps live under `pmo-portal/`). The
+`scripts/` directory therefore carries its own `package.json`. Run this **once** before invoking any
+onboarding script:
+
+```bash
+npm --prefix scripts install
+```
+
+Then run the scripts from the repo root, e.g.:
+
+```bash
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=$(scripts/op-get.sh …) \
+  node scripts/import-historical.mjs --org-id <uuid> --file scripts/templates/procurement_cases.csv [--dry-run]
+```
+
+`scripts/node_modules/` is gitignored; `scripts/package-lock.json` is committed (pins mirror
+`pmo-portal/package.json`). `--dry-run` performs zero writes (skips the typed-org-name confirm) and is
+the safe way to preview a load.
 
 ## Which command hits which target
 

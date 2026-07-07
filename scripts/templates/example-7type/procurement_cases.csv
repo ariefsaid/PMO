@@ -1,0 +1,8 @@
+case_ref,type,title,project_code,terminal_status,total_value,reference_number,status,date,amount,vendor
+CASE-B5-001,PR,Transformer Bank Replacement,PRJ-B5,Paid,50000,PR-B5-001,Approved,2024-05-01,,
+CASE-B5-001,RFQ,,,Paid,50000,RFQ-B5-001,Issued,2024-05-05,,
+CASE-B5-001,Quotation,,,Paid,50000,QUOTE-B5-001,,2024-05-12,50000,Delta Grid Equipment
+CASE-B5-001,PO,,,Paid,50000,PO-B5-001,Issued,2024-05-20,50000,
+CASE-B5-001,GR,,,Paid,50000,GR-B5-001,Complete,2024-06-15,,
+CASE-B5-001,VI,,,Paid,50000,INV-B5-001,Paid,2024-06-20,50000,Delta Grid Equipment
+CASE-B5-001,Payment,,,Paid,50000,PMT-B5-001,Paid,2024-06-25,50000,

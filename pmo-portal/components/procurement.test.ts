@@ -167,6 +167,10 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     // Slice 5 — new nullable columns added by migration 0035 (rfq linkage + P2 seam)
     rfq_id: null,
     valid_until: null,
+    // Deliverable 2 — new nullable provenance columns added by migration 0072
+    import_batch_id: null,
+    import_key: null,
+    imported_at: null,
     ...over,
   });
 

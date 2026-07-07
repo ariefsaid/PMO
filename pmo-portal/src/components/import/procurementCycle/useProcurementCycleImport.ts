@@ -20,6 +20,8 @@ import {
 import { groupRows } from '@/src/lib/import/procurementCycle/group';
 import { validateGroups } from '@/src/lib/import/procurementCycle/validate';
 import { commitGroups } from '@/src/lib/import/procurementCycle/commit';
+import { buildDryRunConflictReport, type DryRunConflictReport } from '@/src/lib/import/procurementCycle/dryRunConflictReport';
+import { supabaseImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
 import type {
   CycleRow,
   ValidatedGroup,
@@ -84,13 +86,19 @@ export interface UseProcurementCycleImport {
    * null = respect individual card state (default before any global toggle).
    */
   globalExpand: boolean | null;
+  /** One UUID per wizard session (Deliverable 2, FR-IDEM-004) — stable across preview→commit,
+   *  so a literal re-run of the same file with the same session is detected as the same batch. */
+  importBatchId: string;
+  /** Zero-write would-create/would-skip/would-collide tally (FR-IDEM-007). null until the
+   *  preview step's async dry-run probe resolves. */
+  conflictReport: DryRunConflictReport | null;
   /** Expand all case cards. */
   expandAll: () => void;
   /** Collapse all case cards. */
   collapseAll: () => void;
   selectFile: (file: File) => Promise<void>;
   setFieldMapping: (fieldKey: keyof CycleRow, headerIndex: number | null) => void;
-  goPreview: () => void;
+  goPreview: () => Promise<void>;
   back: () => void;
   commit: () => Promise<void>;
   reset: () => void;
@@ -167,6 +175,11 @@ export function useProcurementCycleImport(
   /** Controls whether all CaseCard accordions are open (true) or closed (false).
    *  null = per-card state (individual toggles), true/false = global override. */
   const [globalExpand, setGlobalExpand] = useState<boolean | null>(null);
+  /** One UUID per wizard session, generated once and stable across preview→commit
+   *  (Deliverable 2, FR-IDEM-004) — a literal re-run of the same file within the same
+   *  session is detected as the same import_batch_id. */
+  const [importBatchId] = useState<string>(() => crypto.randomUUID());
+  const [conflictReport, setConflictReport] = useState<DryRunConflictReport | null>(null);
 
   const allRequiredMapped = useMemo(
     () =>
@@ -214,6 +227,7 @@ export function useProcurementCycleImport(
     setResult(null);
     setProgress(null);
     setGlobalExpand(null);
+    setConflictReport(null);
   }, []);
 
   const expandAll = useCallback(() => setGlobalExpand(true), []);
@@ -246,10 +260,15 @@ export function useProcurementCycleImport(
     [],
   );
 
-  const goPreview = useCallback(() => {
+  const goPreview = useCallback(async () => {
     if (!allRequiredMapped) return;
     setStep('preview');
-  }, [allRequiredMapped]);
+    const validGroups = validatedGroups.filter((g) => g.valid);
+    const report = await buildDryRunConflictReport(validGroups, {
+      importBatchId, skipLookup: supabaseImportSkipLookup, projectLookup, vendorLookup,
+    });
+    setConflictReport(report);
+  }, [allRequiredMapped, validatedGroups, importBatchId, projectLookup, vendorLookup]);
 
   const back = useCallback(() => {
     setStep((s) => (s === 'preview' ? 'mapping' : 'upload'));
@@ -266,12 +285,14 @@ export function useProcurementCycleImport(
       requestedById,
       projectLookup,
       vendorLookup,
+      importBatchId,
+      skipLookup: supabaseImportSkipLookup,
     });
 
     setProgress(null);
     setResult(commitResult);
     setStep('result');
-  }, [validatedGroups, requestedById, projectLookup, vendorLookup]);
+  }, [validatedGroups, requestedById, projectLookup, vendorLookup, importBatchId]);
 
   return {
     step,
@@ -285,6 +306,8 @@ export function useProcurementCycleImport(
     result,
     progress,
     globalExpand,
+    importBatchId,
+    conflictReport,
     expandAll,
     collapseAll,
     selectFile,
