@@ -288,6 +288,33 @@ because the old secret was never live.
 This runs **as part of a `v0.2.0` promote**, ordered with the DB push (below). Tracked in
 `docs/backlog.md` (edge-function operationalization).
 
+### Production auth floor (cloud project — NOT in the committed `config.toml`)
+
+⚠ The repo's `supabase/config.toml` is the **local-dev** config (open signup, confirmations off,
+SMTP commented, `localhost` redirects) — correct for `supabase db reset` on a laptop, **wrong for
+production**. The auth floor (issue #2) is enforced by configuring the **cloud project's Auth
+settings** at deploy; a gpt-5.5 audit (2026-07-07) correctly flagged that these were assumed, not
+codified. Apply on each per-client Cloud project (Dashboard → Authentication, or the Management API)
+before that client goes live — this is the binding checklist:
+
+- [ ] **Disable public signup** — invite-only (`enable_signup = false`). Users arrive via the
+      `admin-invite-user` edge fn, not self-serve registration.
+- [ ] **Enable email confirmations** (`enable_confirmations = true`) — no unconfirmed logins.
+- [ ] **Configure Resend SMTP** (sender + host/port/user; API key via `op-get.sh`, never a file) —
+      replaces the commented-out local SMTP so invite/reset/confirm emails actually send.
+- [ ] **Redirect allowlist = prod HTTPS only** — `site_url` + `additional_redirect_urls` set to the
+      client's CF Pages origin(s); **remove every `localhost`/`127.0.0.1` entry** (a stray localhost
+      redirect misroutes invite links, root-caused earlier in auth-floor).
+- [ ] **Rotate/disable the seed dev credentials** — the `*@acme.test` / `arief.said@gmail.com` seed
+      logins (password `Passw0rd!dev`) are **local-only**; a real tenant is never seeded
+      (`db-seed-prod.sh` is demo-only) so they never exist there — confirm the project was pushed
+      with `db-push-prod.sh` (schema only), not seeded.
+- [ ] **`auto_expose_new_tables = false`** — keep the conservative default; new tables require an
+      explicit GRANT/PostgREST exposure, so nothing leaks to the API by accident.
+
+(Note: for the shared STAGING/DEMO project `prwccpsiumjzvnwjlkwq`, demo seed + open settings are
+intentional — this checklist governs *real* per-client tenants only.)
+
 ### Agent prod-readiness check (`scripts/check-agent-prod-readiness.mjs`)
 
 Before enabling the agent tier against a real deployment (or as a periodic health check),
