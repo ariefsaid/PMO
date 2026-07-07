@@ -111,13 +111,17 @@ jobs:
           deno-version: '2.7.11'
       # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
       # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
+      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
       - name: Deno typecheck — edge function entry points + _shared
         working-directory: .
         run: |
           set -e
           for fn in agent-chat agent-dispatch compose-view admin-invite-user; do
             echo "── deno check supabase/functions/$fn/index.ts ──"
-            deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
+            deno check --config "supabase/functions/$fn/deno.json" \
+              --lock "supabase/functions/$fn/deno.lock" --frozen \
+              "supabase/functions/$fn/index.ts"
           done
       # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
       # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
