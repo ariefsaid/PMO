@@ -166,6 +166,51 @@ describe('recordUsage', () => {
       expect.objectContaining({ run_id: null, model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0 }),
     );
   });
+
+  // AC-USE-002 (ops-admin-surface S5, FR-USE-001): provider_cost_usd + action are captured
+  // alongside the existing cost/tokens fields, at the SAME choke point.
+  it('AC-USE-002 insertUsageRow defaults provider_cost_usd to the clamped cost and action to "chat" when omitted', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0.05 },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ provider_cost_usd: 0.05, action: 'chat' }),
+    );
+  });
+
+  it('AC-USE-002 insertUsageRow accepts an explicit action + provider_cost_usd (clamped independently of cost)', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: 0.09, action: 'automation' },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ provider_cost_usd: 0.09, action: 'automation', cost: 0.02 }),
+    );
+  });
+
+  it('AC-USE-002 insertUsageRow clamps a non-finite explicit provider_cost_usd to 0', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: NaN, action: 'compose' },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ provider_cost_usd: 0, action: 'compose' }));
+  });
+
+  it('AC-USE-002 recordUsage passes action through (call-sites resolve action literal) and defaults provider_cost_usd from usage.total_cost', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-3' }, resp, 'compose');
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'compose', provider_cost_usd: 0 }));
+  });
+
+  it('AC-USE-002 recordUsage defaults action to "chat" when the caller omits it', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-4' }, resp);
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'chat' }));
+  });
 });
 
 // ── AUDIT-H5 (2026-07-04 audit): fail-closed after 3 consecutive usage-insert failures ──

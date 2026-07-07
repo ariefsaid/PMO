@@ -24,6 +24,25 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+// S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+// Mock it so these tests don't need an AuthProvider. CRM enabled to preserve the
+// original "Executive sees all" intent now that CRM is entitlement-driven.
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: {
+      incidents: false,
+      crm: true,
+      procurement: true,
+      timesheets: true,
+      import_export: true,
+      agent_assistant: false,
+      user_views: false,
+    },
+    isPending: false,
+    isError: false,
+  }),
+}));
+
 // ── Mock the features module so individual tests can toggle the flag ──────────
 vi.mock('@/src/lib/features', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/src/lib/features')>();

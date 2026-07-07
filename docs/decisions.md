@@ -639,3 +639,11 @@ never `bg-primary`.
 present two separate text-entry surfaces at once, a dual-input mental model worth revisiting; (b) the
 FeedbackControl (thumbs) affordance could use a polish pass. Both are tracked here for a future round, not
 in scope of the review-remediation items actually shipped (items 1-7).
+
+## OD-SECTION-HEADER — Section-header molecule (ops-admin Discover round, 2026-07-06)
+
+**Decision:** `/administration`'s Users/Credits/Usage/Features sections previously had inconsistent
+header markup (Usage/Features had a parent-rendered bare `<h2>`; Credits rolled its own internal
+`<h2>` + Grant-button row). Hoisted to one shared molecule, `SectionHeader`
+(`pmo-portal/src/components/ui/SectionHeader.tsx`): an `<h2>` title + an optional trailing action
+slot. Credits passes its "Grant credits" button into the action slot; Usage/Features pass none.

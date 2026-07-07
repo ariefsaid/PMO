@@ -51,9 +51,11 @@ test(
     await page.goto('/administration');
     await waitReady(page);
 
-    // ── Step 1: AC-AU-001 — directory loads, invite CTA visible for Admin ──
-    // "New user" was replaced with "Copy invite instructions" (AC-PJ-ADMIN-001).
-    await expect(page.getByRole('button', { name: /copy invite instructions/i })).toBeVisible({ timeout: 10_000 });
+    // ── Step 1: AC-AU-001 — directory loads, the invite affordance is visible for Admin ──
+    // FR-INV-004/006 (S4): the interim "Copy invite instructions" clipboard workaround was replaced
+    // with a real "Invite user" button → InviteFormModal → admin-invite-user edge fn. The deep invite
+    // journey is covered by AC-INV-001; here we only assert the affordance exists for an Admin.
+    await expect(page.getByRole('button', { name: /invite user/i })).toBeVisible({ timeout: 10_000 });
     const daveRow = userRow(page, engineerEmail);
     await expect(daveRow).toBeVisible({ timeout: 10_000 });
     // "Engineer" also appears in his title (Lead PV Engineer) — target the role
@@ -117,8 +119,9 @@ test(
 
     // Exec CAN see the directory…
     await expect(userRow(page, 'admin@acme.test')).toBeVisible({ timeout: 10_000 });
-    // …but the management chrome is absent (not merely disabled).
-    await expect(page.getByRole('button', { name: /copy invite instructions/i })).not.toBeVisible();
+    // …but the management chrome is absent (not merely disabled). The "Invite user" invite affordance
+    // (FR-INV-004) is Admin/Operator-only — an Executive never sees it.
+    await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
     await expect(page.getByRole('button', { name: /row actions/i })).not.toBeVisible();
     // and a read-only explanation is shown.
     await expect(page.getByText(/only an Admin can/i)).toBeVisible();
@@ -135,6 +138,6 @@ test(
 
     // GOAL ORACLE: an Admin-only gate is shown and the directory rows are NOT rendered.
     await expect(page.getByText(/Admin-only area/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: /copy invite instructions/i })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
   },
 );

@@ -24,7 +24,7 @@
  */
 
 // Relative import — no @-alias (Deno has no Vite alias).
-import { ENTITY_WHITELIST } from '../../../pmo-portal/src/lib/viewspec/types.ts';
+import { resolveAgentEntity } from './entityCatalog.ts';
 import type { AgentReadEntity } from './readEntities.ts';
 import { HELP_CORPUS } from './helpCorpus.ts';
 
@@ -57,7 +57,8 @@ export function buildAgentSystemPrompt(
   // Build entity descriptions (schema metadata only — no data rows, NFR-AR-SEC-005)
   const entityDescriptions = entities
     .map((entityKey) => {
-      const entry = ENTITY_WHITELIST[entityKey];
+      const entry = resolveAgentEntity(entityKey);
+      if (!entry) return null; // unseen key — skip (the runtime whitelist still rejects it)
       const columns = Array.from(entry.allowedColumns).join(', ');
       const requiredFilter = entry.requiredFilter
         ? `\n    - REQUIRED FILTER: you MUST include a filter on "${entry.requiredFilter}" (eq or in operator)`
@@ -66,6 +67,7 @@ export function buildAgentSystemPrompt(
     - table: ${entry.table}
     - allowed columns: ${columns}${requiredFilter}`;
     })
+    .filter((line): line is string => line !== null)
     .join('\n');
 
   // FR-DH-007: tell the model the asking user's role so it can ground help answers. Omit the sentence
@@ -125,6 +127,7 @@ Hard rules (binding):
 4. You are read-only for data: use "query_entity" to read; you cannot write raw SQL or mutate rows directly. Any change happens only through the explicit action tools below (and only within the user's permissions).
 5. Never include data rows or cell values in your reasoning — only the tool's returned result.
 6. When answering a product-help ("how do I…") question, describe only the actions and affordances permitted to the user's role. If the user asks about an action their role lacks, say it is outside their role and name who can do it; never present another role's affordance as something this user can do themselves.
+7. Map before refusing: before you say data "isn't available", check whether the ask maps to an available entity and call query_entity to get it. Refuse only when nothing genuinely maps — most sales/operations words map onto the entities below (see the map-questions-to-entities skill). You still act only within the caller's RLS-scoped rows.
 
 ## Tools (registered for this request)
 
@@ -146,7 +149,19 @@ Call \`query_entity\` with \`as:"table"\` so the panel renders a real sortable t
 When the request is ambiguous — an underspecified entity, an unresolved "which one", or a missing required filter the user did not supply — call \`ask_user\` with structured \`options\` rather than guessing or asking in prose. For example, an ambiguous "show my projects" that could mean several scopes → offer option chips. Use this only on genuine ambiguity, not as a reflex before every answer.
 
 ### log-activity-and-task-writes — Use when the user asks to log an activity or change a task's status
-When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.${composeSkill}${automationSkill}
+When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
+
+### map-questions-to-entities — Use when the user's words do not name an entity exactly
+Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
+- "opportunities", "pipeline", "deals", "leads", "prospects" (NO \`opportunities\` entity exists) → query \`projects\` filtered to open/early stages: filter \`status\` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand delivery work → \`status\` in ["Won","Pending KoM","Ongoing Project"].
+- "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate", "overdue" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
+- "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) and report the rowCount (the count); do not estimate or refuse.
+- "milestones", "delivery phases", "percent complete" → query \`milestones\`.
+- "spend", "committed", "POs", "purchase orders", "procurement" → query \`procurements\`.
+- "incidents", "safety", "HSE" → query \`incidents\`.
+- "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
+- "my timesheet", "hours logged", "approval status" → query \`timesheets\`.
+Refuse only when nothing genuinely maps. Every query is still capped to the caller's own RLS-permitted rows.${composeSkill}${automationSkill}
 
 When no skill trigger matches, answer directly in clear prose (markdown is fine for narrative).
 

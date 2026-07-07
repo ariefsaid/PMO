@@ -447,6 +447,13 @@ verify_jwt = false
 [functions.agent-dispatch]
 verify_jwt = false
 
+# ── Edge Function: admin-invite-user ──────────────────────────────────────────
+# verify_jwt = false: the handler verifies the JWT itself (getUser under a caller-JWT client)
+# to return a typed 401/403 — the service-role key is never exercised for an unauthorized
+# caller (FR-INV-004 SHALL, ops-admin-surface S3).
+[functions.admin-invite-user]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

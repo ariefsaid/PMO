@@ -27,7 +27,7 @@ import type {
 } from '@/src/lib/db/documents';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ProfileRow } from '@/src/lib/db/profiles';
-import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
@@ -82,6 +82,8 @@ import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type { PageParams } from '@/src/lib/pagination';
+import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow } from '@/src/lib/db/usage';
+import type { OrgFeatureKey } from '@/src/lib/features';
 
 export interface ProjectRepository {
   list(
@@ -128,6 +130,24 @@ export interface ProfileRepository {
   updateUserRole(id: string, role: UserRole): Promise<void>;
   /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
   assignUserManager(id: string, managerId: string | null): Promise<void>;
+  /** Invite a new user via the admin-invite-user edge fn (Admin-in-org OR Operator). */
+  inviteUser(input: InviteUserInput): Promise<void>;
+  /** Disable/re-enable a user via the admin_set_user_status RPC (Admin-in-org OR Operator). */
+  setUserStatus(input: SetUserStatusInput): Promise<void>;
+}
+
+export interface OperatorRepository {
+  /** Clarity projection ONLY (ADR-0049) — every Operator power is re-asserted server-side. */
+  isOperator(): Promise<boolean>;
+}
+
+export interface UsageRepository {
+  /** The caller's own-org usage aggregate (org-Admin path). Aggregates ONLY — NFR-PRIV-001. */
+  getOrgUsageSummary(): Promise<UsageSummaryRow[]>;
+  /** The Operator's usage aggregate — all orgs when orgId is omitted, one org when supplied. */
+  getOperatorUsageSummary(orgId?: string | null): Promise<OperatorUsageSummaryRow[]>;
+  /** Directory columns ONLY (FR-OPR-004) — the Operator org-switcher source. */
+  listOperatorOrgs(): Promise<OperatorOrgRow[]>;
 }
 
 export interface TaskRepository {
@@ -418,4 +438,31 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   contact: ContactRepository;
   userView: UserViewRepository;
+  operator: OperatorRepository;
+  usage: UsageRepository;
+  orgFeature: OrgFeatureRepository;
+  credits: CreditsRepository;
+}
+
+/**
+ * org_features repository (ops-admin-surface S6, FR-ENT-001..004). Read is own-org (RLS-scoped);
+ * toggle is the Operator-only `operator_toggle_feature` RPC (rejects core keys with `P0001`).
+ */
+export interface OrgFeatureRepository {
+  /** The caller's own-org feature rows projected into a map (absent keys = env default upstream). */
+  listOwn(): Promise<Record<OrgFeatureKey, boolean>>;
+  /** Upsert a feature row for an org via the Operator-only RPC. */
+  toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+}
+
+/**
+ * Credits repository (ops-admin-surface S6). Balance read is own-org via the security-definer
+ * `org_credit_balance` RPC (FR-CRE-002); grant is the Operator-only `operator_grant_credits`
+ * RPC (FR-CRE-005, rejects `amount <= 0` with errcode `23514`).
+ */
+export interface CreditsRepository {
+  /** The org's credit-pool balance (grants − usage). */
+  getOrgBalance(orgId: string): Promise<number>;
+  /** Operator-only credit grant into the org pool. */
+  grant(args: { orgId: string; amount: number; note: string }): Promise<void>;
 }

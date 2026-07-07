@@ -130,24 +130,24 @@ export const AppRoutes: React.FC = () => (
       {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
       <Route
         path="/views"
-        element={<FeatureRoute feature="userViews" element={<MyViewsPage />} />}
+        element={<FeatureRoute feature="user_views" element={<MyViewsPage />} />}
       />
       {/* I4: Create builder — literal 'new' before /:viewId param */}
       <Route
         path="/views/new"
-        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="create" />} />}
+        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="create" />} />}
       />
       {/* I4: Edit builder — /:viewId/edit is more specific than /:viewId alone */}
       <Route
         path="/views/:viewId/edit"
-        element={<FeatureRoute feature="userViews" element={<ViewBuilderPage mode="edit" />} />}
+        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="edit" />} />}
       />
       {/* I3: User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
           FeatureRoute redirects to / when FEATURES.userViews is false.
           Declared after /views/new and /views/:viewId/edit to avoid wildcard collision. */}
       <Route
         path="/views/:viewId"
-        element={<FeatureRoute feature="userViews" element={<UserViewRenderer />} />}
+        element={<FeatureRoute feature="user_views" element={<UserViewRenderer />} />}
       />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
