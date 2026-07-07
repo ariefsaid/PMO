@@ -5,7 +5,6 @@ import type { CycleRow } from '../types';
 // contract (FR-IDEM-002 / A5): the in-app commit path (.ts) and the operator loader (.mjs) must
 // write the SAME import_key for the same row, or a case imported by one path is invisible to the
 // other's skip lookup.
-// @ts-expect-error — .mjs mirror, no types; imported only to assert output parity.
 import { computeRecordImportKey as mjsRecordKey } from '../../../../../../scripts/lib/historicalImportKey.mjs';
 
 const baseRow: CycleRow = {
