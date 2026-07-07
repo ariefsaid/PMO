@@ -324,11 +324,83 @@ data stays a manual, owner-instructed step) — it only enumerates and checks wh
 mechanically. Unit tests for its pure classification logic:
 `scripts/check-agent-prod-readiness.test.mjs` (`node --test`).
 
-**Next step not yet built (flagged, not implemented here):** a durable error-events table /
-webhook alert so a production failure (missing secret, dispatch-tick failure, automation
-mint/audit/fire failure) is pushed to the owner instead of only sitting in Supabase Edge Function
-logs — see the structured `errorCode`s now emitted (`supabase/functions/_shared/errorLog.ts`) as
-the ready-made hook point for that future alerting layer.
+**Superseded by** the "Observability & alerting" section below — the durable `error_events` table +
+Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
+`docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
+
+## Observability & alerting (GTM item 3 — the floor)
+
+Four pieces, each config-per-deployed-project (ADR-0047): a Telegram alert webhook, PostHog FE error
+tracking, BetterStack uptime/status, and two PostHog dashboards. Code: `docs/specs/observability-floor.spec.md`
++ `docs/plans/2026-07-04-observability-floor.md`.
+
+### Telegram alert webhook — secrets + GUCs (per deployed project)
+
+Function secrets on `telegram-notify` (1Password vault `AS`, per ADR-0047 — never committed):
+```bash
+supabase secrets set TELEGRAM_BOT_TOKEN=<bot token from @BotFather>
+supabase secrets set TELEGRAM_CHAT_ID=<numeric chat id>
+supabase secrets set HEARTBEAT_URL=<BetterStack heartbeat monitor URL>   # optional; no-op if unset
+supabase functions deploy telegram-notify health
+```
+Postgres GUCs (same seam as `agent-dispatch`'s `app.settings.dispatch_url`, set via `ALTER DATABASE
+... SET`, never in this repo):
+```sql
+ALTER DATABASE postgres SET app.settings.telegram_notify_url = 'https://<ref>.supabase.co/functions/v1/telegram-notify';
+ALTER DATABASE postgres SET app.settings.service_role_key = '<service role key>';
+ALTER DATABASE postgres SET app.settings.telegram_cooldown_seconds = '900';  -- optional, default 900
+```
+
+### BetterStack — monitors + status page checklist (AC-OF-012)
+
+- [ ] Monitor 1: the deployed FE URL (Cloudflare Pages), HTTP check, expect 200.
+- [ ] Monitor 2: `https://<ref>.supabase.co/functions/v1/health`, HTTP check, expect 200.
+- [ ] Monitor 3 (heartbeat): create a BetterStack **Heartbeat** monitor; its ping URL becomes the
+      `telegram-notify` `HEARTBEAT_URL` function secret above. Alerts if no ping arrives within its
+      configured grace period (should exceed the 2-minute drain cadence, e.g. 10 min grace) — this is
+      what surfaces a dead cron/alert path (FR-OF-021, closing the persistent-silence gap).
+- [ ] A public status page built from monitors 1+2 (monitor 3 is internal-only, not on the page).
+- [ ] On-call/notification target: the same Telegram chat (or the owner's email) per BetterStack's
+      own notification config.
+
+### PostHog dashboards (AC-OF-013, AC-OF-014) — no new events (LD-OF-008)
+
+**(a) Org usage** — panels: weekly-active-users (distinct identified users, ≥1 event in trailing 7d);
+top pages (`app_route_viewed` grouped by `route`); breakdown filter on `org_id`.
+
+**(b) Agent activity/cost** — panels: per-builder event counts (the 9 typed builders:
+`agent_panel_opened`, `agent_run_started`, `agent_run_completed`, `agent_run_errored`,
+`agent_approval_shown`, `agent_approval_decided`, `agent_thread_resumed`, `agent_feedback_rated`,
+`agent_compose_view_saved`); run completion rate (`agent_run_completed` / `agent_run_started`); error
+rate (`agent_run_errored` / `agent_run_started`); approval funnel (`agent_approval_shown` →
+`agent_approval_decided`); feedback rating split (`agent_feedback_rated` by `rating`); breakdown
+filter on `org_id`; a text panel linking to the Ops-Admin usage view (GTM item 1c) captioned
+"Authoritative $$ cost/margin lives in the Ops-Admin usage view — this dashboard shows activity
+volume only, never monetary values (NFR-OF-PRIV-001)."
+
+### Live-verify runbook (AC-OF-007, AC-OF-011, AC-OF-012, M-7)
+
+1. **Telegram burst dedupe:** temporarily unset `OPENROUTER_API_KEY` on the deployed project, fire one
+   `agent-chat` request (expect its 502), confirm within ≤ 2 min a Telegram message arrives in the
+   configured chat. Fire 3 more requests within the cooldown window; confirm no second message
+   arrives until the cooldown (15 min default) elapses.
+2. **Health endpoint:**
+   ```bash
+   curl -i https://<ref>.supabase.co/functions/v1/health          # expect 200, {ok:true,...}
+   curl -i -X HEAD https://<ref>.supabase.co/functions/v1/health   # expect 200
+   curl -i -X POST https://<ref>.supabase.co/functions/v1/health   # expect 405
+   ```
+3. **FE exception capture:** in a deployed/demo build with analytics enabled, force a render throw
+   (e.g. a temporary `throw new Error('test')` in a dev console), confirm a redacted exception appears
+   in PostHog's Error Tracking UI within a minute, with no query string / token / PII in the message.
+4. **Route event spot-check (M-7):** from a real browser against the deployed FE, navigate to any
+   page and confirm an `app_route_viewed` event lands in PostHog's live events view (re-confirms
+   existing analytics capture is still wired end-to-end, not a regression from this issue).
+
+**Residual risk (M-8):** the BetterStack monitors and the two PostHog dashboards above are
+reproducible-from-docs checklists, not regression-protected — no automated test fails if a monitor or
+dashboard is later deleted. Accepted MVP residual (external SaaS, no CI runtime); this checklist +
+per-deployed-project sign-off is the control.
 
 ## Prod migration state
 

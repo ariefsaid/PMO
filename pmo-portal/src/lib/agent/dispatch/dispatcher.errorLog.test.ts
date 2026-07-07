@@ -43,8 +43,16 @@ function makeServiceClient(automations: AutomationRow[]) {
   const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
   const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
+  // Observability floor (S2): recordErrorEvent's fire-and-forget insert into
+  // error_events must be a no-op success here — this suite asserts an EXACT
+  // console.error call count per failure phase, and recordErrorEvent's own
+  // swallow-and-log path would otherwise add a second, unrelated console.error
+  // call for every automation failure.
+  const errorEventsInsertMock = vi.fn().mockResolvedValue({ error: null });
+
   const from = vi.fn((table: string) => {
     if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock, upsert: upsertMock };
+    if (table === 'error_events') return { insert: errorEventsInsertMock };
     return { select: selectMock, update: updateMock };
   });
 

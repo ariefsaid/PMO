@@ -454,6 +454,20 @@ verify_jwt = false
 [functions.admin-invite-user]
 verify_jwt = false
 
+# ── Edge Function: telegram-notify ────────────────────────────────────────────
+# verify_jwt = false: invoked every 2 minutes by the pg_cron job (migration 0071) via
+# net.http_post — the caller is Postgres, not a browser/end-user JWT. The handler verifies
+# the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY) and returns a typed 401
+# otherwise (observability floor, NFR-OF-SEC-002).
+[functions.telegram-notify]
+verify_jwt = false
+
+# ── Edge Function: health ──────────────────────────────────────────────────────
+# verify_jwt = false: public, anonymous uptime probe (observability floor, FR-OF-015/016/017)
+# — no auth, no DB, no secret read.
+[functions.health]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

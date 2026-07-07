@@ -10,6 +10,7 @@ const analytics = vi.hoisted(() => ({
   identify: vi.fn(),
   register: vi.fn(),
   reset: vi.fn(),
+  captureException: vi.fn(),
 }));
 
 vi.mock('./client', () => ({
@@ -373,5 +374,39 @@ describe('AnalyticsProvider', () => {
         role: 'Project Manager',
       }),
     );
+  });
+
+  it('AC-OF-010: a real unhandledrejection event routes through captureException via safeTrack, and an SDK throw does not propagate', () => {
+    analytics.captureException.mockImplementationOnce(() => {
+      throw new Error('posthog SDK exploded');
+    });
+    renderTree(makeAuthCtx());
+
+    const rejectionEvent = new PromiseRejectionEvent('unhandledrejection', {
+      promise: Promise.reject(new Error('boom')).catch(() => {}),
+      reason: new Error('boom'),
+    });
+
+    expect(() => window.dispatchEvent(rejectionEvent)).not.toThrow();
+    expect(analytics.captureException).toHaveBeenCalledTimes(1);
+    expect(analytics.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Error', message: 'boom' }),
+    );
+  });
+
+  it('FR-OF-014: disabled analytics registers no error/unhandledrejection listener (no captureException call on a synthetic error)', () => {
+    const originalEnabled = mockConfig.enabled;
+    mockConfig.enabled = false;
+    renderTree(makeAuthCtx());
+    // jsdom re-throws an unhandled `error` event as an uncaught exception when nothing
+    // calls preventDefault() on it (mirroring a real browser's default handling) — attach
+    // a throwaway listener that swallows it so the assertion below is what's under test,
+    // not jsdom's own default-action propagation.
+    const swallow = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener('error', swallow);
+    window.dispatchEvent(new ErrorEvent('error', { message: 'boom', error: new Error('boom') }));
+    window.removeEventListener('error', swallow);
+    expect(analytics.captureException).not.toHaveBeenCalled();
+    mockConfig.enabled = originalEnabled;
   });
 });

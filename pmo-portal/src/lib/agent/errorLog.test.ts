@@ -47,4 +47,12 @@ describe('logStructuredError', () => {
     const [, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
     expect('contextId' in context).toBe(false);
   });
+
+  it("accepts 'telegram-notify' as a valid fn (Fix 3: telegram-notify must log its own name, not borrow agent-dispatch's)", () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_DRAIN_FAILED' });
+    const [message, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
+    expect(message).toContain('telegram-notify');
+    expect(context).toMatchObject({ fn: 'telegram-notify', errorCode: 'TELEGRAM_DRAIN_FAILED' });
+  });
 });
