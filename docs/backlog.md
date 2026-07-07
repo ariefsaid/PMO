@@ -4,6 +4,51 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+## ⚑ RESUME HANDOFF (2026-07-07) — Agent prod-readiness (/goal) + the dev force-reset incident
+
+> **The complete, verified state lives on branch `promote/dev-main-20260707` (tip `ead5d9a`)** — the PR #246
+> head, `dev`→`main`. It carries: the agent "actually works" slice (mig **`0061`** persistence-for-all-orgs —
+> the real prod bug: `org_id` default was seed-only so non-seed users' runs failed RLS silently; 8-entity
+> read-scope via `entityCatalog.ts`, RLS-ceilinged; **deterministic query-skills** in `agent-chat/prompt.ts`
+> (noun-match rule + `tasks` recipe); pgTAP `0113`/`0114`; **security review = SHIP**), the **markdown fix**
+> (`prose-pmo` CSS), **skill-creator vendored** (`scripts/vendor-skills.sh`), the **query-selection eval probe**
+> (`evals/query-selection-probe.ts` — DB-free, proved **deepseek-v4-flash 100% query-call rate**), the
+> **DB-lock tool** (`scripts/with-db-lock.sh`) + CLAUDE.md parallel-agent hygiene rule, the battery-hardening
+> cross-check (`docs/agent-native-hardening-2026-07-07.md`, refs the mining spike), AND another agent's
+> **ops-admin #243 + credits** (migs `0062`–`0070`, `admin-invite-user` edge fn). SDD: agent slice per
+> `docs/spikes/2026-07-04-full-codebase-review.md` + ADR-0036/0043/0050; batteries per
+> `docs/spikes/2026-07-03-agent-native-battery-mining.md`.
+>
+> **/goal status (push agent prod-ready, keep deepseek-4-flash):** (1) query-predictability ✅ (eval-proven +
+> recipes); (2) skill-creator vendored ✅; (3) battery hardening ✅ (cross-check doc); (4) **prod deploy = the
+> only open step.**
+>
+> **⚑ INCIDENT — remote `dev` was force-reset to session-start `ce914c1`** (another parallel agent). **Nothing
+> lost** — all work is on `promote/dev-main-20260707` + the feature branches (`feat/agent-query-skills`,
+> `fix/agent-chat-deputy-production`, `feat/ops-admin`, …). **`dev` is stale/behind `main`-to-be by everything.**
+> **OWNER DECISION PENDING: restore `dev`** (`git push origin ead5d9a:dev` — but coordinate; another agent reset it).
+>
+> **RESUME STEPS (in order):**
+> 1. **Get PR #246 green + merge to `main`.** CI last run `28841558940` (verify ✅; integration was red only on
+>    **ops-admin** gaps — both FIXED: CRM feature-flag `VITE_FEATURES_CRM` in CI `b5c688d`; AC-INV-001 gated
+>    (`ead5d9a`) because it's the lone e2e hitting a REAL edge fn and `config.toml [edge_runtime] enabled=false`
+>    → 503). ⚠ **CI churn: pushes to the head keep getting superseded by GitHub concurrency — re-check the LIVE
+>    run id via `gh pr checks 246`, don't trust a watched id.** ⚠ **A docs-only commit on the promote branch is
+>    `paths-ignore` → the workflow SKIPS → required checks go "missing" → PR re-blocks; land docs AFTER merge, or
+>    include a code change, or admin-merge.**
+> 2. **Prod deploy (owner-gated, per-instance) = holistic:** push migs **`0061`–`0070`** to the Cloud DB (via
+>    `scripts/with-db-lock.sh` + `scripts/db-push-prod.sh`; prod is at `0060`), redeploy edge fns
+>    (`agent-chat` + `agent-dispatch` + `compose-view` + **`admin-invite-user`**), FE→CF Pages. **⚠ set
+>    `VITE_FEATURES_CRM=true` in `pmo-portal/.env.production`** or prod loses the CRM (Sales Pipeline) nav after
+>    deploy (same `FEATURE_ENV_DEFAULT.crm` default-off gotcha). This ships ops-admin+credits to prod too.
+> 3. **Live-verify on prod** (owner login): ask "how many open tasks / opportunities" → agent QUERIES + answers
+>    + renders (markdown/table) + a run PERSISTS in `agent_runs` (the `0061` proof).
+>
+> **Deferred / follow-ups:** I7 obs-memory (owner-gated); ops-admin: serve `admin-invite-user` in CI (enable
+> `edge_runtime` + `SITE_URL`) or mock+seed AC-INV-001 to un-gate it; the "tasks *across my projects*"
+> phrasing edge case (weak-model anchor; probe tracks it); credits enforcement default-OFF.
+> **⚠ SHAs move fast — trust this block + git, not memory.**
+
 ## ▶ GTM / MVP-viability program (owner grill, 2026-07-04 — supersedes scattered GTM notes)
 
 **Decisions of record from the grill (all owner-confirmed):** ADR-0047 (per-client Supabase Cloud
