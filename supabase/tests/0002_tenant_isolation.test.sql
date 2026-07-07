@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(6);
 
 -- Seed two orgs + two auth users + two profiles inside the test txn (rolled back at end).
 insert into organizations (id, name) values
@@ -40,13 +40,24 @@ select throws_ok(
   '42501', null,
   'AC-103: org A cannot insert spoofed org_id (WRITE isolation)');
 
--- AC-103b: insert WITHOUT org_id uses the column default (the canonical org), not A -> cross-org -> rejected.
--- Documents D-2: the default is the canonical org, so an org-A caller relying on the default is correctly
--- blocked; writes must go through the data-access layer that sets the caller's own org context.
-select throws_ok(
-  $$ insert into projects (name, status) values ('Default-org insert','Leads') $$,
-  '42501', null,
-  'AC-103: default org_id differs from caller org A -> rejected by with check');
+-- AC-103b (AMENDED — harden/org-id-seam, charter tenancy seam / post-audit MED-1/2): insert WITHOUT
+-- org_id now SUCCEEDS and is stamped with the caller's (org A's) real org by the before-insert
+-- stamp_org_id() trigger (0074), not left on the seed-org column default. This is the seam fix: an
+-- authenticated non-seed-org user relying on the default used to be incorrectly rejected (the OLD
+-- assertion here, "-> cross-org -> rejected", documented that bug as if it were correct D-2 behavior).
+-- The seed-org-literal default is not a real "other org" the caller is forging into — it's the DAL's
+-- known non-forgery default value — so the trigger treats it as "no org_id supplied" and coerces it to
+-- auth_org_id(). Genuinely-foreign explicit org_id (e.g. line ~39 above, org B) is UNCHANGED: still
+-- preserved by the trigger and hard-rejected by RLS WITH CHECK (42501) — narrow-variant contract, see
+-- 0074's migration comment and 0131_org_stamp_trigger.test.sql.
+select lives_ok(
+  $$ insert into projects (id, name, status)
+     values ('a2222222-0000-0000-0000-000000000002','Default-org insert','Leads') $$,
+  'AC-103b: insert WITHOUT org_id now succeeds (trigger stamps caller''s own org, not the seed default)');
+select is(
+  (select org_id from projects where id = 'a2222222-0000-0000-0000-000000000002'),
+  'aaaaaaaa-0000-0000-0000-000000000001'::uuid,
+  'AC-103b: the stamped org_id is org A (the caller''s real org), not the seed-org column default');
 
 reset role;
 -- AC-104: Engineer (org B user) cannot write projects EVEN within their OWN org. Stamp the row with the

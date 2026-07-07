@@ -47,6 +47,13 @@ reset role;
 -- AC-AUC-011 (AMENDED): an org with usage but NO grants has a negative balance.
 -- Org B (Hal): zero credits, one agent_usage row costing 5 → org B balance = -5.
 -- ════════════════════════════════════════════════════════════════════════════
+-- Fixture hygiene (harden/org-id-seam): `reset role` (above) restores the DB ROLE to postgres but does
+-- NOT clear the `request.jwt.claims` GUC — auth.uid()/auth_org_id() read ONLY that GUC, independent of
+-- role, so a stale claim from the PRIOR block (Gus, org A) would still resolve here. This insert is
+-- meant to be a plain owner-context fixture (org_id sent explicitly, no authenticated caller involved);
+-- clear the stale claims first so auth_org_id() is genuinely null and org_id is not touched by anything
+-- keying off the caller's identity.
+set local request.jwt.claims = '';
 insert into agent_usage (org_id, owner_id, model, cost) values
   ('00960000-0000-0000-0000-000000000002','00960000-0000-0000-0000-0000000000b1', 'test-model', 5);
 set local role authenticated;
