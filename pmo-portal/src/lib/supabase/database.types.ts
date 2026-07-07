@@ -3097,6 +3097,13 @@ export type Database = {
         Args: { p_id: string; p_value: number }
         Returns: undefined
       }
+      // 0077: atomic check-and-hold credit reservation (closes the TOCTOU overspend race). The FE
+      // never touches credit_reservations directly (service-role-only, no policy) — only these RPCs.
+      release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      reserve_credits: {
+        Args: { p_amount: number; p_org_id: string; p_run_id: string }
+        Returns: string
+      }
       task_completion_proxy: {
         Args: { created_at: string; end_date: string }
         Returns: string
