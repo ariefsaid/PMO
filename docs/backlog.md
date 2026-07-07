@@ -4,58 +4,26 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑ GTM wave status + post-audit follow-ups (2026-07-07)
-- **7-issue GTM wave: ALL 7 merged to `dev`** (ops-admin #243 · legal #247 · obs-floor #248 · onboarding #249 · auth-floor #235 · deputy-help #233 · DR #230). Each ran the full spec→build→3-lens→rendered/Discover→fix→PR loop. dev at migration `0073`, pgTAP `0130`.
-- **org_id-seam hardening MERGED** (#250, migration `0074`): `stamp_org_id()` `before insert` trigger on 42 tables stamps `org_id := auth_org_id()` for authenticated callers when org_id is null/seed-default (narrow variant = the documented convention), so non-seed-org writes now succeed + cross-org forgery still hard-rejects (42501). `credits` + `org_features` excluded (cross-org Operator RPCs). Security-auditor SHIP; pgTAP 1119. Closes the post-audit MED-1/2 finding → forward-compatible B2B seam is now real.
-- **gpt-5.5 charter audit (2026-07-07):** first run hit a **STALE `dev` checkout** (verdict NOT-READY invalid — every "missing" surface is present on `origin/dev`; its 4441-test count predates the wave). **Re-run against synced `dev` pending** (`git fetch && git reset --hard origin/dev`).
-- **Deferred follow-ups (tracked, non-blocking):** (a) **Avatar AA-contrast a11y** — shared `Avatar` white initials on categorical `avatarHue()` fail 4.5:1 (amber 1.96:1); darken hues + add axe gate (own branch, needs rendered cycle); (b) **execute a restore drill** before first real client (runbook exists, drill deferred); (c) **bundle-split** exceljs (~930 kB) + main chunk (~671 kB); (d) **codify production auth config** (signup-off/confirmations/Resend SMTP/redirect allowlist) into the `docs/environments.md` deploy checklist — it lives on the cloud project, not the committed local `config.toml`.
-## ⚑ RESUME HANDOFF (2026-07-07) — Agent prod-readiness (/goal) + the dev force-reset incident
+### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
 
-> **STATUS 2026-07-07 late:** PR #246 MERGED to main (4f3f974). Prod deploy STARTED then PAUSED -- production UNCHANGED (94ce615, still the OLD prompt). Migs 0061-0070 + edge-fn redeploy + FE = NOT done. HONEST verification: VERIFIED = query-selection eval (100 pct call rate) + pgTAP 0113/0114 + security SHIP + CI verify/integration green; NOT VERIFIED = the live answer+render loop (real question to correct grounded answer to render to run-persists) -- the browser harness failed, so it is component-verified, NOT proven-in-production. dev diverged to 2ae91e9 (another agent).
+**Branches:** `origin/dev` == `origin/main` == **`c0b0081`** (RECONCILED 2026-07-07 — two parallel agents' work unified: the GTM hardening wave + agent-prod-readiness; only `backlog.md` conflicted, resolved by union). `origin/production` == **`94ce615` (UNTOUCHED — prod NOT deployed** with any of the below; still the OLD prompt/schema, Cloud DB at mig ~`0060`). Migrations → `0075`, pgTAP top `0133`.
 
-> **The complete, verified state lives on branch `promote/dev-main-20260707` (tip `ead5d9a`)** — the PR #246
-> head, `dev`→`main`. It carries: the agent "actually works" slice (mig **`0061`** persistence-for-all-orgs —
-> the real prod bug: `org_id` default was seed-only so non-seed users' runs failed RLS silently; 8-entity
-> read-scope via `entityCatalog.ts`, RLS-ceilinged; **deterministic query-skills** in `agent-chat/prompt.ts`
-> (noun-match rule + `tasks` recipe); pgTAP `0113`/`0114`; **security review = SHIP**), the **markdown fix**
-> (`prose-pmo` CSS), **skill-creator vendored** (`scripts/vendor-skills.sh`), the **query-selection eval probe**
-> (`evals/query-selection-probe.ts` — DB-free, proved **deepseek-v4-flash 100% query-call rate**), the
-> **DB-lock tool** (`scripts/with-db-lock.sh`) + CLAUDE.md parallel-agent hygiene rule, the battery-hardening
-> cross-check (`docs/agent-native-hardening-2026-07-07.md`, refs the mining spike), AND another agent's
-> **ops-admin #243 + credits** (migs `0062`–`0070`, `admin-invite-user` edge fn). SDD: agent slice per
-> `docs/spikes/2026-07-04-full-codebase-review.md` + ADR-0036/0043/0050; batteries per
-> `docs/spikes/2026-07-03-agent-native-battery-mining.md`.
->
-> **/goal status (push agent prod-ready, keep deepseek-4-flash):** (1) query-predictability ✅ (eval-proven +
-> recipes); (2) skill-creator vendored ✅; (3) battery hardening ✅ (cross-check doc); (4) **prod deploy = the
-> only open step.**
->
-> **⚑ INCIDENT — remote `dev` was force-reset to session-start `ce914c1`** (another parallel agent). **Nothing
-> lost** — all work is on `promote/dev-main-20260707` + the feature branches (`feat/agent-query-skills`,
-> `fix/agent-chat-deputy-production`, `feat/ops-admin`, …). **`dev` is stale/behind `main`-to-be by everything.**
-> **OWNER DECISION PENDING: restore `dev`** (`git push origin ead5d9a:dev` — but coordinate; another agent reset it).
->
-> **RESUME STEPS (in order):**
-> 1. **Get PR #246 green + merge to `main`.** CI last run `28841558940` (verify ✅; integration was red only on
->    **ops-admin** gaps — both FIXED: CRM feature-flag `VITE_FEATURES_CRM` in CI `b5c688d`; AC-INV-001 gated
->    (`ead5d9a`) because it's the lone e2e hitting a REAL edge fn and `config.toml [edge_runtime] enabled=false`
->    → 503). ⚠ **CI churn: pushes to the head keep getting superseded by GitHub concurrency — re-check the LIVE
->    run id via `gh pr checks 246`, don't trust a watched id.** ⚠ **A docs-only commit on the promote branch is
->    `paths-ignore` → the workflow SKIPS → required checks go "missing" → PR re-blocks; land docs AFTER merge, or
->    include a code change, or admin-merge.**
-> 2. **Prod deploy (owner-gated, per-instance) = holistic:** push migs **`0061`–`0070`** to the Cloud DB (via
->    `scripts/with-db-lock.sh` + `scripts/db-push-prod.sh`; prod is at `0060`), redeploy edge fns
->    (`agent-chat` + `agent-dispatch` + `compose-view` + **`admin-invite-user`**), FE→CF Pages. **⚠ set
->    `VITE_FEATURES_CRM=true` in `pmo-portal/.env.production`** or prod loses the CRM (Sales Pipeline) nav after
->    deploy (same `FEATURE_ENV_DEFAULT.crm` default-off gotcha). This ships ops-admin+credits to prod too.
-> 3. **Live-verify on prod** (owner login): ask "how many open tasks / opportunities" → agent QUERIES + answers
->    + renders (markdown/table) + a run PERSISTS in `agent_runs` (the `0061` proof).
->
-> **Deferred / follow-ups:** I7 obs-memory (owner-gated); ops-admin: serve `admin-invite-user` in CI (enable
-> `edge_runtime` + `SITE_URL`) or mock+seed AC-INV-001 to un-gate it; the "tasks *across my projects*"
-> phrasing edge case (weak-model anchor; probe tracks it); credits enforcement default-OFF.
-> **⚠ SHAs move fast — trust this block + git, not memory.**
+**On dev/main now:**
+- **7-issue GTM wave** (ops-admin #243 · legal #247 · obs-floor #248 · onboarding #249 · auth #235 · deputy-help #233 · DR #230), each full-loop.
+- **org_id-seam hardening** (#250, mig `0074`): `stamp_org_id()` trigger on 42 tables (narrow variant — stamp when null/seed-default, forged foreign org → 42501; `credits`/`org_features` excluded); security SHIP, pgTAP 1119.
+- **Agent prod-readiness** (other agent): mig `0061` persistence-for-all-orgs (fixed the real prod bug — `org_id` seed-only default made non-seed users' runs fail RLS silently), 8-entity read-scope (`entityCatalog.ts`), deterministic query-skills (`agent-chat/prompt.ts`), skill-creator vendored, query-selection eval probe (deepseek-v4-flash 100% call rate), CRM flag enabled. Component-verified; the live answer→render→persist loop NOT proven-in-prod (browser harness failed).
+- **Deep multi-auditor audit (2026-07-07): GO-WITH-CAVEATS** — foundation is ship-grade (RLS 48/48, org_id seam, SoD RPCs all pgTAP-proven, money uniformly `numeric`, `npm audit` clean, no Critical *security* hole); the blockers cluster in **agent-subsystem reliability + supply-chain + no audit-trail**, not the CRUD/RBAC/RLS foundation. (Full audit body in the 2026-07-07 session transcript.)
 
+**Audit fixes SHIPPED to dev/main:** auth-floor pre-flight enforcement (#251, `check-auth-floor.mjs` gates `provision-client.sh`) · avatar AA-contrast (#252, `--avatar-1..5` tokens) · `auto_expose_new_tables=false` + explicit-grants mig `0075` (#255, column-level-aware mirror) · CORS fail-closed + `||true`-test fix + ADR-0049→0054 (#254) · production-auth-config deploy checklist codified (`environments.md`).
+
+**Audit fixes OUTSTANDING:**
+- **#14 supply-chain/CI** — DONE on branch `harden/supply-chain-ci` (6 `deno.lock` + version pins + `--frozen` CI gate; 12 Actions SHA-pinned; new pgTAP-on-PR→dev job). NOT merged — **rebase onto reconciled `dev`** (which now carries main's CI fixes), resolve `ci.yml`, merge.
+- **Criticals — GLM-BLOCKED (zai `429`-overloaded 2026-07-07):** `audit_events` table + `log_audit()` (no durable audit trail — RED pgTAP already written on branch `harden/audit-events`, needs completion) · `reserve_credits` RPC w/ advisory lock (credit-overspend race — credits default OFF, so pre-enable) · per-`(automation_id,event_id)` claim (automation double-fire — automations idle in prod).
+- **Remaining Highs/Meds (not started):** feature-flag server-enforcement (conjoin `org_has_feature` into `*_write` RLS) · orphaned-Auth-user compensation (`admin-invite-user`) · agent-persistence error handling (stuck `running`) · interactive-create idempotency · `error_events` completeness (2 fns + FE) + retention · S-curve today-position deterministic test · money `CHECK (>=0)` · PostHog consent-gate · agent-chat rate-limit.
+
+**OWNER-ONLY (not autonomously doable):** execute a **DR restore drill** before client #1 · agent-tier **eval GH secrets** + **credits-enforce** decision (both deliberately deferred per GTM plan) · **MSA→counsel** (Terms/Privacy are template stubs) · automation `pg_cron` GUCs · prod Cloud auth-config verification · **prod deploy** (owner-gated, per-instance — push migs to Cloud, redeploy edge fns incl. `admin-invite-user`, FE→CF Pages, set `VITE_FEATURES_CRM=true`).
+
+**Substrate (owner directive):** implementations run on **pi/GLM (glm-5.2)** to spare Anthropic quota; Director (Claude) orchestrates + security-reviews. **NEVER OpenRouter.** GLM/zai was `429`-overloaded + openai-codex weekly-capped late 2026-07-07 → the Criticals wait on GLM recovery (or explicit Anthropic authorization). Node v22 required for pi. **Op lesson:** the 600s agent watchdog kills long *quiet* verifies under machine load — finish heavy `verify`/pgTAP in the main session, not a subagent.
 ## ▶ GTM / MVP-viability program (owner grill, 2026-07-04 — supersedes scattered GTM notes)
 
 **Decisions of record from the grill (all owner-confirmed):** ADR-0047 (per-client Supabase Cloud
