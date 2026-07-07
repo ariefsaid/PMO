@@ -20,9 +20,10 @@
  * can be imported and tested WITHOUT `pg` being installed at the repo root (this repo has no
  * root-level package.json/node_modules; `pg`/`@supabase/supabase-js` are only installed under
  * pmo-portal/node_modules for the Vite app). The live CLI invocation of this script (main())
- * DOES require `pg` to be installed at whatever location Node resolves it from when actually
- * run — flagged as an operator/environment setup dependency, not fixed here (adding a root-level
- * package.json is a tooling decision outside this task's scope).
+ * DOES require `pg` to be installed. Fix-round B4 added `scripts/package.json` declaring `pg` +
+ * `@supabase/supabase-js`; run the one-time setup before invoking this script live:
+ *   npm --prefix scripts install
+ * (documented in docs/environments.md §"Onboarding scripts have their own dependencies").
  */
 
 function parseArgs(argv) {

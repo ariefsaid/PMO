@@ -43,6 +43,28 @@ philosophy). Manual-vs-CLI split + full runbook: `docs/plans/2026-07-04-onboardi
 appended automatically at the end of a successful provisioning run (public-safe fields only — ref/
 URL/anon key/frontend/migrations/seed — never a secret).
 
+### Onboarding scripts have their own dependencies (`scripts/package.json`)
+
+`scripts/import-historical.mjs` needs `@supabase/supabase-js` and `scripts/lib/provisionOrgAdmin.mjs`
+needs `pg`, but the repo has **no root `node_modules`** (the app's deps live under `pmo-portal/`). The
+`scripts/` directory therefore carries its own `package.json`. Run this **once** before invoking any
+onboarding script:
+
+```bash
+npm --prefix scripts install
+```
+
+Then run the scripts from the repo root, e.g.:
+
+```bash
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=$(scripts/op-get.sh …) \
+  node scripts/import-historical.mjs --org-id <uuid> --file scripts/templates/procurement_cases.csv [--dry-run]
+```
+
+`scripts/node_modules/` is gitignored; `scripts/package-lock.json` is committed (pins mirror
+`pmo-portal/package.json`). `--dry-run` performs zero writes (skips the typed-org-name confirm) and is
+the safe way to preview a load.
+
 ## Which command hits which target
 
 | Command | Target | Notes |

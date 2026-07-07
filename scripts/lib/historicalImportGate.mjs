@@ -16,6 +16,7 @@ export function parseArgs(argv) {
     batchId: get('--batch-id') ?? randomUUID(),
     markProvenance: argv.includes('--mark-provenance'),
     strictRefs: argv.includes('--strict-refs'),
+    dryRun: argv.includes('--dry-run'),
   };
 }
 

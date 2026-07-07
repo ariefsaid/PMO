@@ -606,6 +606,24 @@ FR-HIST-013). This is the
 `check-agent-prod-readiness.mjs`-grade verification: **ops-run against a real target, read-only
 assertions, never a secret in CI.**
 
+**Manual dry-run EVIDENCE (executed 2026-07-06, local Docker stack, fix-round D3 completion).**
+Full output is in the plan's Evidence section (`docs/plans/2026-07-04-onboarding-tooling.md`).
+Summary:
+- `--dry-run` against `projects.csv` and `procurement_cases.csv` (org "Default Organization"): zero
+  writes, correct would-create counts, >1yr advisory fired (FR-HIST-010).
+- Real non-dry-run of an all-7-record-type fixture (PR/RFQ/Quotation/PO/GR/VI/Payment) into a
+  disposable scratch org — **RUN 1** created 1 case + 1 of each record via schema-correct raw inserts
+  (FR-HIST-003); post-load queries confirmed the case linked to its project by `project_code`
+  (AC-HIST-004a), the quotation's `vendor_id` stub-resolved (FR-HIST-012), the receipt status =
+  `Complete`, the invoice `amount` = 50000.00, and `payments.invoice_id` settled to the VI (FK).
+- **RUN 2** with the same `--batch-id` created **ZERO** new rows (all 7 record types + case reported
+  `skipped`) — AC-HIST-006 / FR-HIST-011 re-run safety proven live, backed by the DB partial-unique
+  index (0072) + the check-then-insert-with-23505-fallback in `insertOrSkip`.
+- **Write path note:** the loader uses service-role RAW INSERTS (not the `create_*` RPCs). Those RPCs
+  are role-gated on `auth_role()`/`auth.uid()`, both NULL under a service-role connection → an RPC call
+  raises "not authorized". Raw inserts stamp `org_id` + provenance directly; the DB unique index still
+  enforces idempotency.
+
 ---
 
 ## Dependencies (binding — name them, don't hide them)

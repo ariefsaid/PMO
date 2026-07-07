@@ -2755,9 +2755,71 @@ unchanged per the spec's own "Test-layer note (honest)").
 
 ## Evidence (filled in as slices execute — placeholders left EMPTY, not fabricated)
 
-- Slice 1 pgTAP run: _(paste `supabase test db` output for 0123 here once executed)_
+- Slice 1 pgTAP run: `supabase test db` → **All tests successful. Files=137, Tests=1093, Result: PASS**
+  (includes `0129_import_provenance_skip_query.test.sql` — 9 assertions, incl. the fix-round A4
+  DB-unique-index proofs: a duplicate `(org_id, import_key, import_batch_id)` insert raises 23505, and
+  the same import_key in a different batch is allowed).
+
+- **Slice 4 / D3 loader LIVE dry-run + real load (fix-round B5, executed 2026-07-06 against the local
+  Docker stack, org `00000000-0000-0000-0000-000000000001` "Default Organization" for the dry-run and a
+  disposable scratch org `99999999-…-009` for the real non-dry-run, since torn down):**
+
+  `node scripts/import-historical.mjs --org-id … --file scripts/templates/projects.csv --dry-run`
+  ```
+  [dry-run] no writes will be performed (org: Default Organization).
+  import_batch_id: 11111111-1111-1111-1111-111111111111
+  ⚠ PRJ-2024-011: date 2025-03-15 is more than 1 year before the run date — summary-grade scope is ≤ 1yr (advisory only, not blocked).
+  projects:
+    projects: created: 1, skipped: 0, failed: 0
+  cases:
+    cases: created: 0, skipped: 0, failed: 0
+  references: resolved 1, created 0
+  ```
+
+  `node scripts/import-historical.mjs --org-id … --file scripts/templates/procurement_cases.csv --dry-run`
+  ```
+  cases:
+    cases: created: 1, skipped: 0, failed: 0
+  records by type:
+    PR: created: 1, skipped: 0, failed: 0
+    PO: created: 1, skipped: 0, failed: 0
+    VI: created: 1, skipped: 0, failed: 0
+  references: resolved 1, created 0
+  ```
+
+  **Real non-dry-run, all 7 record types (PR/RFQ/Quotation/PO/GR/VI/Payment) into the scratch org,
+  RUN 1 (creates):**
+  ```
+  cases:  cases: created: 1, skipped: 0, failed: 0
+  records by type:
+    PR: created: 1        RFQ: created: 1       Quotation: created: 1
+    PO: created: 1        GR: created: 1        VI: created: 1        Payment: created: 1
+  references: resolved 1, created 1
+  ```
+
+  **RUN 2, SAME batch-id — re-run safety (FR-HIST-011 / AC-HIST-006), creates ZERO:**
+  ```
+  cases:  cases: created: 0, skipped: 1, failed: 0
+  records by type:
+    PR: skipped: 1   RFQ: skipped: 1   Quotation: skipped: 1   PO: skipped: 1
+    GR: skipped: 1   VI: skipped: 1    Payment: skipped: 1
+  ```
+
+  **Post-load DB verification (AC-HIST-004a project linking + FK settlement, no duplicates after 2 runs):**
+  ```
+  procurements: 1 (project_id set: 1)     -- case linked to PRJ-B5 (committed-spend basis)
+  purchase_requests: 1                     quotations: 1 (vendor_id set: 1)   -- vendor stub resolved
+  receipts: 1 status=Complete              invoices: 1 amount=50000.00
+  payments: 1 (invoice_id set: 1)          -- Payment.invoice_id settled to the VI (FK)
+  ```
+  Proves: all 7 record types load without error via schema-correct raw inserts (B1); the case links to
+  its project by project_code (B3, AC-HIST-004a); vendors stub-resolve (B3); a same-batch re-run creates
+  0 (B2). NOTE: the loader writes via service-role RAW INSERTS, not the `create_*` RPCs — those RPCs are
+  role-gated on `auth_role()`/`auth.uid()`, both NULL under a service-role connection, so an RPC call
+  would raise "not authorized"; raw inserts stamp `org_id` + provenance directly and the DB
+  partial-unique index (0072) still enforces idempotency (see the escalation note in the fix-round report).
+
 - Slice 1 `npm run verify`: _(paste summary here)_
-- Slice 4 manual dry-run (Task 4.4): _(paste the 6 assertion query results here)_
 - Slice 5 manual dry-run (Task 5.10): _(paste the 4-step scratch-project run here — requires a real
   scratch Supabase Cloud project; owner must provision one or approve using a disposable free-tier
   project for this verification only)_

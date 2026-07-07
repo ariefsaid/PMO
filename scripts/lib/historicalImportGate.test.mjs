@@ -13,6 +13,12 @@ test('AC-HIST-001: parseArgs reads --org-id, --batch-id, --mark-provenance, --st
   assert.equal(args.batchId, 'batch-9');
   assert.equal(args.markProvenance, true);
   assert.equal(args.strictRefs, true);
+  assert.equal(args.dryRun, false);
+});
+
+test('B5: parseArgs reads --dry-run', () => {
+  const args = parseArgs(['--org-id', 'org-1', '--dry-run']);
+  assert.equal(args.dryRun, true);
 });
 
 test('HIST-E002: requireOrgConfirmed returns ok:false when the typed name does not match the resolved org name', () => {
