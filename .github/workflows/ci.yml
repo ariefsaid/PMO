@@ -48,26 +48,28 @@ defaults:
     working-directory: pmo-portal
 
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
-# PR → dev    → `verify` only (typecheck · lint · unit tests · build). Fast lane.
+# PR → dev    → `verify` + `pgtap` (typecheck · lint · unit tests · build; Supabase +
+#               pgTAP only — no browser, fast). Fast lane.
 # PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
 #               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
-#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate.
-# push main   → `verify` smoke only (integration skipped — see its `if`).
+#               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
+#               here — cheap, and this job must stand alone as the merge-gate proof.)
+# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`).
 # No push CI on dev/feature branches (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
-# CI-unused containers (studio/realtime/vector).
+# CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           # Full history so the changed-lines coverage gate can diff against the
           # PR base ref.
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -105,19 +107,23 @@ jobs:
         run: npm run build
       - name: Lint
         run: npm run lint:ci
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
           deno-version: '2.7.11'
       # Gap: supabase/functions/** is outside tsc/ESLint (edge functions are Deno programs, not
       # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
+      # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
+      # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
       - name: Deno typecheck — edge function entry points + _shared
         working-directory: .
         run: |
           set -e
           for fn in agent-chat agent-dispatch compose-view admin-invite-user; do
             echo "── deno check supabase/functions/$fn/index.ts ──"
-            deno check --config "supabase/functions/$fn/deno.json" "supabase/functions/$fn/index.ts"
+            deno check --config "supabase/functions/$fn/deno.json" \
+              --lock "supabase/functions/$fn/deno.lock" --frozen \
+              "supabase/functions/$fn/index.ts"
           done
       # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
       # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
@@ -133,11 +139,48 @@ jobs:
               scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
           done
 
+  pgtap:
+    # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
+    # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
+    # dev, not just at the dev→main promote. The Playwright/e2e/visual portion stays reserved
+    # for the `integration` job (PR→main only) below — this job does NOT duplicate it.
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        # supabase CLI must be run from repo root (where supabase/config.toml lives)
+        working-directory: .
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.105.0
+
+      # Docker is pre-installed on ubuntu-latest; storage + edge_runtime are disabled in
+      # config.toml. Also exclude CI-unused containers to shave the stack-up time:
+      # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
+      # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
+      # storage/inbucket — those are e2e-only concerns).
+      - name: Start local Supabase stack
+        run: supabase start -x studio,realtime,vector
+
+      # Applies every migration in order and re-seeds from supabase/seed.sql so tests
+      # always start from a clean, known state.
+      - name: Reset DB (migrations + seed)
+        run: supabase db reset --yes
+
+      # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
+      - name: pgTAP integration tests
+        run: supabase test db
+
   integration:
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
     # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
     # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
-    # is redundant. PRs targeting dev get `verify` only (fast lane — see tiering comment above).
+    # is redundant. PRs targeting dev get pgTAP only via the `pgtap` job above (fast lane — see
+    # tiering comment below).
     # Make this a REQUIRED status check in branch protection so a red e2e can't be merged.
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
@@ -147,13 +190,13 @@ jobs:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)
         working-directory: .
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: 2.105.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -219,7 +262,7 @@ jobs:
       # saved on a cache hit. Keyed on the lockfile so a Playwright bump busts the cache.
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pmo-portal/package-lock.json') }}
@@ -242,7 +285,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: playwright-report
           path: pmo-portal/playwright-report/

@@ -98,6 +98,14 @@ function mockSupabase(opts: {
           }),
         };
       }
+      // error_events: the observability-floor insert path driven by recordErrorEvent
+      // (AC-OF-AGENT-DENIED-001). Returns a thenable resolving to {error:null} so
+      // recordErrorEvent's await completes — mirroring the real client shape.
+      if (table === 'error_events') {
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
       // Default: read-only entity
       return {
         select: vi.fn().mockReturnValue({
@@ -108,6 +116,10 @@ function mockSupabase(opts: {
         }),
       };
     }),
+    // audit_agent_denial RPC (migration 0079) — resolves by default so the fail-open audit
+    // write on the refusal path succeeds. A per-test can reassign `.rpc` to throw/reject to
+    // prove fail-open (AC-AGENTDENY-WIRING-002). Real client shape: { data, error }.
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   } as unknown as HandlerDeps['supabase'];
 }
 
@@ -440,6 +452,187 @@ it('AC-AW-008 approve but can() denies the role → PERMISSION_DENIED, no write'
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
   const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
+});
+
+// ── Observability floor (audit Obs-High): durable AGENT_PERMISSION_DENIED event ──
+// AC-OF-AGENT-DENIED-001: when can() refuses a SoD-gated write, the security signal must
+// survive the SSE-stream close — i.e. a durable error_events row is inserted via
+// recordErrorEvent (same mechanism as agent-chat/index.ts:95). Covers the decision-path
+// denial site (handler.ts Site B); the confirmed-write re-auth site (Site A) shares the
+// identical wiring.
+
+it('AC-OF-AGENT-DENIED-001 can() denies → durable error_events row recorded with fn/contextId/orgId, before stream errored', async () => {
+  const validArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
+  const toolId = 'tool-use-id-9';
+
+  const req: AgentChatRequest = {
+    runId: 'run-9',
+    messages: [
+      { role: 'user', content: 'log a call' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: toolId, name: 'create_activity', input: validArgs },
+        ],
+      },
+    ],
+    decision: { pendingId: 'pending-9', verdict: 'approve' },
+  };
+
+  // profileData.org_id is the orgId the durable row must carry.
+  const supabaseMock = mockSupabase({ profileData: { org_id: 'org-1', role: 'Sales' } });
+  const canMock = vi.fn().mockReturnValue(false); // denies
+
+  const events = await collect(
+    agentChatHandler(req, baseDeps({
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Permission denied.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
+      },
+      supabase: supabaseMock,
+      can: canMock,
+    })),
+  );
+
+  // The stream still errored (the durable recording must NOT change the user-facing signal)
+  expect(events.find(
+    (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
+  )).toBeDefined();
+
+  // AND a durable error_events row was inserted (the audit signal survives the stream close).
+  // The error_events branch in mockSupabase returns {insert: spy}; correlate via the .from()
+  // call index — from is a single vi.fn, so mock.calls[i] and mock.results[i] line up.
+  const fromMock = supabaseMock.from as ReturnType<typeof vi.fn>;
+  const errorEventsCallIdx = fromMock.mock.calls.findIndex(([t]: [string]) => t === 'error_events');
+  expect(errorEventsCallIdx).toBeGreaterThanOrEqual(0);
+  const errorEventsBranch = fromMock.mock.results[errorEventsCallIdx].value as { insert: ReturnType<typeof vi.fn> };
+  const insertedRow = errorEventsBranch.insert.mock.calls[0]?.[0] as {
+    fn: string; error_code: string; context_id?: string; org_id?: string;
+  };
+  expect(insertedRow).toBeDefined();
+  expect(insertedRow.fn).toBe('agent-chat');
+  expect(insertedRow.error_code).toBe('AGENT_PERMISSION_DENIED');
+  expect(insertedRow.context_id).toBe('create_activity');
+  expect(insertedRow.org_id).toBe('org-1');
+});
+
+// ── Audit Obs-High #1 (durable denial record): the 0079 audit_agent_denial RPC is wired into ──
+// BOTH refusal sites. Covers the decision-path site (handler.ts handleDecision). The
+// confirmed-write re-auth site (runToolLoop) shares the identical auditAgentDenial wiring.
+// AC-AGENTDENY-WIRING-001: on refusal, the RPC is invoked with a non-forgeable identity
+//   (the handler passes only annotation; org/actor are stamped server-side by the RPC) and
+//   the attempted action/tool + run/thread/pending ids, BEFORE the stream errors.
+// AC-AGENTDENY-WIRING-002: a failing audit write is FAIL-OPEN — it must not change the refusal
+//   signal or break the turn (audit = observability, not a gate).
+
+it('AC-AGENTDENY-WIRING-001 can() denies → audit_agent_denial RPC invoked with reason + attempted-action/run detail before the stream errors', async () => {
+  const validArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
+  const toolId = 'tool-use-id-d1';
+
+  const req: AgentChatRequest = {
+    runId: 'run-d1',
+    threadId: 'thread-d1',
+    messages: [
+      { role: 'user', content: 'log a call' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: toolId, name: 'create_activity', input: validArgs },
+        ],
+      },
+    ],
+    decision: { pendingId: 'pending-d1', verdict: 'approve' },
+  };
+
+  const supabaseMock = mockSupabase({ profileData: { org_id: 'org-1', role: 'Sales' } });
+  const canMock = vi.fn().mockReturnValue(false); // denies → refusal path
+
+  const events = await collect(
+    agentChatHandler(req, baseDeps({
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Permission denied.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
+      },
+      supabase: supabaseMock,
+      can: canMock,
+    })),
+  );
+
+  // The durable audit RPC was invoked exactly once with the refusal reason + annotation
+  // (attempted tool/action/entity + run/thread/pending ids). Org/actor are NOT passed — the
+  // 0079 RPC stamps them server-side from the JWT (proven non-forgeable by pgTAP 0136).
+  expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+  expect(supabaseMock.rpc).toHaveBeenCalledWith('audit_agent_denial', {
+    p_reason: 'permission_denied',
+    p_detail: {
+      tool: 'create_activity',
+      action: 'create',
+      entity: 'contactActivity',
+      run_id: 'run-d1',
+      thread_id: 'thread-d1',
+      pending_id: 'pending-d1',
+    },
+  });
+
+  // And the user-facing refusal signal is unchanged (the audit write is not a gate).
+  expect(events.find(
+    (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
+  )).toBeDefined();
+});
+
+it('AC-AGENTDENY-WIRING-002 a throwing audit_agent_denial RPC is FAIL-OPEN — refusal signal unchanged, no exception escapes the stream', async () => {
+  const validArgs = { contactId: 'c1', kind: 'call', subject: 'Follow-up' };
+  const toolId = 'tool-use-id-d2';
+
+  const req: AgentChatRequest = {
+    runId: 'run-d2',
+    messages: [
+      { role: 'user', content: 'log a call' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: toolId, name: 'create_activity', input: validArgs },
+        ],
+      },
+    ],
+    decision: { pendingId: 'pending-d2', verdict: 'approve' },
+  };
+
+  const supabaseMock = mockSupabase({ profileData: { org_id: 'org-1', role: 'Sales' } });
+  // Simulate the audit RPC failing (e.g. transient DB/edge error). Must be swallowed.
+  (supabaseMock as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc = vi
+    .fn()
+    .mockRejectedValue(new Error('audit rpc down'));
+
+  // collect() must NOT throw — the failed audit write must not break the user's turn.
+  const events = await collect(
+    agentChatHandler(req, baseDeps({
+      modelClient: {
+        create: vi.fn().mockResolvedValue({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Permission denied.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
+        }),
+      },
+      supabase: supabaseMock,
+      can: vi.fn().mockReturnValue(false),
+    })),
+  );
+
+  // The RPC was attempted, and the refusal signal is identical to the happy-audit path.
+  expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+  expect(events.find(
+    (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
+  )).toBeDefined();
 });
 
 // ── Task 16 (RED→GREEN): AC-AW-005 malformed args → no needs-approval ─────────
