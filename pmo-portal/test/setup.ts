@@ -82,3 +82,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// ADR-0042 §4: build-time version identity (`vite.config.ts` `define`). Vite's
+// `define` replacement does NOT run under Vitest, so the bare `__*__` tokens
+// referenced at module-eval in `src/lib/version.ts` would throw ReferenceError
+// in any test that transitively imports it (AppShell/LoginPage render
+// <AppVersion>). Default them here so the broader suite stays green; the
+// dedicated `version.test.ts` / `AppVersion.test.tsx` override per-test via
+// `vi.stubGlobal` + `vi.resetModules` + a fresh dynamic import.
+(globalThis as Record<string, unknown>).__APP_VERSION__ ??= '0.0.0-test';
+(globalThis as Record<string, unknown>).__GIT_SHA__ ??= 'testsha';
+(globalThis as Record<string, unknown>).__BUILD_TIME__ ??= '1970-01-01T00:00:00.000Z';

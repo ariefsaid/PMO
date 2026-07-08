@@ -116,3 +116,17 @@ Each release's notes **must** pin the full manifest so "what's in prod" is unamb
    `vX.Y.Z` from Conventional Commits; merged before a promote, it creates the tag + GitHub Release.
 2. `VITE_APP_VERSION` build injection + `<EnvBadge>` surfacing.
 3. `supabase functions deploy` step + `ANTHROPIC_API_KEY` prod secret in the promote runbook.
+
+## Amendment (2026-07-08, owner-directed)
+
+The product version is now **minted on `main`** via the release-please flow
+(adoption plan §1, now implemented in `.github/workflows/release-please.yml` +
+`release-please-config.json`), **not at `main → production`** as the body above
+states. A push to `main` lets release-please accrue Conventional Commits into a
+release PR; merging that PR bumps `pmo-portal/package.json`, appends to the
+root `CHANGELOG.md`, and mints the git tag `vX.Y.Z` + a GitHub Release on the
+`main` commit. A prod promote therefore deploys an **already-tagged** `main`
+commit, and the in-app version label reports the deployed build's
+`vX.Y.Z · <sha>` on every environment (incl. prod). The §2 bump rule (any
+`feat:`/`!` ⇒ MINOR, else PATCH) and the §3 release-manifest requirement are
+unchanged.
