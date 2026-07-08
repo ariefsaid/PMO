@@ -126,6 +126,15 @@ export interface AgentRuntime {
     payload?: AgentAnswer,
   ): Promise<void>;
   subscribe(runId: string): AsyncIterable<AgentEvent>;
+  /**
+   * Release a run's client-side state. Called when the user starts a new conversation
+   * (the only path that mints a new run) or permanently ends a run (stop/cancel), so a
+   * completed conversation's accumulated transcript is freed and the adapter's per-run
+   * state stays bounded. NOT called on a plain 'completed' — a follow-up may still
+   * continue the run, so its state must survive completion (multi-turn contract, D8/R5).
+   * Optional so test fakes / alternative adapters need not implement it.
+   */
+  dispose?(runId: string): void;
 }
 
 /**

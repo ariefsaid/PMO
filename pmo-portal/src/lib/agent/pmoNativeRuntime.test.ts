@@ -42,26 +42,67 @@ const EVENTS: AgentEvent[] = [
   { id: '3', runId: 'r', type: 'status', payload: { status: 'completed' }, createdAt: 'c' },
 ];
 
-// ── Blocker 4: _runs Map cleanup after stream terminates ──────────────────────
+// ── Edge-fn versioning: x-deploy-version header → onDeployVersion callback ─────
 
-it('Blocker 4: _runs Map entry is deleted after subscribe stream completes (no memory leak)', async () => {
-  // RED: before the fix, _runs.delete was never called → the Map grows unboundedly.
-  // Access the private _runs map via a type cast to verify cleanup.
+it('onDeployVersion fires with the response x-deploy-version header (edge build SHA)', async () => {
+  const body = EVENTS.map(encodeSse).join('');
+  const fetchImpl = vi.fn().mockResolvedValue({
+    ok: true,
+    headers: new Headers({ 'x-deploy-version': 'abc1234' }),
+    body: readableFrom(body),
+  }) as unknown as typeof fetch;
+  const onDeployVersion = vi.fn();
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl,
+    onDeployVersion,
+  });
+  const run = await runtime.createRun({ goal: 'test' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  expect(onDeployVersion).toHaveBeenCalledWith('abc1234');
+});
+
+it('onDeployVersion is not called when the header is absent (headerless fetch double)', async () => {
+  const onDeployVersion = vi.fn();
+  // makeRuntime's fetch double returns no headers at all — must not throw or fire.
+  const runtime = makeRuntime(EVENTS);
+  (runtime as unknown as { _opts: { onDeployVersion?: unknown } })._opts.onDeployVersion = onDeployVersion;
+  const run = await runtime.createRun({ goal: 'test' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  expect(onDeployVersion).not.toHaveBeenCalled();
+});
+
+// ── Multi-turn contract (Blocker-4 reconciled): run state SURVIVES completion ──
+// The previous "delete _runs on completion" caused the multi-turn money-path bug:
+// the 2nd user message hung forever on "Working…" — followUp() returned early
+// (state gone), subscribe() then POSTed nothing, and the panel froze with zero
+// model calls. The entry now persists across completions and is released ONLY by
+// dispose(runId) (called from the panel on newConversation()/stop()).
+
+it('multi-turn contract: _runs entry SURVIVES a normal completion (follow-up can reuse it); dispose(runId) releases it', async () => {
   const runtime = makeRuntime(EVENTS);
   const run = await runtime.createRun({ goal: 'test' });
 
-  // The run entry should exist after createRun
   const runsMap = (runtime as unknown as { _runs: Map<string, unknown> })._runs;
   expect(runsMap.has(run.id)).toBe(true);
 
-  // Consume the entire stream
+  // Drain the entire stream to a 'completed' status.
   for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
 
-  // After stream completes, the Map entry must be deleted
+  // After completion, the entry MUST still be present — a follow-up needs it.
+  expect(runsMap.has(run.id)).toBe(true);
+  // And a follow-up still finds LIVE state (does not early-return / hang).
+  await expect(runtime.followUp(run.id, 'again')).resolves.toBeUndefined();
+  expect(runsMap.has(run.id)).toBe(true);
+
+  // dispose(runId) is now the SOLE release path — it removes the entry (Map-growth
+  // guarantee preserved from the old Blocker-4 intent).
+  runtime.dispose(run.id);
   expect(runsMap.has(run.id)).toBe(false);
 });
 
-it('Blocker 4: _runs Map entry is deleted even when the fetch fails (error path cleanup)', async () => {
+it('multi-turn contract: _runs entry SURVIVES the error path too; dispose(runId) releases it', async () => {
   const fetchImpl = vi.fn().mockResolvedValue({
     ok: false,
     body: null,
@@ -77,11 +118,75 @@ it('Blocker 4: _runs Map entry is deleted even when the fetch fails (error path 
   const runsMap = (runtime as unknown as { _runs: Map<string, unknown> })._runs;
   expect(runsMap.has(run.id)).toBe(true);
 
-  // Drain the stream (will yield an error status event then end)
+  // Drain the stream (will yield an error status event then end).
   for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
 
-  // Map entry must be cleaned up even on the error path
+  // Entry survives even the error path; dispose is the sole release.
+  expect(runsMap.has(run.id)).toBe(true);
+  runtime.dispose(run.id);
   expect(runsMap.has(run.id)).toBe(false);
+});
+
+// ── THE MONEY PATH: a follow-up after completion reuses the run, replays the full
+// transcript, and re-streams. Regression for the diagnosed multi-turn hang where the
+// 2nd user message froze on "Working…" with zero model calls.
+it('multi-turn: a follow-up after completion reuses the run, replays the full transcript, and re-streams', async () => {
+  // Turn 1 stream: assistant answers Q1, then 'completed'.
+  const turn1Events: AgentEvent[] = [
+    { id: 't1-a', runId: 'r', type: 'assistant', text: 'answer to Q1', createdAt: 'b' },
+    { id: 't1-c', runId: 'r', type: 'status', payload: { status: 'completed' }, createdAt: 'c' },
+  ];
+  // Turn 2 stream: assistant answers Q2, then 'completed'.
+  const turn2Events: AgentEvent[] = [
+    { id: 't2-a', runId: 'r', type: 'assistant', text: 'answer to Q2', createdAt: 'b2' },
+    { id: 't2-c', runId: 'r', type: 'status', payload: { status: 'completed' }, createdAt: 'c2' },
+  ];
+
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(turn1Events.map(encodeSse).join('')) });
+    }
+    return Promise.resolve({ ok: true, body: readableFrom(turn2Events.map(encodeSse).join('')) });
+  });
+
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  // Turn 1: createRun(Q1) → fully drain subscribe to 'completed'.
+  const run = await runtime.createRun({ goal: 'What is Q1?' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain turn 1 */ }
+
+  // Follow-up — this MUST NOT early-return; the run's state survived completion.
+  await runtime.followUp(run.id, 'What is Q2?');
+
+  // Turn 2: drain subscribe again — must drive a real POST and re-stream (not empty).
+  const events2: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) events2.push(ev);
+
+  // (b) A second stream of events was produced (the run re-streamed, not an empty hang).
+  expect(events2.length).toBeGreaterThan(0);
+  expect(events2.some((e) => e.type === 'assistant')).toBe(true);
+  expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);
+
+  // Exactly two POSTs happened (turn 1 + turn 2) — proving the follow-up drove a real
+  // request instead of silently no-op'ing.
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+
+  // (a) The SECOND POST body's messages contains the FULL accumulated transcript —
+  //     Q1 user + Q1 assistant + the new Q2 user message — proving context carries
+  //     across turns and the SAME run continued.
+  const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
+  const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(body.messages).toEqual([
+    { role: 'user', content: 'What is Q1?' },
+    { role: 'assistant', content: 'answer to Q1' },
+    { role: 'user', content: 'What is Q2?' },
+  ]);
 });
 
 // ── Task 19 (RED→GREEN): A3 approve/reject control sends decision on re-POST ──

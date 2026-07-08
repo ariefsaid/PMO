@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
+import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { useAgentAttachments } from '@/src/hooks/useAgentAttachments';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
@@ -29,6 +30,7 @@ import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
 import { ActivityTrail } from './ActivityTrail';
+import { ThinkingBubble } from './ThinkingBubble';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import {
   clampPanelWidth,
@@ -104,17 +106,6 @@ const OutOfCreditsCard: React.FC = () => (
   </div>
 );
 
-// ── Streaming indicator ───────────────────────────────────────────────────────
-const StreamingIndicator: React.FC<{ label?: string | null }> = ({ label }) => (
-  <div
-    aria-live="polite"
-    aria-atomic="true"
-    className="px-4 py-1 text-xs text-muted-foreground motion-reduce:animate-none"
-  >
-    {label ?? 'Working…'}
-  </div>
-);
-
 // ── Main panel component ──────────────────────────────────────────────────────
 
 export const AssistantPanel: React.FC = () => {
@@ -142,6 +133,9 @@ export const AssistantPanel: React.FC = () => {
     openThread,
     prefillVersion,
   } = useAssistantPanel();
+  // Deployed agent-chat build SHA (from its x-deploy-version header) — surfaced so
+  // a stale edge deploy is visible in-app, not just in devtools/health (edge-fn versioning).
+  const { edgeVersion } = useAgentRuntimeContext();
 
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLElement>(null);
@@ -521,12 +515,26 @@ export const AssistantPanel: React.FC = () => {
           className="flex flex-shrink-0 items-center justify-between border-b border-border px-4"
           style={{ height: 'var(--header-h, 56px)' }}
         >
-          <h2
-            id={titleId}
-            className="text-[18px] font-semibold text-foreground"
-          >
-            Assistant
-          </h2>
+          <div className="flex flex-col justify-center">
+            <h2
+              id={titleId}
+              className="text-[18px] font-semibold leading-tight text-foreground"
+            >
+              Assistant
+            </h2>
+            {/* Deployed agent-chat build — a subtle sub-label, shown ONLY for a real
+                stamped SHA (the 'dev' placeholder is local/un-stamped noise). The signal
+                exists to catch a stale PROD edge fn (edge-fn versioning). */}
+            {edgeVersion && edgeVersion !== 'dev' && (
+              <span
+                data-testid="edge-version"
+                title="Deployed agent-chat build"
+                className="select-none font-mono text-[10px] leading-none text-muted-foreground/70"
+              >
+                edge · {edgeVersion}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             {/* Dock/overlay toggle (Task D4, FR-AXP-025/026) — desktop-only.
                 No dedicated dock/overlay glyph exists in the icon set (DESIGN.md
@@ -632,12 +640,20 @@ export const AssistantPanel: React.FC = () => {
               the model is not "Working…" once it has asked a clarifying question and is
               waiting on the human; the distinct "A question awaits your answer" status
               below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion &&
-            (activityTrail.length > 0 ? (
-              <ActivityTrail items={activityTrail} />
-            ) : (
-              <StreamingIndicator label={currentStep} />
-            ))}
+          {phase === 'running' && !hasPendingQuestion && (
+            <>
+              {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
+              {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
+              {/* A PROMINENT thinking bubble fills the QUIET gaps — before the first step
+                  and between tool rounds while the model is generating — where the old tiny
+                  "Working…" line read as a frozen panel. Shown only when NO step is actively
+                  spinning (so it never duplicates the trail's current row); carries the live
+                  elapsed counter so the run is unmistakably alive, not stuck. */}
+              {!activityTrail.some((s) => !s.done) && (
+                <ThinkingBubble label={activityTrail.length === 0 ? currentStep : null} />
+              )}
+            </>
+          )}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}

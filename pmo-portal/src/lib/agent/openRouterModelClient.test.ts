@@ -57,7 +57,7 @@ it('AC-MC-001 sends POST to the OpenRouter chat-completions endpoint with the ri
   expect(body.model).toBe('deepseek/deepseek-v4-flash');
   expect(body.max_tokens).toBe(512);
   expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);
-  expect(body.provider).toEqual({ order: ['DeepInfra'], allow_fallbacks: true });
+  expect(body.provider).toEqual({ sort: 'throughput', allow_fallbacks: true });
   expect(body.usage).toEqual({ include: true });
 });
 

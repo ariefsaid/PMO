@@ -191,7 +191,7 @@ describe('AssistantPanel live step trail', () => {
     });
   }, 15_000);
 
-  it('falls back to "Working…" when no step event has been emitted', async () => {
+  it('falls back to "Working on your answer" when no step event has been emitted', async () => {
     const user = userEvent.setup();
     const runId = 'idle-run';
 
@@ -215,14 +215,14 @@ describe('AssistantPanel live step trail', () => {
     await user.type(textarea, 'hi');
     await user.keyboard('{Enter}');
 
-    // While running with no step event → neutral "Working…".
+    // While running with no step event → the prominent thinking bubble's neutral copy.
     await waitFor(() => {
-      expect(screen.getByText('Working…')).toBeInTheDocument();
+      expect(screen.getByText('Working on your answer')).toBeInTheDocument();
     });
 
     act(() => releaseComplete());
     await waitFor(() => {
-      expect(screen.queryByText('Working…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Working on your answer')).not.toBeInTheDocument();
     });
   });
 });

@@ -27,6 +27,12 @@ export interface PmoNativeRuntimeOptions {
   fnUrl: string;
   /** Injectable fetch implementation (defaults to globalThis.fetch). */
   fetchImpl?: typeof fetch;
+  /**
+   * Called with the deployed agent-chat build's git SHA, read from the response's
+   * `x-deploy-version` header on each turn — lets the UI show which edge build
+   * answered (catches a stale deploy). Fired only when the header is present.
+   */
+  onDeployVersion?: (version: string) => void;
 }
 
 interface RunState {
@@ -86,9 +92,29 @@ export class PmoNativeRuntime implements AgentRuntime {
   async followUp(runId: string, message: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void> {
     const state = this._runs.get(runId);
     if (!state) return;
+    // Multi-turn money-path fix: the run's state now SURVIVES a normal completion (the
+    // finally in _doSubscribe no longer deletes it), so a follow-up can continue the
+    // SAME run. Reset for a fresh turn — a brand-new AbortController (the previous
+    // turn's controller was already consumed by its POST; a stale/aborted signal would
+    // break the new fetch) — and defensively clear any paused/approval flags left over
+    // from a prior turn. The new user message + attachment/thread handling follow below.
+    state.controller = new AbortController();
+    state.awaitingDecision = false;
+    state.awaitingAnswer = false;
     state.messages.push({ role: 'user', content: message });
     state.attachmentIds = normalizeAttachmentIds(input?.attachmentIds);
     state.threadId = input?.threadId ?? state.threadId;
+  }
+
+  /**
+   * Release a run's client-side state (Blocker-4 reconciliation). Called by the panel
+   * on newConversation() (the only path that mints a new run) and on stop()/cancel when
+   * a run is permanently ended — so a completed conversation's accumulated transcript is
+   * freed and the _runs Map stays bounded. NOT called on a plain 'completed' status: a
+   * follow-up may still continue the run, so its state must survive completion (D8/R5).
+   */
+  dispose(runId: string): void {
+    this._runs.delete(runId);
   }
 
   async control(
@@ -213,14 +239,16 @@ export class PmoNativeRuntime implements AgentRuntime {
   /**
    * Internal generator that performs one SSE request and yields events.
    *
-   * Lifecycle: the _runs entry is created by createRun and deleted in the `finally`
-   * block here, so it lives exactly as long as the stream. This prevents unbounded
-   * growth in long-lived SPA sessions (Blocker 4 / A1 review).
+   * Lifecycle: the _runs entry is created by createRun and KEPT across completions so
+   * followUp() can continue the SAME run (multi-turn contract, D8/R5). It is released
+   * only by dispose(runId), called from the panel on newConversation()/stop() — the only
+   * paths that mint a new run or permanently end one — so the Map stays bounded in a
+   * long-lived SPA session without breaking follow-ups (Blocker-4 reconciled).
    *
-   * A3 exception: if the stream ends in `needs-approval`, the entry is PRESERVED
-   * (awaitingDecision=true) so the stashed pendingId+decision survives to the next
-   * subscribe() call. After the decision re-POST resolves (completed/errored), the
-   * entry is deleted normally.
+   * A3/ADR-0045 §2: if the stream ends in `needs-approval` or awaiting a question answer,
+   * awaitingDecision/awaitingAnswer are set so subscribe()'s entry-point rehydrates a
+   * fresh controller (carrying the stashed pendingId/decision or questionId/answer) for
+   * the next POST. The state is still not deleted in the finally — dispose owns that.
    *
    * @param runId — the run whose state entry to subscribe and clean up.
    */
@@ -264,6 +292,11 @@ export class PmoNativeRuntime implements AgentRuntime {
         body: JSON.stringify(body),
         signal: state.controller.signal,
       });
+
+      // `?.` guards an injected fetchImpl whose Response omits headers (a real fetch
+      // Response always has them; test doubles may not).
+      const deployVersion = resp.headers?.get?.('x-deploy-version');
+      if (deployVersion) this._opts.onDeployVersion?.(deployVersion);
 
       if (!resp.ok || !resp.body) {
         // Yield an error status event and stop
@@ -352,12 +385,19 @@ export class PmoNativeRuntime implements AgentRuntime {
         state.awaitingAnswer = true;
       }
     } finally {
-      // A3/ADR-0045 §2: preserve the Map entry when the stream ended in needs-approval
-      // or awaiting a question answer (run is paused). Delete in all other cases to
-      // prevent unbounded Map growth (Blocker 4).
-      if (!state.awaitingDecision && !state.awaitingAnswer) {
-        this._runs.delete(runId);
-      }
+      // Multi-turn money-path fix (Blocker-4 reconciled): do NOT delete the run's state
+      // on a normal completion — KEEP it so a subsequent followUp() can reuse it (the
+      // panel reuses the SAME runId for follow-ups, D8/R5). The previous "delete on
+      // completion" caused the 2nd-turn hang: followUp() returned early (state gone),
+      // subscribe() then POSTed nothing, and the panel froze on "Working…" with zero
+      // model calls.
+      //
+      // The Map is now bounded by dispose(runId), called from the panel on
+      // newConversation()/stop() (the only paths that mint a new run or permanently end
+      // one) — NOT here on a plain 'completed' (a follow-up may still come). The
+      // awaitingDecision/awaitingAnswer flags set above for the needs-approval/question
+      // pause flow are retained (subscribe()'s entry-point rehydrates a fresh controller
+      // in that case), but no longer gate a delete here.
     }
   }
 }
