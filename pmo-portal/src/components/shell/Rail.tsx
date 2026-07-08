@@ -5,6 +5,7 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { isFeatureEnabled } from '@/src/lib/features';
+import { AppVersion } from '@/src/components/AppVersion';
 import {
   FEATURE_ENV_DEFAULT,
   type OrgFeatureKey,
@@ -288,6 +289,13 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           </NavLink>
         </div>
       )}
+
+      {/* Build version — a quiet sidebar footer. Moved here from a fixed bottom-left
+          corner overlay that collided with this very nav; in normal flow it sits cleanly
+          at the sidebar foot. Always visible, incl. prod (ADR-0042 §4). */}
+      <div className="flex-shrink-0 border-t border-border px-4 py-2">
+        <AppVersion />
+      </div>
     </div>
   );
 };
