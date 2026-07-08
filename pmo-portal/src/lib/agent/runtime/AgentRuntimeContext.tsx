@@ -20,6 +20,8 @@ export interface AgentRuntimeContextValue {
   prefillVersion?: number;
   /** One-shot draft prefill consumed by AssistantPanel after openPanel(prefill). */
   consumePrefill?: () => string | null;
+  /** git SHA of the deployed agent-chat fn (from its x-deploy-version header); null until the first turn. */
+  edgeVersion?: string | null;
 }
 
 export const AgentRuntimeContext = React.createContext<AgentRuntimeContextValue>({
@@ -30,6 +32,7 @@ export const AgentRuntimeContext = React.createContext<AgentRuntimeContextValue>
   togglePanel: () => {},
   prefillVersion: 0,
   consumePrefill: () => null,
+  edgeVersion: null,
 });
 
 /**

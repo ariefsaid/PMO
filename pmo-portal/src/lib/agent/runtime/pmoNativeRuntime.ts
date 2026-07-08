@@ -27,6 +27,12 @@ export interface PmoNativeRuntimeOptions {
   fnUrl: string;
   /** Injectable fetch implementation (defaults to globalThis.fetch). */
   fetchImpl?: typeof fetch;
+  /**
+   * Called with the deployed agent-chat build's git SHA, read from the response's
+   * `x-deploy-version` header on each turn — lets the UI show which edge build
+   * answered (catches a stale deploy). Fired only when the header is present.
+   */
+  onDeployVersion?: (version: string) => void;
 }
 
 interface RunState {
@@ -264,6 +270,11 @@ export class PmoNativeRuntime implements AgentRuntime {
         body: JSON.stringify(body),
         signal: state.controller.signal,
       });
+
+      // `?.` guards an injected fetchImpl whose Response omits headers (a real fetch
+      // Response always has them; test doubles may not).
+      const deployVersion = resp.headers?.get?.('x-deploy-version');
+      if (deployVersion) this._opts.onDeployVersion?.(deployVersion);
 
       if (!resp.ok || !resp.body) {
         // Yield an error status event and stop

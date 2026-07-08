@@ -42,6 +42,37 @@ const EVENTS: AgentEvent[] = [
   { id: '3', runId: 'r', type: 'status', payload: { status: 'completed' }, createdAt: 'c' },
 ];
 
+// ── Edge-fn versioning: x-deploy-version header → onDeployVersion callback ─────
+
+it('onDeployVersion fires with the response x-deploy-version header (edge build SHA)', async () => {
+  const body = EVENTS.map(encodeSse).join('');
+  const fetchImpl = vi.fn().mockResolvedValue({
+    ok: true,
+    headers: new Headers({ 'x-deploy-version': 'abc1234' }),
+    body: readableFrom(body),
+  }) as unknown as typeof fetch;
+  const onDeployVersion = vi.fn();
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl,
+    onDeployVersion,
+  });
+  const run = await runtime.createRun({ goal: 'test' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  expect(onDeployVersion).toHaveBeenCalledWith('abc1234');
+});
+
+it('onDeployVersion is not called when the header is absent (headerless fetch double)', async () => {
+  const onDeployVersion = vi.fn();
+  // makeRuntime's fetch double returns no headers at all — must not throw or fire.
+  const runtime = makeRuntime(EVENTS);
+  (runtime as unknown as { _opts: { onDeployVersion?: unknown } })._opts.onDeployVersion = onDeployVersion;
+  const run = await runtime.createRun({ goal: 'test' });
+  for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  expect(onDeployVersion).not.toHaveBeenCalled();
+});
+
 // ── Blocker 4: _runs Map cleanup after stream terminates ──────────────────────
 
 it('Blocker 4: _runs Map entry is deleted after subscribe stream completes (no memory leak)', async () => {

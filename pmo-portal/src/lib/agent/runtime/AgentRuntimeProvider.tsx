@@ -24,6 +24,7 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
   const [open, setOpen] = useState(false);
   const pendingPrefillRef = useRef<string | null>(null);
   const [prefillVersion, setPrefillVersion] = useState(0);
+  const [edgeVersion, setEdgeVersion] = useState<string | null>(null);
 
   // Keep a mutable ref to the current session so getJwt always reads the latest
   // token even after Supabase silently refreshes it (~55 min interval).
@@ -41,6 +42,8 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
       // stale closure value from the first render (NFR-AP-SEC-001, FR-AP-025).
       getJwt: () => sessionRef.current?.access_token ?? '',
       fnUrl: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-chat`,
+      // setEdgeVersion is a stable useState setter — safe to close over with [] deps.
+      onDeployVersion: setEdgeVersion,
     });
     // sessionRef is stable (useRef returns the same object); no deps needed.
   }, []);
@@ -65,8 +68,8 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
   const togglePanel = useCallback(() => setOpen((o) => !o), []);
 
   const ctxValue = useMemo(
-    () => ({ runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill }),
-    [runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill],
+    () => ({ runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill, edgeVersion }),
+    [runtime, open, openPanel, closePanel, togglePanel, prefillVersion, consumePrefill, edgeVersion],
   );
 
   return (
