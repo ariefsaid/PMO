@@ -29,6 +29,7 @@ import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
+import { DEPLOY_VERSION } from '../_shared/version.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -45,6 +46,9 @@ import {
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('AGENT_ALLOWED_ORIGIN') ?? Deno.env.get('SITE_URL') ?? '',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // x-deploy-version is a custom RESPONSE header — cross-origin JS can only read it
+  // if it's explicitly exposed (the SPA lives on a different origin than the fn).
+  'Access-Control-Expose-Headers': 'x-deploy-version',
 };
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -263,6 +267,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ...corsHeaders,
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
+      // Baked git SHA of THIS deployed fn (scripts/stamp-edge-fns.sh). Lets the client —
+      // and devtools Network — see which agent-chat build answered, so a stale deploy
+      // (the prod symptom that hid the persistence fix) is visible on every response.
+      'x-deploy-version': DEPLOY_VERSION,
     },
   });
 });

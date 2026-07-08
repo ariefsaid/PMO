@@ -5,6 +5,7 @@
  * Integration-only (ADR-0039 decision-7); the pure builder lives in health.ts.
  */
 import { buildHealthResponse } from './health.ts';
+import { DEPLOY_VERSION } from '../_shared/version.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +19,9 @@ Deno.serve((req: Request): Response => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  const body = buildHealthResponse({ version: Deno.env.get('DEPLOY_VERSION'), now: () => new Date() });
+  // Baked into this fn's bundle at deploy by scripts/stamp-edge-fns.sh — the only
+  // source of truth (a runtime secret could lie for a stale fn; the bundle can't).
+  const body = buildHealthResponse({ version: DEPLOY_VERSION, now: () => new Date() });
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

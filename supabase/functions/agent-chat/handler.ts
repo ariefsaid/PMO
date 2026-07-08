@@ -643,12 +643,19 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // FR-AGP-014: heartbeat once per model turn (round), before the model call.
       if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
 
+      const _t0 = Date.now();
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
+        // 0.8 (was provider-default ~1.0) — steadier tool routing, fewer thrash rounds on
+        // multi-intent follow-ups. Latency lever tracked alongside the throughput provider sort.
+        temperature: 0.8,
         messages,
         tools,
       });
+      // Round-latency probe (diagnosing the follow-up-hang: rounds × per-round latency vs the
+      // ~150s isolate wall-clock). Structured, no user data — safe to keep.
+      console.log(`[agent-chat] round=${round} model_ms=${Date.now() - _t0} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
 
       // FR-AUC-002/004/018: one agent_usage row per modelClient.create() resolution — the
       // single per-round choke point (unified by the runToolLoop refactor, so both the main

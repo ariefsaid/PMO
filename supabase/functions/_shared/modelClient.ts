@@ -33,6 +33,8 @@ export interface ModelClientParams {
   tools?: ModelTool[];
   tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
   stream?: boolean;
+  /** Sampling temperature (0–2). Lower = more deterministic tool routing, fewer thrash rounds. */
+  temperature?: number;
 }
 
 export interface ModelUsage {

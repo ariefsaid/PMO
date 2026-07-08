@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
-import { AppVersion } from '@/src/components/AppVersion';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import {
   PANEL_PREFS_CHANGED_EVENT,
@@ -311,10 +310,6 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
       )}
 
-      {/* ADR-0042 §4: always-rendered `vX.Y.Z · <sha>` label — opposite corner
-          from EnvBadge (bottom-right) and visible on prod too, so anyone can
-          see exactly which build is live. */}
-      <AppVersion className="fixed bottom-3 left-3 z-[900] pointer-events-auto" />
     </div>
   );
 };

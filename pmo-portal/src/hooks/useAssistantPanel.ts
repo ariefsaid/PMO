@@ -526,15 +526,24 @@ export function useAssistantPanel(): UseAssistantPanel {
   // ── stop ────────────────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
     if (!runtime || !runIdRef.current) return;
+    // Capture the runId BEFORE any state churn — dispose + the "Stopped" transcript
+    // entry both need the outgoing id, and runIdRef can be reset elsewhere.
+    const stoppedRunId = runIdRef.current;
     // Review round item 1: stop() exits the drain loop via the abort-triggered
     // exception (drain's catch{} — "Stream aborted"), never reaching the
     // completed/errored terminal branches that normally clean up runStartedAt.
     // Delete it here so a stopped run cannot leak an entry.
-    runStartedAt.delete(runIdRef.current);
-    await runtime.control(runIdRef.current, 'cancel');
+    runStartedAt.delete(stoppedRunId);
+    await runtime.control(stoppedRunId, 'cancel');
+    // Blocker-4 reconciled (multi-turn money-path fix): a stop PERMANENTLY ends this
+    // run, so release its client-side state (accumulated transcript) now — keeps the
+    // adapter's _runs Map bounded. Safe no-op if the runtime port doesn't implement
+    // dispose (optional method). NOT done on a plain 'completed' (a follow-up may
+    // still continue that run), only on this terminal cancel path.
+    runtime.dispose?.(stoppedRunId);
     const stoppedEvent: AgentEvent = {
       id: makeKey(),
-      runId: runIdRef.current,
+      runId: stoppedRunId,
       type: 'system',
       text: 'Stopped',
       createdAt: new Date().toISOString(),
@@ -592,6 +601,9 @@ export function useAssistantPanel(): UseAssistantPanel {
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
     setPhase('idle');
+    // Release the errored run's client-side state before abandoning it — retry mints a
+    // fresh run via createRun, so the old entry would otherwise leak (Blocker-4 reconcile).
+    if (runIdRef.current) runtime.dispose?.(runIdRef.current);
     // Reset runId so createRun is called, not followUp.
     setRunId(null);
     runIdRef.current = null;
@@ -630,6 +642,14 @@ export function useAssistantPanel(): UseAssistantPanel {
       // delete the entry here so a cancelled run cannot leak one.
       runStartedAt.delete(runIdRef.current);
       void runtime.control(runIdRef.current, 'cancel');
+      // Blocker-4 reconciled (multi-turn money-path fix): release the OUTGOING
+      // conversation's client-side state (its accumulated transcript) now that the
+      // user is starting fresh. newConversation is the ONLY path that mints a new run,
+      // so it is the natural release point — it bounds the adapter's _runs Map without
+      // deleting on a plain 'completed' (a follow-up must still be able to reuse that
+      // state). Called BEFORE runIdRef is nulled below. Safe no-op if the runtime port
+      // doesn't implement dispose (optional method).
+      runtime.dispose?.(runIdRef.current);
     }
     // Reset runIdRef BEFORE state updates so the drain loop sees the change immediately.
     runIdRef.current = null;

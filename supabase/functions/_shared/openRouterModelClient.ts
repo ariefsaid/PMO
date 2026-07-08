@@ -91,7 +91,12 @@ export class OpenRouterModelClient implements ModelClient {
           messages: params.messages,
           ...(params.tools ? { tools: params.tools } : {}),
           ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
-          provider: { order: ['DeepInfra'], allow_fallbacks: true },
+          ...(params.temperature !== undefined ? { temperature: params.temperature } : {}),
+          // Route to the highest-throughput provider (was pinned to DeepInfra, which added
+          // ~15-30s/round latency → multi-round follow-ups blew past the ~150s edge wall-clock).
+          // `sort: 'throughput'` picks the fastest provider serving the SAME pinned model;
+          // allow_fallbacks keeps a single provider blip from killing the turn.
+          provider: { sort: 'throughput', allow_fallbacks: true },
           usage: { include: true },
         }),
         signal: controller.signal,
