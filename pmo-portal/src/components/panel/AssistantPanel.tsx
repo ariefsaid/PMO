@@ -30,6 +30,7 @@ import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
 import { ActivityTrail } from './ActivityTrail';
+import { ThinkingBubble } from './ThinkingBubble';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import {
   clampPanelWidth,
@@ -102,17 +103,6 @@ const OutOfCreditsCard: React.FC = () => (
     <p className="font-medium text-foreground">
       You&apos;ve used up your assistant credits for now — contact your admin to request more.
     </p>
-  </div>
-);
-
-// ── Streaming indicator ───────────────────────────────────────────────────────
-const StreamingIndicator: React.FC<{ label?: string | null }> = ({ label }) => (
-  <div
-    aria-live="polite"
-    aria-atomic="true"
-    className="px-4 py-1 text-xs text-muted-foreground motion-reduce:animate-none"
-  >
-    {label ?? 'Working…'}
   </div>
 );
 
@@ -650,12 +640,20 @@ export const AssistantPanel: React.FC = () => {
               the model is not "Working…" once it has asked a clarifying question and is
               waiting on the human; the distinct "A question awaits your answer" status
               below already covers that paused state without the misleading busy-copy. */}
-          {phase === 'running' && !hasPendingQuestion &&
-            (activityTrail.length > 0 ? (
-              <ActivityTrail items={activityTrail} />
-            ) : (
-              <StreamingIndicator label={currentStep} />
-            ))}
+          {phase === 'running' && !hasPendingQuestion && (
+            <>
+              {/* The trail is the per-step checklist (done ✓ + the current ⟳ row). */}
+              {activityTrail.length > 0 && <ActivityTrail items={activityTrail} />}
+              {/* A PROMINENT thinking bubble fills the QUIET gaps — before the first step
+                  and between tool rounds while the model is generating — where the old tiny
+                  "Working…" line read as a frozen panel. Shown only when NO step is actively
+                  spinning (so it never duplicates the trail's current row); carries the live
+                  elapsed counter so the run is unmistakably alive, not stuck. */}
+              {!activityTrail.some((s) => !s.done) && (
+                <ThinkingBubble label={activityTrail.length === 0 ? currentStep : null} />
+              )}
+            </>
+          )}
 
           {/* NFR-AW-A11Y-003: approval-awaiting status announcement, distinct from the
               streaming "Working…" indicator. SR users learn WHY input is blocked. */}
