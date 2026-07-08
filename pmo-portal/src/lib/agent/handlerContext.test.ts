@@ -28,8 +28,10 @@ async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
 function mockSupabase(opts: {
   rowsFactory?: () => { data: unknown[]; error: null };
   threadInsertSpy?: (row: Record<string, unknown>) => void;
+  /** runExists(runId) result: null = fresh run (create thread+run); {id} = resume (skip). */
+  runExistsRow?: { id: string } | null;
 } = {}): HandlerDeps['supabase'] {
-  const { rowsFactory = () => ({ data: [], error: null }), threadInsertSpy } = opts;
+  const { rowsFactory = () => ({ data: [], error: null }), threadInsertSpy, runExistsRow = null } = opts;
 
   return {
     from: vi.fn().mockImplementation((table: string) => {
@@ -58,6 +60,10 @@ function mockSupabase(opts: {
         return {
           insert: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'run-1' }, error: null }) }),
+          }),
+          // runExists(runId) — the handler gates thread/run creation on this, not on `!req.runId`.
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: runExistsRow, error: null }) }),
           }),
         };
       }
@@ -265,7 +271,9 @@ it('AC-ATC-015b createRun with context present but entity absent writes scope nu
 
 it('AC-ATC-016 follow-up context does not overwrite existing scope', async () => {
   const threadInsertSpy = vi.fn();
-  const supabase = mockSupabase({ threadInsertSpy });
+  // A follow-up's run ALREADY exists → runExists(runId)=true → createThreadAndRun is skipped →
+  // the existing thread's scope is left untouched (the point of this AC).
+  const supabase = mockSupabase({ threadInsertSpy, runExistsRow: { id: 'existing-run-1' } });
 
   // A follow-up (req.runId present) carrying a DIFFERENT context.entity.
   const req: AgentChatRequest = {
