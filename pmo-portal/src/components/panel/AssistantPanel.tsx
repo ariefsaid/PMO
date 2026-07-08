@@ -525,20 +525,23 @@ export const AssistantPanel: React.FC = () => {
           className="flex flex-shrink-0 items-center justify-between border-b border-border px-4"
           style={{ height: 'var(--header-h, 56px)' }}
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-col justify-center">
             <h2
               id={titleId}
-              className="text-[18px] font-semibold text-foreground"
+              className="text-[18px] font-semibold leading-tight text-foreground"
             >
               Assistant
             </h2>
-            {edgeVersion && (
+            {/* Deployed agent-chat build — a subtle sub-label, shown ONLY for a real
+                stamped SHA (the 'dev' placeholder is local/un-stamped noise). The signal
+                exists to catch a stale PROD edge fn (edge-fn versioning). */}
+            {edgeVersion && edgeVersion !== 'dev' && (
               <span
                 data-testid="edge-version"
                 title="Deployed agent-chat build"
-                className="select-none font-mono text-[11px] text-muted-foreground"
+                className="select-none font-mono text-[10px] leading-none text-muted-foreground/70"
               >
-                edge @ {edgeVersion}
+                edge · {edgeVersion}
               </span>
             )}
           </div>
