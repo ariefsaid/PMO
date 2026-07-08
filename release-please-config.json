@@ -16,8 +16,7 @@
   "packages": {
     "pmo-portal": {
       "release-type": "node",
-      "package-name": "pmo-portal",
-      "changelog-path": "../CHANGELOG.md"
+      "package-name": "pmo-portal"
     }
   }
 }
