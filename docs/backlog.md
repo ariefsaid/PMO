@@ -4,6 +4,16 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ RESUME HERE (2026-07-08) — agent multi-round / persistence / versioning / interactivity
+Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
+- **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change (`AGENT_MODEL_DEFAULT`/`DEFAULT_MODEL`) without a DIRECT per-instance owner instruction.**
+- **THE fix — PR #271 (`fix/agent-run-persistence-contract`, OPEN→dev):** the run-persistence contract bug. FE (`pmoNativeRuntime.ts:247`) always sends `runId`; the handler gated run-creation on `!req.runId` → real browser runs NEVER created the `agent_runs` row → every event/usage insert 42501'd → 1–2-round runs answered-but-unpersisted, **≥3-round runs fail-closed→errored** (the prod stall), monitoring empty. Fixed via `runExists()` (create-iff-not-exists). 377/377 agent suite, deno/boot clean, **rendered**: a 3-round deepseek run now completes+persists ($0.001941, 0 errors). **Ship first.**
+- **Open PR #270 (`feat/agent-activity-trail`, →dev):** persistent activity trail + reassuring "Still working…" copy. Rendered-verified.
+- **⚠ LOCAL-ONLY branch `feat/auto-versioning`** in worktree `PMO-worktrees/versioning` — release-please-on-main + in-app `vX.Y.Z·sha` (ADR-0042 adoption). **NOT pushed** (verify red on machine-load, not code). Push+PR+clean-verify it.
+- **Queued (owner-directed):** edge-fn versioning (bake SHA per-fn; `health` returns `"unknown"` today — `DEPLOY_VERSION` never set); token streaming (after #270); a Claude test-agent DRIVING a multi-turn browser QA (NOT changing the agent model).
+- **⚑ PROD AGENT STILL BROKEN:** `production`==`main`==`1f68058` but prod `agent-chat` edge fn is the STALE 2026-07-07 14:51 (v6) build (pre-#267 crm_activities, pre-#271). `supabase functions list --project-ref prwccpsiumjzvnwjlkwq` confirms. Fix (OWNER-GATED): merge #271→dev→main, redeploy `agent-chat`(+`agent-dispatch`)+set `DEPLOY_VERSION`. Redeploying the stale build alone won't fix it — the persistence bug is in current code too until #271.
+- **Cost monitoring** exists (`agent_usage`, `org_usage_summary()`, Administration→Usage/Credits, PostHog `toolRoundCount`) — was empty because of the persistence bug; populates after #271.
+
 ### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
 
 **Branches:** `origin/dev` == `origin/main` == **`c0b0081`** (RECONCILED 2026-07-07 — two parallel agents' work unified: the GTM hardening wave + agent-prod-readiness; only `backlog.md` conflicted, resolved by union). `origin/production` == **`94ce615` (UNTOUCHED — prod NOT deployed** with any of the below; still the OLD prompt/schema, Cloud DB at mig ~`0060`). Migrations → `0075`, pgTAP top `0133`.
@@ -39,7 +49,7 @@ Substrate: glm-5.2 (opus alt) + glm-4.7 (sonnet alt) built; Director security-re
 3. **✅ e2e blindspots** (#263) — `requireServiceRoleKey()` throws in CI (wired into AC-AUTHF-005/020) + `quarantine-guard.spec.ts` self-validates the 4 quarantined tests' markers + exact count.
 
 **Residuals from the Highs (tracked):** feature-gating the security-definer procurement/timesheet RPCs (they bypass RLS — the direct-PostgREST threat IS closed) · same un-parenthesised-append latent risk in 0063 (empirically proven-safe by the RLS suite) · the crm→companies mapping gates company writes on the CRM feature (confirm companies isn't a cross-feature dependency before enabling crm-off for a client).
-**dev is now 14 commits ahead of `main`/`production` (the 3 Highs) — they ride the NEXT dev→main→prod promote.**
+**✅ PROMOTED dev→main→production (2026-07-08, owner-instructed):** the 3 Highs + two other-agent features (#267 agent-read-scope, #268 live-step-trail) shipped to dev, promoted dev→main (#269, `1f68058`, integration lane GREEN), verified main push-CI green, then main→production: prod DB `0080→0081` (feature-flag; via `db-push-prod.sh`), edge fns `admin-invite-user`+`agent-chat` redeployed, FE `main:production` (CF Pages). **`main` == `production` == `1f68058`**; smoke: health 200, DB 0081, pages.dev 200. **Op-lesson: `op-get.sh` (1Password SA token) HUNG mid-deploy (5-min+ timeouts, blocking `db-push-prod.sh`) then RECOVERED on retry — verify prod migration state via `supabase migration list --linked` (auths by access token, not op) when op is flaky; the linked project IS prod (`prwccpsiumjzvnwjlkwq`), a valid `--linked` fallback path once verified.**
 
 **Residuals / deferred (tracked, not blockers):**
 - **Credit-race WIRING (deferred with #15)** — thread `run_id` through the 3 agent-chat `check()` sites + `release_credits` after each turn; decide compose-view's missing run_id (release-by-reservation-id or a TTL reaper). Coupled pair (reserve-without-release leaks holds→org-lockout). Ships when credits are enabled (owner-gated, GTM launches un-enforced).

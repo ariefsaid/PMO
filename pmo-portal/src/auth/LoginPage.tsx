@@ -10,6 +10,7 @@ import {
   trackAuthLoginFailed,
 } from '../lib/analytics';
 import { HELP_URL } from '../lib/legalConfig';
+import { AppVersion } from '../components/AppVersion';
 
 // -----------------------------------------------------------------------
 // LoginPage — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -284,6 +285,7 @@ const LoginPage: React.FC = () => {
               </a>
             </>
           )}
+          <AppVersion />
         </footer>
       </div>
     </div>

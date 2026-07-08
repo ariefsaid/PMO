@@ -1,9 +1,34 @@
 import path from 'path';
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+// ADR-0042 §4: inline the product version + the deployed commit sha at build
+// time so a running instance always reports its exact `vX.Y.Z · <sha>`.
+// Cloudflare Pages sets CF_PAGES_COMMIT_SHA on every build (prod always stamps
+// the deployed commit); local dev falls back to `git rev-parse --short HEAD`.
+const pkgVersion = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version;
+const gitSha =
+  (process.env.CF_PAGES_COMMIT_SHA ?? '').slice(0, 7) ||
+  (() => {
+    try {
+      return execSync('git rev-parse --short HEAD').toString().trim();
+    } catch {
+      return 'dev';
+    }
+  })();
+const buildTime = new Date().toISOString();
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+    __GIT_SHA__: JSON.stringify(gitSha),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
   server: {
     port: 3000,
     host: '0.0.0.0',

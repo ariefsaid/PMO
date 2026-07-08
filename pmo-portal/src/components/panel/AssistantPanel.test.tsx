@@ -1449,7 +1449,7 @@ describe('AssistantPanel', () => {
     });
     // No banner yet — the run just started (fresh heartbeat).
     expect(
-      screen.queryByRole('status', { name: /taking longer than expected/i }),
+      screen.queryByRole('status', { name: /still working/i }),
     ).not.toBeInTheDocument();
 
     // Fast-forward the wall clock past the staleness threshold; the hook's 5s server-heartbeat
@@ -1464,13 +1464,13 @@ describe('AssistantPanel', () => {
       await waitFor(
         () => {
           expect(
-            screen.getByRole('status', { name: /taking longer than expected/i }),
+            screen.getByRole('status', { name: /still working/i }),
           ).toBeInTheDocument();
         },
         { timeout: 8_000, interval: 250 },
       );
+      expect(screen.getByRole('button', { name: /^stop$/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^retry$/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
     } finally {
       nowSpy.mockRestore();
     }
