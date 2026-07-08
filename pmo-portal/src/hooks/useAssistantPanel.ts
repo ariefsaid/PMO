@@ -690,6 +690,16 @@ export function useAssistantPanel(): UseAssistantPanel {
         nextTranscript = ev.type === 'assistant' ? mergeAssistantEvent(nextTranscript, ev) : [...nextTranscript, { key: makeKey(), event: ev }];
       }
 
+      // Adopt the loaded run into the runtime so a FOLLOW-UP continues THIS conversation
+      // rather than hanging (openThread otherwise sets runId but leaves the adapter with no
+      // per-run state → the next message early-returns with zero model calls). Seed the
+      // accumulated transcript (user + assistant turns, in seq order) so the next turn
+      // replays full context (D8/R5).
+      const priorMessages = events
+        .filter((e): e is AgentEvent & { text: string } => (e.type === 'user' || e.type === 'assistant') && !!e.text)
+        .map((e) => ({ role: e.type as 'user' | 'assistant', content: e.text }));
+      runtime.adoptRun?.(targetRunId, priorMessages, threadId ? { threadId } : undefined);
+
       runIdRef.current = targetRunId;
       setRunId(targetRunId);
       setTranscript(nextTranscript);
@@ -697,7 +707,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       setLastProgressAt(events.length > 0 ? events[events.length - 1].createdAt : null);
       safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, events.length));
     },
-    [],
+    [runtime],
   );
 
   // ── Server-heartbeat poll (FR-AGP-022, review round item 2) ──────────────────

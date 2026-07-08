@@ -135,6 +135,20 @@ export interface AgentRuntime {
    * Optional so test fakes / alternative adapters need not implement it.
    */
   dispose?(runId: string): void;
+
+  /**
+   * Adopt a run loaded from history into client state so a FOLLOW-UP can continue it.
+   * openThread restores the transcript for display + points runId at the historical run,
+   * but the adapter has no per-run state for it — without adoption the next message
+   * hangs (no state → followUp/subscribe early-return). Seeds the accumulated transcript
+   * (user/assistant turns) so the next turn replays full context (D8/R5). Optional so
+   * test fakes / alternative adapters need not implement it.
+   */
+  adoptRun?(
+    runId: string,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    opts?: { threadId?: string },
+  ): void;
 }
 
 /**

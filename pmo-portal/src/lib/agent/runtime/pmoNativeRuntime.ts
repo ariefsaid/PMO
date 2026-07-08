@@ -89,6 +89,25 @@ export class PmoNativeRuntime implements AgentRuntime {
     };
   }
 
+  /**
+   * Adopt a run loaded from HISTORY (openThread/ThreadList) into client state so a
+   * follow-up can continue it. `openThread` restores the transcript for DISPLAY and points
+   * the panel's runId at the historical run, but the runtime has no `_runs` entry for it
+   * (it was created in an earlier session / was disposed). Without adoption, the next
+   * message takes the follow-up path → `followUp()`/`subscribe()` early-return (no state) →
+   * the turn hangs on "Working…" with zero model calls (the exact "can't continue a past
+   * conversation" bug). Seeds the accumulated transcript so the next turn replays full
+   * context (D8). Idempotent: re-adopting overwrites with the freshly-loaded transcript.
+   */
+  adoptRun(runId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>, opts?: { threadId?: string; context?: RunContext }): void {
+    this._runs.set(runId, {
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      controller: new AbortController(),
+      threadId: opts?.threadId,
+      context: opts?.context,
+    });
+  }
+
   async followUp(runId: string, message: string, input?: { attachmentIds?: string[]; threadId?: string }): Promise<void> {
     const state = this._runs.get(runId);
     if (!state) return;

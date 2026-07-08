@@ -189,6 +189,47 @@ it('multi-turn: a follow-up after completion reuses the run, replays the full tr
   ]);
 });
 
+// ── HISTORY FOLLOW-UP: adoptRun lets a conversation loaded from History be continued.
+// Regression for "a user cannot follow on from a previous conversation" — openThread pointed
+// the panel at a historical run but left the adapter with no state, so the next message hung.
+it('history follow-up: adoptRun seeds a loaded run so a follow-up continues it (replays the adopted transcript)', async () => {
+  const turn2Events: AgentEvent[] = [
+    { id: 'h-a', runId: 'r', type: 'assistant', text: 'answer to the follow-up', createdAt: 'b' },
+    { id: 'h-c', runId: 'r', type: 'status', payload: { status: 'completed' }, createdAt: 'c' },
+  ];
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, body: readableFrom(turn2Events.map(encodeSse).join('')) });
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+
+  // Simulate openThread: adopt a historical run's transcript — NO createRun in this session.
+  const historyRunId = 'history-run-1';
+  runtime.adoptRun(historyRunId, [
+    { role: 'user', content: 'Q1 from last week' },
+    { role: 'assistant', content: 'A1 from last week' },
+  ], { threadId: 'thread-42' });
+
+  // Follow up on the adopted run — must NOT early-return / hang.
+  await runtime.followUp(historyRunId, 'a new follow-up today');
+  const events: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(historyRunId)) events.push(ev);
+
+  // A real POST happened (not an empty hang) and re-streamed.
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(events.length).toBeGreaterThan(0);
+
+  // The POST replayed the ADOPTED transcript + the new message (context carries from history).
+  const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as AgentChatRequest;
+  expect(body.messages).toEqual([
+    { role: 'user', content: 'Q1 from last week' },
+    { role: 'assistant', content: 'A1 from last week' },
+    { role: 'user', content: 'a new follow-up today' },
+  ]);
+  expect(body.threadId).toBe('thread-42');
+});
+
 // ── Task 19 (RED→GREEN): A3 approve/reject control sends decision on re-POST ──
 
 it('AC-AW-adapter: control(approve) stashes decision; next subscribe re-POSTs with decision.verdict=approve', async () => {
