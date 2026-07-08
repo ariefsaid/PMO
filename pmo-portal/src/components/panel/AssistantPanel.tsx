@@ -18,7 +18,6 @@ import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
-import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { useAgentAttachments } from '@/src/hooks/useAgentAttachments';
 import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
@@ -133,9 +132,6 @@ export const AssistantPanel: React.FC = () => {
     openThread,
     prefillVersion,
   } = useAssistantPanel();
-  // Deployed agent-chat build SHA (from its x-deploy-version header) — surfaced so
-  // a stale edge deploy is visible in-app, not just in devtools/health (edge-fn versioning).
-  const { edgeVersion } = useAgentRuntimeContext();
 
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLElement>(null);
@@ -515,26 +511,12 @@ export const AssistantPanel: React.FC = () => {
           className="flex flex-shrink-0 items-center justify-between border-b border-border px-4"
           style={{ height: 'var(--header-h, 56px)' }}
         >
-          <div className="flex flex-col justify-center">
-            <h2
-              id={titleId}
-              className="text-[18px] font-semibold leading-tight text-foreground"
-            >
-              Assistant
-            </h2>
-            {/* Deployed agent-chat build — a subtle sub-label, shown ONLY for a real
-                stamped SHA (the 'dev' placeholder is local/un-stamped noise). The signal
-                exists to catch a stale PROD edge fn (edge-fn versioning). */}
-            {edgeVersion && edgeVersion !== 'dev' && (
-              <span
-                data-testid="edge-version"
-                title="Deployed agent-chat build"
-                className="select-none font-mono text-[10px] leading-none text-muted-foreground/70"
-              >
-                edge · {edgeVersion}
-              </span>
-            )}
-          </div>
+          <h2
+            id={titleId}
+            className="text-[18px] font-semibold text-foreground"
+          >
+            Assistant
+          </h2>
           <div className="flex items-center gap-1">
             {/* Dock/overlay toggle (Task D4, FR-AXP-025/026) — desktop-only.
                 No dedicated dock/overlay glyph exists in the icon set (DESIGN.md
