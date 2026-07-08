@@ -40,6 +40,7 @@ import { buildAgentSystemPrompt } from './prompt.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
+  runExists,
   insertEvent,
   heartbeat,
   setRunStatus,
@@ -145,6 +146,8 @@ export interface HandlerSupabaseLike {
     select(columns: string): {
       eq(column: string, value: string): {
         single(): PromiseLike<{ data: { org_id: string; role?: string } | null; error: unknown }>;
+        // runExists(runId): existence probe on agent_runs — 0 rows → data:null (no error, unlike single()).
+        maybeSingle(): PromiseLike<{ data: { id: string } | null; error: unknown }>;
         limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
         in(column: string, values: string[]): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
       };
@@ -1047,11 +1050,16 @@ export async function* agentChatHandler(
   const runId = req.runId ?? makeId();
   const persist = makePersistenceRuntime(deps);
 
-  // FR-AGP-010: a fresh run (no req.runId on the wire) gets a new agent_threads + agent_runs
-  // row, created BEFORE any event is persisted (insertEvent's run_id FK requires the run to
-  // exist first). Only on a genuinely new run — a resume/decision re-POST already carries
-  // req.runId and its thread/run rows already exist.
-  if (persist && (!req.runId || req.threadId)) {
+  // FR-AGP-010 (contract fix 2026-07-08): a fresh run gets a new agent_threads + agent_runs row,
+  // created BEFORE any event is persisted (insertEvent's run_id FK requires the run to exist first).
+  // We gate on whether the RUN ROW already exists — NOT on `!req.runId`. The FE adapter
+  // (pmoNativeRuntime.ts) mints the runId client-side and sends it on EVERY POST (so client + server
+  // share the id for followUp/cancel/History), so a fresh createRun ALSO carries req.runId; the old
+  // `!req.runId` gate therefore never created the row for a real browser run → every downstream
+  // agent_events/agent_usage insert 42501'd (short runs silently unpersisted; ≥3-round runs tripped
+  // the usage fail-closed breaker → errored). Create-iff-not-exists is idempotent: a resume/decision
+  // re-POST finds the run already exists and skips.
+  if (persist && !(await runExists(persist.deps, runId))) {
     const lastUserMsgForTitle = req.messages.filter((m) => m.role === 'user').at(-1);
     const title =
       lastUserMsgForTitle && typeof lastUserMsgForTitle.content === 'string'

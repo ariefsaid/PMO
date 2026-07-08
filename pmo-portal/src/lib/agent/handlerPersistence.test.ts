@@ -5,7 +5,8 @@
  * project rooted in supabase/), importing the handler + persistence via relative path.
  */
 import { it, expect, vi } from 'vitest';
-import { hashToolArgs } from '../../../../supabase/functions/agent-chat/persistence';
+import { hashToolArgs, runExists } from '../../../../supabase/functions/agent-chat/persistence';
+import type { PersistenceDeps } from '../../../../supabase/functions/agent-chat/persistence';
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
@@ -72,7 +73,12 @@ function mockSupabase(opts: {
       return {
         select: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue(rowsFactory()),
-          eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(rowsFactory()) }),
+          // runExists(runId): agent_runs.select('id').eq('id',id).maybeSingle(). Default null =
+          // "run does not exist yet" → the handler creates the thread+run (the fresh-run path).
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(rowsFactory()),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
         }),
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }),
@@ -607,4 +613,78 @@ it('AC-AGP-JOURNAL-001 a tool event journal is populated in the SAME insert — 
   expect(toolRow!.tool_status).toBe('completed');
   expect(typeof toolRow!.tool_args_hash).toBe('string');
   expect((toolRow!.tool_args_hash as string).length).toBeGreaterThan(0);
+});
+
+// ── Contract fix (2026-07-08): the FE always sends runId → gate run-creation on run-EXISTENCE ──
+// The FE adapter (pmoNativeRuntime.ts) mints the runId client-side and sends it on EVERY POST, so a
+// fresh createRun ALSO carries req.runId. The old `!req.runId` gate therefore never created the run
+// row for a real browser turn → every agent_events/agent_usage insert 42501'd (short runs silently
+// unpersisted; ≥3-round runs tripped the usage fail-closed breaker → errored). These lock the fix.
+
+/** A supabase mock that reports agent_runs existence via maybeSingle, and spies on agent_threads
+ *  + agent_runs INSERTs so we can assert whether createThreadAndRun ran. */
+function mockSupabaseWithRunExistence(runRow: { id: string } | null) {
+  const threadInsert = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'thread-new' }, error: null }) }),
+  });
+  const runInsert = vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'run-new' }, error: null }) }),
+  });
+  const supabase = {
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'profiles') {
+        return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }) }) }) };
+      }
+      if (table === 'agent_threads') return { insert: threadInsert };
+      if (table === 'agent_runs') {
+        return {
+          insert: runInsert,
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: runRow, error: null }) }),
+          }),
+        };
+      }
+      // agent_events + reads
+      return {
+        insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) }) }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }), limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      };
+    }),
+  } as unknown as HandlerDeps['supabase'];
+  return { supabase, threadInsert, runInsert };
+}
+
+it('runExists returns true/false from the maybeSingle result and fails open on error', async () => {
+  const deps = (row: unknown, error: unknown = null): PersistenceDeps => ({
+    supabase: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: row, error }) }) }) }) } as unknown as PersistenceDeps['supabase'],
+    ownerId: 'u', orgId: 'o', now: () => new Date(),
+  });
+  expect(await runExists(deps({ id: 'r1' }), 'r1')).toBe(true);
+  expect(await runExists(deps(null), 'r1')).toBe(false);
+  expect(await runExists(deps(null, { code: '42501' }), 'r1')).toBe(false); // fail-open to creation
+});
+
+it('CONTRACT-FIX: a fresh run with req.runId present but NO existing run row STILL creates the thread+run', async () => {
+  // The bug: with the old `!req.runId` gate, this exact request (runId present, no threadId) skipped
+  // createThreadAndRun → the run row never existed → 42501 on every event.
+  const { supabase, threadInsert, runInsert } = mockSupabaseWithRunExistence(null); // run does NOT exist
+  const deps = baseDeps({ supabase, persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-08T00:00:00Z') } });
+
+  await collect(agentChatHandler({ runId: 'run-fresh-1', messages: [{ role: 'user', content: 'hi' }] }, deps));
+
+  expect(threadInsert).toHaveBeenCalledTimes(1); // thread created
+  expect(runInsert).toHaveBeenCalledTimes(1);    // run created with the client's runId
+  expect(runInsert).toHaveBeenCalledWith(expect.objectContaining({ id: 'run-fresh-1', status: 'running' }));
+});
+
+it('CONTRACT-FIX: a resume (run already exists) does NOT re-create the thread/run', async () => {
+  const { supabase, threadInsert, runInsert } = mockSupabaseWithRunExistence({ id: 'run-resume-9' }); // exists
+  const deps = baseDeps({ supabase, persistence: { supabase, ownerId: 'user-1', orgId: 'org-1', now: () => new Date('2026-07-08T00:00:00Z') } });
+
+  await collect(agentChatHandler({ runId: 'run-resume-9', messages: [{ role: 'user', content: 'hi again' }] }, deps));
+
+  expect(threadInsert).not.toHaveBeenCalled();
+  expect(runInsert).not.toHaveBeenCalled();
 });

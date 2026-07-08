@@ -96,6 +96,42 @@ export interface JournaledWrite {
   payload: unknown;
 }
 
+// ── runExists — FR-AGP-010 (contract fix 2026-07-08) ──────────────────────────
+
+/**
+ * Does an agent_runs row already exist for this runId (visible to the caller under RLS)?
+ *
+ * The handler needs this because the FE adapter (pmoNativeRuntime.ts) mints the runId client-side
+ * and sends it on EVERY POST — a fresh createRun AND every followUp/decision re-POST — so the wire
+ * presence of `runId` does NOT distinguish "new run" from "resume". Gating thread/run creation on
+ * `!req.runId` therefore NEVER created the row for a real browser run, and every downstream
+ * agent_events/agent_usage insert failed the FK/RLS `WITH CHECK` with 42501 (short runs silently
+ * unpersisted; runs of ≥3 model rounds tripped the usage fail-closed breaker → errored the turn).
+ * Creating iff the run does not yet exist is idempotent and correct regardless of who mints the id.
+ *
+ * Fail-OPEN to creation: on a read error we return false so the caller ATTEMPTS createThreadAndRun.
+ * A false "not-exists" at worst re-inserts (the run PK conflicts → swallowed) — strictly safer than
+ * a false "exists" that would skip creation and 42501 every event. Never throws (NFR-AGP-SEC-005).
+ */
+export async function runExists(deps: PersistenceDeps, runId: string): Promise<boolean> {
+  try {
+    const { data, error } = await deps.supabase
+      .from('agent_runs')
+      .select('id')
+      .eq('id', runId)
+      .maybeSingle();
+    if (error) {
+      console.error('[agent-chat] persistence runExists check failed', {
+        code: (error as { code?: string }).code,
+      });
+      return false;
+    }
+    return data != null;
+  } catch {
+    return false;
+  }
+}
+
 // ── createThreadAndRun — FR-AGP-010 ───────────────────────────────────────────
 
 /**
