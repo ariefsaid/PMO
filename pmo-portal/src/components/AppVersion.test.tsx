@@ -26,17 +26,15 @@ describe('AppVersion', () => {
     expect(screen.getByText('abc1234')).toBeInTheDocument();
   });
 
-  it('links the sha to its GitHub commit', async () => {
+  it('renders the sha as PLAIN TEXT, never a link (do not expose the repo URL to clients)', async () => {
     const { AppVersion } = await import('./AppVersion');
-    render(<AppVersion />);
-    const link = screen.getByRole('link', { name: /abc1234/i });
-    expect(link).toHaveAttribute(
-      'href',
-      'https://github.com/ariefsaid/PMO/commit/abc1234',
-    );
-    // external link safety
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    const { container } = render(<AppVersion />);
+    // The sha is shown…
+    expect(screen.getByText('abc1234')).toBeInTheDocument();
+    // …but NOT as a link, and there must be NO github/repo URL anywhere in the markup.
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.innerHTML).not.toContain('github.com');
   });
 
   it('exposes the build time on hover via title', async () => {

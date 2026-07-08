@@ -10,32 +10,27 @@ export interface AppVersionProps {
 /**
  * A muted, always-rendered "what's live" label: `v<version> · <sha>`. Unlike
  * {@link EnvBadge} it renders on EVERY environment — including production —
- * so anyone can see exactly which build is deployed (ADR-0042 §4). The sha is
- * a deep link to its GitHub commit; the build time surfaces on hover.
+ * so anyone can see exactly which build is deployed (ADR-0042 §4). The build
+ * time surfaces on hover.
+ *
+ * The SHA is PLAIN TEXT, not a link: the client-facing app must not expose the
+ * source-repo URL (a commit deep-link would reveal where the code lives).
  *
  * Token-only (DESIGN.md muted-foreground) at EnvBadge's 11px scale.
  */
 export const AppVersion: React.FC<AppVersionProps> = ({ className }) => {
-  const commitUrl = `https://github.com/ariefsaid/PMO/commit/${GIT_SHA}`;
   return (
     <div
       data-testid="app-version"
       title={BUILD_TIME}
       className={cn(
-        'pointer-events-auto select-none text-[11px] text-muted-foreground',
+        'pointer-events-none select-none text-[11px] text-muted-foreground',
         className,
       )}
     >
       <span>v{APP_VERSION}</span>
       <span aria-hidden> · </span>
-      <a
-        href={commitUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-medium hover:underline"
-      >
-        {GIT_SHA}
-      </a>
+      <span className="font-medium">{GIT_SHA}</span>
     </div>
   );
 };
