@@ -19,8 +19,72 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 400;
 
+/**
+ * OpenRouter `provider` routing preferences (subset we use). Controls WHICH backend serves the
+ * pinned model slug — decisive for both prompt-cache economics (a stable backend keeps the shared
+ * static prefix warm) and data privacy (`data_collection: 'deny'` excludes hosts that train on /
+ * retain request data). See docs/plans/2026-07-09-agent-model-cost-optimization.md.
+ */
+export interface OpenRouterProviderPolicy {
+  /** Deterministic backend preference order (provider slugs). Pins routing → cache locality. */
+  order?: string[];
+  /** Rank the remaining/eligible providers. `order` still wins for listed slugs. */
+  sort?: 'throughput' | 'price' | 'latency';
+  /** Allow OpenRouter to fall back to the next eligible provider on a blip (default true). */
+  allow_fallbacks?: boolean;
+  /** `'deny'` restricts routing to providers that do NOT train on / retain request data. */
+  data_collection?: 'allow' | 'deny';
+}
+
+/**
+ * Privacy-first default: route only to no-train providers (`data_collection: 'deny'`),
+ * deterministically preferring DeepInfra then DigitalOcean — the two hosts that serve
+ * deepseek-v4-flash on OpenRouter WITHOUT training on data — so the shared static prefix caches on
+ * a stable backend. Overridable per deploy via providerPolicyFromEnv (secrets, no code change).
+ */
+export const DEFAULT_PROVIDER_POLICY: OpenRouterProviderPolicy = {
+  data_collection: 'deny',
+  order: ['deepinfra', 'digitalocean'],
+  allow_fallbacks: true,
+};
+
+/**
+ * Build a provider policy from edge-function env (pure — no Deno globals, so it is unit-testable).
+ * Defaults are privacy-first (see DEFAULT_PROVIDER_POLICY); every knob is an escape hatch so the
+ * owner can trade privacy↔latency↔cache without a code deploy:
+ *   AGENT_PROVIDER_ORDER           comma-separated slugs; '' (empty) removes the pin entirely.
+ *   AGENT_PROVIDER_SORT            throughput|price|latency (adds a sort preference).
+ *   AGENT_PROVIDER_ALLOW_FALLBACKS 'false' disables fallbacks (default: enabled).
+ *   AGENT_PROVIDER_ALLOW_TRAINING  'true' relaxes to data_collection:'allow' (default: 'deny').
+ */
+export function providerPolicyFromEnv(env: {
+  AGENT_PROVIDER_ORDER?: string;
+  AGENT_PROVIDER_SORT?: string;
+  AGENT_PROVIDER_ALLOW_FALLBACKS?: string;
+  AGENT_PROVIDER_ALLOW_TRAINING?: string;
+}): OpenRouterProviderPolicy {
+  const policy: OpenRouterProviderPolicy = {
+    allow_fallbacks: env.AGENT_PROVIDER_ALLOW_FALLBACKS !== 'false',
+    data_collection: env.AGENT_PROVIDER_ALLOW_TRAINING === 'true' ? 'allow' : 'deny',
+  };
+  const sort = env.AGENT_PROVIDER_SORT;
+  if (sort === 'throughput' || sort === 'price' || sort === 'latency') policy.sort = sort;
+
+  if (env.AGENT_PROVIDER_ORDER !== undefined) {
+    // Explicit override — including '' → intentionally NO order pin (pure sort/data_collection).
+    const order = env.AGENT_PROVIDER_ORDER.split(',').map((s) => s.trim()).filter(Boolean);
+    if (order.length > 0) policy.order = order;
+  } else if (policy.sort === undefined) {
+    // No explicit order and no sort → apply the privacy-first default pin for cache stability.
+    policy.order = DEFAULT_PROVIDER_POLICY.order;
+  }
+  return policy;
+}
+
 export interface OpenRouterModelClientOptions {
   apiKey: string;
+  /** Backend routing policy (default: privacy-first no-train pin). See providerPolicyFromEnv. */
+  provider?: OpenRouterProviderPolicy;
   /** Test seam — override the retry backoff base (default 400ms). */
   retryBaseDelayMs?: number;
 }
@@ -66,10 +130,12 @@ function isValidChoice(choice: unknown): choice is OpenRouterChoice {
 
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
+  private readonly provider: OpenRouterProviderPolicy;
   private readonly retryBaseDelayMs: number;
 
   constructor(options: OpenRouterModelClientOptions) {
     this.apiKey = options.apiKey;
+    this.provider = options.provider ?? DEFAULT_PROVIDER_POLICY;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS;
   }
 
@@ -97,11 +163,13 @@ export class OpenRouterModelClient implements ModelClient {
           ...(params.tools ? { tools: params.tools } : {}),
           ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
           ...(params.temperature !== undefined ? { temperature: params.temperature } : {}),
-          // Route to the highest-throughput provider (was pinned to DeepInfra, which added
-          // ~15-30s/round latency → multi-round follow-ups blew past the ~150s edge wall-clock).
-          // `sort: 'throughput'` picks the fastest provider serving the SAME pinned model;
-          // allow_fallbacks keeps a single provider blip from killing the turn.
-          provider: { sort: 'throughput', allow_fallbacks: true },
+          // Backend routing policy (default: privacy-first no-train pin — DEFAULT_PROVIDER_POLICY).
+          // A stable, pinned backend both keeps the shared static prefix warm (prompt-cache
+          // economics) and holds the data-privacy guarantee (data_collection:'deny'); the owner can
+          // re-trade privacy↔latency↔cache via AGENT_PROVIDER_* secrets (providerPolicyFromEnv).
+          provider: this.provider,
+          // Retained for older OpenRouter behavior; usage accounting is now returned unconditionally
+          // (this flag is a no-op on current OpenRouter, harmless to keep).
           usage: { include: true },
         }),
         signal: controller.signal,
