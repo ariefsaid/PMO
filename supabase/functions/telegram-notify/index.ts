@@ -6,9 +6,11 @@
  * NFR-OF-TEST-005) — verified by `deno check` + the live-verify runbook
  * (docs/environments.md "Observability & alerting", AC-OF-007).
  *
- * Auth (NFR-OF-SEC-002): the incoming Authorization bearer MUST equal
- * SUPABASE_SERVICE_ROLE_KEY (the pg_cron job sends it, mirroring agent-dispatch) —
- * an anonymous direct POST is rejected 401.
+ * Auth (NFR-OF-SEC-002): the pg_cron tick presents a DEDICATED `TELEGRAM_NOTIFY_SECRET` (Vault-
+ * stored, read by the tick) — least-privilege, so the master SUPABASE_SERVICE_ROLE_KEY no longer
+ * lives in the DB (it stays in this function's env, used only for the error_events drain). Falls
+ * back to the service-role bearer when the dedicated secret is unset (legacy). Constant-time compare
+ * (the sole gate, verify_jwt=false). An anonymous direct POST is rejected 401.
  */
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -17,11 +19,22 @@ import {
   pingHeartbeat,
 } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const dispatchSecret = Deno.env.get('TELEGRAM_NOTIFY_SECRET') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
-  if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+  // service_role is required for the error_events drain below; its absence is a deploy-config gap.
+  if (!serviceRoleKey) {
+    logStructuredError({ fn: 'telegram-notify', errorCode: 'MISSING_SERVICE_ROLE_KEY' });
+    return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const expectedBearer = dispatchSecret ? `Bearer ${dispatchSecret}` : `Bearer ${serviceRoleKey}`;
+  if (!(await constantTimeBearerEquals(authHeader, expectedBearer))) {
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

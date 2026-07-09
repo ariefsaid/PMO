@@ -30,6 +30,7 @@ import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
@@ -38,24 +39,6 @@ import {
   AGENT_MASTER_DATA_ROLES,
   AGENT_DELIVERY_WITH_ENGINEER_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
-
-/**
- * Constant-time bearer equality (audit L1). Hashes both sides to fixed 32-byte SHA-256 digests and
- * XOR-accumulates — no length-based early exit, no first-differing-byte short-circuit. Used because
- * this is the sole auth gate for agent-dispatch (verify_jwt=false).
- */
-async function bearerEquals(presented: string, expected: string): Promise<boolean> {
-  const enc = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(presented)),
-    crypto.subtle.digest('SHA-256', enc.encode(expected)),
-  ]);
-  const ua = new Uint8Array(a);
-  const ub = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < ua.length; i++) diff |= ua[i] ^ ub[i];
-  return diff === 0;
-}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron tick) must present the DEDICATED dispatch
@@ -83,7 +66,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // compare is constant-time over SHA-256 digests (fixed 32-byte length → no length or
   // early-exit timing leak; audit L1). The presented value is hashed too, never the secret alone.
   const expectedBearer = dispatchSecret ? `Bearer ${dispatchSecret}` : `Bearer ${serviceRoleKey}`;
-  if (!(await bearerEquals(authHeader, expectedBearer))) {
+  if (!(await constantTimeBearerEquals(authHeader, expectedBearer))) {
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
