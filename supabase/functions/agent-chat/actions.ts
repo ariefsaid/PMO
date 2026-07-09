@@ -418,6 +418,29 @@ function isValidCronExpression(expr: string): boolean {
   }
 }
 
+/**
+ * Restrict schedules to the three shapes we support + verify (owner directive 2026-07-09): daily,
+ * weekly, and day-of-month — each at a specific hour, minute 0. The dispatcher tick runs HOURLY
+ * (migration 0082, `0 * * * *`), so only minute-0 schedules ever fire; coarse cadence also keeps the
+ * feature simple and quota-lean. Rejects per-minute / hourly-wildcard / ranges / lists / steps.
+ *   daily        : 0 H * * *   (H = 0-23)
+ *   weekly       : 0 H * * D    (D = 0-6, Sun..Sat)
+ *   day-of-month : 0 H DOM * *  (DOM = 1-31)
+ */
+function isAllowedScheduleShape(expr: string): boolean {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  const [min, hour, dom, month, dow] = parts;
+  const inRange = (s: string, lo: number, hi: number) => /^\d+$/.test(s) && Number(s) >= lo && Number(s) <= hi;
+  if (min !== '0') return false; // top of the hour only (the tick is hourly)
+  if (!inRange(hour, 0, 23)) return false; // a single specific hour
+  if (month !== '*') return false; // every month
+  const daily = dom === '*' && dow === '*';
+  const weekly = dom === '*' && inRange(dow, 0, 6);
+  const dayOfMonth = inRange(dom, 1, 31) && dow === '*';
+  return daily || weekly || dayOfMonth;
+}
+
 function validateCreateAutomation(
   input: unknown,
 ): { ok: true; value: CreateAutomationInput } | { ok: false; error: string } {
@@ -438,6 +461,13 @@ function validateCreateAutomation(
     }
     if (!isValidCronExpression(i.schedule)) {
       return { ok: false, error: `invalid cron expression: ${i.schedule}` };
+    }
+    if (!isAllowedScheduleShape(i.schedule)) {
+      return {
+        ok: false,
+        error:
+          'schedule must be daily, weekly, or day-of-month at a specific hour — e.g. "0 9 * * *" (daily 9am), "0 9 * * 1" (Mondays 9am), or "0 9 1 * *" (the 1st at 9am). Sub-daily/hourly schedules are not supported.',
+      };
     }
   }
   if (i.kind === 'trigger') {

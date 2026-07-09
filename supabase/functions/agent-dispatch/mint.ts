@@ -57,6 +57,16 @@ export interface AuthAdminLike {
 export interface MintDeps {
   authAdmin: AuthAdminLike;
   /**
+   * Exchanges the generateLink `hashed_token` for the owner's SESSION. generateLink (magiclink)
+   * returns a token_hash, never an access_token — it must be VERIFIED to produce a session
+   * (`{ session: { access_token } }`). Injected (never persists/logs the token); index.ts wires the
+   * real anon-key auth `verifyOtp({ type:'magiclink', token_hash })`.
+   */
+  verifyOtp: (params: { type: 'magiclink'; token_hash: string }) => PromiseLike<{
+    data: { session: { access_token?: string } | null } | null;
+    error: unknown;
+  }>;
+  /**
    * Builds a caller-JWT-scoped Supabase client from the minted access token — the SAME anon-key +
    * `Authorization: Bearer <token>` client shape the interactive path uses (index.ts wires the real
    * `createClient(url, anonKey, { global: { headers: { Authorization } } })`). Injected so this
@@ -101,11 +111,24 @@ export async function mintOwnerJwt(deps: MintDeps, automation: AutomationRow): P
   }
 
   const { data, error } = await deps.authAdmin.admin.generateLink({ type: 'magiclink', email });
-  if (error || !data?.properties?.access_token) {
+  if (error || !data?.properties?.hashed_token) {
     throw new Error('mint failed'); // scrubbed — never surface the token/owner in the message
   }
 
-  const accessToken = data.properties.access_token;
+  // generateLink (magiclink) returns a `hashed_token`, NOT an access_token — the token must be
+  // VERIFIED to yield an owner session (the previous code read a non-existent
+  // `properties.access_token`, so the mint ALWAYS failed → automations never fired). Exchange the
+  // hashed_token for the owner's session via verifyOtp; the resulting access_token is the deputy
+  // identity (sub = owner_id, role = authenticated), handed straight to the client builder.
+  const { data: verified, error: verifyError } = await deps.verifyOtp({
+    type: 'magiclink',
+    token_hash: data.properties.hashed_token,
+  });
+  if (verifyError || !verified?.session?.access_token) {
+    throw new Error('mint failed'); // scrubbed — never surface the token/owner in the message
+  }
+
+  const accessToken = verified.session.access_token;
   const client = deps.buildClient(accessToken);
 
   return {

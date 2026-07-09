@@ -39,21 +39,51 @@ import {
   AGENT_DELIVERY_WITH_ENGINEER_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
 
+/**
+ * Constant-time bearer equality (audit L1). Hashes both sides to fixed 32-byte SHA-256 digests and
+ * XOR-accumulates — no length-based early exit, no first-differing-byte short-circuit. Used because
+ * this is the sole auth gate for agent-dispatch (verify_jwt=false).
+ */
+async function bearerEquals(presented: string, expected: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(presented)),
+    crypto.subtle.digest('SHA-256', enc.encode(expected)),
+  ]);
+  const ua = new Uint8Array(a);
+  const ub = new Uint8Array(b);
+  let diff = 0;
+  for (let i = 0; i < ua.length; i++) diff |= ua[i] ^ ub[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
-  // ── 1. Authorization: the bearer MUST be the service-role key (this endpoint mints). ──
+  // ── 1. Authorization: the caller (the pg_cron tick) must present the DEDICATED dispatch
+  // secret. Least-privilege (owner directive 2026-07-09): when AGENT_DISPATCH_SECRET is set,
+  // the cron authenticates with THAT narrow secret (stored in Supabase Vault, read by the
+  // cron), so the master SUPABASE_SERVICE_ROLE_KEY NEVER has to live in the DB — it stays
+  // only in this function's env, used solely to mint owner JWTs (deputy invariant). A leaked
+  // dispatch secret can at worst trigger a tick (which only fires DUE automations under THEIR
+  // owners, RLS-scoped), never grant DB access. Backward-compatible: if AGENT_DISPATCH_SECRET
+  // is unset, fall back to the legacy service-role bearer so existing deployments don't break.
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const dispatchSecret = Deno.env.get('AGENT_DISPATCH_SECRET') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!serviceRoleKey) {
-    // Missing SUPABASE_SERVICE_ROLE_KEY: distinct from a bad/absent caller bearer — this
-    // function secret is required for the dispatcher to ever authenticate its own pg_cron
-    // caller, so its absence is a deploy-config gap, not a caller error.
+    // The service-role key is still required for the mint/admin work below (never for the
+    // caller check when a dispatch secret is set). Its absence is a deploy-config gap.
     logStructuredError({ fn: 'agent-dispatch', errorCode: 'MISSING_SERVICE_ROLE_KEY' });
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
   }
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+  // Prefer the dedicated secret; fall back to service-role only when the dedicated secret is
+  // not configured (legacy). This bearer check is the SOLE auth gate (verify_jwt=false), so the
+  // compare is constant-time over SHA-256 digests (fixed 32-byte length → no length or
+  // early-exit timing leak; audit L1). The presented value is hashed too, never the secret alone.
+  const expectedBearer = dispatchSecret ? `Bearer ${dispatchSecret}` : `Bearer ${serviceRoleKey}`;
+  if (!(await bearerEquals(authHeader, expectedBearer))) {
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -96,6 +126,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 3. serviceClient (selection/watermark/last_fired_at metadata ONLY) + authAdmin (mint ONLY). ──
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
   const authAdmin = createClient(supabaseUrl, serviceRoleKey).auth;
+  // verifyOtp exchanges the generateLink hashed_token for an owner session (generateLink returns a
+  // token_hash, NOT an access_token). Uses an anon-key client (the standard verify surface) — no
+  // elevated privilege; the token_hash is the only capability and it targets exactly the owner.
+  const anonAuth = createClient(supabaseUrl, anonKey).auth;
 
   // buildClient: a caller-JWT-scoped client from a minted access token — the SAME anon-key +
   // Bearer client shape the interactive path uses. This is the ONLY business-data surface for a
@@ -147,6 +181,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // for this file before).
       serviceClient: serviceClient as never,
       authAdmin: authAdmin as never,
+      verifyOtp: ((params: { type: 'magiclink'; token_hash: string }) =>
+        anonAuth.verifyOtp(params as never)) as never,
       buildClient,
       // The real agent loop — the fired run is indistinguishable from interactive (FR-AAN-017).
       handler: agentChatHandler as never,

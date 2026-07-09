@@ -240,6 +240,15 @@ export interface RunDispatchTickDeps {
   serviceClient: ServiceClientLike;
   /** Supabase Auth admin — used ONLY to mint (never a .from() business query). */
   authAdmin: AuthAdminLike;
+  /**
+   * Exchanges the generateLink hashed_token for an owner session (anon-key `auth.verifyOtp`).
+   * generateLink returns a token_hash, never an access_token — the token must be verified. Passed
+   * straight through to mintOwnerJwt (mint.ts).
+   */
+  verifyOtp: (params: { type: 'magiclink'; token_hash: string }) => PromiseLike<{
+    data: { session: { access_token?: string } | null } | null;
+    error: unknown;
+  }>;
   /** Builds the caller-JWT-scoped client from a minted access token (mint.ts). */
   buildClient: (accessToken: string) => unknown;
   /** The real agentChatHandler (the SAME loop as interactive) — injected (REC-1, no Deno coupling). */

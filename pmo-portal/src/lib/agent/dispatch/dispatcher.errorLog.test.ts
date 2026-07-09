@@ -107,13 +107,19 @@ function makeMintedClientAuditFails() {
 }
 
 function makeMintDeps(mintedClient: unknown, generateLinkImpl?: () => Promise<unknown>) {
+  // generateLink returns a hashed_token (NOT an access_token); verifyOtp exchanges it for a session.
   const generateLink =
     generateLinkImpl ??
-    vi.fn().mockImplementation(() => Promise.resolve({ data: { properties: { access_token: 'MINTED' } }, error: null }));
+    vi
+      .fn()
+      .mockImplementation(() => Promise.resolve({ data: { properties: { hashed_token: 'HASH' } }, error: null }));
+  const verifyOtp = vi
+    .fn()
+    .mockResolvedValue({ data: { session: { access_token: 'MINTED' } }, error: null });
   const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
   const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockImplementation(() => mintedClient);
-  return { authAdmin, buildClient };
+  return { authAdmin, buildClient, verifyOtp };
 }
 
 describe('runDispatchTick — structured errorCode per failure phase (harden #1)', () => {
@@ -132,6 +138,7 @@ describe('runDispatchTick — structured errorCode per failure phase (harden #1)
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: (async function* () {}) as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -157,6 +164,7 @@ describe('runDispatchTick — structured errorCode per failure phase (harden #1)
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: (async function* () {}) as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -187,6 +195,7 @@ describe('runDispatchTick — structured errorCode per failure phase (harden #1)
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
