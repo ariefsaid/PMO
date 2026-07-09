@@ -102,6 +102,37 @@ describe('recordUsage', () => {
     );
   });
 
+  it('carries cached_tokens + reasoning_tokens into the insert payload, clamped', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    const cachedResp: ModelResponse = {
+      ...resp,
+      usage: {
+        prompt_tokens: 1000,
+        completion_tokens: 200,
+        total_tokens: 1200,
+        total_cost: 0.01,
+        cached_tokens: 768,
+        reasoning_tokens: 64,
+      },
+    };
+    await recordUsage({ supabase, runId: 'run-cache' }, cachedResp);
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cached_tokens: 768, reasoning_tokens: 64 }),
+    );
+  });
+
+  it('defaults cached_tokens + reasoning_tokens to 0 when the provider omits them', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    const plainResp: ModelResponse = {
+      ...resp,
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, total_cost: 0.001 },
+    };
+    await recordUsage({ supabase, runId: 'run-plain' }, plainResp);
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cached_tokens: 0, reasoning_tokens: 0 }),
+    );
+  });
+
   it('recordUsage swallows an insert error without throwing', async () => {
     const supabase = {
       from: vi.fn().mockReturnValue({
