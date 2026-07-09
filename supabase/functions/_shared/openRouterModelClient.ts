@@ -42,6 +42,11 @@ interface OpenRouterResponseBody {
     completion_tokens?: number;
     total_tokens?: number;
     cost?: number;
+    // OpenAI-compatible detail objects OpenRouter returns on every response (Usage Accounting):
+    // cached_tokens = prompt tokens served from the provider prefix cache; reasoning_tokens =
+    // thinking tokens in the output. Both are subsets of their parent count; absent ⇒ unreported.
+    prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
@@ -160,6 +165,12 @@ export class OpenRouterModelClient implements ModelClient {
             completion_tokens: body.usage.completion_tokens ?? 0,
             total_tokens: body.usage.total_tokens ?? 0,
             ...(body.usage.cost !== undefined ? { total_cost: body.usage.cost } : {}),
+            ...(body.usage.prompt_tokens_details?.cached_tokens !== undefined
+              ? { cached_tokens: body.usage.prompt_tokens_details.cached_tokens }
+              : {}),
+            ...(body.usage.completion_tokens_details?.reasoning_tokens !== undefined
+              ? { reasoning_tokens: body.usage.completion_tokens_details.reasoning_tokens }
+              : {}),
           }
         : undefined,
       model: body.model,

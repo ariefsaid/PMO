@@ -42,6 +42,10 @@ export interface ModelUsage {
   completion_tokens: number;
   total_tokens: number;
   total_cost?: number;
+  /** Prompt tokens served from the provider prefix cache (subset of prompt_tokens). Absent ⇒ unreported. */
+  cached_tokens?: number;
+  /** Reasoning/thinking tokens in the output (subset of completion_tokens). Absent ⇒ unreported. */
+  reasoning_tokens?: number;
 }
 
 export interface ModelResponse {
