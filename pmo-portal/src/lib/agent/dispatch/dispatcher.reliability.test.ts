@@ -78,13 +78,17 @@ function makeMintedClient() {
 }
 
 function makeMintDeps(mintedClientForOwner: (ownerId: string) => unknown) {
+  // generateLink returns a hashed_token (NOT an access_token); verifyOtp exchanges it for a session.
   const generateLink = vi.fn().mockImplementation(() =>
-    Promise.resolve({ data: { properties: { access_token: 'MINTED' } }, error: null }),
+    Promise.resolve({ data: { properties: { hashed_token: 'HASH' } }, error: null }),
   );
+  const verifyOtp = vi
+    .fn()
+    .mockResolvedValue({ data: { session: { access_token: 'MINTED' } }, error: null });
   const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
   const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockImplementation(() => mintedClientForOwner('unused'));
-  return { authAdmin, buildClient, generateLink };
+  return { authAdmin, buildClient, generateLink, verifyOtp };
 }
 
 describe('runDispatchTick — item 2: per-automation error isolation (fire loop)', () => {
@@ -114,6 +118,7 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',
@@ -144,6 +149,7 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
         serviceClient: svc.client as never,
         authAdmin: mintDeps.authAdmin as never,
         buildClient: mintDeps.buildClient,
+        verifyOtp: mintDeps.verifyOtp,
         handler: handler as never,
         modelClient: { create: vi.fn() } as never,
         model: 'm',
@@ -209,6 +215,7 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
       serviceClient: svcClient as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -245,6 +252,7 @@ describe('runDispatchTick — item 3: timeout_s wired to an AbortController sign
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -279,6 +287,7 @@ describe('runDispatchTick — item 3: timeout_s wired to an AbortController sign
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',

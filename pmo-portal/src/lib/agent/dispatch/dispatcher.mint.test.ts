@@ -116,13 +116,17 @@ describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row
     const getUserById = vi
       .fn()
       .mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null });
+    // generateLink returns a hashed_token (NOT an access_token); verifyOtp exchanges it for a session.
     const generateLink = vi
       .fn()
-      .mockResolvedValue({ data: { properties: { access_token: 'MINTED.JWT.A' } }, error: null });
+      .mockResolvedValue({ data: { properties: { hashed_token: 'HASH.A' } }, error: null });
+    const verifyOtp = vi
+      .fn()
+      .mockResolvedValue({ data: { session: { access_token: 'MINTED.JWT.A' } }, error: null });
     const buildClient = vi.fn().mockReturnValue({ __identity: 'minted-A' });
     const authAdmin = { admin: { getUserById, generateLink } };
 
-    const minted = await mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation);
+    const minted = await mintOwnerJwt({ authAdmin: authAdmin as never, verifyOtp, buildClient }, automation);
 
     // The admin API was invoked for exactly owner_id — never a model/request-supplied id.
     expect(generateLink).toHaveBeenCalledTimes(1);
@@ -132,10 +136,10 @@ describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row
     expect(idsInCall).toContain('user-A');
     // Assert no OTHER user id (e.g. user-B) can appear — the automation carries only owner_id.
     expect(idsInCall).not.toContain('user-B');
+    // The generateLink token_hash is exchanged (verifyOtp) for the owner session, whose access token
+    // is what the fired run runs under.
+    expect(verifyOtp).toHaveBeenCalledWith({ type: 'magiclink', token_hash: 'HASH.A' });
     expect(minted.client).toBe(buildClient.mock.results[0]?.value);
-    // The returned wall-clock timeout mirrors the automation's timeout_s — this is the fire
-    // AbortController budget, NOT the minted JWT's cryptographic lifetime (gpt-5.5 #4: generateLink
-    // exposes no TTL knob, so the JWT uses the project's default OTP/JWT expiry).
     expect(minted.wallClockTimeoutS).toBe(90);
   });
 
@@ -146,36 +150,58 @@ describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row
       .mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null });
     const generateLink = vi
       .fn()
-      .mockResolvedValue({ data: { properties: { access_token: 'JWT' } }, error: null });
+      .mockResolvedValue({ data: { properties: { hashed_token: 'HASH' } }, error: null });
+    const verifyOtp = vi
+      .fn()
+      .mockResolvedValue({ data: { session: { access_token: 'JWT' } }, error: null });
     const buildClient = vi.fn().mockReturnValue({});
     const authAdmin = { admin: { getUserById, generateLink } };
 
-    await mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation);
+    await mintOwnerJwt({ authAdmin: authAdmin as never, verifyOtp, buildClient }, automation);
 
-    // The mint identity comes from owner_id ONLY — never the prompt/condition text. getUserById is
-    // asked for exactly owner_id; generateLink then carries only that owner's resolved email.
+    // The mint identity comes from owner_id ONLY — never the prompt/condition text.
     expect(getUserById).toHaveBeenCalledWith('user-A');
     const callArg = JSON.stringify(generateLink.mock.calls[0][0]);
     expect(callArg).not.toContain('user-B');
     expect(callArg).toContain('user-A@example.com');
-    // The buildClient is handed the minted access token, not owner_id-as-identity.
+    // The SESSION access token (from verifyOtp), not the hashed_token, is handed to buildClient.
     expect(buildClient).toHaveBeenCalledWith('JWT');
   });
 
   it('fails closed when the owner email cannot be resolved — no invalid user_id fallback', async () => {
-    // magiclink has no user_id form; an unresolvable owner email must fail-closed, never fall
-    // through to an invalid param that the real API rejects opaquely (pre-existing latent bug fixed
-    // 2026-07-04). Never attempts the mint, never builds a client.
     const automation = makeAutomation({ owner_id: 'user-A' });
     const getUserById = vi.fn().mockResolvedValue({ data: { user: { email: null } }, error: null });
     const generateLink = vi.fn();
+    const verifyOtp = vi.fn();
     const buildClient = vi.fn();
     const authAdmin = { admin: { getUserById, generateLink } };
 
     await expect(
-      mintOwnerJwt({ authAdmin: authAdmin as never, buildClient }, automation),
+      mintOwnerJwt({ authAdmin: authAdmin as never, verifyOtp, buildClient }, automation),
     ).rejects.toThrow('mint failed');
     expect(generateLink).not.toHaveBeenCalled();
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(buildClient).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when verifyOtp returns no session (token_hash cannot be exchanged)', async () => {
+    // Regression for the pre-existing bug: mint used to read a non-existent properties.access_token
+    // and ALWAYS failed. The correct flow is generateLink -> verifyOtp(token_hash) -> session. If the
+    // exchange yields no session, mint must fail closed (never build a client on an empty token).
+    const automation = makeAutomation({ owner_id: 'user-A' });
+    const getUserById = vi
+      .fn()
+      .mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null });
+    const generateLink = vi
+      .fn()
+      .mockResolvedValue({ data: { properties: { hashed_token: 'HASH' } }, error: null });
+    const verifyOtp = vi.fn().mockResolvedValue({ data: { session: null }, error: { message: 'bad otp' } });
+    const buildClient = vi.fn();
+    const authAdmin = { admin: { getUserById, generateLink } };
+
+    await expect(
+      mintOwnerJwt({ authAdmin: authAdmin as never, verifyOtp, buildClient }, automation),
+    ).rejects.toThrow('mint failed');
     expect(buildClient).not.toHaveBeenCalled();
   });
 });
