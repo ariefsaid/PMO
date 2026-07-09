@@ -98,13 +98,17 @@ function makeMintedClient() {
 }
 
 function makeMintDeps(mintedClient: unknown) {
+  // generateLink returns a hashed_token (NOT an access_token); verifyOtp exchanges it for a session.
   const generateLink = vi
     .fn()
-    .mockResolvedValue({ data: { properties: { access_token: 'MINTED.A' } }, error: null });
+    .mockResolvedValue({ data: { properties: { hashed_token: 'HASH.A' } }, error: null });
+  const verifyOtp = vi
+    .fn()
+    .mockResolvedValue({ data: { session: { access_token: 'MINTED.A' } }, error: null });
   const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
   const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockReturnValue(mintedClient);
-  return { authAdmin, buildClient, generateLink };
+  return { authAdmin, buildClient, generateLink, verifyOtp };
 }
 
 describe('runDispatchTick — AC-AAN-018 service_role never queries business data', () => {
@@ -130,6 +134,7 @@ describe('runDispatchTick — AC-AAN-018 service_role never queries business dat
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',
@@ -173,6 +178,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -270,6 +276,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       serviceClient: svcClient as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -320,6 +327,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -350,6 +358,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',
@@ -383,13 +392,21 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const mintedB = makeMintedClient();
     (mintedB.client as { __identity: string }).__identity = 'minted-B';
 
+    // generateLink returns a hashed_token (NOT an access_token) encoding which owner it was minted
+    // for; verifyOtp exchanges that hashed_token for the owner's session access_token.
     const generateLink = vi.fn(async (params: Record<string, unknown>) => {
       const email = params.email as string | undefined;
       return {
-        data: { properties: { access_token: email === 'user-A' ? 'MINTED.A' : 'MINTED.B' } },
+        data: { properties: { hashed_token: email === 'user-A' ? 'HASH.A' : 'HASH.B' } },
         error: null,
       };
     });
+    const verifyOtp = vi.fn(async (params: { token_hash: string }) => ({
+      data: {
+        session: { access_token: params.token_hash === 'HASH.A' ? 'MINTED.A' : 'MINTED.B' },
+      },
+      error: null,
+    }));
     const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
     const authAdmin = { admin: { generateLink, getUserById } };
     const buildClient = vi.fn((accessToken: string) =>
@@ -409,6 +426,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       serviceClient: svc.client as never,
       authAdmin: authAdmin as never,
       buildClient,
+      verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'm',

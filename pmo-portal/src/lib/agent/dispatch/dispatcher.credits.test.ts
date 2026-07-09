@@ -83,13 +83,17 @@ function makeMintedClient() {
 }
 
 function makeMintDeps(mintedClient: unknown) {
+  // generateLink returns a hashed_token (NOT an access_token); verifyOtp exchanges it for a session.
   const generateLink = vi
     .fn()
-    .mockResolvedValue({ data: { properties: { access_token: 'MINTED.A' } }, error: null });
+    .mockResolvedValue({ data: { properties: { hashed_token: 'HASH.A' } }, error: null });
+  const verifyOtp = vi
+    .fn()
+    .mockResolvedValue({ data: { session: { access_token: 'MINTED.A' } }, error: null });
   const getUserById = vi.fn(async (id: string) => ({ data: { user: { email: id } }, error: null }));
   const authAdmin = { admin: { generateLink, getUserById } };
   const buildClient = vi.fn().mockReturnValue(mintedClient);
-  return { authAdmin, buildClient, generateLink };
+  return { authAdmin, buildClient, generateLink, verifyOtp };
 }
 
 describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notification', () => {
@@ -109,6 +113,7 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',
@@ -168,6 +173,7 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',
@@ -210,6 +216,7 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',
@@ -255,6 +262,7 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
       serviceClient: svc.client as never,
       authAdmin: mintDeps.authAdmin as never,
       buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
       handler: handler as never,
       modelClient: { create: vi.fn() } as never,
       model: 'anthropic/claude',

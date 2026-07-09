@@ -107,7 +107,7 @@ When the user asks to "build me a dashboard of…", "save this as a view", or ot
     ? `
 
 ### automation — Use when the request is recurring or event-triggered
-Offer \`create_automation\` when the user phrases a recurring or triggered job — "every Monday…", "remind me when…", "when a case sits >30 days…". Use kind \`schedule\` for cron/time phrasing and kind \`trigger\` for event phrasing. Do NOT create an automation for a one-shot answer. Use \`notify\` only per its own intent (a notification the user asked for, or one an automation run should send).`
+Offer \`create_automation\` when the user phrases a recurring or triggered job — "every Monday…", "remind me when…", "when a case sits >30 days…". Use kind \`schedule\` for time phrasing and kind \`trigger\` for event phrasing. **Schedules support ONLY daily, weekly, or day-of-month cadence, each at a specific whole hour (minute 0):** daily \`0 H * * *\`, weekly \`0 H * * D\` (D=0-6, Sun–Sat), day-of-month \`0 H DOM * *\` (DOM=1-31). Do NOT offer or create sub-daily/hourly/every-N-minute schedules — if asked, offer the closest daily option and confirm the day/time before creating. Do NOT create an automation for a one-shot answer. Use \`notify\` only per its own intent (a notification the user asked for, or one an automation run should send).`
     : '';
 
   return `You are a read-only deputy assistant for a project management platform.
