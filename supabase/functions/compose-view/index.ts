@@ -23,6 +23,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { composeViewHandler } from './handler.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
@@ -67,6 +68,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
   const userId = user.id;
+
+  // ── 2b. Request-rate throttle (IG-audit 2026-07-10, migration 0091) ───────
+  // Bounds how OFTEN one verified user may trigger a compose (model spend), independent of credits.
+  // Keyed by verified user id; service-role verifier RPC (non-bypassable). Fail-open (availability
+  // defense — see requestRateGuard.ts). COMPOSE_RATE_LIMIT_PER_MIN overrides the default.
+  const composeRateLimitPerMin = Number(Deno.env.get('COMPOSE_RATE_LIMIT_PER_MIN')) || 20;
+  const composeRate = await checkRequestRate(verifierClient as never, {
+    key: `compose-view:${userId}`,
+    limit: composeRateLimitPerMin,
+    windowSecs: 60,
+  });
+  if (composeRate.exceeded) {
+    return new Response(
+      JSON.stringify({ status: 429, error: 'RATE_LIMITED', detail: 'too many requests' }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Retry-After': String(composeRate.retryAfterSeconds),
+        },
+      },
+    );
+  }
 
   // ── 3. Build caller-JWT Supabase client (deputy auth — FR-AS-010) ─────────
   // All business data (profiles lookup for org_id) goes through this client.
