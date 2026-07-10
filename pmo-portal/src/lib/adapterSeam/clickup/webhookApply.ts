@@ -44,9 +44,10 @@ export type ApplyOutcome =
  * values flow as epoch-ms (TZ-safe numeric `>=` compare); the edge fn converts to/from the
  * `source_updated_at` timestamptz column.
  */
-export interface WebhookApplyDeps extends ClickUpMaps {
-  statusMap: ClickUpStatusMap;
-  memberMap: ClickUpMemberMap;
+
+/** The narrow dep surface `applyInboundChange` needs — shared by the webhook + the sweep so both
+ *  apply through the SAME source-mod-guarded path (FR-CUA-049 "any apply"). */
+export interface ApplyChangeDeps {
   /** Resolve the PMO record id already mapped to a ClickUp task id (`null` = unmapped → adopt). */
   resolvePmoRecordId: (externalRecordId: string) => Promise<string | null>;
   /** Read the mirrored row's stored source-modification timestamp (epoch-ms), or `null` if none. */
@@ -55,16 +56,25 @@ export interface WebhookApplyDeps extends ClickUpMaps {
   updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void>;
   /** Mint a new mirrored row for an adopted task + stamp `source_updated_at`; return its PMO id. */
   mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<string>;
-  /** Soft-tombstone a mirror (set `tombstoned_at`); dependency/milestone rows are preserved (OD-CUA-2). */
-  tombstoneMirror: (pmoRecordId: string) => Promise<void>;
   /** Record the `external_refs` mapping for a newly-minted mirror. */
   recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
-  /** Surface a deletion (AC-CUA-070 non-silent) — an audit/notice write; optional (P1: structured log). */
-  surfaceDeletion?: (pmoRecordId: string, externalRecordId: string) => Promise<void>;
+}
+
+/** The narrow dep surface the monotonic-watermark helper needs (webhook + sweep). */
+export interface WatermarkDeps {
   /** Read the org's `(tasks, clickup)` watermark cursor (epoch-ms string), or `null` if fresh. */
   readWatermark: () => Promise<string | null>;
   /** Advance the org's watermark cursor (the caller guarantees monotonicity — see advanceMonotonic). */
   advanceWatermark: (cursor: string) => Promise<void>;
+}
+
+export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickUpMaps {
+  statusMap: ClickUpStatusMap;
+  memberMap: ClickUpMemberMap;
+  /** Soft-tombstone a mirror (set `tombstoned_at`); dependency/milestone rows are preserved (OD-CUA-2). */
+  tombstoneMirror: (pmoRecordId: string) => Promise<void>;
+  /** Surface a deletion (AC-CUA-070 non-silent) — an audit/notice write; optional (P1: structured log). */
+  surfaceDeletion?: (pmoRecordId: string, externalRecordId: string) => Promise<void>;
 }
 
 /**
@@ -77,7 +87,7 @@ export async function applyInboundChange(
   externalRecordId: string,
   canonical: PmoRecord,
   sourceUpdatedAtMs: number,
-  deps: WebhookApplyDeps,
+  deps: ApplyChangeDeps,
 ): Promise<ApplyOutcome> {
   const existingId = await deps.resolvePmoRecordId(externalRecordId);
 
@@ -111,7 +121,7 @@ export async function applyInboundChange(
  * page's max date_updated (sweep), both already >= any prior cursor by construction; the max() is the
  * no-rewind guarantee for an out-of-order older event whose apply was a per-row no-op.
  */
-export async function advanceWatermarkMonotonic(deps: WebhookApplyDeps, candidateMs: number): Promise<void> {
+export async function advanceWatermarkMonotonic(deps: WatermarkDeps, candidateMs: number): Promise<void> {
   const current = await deps.readWatermark();
   const currentMs = current !== null ? Number(current) : null;
   const advanced = currentMs !== null && currentMs > candidateMs ? currentMs : candidateMs;
