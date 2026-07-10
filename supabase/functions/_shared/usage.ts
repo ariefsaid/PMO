@@ -50,6 +50,12 @@ export interface UsageFields {
    * model emits none or the provider does not report it.
    */
   reasoning_tokens?: number;
+  /**
+   * Wall-clock ms of the model call that produced this row (the edge-fn `model_ms` probe). Telemetry
+   * for the cost-per-run/latency dashboard (agent-cost-dashboard). Defaults to 0 when unmeasured
+   * (e.g. compose-view, which has no per-round timer).
+   */
+  duration_ms?: number;
 }
 
 // AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
@@ -103,6 +109,7 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
         // forgets to clamp upstream still cannot persist a negative/non-finite value. Omitted ⇒ 0.
         cached_tokens: clampUsageValue(fields.cached_tokens),
         reasoning_tokens: clampUsageValue(fields.reasoning_tokens),
+        duration_ms: clampUsageValue(fields.duration_ms),
       })
       .select()
       .single();
@@ -140,7 +147,12 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
  * fields into the flat shape. `action` defaults to 'chat' (agent-chat's own call-site);
  * agent-dispatch's fired-run call-site passes 'automation' explicitly.
  */
-export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?: UsageAction): Promise<void> {
+export async function recordUsage(
+  deps: UsageDeps,
+  resp: ModelResponse,
+  action?: UsageAction,
+  durationMs?: number,
+): Promise<void> {
   return insertUsageRow(deps, {
     model: resp.model,
     prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
@@ -148,6 +160,7 @@ export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?:
     cost: clampUsageValue(resp.usage?.total_cost),
     cached_tokens: clampUsageValue(resp.usage?.cached_tokens),
     reasoning_tokens: clampUsageValue(resp.usage?.reasoning_tokens),
+    duration_ms: durationMs,
     action,
   });
 }

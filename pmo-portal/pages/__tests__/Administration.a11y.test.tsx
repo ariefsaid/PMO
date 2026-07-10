@@ -54,6 +54,14 @@ vi.mock('@/src/hooks/useUsage', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useAgentRunStats: () => ({
+    data: [
+      { action: 'chat', month: '2026-06', runs: 4, avg_rounds: 2, p50_cost: 0.1, p95_cost: 0.2, max_cost: 0.3, cache_hit_pct: 50, p50_ms: 500, p95_ms: 900 },
+    ],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   // A mixed map so both enabled + disabled feature rows render.

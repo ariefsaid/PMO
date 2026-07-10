@@ -34,6 +34,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAgentRunStats: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 // S6: the Credits + Features sections reach react-query + the repository seam directly.

@@ -41,6 +41,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => isOperatorState.value }));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: () => {} }),
+  useAgentRunStats: () => ({ data: [], isPending: false, isError: false, refetch: () => {} }),
 }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { incidents: true } }),

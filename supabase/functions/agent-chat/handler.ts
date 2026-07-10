@@ -699,8 +699,11 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         tools,
       });
       // Round-latency probe (diagnosing the follow-up-hang: rounds × per-round latency vs the
-      // ~150s isolate wall-clock). Structured, no user data — safe to keep.
-      console.log(`[agent-chat] round=${round} model_ms=${Date.now() - _t0} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
+      // ~150s isolate wall-clock). Structured, no user data — safe to keep. `modelMs` is also
+      // persisted onto the agent_usage row below (duration_ms) so the cost/latency dashboard can
+      // compute per-run latency percentiles from the sanctioned aggregate source (NFR-PRIV-001).
+      const modelMs = Date.now() - _t0;
+      console.log(`[agent-chat] round=${round} model_ms=${modelMs} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
 
       // FR-AUC-002/004/018: one agent_usage row per modelClient.create() resolution — the
       // single per-round choke point (unified by the runToolLoop refactor, so both the main
@@ -708,7 +711,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // of `persist` (persistence flag) — usage recording is unconditional; `run_id` is set
       // only when a run row exists (persist truthy), else null (FR-AUC-004).
       if (deps.usage) {
-        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat');
+        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat', modelMs);
       }
 
       // Emit any text content as an assistant event.
