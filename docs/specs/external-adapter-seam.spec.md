@@ -500,7 +500,7 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 | AC-EAS-041 | FR-EAS-042 | pgTAP | `supabase/tests/external_refs_rls.test.sql` |
 | AC-EAS-042 | FR-EAS-043 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` |
 | AC-EAS-050 | FR-EAS-050, FR-EAS-051 | pgTAP | `supabase/tests/external_sync_watermarks_rls.test.sql` |
-| AC-EAS-051 | FR-EAS-052 | Vitest (unit) | `pmo-portal/src/lib/db/externalSyncWatermarks.test.ts` |
+| AC-EAS-051 | FR-EAS-052 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/watermarks.test.ts` |
 | AC-EAS-060 | FR-EAS-061 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |
 | AC-EAS-061 | FR-EAS-063 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |
 | AC-EAS-062 | FR-EAS-062 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |

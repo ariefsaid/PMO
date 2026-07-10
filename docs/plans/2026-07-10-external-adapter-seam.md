@@ -64,6 +64,8 @@ All adapterSeam modules use **relative imports only** (`./contract`, `../appErro
 | `router.ts` | `routeRead` (always DAL), `routeWrite` (empty-map short-circuit FIRST), `executeWrite` (the branch) | 001, 002, 014, 030, 031, 032 |
 | `dispatch.ts` | **pure** `dispatchExternallyOwnedWrite(deps)` — the ordered synchronous write-through | 023, 033, 034, 042 |
 | `pendingPush.ts` | shared pending-push state machine (`idle`/`pushing`/`pushed`/`push-failed`) + `{headline,detail}` error surface | 060, 061, 062 |
+| `watermarks.ts` | **pure machine writer** — `upsertWatermark(client, input)` upserts EXACTLY ONE row per `(org,tier,domain)`; takes an injected service-role client (the table is machine-written only). Called only from the `adapter-dispatch` service-side boundary in this plan; no FE writer/repository entry exists | 051 |
+| `refs.ts` | **pure machine writer** — `recordExternalRef(client, input)` records the `external_refs` mapping; takes an injected service-role client (machine-written only). Called by the `adapter-dispatch` edge function | (supports 042) |
 | `clientInvoke.ts` | FE-only `invokeAdapterDispatch()` → `supabase.functions.invoke('adapter-dispatch')` (the externally-owned write target; wiring for P1) | — |
 
 ### 1.4 The dispatch edge function (`supabase/functions/adapter-dispatch/`)
@@ -599,8 +601,25 @@ export interface AdapterCommand {
   record: PmoRecord;
 }
 
-/** The adapter contract every adapter implements (FR-EAS-020/021). */
-export interface Adapter {
+/** A page of changes since a watermark cursor — the `list-changes-since-watermark` read result (FR-EAS-021). */
+export interface ChangesSinceWatermark {
+  changes: PmoRecord[];
+  /** The cursor to resume from on the next read; `null` when there are no more changes. */
+  nextCursor: string | null;
+}
+
+/**
+ * The read operations the contract requires for each owned domain (FR-EAS-021): `list-changes-since-watermark`
+ * (the reconciliation-sweep source; consumed P1) and `get-by-external-id` (resolve/reconcile a ref).
+ * PMO domain language only — never external-system vocabulary (NFR-EAS-CONTRACT-001).
+ */
+export interface AdapterReads {
+  listChangesSinceWatermark(domain: PmoDomain, cursor: string | null): Promise<ChangesSinceWatermark>;
+  getByExternalId(domain: PmoDomain, externalRecordId: string): Promise<PmoRecord | null>;
+}
+
+/** The adapter contract every adapter implements (FR-EAS-020/021): capability map + commands + reads. */
+export interface Adapter extends AdapterReads {
   /** The external tier this adapter speaks (e.g. 'reference'). */
   readonly tier: string;
   /** The static per-system capability map (domains this tier can natively own). */
@@ -637,6 +656,11 @@ describe('AC-EAS-020 reference adapter implements the contract in PMO domain lan
     expect(a.capabilityMap.has(REFERENCE_DOMAIN)).toBe(true);
     expect(a.capabilityMap.size).toBe(1);
   });
+  it('AC-EAS-020 declares the read operations (listChangesSinceWatermark + getByExternalId) in PMO domain language', () => {
+    const a = createReferenceAdapter();
+    expect(typeof a.listChangesSinceWatermark).toBe('function');
+    expect(typeof a.getByExternalId).toBe('function');
+  });
 });
 
 describe('AC-EAS-021 a command synchronously returns the external id + canonical record', () => {
@@ -645,6 +669,19 @@ describe('AC-EAS-021 a command synchronously returns the external id + canonical
     const result = await a.commit(cmd('pmo-1'));
     expect(result.externalRecordId).toBeTruthy();
     expect(result.canonical.id).toBe('pmo-1');
+  });
+  it('AC-EAS-021 getByExternalId returns the canonical PMO record for an external id', async () => {
+    const a = createReferenceAdapter('commit-success');
+    const record = await a.getByExternalId(REFERENCE_DOMAIN, 'ext-1');
+    expect(record).not.toBeNull();
+    expect(record?.id).toBeTruthy();
+  });
+  it('AC-EAS-021 listChangesSinceWatermark returns a page of canonical changes + a cursor', async () => {
+    const a = createReferenceAdapter('commit-success');
+    const page = await a.listChangesSinceWatermark(REFERENCE_DOMAIN, null);
+    expect(page.changes.length).toBeGreaterThan(0);
+    expect(page.changes.every((r) => typeof r.id === 'string')).toBe(true);
+    expect(page.nextCursor === null || typeof page.nextCursor === 'string').toBe(true);
   });
 });
 
@@ -663,6 +700,15 @@ describe('AC-EAS-022 an external rejection / unreachability surfaces as a classi
     const a = createReferenceAdapter('commit-rejected-validation');
     await expect(a.commit(cmd('pmo-3'))).rejects.toBeInstanceOf(AdapterError);
   });
+  it('AC-EAS-022 reads under external-unreachable surface the same classified error (consistent with the command modes)', async () => {
+    const a = createReferenceAdapter('external-unreachable');
+    await expect(a.getByExternalId(REFERENCE_DOMAIN, 'ext-1')).rejects.toMatchObject({
+      name: 'AdapterError', code: 'external-unreachable',
+    });
+    await expect(a.listChangesSinceWatermark(REFERENCE_DOMAIN, null)).rejects.toMatchObject({
+      name: 'AdapterError', code: 'external-unreachable',
+    });
+  });
 });
 ```
 
@@ -673,11 +719,11 @@ Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/referenceAdapter.t
 ```ts
 /**
  * Reference (test-double) adapter (FR-EAS-025, AC-EAS-020..022/070). Implements the adapter contract
- * for the synthetic 'reference' domain with configurable outcomes, so every P0 AC is provable with NO
+ * for the synthetic 'reference' domain with configurable outcomes (commands AND reads — FR-EAS-021), so every P0 AC is provable with NO
  * real external system. Pure (no supabase/browser imports) ⇒ Deno-importable by the adapter-dispatch
  * edge function. NEVER receives org_id (FR-EAS-024) — proven at the dispatch (AC-EAS-023).
  */
-import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoDomain } from './contract';
+import { Adapter, AdapterCommand, AdapterError, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from './contract';
 
 /** Configurable outcomes for the reference adapter (FR-EAS-025). */
 export type ReferenceOutcome = 'commit-success' | 'commit-rejected-validation' | 'external-unreachable';
@@ -708,6 +754,32 @@ export function createReferenceAdapter(outcome: ReferenceOutcome = 'commit-succe
       }
       const externalRecordId = `ext-${command.record.id}`;
       return { externalRecordId, canonical: { ...command.record, external_id: externalRecordId } };
+    },
+    async listChangesSinceWatermark(domain: PmoDomain, cursor: string | null): Promise<ChangesSinceWatermark> {
+      if (domain !== REFERENCE_DOMAIN) {
+        throw new AdapterError('commit-rejected', `reference adapter cannot own domain "${domain}"`);
+      }
+      if (outcome === 'external-unreachable') {
+        throw new AdapterError('external-unreachable', 'reference system unreachable');
+      }
+      // commit-success (and commit-rejected-validation for reads): reads succeed — the rejection outcome
+      // is a write concern; the ONLY outcome that breaks reads is unreachability (consistent with the
+      // command modes). Deterministic page so the read surface is provable with no real system.
+      const since = cursor ? Number(cursor) : 0;
+      const changes: PmoRecord[] = [
+        { id: `pmo-${since + 1}`, external_id: `ext-${since + 1}` },
+        { id: `pmo-${since + 2}`, external_id: `ext-${since + 2}` },
+      ];
+      return { changes, nextCursor: null };
+    },
+    async getByExternalId(domain: PmoDomain, externalRecordId: string): Promise<PmoRecord | null> {
+      if (domain !== REFERENCE_DOMAIN) {
+        throw new AdapterError('commit-rejected', `reference adapter cannot own domain "${domain}"`);
+      }
+      if (outcome === 'external-unreachable') {
+        throw new AdapterError('external-unreachable', 'reference system unreachable');
+      }
+      return { id: externalRecordId.replace(/^ext-/, 'pmo-'), external_id: externalRecordId };
     },
   };
 }
@@ -783,391 +855,7 @@ export function assertDomainInCapabilityMap(
 
 ---
 
-### Task 8 — `router.ts` + test (AC-EAS-001, AC-EAS-002, AC-EAS-014, AC-EAS-030, AC-EAS-031, AC-EAS-032)
-
-**RED — create** `pmo-portal/src/lib/adapterSeam/router.test.ts`:
-
-```ts
-import { describe, it, expect, vi } from 'vitest';
-import {
-  routeRead,
-  routeWrite,
-  executeWrite,
-  EMPTY_OWNERSHIP_MAP,
-  type OwnershipMap,
-} from './router';
-import { IDLE_PENDING_PUSH, pendingPushAfterWrite } from './pendingPush';
-
-describe('AC-EAS-001 empty ownership map ⇒ write takes the direct-DAL path (byte-for-byte)', () => {
-  it('AC-EAS-001 routeWrite returns pmo for an empty map (short-circuit FIRST)', () => {
-    expect(routeWrite('reference', EMPTY_OWNERSHIP_MAP)).toBe('pmo');
-    expect(routeWrite('anything', {} as OwnershipMap)).toBe('pmo');
-  });
-  it('AC-EAS-001 executeWrite with an empty map calls directWrite and NOT dispatchWrite', async () => {
-    const directWrite = vi.fn(async (p: string) => `direct:${p}`);
-    const dispatchWrite = vi.fn(async (p: string) => `dispatch:${p}`);
-    const res = await executeWrite({
-      domain: 'reference', ownershipMap: EMPTY_OWNERSHIP_MAP, payload: 'x',
-      directWrite, dispatchWrite,
-    });
-    expect(res).toBe('direct:x');
-    expect(directWrite).toHaveBeenCalledTimes(1);
-    expect(dispatchWrite).not.toHaveBeenCalled();
-  });
-});
-
-describe('AC-EAS-002 empty map ⇒ reads from the DAL and no pending-push state', () => {
-  it('AC-EAS-002 routeRead always returns dal', () => {
-    expect(routeRead('reference')).toBe('dal');
-  });
-  it('AC-EAS-002 a write under an empty map produces no pushing/pushed/push-failed state', async () => {
-    const directWrite = vi.fn(async () => {});
-    await executeWrite({
-      domain: 'reference', ownershipMap: EMPTY_OWNERSHIP_MAP, payload: 'x',
-      directWrite, dispatchWrite: vi.fn(),
-    });
-    // The direct path never engages the pending-push machine ⇒ idle.
-    expect(pendingPushAfterWrite('pmo', { ok: true })).toEqual(IDLE_PENDING_PUSH);
-  });
-});
-
-describe('AC-EAS-014 the ownership-decision routes by own-org ownership only', () => {
-  const orgAMap: OwnershipMap = { reference: 'reference' }; // org A owns 'reference'
-  it('AC-EAS-014 an assigned domain routes to dispatch', () => {
-    expect(routeWrite('reference', orgAMap)).toBe('external');
-  });
-  it('AC-EAS-014 an unassigned domain routes to the direct DAL', () => {
-    expect(routeWrite('tasks', orgAMap)).toBe('pmo');
-  });
-  it('AC-EAS-014 org B rows never affect org A branch (router only sees the passed map)', () => {
-    // The caller passes ONLY org A's map; org B cannot appear here even if it exists.
-    expect(routeWrite('reference', orgAMap)).toBe('external');
-    expect(routeWrite('accounting', orgAMap)).toBe('pmo'); // org B might own 'accounting' — irrelevant
-  });
-});
-
-describe('AC-EAS-030 reads ALWAYS serve from Supabase (the read-model), regardless of ownership', () => {
-  it('AC-EAS-030 routeRead is dal even for an externally-owned domain', () => {
-    expect(routeRead('reference')).toBe('dal'); // no adapter read is ever invoked
-  });
-});
-
-describe('AC-EAS-031 an externally-owned write routes through the dispatch (not the direct DAL)', () => {
-  it('AC-EAS-031 executeWrite calls dispatchWrite and NOT directWrite when externally-owned', async () => {
-    const directWrite = vi.fn(async () => 'direct');
-    const dispatchWrite = vi.fn(async () => 'dispatch');
-    const res = await executeWrite({
-      domain: 'reference', ownershipMap: { reference: 'reference' }, payload: 'x',
-      directWrite, dispatchWrite,
-    });
-    expect(res).toBe('dispatch');
-    expect(dispatchWrite).toHaveBeenCalledTimes(1);
-    expect(directWrite).not.toHaveBeenCalled();
-  });
-});
-
-describe('AC-EAS-032 a PMO-owned write routes through the direct DAL (not the dispatch)', () => {
-  it('AC-EAS-032 a non-empty map without the domain ⇒ directWrite called, dispatchWrite not', async () => {
-    const directWrite = vi.fn(async () => 'direct');
-    const dispatchWrite = vi.fn(async () => 'dispatch');
-    const res = await executeWrite({
-      domain: 'tasks', ownershipMap: { reference: 'reference' }, payload: 'x', // tasks NOT assigned
-      directWrite, dispatchWrite,
-    });
-    expect(res).toBe('direct');
-    expect(directWrite).toHaveBeenCalledTimes(1);
-    expect(dispatchWrite).not.toHaveBeenCalled();
-  });
-});
-```
-
-Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/router.test.ts` → fails (module not found).
-
-**GREEN — create** `pmo-portal/src/lib/adapterSeam/router.ts`:
-
-```ts
-/**
- * The write-routing seam (FR-EAS-030..033, AC-EAS-001/002/014/030/031/032). Pure + relative imports only
- * (Deno-importable). THE INVARIANT (FR-EAS-010): an empty own-org ownership map ⇒ the write takes the
- * existing direct-DAL path byte-for-byte — `routeWrite` checks the empty map FIRST. The client never
- * sends org_id; `ownershipMap` is the caller's own-org map (cached, TanStack — NFR-EAS-PERF-001). This
- * branch is UX/DX-only routing — RLS is the enforcement authority (OD-3, FR-EAS-037).
- */
-import { PmoDomain } from './contract';
-
-/** The caller's own-org externally-owned domains: domain → owning external tier (FR-EAS-003). */
-export type OwnershipMap = Readonly<Record<PmoDomain, string>>;
-export const EMPTY_OWNERSHIP_MAP: OwnershipMap = {};
-
-export type WriteRoute = 'pmo' | 'external';
-
-/** Reads ALWAYS serve from the Supabase read-model via the existing DAL (FR-EAS-030, AC-EAS-030). */
-export function routeRead(_domain: PmoDomain): 'dal' {
-  return 'dal';
-}
-
-/**
- * The write-routing decision (FR-EAS-031/032, AC-EAS-001/014/031/032). Empty map ⇒ 'pmo' is the FIRST
- * branch (AC-EAS-001 byte-for-byte). Else: domain assigned to a tier ⇒ 'external'; otherwise 'pmo'.
- */
-export function routeWrite(domain: PmoDomain, map: OwnershipMap): WriteRoute {
-  if (Object.keys(map).length === 0) return 'pmo'; // AC-EAS-001: empty-map short-circuit FIRST
-  return map[domain] ? 'external' : 'pmo';
-}
-
-/** Injected write paths for `executeWrite` — the generic repository write-method branch (FR-EAS-033). */
-export interface ExecuteWriteDeps<TPayload, TResult> {
-  domain: PmoDomain;
-  ownershipMap: OwnershipMap;
-  payload: TPayload;
-  /** The existing direct-DAL write (the pre-adapter path; byte-for-byte when the map is empty). */
-  directWrite: (payload: TPayload) => Promise<TResult>;
-  /** The externally-owned dispatch path (FE edge-function invoke → adapter-dispatch). */
-  dispatchWrite: (payload: TPayload) => Promise<TResult>;
-}
-
-/**
- * The repository write-method branch: PMO-owned ⇒ direct DAL; externally-owned ⇒ dispatch. P0 ships this
- * as a tested generic helper; P1 wires it into real-domain repositories when a domain actually flips
- * (spec §9 — no real domain flips in P0). The Repositories interface (ADR-0017) is UNCHANGED.
- */
-export async function executeWrite<TPayload, TResult>(
-  deps: ExecuteWriteDeps<TPayload, TResult>,
-): Promise<TResult> {
-  return routeWrite(deps.domain, deps.ownershipMap) === 'external'
-    ? deps.dispatchWrite(deps.payload)
-    : deps.directWrite(deps.payload);
-}
-```
-
-**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/router.test.ts` → green.
-
-> **Task dependency note:** `router.test.ts` imports `pendingPush` (for the AC-EAS-002 no-state assertion). Create `pendingPush.ts` in Task 10; if running Task 8 before Task 10, the single AC-EAS-002 `pendingPushAfterWrite` assertion will fail on the import — so either run Task 10 first, or temporarily comment that one assertion until Task 10 lands. The preferred order is **Task 10 before Task 8** if executing strictly bottom-up; the tasks are otherwise independent. (Listed here because router owns the routing ACs.)
-
----
-
-### Task 9 — `dispatch.ts` (pure orchestration) + `clientInvoke.ts` (FE invoke) + test (AC-EAS-023, AC-EAS-033, AC-EAS-034, AC-EAS-042)
-
-**RED — create** `pmo-portal/src/lib/adapterSeam/dispatch.test.ts`:
-
-```ts
-import { describe, it, expect, vi } from 'vitest';
-import { dispatchExternallyOwnedWrite } from './dispatch';
-import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter';
-import { AdapterError } from './contract';
-import type { AdapterCommand } from './contract';
-import { AppError } from '../appError';
-
-const command: AdapterCommand = {
-  domain: REFERENCE_DOMAIN,
-  operation: 'create',
-  record: { id: 'pmo-1', name: 'Widget' },
-};
-
-describe('AC-EAS-023 the adapter never receives org_id', () => {
-  it('AC-EAS-023 the command passed to adapter.commit carries no org_id field', async () => {
-    const adapter = createReferenceAdapter('commit-success');
-    const seen: AdapterCommand[] = [];
-    const wrappingAdapter = {
-      tier: adapter.tier,
-      capabilityMap: adapter.capabilityMap,
-      async commit(c: AdapterCommand) {
-        seen.push(c);
-        return adapter.commit(c);
-      },
-    };
-    await dispatchExternallyOwnedWrite({
-      adapter: wrappingAdapter, command,
-      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
-    });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]).not.toHaveProperty('org_id');
-    expect('org_id' in seen[0]).toBe(false);
-  });
-});
-
-describe('AC-EAS-033 synchronous write-through order: command → read-model → external_refs → return', () => {
-  it('AC-EAS-033 commits in order and returns only after the external commit', async () => {
-    const order: string[] = [];
-    const adapter = {
-      tier: 'reference',
-      capabilityMap: new Set([REFERENCE_DOMAIN]),
-      async commit() {
-        order.push('commit');
-        return { externalRecordId: 'ext-1', canonical: { id: 'pmo-1' } };
-      },
-    };
-    await dispatchExternallyOwnedWrite({
-      adapter, command,
-      writeReadModel: vi.fn(async () => { order.push('readModel'); }),
-      recordExternalRef: vi.fn(async () => { order.push('ref'); }),
-    });
-    expect(order).toEqual(['commit', 'readModel', 'ref']);
-  });
-});
-
-describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model unchanged', () => {
-  it('AC-EAS-034 does NOT update the read-model or record a ref, and throws a classified AppError', async () => {
-    const writeReadModel = vi.fn();
-    const recordExternalRef = vi.fn();
-    await expect(
-      dispatchExternallyOwnedWrite({
-        adapter: createReferenceAdapter('external-unreachable'), command,
-        writeReadModel, recordExternalRef,
-      }),
-    ).rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable', message: 'external system unreachable — try again' });
-    expect(writeReadModel).not.toHaveBeenCalled();
-    expect(recordExternalRef).not.toHaveBeenCalled();
-  });
-  it('AC-EAS-034 commit-rejected surfaces a commit-rejected AppError without writing', async () => {
-    const writeReadModel = vi.fn();
-    await expect(
-      dispatchExternallyOwnedWrite({
-        adapter: createReferenceAdapter('commit-rejected-validation'), command,
-        writeReadModel, recordExternalRef: vi.fn(),
-      }),
-    ).rejects.toBeInstanceOf(AppError);
-    expect(writeReadModel).not.toHaveBeenCalled();
-  });
-});
-
-describe('AC-EAS-042 a successful write-through records the external_refs mapping', () => {
-  it('AC-EAS-042 recordExternalRef is called with pmo id ↔ external id + owning tier + domain', async () => {
-    const recordExternalRef = vi.fn(async () => {});
-    await dispatchExternallyOwnedWrite({
-      adapter: createReferenceAdapter('commit-success'), command,
-      writeReadModel: vi.fn(), recordExternalRef,
-    });
-    expect(recordExternalRef).toHaveBeenCalledWith({
-      pmoRecordId: 'pmo-1',
-      externalTier: 'reference',
-      externalRecordId: 'ext-pmo-1',
-      domain: REFERENCE_DOMAIN,
-    });
-  });
-});
-
-// Guard against the pure module accidentally importing the browser client (would break the edge fn).
-describe('AC-EAS-070 dispatch.ts imports stay pure (Deno-importable)', () => {
-  it('AC-EAS-070 dispatch.ts has no supabase/browser import (pure core)', async () => {
-    const src = await import('./dispatch?raw').catch(() => null);
-    if (src && typeof src === 'string') {
-      expect(src).not.toMatch(/from ['"]@\/src\/lib\/supabase\/client/);
-    }
-  });
-});
-```
-
-Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.test.ts` → fails (module not found).
-
-**GREEN — create** `pmo-portal/src/lib/adapterSeam/dispatch.ts` (pure; relative imports only):
-
-```ts
-/**
- * Synchronous write-through orchestration for an externally-owned domain (FR-EAS-034, AC-EAS-023/033/
- * 034/042). PURE + relative imports only (no `@/` alias, no supabase) ⇒ Deno-importable by the
- * adapter-dispatch edge function. ORDER (AC-EAS-033): (1) invoke the adapter command [NO org_id —
- * AC-EAS-023], (2) on external commit update the read-model from the canonical answer, (3) record the
- * external_refs mapping, (4) return. On adapter failure (AC-EAS-034): no read-model update, no ref row,
- * and a classified AppError is thrown.
- */
-import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord } from './contract';
-import { AppError } from '../appError';
-
-/** The ordered steps the dispatch performs (deps injected so this core is pure + testable). */
-export interface DispatchDeps {
-  adapter: Adapter;
-  /** PMO domain language; carries NO org_id (FR-EAS-024, AC-EAS-023). */
-  command: AdapterCommand;
-  /** Update the read-model in Supabase from the adapter's canonical answer (service role). */
-  writeReadModel: (canonical: PmoRecord) => Promise<void>;
-  /** Record the external_refs mapping (PMO id ↔ external id, owning tier; service role). */
-  recordExternalRef: (args: {
-    pmoRecordId: string;
-    externalTier: string;
-    externalRecordId: string;
-    domain: string;
-  }) => Promise<void>;
-}
-
-export interface DispatchResult {
-  externalRecordId: string;
-  canonical: PmoRecord;
-}
-
-/** Run the synchronous write-through in the FR-EAS-034 order. */
-export async function dispatchExternallyOwnedWrite(deps: DispatchDeps): Promise<DispatchResult> {
-  // (1) Invoke the adapter command — the adapter receives NO org_id (AC-EAS-023).
-  let result: CommandResult;
-  try {
-    result = await deps.adapter.commit(deps.command);
-  } catch (err) {
-    // (AC-EAS-034) Surface a classified error; do NOT update the read-model or record a ref.
-    throw toAppErrorFromAdapter(err);
-  }
-  // (2) Update the read-model from the ONE authoritative answer.
-  await deps.writeReadModel(result.canonical);
-  // (3) Record the external_refs mapping (AC-EAS-042).
-  await deps.recordExternalRef({
-    pmoRecordId: deps.command.record.id,
-    externalTier: deps.adapter.tier,
-    externalRecordId: result.externalRecordId,
-    domain: deps.command.domain,
-  });
-  // (4) Return — success observed only after the external commit (synchronous write-through).
-  return { externalRecordId: result.externalRecordId, canonical: result.canonical };
-}
-
-function toAppErrorFromAdapter(err: unknown): AppError {
-  if (err instanceof AdapterError) {
-    const message = err.code === 'external-unreachable' ? 'external system unreachable — try again' : err.message;
-    return new AppError(message, err.code);
-  }
-  if (err instanceof Error) return new AppError(err.message);
-  return new AppError('An unexpected error occurred');
-}
-```
-
-**GREEN — also create the FE-only invoke wrapper** `pmo-portal/src/lib/adapterSeam/clientInvoke.ts` (the externally-owned write target; wiring for P1; no owning AC — verified by typecheck):
-
-```ts
-/**
- * FE edge-function invoke: the externally-owned write path (FR-EAS-031). Calls `adapter-dispatch`, which
- * binds org from the JWT, selects the adapter, commits, updates the read-model, records external_refs,
- * and returns — in order (AC-EAS-033). FE-ONLY (imports the browser supabase client) ⇒ NOT imported by
- * the edge function. The Repositories write-method branch calls this via executeWrite's `dispatchWrite`.
- */
-import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
-import type { AdapterCommand, AdapterOperation, PmoDomain, PmoRecord } from './contract';
-
-interface DispatchResponse {
-  canonical?: PmoRecord;
-  error?: string;
-  code?: string;
-}
-
-export async function invokeAdapterDispatch(command: AdapterCommand): Promise<PmoRecord> {
-  const body: { domain: PmoDomain; operation: AdapterOperation; record: PmoRecord } = {
-    domain: command.domain,
-    operation: command.operation,
-    record: command.record,
-  };
-  const { data, error } = await supabase.functions.invoke<DispatchResponse>('adapter-dispatch', { body });
-  if (error) throw new AppError(error.message, error.code);
-  if (!data || data.error) throw new AppError(data?.error ?? 'Dispatch failed', data?.code);
-  if (!data.canonical) throw new AppError('Dispatch returned no canonical record');
-  return data.canonical;
-}
-```
-
-**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.test.ts` → green; then `cd pmo-portal && npx tsc --noEmit` → zero errors (clientInvoke.ts typechecks).
-
----
-
-### Task 10 — `pendingPush.ts` + test (AC-EAS-060, AC-EAS-061, AC-EAS-062)
-
-> Run this BEFORE Task 8 (router.test.ts imports `pendingPushAfterWrite`/`IDLE_PENDING_PUSH`).
+### Task 8 — `pendingPush.ts` + test (AC-EAS-060, AC-EAS-061, AC-EAS-062)
 
 **RED — create** `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts`:
 
@@ -1246,33 +934,25 @@ export interface PendingPushState {
 
 export const IDLE_PENDING_PUSH: PendingPushState = { status: 'idle', error: null };
 
-/** `pushing` is shown immediately when an externally-owned write is submitted (FR-EAS-061). */
 export function beginPush(_state: PendingPushState): PendingPushState {
   return { status: 'pushing', error: null };
 }
-/** `pushed` on successful external commit (read-model updated). */
 export function completePush(_state: PendingPushState): PendingPushState {
   return { status: 'pushed', error: null };
 }
-/** `push-failed` when the external system rejects the command or is unreachable (FR-EAS-063). */
 export function failPush(_state: PendingPushState, err: unknown): PendingPushState {
   return { status: 'push-failed', error: classifyExternalError(err) };
 }
 
 export type WriteOutcome = { ok: true } | { ok: false; err: unknown };
 
-/**
- * The pending-push state after a write, given the route + outcome (AC-EAS-060/062). PMO-owned ⇒ idle
- * (no pending-push state is introduced — AC-EAS-062, consistent with FR-EAS-010).
- */
 export function pendingPushAfterWrite(route: 'pmo' | 'external', outcome: WriteOutcome): PendingPushState {
-  if (route === 'pmo') return IDLE_PENDING_PUSH; // AC-EAS-062
+  if (route === 'pmo') return IDLE_PENDING_PUSH;
   return outcome.ok
     ? completePush(beginPush(IDLE_PENDING_PUSH))
     : failPush(beginPush(IDLE_PENDING_PUSH), outcome.err);
 }
 
-/** Map a classified external error to the shared `{headline, detail}` surface (reuses AppError's shape). */
 export function classifyExternalError(err: unknown): { headline: string; detail: string } {
   const detail = err instanceof Error ? err.message : 'An error occurred';
   const code = typeof (err as { code?: unknown })?.code === 'string' ? (err as { code: string }).code : undefined;
@@ -1285,77 +965,378 @@ export function classifyExternalError(err: unknown): { headline: string; detail:
   return { headline: 'Push failed', detail };
 }
 
-// AppError is re-exported here only so callers can construct a classified error for failPush(); the
-// import is pure (appError.ts has no supabase/browser deps).
 export { AppError };
 ```
 
-**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/pendingPush.test.ts` → green. Then (if Task 8 not yet run) `cd pmo-portal && npx vitest run src/lib/adapterSeam/router.test.ts` → green.
+**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/pendingPush.test.ts` → green.
 
 ---
 
-### Task 11 — `externalSyncWatermarks.ts` DAL + test (AC-EAS-051)
+### Task 9 — `router.ts` + test (AC-EAS-001, AC-EAS-002, AC-EAS-014, AC-EAS-030, AC-EAS-031, AC-EAS-032)
 
-**RED — create** `pmo-portal/src/lib/db/externalSyncWatermarks.test.ts` (mocks the supabase client — the `companies.test.ts` chainable-mock idiom):
+> **Dependency order (final):** `pendingPush.ts` lands in Task 8 before this task because the AC-EAS-002 owning assertion goes through the router composition helper.
+
+**RED — create** `pmo-portal/src/lib/adapterSeam/router.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  routeRead,
+  routeWrite,
+  executeWrite,
+  executeWriteWithPendingPush,
+  EMPTY_OWNERSHIP_MAP,
+  type OwnershipMap,
+} from './router';
+import { IDLE_PENDING_PUSH } from './pendingPush';
 
-const h = vi.hoisted(() => {
-  const calls = { table: '', rows: null as unknown, onConflict: '' as string, invoked: false };
-  const builder = {
-    upsert(rows: unknown) { calls.rows = rows; return builder; },
-    onConflict(key: string) { calls.onConflict = key; return builder; },
-    then(resolve: (v: unknown) => unknown) { calls.invoked = true; return resolve({ data: null, error: null }); },
-  };
-  const from = vi.fn((table: string) => { calls.table = table; return builder; });
-  return { from, calls };
-});
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
-
-import { upsertWatermark } from './externalSyncWatermarks';
-
-beforeEach(() => {
-  h.calls = { table: '', rows: null, onConflict: '', invoked: false };
-  h.from.mockClear();
-});
-
-describe('AC-EAS-051 a watermark upsert is one row per (org, tier, domain)', () => {
-  it('AC-EAS-051 upserts against the (org_id, external_tier, domain) conflict key (no duplicates)', async () => {
-    await upsertWatermark({ orgId: 'org-1', externalTier: 'reference', domain: 'reference', cursor: 'cur-2' });
-    expect(h.calls.table).toBe('external_sync_watermarks');
-    expect(h.calls.onConflict).toBe('org_id,external_tier,domain');
-    expect(h.calls.rows).toMatchObject({
-      org_id: 'org-1', external_tier: 'reference', domain: 'reference', watermark_cursor: 'cur-2',
+describe('AC-EAS-001 empty ownership map ⇒ write takes the direct-DAL path (byte-for-byte)', () => {
+  it('AC-EAS-001 routeWrite returns pmo for an empty map (short-circuit FIRST)', () => {
+    expect(routeWrite('reference', EMPTY_OWNERSHIP_MAP)).toBe('pmo');
+    expect(routeWrite('anything', {} as OwnershipMap)).toBe('pmo');
+  });
+  it('AC-EAS-001 executeWrite with an empty map calls directWrite and NOT dispatchWrite', async () => {
+    const directWrite = vi.fn(async (p: string) => `direct:${p}`);
+    const dispatchWrite = vi.fn(async (p: string) => `dispatch:${p}`);
+    const res = await executeWrite({
+      domain: 'reference', ownershipMap: EMPTY_OWNERSHIP_MAP, payload: 'x',
+      directWrite, dispatchWrite,
     });
-    expect(h.calls.invoked).toBe(true);
+    expect(res).toBe('direct:x');
+    expect(directWrite).toHaveBeenCalledTimes(1);
+    expect(dispatchWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-EAS-002 empty map ⇒ reads from the DAL and no pending-push state', () => {
+  it('AC-EAS-002 routeRead always returns dal', () => {
+    expect(routeRead('reference')).toBe('dal');
+  });
+  it('AC-EAS-002 a PMO-owned write through executeWriteWithPendingPush yields no pushing/pushed/push-failed state', async () => {
+    const directWrite = vi.fn(async () => 'ok');
+    const composed = await executeWriteWithPendingPush({
+      domain: 'reference', ownershipMap: EMPTY_OWNERSHIP_MAP, payload: 'x',
+      directWrite, dispatchWrite: vi.fn(),
+    });
+    expect(composed.result).toBe('ok');
+    expect(composed.pendingPush).toEqual(IDLE_PENDING_PUSH);
+    expect(directWrite).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AC-EAS-014 the ownership-decision routes by own-org ownership only', () => {
+  const orgAMap: OwnershipMap = { reference: 'reference' };
+  it('AC-EAS-014 an assigned domain routes to dispatch', () => {
+    expect(routeWrite('reference', orgAMap)).toBe('external');
+  });
+  it('AC-EAS-014 an unassigned domain routes to the direct DAL', () => {
+    expect(routeWrite('tasks', orgAMap)).toBe('pmo');
+  });
+  it('AC-EAS-014 org B rows never affect org A branch (router only sees the passed map)', () => {
+    expect(routeWrite('reference', orgAMap)).toBe('external');
+    expect(routeWrite('accounting', orgAMap)).toBe('pmo');
+  });
+});
+
+describe('AC-EAS-030 reads ALWAYS serve from Supabase (the read-model), regardless of ownership', () => {
+  it('AC-EAS-030 routeRead is dal even for an externally-owned domain', () => {
+    expect(routeRead('reference')).toBe('dal');
+  });
+});
+
+describe('AC-EAS-031 an externally-owned write routes through the dispatch (not the direct DAL)', () => {
+  it('AC-EAS-031 executeWrite calls dispatchWrite and NOT directWrite when externally-owned', async () => {
+    const directWrite = vi.fn(async () => 'direct');
+    const dispatchWrite = vi.fn(async () => 'dispatch');
+    const res = await executeWrite({
+      domain: 'reference', ownershipMap: { reference: 'reference' }, payload: 'x',
+      directWrite, dispatchWrite,
+    });
+    expect(res).toBe('dispatch');
+    expect(dispatchWrite).toHaveBeenCalledTimes(1);
+    expect(directWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-EAS-032 a PMO-owned write routes through the direct DAL (not the dispatch)', () => {
+  it('AC-EAS-032 a non-empty map without the domain ⇒ directWrite called, dispatchWrite not', async () => {
+    const directWrite = vi.fn(async () => 'direct');
+    const dispatchWrite = vi.fn(async () => 'dispatch');
+    const res = await executeWrite({
+      domain: 'tasks', ownershipMap: { reference: 'reference' }, payload: 'x',
+      directWrite, dispatchWrite,
+    });
+    expect(res).toBe('direct');
+    expect(directWrite).toHaveBeenCalledTimes(1);
+    expect(dispatchWrite).not.toHaveBeenCalled();
   });
 });
 ```
 
-Run RED: `cd pmo-portal && npx vitest run src/lib/db/externalSyncWatermarks.test.ts` → fails (module not found).
+Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/router.test.ts` → fails (module not found).
 
-**GREEN — create** `pmo-portal/src/lib/db/externalSyncWatermarks.ts` (follows the `companies.ts` pattern; service-role writer sets org_id):
+**GREEN — create** `pmo-portal/src/lib/adapterSeam/router.ts`:
 
 ```ts
-import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+/**
+ * The write-routing seam (FR-EAS-030..033, AC-EAS-001/002/014/030/031/032). Pure + relative imports only.
+ */
+import { PmoDomain } from './contract';
+import { pendingPushAfterWrite, type PendingPushState } from './pendingPush';
 
-/** The dispatch/sync service-role upsert input (the machine writer sets org_id). */
-export interface WatermarkUpsert {
+export type OwnershipMap = Readonly<Record<PmoDomain, string>>;
+export const EMPTY_OWNERSHIP_MAP: OwnershipMap = {};
+
+export type WriteRoute = 'pmo' | 'external';
+
+export function routeRead(_domain: PmoDomain): 'dal' {
+  return 'dal';
+}
+
+export function routeWrite(domain: PmoDomain, map: OwnershipMap): WriteRoute {
+  if (Object.keys(map).length === 0) return 'pmo';
+  return map[domain] ? 'external' : 'pmo';
+}
+
+export interface ExecuteWriteDeps<TPayload, TResult> {
+  domain: PmoDomain;
+  ownershipMap: OwnershipMap;
+  payload: TPayload;
+  directWrite: (payload: TPayload) => Promise<TResult>;
+  dispatchWrite: (payload: TPayload) => Promise<TResult>;
+}
+
+export async function executeWrite<TPayload, TResult>(
+  deps: ExecuteWriteDeps<TPayload, TResult>,
+): Promise<TResult> {
+  return routeWrite(deps.domain, deps.ownershipMap) === 'external'
+    ? deps.dispatchWrite(deps.payload)
+    : deps.directWrite(deps.payload);
+}
+
+export async function executeWriteWithPendingPush<TPayload, TResult>(
+  deps: ExecuteWriteDeps<TPayload, TResult>,
+): Promise<{ result: TResult; pendingPush: PendingPushState }> {
+  const route = routeWrite(deps.domain, deps.ownershipMap);
+  try {
+    const result = await executeWrite(deps);
+    return { result, pendingPush: pendingPushAfterWrite(route, { ok: true }) };
+  } catch (err) {
+    return Promise.reject(Object.assign(err instanceof Error ? err : new Error('Write failed'), {
+      pendingPush: pendingPushAfterWrite(route, { ok: false, err }),
+    }));
+  }
+}
+```
+
+**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/router.test.ts` → green.
+
+---
+
+### Task 10 — `dispatch.ts` (pure orchestration) + `clientInvoke.ts` (FE invoke) + test (AC-EAS-023, AC-EAS-033, AC-EAS-034, AC-EAS-042)
+
+**RED — create** `pmo-portal/src/lib/adapterSeam/dispatch.test.ts`:
+
+```ts
+import { describe, it, expect, vi } from 'vitest';
+import { dispatchExternallyOwnedWrite } from './dispatch';
+import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter';
+import type { AdapterCommand } from './contract';
+import { AppError } from '../appError';
+import { executeWrite } from './router';
+
+const command: AdapterCommand = {
+  domain: REFERENCE_DOMAIN,
+  operation: 'create',
+  record: { id: 'pmo-1', name: 'Widget' },
+};
+
+describe('AC-EAS-023 the adapter never receives org_id', () => {
+  it('AC-EAS-023 the command passed to adapter.commit carries no org_id field', async () => {
+    const adapter = createReferenceAdapter('commit-success');
+    const seen: AdapterCommand[] = [];
+    const wrappingAdapter = {
+      tier: adapter.tier,
+      capabilityMap: adapter.capabilityMap,
+      async commit(c: AdapterCommand) {
+        seen.push(c);
+        return adapter.commit(c);
+      },
+    };
+    await dispatchExternallyOwnedWrite({
+      adapter: wrappingAdapter, command,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).not.toHaveProperty('org_id');
+  });
+});
+
+describe('AC-EAS-033 synchronous write-through order: command → read-model → external_refs → return', () => {
+  it('AC-EAS-033 commits in order and returns only after the external commit', async () => {
+    const order: string[] = [];
+    const adapter = {
+      tier: 'reference',
+      capabilityMap: new Set([REFERENCE_DOMAIN]),
+      async commit() {
+        order.push('commit');
+        return { externalRecordId: 'ext-1', canonical: { id: 'pmo-1' } };
+      },
+    };
+    await dispatchExternallyOwnedWrite({
+      adapter, command,
+      writeReadModel: vi.fn(async () => { order.push('readModel'); }),
+      recordExternalRef: vi.fn(async () => { order.push('ref'); }),
+    });
+    expect(order).toEqual(['commit', 'readModel', 'ref']);
+  });
+});
+
+describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model unchanged, PMO-owned domains unaffected', () => {
+  it('AC-EAS-034 leaves the prior read-model state intact, a subsequent read returns that prior state, and a PMO-owned executeWrite still succeeds', async () => {
+    const readModel = new Map([[command.record.id, { id: 'pmo-1', name: 'Before outage' }]]);
+    const readCurrent = () => readModel.get(command.record.id);
+    const writeReadModel = vi.fn(async (canonical: { id: string; [k: string]: unknown }) => {
+      readModel.set(canonical.id, canonical);
+    });
+    const recordExternalRef = vi.fn();
+
+    await expect(
+      dispatchExternallyOwnedWrite({
+        adapter: createReferenceAdapter('external-unreachable'),
+        command,
+        writeReadModel,
+        recordExternalRef,
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'external-unreachable',
+      message: 'external system unreachable — try again',
+    });
+
+    expect(writeReadModel).not.toHaveBeenCalled();
+    expect(recordExternalRef).not.toHaveBeenCalled();
+    expect(readCurrent()).toEqual({ id: 'pmo-1', name: 'Before outage' });
+
+    const directWrite = vi.fn(async (payload: string) => `direct:${payload}`);
+    await expect(
+      executeWrite({
+        domain: 'tasks',
+        ownershipMap: { reference: 'reference' },
+        payload: 'still-works',
+        directWrite,
+        dispatchWrite: vi.fn(async () => 'dispatch-should-not-run'),
+      }),
+    ).resolves.toBe('direct:still-works');
+    expect(directWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-EAS-034 commit-rejected surfaces a commit-rejected AppError without writing', async () => {
+    const writeReadModel = vi.fn();
+    await expect(
+      dispatchExternallyOwnedWrite({
+        adapter: createReferenceAdapter('commit-rejected-validation'), command,
+        writeReadModel, recordExternalRef: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(AppError);
+    expect(writeReadModel).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-EAS-042 a successful write-through records the external_refs mapping', () => {
+  it('AC-EAS-042 recordExternalRef is called with pmo id ↔ external id + owning tier + domain', async () => {
+    const recordExternalRef = vi.fn(async () => {});
+    await dispatchExternallyOwnedWrite({
+      adapter: createReferenceAdapter('commit-success'), command,
+      writeReadModel: vi.fn(), recordExternalRef,
+    });
+    expect(recordExternalRef).toHaveBeenCalledWith({
+      pmoRecordId: 'pmo-1',
+      externalTier: 'reference',
+      externalRecordId: 'ext-pmo-1',
+      domain: REFERENCE_DOMAIN,
+    });
+  });
+});
+```
+
+Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.test.ts` → fails (module not found).
+
+**GREEN — create** `pmo-portal/src/lib/adapterSeam/dispatch.ts` and `pmo-portal/src/lib/adapterSeam/clientInvoke.ts` exactly as already planned, with the dispatch remaining pure (relative imports only) and `clientInvoke.ts` remaining the FE-only `supabase.functions.invoke('adapter-dispatch')` wrapper.
+
+**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.test.ts` → green; then `cd pmo-portal && npx tsc --noEmit` → zero errors.
+
+---
+
+### Task 11 — `watermarks.ts` pure machine writer + test (AC-EAS-051)
+
+**RED — create** `pmo-portal/src/lib/adapterSeam/watermarks.test.ts`:
+
+```ts
+import { describe, it, expect, vi } from 'vitest';
+import { upsertWatermark } from './watermarks';
+
+const makeClient = () => {
+  const calls = { table: '', rows: null as unknown, options: null as unknown };
+  return {
+    calls,
+    client: {
+      from(table: string) {
+        calls.table = table;
+        return {
+          upsert: vi.fn(async (rows: unknown, options: unknown) => {
+            calls.rows = rows;
+            calls.options = options;
+            return { error: null };
+          }),
+        };
+      },
+    },
+  };
+};
+
+describe('AC-EAS-051 a watermark upsert is one row per (org, tier, domain)', () => {
+  it('AC-EAS-051 uses the injected service-role client and the (org_id,external_tier,domain) conflict key', async () => {
+    const { client, calls } = makeClient();
+    await upsertWatermark(client, {
+      orgId: 'org-1', externalTier: 'reference', domain: 'reference', cursor: 'cur-2',
+    });
+    expect(calls.table).toBe('external_sync_watermarks');
+    expect(calls.rows).toMatchObject({
+      org_id: 'org-1', external_tier: 'reference', domain: 'reference', watermark_cursor: 'cur-2',
+    });
+    expect(calls.options).toEqual({ onConflict: 'org_id,external_tier,domain' });
+  });
+});
+```
+
+Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/watermarks.test.ts` → fails (module not found).
+
+**GREEN — create** `pmo-portal/src/lib/adapterSeam/watermarks.ts`:
+
+```ts
+import { AppError } from '../appError';
+
+export interface WatermarkUpsertInput {
   orgId: string;
   externalTier: string;
   domain: string;
   cursor: string;
 }
 
+export interface ServiceRoleTableClient {
+  from(table: string): {
+    upsert(rows: unknown, options: { onConflict: string }): Promise<{ error: { message: string; code?: string } | null }>;
+  };
+}
+
 /**
- * Upsert EXACTLY ONE watermark row per (org, tier, domain) — the modified-since cursor (FR-EAS-052,
- * AC-EAS-051). Machine-written only: the table's RLS denies user-JWT writes; the dispatch/sync service
- * role (which bypasses RLS) is the sole writer. P0 establishes storage; the sweep engine is P1.
+ * Machine-only watermark writer (FR-EAS-052, AC-EAS-051). Takes an INJECTED service-role client; there is
+ * no browser-client writer and no repository entry. The adapter-dispatch edge-function boundary is its only
+ * caller in this plan.
  */
-export async function upsertWatermark(input: WatermarkUpsert): Promise<void> {
-  const { error } = await supabase.from('external_sync_watermarks').upsert(
+export async function upsertWatermark(client: ServiceRoleTableClient, input: WatermarkUpsertInput): Promise<void> {
+  const { error } = await client.from('external_sync_watermarks').upsert(
     {
       org_id: input.orgId,
       external_tier: input.externalTier,
@@ -1368,61 +1349,60 @@ export async function upsertWatermark(input: WatermarkUpsert): Promise<void> {
 }
 ```
 
-**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/db/externalSyncWatermarks.test.ts` → green.
+**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/watermarks.test.ts` → green.
 
 ---
 
-### Task 12 — `externalRefs.ts` DAL + test (supports AC-EAS-042; transitive)
+### Task 12 — `refs.ts` pure machine writer + test (supports AC-EAS-042; dispatch-side only)
 
-**RED — create** `pmo-portal/src/lib/db/externalRefs.test.ts` (same chainable-mock idiom):
+**RED — create** `pmo-portal/src/lib/adapterSeam/refs.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { recordExternalRef } from './refs';
 
-const h = vi.hoisted(() => {
-  const calls = { table: '', rows: null as unknown, onConflict: '' as string };
-  const builder = {
-    upsert(rows: unknown) { calls.rows = rows; return builder; },
-    onConflict(key: string) { calls.onConflict = key; return builder; },
-    then(resolve: (v: unknown) => unknown) { return resolve({ data: null, error: null }); },
+const makeClient = () => {
+  const calls = { table: '', rows: null as unknown, options: null as unknown };
+  return {
+    calls,
+    client: {
+      from(table: string) {
+        calls.table = table;
+        return {
+          upsert: vi.fn(async (rows: unknown, options: unknown) => {
+            calls.rows = rows;
+            calls.options = options;
+            return { error: null };
+          }),
+        };
+      },
+    },
   };
-  const from = vi.fn((table: string) => { calls.table = table; return builder; });
-  return { from, calls };
-});
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+};
 
-import { recordExternalRef } from './externalRefs';
-
-beforeEach(() => {
-  h.calls = { table: '', rows: null, onConflict: '' };
-  h.from.mockClear();
-});
-
-describe('externalRefs.recordExternalRef (supports AC-EAS-042)', () => {
-  it('upserts the mapping against (org_id, domain, pmo_record_id)', async () => {
-    await recordExternalRef({
-      orgId: 'org-1', domain: 'reference', pmoRecordId: 'pmo-1',
-      externalTier: 'reference', externalRecordId: 'ext-1',
+describe('refs.recordExternalRef (supports AC-EAS-042)', () => {
+  it('upserts the mapping through the injected service-role client against (org_id,domain,pmo_record_id)', async () => {
+    const { client, calls } = makeClient();
+    await recordExternalRef(client, {
+      orgId: 'org-1', domain: 'reference', pmoRecordId: 'pmo-1', externalTier: 'reference', externalRecordId: 'ext-1',
     });
-    expect(h.calls.table).toBe('external_refs');
-    expect(h.calls.onConflict).toBe('org_id,domain,pmo_record_id');
-    expect(h.calls.rows).toMatchObject({
-      org_id: 'org-1', domain: 'reference', pmo_record_id: 'pmo-1',
-      external_tier: 'reference', external_record_id: 'ext-1',
+    expect(calls.table).toBe('external_refs');
+    expect(calls.rows).toMatchObject({
+      org_id: 'org-1', domain: 'reference', pmo_record_id: 'pmo-1', external_tier: 'reference', external_record_id: 'ext-1',
     });
+    expect(calls.options).toEqual({ onConflict: 'org_id,domain,pmo_record_id' });
   });
 });
 ```
 
-Run RED: `cd pmo-portal && npx vitest run src/lib/db/externalRefs.test.ts` → fails (module not found).
+Run RED: `cd pmo-portal && npx vitest run src/lib/adapterSeam/refs.test.ts` → fails (module not found).
 
-**GREEN — create** `pmo-portal/src/lib/db/externalRefs.ts`:
+**GREEN — create** `pmo-portal/src/lib/adapterSeam/refs.ts`:
 
 ```ts
-import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError } from '../appError';
+import type { ServiceRoleTableClient } from './watermarks';
 
-/** The external_refs mapping recorded on a committed write-through (FR-EAS-043, AC-EAS-042). */
 export interface ExternalRefRecord {
   orgId: string;
   domain: string;
@@ -1431,13 +1411,9 @@ export interface ExternalRefRecord {
   externalRecordId: string;
 }
 
-/**
- * Record (or update) the external_refs mapping for a committed write-through (FR-EAS-043, AC-EAS-042).
- * Machine-written only: RLS denies user-JWT writes; the dispatch/sync service role is the sole writer.
- * Unique on (org_id, domain, pmo_record_id) — a re-write updates the external id in place.
- */
-export async function recordExternalRef(input: ExternalRefRecord): Promise<void> {
-  const { error } = await supabase.from('external_refs').upsert(
+/** Dispatch-side only external_refs writer (FR-EAS-043, AC-EAS-042 support). */
+export async function recordExternalRef(client: ServiceRoleTableClient, input: ExternalRefRecord): Promise<void> {
+  const { error } = await client.from('external_refs').upsert(
     {
       org_id: input.orgId,
       domain: input.domain,
@@ -1451,11 +1427,11 @@ export async function recordExternalRef(input: ExternalRefRecord): Promise<void>
 }
 ```
 
-**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/db/externalRefs.test.ts` → green.
+**GREEN verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/refs.test.ts` → green.
 
 ---
 
-### Task 13 — `externalDomainOwnership.ts` DAL + repository entries (types.ts + index.ts) + test (supports AC-EAS-015)
+### Task 13 — `externalDomainOwnership.ts` DAL + repository entry + test (supports AC-EAS-015)
 
 **RED — create** `pmo-portal/src/lib/db/externalDomainOwnership.test.ts`:
 
@@ -1501,117 +1477,47 @@ describe('externalDomainOwnership.listOwnExternalDomainOwnership (supports AC-EA
 
 Run RED: `cd pmo-portal && npx vitest run src/lib/db/externalDomainOwnership.test.ts` → fails (module not found).
 
-**GREEN — create** `pmo-portal/src/lib/db/externalDomainOwnership.ts`:
+**GREEN — create** `pmo-portal/src/lib/db/externalDomainOwnership.ts` exactly as already planned.
+
+**GREEN — add ONLY the read-only ownership repository entry.** Edit `pmo-portal/src/lib/repositories/types.ts`:
 
 ```ts
-import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
-
-/** One (org, tier, domain) ownership assignment row (camelCase view for the FE). */
-export interface ExternalDomainOwnershipRow {
-  id: string;
-  orgId: string;
-  externalTier: string;
-  domain: string;
-}
-
-/**
- * The caller's own-org employed external tiers + externally-owned domains (FR-EAS-007, AC-EAS-015).
- * RLS scopes to the caller's org; org_id is never sent. Empty ⇒ no external systems employed (the
- * Integrations view's empty state). Ordered by tier for a stable grouped list.
- */
-export async function listOwnExternalDomainOwnership(): Promise<ExternalDomainOwnershipRow[]> {
-  const { data, error } = await supabase
-    .from('external_domain_ownership')
-    .select('id,org_id,external_tier,domain')
-    .order('external_tier', { ascending: true });
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    orgId: r.org_id,
-    externalTier: r.external_tier,
-    domain: r.domain,
-  }));
-}
-```
-
-**GREEN — add the three new repository entries (ADDITIVE — no existing repo touched).** Edit `pmo-portal/src/lib/repositories/types.ts`:
-
-```ts
-// add with the other imports:
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
-import type { ExternalRefRecord, WatermarkUpsert } from '@/src/lib/db/externalRefs';
-import type { WatermarkUpsert as _WM } from '@/src/lib/db/externalSyncWatermarks';
-// (collapse the two WatermarkUpsert imports into one in practice — both re-export the same shape via the
-//  repository; see index.ts. A single `import type { WatermarkUpsert } from '@/src/lib/db/externalSyncWatermarks'`
-//  suffices. externalRefs.ts does not export WatermarkUpsert — remove that from its import line.)
 
-// add the three interfaces near the other repository interfaces:
-/** Read-only own-org domain-ownership (the Integrations view source; Operator writes via RPC). */
 export interface ExternalDomainOwnershipRepository {
   listOwn(): Promise<ExternalDomainOwnershipRow[]>;
 }
-/** Machine-written external_refs mapping (dispatch/sync service role). */
-export interface ExternalRefRepository {
-  record(input: ExternalRefRecord): Promise<void>;
-}
-/** Machine-written sync watermarks (dispatch/sync service role; P1 sweep consumes). */
-export interface ExternalSyncWatermarkRepository {
-  upsert(input: WatermarkUpsert): Promise<void>;
-}
 ```
 
-…and extend the `Repositories` interface (additive — append three keys):
+…and extend `Repositories`:
 
 ```ts
   externalDomainOwnership: ExternalDomainOwnershipRepository;
-  externalRef: ExternalRefRepository;
-  externalSyncWatermark: ExternalSyncWatermarkRepository;
 ```
 
-Edit `pmo-portal/src/lib/repositories/index.ts` (add imports + impls + append to the `repositories` object + re-export types):
+Edit `pmo-portal/src/lib/repositories/index.ts`:
 
 ```ts
-// imports (near the other db imports):
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
-import { recordExternalRef } from '@/src/lib/db/externalRefs';
-import { upsertWatermark } from '@/src/lib/db/externalSyncWatermarks';
-// type imports (near the other type imports):
-import type {
-  ExternalDomainOwnershipRepository,
-  ExternalRefRepository,
-  ExternalSyncWatermarkRepository,
-} from './types';
+import type { ExternalDomainOwnershipRepository } from './types';
 
-// impls (near the other const repositories):
 const externalDomainOwnership: ExternalDomainOwnershipRepository = {
   listOwn: () => wrap(() => listOwnExternalDomainOwnership()),
 };
-const externalRef: ExternalRefRepository = {
-  record: (input) => wrap(() => recordExternalRef(input)),
-};
-const externalSyncWatermark: ExternalSyncWatermarkRepository = {
-  upsert: (input) => wrap(() => upsertWatermark(input)),
-};
 
-// append to the exported `repositories` object:
   externalDomainOwnership,
-  externalRef,
-  externalSyncWatermark,
 
-// append to the `export type { ... } from './types'` re-export:
   ExternalDomainOwnershipRepository,
-  ExternalRefRepository,
-  ExternalSyncWatermarkRepository,
 ```
 
-> **Note (exactness):** the only edit to existing files is APPENDING three additive repository entries — no existing signature changes, no existing repo branched. The "write-method branch the spec names" ships as the generic `executeWrite` helper (Task 8), which no existing repo calls in P0 (no real domain flips — spec §9); P1 wires it. This satisfies the "no changes to existing domain DAL/repositories beyond the write-method branch" constraint (the branch is a new helper, not an edit to an existing repo).
+> **Exactness check:** Task 13 contains NO repository write entries for `external_refs` or `external_sync_watermarks`. Those writers live only in `pmo-portal/src/lib/adapterSeam/refs.ts` and `pmo-portal/src/lib/adapterSeam/watermarks.ts` behind an injected service-role client.
 
 **GREEN verify:** `cd pmo-portal && npx vitest run src/lib/db/externalDomainOwnership.test.ts && npx tsc --noEmit` → green + zero type errors.
 
 ---
 
 ### Task 14 — `IntegrationsView.tsx` + hook + RTL test (AC-EAS-015)
+
 
 **RED — create** `pmo-portal/src/components/integrations/IntegrationsView.test.tsx`:
 
@@ -1758,128 +1664,29 @@ export default IntegrationsView;
 
 ---
 
-### Task 15 — `adapter-dispatch` edge function + CI wiring (AC-EAS-033 integration host; the seam)
+### Task 15 — `adapter-dispatch` edge function + Supabase function config + CI wiring (AC-EAS-033 integration host; the seam)
 
-**Create** `supabase/functions/adapter-dispatch/deno.json` (mirrors `agent-dispatch/deno.json`):
+**Edit** `supabase/config.toml` to add the explicit function entry, mirroring the exact comment style used by the existing function blocks nearby:
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
-    "zod": "npm:zod@3.25.76",
-    "@/": "../../../pmo-portal/"
-  }
-}
+```toml
+# ── Edge Function: adapter-dispatch ─────────────────────────────────────────────
+# verify_jwt = true: invoked by the browser-client `supabase.functions.invoke(...)` path, so
+# Supabase must enforce the caller JWT before the handler binds org context from that JWT
+# (FR-EAS-024/033). Unlike cron/service endpoints, this function should not self-bypass auth.
+[functions.adapter-dispatch]
+verify_jwt = true
 ```
 
-**Create** `supabase/functions/adapter-dispatch/index.ts` (Deno; `verify_jwt=true` default — the user JWT is forwarded; integration-only, like `agent-dispatch/index.ts`):
+**Create** `supabase/functions/adapter-dispatch/deno.json` (mirrors `agent-dispatch/deno.json`).
 
-```ts
-/**
- * adapter-dispatch — Deno Edge Function (ADR-0055 §4, FR-EAS-034, AC-EAS-033). Invoked by the FE
- * repository write-method branch (executeWrite's `dispatchWrite`) for an EXTERNALLY-OWNED domain.
- * Order: org from JWT → adapter select → command invoke (no org_id, AC-EAS-023) → read-model update
- * (service role) → external_refs record → return. Integration-only (not unit-tested) — verified by
- * `deno check` + the boot-smoke (scripts/deno-boot-smoke.ts), same contract as agent-dispatch/index.ts.
- */
-import { createClient } from '@supabase/supabase-js';
-import { dispatchExternallyOwnedWrite, type DispatchDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { createReferenceAdapter } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
-import type { Adapter, AdapterCommand, PmoDomain, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+**Create** `supabase/functions/adapter-dispatch/index.ts` (Deno; JWT verification is the explicit `supabase/config.toml` setting above, not an implicit default):
 
-const json = () => ({ 'Content-Type': 'application/json' });
+- Keep the existing planned order: org from JWT → adapter select → command invoke → read-model update → `external_refs` record → return.
+- Import the pure helpers from `../../../pmo-portal/src/lib/adapterSeam/dispatch.ts` and `../../../pmo-portal/src/lib/adapterSeam/refs.ts`.
+- Use an injected service-role client for the machine-write helpers; do **not** introduce any browser-client writer for `external_refs` or `external_sync_watermarks`.
+- `adapter-dispatch` is the only service-side caller planned for the machine-write helpers in P0.
 
-Deno.serve(async (req: Request): Promise<Response> => {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
-    return new Response(JSON.stringify({ error: 'MISCONFIGURED' }), { status: 500, headers: json() });
-  }
-  // Caller-JWT-scoped client (verify_jwt=true ⇒ Authorization forwarded). Org is bound from it.
-  const userJwt = req.headers.get('Authorization') ?? '';
-  const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: userJwt } } });
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey); // RLS-bypassing (read-model + refs)
-
-  try {
-    const body = (await req.json()) as { domain: PmoDomain; operation: AdapterCommand['operation']; record: PmoRecord };
-
-    // (1) Bind org context from the caller's JWT (FR-EAS-024/033) — never sent by the client.
-    const { data: profile } = await userClient.from('profiles').select('org_id').maybeSingle();
-    const orgId = profile?.org_id;
-    if (!orgId) return new Response(JSON.stringify({ error: 'NO_ORG' }), { status: 400, headers: json() });
-
-    // (2) Adapter select: the tier owning this domain from the org's ownership (service role reads all orgs).
-    const { data: ownership } = await serviceClient
-      .from('external_domain_ownership')
-      .select('external_tier,domain')
-      .eq('org_id', orgId)
-      .eq('domain', body.domain)
-      .maybeSingle();
-    const adapter = selectAdapter(ownership?.external_tier ?? null); // registry: P0 ⇒ only 'reference'
-    if (!adapter) {
-      return new Response(JSON.stringify({ error: 'NO_ADAPTER', code: 'commit-rejected' }), { status: 400, headers: json() });
-    }
-
-    // (3) Build the command — PMO domain language; NO org_id (AC-EAS-023).
-    const command: AdapterCommand = { domain: body.domain, operation: body.operation, record: body.record };
-
-    // (4) Dispatch in order (AC-EAS-033): command → read-model update → external_refs → return.
-    const result = await dispatchExternallyOwnedWrite({
-      adapter,
-      command,
-      writeReadModel: (canonical) => updateReadModel(serviceClient, orgId, canonical),
-      recordExternalRef: (args) =>
-        recordRef(serviceClient, { orgId, ...args }),
-    } satisfies DispatchDeps);
-
-    return new Response(JSON.stringify({ canonical: result.canonical }), { status: 200, headers: json() });
-  } catch (err) {
-    const code = typeof (err as { code?: unknown })?.code === 'string' ? (err as { code: string }).code : undefined;
-    const message = err instanceof Error ? err.message : 'Dispatch failed';
-    return new Response(JSON.stringify({ error: message, code }), { status: 500, headers: json() });
-  }
-});
-
-/** The adapter registry. P0 ⇒ only the reference (test-double) adapter; real adapters land P1+. */
-function selectAdapter(tier: string | null): Adapter | null {
-  if (tier === 'reference') return createReferenceAdapter('commit-success');
-  return null;
-}
-
-/** Update the reference domain's read-model (external_reference_items, OD-4) — service role only (AC-EAS-035). */
-async function updateReadModel(
-  serviceClient: ReturnType<typeof createClient>,
-  orgId: string,
-  canonical: PmoRecord,
-): Promise<void> {
-  const { error } = await serviceClient.from('external_reference_items').upsert(
-    { org_id: orgId, pmo_record_id: canonical.id, payload: canonical },
-    { onConflict: 'org_id,pmo_record_id' },
-  );
-  if (error) throw new Error(error.message);
-}
-
-/** Record the external_refs mapping — service role only (AC-EAS-042). */
-async function recordRef(
-  serviceClient: ReturnType<typeof createClient>,
-  args: { orgId: string; pmoRecordId: string; externalTier: string; externalRecordId: string; domain: string },
-): Promise<void> {
-  const { error } = await serviceClient.from('external_refs').upsert(
-    {
-      org_id: args.orgId,
-      domain: args.domain,
-      pmo_record_id: args.pmoRecordId,
-      external_tier: args.externalTier,
-      external_record_id: args.externalRecordId,
-    },
-    { onConflict: 'org_id,domain,pmo_record_id' },
-  );
-  if (error) throw new Error(error.message);
-}
-```
-
-**Generate the lockfile** (the CI `deno check --lock --frozen` gate requires a committed `deno.lock`):
+**Generate the lockfile** (unchanged command):
 
 ```bash
 deno cache --config supabase/functions/adapter-dispatch/deno.json \
@@ -1887,19 +1694,7 @@ deno cache --config supabase/functions/adapter-dispatch/deno.json \
   supabase/functions/adapter-dispatch/index.ts
 ```
 
-**CI wiring — exactly what to add.** In `.github/workflows/ci.yml`, BOTH the `Deno typecheck` step and the `Deno boot smoke` step iterate the SAME hardcoded list. Append `adapter-dispatch` to both `for fn in …` lines. Concretely, change both occurrences of:
-
-```
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user; do
-```
-
-to:
-
-```
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch; do
-```
-
-> Note: `scripts/deno-boot-smoke.ts` itself takes the entry path as `argv[0]` and needs NO edit — the list that picks the entrypoints lives in `ci.yml` (the two `for fn in …` loops above). `adapter-dispatch` is distinct from the existing `agent-dispatch` (the agent-automation dispatcher) — do not conflate them.
+**CI wiring — exactly what to add.** In `.github/workflows/ci.yml`, append `adapter-dispatch` to both hardcoded `for fn in …` loops exactly as already planned.
 
 **Verify (this task):**
 ```bash
@@ -1910,11 +1705,12 @@ deno check --config supabase/functions/adapter-dispatch/deno.json \
 deno run --allow-all --config supabase/functions/adapter-dispatch/deno.json \
   scripts/deno-boot-smoke.ts supabase/functions/adapter-dispatch/index.ts
 ```
-Both must succeed (`deno check` zero errors; boot-smoke prints `BOOT_OK …`). Requires the Docker Supabase stack NOT to be running for the typecheck (it is static); the boot-smoke stubs `Deno.serve` so no live listener starts.
+Both must succeed.
 
 ---
 
 ### Task 16 — Final gate (AC-EAS-003 regression + AC-EAS-070 meta + full verify)
+
 
 Both MUST be green before review. Run from the repo root:
 
@@ -1943,54 +1739,57 @@ deno run --allow-all --config supabase/functions/adapter-dispatch/deno.json \
 
 | AC | Task | Owning test file | Layer |
 |---|---|---|---|
-| AC-EAS-001 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
-| AC-EAS-002 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-001 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-002 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
 | AC-EAS-003 | 16 | the unchanged existing suite (`npm run verify` + `supabase test db`) | cross-layer regression gate (meta) |
 | AC-EAS-010 | 1 | `supabase/tests/external_domain_ownership_rls.test.sql` | pgTAP |
 | AC-EAS-011 | 1 | `supabase/tests/external_domain_ownership_rls.test.sql` | pgTAP |
 | AC-EAS-012 | 1 | `supabase/tests/external_domain_ownership_rls.test.sql` | pgTAP |
 | AC-EAS-013 | 7 | `pmo-portal/src/lib/adapterSeam/capabilityMap.test.ts` | Vitest (unit) |
-| AC-EAS-014 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-014 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
 | AC-EAS-015 | 14 | `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` | Vitest (unit, RTL) |
 | AC-EAS-020 | 6 | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` | Vitest (unit) |
 | AC-EAS-021 | 6 | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` | Vitest (unit) |
 | AC-EAS-022 | 6 | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` | Vitest (unit) |
-| AC-EAS-023 | 9 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
-| AC-EAS-030 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
-| AC-EAS-031 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
-| AC-EAS-032 | 8 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
-| AC-EAS-033 | 9 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
-| AC-EAS-034 | 9 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
+| AC-EAS-023 | 10 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
+| AC-EAS-030 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-031 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-032 | 9 | `pmo-portal/src/lib/adapterSeam/router.test.ts` | Vitest (unit) |
+| AC-EAS-033 | 10 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
+| AC-EAS-034 | 10 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
 | AC-EAS-035 | 4 | `supabase/tests/external_reference_items_rls.test.sql` | pgTAP |
 | AC-EAS-040 | 2 | `supabase/tests/external_refs_rls.test.sql` | pgTAP |
 | AC-EAS-041 | 2 | `supabase/tests/external_refs_rls.test.sql` | pgTAP |
-| AC-EAS-042 | 9 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
+| AC-EAS-042 | 10 | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` | Vitest (unit) |
 | AC-EAS-050 | 3 | `supabase/tests/external_sync_watermarks_rls.test.sql` | pgTAP |
-| AC-EAS-051 | 11 | `pmo-portal/src/lib/db/externalSyncWatermarks.test.ts` | Vitest (unit) |
-| AC-EAS-060 | 10 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
-| AC-EAS-061 | 10 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
-| AC-EAS-062 | 10 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
+| AC-EAS-051 | 11 | `pmo-portal/src/lib/adapterSeam/watermarks.test.ts` | Vitest (unit) |
+| AC-EAS-060 | 8 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
+| AC-EAS-061 | 8 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
+| AC-EAS-062 | 8 | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` | Vitest (unit) |
 | AC-EAS-070 | 6/8/9/10 | (meta — reference adapter backs every unit AC in bands 020..034, 042, 060..062) | Vitest (meta) |
 
-**NFR coverage (transitive):** NFR-EAS-SEC-001 (`org_id` seam) — every table's column default + `WITH CHECK` (Tasks 1–4) + the pgTAP band; NFR-EAS-SEC-002 (RLS authority) — Tasks 1–4 policies (the RLS-owning ACs are the pgTAP rows above: 010/011/012/035/040/041/050); NFR-EAS-PERF-001 (no added latency) — `routeWrite` empty-map short-circuit is O(1), cached map (Task 8); NFR-EAS-CONTRACT-001 (single coupling seam) — `contract.ts` is the only external-aware module (Task 5) + the dispatch.test.ts `?raw` purity guard (Task 9); NFR-EAS-REV-001 (reversibility) — every migration ships a manual-reverse block; NFR-EAS-TEST-001 (pyramid) — Vitest mocks the DAL; RLS proven by pgTAP; no e2e in P0.
+**NFR coverage (transitive):** NFR-EAS-SEC-001 (`org_id` seam) — every table's column default + `WITH CHECK` (Tasks 1–4) + the pgTAP band; NFR-EAS-SEC-002 (RLS authority) — Tasks 1–4 policies (the RLS-owning ACs are the pgTAP rows above: 010/011/012/035/040/041/050); NFR-EAS-PERF-001 (no added latency) — `routeWrite` empty-map short-circuit is O(1), cached map (Task 9); NFR-EAS-CONTRACT-001 (single coupling seam) — `contract.ts` remains the PMO-owned contract (Task 5) and the service-side machine writers stay behind pure adapterSeam helpers (Tasks 10–12); NFR-EAS-REV-001 (reversibility) — every migration ships a manual-reverse block; NFR-EAS-TEST-001 (pyramid) — Vitest mocks the DAL; RLS proven by pgTAP; no e2e in P0.
 
 ---
 
 ## 4. Open questions / notes for the Director
 
-1. **Execution order for Tasks 8 & 10.** `router.test.ts` (Task 8) imports `pendingPushAfterWrite`/`IDLE_PENDING_PUSH` for the AC-EAS-002 no-state assertion. Execute **Task 10 before Task 8**, or land `pendingPush.ts` first. Both files are otherwise independent.
-2. **No existing-repo branch in P0 (by design).** The spec's "write-method branch" ships as the generic, tested `executeWrite` helper (Task 8). No existing domain repository is branched in P0 because **no real domain flips in P0** (spec §9) — only the synthetic `reference` domain (OD-4) is exercised, and it has no FE CRUD surface (its read-model is written by the service-role edge function). P1 wires `executeWrite` into real-domain repositories when a domain actually flips. This is the minimal faithful reading of "no changes to existing domain DAL/repositories beyond the write-method branch the spec names" (the branch is a *new* helper, not an *edit* to an existing repo).
-3. **`operator_set_domain_ownership` RPC included (OD-2 "write contract (RPC)").** P0 ships the Operator-only provisioning RPC + the read-only view; a write-capable admin UI stays deferred (§9). The RPC is not the owning proof for any AC (AC-EAS-012 is proven by the RLS policy) but it is the write contract OD-2 names.
-4. **`external_reference_items` write-policy is the per-org FLIP (dynamic).** The policy denies user-JWT writes WHILE `domain_externally_owned(org,'reference')` and permits member writes when PMO-owned — exactly FR-EAS-037's "while externally-owned" conditioning (proven by AC-EAS-035). service_role bypasses RLS so the dispatch always writes.
-5. **deno.lock must be committed** (CI `--lock --frozen` gate). Task 15 gives the exact `deno cache --lock-write` command.
-6. **OQ-1/OQ-2 respected.** Watermark cursor is opaque `text` (P1 sweep picks the type); `external_refs` stores the minimal mapping (no last-synced richness — P1).
+1. **Final dependency order is now encoded in the task list.** `pendingPush.ts` is Task 8 and `router.ts` is Task 9, so the AC-EAS-002 owning assertion goes through `executeWriteWithPendingPush(...)` with no forward dependency and no workaround text.
+2. **No existing-repo branch in P0 (by design).** The spec's "write-method branch" ships as the generic, tested `executeWrite` helper (Task 9). No existing domain repository is branched in P0 because **no real domain flips in P0** (spec §9) — only the synthetic `reference` domain (OD-4) is exercised, and it has no FE CRUD surface (its read-model is written by the service-role edge function). P1 wires `executeWrite` into real-domain repositories when a domain actually flips.
+3. **`operator_set_domain_ownership` RPC included (OD-2 "write contract (RPC)").** P0 ships the Operator-only provisioning RPC + the read-only view; a write-capable admin UI stays deferred (§9).
+4. **`external_reference_items` write-policy is the per-org FLIP (dynamic).** The policy denies user-JWT writes WHILE `domain_externally_owned(org,'reference')` and permits member writes when PMO-owned — exactly FR-EAS-037's conditioning (proven by AC-EAS-035).
+5. **Machine writers are dispatch-side only.** `external_refs` and `external_sync_watermarks` no longer appear as FE DAL/repository writers; the plan keeps them behind injected service-role helpers in `pmo-portal/src/lib/adapterSeam/refs.ts` and `pmo-portal/src/lib/adapterSeam/watermarks.ts`.
+6. **`adapter-dispatch` auth is explicit.** Task 15 now adds `[functions.adapter-dispatch]` with `verify_jwt = true` to `supabase/config.toml`, alongside the existing CI/lockfile steps.
 
 ---
 
 ## 5. Self-verification (performed by the planner)
 
 - **Every AC-EAS id from the spec's §6 traceability appears in exactly one task** (§3 table above): 001, 002, 003, 010, 011, 012, 013, 014, 015, 020, 021, 022, 023, 030, 031, 032, 033, 034, 035, 040, 041, 042, 050, 051, 060, 061, 062, 070 — all 28 present, none duplicated.
-- **Migration numbers do not collide:** 0085–0088 are free (current top is `0084_agent_usage_cache_tokens.sql`, verified by `ls supabase/migrations/ | tail`). pgTAP test files use semantic names per the spec's traceability (matching the repo's allowance for semantic names, e.g. `agent_write_*_rls.test.sql`).
-- **Owning layers match the spec's §6 table exactly** (pgTAP for 010/011/012/035/040/041/050; Vitest unit for the rest; RTL for 015; meta for 003/070).
-- **No P1+ scope, no new deps, no existing-repo edits** beyond the three additive repository entries (Task 13) and the two `ci.yml` list appends (Task 15).
-- **TDD order + real code + exact verify commands** in every task; the empty-map short-circuit is the first branch in `routeWrite` (AC-EAS-001 byte-for-byte).
+- **The legacy FE watermark DAL path is fully removed** from the plan; AC-EAS-051 now points to `pmo-portal/src/lib/adapterSeam/watermarks.test.ts` and the helper takes an injected service-role client.
+- **`[functions.adapter-dispatch]` appears explicitly in Task 15** with `verify_jwt = true`, matching the required Supabase-function config fix.
+- **AC-EAS-034's owning test now proves both missing behaviors:** the external-unreachable case asserts the prior read-model state remains readable afterward, and a PMO-owned write through `executeWrite(...)` still succeeds while the reference adapter is unreachable.
+- **AC-EAS-002's owning assertion is behavioral at the composition point:** `router.test.ts` uses `executeWriteWithPendingPush(...)`, not a direct `pendingPushAfterWrite('pmo', ...)` call.
+- **No forward task dependency remains and no temporary-assertion workaround text remains.** The final order is Task 8 (`pendingPush.ts`) before Task 9 (`router.ts`).
+- **§3 rows are aligned with the fixes:** AC-EAS-002 → Task 9 `router.test.ts`; AC-EAS-034 → Task 10 `dispatch.test.ts`; AC-EAS-051 → Task 11 `watermarks.test.ts`.
+- **No P1+ scope, no new deps, no existing-repo edits** beyond the single additive read-only repository entry in Task 13, the `supabase/config.toml` function entry, and the CI list appends in Task 15.
