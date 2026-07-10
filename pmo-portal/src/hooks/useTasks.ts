@@ -102,7 +102,31 @@ export function useTaskMutations(projectId: string) {
 
   const update = useMutation({
     mutationFn: ({ id, patch }: UpdateTaskArgs) => repositories.task.update(id, patch),
-    onSuccess: invalidate,
+    onMutate: ({ id }) => {
+      // FR-CUA-070 breadth (review fix #4): the edit-modal save is ALSO an external write origin —
+      // surface its push state on the row + the edit modal, not just status writes.
+      if (routeTaskWrite() === 'external') {
+        clearPushTimer(id);
+        setPush(id, beginPush(IDLE_PENDING_PUSH));
+      }
+    },
+    onSuccess: (_data, { id }) => {
+      invalidate();
+      if (routeTaskWrite() === 'external') {
+        setPush(id, pendingPushAfterWrite('external', { ok: true }));
+        clearPushTimer(id);
+        pushTimers.current[id] = setTimeout(() => {
+          clearPush(id);
+          delete pushTimers.current[id];
+        }, 1500);
+      }
+    },
+    onError: (err, { id }) => {
+      if (routeTaskWrite() === 'external') {
+        clearPushTimer(id);
+        setPush(id, pendingPushAfterWrite('external', { ok: false, err }));
+      }
+    },
   });
 
   const updateStatus = useMutation({

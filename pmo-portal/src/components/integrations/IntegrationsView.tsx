@@ -64,8 +64,9 @@ export const IntegrationsView: React.FC = () => {
                 Owns {byTier[tier].length} {byTier[tier].length === 1 ? 'domain' : 'domains'} as source of truth.
               </p>
               {tier === 'clickup' && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  ClickUp is US-hosted SaaS — task-domain data resides with ClickUp
+                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+                  <Icon name="info" className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>ClickUp is US-hosted SaaS — task-domain data resides with ClickUp</span>
                 </p>
               )}
             </Card>

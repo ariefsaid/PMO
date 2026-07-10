@@ -45,7 +45,8 @@ export type IconName =
   | 'message'
   | 'sun'
   | 'moon'
-  | 'plug';
+  | 'plug'
+  | 'info';
 
 /** Raw <path>/<rect>/<circle> children per icon, stroke-2 throughout. */
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -244,6 +245,13 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
       <path d="M9 8V2" />
       <path d="M15 8V2" />
       <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
     </>
   ),
 };

@@ -180,9 +180,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   };
 
   // ── Status control: editable <select> for those who may set it, static pill otherwise. ──
-  const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => {
-    if (canSetStatus(task)) {
-      return (
+  const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => (
+    <div className="flex items-center gap-1.5">
+      {canSetStatus(task) ? (
         <SelectField
           hideLabel
           label={`Status for ${task.name}`}
@@ -192,10 +192,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           options={STATUS_OPTIONS}
           className="w-auto min-w-[120px]"
         />
-      );
-    }
-    return <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>;
-  };
+      ) : (
+        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+      )}
+      {/* FR-CUA-070 breadth (review fix #4): the List status cell ORIGINATES a status write, so the
+          per-task pending-push badge surfaces here too (not just the Board). Idle renders nothing, so
+          PMO-owned + non-pushing rows stay byte-for-byte (AC-CUA-061). */}
+      <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
+    </div>
+  );
 
   const columns: Column<TaskWithRefs>[] = [
     {
@@ -371,6 +376,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          pendingPushState={
+            formTarget.task && externallyOwned
+              ? (pendingPushByTask[formTarget.task.id] ?? IDLE_PENDING_PUSH)
+              : IDLE_PENDING_PUSH
+          }
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -510,6 +520,10 @@ interface TaskFormModalProps {
   defaultMilestoneId?: string | null;
   /** Available milestones for the milestone select field. */
   milestones?: MilestoneWithProgress[];
+  /** FR-CUA-070 breadth (review fix #4): the edit-modal save is an external write origin — its
+   *  pending-push state surfaces in the modal (pushing while saving / push-failed when the save is
+   *  rejected and the modal stays open). Idle for create + PMO-owned. */
+  pendingPushState?: import('@/src/lib/adapterSeam/pendingPush').PendingPushState;
   onClose: () => void;
   onCreate: (input: TaskInput) => Promise<void>;
   onUpdate: (id: string, patch: TaskPatch, deps: DepDelta) => Promise<void>;
@@ -522,6 +536,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   allTasks,
   defaultMilestoneId = null,
   milestones = [],
+  pendingPushState = IDLE_PENDING_PUSH,
   onClose,
   onCreate,
   onUpdate,
@@ -631,6 +646,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
+      {/* FR-CUA-070 breadth (review fix #4): the edit-modal save routes externally — surface its
+          pending-push state here (pushing while saving, push-failed when the save is rejected and the
+          modal stays open). Idle renders nothing (create + PMO-owned). */}
+      {isEdit && <TaskPushBadge state={pendingPushState} />}
       <FormSection legend="Details">
         <FormGrid>
           <TextField
