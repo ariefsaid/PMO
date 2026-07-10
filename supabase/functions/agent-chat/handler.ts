@@ -60,6 +60,13 @@ import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets
 /** Hard cap on tool-use rounds per run. D7. */
 export const MAX_TOOL_ROUNDS = 8;
 
+/**
+ * #5 hardening (audit finding 3): max read tool calls dispatched concurrently in one round. A round
+ * with more parallelizable reads than this falls back to serial+defer (batched across rounds), so
+ * untrusted model output can't spawn unbounded concurrent DB reads.
+ */
+export const MAX_PARALLEL_READS = 8;
+
 // ── Live step trail (ephemeral UI hint) ───────────────────────────────────────
 
 /** Present-tense one-line label for the tool about to run — powers the panel's live step
@@ -648,14 +655,21 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
     }
   };
   /**
-   * #5: a tool call safe to execute CONCURRENTLY with the other reads in the same round — a known
-   * READ action (confirm:false; never compose_view/ask_user/writes/unknown), with parseable args.
-   * Writes are NEVER parallelized: they go through the approval chip + SoD re-auth and stay serial.
+   * POSITIVE allow-list of pure-read actions safe to run concurrently (audit finding 2). Deliberately
+   * NOT `!action.confirm` — `notify` is also confirm:false but WRITES (own inbox), so a `!confirm`
+   * gate would let it (and any future confirm:false side-effecting action) inherit parallelizability.
+   * An action must be on THIS list to parallelize; everything else stays serial.
    */
-  const isParallelizableRead = (tc: { function: { name: string; arguments: string } }): boolean => {
-    const action = actionByName.get(tc.function.name);
-    return !!action && !action.confirm && parseArgs(tc.function.arguments) !== undefined;
-  };
+  const PARALLELIZABLE_READ_ACTIONS = new Set<string>(['query_entity']);
+  /**
+   * #5: a tool call safe to execute CONCURRENTLY with the other reads in the same round — a
+   * whitelisted pure-READ action with parseable args. Writes are NEVER parallelized: they go through
+   * the approval chip + SoD re-auth and stay serial.
+   */
+  const isParallelizableRead = (tc: { function: { name: string; arguments: string } }): boolean =>
+    PARALLELIZABLE_READ_ACTIONS.has(tc.function.name) &&
+    actionByName.has(tc.function.name) &&
+    parseArgs(tc.function.arguments) !== undefined;
 
   // Item 2 (MALFORMED_TOOL_CALL): tracks whether the LAST round's tool call was malformed
   // JSON, so a step-cap fallthrough after a malformed final attempt reports the distinct
@@ -750,7 +764,11 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // else (writes/compose/ask_user/unknown/malformed) is NEVER parallelized — those go through the
       // approval chip + SoD re-auth and MUST stay serialized one at a time (the write-safety rule).
       const toolCalls = resp.message.tool_calls ?? [];
-      if (toolCalls.length > 1 && toolCalls.every(isParallelizableRead)) {
+      // Cap fan-out (audit finding 3): the model output is untrusted, so a round with a huge
+      // tool_calls array must not spawn unbounded concurrent DB reads. Above the cap, fall through to
+      // the serial+defer path (process the first, defer the rest → the model re-requests them next
+      // round), which naturally batches an oversized set across rounds.
+      if (toolCalls.length > 1 && toolCalls.length <= MAX_PARALLEL_READS && toolCalls.every(isParallelizableRead)) {
         lastRoundMalformed = false;
         // Announce every read up-front (present-tense step trail), then dispatch all concurrently.
         for (const tc of toolCalls) {

@@ -14,6 +14,7 @@ import { it, expect, vi } from 'vitest';
 import {
   agentChatHandler,
   MAX_TOOL_ROUNDS,
+  MAX_PARALLEL_READS,
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
@@ -305,6 +306,41 @@ it('never parallelizes a write: a read+write round runs only the read and DEFERS
   const readResult = round2Messages.find((m: { role: string; tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === 'read1');
   expect(readResult).toBeDefined();
   expect(JSON.parse(readResult.content)._deferred).toBeUndefined();
+});
+
+it('caps read fan-out: a round with more than MAX_PARALLEL_READS reads falls back to serial+defer', async () => {
+  // One round emitting (MAX_PARALLEL_READS + 1) reads must NOT spawn unbounded concurrency — it
+  // falls to the serial path: process the first, defer the rest (audit finding 3).
+  const overCap = MAX_PARALLEL_READS + 1;
+  const tool_calls = Array.from({ length: overCap }, (_v, i) => ({
+    id: `r${i}`,
+    type: 'function' as const,
+    function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) },
+  }));
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: { role: 'assistant', content: null, tool_calls },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'done' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // Serial fallback → exactly ONE read executed this round; the other `overCap - 1` are deferred.
+  expect(events.filter((e) => e.type === 'tool')).toHaveLength(1);
+  const round2Messages = create.mock.calls[1][0].messages;
+  const deferred = round2Messages.filter(
+    (m: { role: string; content?: string }) => m.role === 'tool' && typeof m.content === 'string' && m.content.includes('_deferred'),
+  );
+  expect(deferred).toHaveLength(overCap - 1);
 });
 
 // ── Blocker 3: loop termination uses finish_reason !== 'tool_calls'; length handled ──

@@ -117,11 +117,20 @@ export function providerPolicyFromEnv(env: {
     policy.order = [...NO_TRAIN_FALLBACK_ORDER]; // default preference (dropped only when sorting)
   }
 
-  const only = parseSlugList(env.AGENT_PROVIDER_ONLY);
-  if (only !== undefined) {
-    if (only.length > 0) policy.only = only; // '' → explicitly disable the allow-list restriction
+  // The `only` no-train allow-list is the SINGLE control keeping the user's business-data transcript
+  // off training/retention backends, so it fails SAFE: unset OR empty ('') → the default allow-list
+  // stays ON. Disabling it requires the DELIBERATE sentinel '*' (audit finding 1: an empty secret
+  // must never silently drop the privacy wall), and even then we warn loudly.
+  const onlyRaw = env.AGENT_PROVIDER_ONLY;
+  if (onlyRaw !== undefined && onlyRaw.trim() === '*') {
+    console.warn(
+      '[agent] AGENT_PROVIDER_ONLY=* — the no-train provider allow-list is DISABLED; request data may reach training/retention backends.',
+    );
+    // policy.only intentionally left unset (unrestricted routing).
   } else {
-    policy.only = [...NO_TRAIN_FALLBACK_ORDER]; // safety allow-list ON by default
+    const only = parseSlugList(onlyRaw);
+    // Explicit non-empty list → use it; anything else (unset/empty/whitespace) → safe default.
+    policy.only = only && only.length > 0 ? only : [...NO_TRAIN_FALLBACK_ORDER];
   }
 
   const ignore = parseSlugList(env.AGENT_PROVIDER_IGNORE);
@@ -212,10 +221,10 @@ export class OpenRouterModelClient implements ModelClient {
           ...(params.tools ? { tools: params.tools } : {}),
           ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
           ...(params.temperature !== undefined ? { temperature: params.temperature } : {}),
-          // Backend routing policy (default: privacy-first no-train pin — DEFAULT_PROVIDER_POLICY).
-          // A stable, pinned backend both keeps the shared static prefix warm (prompt-cache
-          // economics) and holds the data-privacy guarantee (data_collection:'deny'); the owner can
-          // re-trade privacy↔latency↔cache via AGENT_PROVIDER_* secrets (providerPolicyFromEnv).
+          // Backend routing policy (default: no-train pin — DEFAULT_PROVIDER_POLICY). A stable,
+          // pinned backend keeps the shared static prefix warm (prompt-cache economics); the privacy
+          // guarantee is held by the `only` no-train allow-list (NOT data_collection, which the
+          // default leaves unset). The owner re-trades privacy↔latency↔cache via AGENT_PROVIDER_*.
           provider: this.provider,
           // Retained for older OpenRouter behavior; usage accounting is now returned unconditionally
           // (this flag is a no-op on current OpenRouter, harmless to keep).
