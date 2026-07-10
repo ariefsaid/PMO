@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { upsertWatermark } from './watermarks';
+import { upsertWatermark } from './watermarks.ts';
 
 const makeClient = () => {
   const calls = { table: '', rows: null as unknown, options: null as unknown };

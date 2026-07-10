@@ -6,8 +6,8 @@ import {
   failPush,
   pendingPushAfterWrite,
   classifyExternalError,
-} from './pendingPush';
-import { AppError } from '../appError';
+} from './pendingPush.ts';
+import { AppError } from '../appError.ts';
 
 describe('AC-EAS-060 the pending-push state machine transitions correctly', () => {
   it('AC-EAS-060 submitting an externally-owned write ⇒ pushing', () => {

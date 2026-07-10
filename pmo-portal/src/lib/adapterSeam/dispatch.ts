@@ -2,8 +2,8 @@
  * Pure orchestration for externally-owned writes (FR-EAS-023/033/034/042).
  * Relative imports only so the edge-function can import this module directly.
  */
-import { AppError } from '../appError';
-import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord } from './contract';
+import { AppError } from '../appError.ts';
+import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord } from './contract.ts';
 
 export interface ExternalRefMapping {
   pmoRecordId: string;

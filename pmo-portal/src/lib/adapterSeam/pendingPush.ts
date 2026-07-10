@@ -3,7 +3,7 @@
  * write-through on externally-owned domains (FR-EAS-060..063, AC-EAS-060/061/062). NOT a component: a
  * reusable state machine that any surface composes. Relative imports only (Deno-importable).
  */
-import { AppError } from '../appError';
+import { AppError } from '../appError.ts';
 
 export type PendingPushStatus = 'idle' | 'pushing' | 'pushed' | 'push-failed';
 

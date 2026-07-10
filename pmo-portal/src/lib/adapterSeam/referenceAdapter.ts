@@ -4,7 +4,7 @@
  * real external system. Pure (no supabase/browser imports) ⇒ Deno-importable by the adapter-dispatch
  * edge function. NEVER receives org_id (FR-EAS-024) — proven at the dispatch (AC-EAS-023).
  */
-import { Adapter, AdapterCommand, AdapterError, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from './contract';
+import { Adapter, AdapterCommand, AdapterError, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from './contract.ts';
 
 /** Configurable outcomes for the reference adapter (FR-EAS-025). */
 export type ReferenceOutcome = 'commit-success' | 'commit-rejected-validation' | 'external-unreachable';

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { recordExternalRef } from './refs';
+import { recordExternalRef } from './refs.ts';
 
 const makeClient = () => {
   const calls = { table: '', rows: null as unknown, options: null as unknown };

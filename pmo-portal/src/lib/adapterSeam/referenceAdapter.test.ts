@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createReferenceAdapter, REFERENCE_DOMAIN, type ReferenceOutcome } from './referenceAdapter';
-import { AdapterError } from './contract';
-import type { AdapterCommand } from './contract';
+import { createReferenceAdapter, REFERENCE_DOMAIN, type ReferenceOutcome } from './referenceAdapter.ts';
+import { AdapterError } from './contract.ts';
+import type { AdapterCommand } from './contract.ts';
 
 const cmd = (recordId: string): AdapterCommand => ({
   domain: REFERENCE_DOMAIN,

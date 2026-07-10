@@ -1,5 +1,5 @@
-import { AppError } from '../appError';
-import type { ServiceRoleTableClient } from './watermarks';
+import { AppError } from '../appError.ts';
+import type { ServiceRoleTableClient } from './watermarks.ts';
 
 export interface ExternalRefRecord {
   orgId: string;

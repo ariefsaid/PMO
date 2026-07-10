@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError } from './capabilityMap';
+import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError } from './capabilityMap.ts';
 
 const cap = new Set(['reference', 'tasks']);
 

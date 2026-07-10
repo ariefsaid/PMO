@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchExternallyOwnedWrite } from './dispatch';
-import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter';
-import type { AdapterCommand } from './contract';
-import { AppError } from '../appError';
-import { executeWrite } from './router';
+import { dispatchExternallyOwnedWrite } from './dispatch.ts';
+import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter.ts';
+import type { AdapterCommand } from './contract.ts';
+import { AppError } from '../appError.ts';
+import { executeWrite } from './router.ts';
 
 const command: AdapterCommand = {
   domain: REFERENCE_DOMAIN,

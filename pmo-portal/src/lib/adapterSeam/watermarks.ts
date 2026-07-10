@@ -1,4 +1,4 @@
-import { AppError } from '../appError';
+import { AppError } from '../appError.ts';
 
 export interface WatermarkUpsertInput {
   orgId: string;

@@ -1,5 +1,4 @@
 {
-  "unstable": ["sloppy-imports"],
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
     "@/": "../../../pmo-portal/"

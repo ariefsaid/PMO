@@ -3,7 +3,7 @@
  * that tier's STATIC capability map, so the effective flip set is bounded by the employed tier's real
  * capabilities. Pure helpers used by the provisioning path + the routing layer.
  */
-import { CapabilityMap, PmoDomain } from './contract';
+import { CapabilityMap, PmoDomain } from './contract.ts';
 
 /** True iff the tier's static capability map can natively own `domain` (FR-EAS-004, AC-EAS-013). */
 export function canAssignDomainToTier(capabilityMap: CapabilityMap, domain: PmoDomain): boolean {
