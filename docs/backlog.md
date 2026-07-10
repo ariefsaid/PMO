@@ -4,6 +4,19 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+- **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
+  `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
+  `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
+  Administration. Full battery (spec APPROVE · quality/design APPROVE-WITH-FIXES→applied ·
+  security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
+  L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
+- **▶ P1 ClickUp adapter (tasks domain) — spec SIGNED OFF** (`docs/specs/clickup-adapter.spec.md`,
+  branch `feat/clickup-adapter-p1`): mocked-only ClickUp; one List per project; both onboarding
+  directions; OD-CUA-1 per-command RLS split · OD-CUA-2 **soft-tombstone** · OD-CUA-3
+  reject-mixed-at-provisioning. Next: eng-planner plan → build. Then P2 ERPNext money core
+  (parties/procurement/AP + aging), P3 width, P4 Odoo (ADR-0055 §8).
+
 ### ⚑⚑ RESUME HERE (2026-07-09) — agent experience SHIPPED to prod; automations HELD for prod
 Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
 - **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change without a DIRECT per-instance owner instruction. Browser tests via a Playwright CLI script / `agent-browser`, NEVER the Playwright MCP (it leaks node servers).**
