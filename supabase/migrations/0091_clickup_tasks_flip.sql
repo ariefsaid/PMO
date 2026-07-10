@@ -89,3 +89,47 @@ create policy tasks_update_own_status on tasks for update
     and not public.domain_externally_owned(auth_org_id(), 'tasks'))
   with check (org_id = auth_org_id() and assignee_id = (select auth.uid())
     and not public.domain_externally_owned(auth_org_id(), 'tasks'));
+
+create or replace function enforce_assignee_status_only()
+  returns trigger language plpgsql set search_path = public as $$
+begin
+  -- (a) Service-role bypass ONLY for flipped orgs, matching the policy split above: non-flipped orgs
+  -- keep the exact original trigger path even when auth.uid() is null.
+  if auth.uid() is null and public.domain_externally_owned(new.org_id, 'tasks') then
+    return new;
+  end if;
+  -- (b) While tasks externally-owned: pin EVERY user role to enhancement columns only
+  -- (milestone_id; future weight). Native-field change → 42501. Manager exemption suspended.
+  if public.domain_externally_owned(new.org_id, 'tasks') then
+    if new.name         is distinct from old.name
+       or new.status       is distinct from old.status
+       or new.assignee_id  is distinct from old.assignee_id
+       or new.project_id   is distinct from old.project_id
+       or new.org_id       is distinct from old.org_id
+       or new.start_date   is distinct from old.start_date
+       or new.end_date     is distinct from old.end_date
+       or new.id           is distinct from old.id
+       or new.created_at   is distinct from old.created_at
+    then
+      raise exception 'task native fields are read-only while tasks are externally-owned'
+        using errcode = '42501';
+    end if;
+    return new;
+  end if;
+  -- (c) NOT externally-owned: byte-for-byte the ORIGINAL live 0016/0017 behavior (unchanged).
+  if auth_role() in ('Admin','Executive','Project Manager','Finance') then
+    return new;
+  end if;
+  if new.name         is distinct from old.name
+     or new.assignee_id  is distinct from old.assignee_id
+     or new.project_id   is distinct from old.project_id
+     or new.org_id       is distinct from old.org_id
+     or new.start_date   is distinct from old.start_date
+     or new.end_date     is distinct from old.end_date
+     or new.id           is distinct from old.id
+     or new.created_at   is distinct from old.created_at
+  then
+    raise exception 'only the task status may be changed by its assignee' using errcode = '42501';
+  end if;
+  return new;
+end; $$;
