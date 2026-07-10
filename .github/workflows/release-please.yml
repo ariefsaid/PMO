@@ -11,8 +11,42 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.rp.outputs.releases_created }}
     steps:
       - uses: googleapis/release-please-action@v4
+        id: rp
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # After release-please cuts a release on `main` (bumping .release-please-manifest.json +
+  # package.json version + CHANGELOG), carry that bump back to `dev`. Without this, `dev` drifts
+  # behind `main`'s version and the next `dev`→`main` promotion regresses it (the 2026-07-10
+  # incident: dev sat at 0.2.0 while main was 0.5.0). Runs ONLY when a release was actually created.
+  back-merge-to-dev:
+    needs: release-please
+    if: needs.release-please.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Back-merge main → dev (release-please version bump + CHANGELOG)
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          if git merge --no-edit origin/main; then
+            git push origin dev
+            echo "Synced release-please state main → dev."
+          else
+            # A conflict here means dev and main diverged on more than the release files — surface it
+            # loudly (open a manual sync) rather than push a half-merge.
+            echo "::error::main→dev back-merge conflicted; sync dev manually (git merge origin/main)."
+            exit 1
+          fi
