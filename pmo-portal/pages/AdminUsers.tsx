@@ -33,6 +33,7 @@ import { AdministrationUsage } from './AdministrationUsage';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
+import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -459,6 +460,13 @@ const AdminUsers: React.FC = () => {
       <div className="mt-6">
         <SectionHeader title="Features" />
         <AdministrationFeatures isOperator={isOperator} orgId={ownOrgId} />
+      </div>
+
+      {/* Integrations section (FR-EAS-007, OD-2) — read-only: employed external tiers + the
+          domains they own as SoT; writes are Operator-provisioned via RPC, never in-app. */}
+      <div className="mt-6">
+        <SectionHeader title="Integrations" />
+        <IntegrationsView />
       </div>
 
       {/* Edit-role modal */}

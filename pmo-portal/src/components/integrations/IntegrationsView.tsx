@@ -1,11 +1,14 @@
 import React from 'react';
-import { ListPage, ListState, Card, Icon } from '@/src/components/ui';
+import { ListState, Card, Icon } from '@/src/components/ui';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 
 /**
  * Read-only Integrations view (FR-EAS-007, AC-EAS-015). Shows the caller's org's employed external
  * tiers + the consequently externally-owned domains; an explicit empty state when none are employed.
  * NO write affordances — writes are Operator-provisioned (FR-EAS-006, OD-1).
+ *
+ * A section of the Administration page (the Usage/Credits/Features pattern) — the host page
+ * provides the `SectionHeader`; this component renders only the section body.
  */
 export const IntegrationsView: React.FC = () => {
   const { data, isPending, isError } = useExternalDomainOwnership();
@@ -20,10 +23,7 @@ export const IntegrationsView: React.FC = () => {
   const isEmpty = !isPending && !isError && rows.length === 0;
 
   return (
-    <ListPage
-      title="Integrations"
-      description="External systems employed by your organisation and the domains they own as source of truth."
-    >
+    <div>
       {isPending && <ListState variant="loading" rows={3} />}
       {isError && (
         <ListState
@@ -62,7 +62,7 @@ export const IntegrationsView: React.FC = () => {
           ))}
         </div>
       )}
-    </ListPage>
+    </div>
   );
 };
 
