@@ -32,3 +32,23 @@ describe('classifyExternalError — ClickUp adapter codes (AC-CUA-062)', () => {
     expect(out).toEqual({ headline: 'Push failed', detail: 'something else from ClickUp' });
   });
 });
+
+describe('classifyExternalError — shared vocabulary: one headline for one event (review fix #5)', () => {
+  // The toast (TasksTab) and the badge (useTaskMutations → pendingPushAfterWrite) BOTH route an
+  // externally-owned write failure through classifyExternalError, so the headline they show MUST
+  // agree for the same event class. The join point is the AppError `code` that dispatchClient stamps.
+  it('a structured external-unreachable (edge-fn body) and a network failure (dispatchClient-stamped) render the SAME headline', () => {
+    const fromEdgeFn = new AppError('ClickUp 5xx after retries', 'external-unreachable');
+    const fromNetwork = new AppError('The external system could not be reached', 'external-unreachable'); // dispatchClient stamps this for a no-context fetch failure
+    expect(classifyExternalError(fromEdgeFn).headline).toBe(classifyExternalError(fromNetwork).headline);
+    expect(classifyExternalError(fromNetwork).headline).toBe('external system unreachable — try again');
+  });
+
+  it('never renders a raw fetch string as the headline (network detail stays in `detail`, not `headline`)', () => {
+    const err = new AppError('Failed to send a request: name resolution failed', 'external-unreachable');
+    const out = classifyExternalError(err);
+    expect(out.headline).toBe('external system unreachable — try again');
+    expect(out.headline).not.toContain('name resolution failed');
+    expect(out.headline).not.toContain('Failed to send');
+  });
+});

@@ -26,6 +26,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { formatDate } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
@@ -129,6 +130,12 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
   const externallyOwned = routeTaskWrite() === 'external';
 
+  // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
+  // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
+  // PMO-owned writes keep the Postgres-code classifier (classifyMutationError).
+  const classifyWriteError = (err: unknown) =>
+    externallyOwned ? classifyExternalError(err) : classifyMutationError(err);
+
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
 
@@ -153,7 +160,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       await updateStatus.mutateAsync({ id: t.id, status });
       toast('Status updated', `${t.name} is now ${status}`, 'success');
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
     }
   };
@@ -166,7 +173,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       toast('Task deleted', target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
       setDeleteTarget(null);
     }
@@ -380,7 +387,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             setFormTarget(null);
           }}
           onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
+            const { headline, detail } = classifyWriteError(err);
             toast(headline, detail, 'warning');
           }}
         />

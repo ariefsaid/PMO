@@ -31,6 +31,37 @@ async function readErrorBody(error: unknown): Promise<DispatchErrorBody | undefi
   }
 }
 
+/** A network failure (FunctionsFetchError) exposes NO HTTP Response on `.context` — the fetch was
+ *  rejected (DNS / connection / refused), so the request never reached the edge fn. Distinguish from
+ *  a FunctionsHttpError, which carries a `.context: Response` (a non-2xx status with a body). */
+function hasHttpResponse(error: unknown): boolean {
+  const ctx = (error as { context?: Response } | null | undefined)?.context;
+  return !!ctx && typeof (ctx as Response).clone === 'function';
+}
+
+/**
+ * Pure classification of a dispatch error into `{ code, message }` (review fix #5). The precedence:
+ *   1. a KNOWN structured code from the body (`commit-rejected` | `external-unreachable`) wins;
+ *   2. a NETWORK failure (no HTTP response on `.context`) → `external-unreachable` with a GENERIC
+ *      message — the raw fetch string ('name resolution failed', 'Failed to send a request…') is
+ *      NEVER surfaced to the user;
+ *   3. otherwise (an HTTP failure with no/unknown structured code) → `undefined` code + the body's
+ *      message (a controlled edge-fn message) or a generic fallback.
+ * Pure + tested so the network path is pinned independently of the supabase singleton.
+ */
+export function classifyDispatchError(
+  error: unknown,
+  body: DispatchErrorBody | undefined,
+): { code: string | undefined; message: string } {
+  if (body?.error && KNOWN_CODES.has(body.error)) {
+    return { code: body.error, message: body.message ?? 'The dispatch request failed' };
+  }
+  if (!hasHttpResponse(error)) {
+    return { code: 'external-unreachable', message: 'The external system could not be reached' };
+  }
+  return { code: undefined, message: body?.message ?? 'The dispatch request failed' };
+}
+
 /**
  * Dispatch a task command through `adapter-dispatch` (POST `functions/v1/adapter-dispatch`,
  * `{ domain: 'tasks', operation, record }`). Resolves with the edge function's `CommandResult`
@@ -47,8 +78,7 @@ export async function dispatchTaskCommand(
   });
   if (error) {
     const body = await readErrorBody(error);
-    const code = body?.error && KNOWN_CODES.has(body.error) ? body.error : undefined;
-    const message = body?.message ?? (error as { message?: string }).message ?? 'The dispatch request failed';
+    const { code, message } = classifyDispatchError(error, body);
     throw new AppError(message, code);
   }
   if (!data) throw new AppError('The dispatch request returned no result');
