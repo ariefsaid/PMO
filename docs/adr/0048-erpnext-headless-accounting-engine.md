@@ -1,6 +1,11 @@
 # ADR-0048 — ERPNext as headless accounting engine under PMO (no homegrown ledger, no Odoo)
 
-- **Status:** Accepted (owner-directed 2026-07-04)
+- **Status:** Accepted (owner-directed 2026-07-04); **partially superseded by ADR-0055
+  (2026-07-10)** — the integration architecture below (Python `pmo_connector` Frappe app,
+  "not a bidirectional sync" framing, F1–F3 phasing) is replaced by ADR-0055's PMO-side
+  adapters + SoT/enhancement model + P0–P4 phasing. Still standing: ERPNext as accounting
+  engine, no homegrown ledger, v1 side-by-side sign-now, per-client instances,
+  ledger-sourced display rule.
 - **Date:** 2026-07-04
 - **Deciders:** Owner, Director
 - **Related:** ADR-0047 (GTM topology), `docs/roadmap-spines.md` (spine 4 Revenue/AR),

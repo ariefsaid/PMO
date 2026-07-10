@@ -88,3 +88,55 @@ norm and cross-Entity rollup is a feature. Not to be confused with **Company**, 
 CRM counterparty (client/vendor) in the sales sense. (Decided 2026-07-04.)
 
 **User view** — a dashboard/view a user composes at runtime (manually or via the Assistant) and owns as data, not code. Private to its owner by default; sharing shows each viewer only their own authorized data. Distinct from built-in pages, which are part of the app itself. (ADR-0036.)
+
+---
+
+## Integration (ERP & external apps)
+
+**Source of truth (SoT)** — the single system whose record is authoritative for a domain.
+When a client employs an external system (ERP, ClickUp), that system is SoT for every domain
+it natively owns; PMO never holds a competing authoritative copy. (Decided 2026-07-10.)
+_Avoid_: system of record, master.
+
+**Externally-owned domain / PMO-owned domain** — the per-domain ownership split when an
+external system is employed: an externally-owned domain has that system as SoT (PMO holds a
+read-model plus enhancements); a PMO-owned domain has PMO as SoT (optionally pushed down as
+reference data). Ownership is per domain, never per record. (Decided 2026-07-10.)
+_Avoid_: ERP-owned (too narrow — ClickUp owns tasks the same way).
+
+**Enhancement** — an additive, PMO-side decoration of an externally-owned record (extra
+attributes, version history, groupings, rollups). An enhancement never duplicates a field
+the native object carries — the external system owns the record's existence and all native
+fields — so no field is writable in two places and conflicts are impossible by construction.
+(Decided 2026-07-10.)
+
+**Read-model (mirror)** — PMO's local, machine-written copy of an externally-owned domain,
+kept for display, querying, and the Assistant. Never written by users directly; user actions
+on an externally-owned domain travel to the external system as commands, and the read-model
+reflects that system's answer. (Decided 2026-07-10.)
+_Avoid_: cache, replica, sync table.
+
+**Capability map** — the per-external-system declaration of which domains it can natively
+own. Employing a system flips exactly the domains in its capability map to externally-owned;
+a missing capability leaves that domain PMO-owned for that client. (Decided 2026-07-10.)
+
+**Adapter** — the per-system implementation of PMO's adapter contract, running PMO-side and
+speaking that system's stock API (one adapter per product: ERPNext, Odoo, ClickUp, …).
+Adding a system means adding an adapter; the app above the contract does not change.
+(Decided 2026-07-10.)
+_Avoid_: connector, bridge, integration.
+
+**Adapter contract** — the PMO-shaped set of operations (per domain: commands + reads)
+every adapter must implement. Owned by PMO and expressed in PMO's domain language, never in
+any external system's vocabulary. (Decided 2026-07-10.)
+
+**Helper app** — an optional module installed inside an ERP instance PMO's vendor controls
+(e.g. a Frappe custom app) that gives an adapter richer endpoints than the stock API. An
+accelerator only: no adapter may require one, because client-owned ERP instances cannot be
+assumed to accept installs. (Decided 2026-07-10.)
+_Avoid_: pmo_connector (legacy name).
+
+**External tier (optional)** — the per-client choice to employ an external system under PMO
+(an ERP, ClickUp). PMO runs fully standalone without any (all domains PMO-owned); employing
+one flips the domains in its capability map to externally-owned. (Decided 2026-07-10.)
+_Avoid_: ERP tier (too narrow).

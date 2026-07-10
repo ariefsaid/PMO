@@ -131,11 +131,18 @@ page > reliability > ease, per owner priority order) · Supabase stays FREE tier
 Pro billing at first client signing · MSA brief drafted by Director (`docs/legal/`), owner takes
 to counsel.
 
-**Fast-follow (post-first-clients):** `pmo_connector` F1 (Frappe app trimmed from RIS-portal-2
-`api/*.py` — Python stays ERPNext-side, NO Node port; PMO side = thin TS edge-fn client): AP
-checkpoint commands + actuals read-back + AR/AP aging views · F2 client invoicing (= Revenue/AR
-spine 4) · credits **pricing decision from 2–4 wks of pilot margin data** (launch un-enforced,
-then price, then enforce) · Google OAuth · PostHog product-analytics widening.
+**Fast-follow (post-first-clients):** **external-system adapters per ADR-0055 (2026-07-10 grill —
+supersedes ADR-0048's `pmo_connector`/F1–F3 plan):** P0 seam (adapter contract, `external_refs`
++ watermarks, pending-push UI state, capability-map config) → **P1 ClickUp adapter, tasks**
+(deliberately BEFORE ERPNext — smallest adapter, proves the SoT/enhancement/read-model machinery,
+distributor-partnership demo) → P2 ERPNext money core (parties, procurement chain, AP commands +
+actuals/AP-AR aging) → P3 ERPNext width (timesheets, budget projection, sales docs = Revenue/AR
+spine 4) → P4 Odoo adapter (when an Odoo client signs). Key rules: external system = SoT for
+capability-map domains; Supabase = read-model + additive-only enhancements; synchronous
+write-through; adapters = PMO-side TS on stock APIs (RIS-portal-2 `api/*.py` = mapping spec +
+future helper-app source, NOT a code port). · credits **pricing decision from 2–4 wks of pilot
+margin data** (launch un-enforced, then price, then enforce) · Google OAuth · PostHog
+product-analytics widening.
 
 ### ⚑ GTM BUILD — HANDOFF STATE (2026-07-05, for the resuming agent — READ THIS to continue)
 
