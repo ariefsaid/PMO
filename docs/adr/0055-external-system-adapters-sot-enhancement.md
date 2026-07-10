@@ -125,7 +125,7 @@ differs; state it in client conversations.
 
 | Phase | Content |
 |---|---|
-| **P0** | The seam: adapter contract, `external_refs` mapping table + watermarks, pending-push UI state, per-client capability map config |
+| **P0** | The seam: adapter contract, `external_refs` mapping table + watermarks, pending-push UI state, per-client domain-ownership config (`external_domain_ownership`) |
 | **P1** | **ClickUp adapter (tasks)** — deliberately before ERPNext: smallest real adapter, proves SoT/enhancement/read-model machinery at low stakes, partnership demo |
 | **P2** | ERPNext adapter, money core: parties, procurement chain, AP commands + actuals/AP-AR aging read-back (old ADR-0048 F1, enlarged) |
 | **P3** | ERPNext width: timesheets, budget projection, sales documents (spine 4) |
@@ -142,7 +142,8 @@ entry wedge.
   default rationale, v1 side-by-side, per-client instances, ledger-sourced display rule (PMO
   never recomputes externally-read figures).
 - Read-model tables need RLS write policies restricted to the sync service role for
-  externally-owned domains (per client capability map) — a per-domain, reversible flip.
+  externally-owned domains (per the client's `external_domain_ownership` config) — a
+  per-domain, reversible flip.
 - Flipping a domain to externally-owned for an *existing* client requires a backfill/promote
   runbook (push existing Supabase rows into the external system, then flip ownership).
 - Per-client secrets grow again (ERP API token, ClickUp token) — 1Password vault-`AS` pattern.
