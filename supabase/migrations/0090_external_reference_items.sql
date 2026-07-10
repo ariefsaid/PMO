@@ -1,6 +1,6 @@
 -- 0088_external_reference_items.sql — the synthetic reference domain's read-model (OD-4, FR-EAS-037,
 -- AC-EAS-035). org-scoped; the write-policy FLIP denies user-JWT writes WHILE 'reference' is externally-
--- owned for the org (domain_externally_owned, 0085) and permits only the dispatch/sync service role.
+-- owned for the org (domain_externally_owned, 0087) and permits only the dispatch/sync service role.
 -- When 'reference' is PMO-owned the normal member-write path applies (the flip is per-org — ADR-0055 §3).
 -- Reversibility (ADR-0006): supabase db reset. Manual:
 --   drop policy if exists external_reference_items_select on public.external_reference_items;

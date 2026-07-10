@@ -1,4 +1,4 @@
--- 0085_external_domain_ownership.sql — the domain-ownership SWITCH (ADR-0055 P0, FR-EAS-001..007).
+-- 0087_external_domain_ownership.sql — the domain-ownership SWITCH (ADR-0055 P0, FR-EAS-001..007).
 -- org-scoped; records employed external tiers + consequently externally-owned domains. DEFAULT EMPTY
 -- (FR-EAS-002). RLS: own-org member read (FR-EAS-005/011); Operator-only write (OD-1, FR-EAS-006/012),
 -- cross-org provisioning via operator_set_domain_ownership. org_id never sent by the client (column

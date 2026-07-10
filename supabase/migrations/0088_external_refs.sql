@@ -1,4 +1,4 @@
--- 0086_external_refs.sql — PMO record id ↔ external record id mapping (FR-EAS-040..043, AC-EAS-040/041).
+-- 0088_external_refs.sql — PMO record id ↔ external record id mapping (FR-EAS-040..043, AC-EAS-040/041).
 -- Machine-written only (dispatch/sync service role); org-isolated on read. Minimal mapping (OQ-2: no
 -- last-synced richness in P0). Reversibility (ADR-0006): supabase db reset. Manual reverse:
 --   drop policy if exists external_refs_select on public.external_refs; drop table if exists public.external_refs;

@@ -1,4 +1,4 @@
--- 0087_external_sync_watermarks.sql — modified-since cursor storage (FR-EAS-050..052, AC-EAS-050).
+-- 0089_external_sync_watermarks.sql — modified-since cursor storage (FR-EAS-050..052, AC-EAS-050).
 -- Machine-written only; org-isolated read; EXACTLY ONE row per (org, tier, domain) via the unique key.
 -- P0 = storage + RLS only (the sweep engine is P1). Reversibility (ADR-0006): supabase db reset. Manual:
 --   drop policy if exists external_sync_watermarks_select on public.external_sync_watermarks;
