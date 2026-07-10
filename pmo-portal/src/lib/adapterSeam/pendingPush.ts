@@ -28,9 +28,8 @@ export type WriteOutcome = { ok: true } | { ok: false; err: unknown };
 
 export function pendingPushAfterWrite(route: 'pmo' | 'external', outcome: WriteOutcome): PendingPushState {
   if (route === 'pmo') return IDLE_PENDING_PUSH;
-  return outcome.ok
-    ? completePush(beginPush(IDLE_PENDING_PUSH))
-    : failPush(beginPush(IDLE_PENDING_PUSH), outcome.err);
+  if (outcome.ok) return completePush(beginPush(IDLE_PENDING_PUSH));
+  return failPush(beginPush(IDLE_PENDING_PUSH), 'err' in outcome ? outcome.err : undefined);
 }
 
 export function classifyExternalError(err: unknown): { headline: string; detail: string } {
