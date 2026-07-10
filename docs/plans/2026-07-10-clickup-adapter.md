@@ -51,7 +51,7 @@ by the Operator, which no test-or-prod org is).
 |---|---|---|---|
 | **A** | Schema: tasks-flip RLS per-command split + tombstone/source-mod columns + `external_refs` adopt-unique + `external_project_bindings` + trigger service-role bypasses; one reversible migration + pgTAP band | 020,021,022,023,024 | A1–A9 |
 | **B** | ClickUp adapter module (commands+reads+mapping+statusMap+memberMap, injected `fetch`, rate-limiter) + register in `adapter-dispatch` keyed by `tasks` | 030,031,032,033,034,035,036,037,080 | B1–B12 |
-| **C** | Delete-aware dispatch + task-repository wiring (ADR-0056 ownership cache, fail-closed) + pending-push surfaces + the byte-for-byte regression net (EARLY) + write-through e2e | 001,038,060,061,062,090 | C1–C11 |
+| **C** | Delete-aware dispatch + task-repository wiring (ADR-0056 ownership cache, fail-closed) + tombstone-safe task reads/My Tasks routing + pending-push surfaces + the byte-for-byte regression net (EARLY) + write-through e2e | 001,038,060,061,062,090 | C1–C11 |
 | **D** | Change-feed: `clickup-webhook` ingress (HMAC + idempotent apply + source-mod guard + adopt + tombstone) + reconciliation sweep + rollup-over-mirror + webhook e2e | 040,041,042,043,044,045,070,071,072,091 | D1–D12 |
 | **E** | Onboarding: List provisioning (reject-mixed, OD-CUA-3) + push-seed + pull-adopt, idempotent+resumable | 050,051,052,053 | E1–E6 |
 | **F** | Integrations view P1 rows + tier/domain display-label map (OD-EAS-LABELS debt) + ClickUp US-hosted data-locality note | NFR-CUA-LOCALITY-001 | F1–F4 |
@@ -155,9 +155,9 @@ Append to `0091` — `create or replace function enforce_assignee_status_only()`
 create or replace function enforce_assignee_status_only()
   returns trigger language plpgsql set search_path = public as $$
 begin
-  -- (a) Service-role bypass: triggers do NOT yield to service_role like RLS. The sync role
-  -- (auth.uid() null) must be able to mirror native fields (name/status/assignee/dates).
-  if auth.uid() is null then
+  -- (a) Service-role bypass ONLY for flipped orgs, matching A7: non-flipped orgs keep the exact
+  -- original trigger path even when auth.uid() is null.
+  if auth.uid() is null and public.domain_externally_owned(new.org_id, 'tasks') then
     return new;
   end if;
   -- (b) While tasks externally-owned: pin EVERY user role to enhancement columns only
@@ -232,7 +232,8 @@ Append to `0091`:
 alter table tasks add column tombstoned_at    timestamptz;   -- ClickUp-native delete apply / delete-aware dispatch
 alter table tasks add column source_updated_at timestamptz;  -- ClickUp date_updated of the change last applied
 
--- Atomic adopt dedupe (FR-CUA-064): a concurrent 2nd adopt of the same ClickUp task id fails the insert.
+-- Atomic adopt dedupe (FR-CUA-064): the unique constraint replaces 0088's non-unique helper index.
+drop index if exists public.external_refs_org_domain_ext_idx;
 alter table external_refs add constraint external_refs_org_domain_extid_key
   unique (org_id, domain, external_record_id);
 
@@ -282,13 +283,13 @@ so the module is Deno-importable by the edge function (same rule as `referenceAd
 
 ### B1 — ClickUp shape types + field mapping test (RED) — AC-CUA-031
 
-**Test:** `clickup/mapping.test.ts`. Given a ClickUp task JSON (recorded fixture: `{ id, name, status:{status}, assignees:[{id}], start_date, due_date, date_updated }`), assert `clickUpTaskToPmoRecord(raw, {memberMap, statusMap})` returns the canonical PMO record `{ id, name, status, assignee_id, start_date, end_date }` with unix-ms→ISO date conversion and `due_date`→`end_date`; and `pmoTaskToClickUpBody(record, maps)` produces `{ name, status, assignees, start_date(ms), due_date(ms) }` for exactly the mapping set (FR-CUA-010) and nothing else.
+**Test:** `clickup/mapping.test.ts`. Given a ClickUp task JSON (recorded fixture: `{ id, name, status:{status}, assignees:[{id}], start_date, due_date, date_updated }`), assert `clickUpTaskToPmoRecord(raw, {memberMap, statusMap})` returns the canonical PMO record `{ id, name, status, assignee_id, start_date, end_date }` with unix-ms→ISO date conversion and `due_date`→`end_date`; and `pmoTaskToClickUpBody(record, maps, { mode:'create'|'update', previousAssigneeIds })` branches correctly: **create** produces ClickUp v2's `{ name, status, assignees:[id], start_date(ms), due_date(ms) }`, while **update/transition** produces `{ name?, status?, assignees:{ add:[...], rem:[...] }, start_date?, due_date? }` for exactly the mapping set (FR-CUA-010) and nothing else. Mock both shapes in the unit test so the create/update contract cannot drift.
 
 **Verify (RED):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/clickup/mapping.test.ts`
 
 ### B2 — mapping.ts + types.ts (GREEN) — FR-CUA-010
 
-**Files:** `clickup/types.ts` (ClickUp REST shapes — confined) + `clickup/mapping.ts` (`clickUpTaskToPmoRecord` / `pmoTaskToClickUpBody`; unix-ms↔ISO boundary conversion). No `org_id` ever in a mapped record. Verify command from B1 now green.
+**Files:** `clickup/types.ts` (ClickUp REST shapes — confined) + `clickup/mapping.ts` (`clickUpTaskToPmoRecord` / `pmoTaskToClickUpBody`; unix-ms↔ISO boundary conversion). `pmoTaskToClickUpBody` must branch on operation: ClickUp v2 **create** uses `assignees:[ids]`, while **update** uses `assignees:{ add:[...], rem:[...] }`; accept the previous assignee id(s) so the mapper can emit the correct delta shape. No `org_id` ever in a mapped record. Re-verify the same two shapes again in the deferred live-smoke appendix once a real token exists.
 
 ### B3 — Status-map test (RED) — AC-CUA-034
 
@@ -401,13 +402,33 @@ if (routeTaskWrite() === 'external') {
 }
 // ...existing direct DAL unchanged below
 ```
-`updateTask`/`updateTaskStatus` → `dispatchTaskCommand('update'|'transition', { id, ...patch })`; `deleteTask` → `dispatchTaskCommand('delete', { id })` then `return`. **`addDependency`/`removeDependency` are NOT branched** (enhancements stay direct — FR-CUA-024). `listTasks`/`getTask` **unchanged** except C5.
+`updateTask`/`updateTaskStatus` → `dispatchTaskCommand('update'|'transition', { id, ...patch })`; `deleteTask` → `dispatchTaskCommand('delete', { id })` then `return`. **`addDependency`/`removeDependency` are NOT branched** (enhancements stay direct — FR-CUA-024). `listTasks`/`getTask` stay on the read-model and are tightened by C5/C5b; Gantt/S-curve remain transitively covered through `listTasks`.
 **Verify (GREEN):** `npx vitest run src/lib/repositories/task.external.test.ts` now passes both halves.
 
-### C5 — Filter tombstoned rows from active task reads — FR-CUA-080/021
+### C4b — Route My Tasks quick-status through the repository seam (RED→GREEN) — supports AC-CUA-001/060/061
 
-**File:** `tasks.ts` `listTasks` — add `.is('tombstoned_at', null)` to the query. Test (extend `tasks` DAL test or a new `tasks.tombstone.test.ts`): a tombstoned row is excluded from `listTasks`; for non-ClickUp orgs (no tombstoned rows) the result is byte-for-byte. **Byte-for-byte safe:** non-ClickUp `tombstoned_at` is always null.
-**Verify:** `npx vitest run` the touched test.
+**Files:** `pmo-portal/src/hooks/useMyTasks.routedStatus.test.tsx` (new) + `pmo-portal/src/hooks/useMyTasks.ts` (edit). Replace the inline `supabase.from('tasks').update({status})` at `useMyTasks.ts:92` with the repository helper `updateTaskStatus(id, status)` from `pmo-portal/src/lib/db/tasks.ts`, so the My Tasks quick-status inherits `routeTaskWrite()` + pending-push behavior instead of bypassing `dispatchTaskCommand`. The test sets the ownership cache to `{ tasks:'clickup' }`, triggers the hook mutation, and proves the routed helper/dispatch path is called; a PMO-owned control case proves the direct helper still works.
+**Verify:** `cd pmo-portal && npx vitest run src/hooks/useMyTasks.routedStatus.test.tsx`
+
+### C5 — Filter tombstoned rows from `listTasks` (RED→GREEN) — supports AC-CUA-002
+
+**Files:** `pmo-portal/src/lib/db/tasks.ts` `listTasks` + `pmo-portal/src/lib/db/tasks.tombstone.test.ts` (new/extend). Add `.is('tombstoned_at', null)` to the `listTasks` query and assert a tombstoned row is excluded from the active project task list; the same test notes Gantt/S-curve are transitively covered because both surfaces consume `listTasks` rather than a separate task query.
+**Verify:** `cd pmo-portal && npx vitest run src/lib/db/tasks.tombstone.test.ts`
+
+### C5b — Filter tombstoned rows from `getTask` (RED→GREEN) — supports AC-CUA-002
+
+**Files:** `pmo-portal/src/lib/db/tasks.ts` `getTask` + `pmo-portal/src/lib/db/tasks.tombstone.test.ts` (same file, distinct owning case). Add `.is('tombstoned_at', null)` at the `getTask` read path (`pmo-portal/src/lib/db/tasks.ts:88`) and assert `getTask(id)` returns `null` for a tombstoned mirror row while a live row still resolves normally.
+**Verify:** `cd pmo-portal && npx vitest run src/lib/db/tasks.tombstone.test.ts`
+
+### C5c — Filter tombstoned rows from `listMyTasks` (RED→GREEN) — supports AC-CUA-002
+
+**Files:** `pmo-portal/src/hooks/useMyTasks.ts` `listMyTasks` + `pmo-portal/src/hooks/useMyTasks.tombstone.test.tsx` (new). Add `.is('tombstoned_at', null)` to the cross-project assignee query at `useMyTasks.ts:36`, and assert the My Tasks list omits tombstoned task rows while keeping the existing assignee/project-name join behavior byte-for-byte for live rows.
+**Verify:** `cd pmo-portal && npx vitest run src/hooks/useMyTasks.tombstone.test.tsx`
+
+### C5d — Filter tombstoned rows from the agent `tasks` read path (RED→GREEN) — supports AC-CUA-002
+
+**Files:** `supabase/functions/agent-chat/readEntities.ts`, `supabase/functions/agent-chat/actions.ts`, and `supabase/functions/agent-chat/actions.queryEntity.test.ts` (new). Extend the entity catalogue so the `tasks` entry carries an internal hard filter `tombstoned_at is null`, and teach `runQueryEntity()` to append that filter before user filters are applied. The owning test queries `entity:'tasks'` and proves the builder excludes tombstoned rows, while a non-task entity control case proves no extra filter leaks onto other entities.
+**Verify:** `cd /Users/ariefsaid/Coding/PMO/.claude/worktrees/erpnext-backend-integration-a78790 && deno test supabase/functions/agent-chat/actions.queryEntity.test.ts`
 
 ### C6 — useOwnershipCacheSync hook + mount — FR-CUA-031, ADR-0056
 
@@ -419,16 +440,16 @@ if (routeTaskWrite() === 'external') {
 **File:** `pmo-portal/src/lib/adapterSeam/pendingPush.clickup.test.ts` (new). `AC-CUA-062` `classifyExternalError` on an `AppError('...', 'external-unreachable')` → `{ headline:'external system unreachable — try again', ... }`; on `commit-rejected` → headline carrying ClickUp's message. (Composes the shipped `pendingPush.ts` classifier — assert the ClickUp-classified error flows through unchanged.) No new impl if the P0 classifier already covers it; this test pins the contract for the ClickUp codes.
 **Verify:** `npx vitest run src/lib/adapterSeam/pendingPush.clickup.test.ts`
 
-### C8 — TaskPushBadge + board pending-push test (RED→GREEN) — AC-CUA-060
+### C8 — TaskPushBadge + real-surface board pending-push test (RED→GREEN) — AC-CUA-060
 
 **Files:** `pmo-portal/src/components/tasks/TaskPushBadge.tsx` (new — renders `pushing`/`pushed`/`push-failed` from a `PendingPushState`, DESIGN.md tokens) + extend `useTaskMutations` to expose a per-task `PendingPushState` derived via `pendingPushAfterWrite(routeTaskWrite(), outcome)` (ADR-0056).
-**Test:** `pmo-portal/src/components/tasks/TaskBoard.pendingPush.test.tsx` — `AC-CUA-060` with tasks externally-owned (cache set), a board card write shows `pushing`→`pushed`; a write with the dispatch rejecting shows `push-failed` and the card reverts to the prior read-model state.
-**Verify:** `npx vitest run src/components/tasks/TaskBoard.pendingPush.test.tsx`
+**Test:** `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.test.tsx` — render the **real** `pages/project-detail/tabs/TasksTab.tsx` surface (board mode, not a standalone `TaskBoard` import). `AC-CUA-060` with tasks externally-owned (cache set), a board card write shows `pushing`→`pushed`; a write with the dispatch rejecting shows `push-failed` and the card reverts to the prior read-model state.
+**Verify:** `cd pmo-portal && npx vitest run pages/project-detail/__tests__/TasksTab.pendingPush.test.tsx`
 
-### C9 — Surfaces pending-push test (RED→GREEN) — AC-CUA-061
+### C9 — PMO-owned surfaces stay badge-free test (RED→GREEN) — AC-CUA-061
 
-**File:** `pmo-portal/src/components/tasks/TaskSurfaces.pendingPush.test.tsx` — `AC-CUA-061` with tasks **PMO-owned** (cache `pmo`), a write on board / list / detail shows **no** `pushing`/`pushed`/`push-failed` (byte-for-byte). Wire `TaskPushBadge` into the list + detail surfaces of `pages/project-detail/tabs/TasksTab.tsx` (render only when `routeTaskWrite()==='external'`).
-**Verify:** `npx vitest run src/components/tasks/TaskSurfaces.pendingPush.test.tsx`
+**File:** `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.visibility.test.tsx` — `AC-CUA-061` with tasks **PMO-owned** (cache `pmo`), writes on the real list / board / edit-modal detail surfaces show **no** `pushing`/`pushed`/`push-failed` badge (byte-for-byte). Wire `TaskPushBadge` into `pages/project-detail/tabs/TasksTab.tsx` only when `routeTaskWrite()==='external'`.
+**Verify:** `cd pmo-portal && npx vitest run pages/project-detail/__tests__/TasksTab.pendingPush.visibility.test.tsx`
 
 ### C10 — Write-through e2e (RED→GREEN) — AC-CUA-090
 
@@ -491,19 +512,19 @@ Append to `webhookApply.test.ts`:
 - `AC-CUA-071` a `taskUpdated` webhook → native fields update, dependency/milestone enhancements intact.
 **Verify:** `npx vitest run src/lib/adapterSeam/clickup/deletion.test.ts src/lib/adapterSeam/clickup/webhookApply.test.ts`
 
-### D7 — Rollup-over-mirror test (RED→GREEN) — AC-CUA-072
+### D7 — Rollup-over-mirror test + tombstoned-edge hiding (RED→GREEN) — AC-CUA-072
 
-**File:** `pmo-portal/src/lib/rollup/mirroredTasks.test.ts` (new). `AC-CUA-072` milestone-progress/rollup computed over a project whose tasks are mirrored (with weights/milestones, tombstoned rows excluded) **equals** the computation over an equivalent PMO-owned project — the rollup reads the read-model, ownership-agnostic (FR-CUA-082/021). If the rollup already reads only the read-model, this test pins that invariant + the tombstone-exclusion; adjust the rollup query to exclude `tombstoned_at is not null` if needed (byte-for-byte for non-ClickUp orgs).
-**Verify:** `npx vitest run src/lib/rollup/mirroredTasks.test.ts`
+**Files:** `pmo-portal/src/lib/rollup/mirroredTasks.test.ts` (new) + `pmo-portal/pages/project-detail/__tests__/ProjectGantt.tombstones.test.tsx` (new). `AC-CUA-072` milestone-progress/rollup computed over a project whose tasks are mirrored (with weights/milestones, tombstoned rows excluded) **equals** the computation over an equivalent PMO-owned project — the rollup reads the read-model, ownership-agnostic (FR-CUA-082/021). Add the UI counterpart: dependency edges may legitimately survive in `task_dependencies`, so Gantt/board-style dependency rendering must hide any edge whose source or target task is tombstoned; assert that no edge is rendered when either endpoint is tombstoned. If the rollup or edge selector already reads only the active read-model, this test pins that invariant (byte-for-byte for non-ClickUp orgs).
+**Verify:** `cd pmo-portal && npx vitest run src/lib/rollup/mirroredTasks.test.ts pages/project-detail/__tests__/ProjectGantt.tombstones.test.tsx`
 
 ### D8 — clickup-webhook edge function — FR-CUA-040/041/043
 
 **Files:** `supabase/functions/clickup-webhook/index.ts` + `deno.json` (imports map mirroring `adapter-dispatch/deno.json`) + `deno.lock`. Handler: read raw body → `verifyClickUpSignature(raw, header, CLICKUP_WEBHOOK_SECRET)` → `401` on fail (no side effect) → parse → `applyWebhookEvent` via a service client → `200`. **Thin wiring only** (apply logic is unit-tested in `webhookApply.ts`; this file is integration-only, guarded by deno check + boot-smoke).
 **Verify:** `deno check --config supabase/functions/clickup-webhook/deno.json --lock supabase/functions/clickup-webhook/deno.lock --frozen supabase/functions/clickup-webhook/index.ts` + `deno run --allow-all --config supabase/functions/clickup-webhook/deno.json scripts/deno-boot-smoke.ts supabase/functions/clickup-webhook/index.ts` → `BOOT_OK`.
 
-### D9 — clickup-sweep edge function + cron registration (idle-until-configured) — FR-CUA-045/048, OQ-2
+### D9 — clickup-sweep edge function + cron registration (idle-until-configured) — FR-CUA-045/048
 
-**Files:** `supabase/functions/clickup-sweep/index.ts` (+ `deno.json`/`deno.lock`) — service-role-bearer-guarded (mirrors `agent-dispatch`), iterates employing orgs → `runSweep`. `supabase/migrations/0092_clickup_sweep_cron.sql` — register a conservative `pg_cron` job (sized within the ~100 req/min budget) that `net.http_post`s `clickup-sweep`; **registered-but-idle** until the dispatch GUCs are set (same pattern as agent automations mig 0048 — note this explicitly). Reversible (drop the cron job).
+**Files:** `supabase/functions/clickup-sweep/index.ts` (+ `deno.json`/`deno.lock`) — service-role-bearer-guarded (mirrors `agent-dispatch`), iterates employing orgs → `runSweep`. `supabase/migrations/0092_clickup_sweep_cron.sql` — register a conservative `pg_cron` job (sized within the ~100 req/min budget) that `net.http_post`s `clickup-sweep`; **registered-but-idle** until the dispatch GUCs are set, exactly following migration 0048's precedent (**CONFIRMED** by Director ruling). Reversible (drop the cron job).
 **Verify:** deno check + boot-smoke for `clickup-sweep`; `scripts/with-db-lock.sh supabase db reset` applies 0092 cleanly.
 
 ### D10 — config.toml + CI wiring — NFR-CUA-SEC-002
@@ -579,12 +600,12 @@ the required US-hosted data-locality note (NFR-CUA-LOCALITY-001).
 
 ### F2 — IntegrationsView P1 rows + data-locality note (RED→GREEN) — NFR-CUA-LOCALITY-001
 
-**Files:** `pmo-portal/src/components/integrations/IntegrationsView.tsx` (edit — render `tierLabel`/`domainLabel` instead of raw slugs; for the `clickup` tier render the note "ClickUp is US-hosted SaaS — task-domain data resides with ClickUp") + `IntegrationsView.test.tsx` (extend — asserts the ClickUp tier renders the label + the locality note).
+**Files:** `pmo-portal/src/components/integrations/IntegrationsView.tsx` (edit — render `tierLabel`/`domainLabel` instead of raw slugs; for the `clickup` tier render the single copy line "ClickUp is US-hosted SaaS — task-domain data resides with ClickUp") + `IntegrationsView.test.tsx` (extend — asserts the ClickUp tier renders the label + the locality note).
 **Verify:** `npx vitest run src/components/integrations/IntegrationsView.test.tsx`
 
-### F3 — Client-facing doc note — NFR-CUA-LOCALITY-001 (doc-review NFR)
+### F3 — Legal note home for the data-locality disclosure — NFR-CUA-LOCALITY-001 (doc-review NFR)
 
-**File:** append the US-hosted data-locality asymmetry to the client-facing integrations material (the doc the charter designates; builder confirms — likely a section in `docs/` product material). Doc-review only, no runtime test.
+**File:** `docs/legal/2026-07-10-clickup-data-locality-note.md` (new short note). Record the same US-hosted data-locality asymmetry there so the client-facing legal/docs home matches the Integrations view copy per Director ruling. Doc-review only, no runtime test.
 
 ### F4 — Slice-F gate — NFR-CUA-LOCALITY-001, AC-CUA-002
 
@@ -622,8 +643,8 @@ the required US-hosted data-locality note (NFR-CUA-LOCALITY-001).
 | AC-CUA-051 | E · E2 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-052 | E · E2 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-053 | E · E3 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
-| AC-CUA-060 | C · C8 | Vitest (unit, RTL) | `pmo-portal/src/components/tasks/TaskBoard.pendingPush.test.tsx` |
-| AC-CUA-061 | C · C9 | Vitest (unit, RTL) | `pmo-portal/src/components/tasks/TaskSurfaces.pendingPush.test.tsx` |
+| AC-CUA-060 | C · C8 | Vitest (unit, RTL) | `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.test.tsx` |
+| AC-CUA-061 | C · C9 | Vitest (unit, RTL) | `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.visibility.test.tsx` |
 | AC-CUA-062 | C · C7 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.clickup.test.ts` |
 | AC-CUA-070 | D · D6 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/deletion.test.ts` |
 | AC-CUA-071 | D · D6 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
@@ -636,14 +657,23 @@ Structural NFRs (CONTRACT-001 / SEC-003 / PERF-002) are proven transitively (con
 confinement grep + cached-map short-circuit C1/C2) and reviewed at the gate. NFR-CUA-LOCALITY-001 is a
 doc-review NFR (F2/F3). NFR-CUA-PERF-001/003 are exercised by AC-CUA-080 (B7).
 
+**Supplemental regression/support tests added by this fix round (non-owning; they reinforce AC-CUA-002 and the shipped invariants without changing AC ownership):**
+- `pmo-portal/src/hooks/useMyTasks.routedStatus.test.tsx` — C4b proves My Tasks quick-status uses `updateTaskStatus()`/routing instead of an inline Supabase write.
+- `pmo-portal/src/lib/db/tasks.tombstone.test.ts` — C5/C5b covers `listTasks` + `getTask` tombstone filtering.
+- `pmo-portal/src/hooks/useMyTasks.tombstone.test.tsx` — C5c covers the My Tasks tombstone filter.
+- `supabase/functions/agent-chat/actions.queryEntity.test.ts` — C5d covers the agent `tasks` read tombstone filter.
+- `pmo-portal/pages/project-detail/__tests__/ProjectGantt.tombstones.test.tsx` — D7 covers hidden dependency edges when either endpoint is tombstoned.
+
 ---
 
 ## Secrets, config & CI surface (name every knob)
 
-**Per-client ClickUp secrets (1Password vault `AS` → Supabase function secrets; NEVER in DB/client/logs, env-file-privacy rule):**
-- ClickUp API token: op item (suggest) `clickup-api-token` field `credential` → Supabase function secret **`CLICKUP_API_TOKEN`** (read by `adapter-dispatch`, `clickup-sweep`, `clickup-onboard`). Set via `supabase secrets set CLICKUP_API_TOKEN=$(scripts/op-get.sh clickup-api-token AS credential)`.
-- ClickUp webhook secret: op item `clickup-webhook-secret` field `credential` → function secret **`CLICKUP_WEBHOOK_SECRET`** (read by `clickup-webhook` only; the HMAC trust boundary, FR-CUA-041).
-- Mocked-only in P1 (owner intake): tests inject `fetch`/secret; no live token required. Live-smoke Appendix A deferred until a real token exists.
+**Deployment-scoped ClickUp secrets (1Password vault `AS` → Supabase function secrets; NEVER in DB/client/logs, env-file-privacy rule):**
+- P1 simplifies to **one `CLICKUP_API_TOKEN` + one `CLICKUP_WEBHOOK_SECRET` per deployment**. Because each client has its own Supabase project today (ADR-0047 topology), this is already per-client in practice. The spec's FR-CUA-041 "per-org secret" therefore resolves to a deployment-scoped secret in P1; true per-org secret selection is deferred until multiple employing orgs share one deployment.
+- 1Password items are **`clickup-api-token`** + **`clickup-webhook-secret`** in vault `AS` today; when real clients flip, add a per-client suffix if needed by ops convention.
+- ClickUp API token: op item `clickup-api-token` field `credential` → Supabase function secret **`CLICKUP_API_TOKEN`** (read by `adapter-dispatch`, `clickup-sweep`, `clickup-onboard`). Set via `supabase secrets set CLICKUP_API_TOKEN=$(scripts/op-get.sh clickup-api-token AS credential)`.
+- ClickUp webhook secret: op item `clickup-webhook-secret` field `credential` → function secret **`CLICKUP_WEBHOOK_SECRET`** (read by `clickup-webhook` only; the HMAC trust boundary for FR-CUA-041 under the P1 deployment-scoped topology).
+- Mocked-only in P1 (owner intake): tests inject `fetch`/secret; no live token required. Re-run the mapper/create-vs-update assignee live-smoke appendix once a real token exists.
 
 **Webhook URL / config.toml:**
 - Ingress URL: `https://<project-ref>.supabase.co/functions/v1/clickup-webhook` (registered per ClickUp workspace at provisioning — operational, out of P1's test surface).
@@ -667,8 +697,6 @@ All DB-driving commands are wrapped in `scripts/with-db-lock.sh` (shared local D
 
 ---
 
-## Open questions for the Director (none block the build)
+## Open questions for the Director
 
-- **OQ-A (config):** confirm the 1Password vault-`AS` item names for `CLICKUP_API_TOKEN` / `CLICKUP_WEBHOOK_SECRET` (suggested above). Mocked-only P1 does not need real values; naming is operational.
-- **OQ-B (sweep substrate, from spec OQ-2):** `pg_cron` (D9, mirrors agent automations) vs an external scheduler. Plan assumes `pg_cron` **registered-but-idle** until GUCs are set — same as mig 0048. Confirm this is acceptable for P1 (the sweep's ACs are proven at the pure `sweep.ts` unit layer regardless of substrate).
-- **OQ-C (F3):** which client-facing doc is the canonical home for the US-hosted data-locality note (NFR-CUA-LOCALITY-001) — the charter says "product/client-facing material." Builder needs the target file.
+None. The fix-round rulings resolved the remaining config/scheduler/doc-location questions: vault `AS` item names are `clickup-api-token` + `clickup-webhook-secret`, the sweep stays `pg_cron` registered-but-idle per migration 0048, and the data-locality note lives in `docs/legal/2026-07-10-clickup-data-locality-note.md` plus the Integrations view copy.
