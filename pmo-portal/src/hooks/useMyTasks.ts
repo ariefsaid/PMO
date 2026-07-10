@@ -29,13 +29,16 @@ export interface MyTask {
  * Fetch all tasks assigned to the signed-in user across projects.
  * org_id is NEVER sent — RLS (tasks_select) scopes to the org. The assignee_id
  * filter is applied client-side after the RLS-scoped result set (no new policy needed).
- * The project name is joined via `projects(name)` in the select.
+ * The project name is joined via `projects(name)` in the select. Excludes tombstoned rows
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5c) — a ClickUp-native delete (C3) must not
+ * remain in the cross-project My Tasks list either.
  */
 async function listMyTasks(userId: string): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from('tasks')
     .select('id, name, status, assignee_id, project_id, start_date, end_date, project:projects!tasks_project_id_fkey(name)')
     .eq('assignee_id', userId)
+    .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
   if (error) throw toAppError(error);
   // Map the joined `project` shape onto `project_name`.
