@@ -79,43 +79,59 @@ it('emits a caller-supplied provider policy verbatim in the request body', async
   expect(body.provider).toEqual(provider);
 });
 
-it('providerPolicyFromEnv defaults to the privacy-first no-train pin', () => {
+const TIER = ['deepinfra', 'digitalocean', 'gmicloud', 'baidu', 'streamlake', 'alibaba', 'deepseek'];
+
+it('providerPolicyFromEnv defaults to the no-train fallback tier, only-restricted', () => {
   expect(providerPolicyFromEnv({})).toEqual({
     allow_fallbacks: true,
-    data_collection: 'deny',
-    order: ['deepinfra', 'digitalocean'],
+    order: TIER,
+    only: TIER,
   });
 });
 
-it('providerPolicyFromEnv honors an explicit order, sort, fallbacks, and training override', () => {
-  // Explicit order pin (single provider), fallbacks off.
+it('providerPolicyFromEnv honors explicit order/only/ignore/sort/fallbacks/data_collection', () => {
+  // Explicit order pin (single provider), fallbacks off — the safety allow-list still defaults ON.
   expect(
     providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: 'deepinfra', AGENT_PROVIDER_ALLOW_FALLBACKS: 'false' }),
-  ).toEqual({ allow_fallbacks: false, data_collection: 'deny', order: ['deepinfra'] });
+  ).toEqual({ allow_fallbacks: false, order: ['deepinfra'], only: TIER });
 
-  // Pure throughput routing within no-train providers (no order pin when a sort is chosen).
+  // Sort mode drops the default order pin, but the safety allow-list stays ON.
   expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'throughput' })).toEqual({
     allow_fallbacks: true,
-    data_collection: 'deny',
+    only: TIER,
     sort: 'throughput',
   });
 
-  // Owner explicitly relaxes the privacy constraint (opt back into training providers).
+  // Explicit only + ignore.
   expect(
-    providerPolicyFromEnv({ AGENT_PROVIDER_ALLOW_TRAINING: 'true', AGENT_PROVIDER_SORT: 'throughput' }),
-  ).toEqual({ allow_fallbacks: true, data_collection: 'allow', sort: 'throughput' });
+    providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: 'deepinfra,gmicloud', AGENT_PROVIDER_IGNORE: 'deepseek' }),
+  ).toEqual({ allow_fallbacks: true, order: TIER, only: ['deepinfra', 'gmicloud'], ignore: ['deepseek'] });
 
-  // Empty AGENT_PROVIDER_ORDER intentionally drops the pin (pure data_collection routing).
-  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: '' })).toEqual({
+  // Empty AGENT_PROVIDER_ONLY explicitly DISABLES the allow-list restriction.
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '' })).toEqual({
     allow_fallbacks: true,
-    data_collection: 'deny',
+    order: TIER,
   });
 
-  // An unrecognized sort value is ignored (falls back to the default order pin).
-  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'bogus' })).toEqual({
+  // Opt into the stricter green-only (no-retention) filter.
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_DATA_COLLECTION: 'deny' })).toEqual({
     allow_fallbacks: true,
     data_collection: 'deny',
-    order: ['deepinfra', 'digitalocean'],
+    order: TIER,
+    only: TIER,
+  });
+
+  // Empty AGENT_PROVIDER_ORDER drops the preference order (allow-list still applies).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: '' })).toEqual({
+    allow_fallbacks: true,
+    only: TIER,
+  });
+
+  // An unrecognized sort value is ignored (falls back to the default order).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'bogus' })).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
   });
 });
 
