@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { clickUpListChangesSinceWatermark, clickUpGetByExternalId, type ClickUpReadDeps } from './reads.ts';
+import {
+  clickUpListChangesSinceWatermark,
+  clickUpListRawChangesSinceWatermark,
+  clickUpGetByExternalId,
+  type ClickUpReadDeps,
+} from './reads.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
 
@@ -63,6 +68,37 @@ describe('AC-CUA-035 listChangesSinceWatermark pages through changes and advance
     });
     await clickUpListChangesSinceWatermark('tasks', null, baseDeps(fetchImpl as unknown as typeof fetch));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clickUpListRawChangesSinceWatermark — raw tasks + per-row source-mod (sweep source, FR-CUA-049)', () => {
+  it('returns the raw ClickUp tasks (with date_updated) + the max-date_updated nextCursor', async () => {
+    let call = 0;
+    const fetchImpl = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response(
+          JSON.stringify({ tasks: [task('cu-1', '1500'), task('cu-2', '1800')], last_page: false }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ tasks: [task('cu-3', '2000')], last_page: true }), { status: 200 });
+    });
+    const page = await clickUpListRawChangesSinceWatermark('1000', baseDeps(fetchImpl as unknown as typeof fetch));
+    expect(page.changes.map((t) => t.id)).toEqual(['cu-1', 'cu-2', 'cu-3']);
+    // date_updated is preserved per row (the sweep needs it for the source-mod guard).
+    expect(page.changes.map((t) => t.date_updated)).toEqual(['1500', '1800', '2000']);
+    expect(page.nextCursor).toBe('2000');
+  });
+
+  it('a null cursor (first sweep) lists from the start', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).not.toContain('date_updated_gt');
+      return new Response(JSON.stringify({ tasks: [task('cu-1', '500')], last_page: true }), { status: 200 });
+    });
+    const page = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl as unknown as typeof fetch));
+    expect(page.changes).toHaveLength(1);
+    expect(page.nextCursor).toBe('500');
   });
 });
 
