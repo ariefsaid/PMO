@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import { formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
 // ── Stub the milestone read (the S-curve's only data source) ─────────────────
 const milestoneState = {
@@ -35,6 +36,10 @@ let capturedYAxisWidth: number | undefined;
 // Line props captured from LineChart children (AC-SCA-012).
 interface CapturedLine { dataKey: string; strokeDasharray: string | undefined }
 let capturedLines: CapturedLine[] = [];
+// Tooltip's labelFormatter/formatter, captured to verify the recharts-signature
+// coercion (Number(label)/Number(value)) still produces the correct display string.
+let capturedTooltipLabelFormatter: ((label: unknown) => React.ReactNode) | undefined;
+let capturedTooltipFormatter: ((value: unknown) => React.ReactNode) | undefined;
 
 /** Extract a display name from any React element type (function, memo object, or string). */
 function getTypeName(type: unknown): string | undefined {
@@ -76,6 +81,14 @@ vi.mock('recharts', async () => {
               dataKey: p.dataKey ?? '',
               strokeDasharray: p.strokeDasharray,
             });
+          }
+          if (name === 'Tooltip') {
+            const p = child.props as {
+              labelFormatter?: (label: unknown) => React.ReactNode;
+              formatter?: (value: unknown) => React.ReactNode;
+            };
+            capturedTooltipLabelFormatter = p.labelFormatter;
+            capturedTooltipFormatter = p.formatter;
           }
         }
       });
@@ -154,6 +167,8 @@ describe('ProjectSCurve', () => {
     capturedLineChartMargin = undefined;
     capturedYAxisWidth = undefined;
     capturedLines = [];
+    capturedTooltipLabelFormatter = undefined;
+    capturedTooltipFormatter = undefined;
   });
 
   it('AC-SC-005: ready with dated milestones renders the chart figure with a Planned/Actual two-item text legend', () => {
@@ -234,6 +249,19 @@ describe('ProjectSCurve', () => {
     // recharts wraps YAxis in React.memo; getTypeName() handles memo object displayName.
     expect(capturedYAxisWidth).toBeDefined();
     expect(capturedYAxisWidth!).toBeGreaterThanOrEqual(44);
+  });
+
+  it('Tooltip labelFormatter/formatter still produce the correct display string for numeric axis values (recharts wide-signature coercion)', () => {
+    milestoneState.data = dated;
+    render$();
+
+    expect(capturedTooltipLabelFormatter).toBeDefined();
+    expect(capturedTooltipFormatter).toBeDefined();
+    // recharts hands these numeric-axis formatters ReactNode-typed values that are
+    // actually numbers at runtime; Number(...) recovers the number for formatting.
+    const epochMs = Date.UTC(2026, 0, 15);
+    expect(capturedTooltipLabelFormatter!(epochMs)).toBe(formatSCurveAxisDate(epochMs));
+    expect(capturedTooltipFormatter!(42)).toBe('42%');
   });
 
   it('AC-SCA-012: with ≥2 Done tasks at different dates, renders two Lines — one dashed (planned) and one solid (actual, dataKey=actual)', () => {

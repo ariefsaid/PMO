@@ -2992,13 +2992,15 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      // Supabase codegen omits `| null` on nullable scalar RPC params; widened to match the SQL
+      // (these params accept null).
       capture_vendor_invoice: {
         Args: {
-          p_amount?: number
+          p_amount?: number | null
           p_invoice_date: string
-          p_notes?: string
+          p_notes?: string | null
           p_procurement_id: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
@@ -3027,15 +3029,15 @@ export type Database = {
       committed_procurement_statuses: { Args: never; Returns: string[] }
       create_payment: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
-          p_invoice_id: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
+          p_invoice_id: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -3061,13 +3063,13 @@ export type Database = {
       }
       create_procurement_invoice: {
         Args: {
-          p_amount?: number
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount?: number | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_invoice_date: string
           p_procurement_id: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
@@ -3094,9 +3096,9 @@ export type Database = {
       }
       create_procurement_quotation: {
         Args: {
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
           p_received_date: string
           p_total_amount: number
@@ -3128,12 +3130,12 @@ export type Database = {
       }
       create_procurement_receipt: {
         Args: {
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
           p_receipt_date: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Returns: {
@@ -3159,14 +3161,14 @@ export type Database = {
       }
       create_purchase_order: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -3191,14 +3193,14 @@ export type Database = {
       }
       create_purchase_request: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -3223,14 +3225,14 @@ export type Database = {
       }
       create_rfq: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -3294,7 +3296,10 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
-      get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
+      get_win_rate: {
+        Args: { p_from?: string | null; p_to?: string | null }
+        Returns: Json
+      }
       is_active_member: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       log_audit: {
@@ -3360,7 +3365,10 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
+          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
+          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
+          margin_usd: number | null
           month: string
           org_id: string
           owner_id: string
@@ -3405,7 +3413,10 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
+          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
+          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
+          margin_usd: number | null
           month: string
           owner_id: string
           prompt_tokens: number
@@ -3422,7 +3433,7 @@ export type Database = {
       save_timesheet_week: {
         Args: {
           p_delete_ids?: string[]
-          p_timesheet_id: string
+          p_timesheet_id: string | null
           p_upserts?: Json
           p_week_start_date: string
         }
@@ -3465,15 +3476,15 @@ export type Database = {
       transition_procurement: {
         Args: {
           p_id: string
-          p_notes?: string
+          p_notes?: string | null
           p_to: Database["public"]["Enums"]["procurement_status"]
         }
         Returns: undefined
       }
       transition_project: {
         Args: {
-          p_contract_date?: string
-          p_customer_contract_ref?: string
+          p_contract_date?: string | null
+          p_customer_contract_ref?: string | null
           p_id: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
@@ -3481,7 +3492,7 @@ export type Database = {
       }
       transition_timesheet: {
         Args: {
-          p_notes?: string
+          p_notes?: string | null
           p_timesheet_id: string
           p_to: Database["public"]["Enums"]["timesheet_status"]
         }

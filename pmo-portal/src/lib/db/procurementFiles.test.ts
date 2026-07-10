@@ -38,7 +38,7 @@ const h = vi.hoisted(() => {
   });
 
   // Storage mock — records the bucket + the createSignedUploadUrl path.
-  const storageResult = {
+  const storageResult: { value: { data: { signedUrl: string; path: string } | null; error: unknown } } = {
     value: { data: { signedUrl: 'https://signed/url', path: 'PATH' }, error: null as unknown },
   };
   const storageCalls = {
@@ -47,7 +47,9 @@ const h = vi.hoisted(() => {
     createSignedUrl: [] as unknown[],
     remove: [] as unknown[],
   };
-  const dlResult = { value: { data: { signedUrl: 'https://dl/url' }, error: null as unknown } };
+  const dlResult: { value: { data: { signedUrl: string } | null; error: unknown } } = {
+    value: { data: { signedUrl: 'https://dl/url' }, error: null as unknown },
+  };
   const storageBuilder = {
     createSignedUploadUrl: vi.fn((path: string) => {
       storageCalls.createSignedUploadUrl.push(path);
