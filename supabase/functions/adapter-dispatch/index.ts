@@ -1,5 +1,5 @@
 /**
- * adapter-dispatch — Deno Edge Function entry point (ADR-0055 P0, FR-EAS-023/033/042).
+ * adapter-dispatch — Deno Edge Function entry point (ADR-0055 P0/P1, FR-EAS-023/033/042, FR-CUA-001).
  *
  * Thin wiring ONLY — the ordered write-through orchestration lives in the pure
  * `dispatchExternallyOwnedWrite` (pmo-portal/src/lib/adapterSeam/dispatch.ts), unit-tested under
@@ -16,20 +16,108 @@
  * must NEVER receive org_id (FR-EAS-024): org context is bound HERE, above the adapter, and used
  * only for the machine-write helpers (read-model upsert + external_refs record), never passed
  * into `adapter.commit()`.
+ *
+ * P1 (ClickUp, Slice B): the `tasks` domain resolves its per-project external container binding +
+ * status/member maps from `external_project_bindings` (service role) at request time, so its factory is async and
+ * receives the caller's org + the parsed command — unlike the P0 `reference` factory (no args). The
+ * `writeReadModel` helper below branches per `command.domain`: `tasks` upserts/updates the `tasks`
+ * read-model row directly (mirroring ClickUp's completion date, FR-CUA-030 Finding 6); every other
+ * domain keeps the P0 `external_reference_items` behavior byte-for-byte.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
+import { createClickUpAdapter, CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
+import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
+import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
+import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
-// P0 adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the ONLY
-// entry in P0 (ADR-0055 §"out of scope" — real ClickUp/ERPNext/Odoo adapters are P1+).
-const ADAPTER_REGISTRY: Record<string, () => ReturnType<typeof createReferenceAdapter>> = {
-  [REFERENCE_DOMAIN]: () => createReferenceAdapter('commit-success'),
+/** The adapter-select context: the caller's org, the parsed command, and the service-role client for
+ * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
+interface AdapterSelectContext {
+  orgId: string;
+  command: AdapterCommand;
+  serviceClient: SupabaseClient;
+}
+
+type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
+
+// Shared across invocations of this isolate (module scope) — the token bucket's budget is real
+// only if it persists across requests, not recreated per-call (NFR-CUA-PERF-003).
+const clickUpRateLimiter = new ClickUpRateLimiter();
+
+async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  const projectId = (ctx.command.record as { project_id?: string }).project_id;
+  if (!projectId) {
+    throw new AppError('project_id is required to resolve the ClickUp binding for a task command', 'BAD_REQUEST');
+  }
+
+  const { data: binding, error: bindingError } = await ctx.serviceClient
+    .from('external_project_bindings')
+    .select('external_container_id, config')
+    .eq('org_id', ctx.orgId)
+    .eq('project_id', projectId)
+    .eq('external_tier', 'clickup')
+    .maybeSingle();
+  if (bindingError || !binding) {
+    throw new AppError('no external binding configured for this project', bindingError?.code ?? 'BINDING_NOT_FOUND');
+  }
+
+  const config = ((binding as { config: unknown }).config ?? {}) as {
+    statusMap?: ClickUpStatusMap;
+    memberMap?: ClickUpMemberMap;
+  };
+  const statusMap: ClickUpStatusMap = config.statusMap ?? {
+    pmoToClickUp: {},
+    clickUpToPmo: {},
+    defaultPmoStatus: 'To Do',
+  };
+  const memberMap: ClickUpMemberMap = config.memberMap ?? { pmoToClickUp: {}, clickUpToPmo: {} };
+  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
+
+  return createClickUpAdapter({
+    fetchImpl: fetch,
+    token,
+    listId: (binding as { external_container_id: string }).external_container_id,
+    statusMap,
+    memberMap,
+    rateLimiter: clickUpRateLimiter,
+    resolveExternalId: async (pmoRecordId: string) => {
+      const { data, error } = await ctx.serviceClient
+        .from('external_refs')
+        .select('external_record_id')
+        .eq('org_id', ctx.orgId)
+        .eq('domain', 'tasks')
+        .eq('pmo_record_id', pmoRecordId)
+        .single();
+      if (error || !data) throw new AppError('no ClickUp mapping recorded for this task', error?.code ?? 'REF_NOT_FOUND');
+      return (data as { external_record_id: string }).external_record_id;
+    },
+    resolvePreviousAssigneeIds: async (pmoRecordId: string) => {
+      const { data } = await ctx.serviceClient
+        .from('tasks')
+        .select('assignee_id')
+        .eq('org_id', ctx.orgId)
+        .eq('id', pmoRecordId)
+        .maybeSingle();
+      const pmoAssigneeId = (data as { assignee_id: string | null } | null)?.assignee_id;
+      if (!pmoAssigneeId) return [];
+      const clickUpId = memberMap.pmoToClickUp[pmoAssigneeId];
+      return clickUpId !== undefined ? [clickUpId] : [];
+    },
+  });
+}
+
+// Adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the P0 synthetic
+// domain (ADR-0055 §"out of scope"); 'tasks' is ClickUp's P1 domain (ADR-0055 P1, FR-CUA-001).
+const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
+  [REFERENCE_DOMAIN]: async () => createReferenceAdapter('commit-success'),
+  [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
 };
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
@@ -115,7 +203,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // ── 3. Adapter select (AC-EAS-033 step 2) — the P0 registry (only 'reference'). ──
+  // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
+  // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
+  // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // ── 3. Adapter select (AC-EAS-033 step 2). ──
   const adapterFactory = ADAPTER_REGISTRY[command.domain];
   if (!adapterFactory) {
     return new Response(
@@ -123,12 +216,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       { status: 400, headers },
     );
   }
-  const adapter = adapterFactory();
 
-  // service_role client — used ONLY for the machine-write helpers below (read-model upsert +
-  // external_refs record). Never used for adapter.commit() — org_id never crosses into the
-  // adapter (AC-EAS-023).
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  let adapter: Adapter;
+  try {
+    adapter = await adapterFactory({ orgId, command, serviceClient });
+  } catch (err) {
+    const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
+    return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
+      status: 400,
+      headers,
+    });
+  }
 
   try {
     // ── 4/5/6. command invoke → read-model update → external_refs record → return
@@ -137,7 +235,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
       adapter,
       command,
       writeReadModel: async (canonical: PmoRecord) => {
-        // P0: reference read-model only; P1 routes per domain.
+        if (command.domain === CLICKUP_TASKS_DOMAIN) {
+          // P1: the tasks read-model row lives in `tasks` itself, not `external_reference_items`.
+          const patch = {
+            name: canonical.name,
+            status: canonical.status,
+            assignee_id: canonical.assignee_id ?? null,
+            start_date: canonical.start_date ?? null,
+            end_date: canonical.end_date ?? null,
+            completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+            source_updated_at: new Date().toISOString(),
+          };
+          if (command.operation === 'create') {
+            const projectId = (command.record as { project_id?: string }).project_id;
+            if (!projectId) throw new AppError('project_id is required to mirror a created task', 'BAD_REQUEST');
+            const { error } = await serviceClient
+              .from('tasks')
+              .insert({ id: canonical.id, org_id: orgId, project_id: projectId, ...patch });
+            if (error) throw new AppError(error.message, error.code);
+            return;
+          }
+          const { error } = await serviceClient.from('tasks').update(patch).eq('org_id', orgId).eq('id', canonical.id);
+          if (error) throw new AppError(error.message, error.code);
+          return;
+        }
+        // P0: reference read-model only.
         const { error } = await serviceClient
           .from('external_reference_items')
           .upsert(
