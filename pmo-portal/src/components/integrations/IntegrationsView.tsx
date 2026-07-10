@@ -24,7 +24,11 @@ export const IntegrationsView: React.FC = () => {
 
   return (
     <div>
-      {isPending && <ListState variant="loading" rows={3} />}
+      {isPending && (
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={3} />
+        </div>
+      )}
       {isError && (
         <ListState
           variant="error"
@@ -37,7 +41,7 @@ export const IntegrationsView: React.FC = () => {
           variant="empty"
           icon="plug"
           title="No external systems employed"
-          sub="Every domain is owned by this PMO workspace. Employing an external system (an ERP or task platform) flips the domains it natively owns to it as source of truth — provisioned by your platform operator."
+          sub="Employing an external system (an ERP or task platform) makes it the source of truth for the domains it owns. Your platform operator sets this up."
         />
       )}
       {rows.length > 0 && (
@@ -46,7 +50,7 @@ export const IntegrationsView: React.FC = () => {
             <Card key={tier} className="p-4">
               <div className="flex items-center gap-2">
                 <Icon name="plug" />
-                <h3 className="text-foreground font-semibold">{tier}</h3>
+                <h3 className="text-[15px] text-foreground font-semibold">{tier}</h3>
               </div>
               <ul className="mt-2.5 flex flex-wrap gap-1.5">
                 {byTier[tier].map((d) => (

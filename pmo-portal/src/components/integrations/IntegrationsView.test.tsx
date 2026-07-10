@@ -26,6 +26,14 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('M1 the loading skeleton renders inside the framed container (sibling-section idiom)', () => {
+    // never-resolving query mock: isPending stays true, exercising the loading branch only.
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: undefined, isPending: true, isError: false } as never);
+    wrap(<IntegrationsView />);
+    const skeleton = screen.getByTestId('liststate-loading');
+    expect(skeleton.parentElement).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card');
+  });
+
   it('AC-EAS-015 (b) an employed tier owning {reference, tasks} lists the tier + domains, no write affordance', () => {
     const rows: ExternalDomainOwnershipRow[] = [
       { id: '1', orgId: 'org-1', externalTier: 'reference', domain: 'reference' },
