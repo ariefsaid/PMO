@@ -1,8 +1,16 @@
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { useAuth } from '@/src/auth/useAuth';
+import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import {
+  IDLE_PENDING_PUSH,
+  beginPush,
+  pendingPushAfterWrite,
+  type PendingPushState,
+} from '@/src/lib/adapterSeam/pendingPush';
 
 /**
  * Org-scoped, per-project Tasks list over the repository seam (ADR-0017). queryKey includes
@@ -64,6 +72,29 @@ export function useTaskMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['projects-delivery'] });
   };
 
+  // ADR-0056 / AC-CUA-060 — the per-task pending-push state for externally-owned writes. Keyed by
+  // task id; only ever populated when `routeTaskWrite() === 'external'` (PMO-owned writes stay idle
+  // → no badge — AC-CUA-061). `pushed` is a transient confirmation that auto-clears; `push-failed`
+  // persists until the next write to that task so the failure stays visible.
+  const [pendingPushByTask, setPendingPushByTask] = useState<Record<string, PendingPushState>>({});
+  const pushTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const clearPushTimer = (id: string) => {
+    const t = pushTimers.current[id];
+    if (t) {
+      clearTimeout(t);
+      delete pushTimers.current[id];
+    }
+  };
+  const setPush = (id: string, next: PendingPushState) =>
+    setPendingPushByTask((prev) => ({ ...prev, [id]: next }));
+  const clearPush = (id: string) =>
+    setPendingPushByTask((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
   const create = useMutation({
     mutationFn: (input: TaskInput) => repositories.task.create(input),
     onSuccess: invalidate,
@@ -76,7 +107,30 @@ export function useTaskMutations(projectId: string) {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: UpdateTaskStatusArgs) => repositories.task.updateStatus(id, status),
-    onSuccess: invalidate,
+    onMutate: ({ id }) => {
+      if (routeTaskWrite() === 'external') {
+        clearPushTimer(id);
+        setPush(id, beginPush(IDLE_PENDING_PUSH));
+      }
+    },
+    onSuccess: (_data, { id }) => {
+      invalidate();
+      if (routeTaskWrite() === 'external') {
+        setPush(id, pendingPushAfterWrite('external', { ok: true }));
+        clearPushTimer(id);
+        // Transient success confirmation — fades so a card never carries a stale "Pushed".
+        pushTimers.current[id] = setTimeout(() => {
+          clearPush(id);
+          delete pushTimers.current[id];
+        }, 1500);
+      }
+    },
+    onError: (err, { id }) => {
+      if (routeTaskWrite() === 'external') {
+        clearPushTimer(id);
+        setPush(id, pendingPushAfterWrite('external', { ok: false, err }));
+      }
+    },
   });
 
   const remove = useMutation({
@@ -96,5 +150,14 @@ export function useTaskMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, updateStatus, remove, addDependency, removeDependency };
+  // Clear any in-flight auto-clear timers on unmount so a session change never fires a stale update.
+  useEffect(
+    () => () => {
+      for (const t of Object.values(pushTimers.current)) clearTimeout(t);
+      pushTimers.current = {};
+    },
+    [],
+  );
+
+  return { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask };
 }

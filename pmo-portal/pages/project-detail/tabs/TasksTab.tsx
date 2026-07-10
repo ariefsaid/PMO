@@ -27,6 +27,9 @@ import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/u
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDate } from '@/src/lib/format';
+import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
@@ -77,7 +80,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
-  const { create, update, updateStatus, remove, addDependency, removeDependency } =
+  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
@@ -121,6 +124,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const canEdit = may('edit', 'task');
   const canDelete = may('delete', 'task');
   const canRowWrite = canEdit || canDelete;
+
+  // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
+  // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
+  const externallyOwned = routeTaskWrite() === 'external';
 
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
@@ -330,6 +337,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
           statusBusy={updateStatus.isPending}
+          externallyOwned={externallyOwned}
+          pendingPushByTask={pendingPushByTask}
         />
       )}
 
@@ -399,6 +408,8 @@ interface TaskBoardProps {
   canSetStatus: (t: TaskWithRefs) => boolean;
   onStatusChange: (t: TaskWithRefs, status: TaskStatus) => void;
   statusBusy: boolean;
+  externallyOwned: boolean;
+  pendingPushByTask: Record<string, import('@/src/lib/adapterSeam/pendingPush').PendingPushState>;
 }
 
 /**
@@ -406,7 +417,14 @@ interface TaskBoardProps {
  * gesture-alternative): each card carries a status `<select>` for those who may
  * move it (managers: any; Engineer: own task only), or a static pill otherwise.
  */
-const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChange, statusBusy }) => {
+const TaskBoard: React.FC<TaskBoardProps> = ({
+  tasks,
+  canSetStatus,
+  onStatusChange,
+  statusBusy,
+  externallyOwned,
+  pendingPushByTask,
+}) => {
   const byStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s);
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -433,8 +451,13 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChan
                     key={t.id}
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
-                    <div className="truncate text-[13px] font-semibold" title={t.name}>
-                      {t.name}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-semibold" title={t.name}>
+                        {t.name}
+                      </span>
+                      {externallyOwned && (
+                        <TaskPushBadge state={pendingPushByTask[t.id] ?? IDLE_PENDING_PUSH} />
+                      )}
                     </div>
                     <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
                       {t.assignee ? t.assignee.full_name : 'Unassigned'}
