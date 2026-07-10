@@ -57,7 +57,7 @@ select is(
   50::bigint, 'AC-ACD-003 chat Σreasoning_tokens = 50 (owner-scoped)');
 -- own-org isolation: the org Y 9999s never enter A1's totals.
 select is(
-  (select coalesce(sum(cached_tokens),0) from org_usage_summary()),
+  (select coalesce(sum(cached_tokens),0)::bigint from org_usage_summary()),
   1000::bigint, 'AC-ACD-003 org-Admin cached total excludes other orgs (own-org only)');
 reset role;
 

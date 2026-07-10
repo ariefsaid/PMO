@@ -5,7 +5,7 @@
 --               p50/p95 ms), own-org only.
 --   AC-ACD-006  operator_agent_run_stats() operator-only + org filter; a non-operator is denied (0 rows).
 begin;
-select plan(12);
+select plan(11);
 
 -- ── Fixtures: org R (owner A1 + operator F1) and org S (owner B1, isolation control). ──
 insert into organizations (id, name) values
