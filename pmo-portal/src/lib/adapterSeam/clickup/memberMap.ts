@@ -11,25 +11,29 @@ export interface ClickUpMemberMap {
   clickUpToPmo: Record<number, string>;
 }
 
-/** An unmapped PMO assignee (no ClickUp counterpart configured) — surfaced, never thrown. */
-export interface ClickUpAssigneeUnassigned {
-  unassigned: true;
-  surfaced: string;
+/**
+ * A resolved (or unresolvable) ClickUp assignee. A single flat shape (not a discriminated union) —
+ * this repo's `tsconfig.json` runs with `strictNullChecks` off, under which TypeScript's control-flow
+ * narrowing of boolean-discriminated unions is unreliable; callers read `.unassigned`/`.id` directly
+ * instead of narrowing.
+ */
+export interface ClickUpAssigneeResolution {
+  unassigned: boolean;
+  /** The ClickUp member id when resolved; `null` when unmapped. */
+  id: number | null;
+  /** Present only when unmapped — a human-readable reason (never thrown). */
+  surfaced?: string;
 }
-
-/** A PMO assignee successfully resolved to its ClickUp member id. */
-export interface ClickUpAssigneeMapped {
-  unassigned: false;
-  id: number;
-}
-
-export type ClickUpAssigneeResolution = ClickUpAssigneeUnassigned | ClickUpAssigneeMapped;
 
 /** Outbound: PMO assignee id -> ClickUp member id. Never throws — unmapped resolves to `unassigned`. */
 export function toClickUpAssignee(map: ClickUpMemberMap, pmoAssigneeId: string): ClickUpAssigneeResolution {
   const id = map.pmoToClickUp[pmoAssigneeId];
   if (id === undefined) {
-    return { unassigned: true, surfaced: `no ClickUp member mapped for PMO assignee "${pmoAssigneeId}"` };
+    return {
+      unassigned: true,
+      id: null,
+      surfaced: `no ClickUp member mapped for PMO assignee "${pmoAssigneeId}"`,
+    };
   }
   return { unassigned: false, id };
 }

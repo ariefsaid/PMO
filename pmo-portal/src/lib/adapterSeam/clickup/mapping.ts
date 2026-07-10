@@ -50,8 +50,19 @@ export interface PmoTaskToClickUpBodyOptions {
 
 function resolveAssigneeId(memberMap: ClickUpMemberMap, pmoAssigneeId: unknown): number | null {
   if (typeof pmoAssigneeId !== 'string') return null;
-  const resolution = toClickUpAssignee(memberMap, pmoAssigneeId);
-  return resolution.unassigned ? null : resolution.id;
+  // `.id` is read directly (never narrowed off `.unassigned`) — see the note on
+  // ClickUpAssigneeResolution: this repo's tsconfig runs with strictNullChecks off, under which
+  // discriminated-union narrowing is unreliable. The resolution shape is flat (`id: number | null`)
+  // precisely so no narrowing is needed here.
+  return toClickUpAssignee(memberMap, pmoAssigneeId).id;
+}
+
+/** The scalar (non-assignee) fields shared by both request-body shapes. */
+interface ClickUpScalarFields {
+  name?: string;
+  status?: string;
+  start_date?: number;
+  due_date?: number;
 }
 
 /**
@@ -66,7 +77,7 @@ export function pmoTaskToClickUpBody(
   maps: ClickUpMaps,
   opts: PmoTaskToClickUpBodyOptions,
 ): ClickUpCreateTaskBody | ClickUpUpdateTaskBody {
-  const scalarFields: ClickUpCreateTaskBody = {};
+  const scalarFields: ClickUpScalarFields = {};
   if ('name' in record) scalarFields.name = record.name as string;
   if ('status' in record) scalarFields.status = toClickUpStatus(maps.statusMap, record.status as string);
   if ('start_date' in record) {
