@@ -2,7 +2,7 @@
 -- AC-EAS-035 [pgTAP]: while 'reference' is externally-owned for org A, a user-JWT write to the
 -- read-model is DENIED (42501) and the dispatch/sync service role writes succeed (FR-EAS-037, OD-4).
 begin;
-select plan(4);
+select plan(5);
 
 insert into organizations (id, name) values
   ('00880000-0000-0000-0000-000000000001','AC-EAS RefItems A (flipped)'),
@@ -25,6 +25,8 @@ select throws_ok(
   'AC-EAS-035 user-JWT INSERT denied while reference externally-owned (RLS flip)');
 with u as (update external_reference_items set payload='{}' returning 1)
 select is((select count(*)::int from u), 0, 'AC-EAS-035 user-JWT UPDATE denied (flip)');
+with d as (delete from external_reference_items returning 1)
+select is((select count(*)::int from d), 0, 'AC-EAS-035 user-JWT DELETE denied while externally-owned');
 select lives_ok(
   $$ select count(*) from external_reference_items $$,
   'AC-EAS-035 read-model stays readable while externally-owned');
