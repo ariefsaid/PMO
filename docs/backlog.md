@@ -13,6 +13,37 @@ Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each sessio
 - **Agent write set** = 4 RLS-scoped, approval-gated actions: `create_activity` (CRM), `update_task_status`, `create_automation`, `notify`. Base agent is read-only; no general "edit project" action yet (would be a new can()+RLS+SoD+approval action). **Audit trails:** `audit_events` (0076, immutable, who/what/from→to for money/transitions/deletes/credits), `procurement_status_events` (0038), `agent_events` (0046, every agent tool call), `0079` agent-denial audit; business tables carry created_at/updated_at.
 - **Specs (dev):** ARH/ARM/ATO/ALR/AMT (agent gap-analysis do-now/do-next) — planning docs, NOT built. Token streaming still queued.
 
+### 2026-07-10 — IG backend-checklist audit (@web_pros "Vibecoding a Backend?") → 2 findings
+Audited the PMO backend against the post's 15-item shipping checklist + security/scale/production slides.
+Result: **12/15 solid, exceeds on authz/secrets/testing**; 3 deliberate skips (Redis cache, ORM, Docker —
+YAGNI at single-tenant scale). Two real gaps, prioritized:
+
+- **P1 — request-rate limiting on public/expensive edge fns. ✅ PR'd to `dev` (feat/edge-request-rate-limit).**
+  `creditRateGuard` bounds SPEND but there was **no request-FREQUENCY limit** on the public edge fns beyond
+  Supabase platform defaults — a burst can't drain credits (reserve_credits closes that) but CAN burn
+  invocations + upstream OpenRouter latency; admin-invite abuse can email-bomb. Fixed-window limiter —
+  mig `0091_request_rate_limit.sql` (`request_rate_counters` unlogged + RLS force/no-policy;
+  `rate_limit_hit(key,limit,window)` SECURITY DEFINER, service-role grant) + shared
+  `_shared/requestRateGuard.ts` (fail-OPEN — availability defense, opposite of the credit guard) + wired
+  into `agent-chat/index.ts` (post-JWT, keyed `agent-chat:<userId>`, 20/min default via
+  `AGENT_RATE_LIMIT_PER_MIN`, 429 + Retry-After). Tests: pgTAP `0140` (9 assert, AC-RL-002..006) +
+  `requestRateGuard.test.ts` (6, AC-RL-001). Verified: pgTAP 9/9, vitest 6/6, full `npm run verify` green,
+  `deno check` clean. **Supersedes the older scattered "agent-chat rate-limit" Med.** Fast-follows (same
+  pattern, not yet done): wire `compose-view` (model spend) + `admin-invite-user` (email/user abuse).
+  `health` left unthrottled deliberately (cheap, no spend).
+- **P2 — error-monitoring depth (owner-gated).** telegram-notify hourly + `error_events` sink cover
+  "something broke"; there's no Sentry-class tracker (stack/breadcrumbs/FE capture). **Autonomous part**
+  = the already-tracked Med "`error_events` completeness (2 fns + FE) + retention" (wire the remaining
+  edge fns + a FE error boundary → `error_events`). **Owner-gated part** = a Sentry (free tier) DSN +
+  new dep decision — external account + $, so it waits for an owner GO. Lower priority than P1: partial
+  coverage already exists and the actionable slice is incremental.
+- **Plus — PostHog dashboards BUILT (separate deferred item, done this session).** ✅ 3 dashboards /
+  19 insights live in project `465502` (Agent adoption+reliability · Auth login health · Product
+  usage+friction), provisioned **as code** from the typed event catalog. PR #303
+  (`feat/posthog-dashboards`), script `scripts/posthog/provision-dashboards.mjs` (idempotent,
+  upsert-by-name), docs `docs/posthog-dashboards.md`. Write-scoped key = 1Password `posthog-personal-api`
+  (`phx_`). Partly addresses the GTM observability-floor "PostHog dashboards" line below.
+
 ### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
 
 **Branches:** `origin/dev` == `origin/main` == **`c0b0081`** (RECONCILED 2026-07-07 — two parallel agents' work unified: the GTM hardening wave + agent-prod-readiness; only `backlog.md` conflicted, resolved by union). `origin/production` == **`94ce615` (UNTOUCHED — prod NOT deployed** with any of the below; still the OLD prompt/schema, Cloud DB at mig ~`0060`). Migrations → `0075`, pgTAP top `0133`.
