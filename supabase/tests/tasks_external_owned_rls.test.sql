@@ -1,9 +1,10 @@
 -- tasks_external_owned_rls.test.sql
--- AC-CUA-020/021/023 [pgTAP]: tasks writes split per command while flipped; managers retain
+-- AC-CUA-020/021/022/023 [pgTAP]: tasks writes split per command while flipped; managers retain
 -- milestone-only enhancement writes; service-role mirror writes bypass the task column-pin only for
--- externally-owned orgs; non-flipped orgs remain byte-for-byte unchanged.
+-- externally-owned orgs; releasing ownership restores the shipped manager write path; non-flipped orgs
+-- remain byte-for-byte unchanged.
 begin;
-select plan(12);
+select plan(15);
 
 insert into organizations (id, name) values
   ('00910000-0000-0000-0000-000000000001','AC-CUA Tasks Org A (flipped)'),
@@ -95,6 +96,28 @@ select lives_ok(
 select lives_ok(
   $$ delete from tasks where id = '00910000-0000-0000-0000-000000000202' $$,
   'AC-CUA-023 org-B manager DELETE lives while not externally-owned');
+
+reset role;
+set local request.jwt.claims = '{"role":"service_role"}';
+delete from external_domain_ownership
+ where org_id = '00910000-0000-0000-0000-000000000001' and external_tier = 'clickup' and domain = 'tasks';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00910000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select lives_ok(
+  $$ update tasks set name = 'Restored Manager Rename A' where id = '00910000-0000-0000-0000-000000000101' $$,
+  'AC-CUA-022 manager native-field UPDATE lives again after releasing external ownership');
+
+reset role;
+select is(
+  (select name from tasks where id = '00910000-0000-0000-0000-000000000101'),
+  'Restored Manager Rename A',
+  'AC-CUA-022 released org persisted the manager native-field UPDATE');
+select is(
+  (select milestone_id::text from tasks where id = '00910000-0000-0000-0000-000000000101'),
+  '00910000-0000-0000-0000-000000000011',
+  'AC-CUA-022 released org update left unrelated enhancement columns unchanged');
 
 select finish();
 rollback;
