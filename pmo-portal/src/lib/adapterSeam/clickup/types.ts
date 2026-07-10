@@ -54,3 +54,25 @@ export interface ClickUpUpdateTaskBody {
   start_date?: number;
   due_date?: number;
 }
+
+// ── Webhook ingress shapes (FR-CUA-040..044) ───────────────────────────────────────────────────
+// PROVISIONAL wire shape (mocked-only in P1; re-verified in the deferred live-smoke appendix, same
+// stance as mapping.ts). ClickUp webhook vocabulary is confined to this file + the clickup-webhook fn.
+
+/** The four ClickUp task-webhook event verbs (FR-CUA-040). */
+export type ClickUpWebhookEvent = 'taskCreated' | 'taskUpdated' | 'taskStatusUpdated' | 'taskDeleted';
+
+/**
+ * A ClickUp task-webhook payload. Carries the event verb, the ClickUp task id, the ClickUp
+ * `date_updated` (unix-ms string — the per-row source-mod guard value + the watermark cursor), and
+ * the full task body for created/updated/status-updated events (absent on `taskDeleted`).
+ */
+export interface ClickUpWebhookPayload {
+  event: ClickUpWebhookEvent;
+  /** The ClickUp task id this event concerns. */
+  task_id: string;
+  /** ClickUp `date_updated` (unix-ms string) — the source-modification + watermark cursor field. */
+  date_updated: string;
+  /** The full task body for created/updated/status-updated events; absent on `taskDeleted`. */
+  task?: ClickUpTask;
+}
