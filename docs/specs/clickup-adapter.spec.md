@@ -153,10 +153,15 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 ### 3.2 ClickUp adapter — reads (change-feed sources)
 
 - **FR-CUA-007** (event-driven) When `listChangesSinceWatermark('tasks', cursor)` is invoked, the adapter
-  shall page ClickUp tasks in the mapped List modified since the cursor (`GET
-  /api/v2/list/{list_id}/task?date_updated_gt={cursor}&order_by=updated`, paginated), map each to a
-  canonical PMO-shaped record, and return `{ changes, nextCursor }` where `nextCursor` advances the
-  modified-since watermark and is `null` when the page is exhausted.
+  shall page ClickUp tasks in the mapped List modified **at or after** the cursor, ordered by
+  modification time, map each to a canonical PMO-shaped record, and return `{ changes, nextCursor }`.
+  ClickUp's `date_updated_gt` is **strictly-greater**, so the adapter queries
+  `date_updated_gt={cursor − 1ms}&order_by=updated` (paginated) to make the boundary **inclusive** (`>=`)
+  and re-fetch tasks sharing the cursor's exact timestamp; the resulting boundary re-fetches are deduped by
+  idempotent apply (FR-CUA-042/049), so equal-`date_updated` tasks straddling a pagination boundary can
+  never be skipped. `nextCursor` is the **maximum `date_updated` observed** across the returned changes
+  (never a value that rewinds the stored watermark) and is `null` when the page is exhausted. (Resolves
+  OQ-1.)
 - **FR-CUA-008** (event-driven) When `getByExternalId('tasks', clickupTaskId)` is invoked, the adapter shall
   fetch that ClickUp task (`GET /api/v2/task/{task_id}`) and return the canonical PMO-shaped record, or
   `null` when ClickUp reports it absent (404).
@@ -188,12 +193,34 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 ### 3.4 Flipping the real tasks domain (RLS flip + repository wiring)
 
 - **FR-CUA-020** (state-driven) While the tasks domain is externally-owned for an org (its
-  `external_domain_ownership` assigns `tasks` to the `clickup` tier), the system shall, via RLS, **deny
-  user-JWT writes to the `tasks` native fields** (`name`, `status`, `assignee_id`, `start_date`,
-  `end_date`) and permit those writes only to the dispatch/sync service role — generalizing the 0090
-  reference-flip pattern (`domain_externally_owned(auth_org_id(), 'tasks')` gating `tasks_write`,
-  `tasks_update_own_status`, and the `enforce_assignee_status_only` trigger). **RLS is the enforcement
-  authority** (ADR-0016; P0 FR-EAS-037); the repository routing branch is UX/DX-only.
+  `external_domain_ownership` assigns `tasks` to the `clickup` tier), the system shall, via RLS + the
+  `tasks` triggers, deny user-JWT native-field writes yet keep the PMO enhancement column user-writable —
+  as a **per-command split** (because `tasks_write`, 0002, is `FOR ALL`; guarding its `USING` wholesale
+  would remove the user's UPDATE path entirely and `milestone_id` would stop being user-writable):
+  - **user `INSERT`** to `tasks` → **denied** (guard `tasks_write`'s INSERT path with
+    `not domain_externally_owned(auth_org_id(), 'tasks')`); only the dispatch/sync service role mints rows.
+  - **user `DELETE`** of a `tasks` row → **denied** (same guard on the DELETE path); ClickUp deletion
+    mirrors down via the service role (FR-CUA-080).
+  - **user `UPDATE`** → a **permissive UPDATE path remains open** (the user can still reach the row) but is
+    **column-pinned by the `enforce_assignee_status_only` trigger's user path to the enhancement columns
+    only** (`milestone_id`; future weight): a native-field change (`name`, `status`, `assignee_id`,
+    `start_date`, `end_date`) raises `42501`. While flipped this pin applies to **every** user role — the
+    manager exemption (0016) is suspended for externally-owned tasks, so no delivery role may edit a native
+    field.
+  - **`tasks_update_own_status`** (0016, the assignee status-only path) → **fully denied while flipped**
+    (guard its `USING`/`WITH CHECK` with `not domain_externally_owned(...)`): status is ClickUp-owned, so
+    the assignee cannot change it locally.
+  - **service-role native-field writes** → **permitted.** Because **PostgreSQL triggers do NOT yield to
+    `service_role` the way RLS does**, the `enforce_assignee_status_only` trigger must gain an explicit
+    **service-role bypass** — `if auth.uid() is null then return new;` at the top of the function — or the
+    column-pin would reject the sync service role's legitimate native-field mirror writes (name/status/
+    dates) with `42501`. (See also FR-CUA-030 for the `stamp_task_completed_at` trigger's mirrored-write
+    handling.)
+
+  **RLS is the enforcement authority** (ADR-0016; P0 FR-EAS-037); the repository routing branch is
+  UX/DX-only. This generalizes the 0090 reference-flip pattern but is **not** a straight port — 0090's
+  table has a single `FOR ALL` write policy with no column-pin trigger, whereas `tasks` requires the
+  per-command split above (OD-CUA-1).
 - **FR-CUA-021** (ubiquitous) Repository **reads** (`listTasks`, `getTask`) shall be **unchanged** and shall
   **always** serve the Supabase read-model regardless of ownership — no read is routed to the adapter (P0
   FR-EAS-030). The `TaskRepository` interface (ADR-0017) shall be unchanged; only the internal
@@ -210,8 +237,20 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 - **FR-CUA-024** (state-driven) While the tasks domain is externally-owned, a task **enhancement** write
   (dependency add/remove; milestone grouping via `milestone_id`; weights; rollup inputs) shall remain a
   **PMO-side direct-DAL write** and shall **not** be routed to ClickUp — enhancements are additive PMO data
-  over the mirrored task (ADR-0055 §3,§7; glossary *Enhancement*). The mechanism that keeps `milestone_id`
-  user-writable while the native fields are machine-only is **OD-CUA-1**.
+  over the mirrored task (ADR-0055 §3,§7; glossary *Enhancement*). `milestone_id` stays user-writable
+  through the **permissive UPDATE path that FR-CUA-020 leaves open, column-pinned by the
+  `enforce_assignee_status_only` trigger to enhancement columns only** — the same `UPDATE` that is denied
+  for native fields succeeds for `milestone_id`; `task_dependencies` writes are governed by their own
+  policy (0002) and are unaffected by the tasks flip. The mechanism that keeps `milestone_id` user-writable
+  while the native fields are machine-only is **OD-CUA-1**.
+- **FR-CUA-026** (event-driven — **delete-aware dispatch**) When a `delete` command is dispatched for an
+  externally-owned domain, the dispatch shall take a **delete-aware path** distinct from the P0
+  create/update path: the shipped `dispatchExternallyOwnedWrite` (`adapterSeam/dispatch.ts:34-50`)
+  **unconditionally upserts the canonical read-model row and records the `external_refs` mapping**, which is
+  wrong for a delete. P1 shall extend the dispatch so that, on a successful ClickUp delete (FR-CUA-005), it
+  instead **removes the mirrored read-model row and deletes the `external_refs` mapping** (org+domain+
+  external id), never upserting a canonical row for a deleted record. The create/update/transition commands
+  keep the P0 upsert+record order (FR-CUA-025).
 - **FR-CUA-025** (event-driven) When the dispatch commits a task command, it shall update the `tasks`
   read-model row from the adapter's canonical answer and record/update the `external_refs` mapping
   (`domain = 'tasks'`, `external_tier = 'clickup'`, `pmo_record_id` ↔ ClickUp task id) — in the P0 order:
@@ -224,10 +263,27 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   client), the system shall produce **byte-for-byte identical behavior** to the pre-P1 system for the tasks
   domain: every task write shall take the existing direct-DAL path with **no** adapter dispatch and **no**
   dispatch edge-function call, reads shall take the existing DAL path, **no** pending-push state shall be
-  introduced, the `tasks` RLS (`tasks_write`, `tasks_update_own_status`, the status trigger) shall behave
-  exactly as before the flip, and all existing task error codes shall be unchanged. Zero regression for
-  every existing client. *(This is P1's critical risk: the task-repository wiring must not perturb the
-  non-ClickUp path — mirrors P0 FR-EAS-010/AC-EAS-001, re-asserted because P1 wires the REAL repository.)*
+  introduced, and **both `tasks` triggers shall behave exactly as before the flip** — the
+  `enforce_assignee_status_only` column-pin (0016; its new service-role bypass and externally-owned branch
+  are inert when `not domain_externally_owned`, so the manager-exemption/status-only contract is unchanged)
+  **and** `stamp_task_completed_at` (0034; PMO-clock stamping unchanged) — alongside the unchanged
+  `tasks_write` / `tasks_update_own_status` policies, and all existing task error codes. Zero regression for
+  every existing client. **completed_at semantics on mirrored (service-role) writes (decided here):** while
+  tasks are externally-owned, `stamp_task_completed_at` must **not** re-stamp `completed_at` with the PMO
+  clock — the mirrored-write path shall **map ClickUp's completion timestamp into `completed_at`** so the
+  read-model reflects ClickUp truth; the trigger is bypassed/adjusted for service-role writes (mirroring the
+  `enforce_assignee_status_only` service-role bypass, FR-CUA-020) rather than overwriting the incoming value
+  with `now()`. For non-ClickUp orgs this branch is inert and `completed_at` stamping is byte-for-byte
+  unchanged. *(This is P1's critical risk: the task-repository wiring must not perturb the non-ClickUp path
+  — mirrors P0 FR-EAS-010/AC-EAS-001, re-asserted because P1 wires the REAL repository.)*
+- **FR-CUA-031** (ubiquitous — **cold-start fail-closed routing**) The task-repository routing decision
+  shall read the org's ownership from a **cached own-org ownership map** seeded at auth **load-on-auth**
+  (the same lifecycle as the cached features/entitlement map — resolved once when the session's org context
+  loads, not per-write), so the routing decision is in-memory (NFR-CUA-PERF-002). When the ownership map is
+  **absent or not-yet-loaded** (cold start, load failure, or any indeterminate state), routing shall
+  **default to `pmo`** (direct-DAL path) — **fail-closed to the byte-for-byte invariant** (FR-CUA-030):
+  an unknown ownership state never routes a write to the adapter dispatch. A task is only ever routed to
+  ClickUp when the map is loaded **and** positively asserts `tasks`→`clickup`.
 
 ### 3.6 Change-feed engine — webhook ingress (for latency)
 
@@ -259,9 +315,20 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   adapter's `listChangesSinceWatermark('tasks', cursor)`, applies each change to the read-model via the
   service role, and advances the watermark to the returned `nextCursor` — the safety net that catches
   webhook gaps (ADR-0055 §3: webhooks for latency, sweep for truth).
-- **FR-CUA-046** (event-driven) When the sweep applies a change already applied by a webhook (overlap), the
-  apply shall be idempotent (FR-CUA-042 mechanism) so double-coverage is harmless; the watermark shall only
-  ever advance (monotonic cursor), never rewind.
+- **FR-CUA-046** (event-driven) When the sweep applies a change already applied by a webhook (overlap), or
+  re-fetches a boundary row under the inclusive `>=` cursor (FR-CUA-007), the apply shall be idempotent
+  (FR-CUA-042/049 mechanism) so double-coverage and boundary re-fetches are harmless; the watermark shall
+  only ever advance (monotonic cursor), never rewind.
+- **FR-CUA-049** (event-driven — **out-of-order / stale-write guard**) When any read-model apply runs
+  (webhook ingress **or** sweep), it shall be guarded by a **per-row source-modification timestamp** that is
+  **independent of the org watermark**: the mirrored `tasks` row shall carry the ClickUp `date_updated` of
+  the change last applied to it, and an incoming change shall be applied **only if its source-modification
+  timestamp is `>=` the stored one** — a late-arriving *older* event (out-of-order webhook delivery, or a
+  sweep page that overtook a webhook) is a **no-op**, never overwriting a fresher mirrored state with stale
+  data. This is orthogonal to the monotonic org watermark (which governs *what the sweep re-fetches*): the
+  watermark can advance while a still-in-flight older webhook must still be rejected per-row. (Without this,
+  an out-of-order older webhook could strand a stale row the sweep — already past that watermark — never
+  re-fetches.)
 - **FR-CUA-047** (state-driven) While ClickUp is unreachable during a sweep, the sweep shall fail that org's
   cycle without advancing its watermark and shall retry on the next schedule; reads keep serving the
   existing read-model, and PMO-owned domains are entirely unaffected (ADR-0055 §4).
@@ -301,6 +368,14 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   is yet mapped, the system shall provision (or bind) one ClickUp List per PMO project under the client's
   configured Space/Folder, capture the per-List status map (FR-CUA-011) + member map (FR-CUA-013), and store
   the List binding — one List per project is the mapping unit (owner intake).
+- **FR-CUA-064** (ubiquitous — **atomic adopt dedupe**) The adoption idempotency of FR-CUA-061/062/044 is a
+  **check-then-act** on `external_refs` (look up the ClickUp task id → mint if absent), which races when
+  adopt runs concurrently from more than one source (a webhook, the sweep, and pull-adopt can all fire for
+  the same ClickUp task at once) and could mint duplicate mirrors. The P1 tasks-flip migration shall add a
+  `unique (org_id, domain, external_record_id)` constraint to `external_refs` (0088 today has only
+  `unique (org_id, domain, pmo_record_id)`), so a concurrent second adopt of the same ClickUp task id
+  **fails the insert atomically** and the loser reconciles to the existing mapping instead of creating a
+  second mirrored row. This makes adopt idempotent under concurrency, not just under serial re-runs.
 
 ### 3.10 Pending-push state on task surfaces
 
@@ -370,6 +445,13 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   add **no round-trip** for PMO-owned orgs: it consults the cached (TanStack) own-org ownership map and
   short-circuits in-memory; the non-ClickUp write path is byte-for-byte the direct DAL with no dispatch hop
   (FR-CUA-030; P0 NFR-EAS-PERF-001).
+- **NFR-CUA-PERF-003** (interactive path priority over bulk) Within an org's ~100 req/min budget, **live
+  synchronous writes (the interactive write-through, FR-CUA-022) shall take priority over bulk seed/sweep
+  work** (push-seed, pull-adopt, reconciliation sweep): the rate limiter shall either **reserve headroom**
+  for interactive commands or place them on a **higher-priority queue** ahead of bulk work, so a large
+  background seed/sweep can never starve or block a user's live task write. Bulk onboarding/sweep is a
+  **background job** and yields the budget to the interactive path; it resumes from `external_refs`/the
+  watermark (FR-CUA-092) after the interactive command clears.
 - **NFR-CUA-CONTRACT-001** (single coupling seam) ClickUp is the sole external system named in P1, and
   **only** under `adapterSeam/clickup/**` + the webhook edge function; no code above the adapter contract
   references any ClickUp shape (FR-CUA-012; P0 NFR-EAS-CONTRACT-001).
@@ -416,17 +498,33 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 ### Tasks-flip RLS (pgTAP)
 
 - **AC-CUA-020** — While tasks externally-owned, a user-JWT native-field write is RLS-denied; the service
-  role writes.
+  role writes native fields.
   **Given** org A has `tasks`→`clickup` and a mirrored `tasks` row,
   **When** a member of org A (user JWT) attempts to `INSERT`/`UPDATE`(name/status/assignee/dates)/`DELETE`
-  the row, **then** the write is denied (`42501`); **and when** the dispatch/sync service role writes,
-  **then** it succeeds. (FR-CUA-020, NFR-CUA-SEC-001)
+  the row, **then** the write is denied (`42501`); **and when** the dispatch/sync **service role `UPDATE`s a
+  native field** (e.g. `name`, `start_date`, `end_date` — not merely `status`), **then** it succeeds — the
+  `enforce_assignee_status_only` trigger's service-role bypass (`auth.uid() is null → return new`) lets the
+  service role write native fields even though triggers do not yield to `service_role` the way RLS does;
+  **and when** the service role `INSERT`s/`DELETE`s a mirror row, **then** it succeeds. (FR-CUA-020,
+  NFR-CUA-SEC-001)
 
-- **AC-CUA-021** — While tasks externally-owned, the enhancement column stays user-writable.
+- **AC-CUA-021** — While tasks externally-owned, the enhancement column stays user-writable; native fields
+  and INSERT/DELETE are denied.
   **Given** org A has `tasks`→`clickup` and a mirrored `tasks` row,
-  **When** a delivery-role member updates the row's `milestone_id` (grouping) or writes a
-  `task_dependencies` edge, **then** it succeeds (enhancements are PMO-side); **and when** the same member
-  changes a native field on that row, **then** it is denied (`42501`). (FR-CUA-024, OD-CUA-1)
+  **When** a delivery-role member `UPDATE`s the row's `milestone_id` (grouping) or writes a
+  `task_dependencies` edge, **then** it succeeds via the permissive UPDATE path that stays open, column-
+  pinned by the trigger to enhancement columns (enhancements are PMO-side); **and when** the same member
+  changes a **native field** on that row, **then** it is denied (`42501`); **and when** the same member
+  `INSERT`s a new `tasks` row or `DELETE`s the row, **then** it is denied — the per-command split leaves only
+  an enhancement-column UPDATE open to the user (`tasks_update_own_status` is fully denied while flipped).
+  (FR-CUA-020, FR-CUA-024, OD-CUA-1)
+
+- **AC-CUA-024** — Concurrent adopt of the same ClickUp task dedupes atomically (no duplicate mirror).
+  **Given** org A has `tasks`→`clickup` and an `external_refs` row mapping a ClickUp task id,
+  **When** a second insert attempts to map the **same** `(org_id, 'tasks', external_record_id)` to a
+  different `pmo_record_id` (a concurrent adopt from a second source),
+  **Then** it is rejected by the `unique (org_id, domain, external_record_id)` constraint (`23505`), so at
+  most one mirror row can exist per ClickUp task. (FR-CUA-064)
 
 - **AC-CUA-022** — Releasing the tasks domain restores PMO-owned writes (reversibility).
   **Given** org A previously had `tasks`→`clickup` and the Operator `release`s it,
@@ -487,6 +585,13 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   **Then** the ClickUp call omits the assignee (unassigned) and the outcome is surfaced, not thrown.
   (FR-CUA-013)
 
+- **AC-CUA-038** — The dispatch delete path removes the mirror + mapping (does not upsert a canonical row).
+  **Given** the dispatch with a mocked adapter and an existing `external_refs` mapping,
+  **When** a `delete` command commits successfully,
+  **Then** the dispatch **removes** the mirrored read-model row and **deletes** the `external_refs` mapping,
+  and does **not** call `writeReadModel`/`recordExternalRef` with a canonical row (the delete-aware path,
+  distinct from the P0 create/update upsert order). (FR-CUA-026, FR-CUA-005)
+
 ### Change-feed — webhook ingress + sweep (Vitest, mocked)
 
 - **AC-CUA-040** — Webhook signature verification is the trust boundary.
@@ -519,6 +624,14 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   **When** the sweep runs,
   **Then** the org's watermark is not advanced, the read-model is unchanged, and a concurrent PMO-owned
   write succeeds. (FR-CUA-047)
+
+- **AC-CUA-045** — A late-arriving older change is a no-op (per-row source-modification guard).
+  **Given** a mirrored task whose stored source-modification timestamp is `T2` (a newer change already
+  applied),
+  **When** a change carrying an **older** source-modification timestamp `T1 < T2` arrives (an out-of-order
+  webhook, or a sweep page that overtook a webhook),
+  **Then** the apply is a **no-op** — the fresher `T2` mirrored state is preserved, not overwritten — while
+  a change with timestamp `>= T2` applies normally. (FR-CUA-049)
 
 ### Onboarding — push-seed + pull-adopt (Vitest, mocked)
 
@@ -616,9 +729,10 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 | AC-CUA-001 | FR-CUA-030, FR-CUA-023, FR-CUA-071 | Vitest (unit) | `pmo-portal/src/lib/repositories/task.external.test.ts` |
 | AC-CUA-002 | FR-CUA-030 | **Cross-layer regression gate** — the unchanged existing task suite (`npm run verify` + pgTAP + e2e) staying green IS the proof; no single new test |
 | AC-CUA-020 | FR-CUA-020, NFR-CUA-SEC-001 | pgTAP | `supabase/tests/tasks_external_owned_rls.test.sql` |
-| AC-CUA-021 | FR-CUA-024, OD-CUA-1 | pgTAP | `supabase/tests/tasks_external_owned_rls.test.sql` |
+| AC-CUA-021 | FR-CUA-020, FR-CUA-024, OD-CUA-1 | pgTAP | `supabase/tests/tasks_external_owned_rls.test.sql` |
 | AC-CUA-022 | NFR-CUA-REV-001 | pgTAP | `supabase/tests/tasks_external_owned_rls.test.sql` |
 | AC-CUA-023 | FR-CUA-030, FR-CUA-020 | pgTAP | `supabase/tests/tasks_external_owned_rls.test.sql` |
+| AC-CUA-024 | FR-CUA-064 | pgTAP | `supabase/tests/external_refs_adopt_unique.test.sql` |
 | AC-CUA-030 | FR-CUA-001, FR-CUA-012 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/adapter.test.ts` |
 | AC-CUA-031 | FR-CUA-002, FR-CUA-010 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/commands.test.ts` |
 | AC-CUA-032 | FR-CUA-003/004/005 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/commands.test.ts` |
@@ -627,11 +741,13 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 | AC-CUA-035 | FR-CUA-007 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/reads.test.ts` |
 | AC-CUA-036 | FR-CUA-008 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/reads.test.ts` |
 | AC-CUA-037 | FR-CUA-013 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/memberMap.test.ts` |
+| AC-CUA-038 | FR-CUA-026, FR-CUA-005 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` |
 | AC-CUA-040 | FR-CUA-041, NFR-CUA-SEC-002 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-041 | FR-CUA-042, FR-CUA-043 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-042 | FR-CUA-044, FR-CUA-062 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-043 | FR-CUA-045, FR-CUA-046 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
 | AC-CUA-044 | FR-CUA-047 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
+| AC-CUA-045 | FR-CUA-049 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-050 | FR-CUA-050, FR-CUA-051 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-051 | FR-CUA-051, FR-CUA-092 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-052 | FR-CUA-052, FR-CUA-024 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
@@ -648,8 +764,9 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 
 > NFR-CUA-CONTRACT-001 / SEC-003 / PERF-002 are structural — proven transitively (contract-shape +
 > confinement + cached-map short-circuit are preconditions exercised by the rows above) and reviewed at the
-> plan/gate. NFR-CUA-LOCALITY-001 is a doc-review NFR (no runtime test). NFR-CUA-PERF-001 is exercised by
-> AC-CUA-080. AC-CUA-002 is a regression-gate meta-AC by nature.
+> plan/gate. NFR-CUA-LOCALITY-001 is a doc-review NFR (no runtime test). NFR-CUA-PERF-001 (and PERF-003's
+> interactive-priority-under-bulk behavior) is exercised by AC-CUA-080. AC-CUA-002 is a regression-gate
+> meta-AC by nature.
 
 ## 7. Error handling
 
@@ -673,28 +790,60 @@ employs ClickUp — this survives the repository wiring only if the routing shor
       `getByExternalId` (AC-CUA-030..036); ClickUp REST v2 client behind an injected `fetch` boundary.
 - [ ] Field mapping (mapping set only), per-List status map + member map (AC-CUA-031/034/037); vocabulary
       confined here (FR-CUA-012).
-- [ ] Rate limiter (token bucket) + backoff/retry (`Retry-After`) (AC-CUA-080).
+- [ ] Rate limiter (token bucket) + backoff/retry (`Retry-After`) (AC-CUA-080), with **interactive-write
+      priority over bulk** (reserved headroom or priority queue so seed/sweep never starves a live write —
+      NFR-CUA-PERF-003).
 - [ ] Register the adapter in `supabase/functions/adapter-dispatch/index.ts` keyed by `tasks` (replace the
       P0 `// P1 routes per domain` seam).
+- [ ] **Delete-aware dispatch** (`adapterSeam/dispatch.ts`): extend the shipped
+      `dispatchExternallyOwnedWrite` (which today unconditionally upserts canonical + records the ref) with a
+      delete path — on a successful `delete` command, remove the mirrored read-model row and delete the
+      `external_refs` mapping instead of upserting (AC-CUA-038; FR-CUA-026). Unit-tested in
+      `adapterSeam/dispatch.test.ts`.
 
 ### Tasks-flip migration + pgTAP (generalize 0090 onto the real `tasks` table)
-- [ ] Migration (next number ≥0091): add `and not domain_externally_owned(auth_org_id(),'tasks')` to
-      `tasks_write` + `tasks_update_own_status` USING/WITH CHECK, and to the `enforce_assignee_status_only`
-      trigger's user-path; keep the enhancement column(s) user-writable per OD-CUA-1; permit service-role
-      read-model writes. Reversible (restore 0002/0016). (AC-CUA-020..023)
-- [ ] pgTAP: deny user-JWT native write / permit service role / enhancement writable / release restores /
-      org-scoped (AC-CUA-020..023).
+- [ ] Migration (next number ≥0091) — **per-command split (FR-CUA-020), NOT a `FOR ALL` guard** (a wholesale
+      `USING` guard on `tasks_write` would kill the user's UPDATE path and `milestone_id` writability):
+  - Guard the **INSERT** and **DELETE** paths of `tasks_write` with `and not
+    domain_externally_owned(auth_org_id(),'tasks')` (user INSERT/DELETE denied while flipped); leave a
+    permissive user **UPDATE** path open.
+  - Guard `tasks_update_own_status` USING/WITH CHECK with `and not domain_externally_owned(...)` (assignee
+    status-only path fully denied while flipped — status is ClickUp-owned).
+  - Extend `enforce_assignee_status_only`: (a) **service-role bypass** `if auth.uid() is null then return
+    new;` at the top (triggers do NOT yield to `service_role` like RLS — without this the sync role's native
+    mirror writes hit `42501`); (b) while `domain_externally_owned(...,'tasks')`, pin **every** user role to
+    enhancement columns only (`milestone_id`; native-field change → `42501`), suspending the manager
+    exemption; when not externally-owned, behavior is byte-for-byte unchanged (FR-CUA-030).
+  - Extend `stamp_task_completed_at` (0034): **service-role bypass/adjust** so mirrored writes **map
+    ClickUp's completion timestamp into `completed_at`** instead of re-stamping with `now()`; inert (byte-
+    for-byte) for non-ClickUp orgs (FR-CUA-030, Finding 6).
+  - Add `unique (org_id, domain, external_record_id)` to `external_refs` (atomic adopt dedupe — FR-CUA-064,
+    AC-CUA-024); 0088 today has only `unique (org_id, domain, pmo_record_id)`.
+  - Add the mirrored-row **source-modification timestamp** column (the ClickUp `date_updated` last applied),
+    for the out-of-order/stale-write apply guard (FR-CUA-049, AC-CUA-045).
+  - Reversible (drop the added gates + trigger branches + the added constraint/column → restore 0002/0016/
+    0034 behavior). (AC-CUA-020..024)
+- [ ] pgTAP: deny user-JWT native write / **permit service-role native-field UPDATE (name/dates, not just
+      status)** / user INSERT+DELETE denied / enhancement (`milestone_id`) UPDATE writable / release restores
+      / org-scoped / concurrent-adopt unique dedupe (AC-CUA-020..024).
 
 ### Repository wiring (interface UNCHANGED — ADR-0017)
 - [ ] Branch `createTask`/`updateTask`/`updateTaskStatus`/`deleteTask` through
       `executeWriteWithPendingPush` (externally-owned ⇒ dispatch ClickUp command; PMO-owned ⇒ direct DAL
       short-circuit); reads unchanged; dependency/milestone writes stay direct (AC-CUA-001/021/024).
+- [ ] **Cold-start fail-closed routing (FR-CUA-031):** the routing branch reads the cached own-org ownership
+      map seeded **load-on-auth** (same lifecycle as features/entitlement); an absent/not-yet-loaded/
+      indeterminate map **defaults to `pmo`** (direct DAL) — a write routes to the adapter only when the map
+      is loaded and positively asserts `tasks`→`clickup` (fail-closed to FR-CUA-030).
 
 ### Change-feed engine (new in P1)
 - [ ] `supabase/functions/clickup-webhook` ingress: signature verify → idempotent apply → watermark advance
-      (AC-CUA-040..042); pure apply logic in `clickup/webhookApply.ts` (unit-tested).
-- [ ] Reconciliation sweep (scheduled): read watermark → `listChangesSinceWatermark` → apply → advance
-      (AC-CUA-043/044); pure cursor logic in `clickup/sweep.ts`.
+      (AC-CUA-040..042); pure apply logic in `clickup/webhookApply.ts` (unit-tested). Apply is guarded by the
+      **per-row source-modification timestamp** (apply only if incoming `>=` stored; late-arriving older
+      event = no-op — FR-CUA-049, AC-CUA-045).
+- [ ] Reconciliation sweep (scheduled): read watermark → `listChangesSinceWatermark` (inclusive `>=` cursor,
+      FR-CUA-007) → apply (same per-row source-mod guard) → advance to max `date_updated`; overlap/boundary
+      re-fetches deduped by idempotent apply (AC-CUA-043/044/045); pure cursor logic in `clickup/sweep.ts`.
 
 ### Onboarding
 - [ ] Push-seed + pull-adopt + List/status/member provisioning; idempotent + resumable via `external_refs`/
@@ -734,11 +883,18 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 - **[OWNER-DECISION] OD-CUA-1 — Enhancement-column write mechanism on the mirrored `tasks` row.** The
   `tasks` row carries native ClickUp-owned fields **and** the PMO enhancement column `milestone_id`
   (grouping). While tasks are externally-owned we must deny user writes to the native fields yet keep
-  `milestone_id` (and future weight) user-writable. **Recommended default:** extend the existing
-  `enforce_assignee_status_only` column-pin trigger pattern (0016) so that, while
-  `domain_externally_owned(...,'tasks')`, a user-JWT `UPDATE` may change **only** enhancement columns
-  (`milestone_id`) and native-field changes raise `42501` — no schema migration of `milestone_id`, matches
-  the shipped column-pin idiom. **Alternative:** move enhancements to a separate `task_enhancements` table
+  `milestone_id` (and future weight) user-writable. **Recommended default (per-command split — FR-CUA-020):**
+  because `tasks_write` (0002) is `FOR ALL`, guarding its `USING` wholesale would remove the user's UPDATE
+  path entirely and `milestone_id` would stop being user-writable — so instead: (a) guard the **INSERT** and
+  **DELETE** paths of `tasks_write` with `not domain_externally_owned(...,'tasks')` (user INSERT/DELETE
+  denied while flipped); (b) leave a **permissive UPDATE path open** but extend the
+  `enforce_assignee_status_only` column-pin trigger (0016) so that, while `domain_externally_owned(...,
+  'tasks')`, a user-JWT `UPDATE` may change **only** enhancement columns (`milestone_id`) — native-field
+  changes raise `42501`, and the pin applies to every user role (the manager exemption is suspended while
+  flipped); (c) fully deny `tasks_update_own_status` while flipped (status is ClickUp-owned); (d) give the
+  trigger a **service-role bypass** (`if auth.uid() is null then return new;`) because triggers, unlike RLS,
+  do not yield to `service_role`, so the sync role can write native fields. No schema migration of
+  `milestone_id`, matches the shipped column-pin idiom. **Alternative:** move enhancements to a separate `task_enhancements` table
   (task_id → milestone_id/weight) so the `tasks` table is a pure native-field read-model (cleanest per
   ADR-0055 "enhancements are additive, never a native field", but a larger refactor touching milestones /
   gantt / rollup). Decision governs AC-CUA-021.
@@ -748,7 +904,15 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   `task_dependencies` FK cascade), drop the milestone grouping with the row, and **surface** the removal (a
   notice / audit event) — never silent. **Alternative:** soft-tombstone the mirrored row (`deleted_at`,
   retained read-only for audit + to preserve dependency/rollup lineage) until an Operator prunes it.
-  Decision governs FR-CUA-080 / AC-CUA-070.
+  **Reviewer's counter-argument (weigh explicitly at sign-off):** the recommended hard-remove + FK-cascade
+  **destroys exactly the PMO enhancement lineage that G-6 exists to protect** — a task deleted in ClickUp
+  takes its dependency edges, milestone grouping, weights, and rollup contribution down with it, silently
+  re-shaping the PMO project graph in response to an external actor's delete. The soft-tombstone preserves
+  that lineage (the enhancement graph survives, keyed on the retained `pmo_record_id`), reflects ClickUp
+  truth in reads by filtering tombstoned rows out of the active view, and lets an Operator decide when the
+  lineage is truly disposable. The tension is *read-model-reflects-ClickUp-truth* (favors hard-remove) vs
+  *enhancement-integrity/G-6* (favors soft-tombstone); the owner must pick which invariant wins. Decision
+  governs FR-CUA-080 / AC-CUA-070.
 - **[OWNER-DECISION] OD-CUA-3 — Mixed-onboarding matching (both sides non-empty).** Owner intake supports
   both directions cleanly: push-seed when the mapped List is empty, pull-adopt when the PMO project has no
   tasks. When **both** the PMO project AND the mapped ClickUp List already hold tasks at flip time, how do we
@@ -758,9 +922,13 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   choose a clean direction" and deferred to a later reconcile/matching runbook (name-match heuristics are
   error-prone). **Alternative:** best-effort name-match dedupe in P1. Decision governs FR-CUA-050/060 and
   whether an extra AC is added.
-- **OQ-1 — Watermark cursor type for ClickUp.** ClickUp exposes `date_updated` (unix-ms); P1 will use it as
-  the modified-since cursor (`date_updated_gt`). Confirm at plan time this is monotonic + stable under the
-  free tier; the P0 `external_sync_watermarks.watermark_cursor` is text and accommodates it (P0 OQ-1).
+- **OQ-1 — Watermark cursor type for ClickUp. (RESOLVED — FR-CUA-007/046/049.)** ClickUp exposes
+  `date_updated` (unix-ms) used as the modified-since cursor. ClickUp's `date_updated_gt` is
+  **strictly-greater**, which would skip equal-`date_updated` tasks straddling a pagination boundary — so
+  the cursor is respec'd to **inclusive `>=`** (query `date_updated_gt={cursor − 1ms}` to re-fetch the
+  boundary timestamp) with **idempotent-apply dedupe** (FR-CUA-042/049) absorbing the re-fetched boundary
+  rows; `nextCursor` is the max `date_updated` observed and never rewinds. The P0
+  `external_sync_watermarks.watermark_cursor` is text and accommodates the unix-ms value (P0 OQ-1).
 - **OQ-2 — Sweep scheduler substrate.** Whether the reconciliation sweep runs on `pg_cron` (like the agent
   automations tick) or an external scheduler is a plan detail; either satisfies FR-CUA-045/048 within the
   rate budget.
