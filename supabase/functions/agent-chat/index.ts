@@ -107,9 +107,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     apiKey,
     provider: providerPolicyFromEnv({
       AGENT_PROVIDER_ORDER: Deno.env.get('AGENT_PROVIDER_ORDER') ?? undefined,
+      AGENT_PROVIDER_ONLY: Deno.env.get('AGENT_PROVIDER_ONLY') ?? undefined,
+      AGENT_PROVIDER_IGNORE: Deno.env.get('AGENT_PROVIDER_IGNORE') ?? undefined,
       AGENT_PROVIDER_SORT: Deno.env.get('AGENT_PROVIDER_SORT') ?? undefined,
       AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS') ?? undefined,
-      AGENT_PROVIDER_ALLOW_TRAINING: Deno.env.get('AGENT_PROVIDER_ALLOW_TRAINING') ?? undefined,
+      AGENT_PROVIDER_DATA_COLLECTION: Deno.env.get('AGENT_PROVIDER_DATA_COLLECTION') ?? undefined,
     }),
   });
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
