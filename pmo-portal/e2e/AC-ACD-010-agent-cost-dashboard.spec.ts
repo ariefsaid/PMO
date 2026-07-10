@@ -69,12 +69,15 @@ test('AC-ACD-010 an Admin opens Administration › Usage and the agent cost pane
   const panel = page.getByRole('main');
   await expect(panel.getByRole('heading', { name: /agent cost overview/i })).toBeVisible({ timeout: 20_000 });
 
-  // Goal oracle: cache hit-rate tile = 60.0% (100·600/1000). Scope to the tile label to avoid
-  // matching the chart. StatTiles renders the label + value together.
-  await expect(panel.getByText('Cache hit-rate')).toBeVisible({ timeout: 10_000 });
-  await expect(panel.getByText('60.0%')).toBeVisible({ timeout: 10_000 });
+  // Goal oracle: cache hit-rate tile = 60.0% (100·600/1000). Scope to the StatTiles strip and use an
+  // EXACT label match — "Cache hit-rate" is a substring of the chart heading ("Cache hit-rate by
+  // month") and the empty-state copy, so an unscoped substring match is a Playwright strict-mode
+  // violation (3 elements).
+  const tiles = panel.getByTestId('stat-tiles');
+  await expect(tiles.getByText('Cache hit-rate', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(tiles.getByText('60.0%')).toBeVisible({ timeout: 10_000 });
 
   // The other tiles are present (structure, not exact values).
-  await expect(panel.getByText('Reasoning share')).toBeVisible();
-  await expect(panel.getByText(/Latency \(p95/i)).toBeVisible();
+  await expect(tiles.getByText('Reasoning share', { exact: true })).toBeVisible();
+  await expect(tiles.getByText(/Latency \(p95/i)).toBeVisible();
 });
