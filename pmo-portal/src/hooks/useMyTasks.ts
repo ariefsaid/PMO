@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from '@/src/auth/useAuth';
-import type { TaskStatus } from '@/src/lib/db/tasks';
+import { updateTaskStatus, type TaskStatus } from '@/src/lib/db/tasks';
 import { toAppError } from '@/src/lib/appError';
 
 /**
@@ -77,8 +77,12 @@ export function useMyTasks() {
 }
 
 /**
- * Status mutation for an Engineer's own task — reuses the existing
- * updateTaskStatus DAL path (assignee-only column-pinned RLS).
+ * Status mutation for an Engineer's own task — routed through the `updateTaskStatus` DAL helper
+ * (`db/tasks.ts`), not a raw `supabase.from('tasks').update(...)` call, so this quick-status write
+ * inherits the ADR-0056 `routeTaskWrite()` seam + pending-push behavior instead of bypassing
+ * `dispatchTaskCommand` when the org's `tasks` domain is externally-owned (AC-CUA-001/060/061).
+ * PMO-owned orgs (the fail-closed default) keep the exact pre-P1 direct-DAL path (assignee-only
+ * column-pinned RLS, migration 0016).
  */
 export function useMyTaskMutations() {
   const qc = useQueryClient();
@@ -89,8 +93,11 @@ export function useMyTaskMutations() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const { error } = await supabase.from('tasks').update({ status }).eq('id', id);
-      if (error) throw toAppError(error);
+      try {
+        await updateTaskStatus(id, status);
+      } catch (err) {
+        throw toAppError(err);
+      }
     },
     onSuccess: invalidate,
   });
