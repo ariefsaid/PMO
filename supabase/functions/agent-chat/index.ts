@@ -27,7 +27,7 @@ import { agentChatHandler } from './handler.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
-import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
@@ -103,7 +103,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const modelClient = new OpenRouterModelClient({ apiKey });
+  const modelClient = new OpenRouterModelClient({
+    apiKey,
+    provider: providerPolicyFromEnv({
+      AGENT_PROVIDER_ORDER: Deno.env.get('AGENT_PROVIDER_ORDER') ?? undefined,
+      AGENT_PROVIDER_SORT: Deno.env.get('AGENT_PROVIDER_SORT') ?? undefined,
+      AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS') ?? undefined,
+      AGENT_PROVIDER_ALLOW_TRAINING: Deno.env.get('AGENT_PROVIDER_ALLOW_TRAINING') ?? undefined,
+    }),
+  });
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────

@@ -12,7 +12,11 @@
  * though cross-boundary *imports* from a pmo-portal/-resident test file work fine.
  */
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OpenRouterModelClient } from '../../../../supabase/functions/_shared/openRouterModelClient';
+import {
+  OpenRouterModelClient,
+  providerPolicyFromEnv,
+  DEFAULT_PROVIDER_POLICY,
+} from '../../../../supabase/functions/_shared/openRouterModelClient';
 
 function mockFetchOnce(body: unknown, status = 200): ReturnType<typeof vi.fn> {
   const fn = vi.fn().mockResolvedValue({
@@ -57,8 +61,62 @@ it('AC-MC-001 sends POST to the OpenRouter chat-completions endpoint with the ri
   expect(body.model).toBe('deepseek/deepseek-v4-flash');
   expect(body.max_tokens).toBe(512);
   expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);
-  expect(body.provider).toEqual({ sort: 'throughput', allow_fallbacks: true });
+  // Default routing policy: privacy-first no-train pin (DeepInfra → DigitalOcean).
+  expect(body.provider).toEqual(DEFAULT_PROVIDER_POLICY);
   expect(body.usage).toEqual({ include: true });
+});
+
+it('emits a caller-supplied provider policy verbatim in the request body', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'm',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+  const provider = { order: ['deepinfra'], data_collection: 'deny' as const, allow_fallbacks: false };
+  await new OpenRouterModelClient({ apiKey: 'k', provider }).create({
+    model: 'm', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+  expect(body.provider).toEqual(provider);
+});
+
+it('providerPolicyFromEnv defaults to the privacy-first no-train pin', () => {
+  expect(providerPolicyFromEnv({})).toEqual({
+    allow_fallbacks: true,
+    data_collection: 'deny',
+    order: ['deepinfra', 'digitalocean'],
+  });
+});
+
+it('providerPolicyFromEnv honors an explicit order, sort, fallbacks, and training override', () => {
+  // Explicit order pin (single provider), fallbacks off.
+  expect(
+    providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: 'deepinfra', AGENT_PROVIDER_ALLOW_FALLBACKS: 'false' }),
+  ).toEqual({ allow_fallbacks: false, data_collection: 'deny', order: ['deepinfra'] });
+
+  // Pure throughput routing within no-train providers (no order pin when a sort is chosen).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'throughput' })).toEqual({
+    allow_fallbacks: true,
+    data_collection: 'deny',
+    sort: 'throughput',
+  });
+
+  // Owner explicitly relaxes the privacy constraint (opt back into training providers).
+  expect(
+    providerPolicyFromEnv({ AGENT_PROVIDER_ALLOW_TRAINING: 'true', AGENT_PROVIDER_SORT: 'throughput' }),
+  ).toEqual({ allow_fallbacks: true, data_collection: 'allow', sort: 'throughput' });
+
+  // Empty AGENT_PROVIDER_ORDER intentionally drops the pin (pure data_collection routing).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: '' })).toEqual({
+    allow_fallbacks: true,
+    data_collection: 'deny',
+  });
+
+  // An unrecognized sort value is ignored (falls back to the default order pin).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'bogus' })).toEqual({
+    allow_fallbacks: true,
+    data_collection: 'deny',
+    order: ['deepinfra', 'digitalocean'],
+  });
 });
 
 it('AC-MC-002 maps a text-only completion to ModelResponse', async () => {
