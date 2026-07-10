@@ -40,6 +40,16 @@ export interface UsageFields {
   provider_cost_usd?: number;
   /** Which call-site produced this row. Defaults to 'chat' when omitted. */
   action?: UsageAction;
+  /**
+   * Prompt tokens served from the provider prefix cache (subset of prompt_tokens; telemetry for the
+   * prompt-cache cost lever). Defaults to 0 when the provider does not report it.
+   */
+  cached_tokens?: number;
+  /**
+   * Reasoning/thinking tokens in the output (subset of completion_tokens). Defaults to 0 when the
+   * model emits none or the provider does not report it.
+   */
+  reasoning_tokens?: number;
 }
 
 // AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
@@ -89,6 +99,10 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
         // omitted -> defaults to the already-clamped cost (today-equal, FR-USE-001 note above).
         provider_cost_usd: fields.provider_cost_usd === undefined ? cost : clampUsageValue(fields.provider_cost_usd),
         action: fields.action ?? 'chat',
+        // Telemetry-only measures; clamped here (the single insert choke point) so a caller that
+        // forgets to clamp upstream still cannot persist a negative/non-finite value. Omitted ⇒ 0.
+        cached_tokens: clampUsageValue(fields.cached_tokens),
+        reasoning_tokens: clampUsageValue(fields.reasoning_tokens),
       })
       .select()
       .single();
@@ -132,6 +146,8 @@ export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?:
     prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
     completion_tokens: clampUsageValue(resp.usage?.completion_tokens),
     cost: clampUsageValue(resp.usage?.total_cost),
+    cached_tokens: clampUsageValue(resp.usage?.cached_tokens),
+    reasoning_tokens: clampUsageValue(resp.usage?.reasoning_tokens),
     action,
   });
 }

@@ -141,6 +141,40 @@ it('AC-MC-004 surfaces total_cost when the provider reports it, omits it when ab
   expect(withoutCost.usage?.total_cost).toBeUndefined();
 });
 
+it('captures cached_tokens + reasoning_tokens from usage detail objects, omits them when absent', async () => {
+  // Telemetry hardening: OpenRouter returns prompt_tokens_details.cached_tokens (prefix-cache
+  // hits) + completion_tokens_details.reasoning_tokens; both must flow into ModelUsage.
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'a' } }],
+    usage: {
+      prompt_tokens: 1000,
+      completion_tokens: 200,
+      total_tokens: 1200,
+      cost: 0.01,
+      prompt_tokens_details: { cached_tokens: 768 },
+      completion_tokens_details: { reasoning_tokens: 64 },
+    },
+  });
+  const withDetails = await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(withDetails.usage?.cached_tokens).toBe(768);
+  expect(withDetails.usage?.reasoning_tokens).toBe(64);
+
+  // Absent detail objects ⇒ fields omitted (not 0) so downstream defaulting owns the 0.
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'a' } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  });
+  const withoutDetails = await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(withoutDetails.usage?.cached_tokens).toBeUndefined();
+  expect(withoutDetails.usage?.reasoning_tokens).toBeUndefined();
+});
+
 it('AC-MC-005 throws a scrubbed Error on non-2xx and never logs the raw body', async () => {
   const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

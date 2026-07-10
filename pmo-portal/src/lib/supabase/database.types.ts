@@ -382,6 +382,7 @@ export type Database = {
       agent_usage: {
         Row: {
           action: string
+          cached_tokens: number
           completion_tokens: number
           cost: number
           created_at: string
@@ -391,10 +392,12 @@ export type Database = {
           owner_id: string
           prompt_tokens: number
           provider_cost_usd: number
+          reasoning_tokens: number
           run_id: string | null
         }
         Insert: {
           action?: string
+          cached_tokens?: number
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -404,10 +407,12 @@ export type Database = {
           owner_id?: string
           prompt_tokens?: number
           provider_cost_usd?: number
+          reasoning_tokens?: number
           run_id?: string | null
         }
         Update: {
           action?: string
+          cached_tokens?: number
           completion_tokens?: number
           cost?: number
           created_at?: string
@@ -417,6 +422,7 @@ export type Database = {
           owner_id?: string
           prompt_tokens?: number
           provider_cost_usd?: number
+          reasoning_tokens?: number
           run_id?: string | null
         }
         Relationships: [
