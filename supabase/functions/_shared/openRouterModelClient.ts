@@ -22,62 +22,111 @@ const RETRY_BASE_DELAY_MS = 400;
 /**
  * OpenRouter `provider` routing preferences (subset we use). Controls WHICH backend serves the
  * pinned model slug — decisive for both prompt-cache economics (a stable backend keeps the shared
- * static prefix warm) and data privacy (`data_collection: 'deny'` excludes hosts that train on /
- * retain request data). See docs/plans/2026-07-09-agent-model-cost-optimization.md.
+ * static prefix warm) and data privacy (`only` hard-restricts routing to a vetted allow-list, so the
+ * agent never falls through to a host that trains on request data).
+ * See docs/plans/2026-07-09-agent-model-cost-optimization.md.
  */
 export interface OpenRouterProviderPolicy {
-  /** Deterministic backend preference order (provider slugs). Pins routing → cache locality. */
+  /** Deterministic backend preference order (provider slugs). Preferred first → cache locality. */
   order?: string[];
+  /** Hard allow-list — routing is RESTRICTED to these slugs (the privacy guarantee). */
+  only?: string[];
+  /** Deny-list — never route to these slugs. */
+  ignore?: string[];
   /** Rank the remaining/eligible providers. `order` still wins for listed slugs. */
   sort?: 'throughput' | 'price' | 'latency';
   /** Allow OpenRouter to fall back to the next eligible provider on a blip (default true). */
   allow_fallbacks?: boolean;
-  /** `'deny'` restricts routing to providers that do NOT train on / retain request data. */
+  /** `'deny'` further restricts to providers that do NOT retain request data at all. */
   data_collection?: 'allow' | 'deny';
 }
 
 /**
- * Privacy-first default: route only to no-train providers (`data_collection: 'deny'`),
- * deterministically preferring DeepInfra then DigitalOcean — the two hosts that serve
- * deepseek-v4-flash on OpenRouter WITHOUT training on data — so the shared static prefix caches on
- * a stable backend. Overridable per deploy via providerPolicyFromEnv (secrets, no code change).
+ * No-train fallback order (owner decision 2026-07-10). The two green (no-RETAIN) hosts first —
+ * DeepInfra, DigitalOcean — then retain-but-NOT-train hosts by jurisdiction then speed: US GMICloud,
+ * then the fastest Chinese-jurisdiction hosts (Baidu, StreamLake, Alibaba), then DeepSeek-direct as
+ * the last resort. `only` (below) hard-restricts routing to exactly this set so a fallback can never
+ * land on a host that TRAINS on request data.
+ *
+ * ⚠ PROVIDER SLUGS — verify each against openrouter.ai/<model>/providers BEFORE a prod deploy:
+ * a wrong slug in `only` silently drops that host from eligibility (worst case, if all are wrong,
+ * routing fails). `deepinfra` / `deepseek` are the well-known canonical slugs; the others
+ * (digitalocean, gmicloud, baidu, streamlake, alibaba) MUST be confirmed. All are overridable via
+ * AGENT_PROVIDER_ORDER / AGENT_PROVIDER_ONLY secrets — fix a slug without a code deploy.
+ */
+export const NO_TRAIN_FALLBACK_ORDER: readonly string[] = [
+  'deepinfra',
+  'digitalocean',
+  'gmicloud',
+  'baidu',
+  'streamlake',
+  'alibaba',
+  'deepseek',
+];
+
+/**
+ * Default: prefer the green hosts, cascade down the vetted no-train fallback order, and `only`-
+ * restrict routing to that set (never a training host). `allow_fallbacks` lets it walk the order.
+ * Overridable per deploy via providerPolicyFromEnv (secrets, no code change).
  */
 export const DEFAULT_PROVIDER_POLICY: OpenRouterProviderPolicy = {
-  data_collection: 'deny',
-  order: ['deepinfra', 'digitalocean'],
+  order: [...NO_TRAIN_FALLBACK_ORDER],
+  only: [...NO_TRAIN_FALLBACK_ORDER],
   allow_fallbacks: true,
 };
 
+/** Parse a comma-separated slug list; undefined stays undefined, '' → [] (explicit clear). */
+function parseSlugList(v: string | undefined): string[] | undefined {
+  if (v === undefined) return undefined;
+  return v.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 /**
  * Build a provider policy from edge-function env (pure — no Deno globals, so it is unit-testable).
- * Defaults are privacy-first (see DEFAULT_PROVIDER_POLICY); every knob is an escape hatch so the
- * owner can trade privacy↔latency↔cache without a code deploy:
- *   AGENT_PROVIDER_ORDER           comma-separated slugs; '' (empty) removes the pin entirely.
- *   AGENT_PROVIDER_SORT            throughput|price|latency (adds a sort preference).
+ * Defaults are the no-train fallback tier (see DEFAULT_PROVIDER_POLICY); every knob is an escape
+ * hatch so the owner can trade privacy↔latency↔cache without a code deploy:
+ *   AGENT_PROVIDER_ORDER           comma slugs; '' drops the preference order.
+ *   AGENT_PROVIDER_ONLY            comma slugs (hard allow-list); '' DISABLES the restriction.
+ *   AGENT_PROVIDER_IGNORE          comma slugs to never route to.
+ *   AGENT_PROVIDER_SORT            throughput|price|latency (rank within the allow-list).
  *   AGENT_PROVIDER_ALLOW_FALLBACKS 'false' disables fallbacks (default: enabled).
- *   AGENT_PROVIDER_ALLOW_TRAINING  'true' relaxes to data_collection:'allow' (default: 'deny').
+ *   AGENT_PROVIDER_DATA_COLLECTION 'deny' (green-only, no retention) | 'allow' (opt-in; default: unset).
+ * The `only` safety allow-list stays ON by default (even in sort mode) unless AGENT_PROVIDER_ONLY=''.
  */
 export function providerPolicyFromEnv(env: {
   AGENT_PROVIDER_ORDER?: string;
+  AGENT_PROVIDER_ONLY?: string;
+  AGENT_PROVIDER_IGNORE?: string;
   AGENT_PROVIDER_SORT?: string;
   AGENT_PROVIDER_ALLOW_FALLBACKS?: string;
-  AGENT_PROVIDER_ALLOW_TRAINING?: string;
+  AGENT_PROVIDER_DATA_COLLECTION?: string;
 }): OpenRouterProviderPolicy {
   const policy: OpenRouterProviderPolicy = {
     allow_fallbacks: env.AGENT_PROVIDER_ALLOW_FALLBACKS !== 'false',
-    data_collection: env.AGENT_PROVIDER_ALLOW_TRAINING === 'true' ? 'allow' : 'deny',
   };
   const sort = env.AGENT_PROVIDER_SORT;
   if (sort === 'throughput' || sort === 'price' || sort === 'latency') policy.sort = sort;
-
-  if (env.AGENT_PROVIDER_ORDER !== undefined) {
-    // Explicit override — including '' → intentionally NO order pin (pure sort/data_collection).
-    const order = env.AGENT_PROVIDER_ORDER.split(',').map((s) => s.trim()).filter(Boolean);
-    if (order.length > 0) policy.order = order;
-  } else if (policy.sort === undefined) {
-    // No explicit order and no sort → apply the privacy-first default pin for cache stability.
-    policy.order = DEFAULT_PROVIDER_POLICY.order;
+  if (env.AGENT_PROVIDER_DATA_COLLECTION === 'deny' || env.AGENT_PROVIDER_DATA_COLLECTION === 'allow') {
+    policy.data_collection = env.AGENT_PROVIDER_DATA_COLLECTION;
   }
+
+  const order = parseSlugList(env.AGENT_PROVIDER_ORDER);
+  if (order !== undefined) {
+    if (order.length > 0) policy.order = order; // '' → intentionally no preference order
+  } else if (policy.sort === undefined) {
+    policy.order = [...NO_TRAIN_FALLBACK_ORDER]; // default preference (dropped only when sorting)
+  }
+
+  const only = parseSlugList(env.AGENT_PROVIDER_ONLY);
+  if (only !== undefined) {
+    if (only.length > 0) policy.only = only; // '' → explicitly disable the allow-list restriction
+  } else {
+    policy.only = [...NO_TRAIN_FALLBACK_ORDER]; // safety allow-list ON by default
+  }
+
+  const ignore = parseSlugList(env.AGENT_PROVIDER_IGNORE);
+  if (ignore && ignore.length > 0) policy.ignore = ignore;
+
   return policy;
 }
 

@@ -51,9 +51,27 @@ of choosing no-train is latency**, not dollars: DeepInfra ~17 tps / DigitalOcean
 in the table (DeepInfra is the backend we previously un-pinned for ~15–30s/round). We accept that, measure
 p95 via telemetry, and attack it with transcript compaction + parallel tools (deferred items below).
 
-**Decision:** default `provider = { data_collection: 'deny', order: ['deepinfra','digitalocean'],
-allow_fallbacks: true }` — privacy-guaranteed, deterministic (cache-stable), redundant. Every knob is an
-`AGENT_PROVIDER_*` secret so the owner can re-trade privacy↔latency↔cache **without a code deploy**.
+**Decision (initial, PR #291):** default `provider = { data_collection: 'deny', order:
+['deepinfra','digitalocean'], allow_fallbacks: true }` — green-only, cache-stable.
+
+**Decision (refined, owner 2026-07-10 — the fallback tier):** the shield tiers are **green** = no
+prompt retention (DeepInfra, DigitalOcean), **orange** = retains prompts but does NOT train on them
+(GMICloud, Baidu, StreamLake, Alibaba, DeepSeek-direct), **red** = trains (avoid). The owner accepts the
+orange (retain-not-train) hosts as a *fallback* tier, ordered by jurisdiction then speed. New default:
+```
+provider = {
+  order: [deepinfra, digitalocean, gmicloud, baidu, streamlake, alibaba, deepseek],
+  only:  [<same set>],          // HARD allow-list — a fallback can never reach a training host
+  allow_fallbacks: true,
+}
+```
+Green first (no-retention + cache locality); then US GMICloud; then the fastest CN hosts (Baidu 81 /
+StreamLake 42 / Alibaba 39 tps); DeepSeek-direct last. `only` replaces `data_collection:'deny'` as the
+safety mechanism (the latter would exclude the retain-not-train fallbacks); `AGENT_PROVIDER_DATA_COLLECTION=deny`
+re-imposes green-only on demand. **⚠ Provider slugs must be verified against OpenRouter before prod** — a
+wrong slug in `only` silently drops that host; all are overridable via `AGENT_PROVIDER_*` secrets (no
+redeploy). Every knob stays an `AGENT_PROVIDER_*` secret so the owner re-trades privacy↔latency↔cache
+without a code deploy.
 
 ## Prompt-ordering audit (cache-locality invariant)
 
@@ -71,10 +89,11 @@ per-request token ahead of the static body; append volatile grounding at the tai
 | # | Slice | Status |
 |---|---|---|
 | 1 | **Telemetry hardening** — `agent_usage.cached_tokens` + `reasoning_tokens` capture chain (migration 0084, capture in openRouterModelClient/usage, pgTAP 0139 + Vitest) | ✅ PR #290 → `dev` |
-| 2 | **Provider pinning** — privacy-first no-train policy (`data_collection:'deny'` + DeepInfra→DigitalOcean pin), env-overridable (`AGENT_PROVIDER_*`) | ✅ this PR |
-| 3 | **Prefix-order audit** — confirmed cache-optimal; invariant documented (above) | ✅ this PR (doc) |
-| 4 | **Tool-result compaction + transcript pruning** — shrink the *miss* portion of the 94%-input replay | ⏳ deferred (next slice) |
-| 5 | **Parallel tool calls** — dispatch independent tool calls concurrently; cuts wall-clock (helps the latency budget item 2 spends) | ⏳ deferred |
+| 2 | **Provider pinning** — green-only no-train default (`data_collection:'deny'` + DeepInfra→DigitalOcean), env-overridable (`AGENT_PROVIDER_*`) | ✅ PR #291 → `dev` |
+| 2b | **Fallback tiering** — `only`/`ignore` support + the owner's 7-tier no-train fallback order (green → US → CN → DeepSeek), `only`-restricted | ✅ this PR |
+| 3 | **Prefix-order audit** — confirmed cache-optimal; invariant documented (above) | ✅ PR #291 (doc) |
+| 4 | **Tool-result compaction + transcript pruning** — shrink the *miss* portion of the 94%-input replay | ⏳ next |
+| 5 | **Parallel tool calls** — execute all tool_calls per round (loop currently runs only tool_calls[0]); cuts rounds + wall-clock | ⏳ next |
 
 ## Verification / rollout
 
