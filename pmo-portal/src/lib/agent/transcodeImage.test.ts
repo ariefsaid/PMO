@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// Uses canvas/document.createElement (DOM globals absent in the `node` test project — perf/test-speed split).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AGENT_ATTACHMENT_IMAGE_MAX_DIMENSION,

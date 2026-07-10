@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// Uses XHR + ProgressEvent (DOM globals absent in the `node` test project — perf/test-speed split).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { uploadWithProgress, TransportError, classifyUploadError } from './uploadTransport';
 
