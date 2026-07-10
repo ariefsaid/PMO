@@ -137,6 +137,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       adapter,
       command,
       writeReadModel: async (canonical: PmoRecord) => {
+        // P0: reference read-model only; P1 routes per domain.
         const { error } = await serviceClient
           .from('external_reference_items')
           .upsert(
