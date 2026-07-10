@@ -527,6 +527,9 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   changes a **native field** on that row, **then** it is denied (`42501`); **and when** the same member
   `INSERT`s a new `tasks` row or `DELETE`s the row, **then** it is denied — the per-command split leaves only
   an enhancement-column UPDATE open to the user (`tasks_update_own_status` is fully denied while flipped).
+  *(Observables per RLS physics, matching the proven 0090 flip: INSERT → `42501` via `WITH CHECK`;
+  native-field UPDATE → `42501` via the trigger pin; DELETE → **0 rows affected** via `USING` row-hiding —
+  RLS `USING` hides rows rather than raising. All three deny the action; the goal-oracle is identical.)*
   (FR-CUA-020, FR-CUA-024, OD-CUA-1)
 
 - **AC-CUA-024** — Concurrent adopt of the same ClickUp task dedupes atomically (no duplicate mirror).
