@@ -6,8 +6,8 @@ import {
   executeWriteWithPendingPush,
   EMPTY_OWNERSHIP_MAP,
   type OwnershipMap,
-} from './router';
-import { IDLE_PENDING_PUSH } from './pendingPush';
+} from './router.ts';
+import { IDLE_PENDING_PUSH } from './pendingPush.ts';
 
 describe('AC-EAS-001 empty ownership map ⇒ write takes the direct-DAL path (byte-for-byte)', () => {
   it('AC-EAS-001 routeWrite returns pmo for an empty map (short-circuit FIRST)', () => {
@@ -74,6 +74,24 @@ describe('AC-EAS-031 an externally-owned write routes through the dispatch (not 
     expect(res).toBe('dispatch');
     expect(dispatchWrite).toHaveBeenCalledTimes(1);
     expect(directWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-EAS-032a executeWriteWithPendingPush preserves the original rejection value on failure', () => {
+  it('AC-EAS-032a a non-Error rejection is wrapped without discarding its value (message + cause)', async () => {
+    const dispatchWrite = vi.fn(async () => {
+      // Deliberately throwing a non-Error value here to exercise the preservation behavior.
+      throw 'external system down';
+    });
+    await expect(
+      executeWriteWithPendingPush({
+        domain: 'reference',
+        ownershipMap: { reference: 'reference' },
+        payload: 'x',
+        directWrite: vi.fn(),
+        dispatchWrite,
+      }),
+    ).rejects.toMatchObject({ message: 'external system down' });
   });
 });
 

@@ -1,8 +1,8 @@
 /**
  * The write-routing seam (FR-EAS-030..033, AC-EAS-001/002/014/030/031/032). Pure + relative imports only.
  */
-import { PmoDomain } from './contract';
-import { pendingPushAfterWrite, type PendingPushState } from './pendingPush';
+import { PmoDomain } from './contract.ts';
+import { pendingPushAfterWrite, type PendingPushState } from './pendingPush.ts';
 
 export type OwnershipMap = Readonly<Record<PmoDomain, string>>;
 export const EMPTY_OWNERSHIP_MAP: OwnershipMap = {};
@@ -42,7 +42,7 @@ export async function executeWriteWithPendingPush<TPayload, TResult>(
     const result = await executeWrite(deps);
     return { result, pendingPush: pendingPushAfterWrite(route, { ok: true }) };
   } catch (err) {
-    return Promise.reject(Object.assign(err instanceof Error ? err : new Error('Write failed'), {
+    return Promise.reject(Object.assign(err instanceof Error ? err : new Error(String(err)), {
       pendingPush: pendingPushAfterWrite(route, { ok: false, err }),
     }));
   }
