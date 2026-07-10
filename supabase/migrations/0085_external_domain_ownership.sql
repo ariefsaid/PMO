@@ -20,7 +20,6 @@ create table public.external_domain_ownership (
   created_by    uuid references public.profiles(id),
   unique (org_id, external_tier, domain)
 );
-create index external_domain_ownership_org_idx        on public.external_domain_ownership (org_id);
 create index external_domain_ownership_org_domain_idx on public.external_domain_ownership (org_id, domain);
 
 alter table public.external_domain_ownership enable row level security;

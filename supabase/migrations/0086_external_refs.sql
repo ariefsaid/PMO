@@ -15,7 +15,6 @@ create table public.external_refs (
   unique (org_id, domain, pmo_record_id)
 );
 create index external_refs_org_domain_ext_idx on public.external_refs (org_id, domain, external_record_id);
-create index external_refs_org_idx             on public.external_refs (org_id);
 
 alter table public.external_refs enable row level security;
 alter table public.external_refs force  row level security;
