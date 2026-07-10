@@ -133,3 +133,25 @@ begin
   end if;
   return new;
 end; $$;
+
+create or replace function stamp_task_completed_at() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  -- Mirrored (service-role) write on a flipped org: trust the incoming completed_at (ClickUp truth);
+  -- do NOT re-stamp with now(). Guarded on BOTH service-role AND externally-owned so PMO-owned
+  -- service writes (if any) and every user write stay byte-for-byte the original.
+  if auth.uid() is null and public.domain_externally_owned(new.org_id, 'tasks') then
+    return new;
+  end if;
+  -- ORIGINAL 0034 behavior (unchanged for every non-mirrored path):
+  if tg_op = 'INSERT' then
+    new.completed_at := case when new.status = 'Done' then now() else null end;
+  elsif new.status = 'Done' and old.status is distinct from 'Done' then
+    new.completed_at := now();
+  elsif new.status is distinct from 'Done' and old.status = 'Done' then
+    new.completed_at := null;
+  else
+    new.completed_at := old.completed_at;
+  end if;
+  return new;
+end $$;
