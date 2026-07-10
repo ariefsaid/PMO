@@ -1,8 +1,7 @@
 # Spec: ClickUp adapter — tasks domain (Issue P1 — ADR-0055 P1 phase)
 
-> **Status:** Draft (author 2026-07-10) — awaiting review battery + owner sign-off. Three
-> owner-decision flags raised (§10: OD-CUA-1 enhancement-column write mechanism; OD-CUA-2
-> mirrored-task deletion policy; OD-CUA-3 mixed-onboarding matching).
+> **Status:** Signed off (owner, 2026-07-10) — review battery (opus spec review → 10 fixes) +
+> OD-CUA-1..3 decided (1: per-command split · 2: soft-tombstone · 3: reject-at-provisioning).
 >
 > P1 (the ClickUp adapter, tasks domain) of **ADR-0055**
 > (`docs/adr/0055-external-system-adapters-sot-enhancement.md`, §7 ClickUp + §8 P1 row). Builds on the
@@ -144,7 +143,9 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   surfaced as a `commit-rejected` classified error, not silently dropped.
 - **FR-CUA-005** (event-driven) When a `delete` command is issued for the tasks domain, the adapter shall
   delete the corresponding ClickUp task (`DELETE /api/v2/task/{task_id}`) resolved from `external_refs`, and
-  on success signal the dispatch to remove the mirrored read-model row and its `external_refs` mapping.
+  on success signal the dispatch to **tombstone** the mirrored read-model row (OD-CUA-2 — soft-tombstone,
+  not a row delete) while **keeping** its `external_refs` mapping (the tombstoned mirror still maps to the
+  ClickUp task id for audit/lineage; see FR-CUA-026).
 - **FR-CUA-006** (event-driven) When ClickUp rejects a command (validation, 4xx) the adapter shall raise an
   `AdapterError('commit-rejected', <ClickUp message>)`; when ClickUp is unreachable or returns 5xx after the
   retry budget (FR-CUA-051) is exhausted, the adapter shall raise `AdapterError('external-unreachable', …)`
@@ -248,9 +249,13 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   create/update path: the shipped `dispatchExternallyOwnedWrite` (`adapterSeam/dispatch.ts:34-50`)
   **unconditionally upserts the canonical read-model row and records the `external_refs` mapping**, which is
   wrong for a delete. P1 shall extend the dispatch so that, on a successful ClickUp delete (FR-CUA-005), it
-  instead **removes the mirrored read-model row and deletes the `external_refs` mapping** (org+domain+
-  external id), never upserting a canonical row for a deleted record. The create/update/transition commands
-  keep the P0 upsert+record order (FR-CUA-025).
+  instead **soft-tombstones the mirrored read-model row** (a `tombstoned_at`/archived marker, ADR-0018
+  soft-archive idiom — **OD-CUA-2, decided**) rather than removing it, and **keeps** the `external_refs`
+  mapping (org+domain+external id) rather than deleting it — the tombstoned mirror still maps to the ClickUp
+  task id for audit/lineage — never upserting a canonical (non-tombstoned) row for a deleted record. The same
+  tombstone-and-keep semantics apply when a ClickUp-native deletion arrives via the change-feed (webhook or
+  sweep — FR-CUA-080), so both delete-arrival paths converge on one non-destructive outcome. The
+  create/update/transition commands keep the P0 upsert+record order (FR-CUA-025).
 - **FR-CUA-025** (event-driven) When the dispatch commits a task command, it shall update the `tasks`
   read-model row from the adapter's canonical answer and record/update the `external_refs` mapping
   (`domain = 'tasks'`, `external_tier = 'clickup'`, `pmo_record_id` ↔ ClickUp task id) — in the P0 order:
@@ -397,13 +402,18 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 ### 3.11 Enhancement integrity (mirrored-task deletion)
 
 - **FR-CUA-080** (event-driven) When a mirrored task is deleted natively in ClickUp (webhook `taskDeleted`
-  or discovered by the sweep), the system shall apply the deletion to the tasks read-model so it reflects
-  ClickUp truth, and shall handle the task's PMO enhancements per **OD-CUA-2** (default: cascade-remove
-  dependency edges referencing the task — the existing `task_dependencies` FK-cascade — and drop the row's
-  milestone grouping with the row, surfacing the removal rather than silently vanishing it).
+  or discovered by the sweep), the system shall apply the deletion to the tasks read-model as a
+  **soft-tombstone** (**OD-CUA-2, decided**): mark the mirrored row tombstoned (a `tombstoned_at`/archived
+  marker per the repo's ADR-0018 soft-archive idiom, not a row delete), so it is hidden from active task
+  views and rollups going forward while still reflecting that ClickUp deleted it; **preserve** the task's
+  PMO enhancements — dependency edges referencing the task and its milestone grouping are **not**
+  cascade-removed, they remain intact keyed on the retained `pmo_record_id` (enhancement-integrity/G-6) —
+  and **surface** the deletion (a notice / audit event) rather than silently vanishing it or its
+  enhancements.
 - **FR-CUA-081** (ubiquitous) Dependency edges and milestone/weight/rollup enhancements shall reference the
   mirrored task by its PMO `pmo_record_id` (stable across ClickUp edits), so an update-in-ClickUp preserves
-  the PMO enhancement graph — only a **deletion** triggers FR-CUA-080.
+  the PMO enhancement graph unchanged; a **deletion** triggers FR-CUA-080, whose tombstone semantics
+  likewise preserve — never cascade-remove — that same enhancement graph.
 - **FR-CUA-082** (event-driven) When a rollup or milestone-progress computation runs over a project whose
   tasks are mirrored, it shall compute over the read-model exactly as for PMO-owned tasks — the rollup engine
   is ownership-agnostic because it reads the read-model (FR-CUA-021).
@@ -585,12 +595,15 @@ employs ClickUp — this survives the repository wiring only if the routing shor
   **Then** the ClickUp call omits the assignee (unassigned) and the outcome is surfaced, not thrown.
   (FR-CUA-013)
 
-- **AC-CUA-038** — The dispatch delete path removes the mirror + mapping (does not upsert a canonical row).
+- **AC-CUA-038** — The dispatch delete path tombstones the mirror and keeps the mapping (does not upsert a
+  canonical row).
   **Given** the dispatch with a mocked adapter and an existing `external_refs` mapping,
   **When** a `delete` command commits successfully,
-  **Then** the dispatch **removes** the mirrored read-model row and **deletes** the `external_refs` mapping,
-  and does **not** call `writeReadModel`/`recordExternalRef` with a canonical row (the delete-aware path,
-  distinct from the P0 create/update upsert order). (FR-CUA-026, FR-CUA-005)
+  **Then** the dispatch **tombstones** the mirrored read-model row (soft-tombstone marker, not a row delete)
+  and **keeps** the `external_refs` mapping intact (still resolvable to the ClickUp task id for audit/
+  lineage), and does **not** call `writeReadModel`/`recordExternalRef` with a canonical (non-tombstoned) row
+  (the delete-aware path, distinct from the P0 create/update upsert order). (FR-CUA-026, FR-CUA-005,
+  OD-CUA-2)
 
 ### Change-feed — webhook ingress + sweep (Vitest, mocked)
 
@@ -679,11 +692,12 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 
 ### Enhancement integrity (Vitest, mocked)
 
-- **AC-CUA-070** — A ClickUp deletion removes the mirror and cascades dependency edges (non-silent).
+- **AC-CUA-070** — A ClickUp deletion tombstones the mirror and preserves dependency edges (non-silent).
   **Given** a mirrored task with a dependency edge and milestone grouping, and a `taskDeleted` webhook,
   **When** it is applied,
-  **Then** the read-model row is removed, its dependency edges are cascade-removed, and the removal is
-  surfaced (not silent) per OD-CUA-2. (FR-CUA-080, FR-CUA-081)
+  **Then** the read-model row is **tombstoned** (not removed) and hidden from active task views/rollups, its
+  dependency edges and milestone grouping are **preserved** (not cascade-removed), and the deletion is
+  surfaced (not silent) per OD-CUA-2 (soft-tombstone, decided). (FR-CUA-080, FR-CUA-081)
 
 - **AC-CUA-071** — Update-in-ClickUp preserves the PMO enhancement graph.
   **Given** a mirrored task with dependencies + milestone grouping and a `taskUpdated` webhook,
@@ -780,7 +794,7 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 | Unmappable target status | `commit-rejected` (config) | "this status has no ClickUp equivalent" | Per-List status map bound (FR-CUA-011) |
 | Webhook: absent/invalid `X-Signature` | `401` | (none — rejected at ingress) | Trust boundary; no side effect (FR-CUA-041) |
 | User-JWT native-field write while tasks externally-owned | `42501` | "you don't have permission" | RLS flip authority (FR-CUA-020) |
-| Mirrored task deleted in ClickUp | (applied) | mirror + dependency edges removed, surfaced | OD-CUA-2 default (FR-CUA-080) |
+| Mirrored task deleted in ClickUp | (applied) | mirror tombstoned (dependency edges + milestone grouping preserved), surfaced | OD-CUA-2 decided: soft-tombstone (FR-CUA-080) |
 | PMO-owned task error | unchanged | existing error `code` + existing classifier | Byte-for-byte preserved (FR-CUA-030) |
 
 ## 8. Implementation TODO (build-plan inputs — docs only here)
@@ -797,9 +811,9 @@ employs ClickUp — this survives the repository wiring only if the routing shor
       P0 `// P1 routes per domain` seam).
 - [ ] **Delete-aware dispatch** (`adapterSeam/dispatch.ts`): extend the shipped
       `dispatchExternallyOwnedWrite` (which today unconditionally upserts canonical + records the ref) with a
-      delete path — on a successful `delete` command, remove the mirrored read-model row and delete the
-      `external_refs` mapping instead of upserting (AC-CUA-038; FR-CUA-026). Unit-tested in
-      `adapterSeam/dispatch.test.ts`.
+      delete path — on a successful `delete` command, **soft-tombstone** the mirrored read-model row and
+      **keep** the `external_refs` mapping instead of upserting (OD-CUA-2, decided; AC-CUA-038; FR-CUA-026).
+      Unit-tested in `adapterSeam/dispatch.test.ts`.
 
 ### Tasks-flip migration + pgTAP (generalize 0090 onto the real `tasks` table)
 - [ ] Migration (next number ≥0091) — **per-command split (FR-CUA-020), NOT a `FOR ALL` guard** (a wholesale
@@ -821,7 +835,12 @@ employs ClickUp — this survives the repository wiring only if the routing shor
     AC-CUA-024); 0088 today has only `unique (org_id, domain, pmo_record_id)`.
   - Add the mirrored-row **source-modification timestamp** column (the ClickUp `date_updated` last applied),
     for the out-of-order/stale-write apply guard (FR-CUA-049, AC-CUA-045).
-  - Reversible (drop the added gates + trigger branches + the added constraint/column → restore 0002/0016/
+  - Add a **tombstone marker** column to `tasks` (e.g. `tombstoned_at`, the ADR-0018 soft-archive idiom) for
+    mirrored-task deletion (**OD-CUA-2, decided: soft-tombstone**) — set by the service role on a
+    ClickUp-native delete apply (FR-CUA-080) and by the delete-aware dispatch (FR-CUA-026); active task
+    views/rollups filter it out. The existing PMO-owned `deleteTask()` hard-delete is unchanged for
+    non-ClickUp orgs (FR-CUA-030).
+  - Reversible (drop the added gates + trigger branches + the added constraints/columns → restore 0002/0016/
     0034 behavior). (AC-CUA-020..024)
 - [ ] pgTAP: deny user-JWT native write / **permit service-role native-field UPDATE (name/dates, not just
       status)** / user INSERT+DELETE denied / enhancement (`milestone_id`) UPDATE writable / release restores
@@ -853,8 +872,9 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 - [ ] Compose `pendingPush.ts` on board/list/detail; optimistic board drag (AC-CUA-060..062).
 
 ### Enhancement integrity
-- [ ] Apply ClickUp deletion to read-model + cascade dependencies, non-silent (OD-CUA-2); rollup over mirror
-      (AC-CUA-070..072).
+- [ ] Apply ClickUp deletion to read-model as a **soft-tombstone** (OD-CUA-2, decided) — preserve, don't
+      cascade, the dependency/milestone enhancements; non-silent; rollup over mirror excludes tombstoned
+      rows (AC-CUA-070..072).
 
 ### Verification (final gate — from `pmo-portal/` + repo root)
 - [ ] `npm run verify` green (incl. the AC-CUA-002 regression net).
@@ -880,48 +900,56 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 
 ## 10. Open questions / owner-decision flags
 
-- **[OWNER-DECISION] OD-CUA-1 — Enhancement-column write mechanism on the mirrored `tasks` row.** The
-  `tasks` row carries native ClickUp-owned fields **and** the PMO enhancement column `milestone_id`
-  (grouping). While tasks are externally-owned we must deny user writes to the native fields yet keep
-  `milestone_id` (and future weight) user-writable. **Recommended default (per-command split — FR-CUA-020):**
-  because `tasks_write` (0002) is `FOR ALL`, guarding its `USING` wholesale would remove the user's UPDATE
-  path entirely and `milestone_id` would stop being user-writable — so instead: (a) guard the **INSERT** and
-  **DELETE** paths of `tasks_write` with `not domain_externally_owned(...,'tasks')` (user INSERT/DELETE
-  denied while flipped); (b) leave a **permissive UPDATE path open** but extend the
-  `enforce_assignee_status_only` column-pin trigger (0016) so that, while `domain_externally_owned(...,
-  'tasks')`, a user-JWT `UPDATE` may change **only** enhancement columns (`milestone_id`) — native-field
-  changes raise `42501`, and the pin applies to every user role (the manager exemption is suspended while
-  flipped); (c) fully deny `tasks_update_own_status` while flipped (status is ClickUp-owned); (d) give the
-  trigger a **service-role bypass** (`if auth.uid() is null then return new;`) because triggers, unlike RLS,
-  do not yield to `service_role`, so the sync role can write native fields. No schema migration of
-  `milestone_id`, matches the shipped column-pin idiom. **Alternative:** move enhancements to a separate `task_enhancements` table
-  (task_id → milestone_id/weight) so the `tasks` table is a pure native-field read-model (cleanest per
-  ADR-0055 "enhancements are additive, never a native field", but a larger refactor touching milestones /
-  gantt / rollup). Decision governs AC-CUA-021.
-- **[OWNER-DECISION] OD-CUA-2 — Mirrored-task deletion policy.** When a mirrored task is deleted natively in
-  ClickUp, what happens to the PMO read-model row and its enhancements? **Recommended default:** hard-remove
-  the read-model row (read-model must reflect ClickUp truth), cascade-remove dependency edges (existing
-  `task_dependencies` FK cascade), drop the milestone grouping with the row, and **surface** the removal (a
-  notice / audit event) — never silent. **Alternative:** soft-tombstone the mirrored row (`deleted_at`,
-  retained read-only for audit + to preserve dependency/rollup lineage) until an Operator prunes it.
-  **Reviewer's counter-argument (weigh explicitly at sign-off):** the recommended hard-remove + FK-cascade
-  **destroys exactly the PMO enhancement lineage that G-6 exists to protect** — a task deleted in ClickUp
-  takes its dependency edges, milestone grouping, weights, and rollup contribution down with it, silently
-  re-shaping the PMO project graph in response to an external actor's delete. The soft-tombstone preserves
-  that lineage (the enhancement graph survives, keyed on the retained `pmo_record_id`), reflects ClickUp
-  truth in reads by filtering tombstoned rows out of the active view, and lets an Operator decide when the
-  lineage is truly disposable. The tension is *read-model-reflects-ClickUp-truth* (favors hard-remove) vs
-  *enhancement-integrity/G-6* (favors soft-tombstone); the owner must pick which invariant wins. Decision
-  governs FR-CUA-080 / AC-CUA-070.
-- **[OWNER-DECISION] OD-CUA-3 — Mixed-onboarding matching (both sides non-empty).** Owner intake supports
-  both directions cleanly: push-seed when the mapped List is empty, pull-adopt when the PMO project has no
-  tasks. When **both** the PMO project AND the mapped ClickUp List already hold tasks at flip time, how do we
-  reconcile (avoid creating duplicate mirrors)? **Recommended default:** P1 supports only the two clean
-  directions — a project flips either by seeding an empty List or adopting into an empty project; the
-  mixed case is **rejected at provisioning** with an operator-facing "List and project both non-empty —
-  choose a clean direction" and deferred to a later reconcile/matching runbook (name-match heuristics are
-  error-prone). **Alternative:** best-effort name-match dedupe in P1. Decision governs FR-CUA-050/060 and
-  whether an extra AC is added.
+- **[OWNER-DECISION → DECIDED, owner 2026-07-10] OD-CUA-1 — Enhancement-column write mechanism on the
+  mirrored `tasks` row.** The `tasks` row carries native ClickUp-owned fields **and** the PMO enhancement
+  column `milestone_id` (grouping). While tasks are externally-owned we must deny user writes to the native
+  fields yet keep `milestone_id` (and future weight) user-writable. **Decided (per-command split —
+  FR-CUA-020, the specced default):** because `tasks_write` (0002) is `FOR ALL`, guarding its `USING`
+  wholesale would remove the user's UPDATE path entirely and `milestone_id` would stop being user-writable —
+  so instead: (a) guard the **INSERT** and **DELETE** paths of `tasks_write` with `not
+  domain_externally_owned(...,'tasks')` (user INSERT/DELETE denied while flipped); (b) leave a **permissive
+  UPDATE path open** but extend the `enforce_assignee_status_only` column-pin trigger (0016) so that, while
+  `domain_externally_owned(...,'tasks')`, a user-JWT `UPDATE` may change **only** enhancement columns
+  (`milestone_id`) — native-field changes raise `42501`, and the pin applies to every user role (the manager
+  exemption is suspended while flipped); (c) fully deny `tasks_update_own_status` while flipped (status is
+  ClickUp-owned); (d) give the trigger a **service-role bypass** (`if auth.uid() is null then return new;`)
+  because triggers, unlike RLS, do not yield to `service_role`, so the sync role can write native fields. No
+  schema migration of `milestone_id`, matches the shipped column-pin idiom. **Alternative (rejected):** move
+  enhancements to a separate `task_enhancements` table (task_id → milestone_id/weight) so the `tasks` table
+  is a pure native-field read-model (cleanest per ADR-0055 "enhancements are additive, never a native field",
+  but a larger refactor touching milestones / gantt / rollup). Decision governs AC-CUA-021 — the body above
+  (FR-CUA-020/024, AC-CUA-021, §8 migration TODO) already specs the decided mechanism; confirmed, no further
+  edits needed.
+- **[OWNER-DECISION → DECIDED, owner 2026-07-10] OD-CUA-2 — Mirrored-task deletion policy.** When a mirrored
+  task is deleted natively in ClickUp, what happens to the PMO read-model row and its enhancements?
+  **Drafted default (rejected at sign-off):** hard-remove the read-model row (read-model must reflect
+  ClickUp truth), cascade-remove dependency edges (existing `task_dependencies` FK cascade), drop the
+  milestone grouping with the row, and **surface** the removal (a notice / audit event) — never silent.
+  **Decided: SOFT-TOMBSTONE.** Soft-tombstone the mirrored row (a `tombstoned_at`/archived marker per the
+  repo's ADR-0018 soft-archive idiom), retained read-only, hidden from active task views and rollups going
+  forward, with milestone membership and dependency edges **preserved** (the enhancement graph survives,
+  keyed on the retained `pmo_record_id`) until an Operator prunes it; the deletion is **surfaced** (a notice
+  / audit event), same as the rejected default — never silent. **Reviewer's counter-argument (the deciding
+  factor):** the drafted hard-remove + FK-cascade would have **destroyed exactly the PMO enhancement lineage
+  that G-6 exists to protect** — a task deleted in ClickUp would take its dependency edges, milestone
+  grouping, weights, and rollup contribution down with it, silently re-shaping the PMO project graph in
+  response to an external actor's delete. The soft-tombstone preserves that lineage, reflects ClickUp truth
+  in *active* reads by filtering tombstoned rows out of task views/rollups, and lets an Operator decide when
+  the lineage is truly disposable — consistent with the **ADR-0018 soft-archive doctrine** already governing
+  PMO-side destructive deletes elsewhere in the app (soft-archive over hard-delete). The tension was
+  *read-model-reflects-ClickUp-truth* (favored hard-remove) vs *enhancement-integrity/G-6* (favored
+  soft-tombstone); **the owner picked enhancement-integrity/G-6 — soft-tombstone wins.** Governs
+  FR-CUA-080/026, AC-CUA-070/038 (re-specced to tombstone semantics).
+- **[OWNER-DECISION → DECIDED, owner 2026-07-10] OD-CUA-3 — Mixed-onboarding matching (both sides
+  non-empty).** Owner intake supports both directions cleanly: push-seed when the mapped List is empty,
+  pull-adopt when the PMO project has no tasks. When **both** the PMO project AND the mapped ClickUp List
+  already hold tasks at flip time, how do we reconcile (avoid creating duplicate mirrors)? **Decided:
+  reject-at-provisioning (the specced default).** P1 supports only the two clean directions — a project
+  flips either by seeding an empty List or adopting into an empty project; the mixed case is **rejected at
+  provisioning** with an operator-facing "List and project both non-empty — choose a clean direction" and
+  deferred to a later reconcile/matching runbook (name-match heuristics are error-prone). **Alternative
+  (rejected):** best-effort name-match dedupe in P1. Governs FR-CUA-050/060 — the body already specs the
+  decided behavior (FR-CUA-063's provisioning step); confirmed, no further edits needed.
 - **OQ-1 — Watermark cursor type for ClickUp. (RESOLVED — FR-CUA-007/046/049.)** ClickUp exposes
   `date_updated` (unix-ms) used as the modified-since cursor. ClickUp's `date_updated_gt` is
   **strictly-greater**, which would skip equal-`date_updated` tasks straddling a pagination boundary — so
@@ -945,6 +973,7 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 - [ ] Flip a test project's tasks to `clickup`; push-seed; confirm ClickUp tasks appear 1:1.
 - [ ] Edit a task in PMO (status on the board) → confirm the change lands in ClickUp; pending-push settles.
 - [ ] Edit a task natively in ClickUp → confirm the webhook applies + the board reflects it.
-- [ ] Delete a task in ClickUp → confirm the mirror + dependency edges are removed (OD-CUA-2).
+- [ ] Delete a task in ClickUp → confirm the mirror is **tombstoned** (not removed) and dependency edges +
+      milestone grouping are **preserved** (OD-CUA-2, decided: soft-tombstone).
 - [ ] Drive the ~100 req/min budget with a bulk seed → confirm backoff, no drops/duplicates.
 - [ ] Confirm the US-hosted data-locality note renders on the ClickUp Integrations tier (NFR-CUA-LOCALITY-001).
