@@ -120,3 +120,58 @@ describe('AC-EAS-042 a successful write-through records the external_refs mappin
     });
   });
 });
+
+describe('AC-CUA-038 delete-aware dispatch: tombstone the read-model, keep the external_refs mapping', () => {
+  const deleteCommand: AdapterCommand = {
+    domain: REFERENCE_DOMAIN,
+    operation: 'delete',
+    record: { id: 'pmo-1' },
+  };
+
+  it('AC-CUA-038 a successful delete commit calls tombstoneReadModel(pmoRecordId), never writeReadModel, and keeps the mapping', async () => {
+    const adapter = {
+      tier: 'reference',
+      capabilityMap: new Set([REFERENCE_DOMAIN]),
+      async commit() {
+        return { externalRecordId: 'ext-pmo-1', canonical: { id: 'pmo-1' } };
+      },
+    };
+    const writeReadModel = vi.fn();
+    const recordExternalRef = vi.fn();
+    const tombstoneReadModel = vi.fn(async () => {});
+
+    const result = await dispatchExternallyOwnedWrite({
+      adapter,
+      command: deleteCommand,
+      writeReadModel,
+      recordExternalRef,
+      tombstoneReadModel,
+    });
+
+    expect(tombstoneReadModel).toHaveBeenCalledWith('pmo-1');
+    expect(writeReadModel).not.toHaveBeenCalled();
+    // the mapping is kept as-is — delete never re-records or removes external_refs.
+    expect(recordExternalRef).not.toHaveBeenCalled();
+    expect(result).toEqual({ externalRecordId: 'ext-pmo-1', canonical: { id: 'pmo-1' } });
+  });
+
+  it('AC-CUA-038 create/update/transition keep the P0 upsert+record order (delete-aware path does not affect them)', async () => {
+    const order: string[] = [];
+    const adapter = {
+      tier: 'reference',
+      capabilityMap: new Set([REFERENCE_DOMAIN]),
+      async commit() {
+        order.push('commit');
+        return { externalRecordId: 'ext-1', canonical: { id: 'pmo-1' } };
+      },
+    };
+    await dispatchExternallyOwnedWrite({
+      adapter,
+      command, // operation: 'create' (the file-level fixture)
+      writeReadModel: vi.fn(async () => { order.push('readModel'); }),
+      recordExternalRef: vi.fn(async () => { order.push('ref'); }),
+      tombstoneReadModel: vi.fn(async () => { order.push('tombstone'); }),
+    });
+    expect(order).toEqual(['commit', 'readModel', 'ref']);
+  });
+});

@@ -274,6 +274,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // documented cast pattern as agent-dispatch/index.ts).
       recordExternalRef: (mapping) =>
         recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
+      // Delete-aware dispatch (Slice C, AC-CUA-038, FR-CUA-026): a ClickUp-native delete
+      // tombstones the mirrored `tasks` row (OD-CUA-2) — dependency/milestone rows are
+      // preserved (no cascade), and the external_refs mapping is kept as-is (dispatch.ts
+      // never calls recordExternalRef on a delete). Only the `tasks` domain has a mirror
+      // to tombstone; other P1 domains don't wire this dep (an omitted callback = no-op
+      // handled by dispatch.ts's optional chaining, though only `tasks` reaches delete today).
+      tombstoneReadModel:
+        command.domain === CLICKUP_TASKS_DOMAIN
+          ? async (pmoRecordId: string) => {
+              const { error } = await serviceClient
+                .from('tasks')
+                .update({ tombstoned_at: new Date().toISOString() })
+                .eq('org_id', orgId)
+                .eq('id', pmoRecordId);
+              if (error) throw new AppError(error.message, error.code);
+            }
+          : undefined,
     });
     return new Response(JSON.stringify(result), { status: 200, headers });
   } catch (err) {
