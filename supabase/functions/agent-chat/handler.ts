@@ -48,6 +48,8 @@ import {
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
 import { recordUsage } from '../_shared/usage.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
+import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
+import type { CompactionOptions } from '../_shared/transcriptCompaction.ts';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts';
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -234,6 +236,12 @@ export interface HandlerDeps {
    * distinguishable from an interactive turn in org_usage_summary()/operator_usage_summary().
    */
   usageAction?: 'chat' | 'compose' | 'automation';
+  /**
+   * Token-budget transcript compaction applied to the messages sent to the model each round
+   * (shrinks the replayed input; old tool-result bodies past the recency window become a marker).
+   * Omitted → DEFAULT_COMPACTION. Never mutates the persisted transcript — model-call input only.
+   */
+  compaction?: CompactionOptions;
   /**
    * ADR-0043: optional persistence dep (thread/run/event journal, heartbeat, de-dupe).
    * Optional so flag-off / existing tests pass unchanged (FR-AGP-026 gating) — every
@@ -644,13 +652,18 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
 
       const _t0 = Date.now();
+      // Token-budget compaction of the REPLAYED transcript (input-only; `messages` — the persisted/
+      // in-loop array — is never mutated, so tool_call pairing + durable resume are untouched).
+      // Old tool-result bodies past the recency window shrink to a marker; the system prefix (cache)
+      // and all reasoning text are preserved. Under budget this returns `messages` unchanged.
+      const modelMessages = compactTranscript(messages, deps.compaction ?? DEFAULT_COMPACTION);
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
         // 0.8 (was provider-default ~1.0) — steadier tool routing, fewer thrash rounds on
         // multi-intent follow-ups. Latency lever tracked alongside the throughput provider sort.
         temperature: 0.8,
-        messages,
+        messages: modelMessages,
         tools,
       });
       // Round-latency probe (diagnosing the follow-up-hang: rounds × per-round latency vs the

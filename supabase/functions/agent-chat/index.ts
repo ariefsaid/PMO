@@ -28,6 +28,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
+import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
@@ -239,6 +240,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
         // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
         usage: { supabase: callerClient as never },
+        // Token-budget transcript compaction (deploy-tunable via AGENT_COMPACTION_* secrets; unset →
+        // DEFAULT_COMPACTION). Input-only shrink of the replayed transcript — never persisted.
+        compaction: compactionOptionsFromEnv({
+          AGENT_COMPACTION_TRIGGER_CHARS: Deno.env.get('AGENT_COMPACTION_TRIGGER_CHARS') ?? undefined,
+          AGENT_COMPACTION_RECENT_MESSAGES: Deno.env.get('AGENT_COMPACTION_RECENT_MESSAGES') ?? undefined,
+          AGENT_COMPACTION_MAX_TOOL_CHARS: Deno.env.get('AGENT_COMPACTION_MAX_TOOL_CHARS') ?? undefined,
+        }),
         attachmentResolver: createAttachmentResolver(),
         persistence: persistenceEnabled
           ? {
