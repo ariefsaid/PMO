@@ -700,3 +700,9 @@ All DB-driving commands are wrapped in `scripts/with-db-lock.sh` (shared local D
 ## Open questions for the Director
 
 None. The fix-round rulings resolved the remaining config/scheduler/doc-location questions: vault `AS` item names are `clickup-api-token` + `clickup-webhook-secret`, the sweep stays `pg_cron` registered-but-idle per migration 0048, and the data-locality note lives in `docs/legal/2026-07-10-clickup-data-locality-note.md` plus the Integrations view copy.
+
+---
+
+## Appendix A — deferred live-smoke prerequisites
+
+- **`CLICKUP_API_BASE_URL` seam** (the `adapter-dispatch` / ClickUp client base URL) is NOT added in P1's mocked-only test surface; it lands with the deferred live-smoke appendix (a real token + a real ClickUp workspace) that needs it. P1's `clickup/client.ts` hard-codes the ClickUp REST v2 base; the seam is introduced when the live-smoke appendix is authored.
