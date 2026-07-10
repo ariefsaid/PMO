@@ -639,6 +639,24 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
   const tools = buildTools(allowCompose ? deps.composeEnabled : false);
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
+  /** Safe JSON parse for tool args — undefined signals a parse failure (JSON.parse never yields undefined). */
+  const parseArgs = (raw: string): unknown => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  };
+  /**
+   * #5: a tool call safe to execute CONCURRENTLY with the other reads in the same round — a known
+   * READ action (confirm:false; never compose_view/ask_user/writes/unknown), with parseable args.
+   * Writes are NEVER parallelized: they go through the approval chip + SoD re-auth and stay serial.
+   */
+  const isParallelizableRead = (tc: { function: { name: string; arguments: string } }): boolean => {
+    const action = actionByName.get(tc.function.name);
+    return !!action && !action.confirm && parseArgs(tc.function.arguments) !== undefined;
+  };
+
   // Item 2 (MALFORMED_TOOL_CALL): tracks whether the LAST round's tool call was malformed
   // JSON, so a step-cap fallthrough after a malformed final attempt reports the distinct
   // MALFORMED_TOOL_CALL error code rather than the generic "reached step limit" completion.
@@ -725,6 +743,56 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
       // with tool_calls IS the turn; no separate echo needed).
       messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
+
+      // ── #5: parallel reads / serial writes ─────────────────────────────────────
+      // The model may request MULTIPLE tool calls in one round. READS (query_entity, confirm:false)
+      // are independent → run them CONCURRENTLY (a real latency win on multi-intent asks). Anything
+      // else (writes/compose/ask_user/unknown/malformed) is NEVER parallelized — those go through the
+      // approval chip + SoD re-auth and MUST stay serialized one at a time (the write-safety rule).
+      const toolCalls = resp.message.tool_calls ?? [];
+      if (toolCalls.length > 1 && toolCalls.every(isParallelizableRead)) {
+        lastRoundMalformed = false;
+        // Announce every read up-front (present-tense step trail), then dispatch all concurrently.
+        for (const tc of toolCalls) {
+          yield emit('status', { payload: { kind: 'step', label: stepLabel(tc.function.name, parseArgs(tc.function.arguments)) } });
+        }
+        const settled = await Promise.all(
+          toolCalls.map(async (tc) => {
+            const input = parseArgs(tc.function.arguments);
+            const action = actionByName.get(tc.function.name)!; // guaranteed non-null by isParallelizableRead
+            const result = await dispatchAction(action, input, deputyCtx);
+            return { tc, input, result };
+          }),
+        );
+        // Emit widget/tool events + append every tool result IN ORDER (deterministic transcript;
+        // each tool_call_id in the assistant message gets exactly one matching result).
+        for (const { tc, input, result } of settled) {
+          if (tc.function.name === 'query_entity') {
+            const widget = buildDataTableWidgetFromQueryResult(input, result);
+            if (widget) yield emit('artifact', { payload: { kind: 'widget', widget } });
+          }
+          yield emit('tool', { payload: { name: tc.function.name, input, result } });
+          messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.function.name, content: JSON.stringify(result) });
+        }
+        continue;
+      }
+
+      // Non-parallelizable multi-call set: only the FIRST call is processed below (writes serialized).
+      // Every EXTRA call gets a deferred marker so the assistant(tool_calls)→tool(result) pairing the
+      // API requires stays valid — otherwise an unanswered tool_call_id errors the next model call
+      // (the latent bug when the model emitted >1 call and only [0] was handled). The model re-requests
+      // a deferred call next round if it still needs it. Pushed BEFORE the first call is processed so a
+      // stream-ending write (needs-approval/ask_user) leaves only its OWN id pending for the resume.
+      if (toolCalls.length > 1) {
+        for (const extra of toolCalls.slice(1)) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: extra.id,
+            name: extra.function.name,
+            content: JSON.stringify({ _deferred: true, note: 'Not executed this round; call again if still needed.' }),
+          });
+        }
+      }
 
       // Item 2 (MALFORMED_TOOL_CALL): a SyntaxError here must NOT fail the run as
       // UPSTREAM_ERROR — append a role:'tool' error result and let the model retry.
