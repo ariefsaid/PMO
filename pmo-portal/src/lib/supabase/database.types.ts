@@ -919,6 +919,51 @@ export type Database = {
           },
         ]
       }
+      external_project_bindings: {
+        Row: {
+          config: Json
+          created_at: string
+          external_container_id: string
+          external_tier: string
+          id: string
+          org_id: string
+          project_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          external_container_id: string
+          external_tier: string
+          id?: string
+          org_id?: string
+          project_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          external_container_id?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_project_bindings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_project_bindings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_reference_items: {
         Row: {
           created_at: string
@@ -2744,8 +2789,10 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          source_updated_at: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["task_status"]
+          tombstoned_at: string | null
         }
         Insert: {
           assignee_id?: string | null
@@ -2757,8 +2804,10 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          tombstoned_at?: string | null
         }
         Update: {
           assignee_id?: string | null
@@ -2770,8 +2819,10 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          tombstoned_at?: string | null
         }
         Relationships: [
           {
@@ -3317,6 +3368,22 @@ export type Database = {
         Returns: string
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
+      operator_agent_run_stats: {
+        Args: { p_org_id?: string }
+        Returns: {
+          action: string
+          avg_rounds: number
+          cache_hit_pct: number
+          max_cost: number
+          month: string
+          org_id: string
+          p50_cost: number
+          p50_ms: number
+          p95_cost: number
+          p95_ms: number
+          runs: number
+        }[]
+      }
       operator_grant_credits: {
         Args: { p_amount: number; p_note: string; p_org_id: string }
         Returns: undefined
@@ -3341,22 +3408,6 @@ export type Database = {
       operator_toggle_feature: {
         Args: { p_enabled: boolean; p_key: string; p_org_id: string }
         Returns: undefined
-      }
-      operator_agent_run_stats: {
-        Args: { p_org_id?: string }
-        Returns: {
-          action: string
-          avg_rounds: number
-          cache_hit_pct: number
-          max_cost: number
-          month: string
-          org_id: string
-          p50_cost: number
-          p50_ms: number
-          p95_cost: number
-          p95_ms: number
-          runs: number
-        }[]
       }
       operator_usage_summary: {
         Args: { p_org_id?: string }
