@@ -30,8 +30,8 @@ describe('analytics facade helpers', () => {
       trackDemoPersonaSelected(label);
     }
     expect(mockCapture).toHaveBeenCalledTimes(5);
-    const calls = mockCapture.mock.calls.map((c: unknown[]) => c[1]);
-    expect(calls.map((p: Record<string, unknown>) => p.persona_role)).toEqual([
+    const calls = mockCapture.mock.calls.map((c: unknown[]) => c[1] as Record<string, unknown>);
+    expect(calls.map((p) => p.persona_role)).toEqual([
       'Executive', 'Project Manager', 'Finance', 'Engineer', 'Admin',
     ]);
   });

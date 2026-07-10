@@ -9,6 +9,7 @@ import {
   openPR,
 } from './procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 describe('procurement helper — lifecycle model (Issue 3)', () => {
   it('PR_STAGES is the six-node PR→VQ→PO→GR→VI→Paid track in order (no Approved stage)', () => {
@@ -153,10 +154,11 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
   // pill. Must bind from the `Quote Selected` state onward through Paid — not only
   // at Ordered/Paid — so the operator sees which quote (and amount) they committed
   // to immediately after selecting it.
-  const q = (over: Partial<{ id: string; is_selected: boolean; total_amount: number; vendor_id: string | null }>) => ({
+  type QuotationRow = Tables<'procurement_quotations'>;
+  const q = (over: Partial<QuotationRow>): QuotationRow => ({
     id: 'q-x',
     procurement_id: 'proc-1',
-    vendor_id: null,
+    vendor_id: 'v-default',
     total_amount: 0,
     vq_number: null,
     is_selected: false,

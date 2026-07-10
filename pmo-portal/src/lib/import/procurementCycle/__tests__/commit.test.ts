@@ -588,4 +588,38 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
     expect(result.cases[0].records[0].status).toBe('skipped');
     expect(result.failed).toBe(0);
   });
+
+  it('the raced-record lookup passes the SAME importBatchId used for the pre-insert skip-check (commit.ts:339 guard)', async () => {
+    // The catch-path race lookup must scope to the exact import batch — otherwise a
+    // stale/incorrect id could be attributed to a same-batch VI/record FK settlement.
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-race-2' } as never);
+    vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
+    const findExistingRecord = vi.fn().mockResolvedValue({ id: 'raced-po-id' });
+    const skipLookup = makeStubSkipLookup({ findExistingRecord });
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-RACE3', attrs: { title: 'Case', project: undefined, caseStatus: undefined },
+        rows: [
+          { caseRef: 'CASE-RACE3', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO-R3', status: 'Ordered', date: '2025-02-01', amount: '900', rowNumber: 1 },
+        ],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+      importBatchId: BATCH_ID, skipLookup,
+    });
+
+    expect(findExistingRecord).toHaveBeenCalledWith(
+      'purchase_orders',
+      'proc-race-2',
+      expect.any(String),
+      BATCH_ID,
+    );
+    expect(result.cases[0].records[0].id).toBe('raced-po-id');
+    expect(result.cases[0].records[0].status).toBe('skipped');
+  });
 });

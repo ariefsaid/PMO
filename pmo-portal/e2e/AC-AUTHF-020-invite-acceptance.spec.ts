@@ -35,7 +35,10 @@ test(
       redirectTo: 'http://localhost:3000/update-password',
     });
     expect(inviteErr).toBeNull();
-    const userId = inviteData!.user.id;
+    if (!inviteData?.user) {
+      throw new Error('inviteUserByEmail did not return a user');
+    }
+    const userId = inviteData.user.id;
     // matching profiles row carrying role + org_id (§1.2 handshake)
     const { error: profileErr } = await admin.from('profiles').insert({
       id: userId,

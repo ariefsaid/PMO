@@ -108,7 +108,23 @@ import {
   deleteProjectDocument,
 } from './documents';
 
-const mockDocRow = {
+type MockDocRow = {
+  id: string;
+  org_id: string;
+  project_id: string;
+  file_path: string | null;
+  status: string;
+  code: string;
+  category: string;
+  title: string;
+  revision: string;
+  author_id: string;
+  doc_date: string | null;
+  parent_document_id: string | null;
+  created_at: string;
+};
+
+const mockDocRow: MockDocRow = {
   id: 'doc-1',
   org_id: 'org-1',
   project_id: 'proj-1',

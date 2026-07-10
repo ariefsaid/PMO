@@ -107,7 +107,7 @@ describe('useBudgetMutations', () => {
 
   /** Asserts both org-scoped read keys were invalidated by a successful mutation. */
   function expectBothKeysInvalidated(invalidateSpy: ReturnType<typeof vi.spyOn>) {
-    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    const calls = (invalidateSpy.mock.calls as unknown[][]).map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"budget"') && c.includes('"org-1"') && c.includes('"p-1"'))).toBe(true);
     expect(
       calls.some((c) => c.includes('"budget-versions"') && c.includes('"org-1"') && c.includes('"p-1"')),

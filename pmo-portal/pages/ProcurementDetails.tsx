@@ -271,18 +271,20 @@ const ProcurementDetails: React.FC = () => {
   // here and only commits when the ConfirmDialog's Confirm is pressed.
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
-  const data = detailQuery.data;
-
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed procurement case —
   // grounding only (NFR-AXP-SEC-003), never an authorization signal. Placed before
   // any early return (Rules of Hooks) — cleared on unmount/navigate.
+  // Reads `detailQuery.data` directly (not a pre-aliased local) so the later reads of
+  // `detailQuery.data` (after the loading/no-access/error guards below) keep their
+  // discriminated-union narrowing — an early `const data = detailQuery.data` alias
+  // would break CFA at the point of use further down (strict-mode TS2339/TS2322).
   const { setEntity } = useAgentContext();
   useEffect(() => {
-    if (!data) return;
-    setEntity({ type: 'procurement_case', id: data.id, label: data.title });
+    if (!detailQuery.data) return;
+    setEntity({ type: 'procurement_case', id: detailQuery.data.id, label: detailQuery.data.title });
     return () => setEntity(undefined);
-  }, [data, setEntity]);
+  }, [detailQuery.data, setEntity]);
 
   // Back to the Procurement index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record title from the cached list in App.tsx.
@@ -313,7 +315,13 @@ const ProcurementDetails: React.FC = () => {
   // case). RLS is the real authority; this is the honest UI projection of it.
   const errCode = (detailQuery.error as { code?: string } | null | undefined)?.code;
   const isNoAccess = errCode === 'PGRST116';
-  if (isNoAccess || (!detailQuery.isError && !data && !detailQuery.isPending)) {
+  // NOTE: no `!detailQuery.isPending` conjunct here — the loading guard above already
+  // returned on that variant, so `isPending` is always false at this point; keeping it
+  // in the chain narrows `detailQuery` to `never` under strict mode (every remaining
+  // non-error `QueryObserverResult` variant types `data` as non-optional `TData`, so
+  // `!detailQuery.data` is provably unreachable once `isPending` is also excluded —
+  // the "no isPending" phrasing avoids that dead conjunct, not a behavior change).
+  if (isNoAccess || (!detailQuery.isError && !detailQuery.data)) {
     return (
       <>
         <BackBar label="Procurement" onBack={goBack} />
@@ -346,7 +354,7 @@ const ProcurementDetails: React.FC = () => {
     );
   }
 
-  const p: ProcurementDetail = data;
+  const p: ProcurementDetail = detailQuery.data;
   const role = realRole ?? '';
   const isRequester = p.requested_by_id === currentUser?.id;
   // SoD-b: a user cannot pay a request they themselves approved.

@@ -321,8 +321,10 @@ it('SEC-2 oversized entity.label is truncated in the persisted thread scope', as
   );
 
   const insertedRow = threadInsertSpy.mock.calls[0][0] as { scope?: { label?: string } };
-  expect(insertedRow.scope?.label.length).toBeLessThanOrEqual(200);
-  expect(insertedRow.scope?.label).not.toBe(oversizedLabel);
+  const label = insertedRow.scope?.label;
+  expect(label).toBeDefined();
+  expect(label!.length).toBeLessThanOrEqual(200);
+  expect(label).not.toBe(oversizedLabel);
 });
 
 it('SEC-2 unknown keys on context.entity are stripped from the persisted scope', async () => {

@@ -323,7 +323,7 @@ it('AC-AW-001 AC-MC-011 approve → create_activity executes once under caller J
 
   // Verify insert was called (the action's run executed under caller JWT)
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
-  expect(fromCalls.some(([table]: [string]) => table === 'crm_activities')).toBe(true);
+  expect(fromCalls.some((call) => call[0] === 'crm_activities')).toBe(true);
 });
 
 // ── Task 14 (RED→GREEN): AC-AW-004 deputy re-auth fails ──────────────────────
@@ -401,7 +401,7 @@ it('AC-AW-004 (two-phase) approve but re-auth fails after initial gate → AUTH_
 
   // No insert should have been called
   const fromCalls = (supabase.from as ReturnType<typeof vi.fn>).mock.calls;
-  const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
+  const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
 });
 
@@ -450,7 +450,7 @@ it('AC-AW-008 approve but can() denies the role → PERMISSION_DENIED, no write'
 
   // No insert should have been called
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
-  const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
+  const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
 });
 
@@ -507,7 +507,7 @@ it('AC-OF-AGENT-DENIED-001 can() denies → durable error_events row recorded wi
   // The error_events branch in mockSupabase returns {insert: spy}; correlate via the .from()
   // call index — from is a single vi.fn, so mock.calls[i] and mock.results[i] line up.
   const fromMock = supabaseMock.from as ReturnType<typeof vi.fn>;
-  const errorEventsCallIdx = fromMock.mock.calls.findIndex(([t]: [string]) => t === 'error_events');
+  const errorEventsCallIdx = fromMock.mock.calls.findIndex((call) => call[0] === 'error_events');
   expect(errorEventsCallIdx).toBeGreaterThanOrEqual(0);
   const errorEventsBranch = fromMock.mock.results[errorEventsCallIdx].value as { insert: ReturnType<typeof vi.fn> };
   const insertedRow = errorEventsBranch.insert.mock.calls[0]?.[0] as {
@@ -674,7 +674,7 @@ it('AC-AW-005 malformed args (missing contactId) → no needs-approval; error to
   expect(modelClient.create).toHaveBeenCalledTimes(2);
   // No crm_activities insert
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
-  const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
+  const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
 });
 
@@ -724,7 +724,7 @@ it('AC-AW-002 deny → no write; system{write_resolved, decision:rejected} emitt
 
   // No insert
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
-  const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
+  const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
 
   // Run completes
@@ -766,7 +766,7 @@ it('AC-AW-003 AC-AW-007 stale/duplicate decision (no trailing unresolved tool_us
 
   // Should NOT insert
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
-  const activityCalls = fromCalls.filter(([t]: [string]) => t === 'crm_activities');
+  const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
   expect(activityCalls).toHaveLength(0);
 
   // Should complete (treated as no-op / reject path)

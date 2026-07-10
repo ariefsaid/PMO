@@ -39,8 +39,18 @@ const winRateOracle = {
   win_rate_count: 0.666667, win_rate_value: 0.924855,
 };
 
-// Track calls to useWinRate so AC-1115 can assert range changes
-let lastWinRateRange: { key: string } | null = null;
+// Track calls to useWinRate so AC-1115 can assert range changes.
+// Held in a container object (not a bare `let`) so TS's control-flow narrowing
+// doesn't collapse the type to `never` across the closure reassignment in the
+// useWinRate mock below.
+const winRateRangeTracker: { current: { key: string } | null } = { current: null };
+// A reset assignment routed through a function (rather than inline `= null`) so
+// TS's CFA doesn't narrow `.current` to the literal `null` type at the call site —
+// direct inline `null` assignment collapses subsequent `?.` reads to `never`
+// (a known TS narrowing quirk for object properties assigned a bare null literal).
+function resetWinRateRangeTracker(): void {
+  winRateRangeTracker.current = null;
+}
 
 const dashState: {
   data: typeof populated | null;
@@ -52,7 +62,7 @@ const dashState: {
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => dashState,
   useWinRate: (range: { key: string }) => {
-    lastWinRateRange = range;
+    winRateRangeTracker.current = range;
     return { data: winRateOracle, isPending: false, isError: false };
   },
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
@@ -160,7 +170,7 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
 
 describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
   it('AC-1115: win-rate tile toggles count↔value and period re-queries (FR-SPD-013)', () => {
-    lastWinRateRange = null;
+    resetWinRateRangeTracker();
     renderPage();
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
@@ -168,9 +178,9 @@ describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
 
-    const initialKey = lastWinRateRange?.key;
+    const initialKey = winRateRangeTracker.current?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
-    expect(lastWinRateRange?.key).not.toBe(initialKey);
+    expect(winRateRangeTracker.current?.key).not.toBe(initialKey);
   });
 });
 
