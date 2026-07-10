@@ -94,8 +94,10 @@ create or replace function enforce_assignee_status_only()
   returns trigger language plpgsql set search_path = public as $$
 begin
   -- (a) Service-role bypass ONLY for flipped orgs, matching the policy split above: non-flipped orgs
-  -- keep the exact original trigger path even when auth.uid() is null.
-  if auth.uid() is null and public.domain_externally_owned(new.org_id, 'tasks') then
+  -- keep the exact original trigger path even for a service-role caller. Hardened (review 7a): the
+  -- bypass is gated on an EXPLICIT service_role JWT claim (not the bare `auth.uid() is null`, which
+  -- also matched any no-JWT context) — still conjoined with domain_externally_owned.
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' and public.domain_externally_owned(new.org_id, 'tasks') then
     return new;
   end if;
   -- (b) While tasks externally-owned: pin EVERY user role to enhancement columns only
@@ -138,9 +140,10 @@ create or replace function stamp_task_completed_at() returns trigger
   language plpgsql set search_path = public as $$
 begin
   -- Mirrored (service-role) write on a flipped org: trust the incoming completed_at (ClickUp truth);
-  -- do NOT re-stamp with now(). Guarded on BOTH service-role AND externally-owned so PMO-owned
-  -- service writes (if any) and every user write stay byte-for-byte the original.
-  if auth.uid() is null and public.domain_externally_owned(new.org_id, 'tasks') then
+  -- do NOT re-stamp with now(). Guarded on BOTH service_role AND externally-owned so PMO-owned
+  -- service writes (if any) and every user write stay byte-for-byte the original (review 7a: explicit
+  -- service_role claim, not the bare auth.uid()-is-null predicate).
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' and public.domain_externally_owned(new.org_id, 'tasks') then
     return new;
   end if;
   -- ORIGINAL 0034 behavior (unchanged for every non-mirrored path):
@@ -185,3 +188,9 @@ create policy external_project_bindings_select on public.external_project_bindin
 
 grant select on public.external_project_bindings to authenticated;
 grant select on public.external_project_bindings to anon;
+
+-- Webhook adopt hot path (review fix #2): the webhook resolves an inbound task's binding by its
+-- ClickUp List id (the adopt path) — index the (tier, container) lookup so the adopt query is an
+-- index scan, not a seq scan, as bindings grow.
+create index external_project_bindings_tier_container_idx
+  on public.external_project_bindings (external_tier, external_container_id);

@@ -2,11 +2,14 @@
  * clickup-sweep — Deno Edge Function entry point (Slice D, FR-CUA-045/048, AC-CUA-043/044).
  *
  * The reconciliation sweep — the safety net that catches webhook gaps (ADR-0055 §3: webhooks for
- * latency, sweep for truth). service-role-bearer-guarded (`verify_jwt = false`; the handler verifies
- * the bearer itself — it MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time, same stance as
- * agent-dispatch/telegram-notify/clickup-onboard) because the caller is the pg_cron job (migration
- * 0092), not a browser JWT. Registered-but-idle per the 0048 precedent: the cron body reads GUCs that
- * are unset until an operator configures them, so the job fires as a no-op until then.
+ * latency, sweep for truth). Dedicated-sweep-secret-guarded (`verify_jwt = false`; the handler verifies
+ * the bearer itself — it MUST equal CLICKUP_SWEEP_SECRET, constant-time), mirroring agent-dispatch's
+ * AGENT_DISPATCH_SECRET least-privilege pattern (0082): the caller is the pg_cron job (migration 0092),
+ * not a browser JWT, and the dedicated sweep secret can at worst trigger a tick — never grant DB access.
+ * The master SUPABASE_SERVICE_ROLE_KEY stays ONLY in this fn's env (used to mint the service client);
+ * the cron never sees it (0092 reads clickup_sweep_url + clickup_sweep_secret from Vault, not the
+ * master key). Registered-but-idle per the 0048/0082 precedent: the cron helper no-ops until an operator
+ * creates those two Vault secrets, so the job fires as a no-op until then.
  *
  * Thin wiring ONLY — the sweep engine (apply via the shared source-mod-guarded applyInboundChange,
  * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under sweep.test.ts. This
@@ -197,10 +200,13 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // ── 1. Authorization: the caller (the pg_cron job) must present the service-role bearer. ──
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
+  //    master service_role key — least-privilege, mirroring 0082's AGENT_DISPATCH_SECRET). The cron
+  //    presents this same secret from the Vault `clickup_sweep_secret`; the master key never crosses
+  //    into the DB. ──
+  const sweepSecret = Deno.env.get('CLICKUP_SWEEP_SECRET') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
-  if (!serviceRoleKey || !(await constantTimeBearerEquals(authHeader, `Bearer ${serviceRoleKey}`))) {
+  if (!sweepSecret || !(await constantTimeBearerEquals(authHeader, `Bearer ${sweepSecret}`))) {
     return json({ error: 'UNAUTHORIZED' }, 401);
   }
 
@@ -209,7 +215,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  if (!supabaseUrl) return json({ error: 'MISCONFIGURED', message: 'missing SUPABASE_URL' }, 500);
+  // The master service_role key stays ONLY in this fn's env (used to mint the service client that
+  // applies mirror writes). It is NEVER the auth bearer (the dedicated CLICKUP_SWEEP_SECRET is).
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
 
   const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
   // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the pure
