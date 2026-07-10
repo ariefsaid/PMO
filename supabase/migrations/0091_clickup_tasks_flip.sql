@@ -155,3 +155,33 @@ begin
   end if;
   return new;
 end $$;
+
+-- Soft-tombstone marker (OD-CUA-2) + per-row source-modification guard (FR-CUA-049).
+alter table tasks add column tombstoned_at timestamptz;
+alter table tasks add column source_updated_at timestamptz;
+
+-- Atomic adopt dedupe (FR-CUA-064): the unique constraint replaces 0088's non-unique helper index.
+drop index if exists public.external_refs_org_domain_ext_idx;
+alter table external_refs add constraint external_refs_org_domain_extid_key
+  unique (org_id, domain, external_record_id);
+
+-- Generic per-project external binding (List + status/member maps) — domain-generic names so no
+-- ClickUp vocabulary enters the schema (FR-CUA-012). config jsonb holds { statusMap, memberMap }.
+create table public.external_project_bindings (
+  id                    uuid primary key default gen_random_uuid(),
+  org_id                uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001')
+                          references public.organizations(id) on delete cascade,
+  project_id            uuid not null references public.projects(id) on delete cascade,
+  external_tier         text not null,
+  external_container_id text not null,
+  config                jsonb not null default '{}'::jsonb,
+  created_at            timestamptz not null default now(),
+  unique (org_id, project_id, external_tier)
+);
+alter table public.external_project_bindings enable row level security;
+alter table public.external_project_bindings force row level security;
+create policy external_project_bindings_select on public.external_project_bindings
+  for select using (org_id = public.auth_org_id() and public.is_active_member());
+
+grant select on public.external_project_bindings to authenticated;
+grant select on public.external_project_bindings to anon;
