@@ -62,8 +62,6 @@ describe('AC-CUA-072 rollup is ownership-agnostic over mirrored tasks (reads the
   it('the actual series reflects exactly the tasks passed — a tombstoned (excluded) Done task does not contribute', () => {
     const milestones = [milestone({ id: 'm1', name: 'M1' })];
 
-    // Three tasks (two Done) — the live read-model before a ClickUp-native delete.
-    const beforeTombstone = buildSCurve(milestones, AS_OF, tasks);
     // The third task is now Done and tombstoned (excluded by listTasks) — the consumer sees only the
     // first two. Construct that "after delete" input by passing just the two Done tasks.
     const doneThird: SCurveTask = {
