@@ -65,13 +65,18 @@ type RawTask = TaskRow & {
 /**
  * List the tasks for one project (AC-TASK-001) with their assignee profile + dependency edges.
  * org_id is NEVER sent — RLS (tasks_select: org_id = auth_org_id()) scopes rows. Ordered by
- * created_at for a stable list/board. Throws an `AppError` (code preserved) on failure.
+ * created_at for a stable list/board. Excludes tombstoned rows (`.is('tombstoned_at', null)`,
+ * AC-CUA-002/C5) — a ClickUp-native delete tombstones the mirror (C3) rather than removing it, so
+ * this filter keeps a deleted-upstream task out of the active list/board/Gantt/S-curve (all consume
+ * this same query — no separate filter needed elsewhere). Throws an `AppError` (code preserved) on
+ * failure.
  */
 export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
   const { data, error } = await supabase
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
+    .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
   if (error) throwWrite(error);
   const rows = (data ?? []) as unknown as RawTask[];
@@ -83,11 +88,18 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
 }
 
 /**
- * Fetch a single task by id (AC-TASK-002), or null when not found / not readable.
- * org_id is NEVER sent — RLS scopes the row. Throws an `AppError` (code preserved) on a query error.
+ * Fetch a single task by id (AC-TASK-002), or null when not found / not readable / tombstoned
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5b — a ClickUp-native delete must not remain openable
+ * by id). org_id is NEVER sent — RLS scopes the row. Throws an `AppError` (code preserved) on a
+ * query error.
  */
 export async function getTask(id: string): Promise<TaskWithRefs | null> {
-  const { data, error } = await supabase.from('tasks').select(SELECT).eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('tasks')
+    .select(SELECT)
+    .eq('id', id)
+    .is('tombstoned_at', null)
+    .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
   const t = data as unknown as RawTask;
