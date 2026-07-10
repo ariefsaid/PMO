@@ -139,7 +139,7 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   it('AC-CUA-001 createTask routes to dispatchTaskCommand (functions.invoke) instead of the direct insert', async () => {
     const row = await createTask({ project_id: 'p1', name: 'Mobilise', status: 'To Do', assignee_id: null });
     expect(h.invoke).toHaveBeenCalledTimes(1);
-    const [fnName, opts] = h.invoke.mock.calls[0] as [string, { body: { domain: string; operation: string } }];
+    const [fnName, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { domain: string; operation: string } }];
     expect(fnName).toBe('adapter-dispatch');
     expect(opts.body.domain).toBe('tasks');
     expect(opts.body.operation).toBe('create');
@@ -151,7 +151,7 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   it('AC-CUA-001 updateTask (a native field) routes to dispatchTaskCommand', async () => {
     await updateTask('t1', { name: 'Renamed' });
     expect(h.invoke).toHaveBeenCalledTimes(1);
-    const [, opts] = h.invoke.mock.calls[0] as [string, { body: { operation: string } }];
+    const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('update');
     expect(h.calls.update).toEqual([]);
   });
@@ -159,14 +159,14 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   it('AC-CUA-001 updateTaskStatus routes to dispatchTaskCommand as a transition', async () => {
     await updateTaskStatus('t1', 'Done');
     expect(h.invoke).toHaveBeenCalledTimes(1);
-    const [, opts] = h.invoke.mock.calls[0] as [string, { body: { operation: string } }];
+    const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('transition');
   });
 
   it('AC-CUA-001 deleteTask routes to dispatchTaskCommand', async () => {
     await deleteTask('t1');
     expect(h.invoke).toHaveBeenCalledTimes(1);
-    const [, opts] = h.invoke.mock.calls[0] as [string, { body: { operation: string } }];
+    const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('delete');
     expect(h.calls.delete).toBe(0);
   });
