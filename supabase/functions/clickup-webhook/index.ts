@@ -29,9 +29,17 @@ import type { ClickUpWebhookPayload } from '../../../pmo-portal/src/lib/adapterS
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import {
+  CLICKUP_TIER,
+  CLICKUP_TASKS_DOMAIN,
+  mapsFromBindingConfig,
+  createClickUpMirrorCallbacks,
+} from '../_shared/clickupMirrorDeps.ts';
 
-const CLICKUP_TIER = 'clickup';
-const TASKS_DOMAIN = 'tasks';
+// 256 KiB body cap (review fix #7b): reject an oversized payload BEFORE req.text() so a huge body
+// can't exhaust the isolate. ClickUp task webhooks are small JSON (<2 KB typical); 256 KiB is a
+// generous ceiling that still bounds memory.
+const MAX_WEBHOOK_BODY_BYTES = 262144;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -57,7 +65,7 @@ async function resolveBinding(
   const { data: ref } = await serviceClient
     .from('external_refs')
     .select('org_id, pmo_record_id')
-    .eq('domain', TASKS_DOMAIN)
+    .eq('domain', CLICKUP_TASKS_DOMAIN)
     .eq('external_record_id', payload.task_id)
     .maybeSingle();
   const mappedRef = ref as { org_id: string; pmo_record_id: string } | null;
@@ -92,7 +100,7 @@ async function resolveBinding(
     .from('external_domain_ownership')
     .select('org_id')
     .eq('external_tier', CLICKUP_TIER)
-    .eq('domain', TASKS_DOMAIN);
+    .eq('domain', CLICKUP_TASKS_DOMAIN);
   const orgIds = ((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id);
   if (orgIds.length === 1) {
     const { data: anyBinding } = await serviceClient
@@ -121,16 +129,18 @@ async function loadBinding(serviceClient: SupabaseClient, orgId: string, project
 }
 
 function bindingFromRow(row: { org_id: string; project_id: string; config: unknown }): ResolvedBinding {
-  const config = (row.config ?? {}) as { statusMap?: ClickUpStatusMap; memberMap?: ClickUpMemberMap };
-  return {
-    orgId: row.org_id,
-    projectId: row.project_id,
-    statusMap: config.statusMap ?? { pmoToClickUp: {}, clickUpToPmo: {}, defaultPmoStatus: 'To Do' },
-    memberMap: config.memberMap ?? { pmoToClickUp: {}, clickUpToPmo: {} },
-  };
+  const { statusMap, memberMap } = mapsFromBindingConfig(row.config);
+  return { orgId: row.org_id, projectId: row.project_id, statusMap, memberMap };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  // ── 0. Body-size cap (review fix #7b): reject Content-Length > 256 KiB BEFORE req.text() so a huge
+  //    payload can't exhaust the isolate. Checked on the declared Content-Length (cheap header read). ──
+  const declaredLength = Number(req.headers.get('Content-Length') ?? '0');
+  if (declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+    return json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
+  }
+
   // ── 1. The HMAC is the sole trust boundary: read the RAW body + the X-Signature header BEFORE any
   //    parse/apply. An absent/invalid signature ⇒ 401 with NO side effect (FR-CUA-041, NFR-CUA-SEC-002). ──
   const secret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
@@ -171,83 +181,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── 4. Apply via the pure engine. All DB access is scoped to orgId (FR-EAS-024: org bound here,
   //    above the adapter; never threaded into the apply from the payload). Source-mod values flow as
-  //    epoch-ms; the edge fn converts to/from the source_updated_at timestamptz column. ──
+  //    epoch-ms; the edge fn converts to/from the source_updated_at timestamptz column. The mirror
+  //    callback bag is the shared _shared/clickupMirrorDeps factory (review fix #3) — incl. the
+  //    recordExternalRef writer (the hand-rolled external_refs upsert is gone, matching sweep/onboard). ──
+  const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId, projectId });
   try {
     const outcome = await applyWebhookEvent(payload, {
+      ...mirrorCallbacks,
       statusMap,
       memberMap,
-      resolvePmoRecordId: async (externalRecordId: string) => {
-        const { data } = await serviceClient
-          .from('external_refs')
-          .select('pmo_record_id')
-          .eq('org_id', orgId)
-          .eq('domain', TASKS_DOMAIN)
-          .eq('external_record_id', externalRecordId)
-          .maybeSingle();
-        return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
-      },
-      readMirrorSourceMod: async (pmoRecordId: string) => {
-        const { data } = await serviceClient
-          .from('tasks')
-          .select('source_updated_at')
-          .eq('org_id', orgId)
-          .eq('id', pmoRecordId)
-          .maybeSingle();
-        const iso = (data as { source_updated_at: string | null } | null)?.source_updated_at;
-        return iso ? Date.parse(iso) : null;
-      },
-      updateMirror: async (pmoRecordId, canonical, sourceUpdatedAtMs) => {
-        const { error } = await serviceClient
-          .from('tasks')
-          .update({
-            name: canonical.name,
-            status: canonical.status,
-            assignee_id: canonical.assignee_id ?? null,
-            start_date: canonical.start_date ?? null,
-            end_date: canonical.end_date ?? null,
-            completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-            source_updated_at: new Date(sourceUpdatedAtMs).toISOString(),
-          })
-          .eq('org_id', orgId)
-          .eq('id', pmoRecordId);
-        if (error) throw new AppError(error.message, error.code);
-      },
-      mintMirror: async (canonical, sourceUpdatedAtMs) => {
-        const pmoRecordId = crypto.randomUUID();
-        const { error } = await serviceClient.from('tasks').insert({
-          id: pmoRecordId,
-          org_id: orgId,
-          project_id: projectId,
-          name: canonical.name,
-          status: canonical.status,
-          assignee_id: canonical.assignee_id ?? null,
-          start_date: canonical.start_date ?? null,
-          end_date: canonical.end_date ?? null,
-          completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-          source_updated_at: new Date(sourceUpdatedAtMs).toISOString(),
-        });
-        if (error) throw new AppError(error.message, error.code);
-        return pmoRecordId;
-      },
       tombstoneMirror: async (pmoRecordId) => {
         const { error } = await serviceClient
           .from('tasks')
           .update({ tombstoned_at: new Date().toISOString() })
           .eq('org_id', orgId)
           .eq('id', pmoRecordId);
-        if (error) throw new AppError(error.message, error.code);
-      },
-      recordExternalRef: async (mapping) => {
-        const { error } = await serviceClient.from('external_refs').upsert(
-          {
-            org_id: orgId,
-            domain: TASKS_DOMAIN,
-            pmo_record_id: mapping.pmoRecordId,
-            external_tier: CLICKUP_TIER,
-            external_record_id: mapping.externalRecordId,
-          },
-          { onConflict: 'org_id,domain,pmo_record_id' },
-        );
         if (error) throw new AppError(error.message, error.code);
       },
       surfaceDeletion: async (pmoRecordId, externalRecordId) => {
@@ -257,23 +205,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
           `[clickup-webhook] task tombstoned: org=${orgId} pmoRecordId=${pmoRecordId} clickupTaskId=${externalRecordId}`,
         );
       },
-      readWatermark: async () => {
-        const { data } = await serviceClient
-          .from('external_sync_watermarks')
-          .select('watermark_cursor')
-          .eq('org_id', orgId)
-          .eq('external_tier', CLICKUP_TIER)
-          .eq('domain', TASKS_DOMAIN)
-          .maybeSingle();
-        return (data as { watermark_cursor: string | null } | null)?.watermark_cursor ?? null;
-      },
-      advanceWatermark: async (cursor) => {
-        const { error } = await serviceClient.from('external_sync_watermarks').upsert(
-          { org_id: orgId, external_tier: CLICKUP_TIER, domain: TASKS_DOMAIN, watermark_cursor: cursor },
-          { onConflict: 'org_id,external_tier,domain' },
-        );
-        if (error) throw new AppError(error.message, error.code);
-      },
     });
     return json({ ok: true, outcome });
   } catch (err) {
@@ -281,7 +212,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // surface it as a 409, not a 500, so ClickUp's at-least-once redelivery is not alert-spammed.
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'webhook apply failed');
     const code = appError.code;
-    const status = code === '23505' ? 409 : 500;
-    return json({ error: code ?? 'WEBHOOK_APPLY_FAILED', message: appError.message }, status);
+    if (code === '23505') {
+      return json({ error: 'CONCURRENT_ADOPT', message: 'a concurrent adopt is reconciling' }, 409);
+    }
+    // Review fix #7c: a 5xx response carries a GENERIC message (never the raw error detail — which
+    // could leak schema/internal detail to the public, unauthenticated surface). The detail is logged
+    // server-side for operator diagnosis.
+    console.error(`[clickup-webhook] apply failed: org=${orgId} code=${code ?? 'none'} detail=${appError.message}`);
+    return json({ error: 'WEBHOOK_APPLY_FAILED', message: 'the webhook could not be applied' }, 500);
   }
 });

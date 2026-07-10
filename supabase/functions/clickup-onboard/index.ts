@@ -38,11 +38,13 @@ import { clickUpRequest } from '../../../pmo-portal/src/lib/adapterSeam/clickup/
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-
-const CLICKUP_TIER = 'clickup';
-const TASKS_DOMAIN = 'tasks';
+import {
+  CLICKUP_TIER,
+  CLICKUP_TASKS_DOMAIN,
+  mapsFromBindingConfig,
+  createClickUpMirrorCallbacks,
+} from '../_shared/clickupMirrorDeps.ts';
 
 // Shared across invocations of this isolate — the token bucket's budget is real only if it persists
 // across requests (NFR-CUA-PERF-003). Bulk lane: onboarding yields to interactive writes.
@@ -146,11 +148,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (error || !data) {
       throw new AppError('no external binding configured for this project — provision first', error?.code ?? 'BINDING_NOT_FOUND');
     }
-    const config = ((data as { config: unknown }).config ?? {}) as { statusMap?: ClickUpStatusMap; memberMap?: ClickUpMemberMap };
+    const { statusMap, memberMap } = mapsFromBindingConfig((data as { config: unknown }).config);
     return {
       listId: (data as { external_container_id: string }).external_container_id,
-      statusMap: config.statusMap ?? { pmoToClickUp: {}, clickUpToPmo: {}, defaultPmoStatus: 'To Do' },
-      memberMap: config.memberMap ?? { pmoToClickUp: {}, clickUpToPmo: {} },
+      statusMap,
+      memberMap,
     };
   };
 
@@ -198,6 +200,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // push-seed + pull-adopt both need the resolved binding.
     const binding = await resolveBinding();
+    // Shared mirror-callback bag (review fix #3): push-seed + pull-adopt both reuse its recordExternalRef
+    // (and pull-adopt reuses readWatermark/advanceWatermark/resolvePmoRecordId too). No projectId —
+    // pull-adopt overrides mintMirror/updateMirror (no per-row source-mod); push-seed doesn't mint.
+    const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
 
     // ── push-seed ──
     if (operation === 'push-seed') {
@@ -221,51 +227,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
             .from('external_refs')
             .select('external_record_id')
             .eq('org_id', orgId)
-            .eq('domain', TASKS_DOMAIN)
+            .eq('domain', CLICKUP_TASKS_DOMAIN)
             .eq('pmo_record_id', pmoRecordId)
             .maybeSingle();
           return (data as { external_record_id: string } | null)?.external_record_id ?? null;
         },
-        recordExternalRef: (mapping) =>
-          recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
+        recordExternalRef: mirrorCallbacks.recordExternalRef,
       });
       return json({ ok: true, ...result });
     }
 
     // ── pull-adopt ──
     if (operation === 'pull-adopt') {
+      // readWatermark / advanceWatermark / resolvePmoRecordId / recordExternalRef come from the shared
+      // bag above. mintMirror + updateMirror are OVERRIDDEN because the pull-adopt contract carries NO
+      // per-row source-mod (it stamps source_updated_at = now()).
       const result = await pullAdopt(projectId, {
         ...clientDeps,
         listId: binding.listId,
         statusMap: binding.statusMap,
         memberMap: binding.memberMap,
-        readWatermark: async () => {
-          const { data } = await serviceClient
-            .from('external_sync_watermarks')
-            .select('watermark_cursor')
-            .eq('org_id', orgId)
-            .eq('external_tier', CLICKUP_TIER)
-            .eq('domain', TASKS_DOMAIN)
-            .maybeSingle();
-          return (data as { watermark_cursor: string | null } | null)?.watermark_cursor ?? null;
-        },
-        advanceWatermark: async (cursor: string) => {
-          const { error } = await serviceClient.from('external_sync_watermarks').upsert(
-            { org_id: orgId, external_tier: CLICKUP_TIER, domain: TASKS_DOMAIN, watermark_cursor: cursor },
-            { onConflict: 'org_id,external_tier,domain' },
-          );
-          if (error) throw new AppError(error.message, error.code);
-        },
-        resolvePmoRecordId: async (externalRecordId: string) => {
-          const { data } = await serviceClient
-            .from('external_refs')
-            .select('pmo_record_id')
-            .eq('org_id', orgId)
-            .eq('domain', TASKS_DOMAIN)
-            .eq('external_record_id', externalRecordId)
-            .maybeSingle();
-          return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
-        },
+        ...mirrorCallbacks,
         mintMirror: async (canonical) => {
           const pmoRecordId = crypto.randomUUID();
           const { error } = await serviceClient.from('tasks').insert({
@@ -299,8 +281,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
             .eq('id', pmoRecordId);
           if (error) throw new AppError(error.message, error.code);
         },
-        recordExternalRef: (mapping) =>
-          recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
       });
       return json({ ok: true, ...result });
     }

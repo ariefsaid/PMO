@@ -32,11 +32,13 @@ import { clickUpTaskToPmoRecord, type ClickUpMaps } from '../../../pmo-portal/sr
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-
-const CLICKUP_TIER = 'clickup';
-const TASKS_DOMAIN = 'tasks';
+import {
+  CLICKUP_TIER,
+  CLICKUP_TASKS_DOMAIN,
+  mapsFromBindingConfig,
+  createClickUpMirrorCallbacks,
+} from '../_shared/clickupMirrorDeps.ts';
 
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
@@ -72,41 +74,29 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
   if (rows.length === 0) return { applied: 0, nextCursor: null }; // bound to nothing yet — nothing to sweep
 
   const bindings: LoadedBinding[] = rows.map((r) => {
-    const config = (r.config ?? {}) as { statusMap?: ClickUpStatusMap; memberMap?: ClickUpMemberMap };
+    const { statusMap, memberMap } = mapsFromBindingConfig(r.config);
     return {
       orgId,
       projectId: r.project_id,
       listId: r.external_container_id,
-      statusMap: config.statusMap ?? { pmoToClickUp: {}, clickUpToPmo: {}, defaultPmoStatus: 'To Do' },
-      memberMap: config.memberMap ?? { pmoToClickUp: {}, clickUpToPmo: {} },
+      statusMap,
+      memberMap,
     };
   });
 
   // For adopt-mint project resolution: each enumerated task is tagged with its List's project here.
   const projectByClickUpTaskId = new Map<string, string>();
+  // Shared mirror-callback bag (review fix #3): resolvePmoRecordId / readMirrorSourceMod /
+  // updateMirror / readWatermark / advanceWatermark / recordExternalRef all come from the shared
+  // factory. `mintMirror` is overridden below (the multi-List sweep resolves the project per task).
+  const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId, projectId: bindings[0].projectId });
 
   try {
     return {
       ...await runSweep({
+        ...mirrorCallbacks,
         statusMap: bindings[0].statusMap, // maps are per-List; the apply-side mapping happens in
         memberMap: bindings[0].memberMap,  // listChanges below (per binding), so these are unused there
-        readWatermark: async () => {
-          const { data } = await serviceClient
-            .from('external_sync_watermarks')
-            .select('watermark_cursor')
-            .eq('org_id', orgId)
-            .eq('external_tier', CLICKUP_TIER)
-            .eq('domain', TASKS_DOMAIN)
-            .maybeSingle();
-          return (data as { watermark_cursor: string | null } | null)?.watermark_cursor ?? null;
-        },
-        advanceWatermark: async (cursor) => {
-          const { error } = await serviceClient.from('external_sync_watermarks').upsert(
-            { org_id: orgId, external_tier: CLICKUP_TIER, domain: TASKS_DOMAIN, watermark_cursor: cursor },
-            { onConflict: 'org_id,external_tier,domain' },
-          );
-          if (error) throw new AppError(error.message, error.code);
-        },
         // Merged multi-List enumeration: query every bound List with the org cursor, merge changes
         // (each tagged with its project), return the max nextCursor across Lists.
         listChanges: async (cursor): Promise<{ changes: SweepChange[]; nextCursor: string | null }> => {
@@ -132,50 +122,15 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
           }
           return { changes: all, nextCursor: maxNext };
         },
-        resolvePmoRecordId: async (externalRecordId) => {
-          const { data } = await serviceClient
-            .from('external_refs')
-            .select('pmo_record_id')
-            .eq('org_id', orgId)
-            .eq('domain', TASKS_DOMAIN)
-            .eq('external_record_id', externalRecordId)
-            .maybeSingle();
-          return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
-        },
-        readMirrorSourceMod: async (pmoRecordId) => {
-          const { data } = await serviceClient
-            .from('tasks')
-            .select('source_updated_at')
-            .eq('org_id', orgId)
-            .eq('id', pmoRecordId)
-            .maybeSingle();
-          const iso = (data as { source_updated_at: string | null } | null)?.source_updated_at;
-          return iso ? Date.parse(iso) : null;
-        },
-        updateMirror: async (pmoRecordId, canonical, sourceModMs) => {
-          const { error } = await serviceClient
-            .from('tasks')
-            .update({
-              name: canonical.name,
-              status: canonical.status,
-              assignee_id: canonical.assignee_id ?? null,
-              start_date: canonical.start_date ?? null,
-              end_date: canonical.end_date ?? null,
-              completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-              source_updated_at: new Date(sourceModMs).toISOString(),
-            })
-            .eq('org_id', orgId)
-            .eq('id', pmoRecordId);
-          if (error) throw new AppError(error.message, error.code);
-        },
         mintMirror: async (canonical, sourceModMs) => {
-          // Adopt: the project is the change's List's project (tagged during listChanges).
-          const projectId = projectByClickUpTaskId.get(canonical.id) ?? bindings[0].projectId;
+          // Adopt: the project is the change's List's project (tagged during listChanges). Overrides the
+          // shared mintMirror because the multi-List sweep resolves the project PER task.
+          const mintProjectId = projectByClickUpTaskId.get(canonical.id) ?? bindings[0].projectId;
           const pmoRecordId = crypto.randomUUID();
           const { error } = await serviceClient.from('tasks').insert({
             id: pmoRecordId,
             org_id: orgId,
-            project_id: projectId,
+            project_id: mintProjectId,
             name: canonical.name,
             status: canonical.status,
             assignee_id: canonical.assignee_id ?? null,
@@ -187,8 +142,6 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
           if (error) throw new AppError(error.message, error.code);
           return pmoRecordId;
         },
-        recordExternalRef: (mapping) =>
-          recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
       }),
     };
   } catch (err) {
@@ -230,7 +183,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .from('external_domain_ownership')
     .select('org_id')
     .eq('external_tier', CLICKUP_TIER)
-    .eq('domain', TASKS_DOMAIN);
+    .eq('domain', CLICKUP_TASKS_DOMAIN);
   if (ownershipError) return json({ error: ownershipError.code ?? 'OWNERSHIP_READ_FAILED', message: ownershipError.message }, 500);
   const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 

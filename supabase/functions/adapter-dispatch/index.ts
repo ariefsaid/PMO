@@ -30,10 +30,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
-import { createClickUpAdapter, CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
+import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
+import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
-import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
@@ -51,65 +50,20 @@ type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
 // only if it persists across requests, not recreated per-call (NFR-CUA-PERF-003).
 const clickUpRateLimiter = new ClickUpRateLimiter();
 
-async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  const projectId = (ctx.command.record as { project_id?: string }).project_id;
-  if (!projectId) {
-    throw new AppError('project_id is required to resolve the ClickUp binding for a task command', 'BAD_REQUEST');
-  }
-
-  const { data: binding, error: bindingError } = await ctx.serviceClient
-    .from('external_project_bindings')
-    .select('external_container_id, config')
-    .eq('org_id', ctx.orgId)
-    .eq('project_id', projectId)
-    .eq('external_tier', 'clickup')
-    .maybeSingle();
-  if (bindingError || !binding) {
-    throw new AppError('no external binding configured for this project', bindingError?.code ?? 'BINDING_NOT_FOUND');
-  }
-
-  const config = ((binding as { config: unknown }).config ?? {}) as {
-    statusMap?: ClickUpStatusMap;
-    memberMap?: ClickUpMemberMap;
-  };
-  const statusMap: ClickUpStatusMap = config.statusMap ?? {
-    pmoToClickUp: {},
-    clickUpToPmo: {},
-    defaultPmoStatus: 'To Do',
-  };
-  const memberMap: ClickUpMemberMap = config.memberMap ?? { pmoToClickUp: {}, clickUpToPmo: {} };
-  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-
-  return createClickUpAdapter({
+// ClickUp adapter factory (review fix #9): all ClickUp config/member resolution lives OPAQUELY in the
+// pure `clickup/dispatchFactory.ts` — this dispatcher passes the caller's org + command + an injected
+// service-client seam + ClickUp client deps and never sees ClickUp vocabulary (confinement, FR-CUA-012).
+function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  return resolveClickUpDispatchAdapter({
+    // The real supabase-js client structurally satisfies the factory's DispatchServiceClient seam at
+    // runtime but is not nominally assignable (thenable PostgrestFilterBuilder); same cast idiom as the
+    // machine-write helpers below.
+    serviceClient: ctx.serviceClient as never,
+    orgId: ctx.orgId,
+    command: ctx.command,
     fetchImpl: fetch,
-    token,
-    listId: (binding as { external_container_id: string }).external_container_id,
-    statusMap,
-    memberMap,
+    token: Deno.env.get('CLICKUP_API_TOKEN') ?? '',
     rateLimiter: clickUpRateLimiter,
-    resolveExternalId: async (pmoRecordId: string) => {
-      const { data, error } = await ctx.serviceClient
-        .from('external_refs')
-        .select('external_record_id')
-        .eq('org_id', ctx.orgId)
-        .eq('domain', 'tasks')
-        .eq('pmo_record_id', pmoRecordId)
-        .single();
-      if (error || !data) throw new AppError('no ClickUp mapping recorded for this task', error?.code ?? 'REF_NOT_FOUND');
-      return (data as { external_record_id: string }).external_record_id;
-    },
-    resolvePreviousAssigneeIds: async (pmoRecordId: string) => {
-      const { data } = await ctx.serviceClient
-        .from('tasks')
-        .select('assignee_id')
-        .eq('org_id', ctx.orgId)
-        .eq('id', pmoRecordId)
-        .maybeSingle();
-      const pmoAssigneeId = (data as { assignee_id: string | null } | null)?.assignee_id;
-      if (!pmoAssigneeId) return [];
-      const clickUpId = memberMap.pmoToClickUp[pmoAssigneeId];
-      return clickUpId !== undefined ? [clickUpId] : [];
-    },
   });
 }
 
