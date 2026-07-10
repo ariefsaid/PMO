@@ -465,6 +465,13 @@ verify_jwt = false
 [functions.health]
 verify_jwt = false
 
+# ── Edge Function: adapter-dispatch ─────────────────────────────────────────────
+# verify_jwt = true: invoked by the browser-client `supabase.functions.invoke(...)` path, so
+# Supabase must enforce the caller JWT before the handler binds org context from that JWT
+# (FR-EAS-024/033). Unlike cron/service endpoints, this function should not self-bypass auth.
+[functions.adapter-dispatch]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

@@ -673,3 +673,12 @@ header markup (Usage/Features had a parent-rendered bare `<h2>`; Credits rolled 
 `<h2>` + Grant-button row). Hoisted to one shared molecule, `SectionHeader`
 (`pmo-portal/src/components/ui/SectionHeader.tsx`): an `<h2>` title + an optional trailing action
 slot. Credits passes its "Grant credits" button into the action slot; Usage/Features pass none.
+
+## OD-EAS-LABELS — External tier/domain display labels deferred to P1 (Discover finding M4, 2026-07-10)
+
+**Noted, not built this round:** `IntegrationsView` renders the raw `externalTier`/`domain` slugs
+(e.g. `reference`) verbatim — acceptable in P0 because the only populated data is the synthetic
+`reference` domain from the reference adapter (ADR-0055 P0 scope). **P1 must add a display-label
+mapping (title-cased human-readable names) for external tier + domain slugs at the view boundary**
+before any real adapter (ClickUp/ERPNext/Odoo, ADR-0048) ships slugs like `erpnext`/`accounting` to
+end users.
