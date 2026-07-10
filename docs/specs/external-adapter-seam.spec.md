@@ -14,10 +14,10 @@
 >
 > **Scope (locked, Director):** the **seam only** — (a) the PMO-owned adapter contract
 > (behavioral, not TS code); (b) `external_refs` mapping + `external_sync_watermarks` storage; (c)
-> org-level `external_capability_map` configuration, **default empty**; (d) the pending-push UI
+> org-level `external_domain_ownership` configuration, **default empty**; (d) the pending-push UI
 > behavior (shared state machine, not a component); (e) the write-routing seam (externally-owned ⇒
 > synchronous write-through via adapter dispatch; reads ALWAYS from the Supabase read-model); plus
-> (f) the critical invariant — empty capability map ⇒ byte-for-byte pre-adapter behavior. A
+> (f) the critical invariant — empty domain-ownership map ⇒ byte-for-byte pre-adapter behavior. A
 > **reference (test-double) adapter** makes every AC provable with **no real external system**.
 >
 > **Out of scope (later phases — do NOT build here):** any ClickUp / ERPNext / Odoo API specifics
@@ -36,7 +36,7 @@
 > domains to it as SoT while remaining byte-identical for clients without one.**
 
 The whole seam exists to make that one sentence true **mechanically**, not by convention: the
-capability map is the switch, the adapter contract is the shape, the routing is the wire, and the
+domain-ownership map is the switch, the adapter contract is the shape, the routing is the wire, and the
 empty-map invariant is the guarantee that the switch being off is indistinguishable from the
 system having no switch at all.
 
@@ -61,16 +61,16 @@ PMO code couples to any external system's shapes."*
 
 P0 builds the seam that the future adapters plug into. It does **not** build any adapter that
 speaks a real API, and it does **not** flip any real domain. It proves the machinery with a
-reference (test-double) adapter against an empty (shipped-default) capability map and a
+reference (test-double) adapter against an empty (shipped-default) domain-ownership map and a
 test-flipped domain, so the contract, routing, storage, and pending state are all exercised with
 **zero external dependency**.
 
-The shipped state is the invariant: **every org's capability map is empty**, so on day one of P0
+The shipped state is the invariant: **every org's domain-ownership map is empty**, so on day one of P0
 merge the system is, and must remain, byte-for-byte the pre-adapter system.
 
 ## 2. Goals
 
-- **G-1 (the switch)** An org-level capability-map configuration records which external tiers an
+- **G-1 (the switch)** An org-level domain-ownership configuration records which external tiers an
   org employs and which domains are consequently externally-owned; it **defaults to empty**.
 - **G-2 (the shape)** A single PMO-owned adapter contract that every adapter implements, expressed
   in PMO domain language, plus a reference adapter that implements it for proving the seam.
@@ -82,38 +82,38 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   cursor) — both RLS-protected, both machine-written only.
 - **G-5 (the visible state)** A shared pending-push behavior (state names + transitions + error
   surface) for synchronous write-through, reusable across surfaces — not a hard-coded component.
-- **G-6 (the guarantee)** With an empty capability map, behavior is byte-for-byte unchanged: no
+- **G-6 (the guarantee)** With an empty domain-ownership map, behavior is byte-for-byte unchanged: no
   adapter dispatch, no edge-function call on the write path, no pending-push state, no new errors —
   zero regression for every existing client.
 
 ## 3. Functional requirements (EARS)
 
-### 3.1 Capability-map configuration (the switch)
+### 3.1 Domain-ownership configuration (the switch)
 
-- **FR-EAS-001** (ubiquitous) The system shall provide an org-scoped `external_capability_map`
+- **FR-EAS-001** (ubiquitous) The system shall provide an org-scoped `external_domain_ownership`
   configuration that records, per org, which external tiers are employed and which PMO domains are
   consequently externally-owned for that org.
-- **FR-EAS-002** (ubiquitous) The `external_capability_map` configuration shall **default to
+- **FR-EAS-002** (ubiquitous) The `external_domain_ownership` configuration shall **default to
   empty** for every org: a newly created org with no configuration written shall have no external
   tier employed and every domain PMO-owned.
 - **FR-EAS-003** (ubiquitous) A domain shall be externally-owned for an org **if and only if** the
-  org's `external_capability_map` assigns that domain to an employed external tier; absent such an
+  org's `external_domain_ownership` assigns that domain to an employed external tier; absent such an
   assignment, the domain is PMO-owned.
 - **FR-EAS-004** (ubiquitous) Each external tier shall declare a **static per-system capability
   map** (the set of PMO domains it can natively own) as part of its adapter; an org's
-  `external_capability_map` may assign to a tier only domains within that tier's static capability
+  `external_domain_ownership` may assign to a tier only domains within that tier's static capability
   map, so the effective flip set is bounded by the employed tier's real capabilities.
-- **FR-EAS-005** (state-driven) While a caller reads the `external_capability_map`, the system
+- **FR-EAS-005** (state-driven) While a caller reads the `external_domain_ownership`, the system
   shall enforce org isolation: a member shall see only their own org's rows, and a cross-org read
   shall return nothing.
-- **FR-EAS-006** (event-driven) When the `external_capability_map` is written, the system shall
+- **FR-EAS-006** (event-driven) When the `external_domain_ownership` is written, the system shall
   restrict writes to the platform **Operator** (write authority for org-Admin is an owner-decision,
   see OD-1), shall stamp `org_id` server-side (column default + RLS `WITH CHECK`), and shall reject
   a write whose `org_id` is set to another org; the client shall never send `org_id`.
 
 ### 3.2 The critical invariant (empty map ⇒ byte-for-byte)
 
-- **FR-EAS-010** (ubiquitous — **THE INVARIANT**) Where an org's `external_capability_map` is
+- **FR-EAS-010** (ubiquitous — **THE INVARIANT**) Where an org's `external_domain_ownership` is
   empty, the system shall produce **byte-for-byte identical behavior** to the pre-adapter system
   for every domain: repository writes shall take the existing direct-DAL path with **no** adapter
   dispatch and **no** dispatch edge-function call, repository reads shall take the existing DAL
@@ -162,7 +162,7 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   caller's org, the system shall route the write through the existing **direct-DAL path**, identical
   to the pre-adapter system (no dispatch, no edge-function call).
 - **FR-EAS-033** (ubiquitous) The routing decision (externally-owned vs PMO-owned) shall be made
-  from the caller's **own-org** `external_capability_map`; the client shall never send `org_id` or
+  from the caller's **own-org** `external_domain_ownership`; the client shall never send `org_id` or
   any external-system concern to the dispatch, and the `Repositories` interface (ADR-0017) shall be
   unchanged — only the internal implementation of write methods branches.
 - **FR-EAS-034** (event-driven) When an externally-owned write succeeds, the dispatch shall, **in
@@ -178,6 +178,11 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   externally-owned writes honestly with an "external system unreachable — try again" error and shall
   leave PMO-owned domains entirely unaffected (ADR-0055 §4: PMO-owned domains are never blocked by
   an external-tier outage).
+- **FR-EAS-037** (state-driven) While a domain is externally-owned for an org, the system shall
+  enforce, via RLS, that user-JWT writes to that domain's read-model tables are DENIED and writes
+  are permitted only to the dispatch/sync service role; **RLS is the enforcement authority**
+  (ADR-0016; ADR-0055 Consequences bullet 2), and the repository routing branch (FR-EAS-033 / OD-3)
+  is UX/DX-only routing, never the authority.
 
 ### 3.5 `external_refs` mapping (the bookkeeping — ids)
 
@@ -224,21 +229,20 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   surface the classified external error (`external-unreachable` → "external system unreachable — try
   again"; `commit-rejected` → the external system's validation message) via the shared
   `{headline, detail}` error contract (reusing `classifyMutationError`'s shape, ADR-0017).
-- **FR-EAS-064** (state-driven) While a surface uses optimistic display for snappiness (e.g. a board
-  drag), the system shall reconcile the optimistic state against the external answer on return,
-  leaving the underlying synchronous write-through semantics unchanged (ADR-0055 §4).
 
 ## 4. Non-functional requirements
 
 - **NFR-EAS-SEC-001** (tenancy) The `org_id` single-tenant→B2B seam shall be enforced on all three
-  tables (`external_refs`, `external_sync_watermarks`, `external_capability_map`) via column default
+  tables (`external_refs`, `external_sync_watermarks`, `external_domain_ownership`) via column default
   + RLS `WITH CHECK`; `org_id` shall never be sent by the client (ADR-0001).
 - **NFR-EAS-SEC-002** (authority) RLS shall be the enforcement authority: `external_refs` and
-  `external_sync_watermarks` shall be machine-written only (service role); `external_capability_map`
-  shall be Operator-write (OD-1) and org-member-read. The FE may be stricter but never the authority
-  (ADR-0016).
+  `external_sync_watermarks` shall be machine-written only (service role); `external_domain_ownership`
+  shall be Operator-write (OD-1) and org-member-read; a domain's read-model tables, once that domain
+  is externally-owned for an org, shall deny user-JWT writes and permit writes only to the
+  dispatch/sync service role (FR-EAS-037; ADR-0055 Consequences bullet 2). The FE may be stricter but
+  never the authority (ADR-0016).
 - **NFR-EAS-PERF-001** (no added latency on the invariant path) The routing decision shall add
-  **no round-trip** to the write path: it shall consult a cached (TanStack) capability map and
+  **no round-trip** to the write path: it shall consult a cached (TanStack) domain-ownership map and
   branch in-memory; the empty-map write path shall be byte-for-byte the direct DAL with no dispatch
   hop (FR-EAS-010).
 - **NFR-EAS-CONTRACT-001** (single coupling seam) The adapter contract shall be the **only** seam
@@ -255,59 +259,67 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 
 ## 5. Acceptance criteria (Given/When/Then)
 
-> The invariant (AC-EAS-001..003) is the heart of P0. AC-EAS-010..013 (capability map) and
+> The invariant (AC-EAS-001..003) is the heart of P0. AC-EAS-010..013 (domain ownership) and
 > AC-EAS-040..051 (storage) are **pgTAP** (RLS/tenancy/authority contracts). All routing, contract,
 > state-machine, and ordering ACs are **Vitest** (mocked DAL + reference adapter). No e2e this issue
 > (no UI route). Each AC is owned by exactly one test at its lowest sufficient layer (ADR-0010).
 
 ### The critical invariant
 
-- **AC-EAS-001** — Empty capability map ⇒ write takes the direct-DAL path (byte-for-byte).
-  **Given** an org whose `external_capability_map` is empty and a repository write for any domain,
+- **AC-EAS-001** — Empty domain-ownership map ⇒ write takes the direct-DAL path (byte-for-byte).
+  **Given** an org whose `external_domain_ownership` is empty and a repository write for any domain,
   **When** the write is performed,
   **Then** the write is executed through the existing direct DAL — no adapter dispatch is invoked
   and no adapter command is called — and the observable result (row written, returned shape, error
   `code` on failure) is identical to the pre-adapter system. (FR-EAS-010, FR-EAS-032)
 
-- **AC-EAS-002** — Empty capability map ⇒ reads from the DAL and no pending-push state.
-  **Given** an org with an empty `external_capability_map`,
+- **AC-EAS-002** — Empty domain-ownership map ⇒ reads from the DAL and no pending-push state.
+  **Given** an org with an empty `external_domain_ownership`,
   **When** a repository read is performed and a write is submitted,
   **Then** the read is served from the existing DAL and no `pushing` / `pushed` / `push-failed`
   state is introduced. (FR-EAS-010, FR-EAS-030, FR-EAS-062)
 
 - **AC-EAS-003** — The pre-adapter acceptance suite remains green (zero regression).
-  **Given** the adapter seam is installed and every org's `external_capability_map` is empty (the
+  **Given** the adapter seam is installed and every org's `external_domain_ownership` is empty (the
   shipped default),
   **When** the existing test suite (Vitest + pgTAP + e2e) is run unchanged,
   **Then** every previously-passing test still passes — no regression. (FR-EAS-010)
   *(Owning layer: cross-layer regression gate — the unchanged existing suite IS the proof; this is a
   meta-AC, see traceability.)*
 
-### Capability-map configuration
+### Domain-ownership configuration
 
-- **AC-EAS-010** — The capability map defaults to empty for a new org.
+- **AC-EAS-010** — The domain-ownership map defaults to empty for a new org.
   **Given** a freshly created org with no configuration written,
-  **When** the org's `external_capability_map` is read,
+  **When** the org's `external_domain_ownership` is read,
   **Then** zero rows are returned (no external tier employed, all domains PMO-owned). (FR-EAS-001,
   FR-EAS-002)
 
-- **AC-EAS-011** — The capability map is org-isolated.
-  **Given** org A has an `external_capability_map` row and org B exists,
-  **When** a member of org B reads the capability map,
+- **AC-EAS-011** — The domain-ownership map is org-isolated.
+  **Given** org A has an `external_domain_ownership` row and org B exists,
+  **When** a member of org B reads the domain-ownership map,
   **Then** org A's rows are not visible (cross-org read returns nothing). (FR-EAS-005)
 
-- **AC-EAS-012** — Capability-map writes are Operator-gated and org-scoped; a spoofed cross-org
+- **AC-EAS-012** — Domain-ownership writes are Operator-gated and org-scoped; a spoofed cross-org
   write is rejected.
   **Given** an Operator and a non-Operator org member,
-  **When** the non-Operator attempts to write an `external_capability_map` row, **then** the write
+  **When** the non-Operator attempts to write an `external_domain_ownership` row, **then** the write
   is denied; **and when** a write supplies an `org_id` belonging to another org, **then** it is
   rejected (`42501`). (FR-EAS-006, NFR-EAS-SEC-002) *(Subject to OD-1.)*
 
 - **AC-EAS-013** — A domain assignment is bounded by the employed tier's static capability map.
   **Given** an external tier whose static capability map is `{D1, D2}`,
-  **When** the `external_capability_map` attempts to assign domain `D3` (not in the tier's map) to
+  **When** the `external_domain_ownership` attempts to assign domain `D3` (not in the tier's map) to
   that tier,
   **Then** the assignment is rejected. (FR-EAS-004)
+
+- **AC-EAS-014** — The ownership-decision function routes by own-org ownership only.
+  **Given** the ownership-decision function and org A's `external_domain_ownership` assigning domain
+  `D` to an employed tier (with org B holding a different assignment),
+  **When** the function is evaluated for a caller in org A for domain `D`, for an unassigned domain,
+  and with org B's rows present,
+  **Then** domain `D` is routed to dispatch, an unassigned domain is routed to the direct DAL, and
+  org B's `external_domain_ownership` rows never affect org A's branch. (FR-EAS-003, FR-EAS-033)
 
 ### The adapter contract
 
@@ -374,6 +386,13 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   read-model for `D` is not updated, a subsequent read returns the prior read-model state, and a
   concurrent write to a PMO-owned domain succeeds. (FR-EAS-035, FR-EAS-036)
 
+- **AC-EAS-035** — A user-JWT write to an externally-owned domain's read-model is denied by RLS.
+  **Given** domain `D` is externally-owned for org A and the reference domain's read-model table
+  (`external_reference_items`) is flipped to machine-only-write for that org,
+  **When** a member of org A (user JWT) attempts to `INSERT` / `UPDATE` / `DELETE` a read-model row,
+  **then** the write is denied (`42501`); **and when** the dispatch/sync service role writes, **then**
+  it succeeds. (FR-EAS-037, NFR-EAS-SEC-002)
+
 ### `external_refs` mapping
 
 - **AC-EAS-040** — `external_refs` is org-isolated on read.
@@ -426,12 +445,16 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 
 ### No real external system required
 
-- **AC-EAS-070** — Every AC is provable with the reference adapter and no real external system.
+- **AC-EAS-070** — The adapter-contract, write-routing, and pending-push bands pass using only the
+  reference adapter.
   **Given** only the reference (test-double) adapter is configured (no ClickUp / ERPNext / Odoo
   present),
   **When** the P0 acceptance suite is run,
-  **Then** every AC above passes using the reference adapter. (FR-EAS-025)
-  *(Owning layer: meta — proven by the reference adapter backing every unit AC above.)*
+  **Then** every AC in the adapter-contract, write-routing, and pending-push bands
+  (AC-EAS-020..034, 042, 060..062) passes using only the reference adapter; the pgTAP RLS ACs
+  (AC-EAS-010..012, 035, 040..041, 050) and the AC-EAS-003 regression gate are explicitly excluded
+  from this claim. (FR-EAS-025)
+  *(Owning layer: meta — proven by the reference adapter backing every unit AC in the named bands.)*
 
 ## 6. Traceability
 
@@ -440,10 +463,11 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 | AC-EAS-001 | FR-EAS-010, FR-EAS-032 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/router.test.ts` |
 | AC-EAS-002 | FR-EAS-010, FR-EAS-030, FR-EAS-062 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/router.test.ts` |
 | AC-EAS-003 | FR-EAS-010 | **Cross-layer regression gate** — the unchanged existing suite (`npm run verify` + pgTAP + e2e) remaining green IS the proof; no single new test |
-| AC-EAS-010 | FR-EAS-001, FR-EAS-002 | pgTAP | `supabase/tests/external_capability_map_rls.test.sql` |
-| AC-EAS-011 | FR-EAS-005 | pgTAP | `supabase/tests/external_capability_map_rls.test.sql` |
-| AC-EAS-012 | FR-EAS-006, NFR-EAS-SEC-002 | pgTAP | `supabase/tests/external_capability_map_rls.test.sql` |
+| AC-EAS-010 | FR-EAS-001, FR-EAS-002 | pgTAP | `supabase/tests/external_domain_ownership_rls.test.sql` |
+| AC-EAS-011 | FR-EAS-005 | pgTAP | `supabase/tests/external_domain_ownership_rls.test.sql` |
+| AC-EAS-012 | FR-EAS-006, NFR-EAS-SEC-002 | pgTAP | `supabase/tests/external_domain_ownership_rls.test.sql` |
 | AC-EAS-013 | FR-EAS-004 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/capabilityMap.test.ts` |
+| AC-EAS-014 | FR-EAS-003, FR-EAS-033 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/router.test.ts` |
 | AC-EAS-020 | FR-EAS-020, FR-EAS-021, FR-EAS-025 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
 | AC-EAS-021 | FR-EAS-022 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
 | AC-EAS-022 | FR-EAS-023 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
@@ -453,6 +477,7 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 | AC-EAS-032 | FR-EAS-032 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/router.test.ts` |
 | AC-EAS-033 | FR-EAS-034 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` |
 | AC-EAS-034 | FR-EAS-035, FR-EAS-036 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` |
+| AC-EAS-035 | FR-EAS-037, NFR-EAS-SEC-002 | pgTAP | `supabase/tests/external_reference_items_rls.test.sql` |
 | AC-EAS-040 | FR-EAS-041 | pgTAP | `supabase/tests/external_refs_rls.test.sql` |
 | AC-EAS-041 | FR-EAS-042 | pgTAP | `supabase/tests/external_refs_rls.test.sql` |
 | AC-EAS-042 | FR-EAS-043 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/dispatch.test.ts` |
@@ -461,41 +486,49 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 | AC-EAS-060 | FR-EAS-061 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |
 | AC-EAS-061 | FR-EAS-063 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |
 | AC-EAS-062 | FR-EAS-062 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.test.ts` |
-| AC-EAS-070 | FR-EAS-025 | Vitest (meta) | proven by the reference adapter backing every unit AC above |
+| AC-EAS-070 | FR-EAS-025 | Vitest (meta) | proven by the reference adapter backing every unit AC in the adapter-contract / write-routing / pending-push bands (AC-EAS-020..034, 042, 060..062) |
 
-> FR-EAS-003 (bidirectional iff), NFR-EAS-SEC-001, NFR-EAS-CONTRACT-001, NFR-EAS-PERF-001,
-> NFR-EAS-REV-001, NFR-EAS-TEST-001, and FR-EAS-064 (optimistic reconcile) are structural/enabling
-> requirements proven transitively (org_id seam + RLS-enabled + contract-shape are preconditions
-> exercised by the rows above; the no-added-latency and reversibility claims are reviewed at the
-> plan/gate, not a standalone runtime test). AC-EAS-003 is a regression-gate meta-AC by nature.
+> NFR-EAS-SEC-001, NFR-EAS-CONTRACT-001, NFR-EAS-PERF-001, NFR-EAS-REV-001, and NFR-EAS-TEST-001
+> are structural/enabling requirements proven transitively (org_id seam + RLS-enabled + contract-shape
+> are preconditions exercised by the rows above; the no-added-latency and reversibility claims are
+> reviewed at the plan/gate, not a standalone runtime test). FR-EAS-003 and FR-EAS-033 are owned
+> directly by AC-EAS-014. AC-EAS-003 is a regression-gate meta-AC by nature.
 
 ## 7. Error handling
 
 | Error condition | Classification | User-facing surface | Notes |
 |---|---|---|---|
-| Empty capability map (default) | — (no error) | Normal direct-DAL path; identical to pre-adapter | The invariant path (FR-EAS-010) |
+| Empty domain-ownership map (default) | — (no error) | Normal direct-DAL path; identical to pre-adapter | The invariant path (FR-EAS-010) |
 | External system rejects command (validation / conflict) | `commit-rejected` | `{headline, detail}` toast carrying the external system's message | Surfaces in-form immediately (ADR-0055 §4); read-model not updated |
 | External system unreachable | `external-unreachable` | "external system unreachable — try again" | Write fails honestly; reads keep serving the read-model; PMO-owned domains unaffected (FR-EAS-036) |
 | PMO-owned domain error | unchanged | existing error `code` + existing classifier | Byte-for-byte preserved (FR-EAS-010) |
 | Cross-org read of any of the three tables | RLS → empty result | (none — rows simply absent) | org isolation (FR-EAS-005/041, NFR-EAS-SEC-002) |
-| Non-Operator writes `external_capability_map` | `42501` | "you don't have permission" | Operator-gated (FR-EAS-006; OD-1) |
+| Non-Operator writes `external_domain_ownership` | `42501` | "you don't have permission" | Operator-gated (FR-EAS-006; OD-1) |
 | User JWT writes `external_refs` / `external_sync_watermarks` | `42501` | "you don't have permission" | Machine-written only (FR-EAS-042/051) |
+| User JWT writes an externally-owned domain's read-model | `42501` | "you don't have permission" | Machine-written only — RLS write-policy flip (FR-EAS-037; ADR-0055 Consequences bullet 2) |
 | Domain assigned to a tier that can't own it | `commit-rejected` (config) | "this system cannot own that domain" | Bounded by static capability map (FR-EAS-004) |
 
 ## 8. Implementation TODO (build plan inputs — docs only here)
 
 ### Schema / migrations (reversible; RLS on every table)
-- [ ] Migration creating `external_capability_map` (org-scoped; records employed tiers + flipped
+- [ ] Migration creating `external_domain_ownership` (org-scoped; records employed tiers + flipped
       domains; `org_id` default + `WITH CHECK`); indexes on `(org_id)` and the domain lookup hot path.
 - [ ] Migration creating `external_refs` (org_id, domain, pmo_record_id, external_tier,
       external_record_id; `org_id` default + `WITH CHECK`); unique on `(org_id, domain, pmo_record_id)`;
       index on `(org_id, domain, external_record_id)` (reverse lookup).
 - [ ] Migration creating `external_sync_watermarks` (org_id, external_tier, domain, watermark cursor,
       updated_at; `org_id` default + `WITH CHECK`); unique on `(org_id, external_tier, domain)`.
-- [ ] RLS policies: org-member `SELECT` on all three; service-role-only write on `external_refs` and
-      `external_sync_watermarks`; Operator-only write on `external_capability_map` (OD-1).
-- [ ] pgTAP proofs for AC-EAS-010..012, AC-EAS-040..041, AC-EAS-050 (default-empty, org isolation,
-      machine-only write, Operator authority, spoofed-org_id rejected).
+- [ ] Migration creating `external_reference_items` (the synthetic reference domain's minimal
+      read-model table; org-scoped; `org_id` default + `WITH CHECK`) per OD-4 — the table whose
+      write-policy flip makes FR-EAS-037 / AC-EAS-035 provable in P0.
+- [ ] RLS policies: org-member `SELECT` on all three seam tables; service-role-only write on
+      `external_refs` and `external_sync_watermarks`; Operator-only write on
+      `external_domain_ownership` (OD-1); on the reference read-model `external_reference_items`, a
+      write-policy flip that denies user-JWT writes and permits only the dispatch/sync service role
+      (the FR-EAS-037 mechanism — the pgTAP proof of AC-EAS-035).
+- [ ] pgTAP proofs for AC-EAS-010..012, AC-EAS-035, AC-EAS-040..041, AC-EAS-050 (default-empty,
+      org isolation, machine-only write, Operator authority, spoofed-org_id rejected; AC-EAS-035
+      proves the read-model write-policy flip denies user-JWT and permits the service role).
 
 ### Adapter contract + reference adapter
 - [ ] Define the adapter contract (declarative capability map + per-domain commands/reads) in PMO
@@ -504,7 +537,7 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
       (`commit-success` / `commit-rejected-validation` / `external-unreachable`) (AC-EAS-020..022, 070).
 
 ### Write-routing seam
-- [ ] Routing decision from the cached own-org capability map (no `org_id` sent) (AC-EAS-001, 031,
+- [ ] Routing decision from the cached own-org domain-ownership map (no `org_id` sent) (AC-EAS-001, 031,
       032, 013).
 - [ ] Dispatch edge function: bind org context from JWT, select adapter, invoke command, update
       read-model, record `external_refs`, return — in order (AC-EAS-023, 033, 034, 042).
@@ -520,8 +553,8 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 ### Verification (final gate — run from `pmo-portal/` + repo root)
 - [ ] `npm run verify` (typecheck + lint:ci + test + build) green — includes the regression net
       (AC-EAS-003).
-- [ ] `scripts/with-db-lock.sh supabase test db` green (the pgTAP band) (AC-EAS-010..012, 040..041,
-      050).
+- [ ] `scripts/with-db-lock.sh supabase test db` green (the pgTAP band) (AC-EAS-010..012, 035,
+      040..041, 050).
 
 ## 9. Out of scope (explicit — later phases)
 
@@ -540,34 +573,43 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 - **Enhancement storage schema** beyond the id/cursor bookkeeping here — enhancements are additive
   PMO-side data per externally-owned record; their storage lands with the domain that needs them
   (P1+). P0 names the concept (glossary) but specifies no enhancement table.
-- **A dedicated admin UI page** for the capability map — P0 ships the storage + write contract
+- **A dedicated admin UI page** for the domain-ownership map — P0 ships the storage + write contract
   (RPC); a rich admin surface is deferred (OD-2).
+- **Optimistic-UI reconciliation** — the per-surface reconcile of an optimistic state against the
+  external answer (e.g. a board drag) lands with the first real routed UI surface (P1+); it composes
+  the shared pending-push behavior (FR-EAS-060..063) shipped in P0. Not built here.
 
 ## 10. Open questions / owner-decision flags
 
-- **[OWNER-DECISION] OD-1 — Capability-map write authority.** FR-EAS-006 / AC-EAS-012 default the
-  `external_capability_map` write to the **platform Operator** (employing an external tier is an
+- **[OWNER-DECISION] OD-1 — Domain-ownership write authority.** FR-EAS-006 / AC-EAS-012 default the
+  `external_domain_ownership` write to the **platform Operator** (employing an external tier is an
   integration-provisioning action: it flips domains and involves per-client secrets). Alternative:
   also allow the org **Admin** to employ/disable a tier for their own org. **Defaulting to:
   Operator-only write; org members read.** Owner to confirm, or to grant org-Admin write (a one-line
   RLS change). *(Does not affect the invariant — either way the map ships empty.)*
-- **[OWNER-DECISION] OD-2 — Admin surface in P0?** P0 ships the capability-map **storage + write
+- **[OWNER-DECISION] OD-2 — Admin surface in P0?** P0 ships the domain-ownership **storage + write
   contract** (RPC) and the **pending-push shared behavior**; it does not ship a routed admin page.
   **Defaulting to: RPC-only in P0, no UI page** (consistent with "the seam"). Owner to confirm
   whether a minimal read-only "integrations" view is wanted in P0 or deferred to P1 with the first
   real adapter.
 - **[OWNER-DECISION] OD-3 — Routing-decision location.** FR-EAS-033 places the branch in the
-  repository implementation, consulting a **cached** own-org capability map (no write-path
-  round-trip; empty-map short-circuit ⇒ byte-for-byte). The alternative — *always* dispatch to a
-  server edge function that branches server-side — is **rejected**: it changes the path for every
-  domain (even PMO-owned) and breaks the byte-for-byte invariant. **Defaulting to: client-side branch
-  on the cached map.** Owner to confirm this is acceptable (the map is the caller's own-org,
-  RLS-permitted data, not a threaded `org_id`).
+  repository implementation, consulting a **cached** own-org domain-ownership map (no write-path
+  round-trip; empty-map short-circuit ⇒ byte-for-byte). This branch is **UX/DX-only routing** — it
+  selects which code path the repository takes; it is **never** the write authority. RLS remains the
+  enforcement authority: for an externally-owned domain, RLS denies user-JWT writes to that domain's
+  read-model and permits writes only to the dispatch/sync service role (FR-EAS-037). The alternative —
+  *always* dispatch to a server edge function that branches server-side — is **rejected**: it changes
+  the path for every domain (even PMO-owned) and breaks the byte-for-byte invariant. **Defaulting to:
+  client-side branch on the cached map.** Owner to confirm this is acceptable (the map is the caller's
+  own-org, RLS-permitted data, not a threaded `org_id`).
 - **[OWNER-DECISION] OD-4 — Reference adapter's domain.** The reference adapter proves the seam
   against either (a) a **synthetic test-only domain** (machinery proven in isolation, zero contact
   with real-domain behavior) or (b) a **real PMO domain** used only in tests (proves routing against
   an existing table). **Defaulting to: synthetic/isolated** to keep P0 from touching any real-domain
-  behavior. Owner to confirm.
+  behavior; the synthetic reference domain ships a **minimal read-model table**
+  (`external_reference_items`, org-scoped, machine-written) whose write-policy flip — deny user-JWT,
+  permit only the dispatch/sync service role — is the pgTAP proof of the FR-EAS-037 / AC-EAS-035
+  mechanism. Owner to confirm.
 - **OQ-1 — Watermark cursor type.** Whether the cursor is a timestamp, an opaque token, or an
   integer offset is a plan detail (it depends on the P1 sweep + each external system's
   modified-since semantics). P0 only requires that storage exists and is upsertable per
@@ -575,6 +617,6 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 - **OQ-2 — `external_refs` richness.** P0 stores the minimal mapping (org, domain, pmo_record_id,
   external_tier, external_record_id). Whether it later carries a last-synced timestamp / sync health
   state is a P1 concern (when the change-feed needs it); not added in P0.
-- **OQ-3 — Optimistic-UI surface set.** FR-EAS-064 specifies the *semantics* of optimistic display
-  (reconcile on the external answer) but P0 names no specific surface (e.g. board drag) — those land
-  with the real-domain UIs in P1+. The shared pending-push behavior is what they will compose.
+- **OQ-3 — Optimistic-UI surface set.** Optimistic display (reconcile on the external answer,
+  ADR-0055 §4) is deferred to P1+ per §9 — P0 names no specific surface (e.g. board drag); those
+  land with the real-domain UIs. The shared pending-push behavior is what they will compose.
