@@ -472,6 +472,14 @@ verify_jwt = false
 [functions.adapter-dispatch]
 verify_jwt = true
 
+# ── Edge Function: clickup-onboard ─────────────────────────────────────────────
+# verify_jwt = false: an operator onboarding action, not a browser-JWT path. The handler verifies
+# the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust
+# boundary (same stance as agent-dispatch/telegram-notify). Provisions a project↔List binding,
+# push-seeds PMO tasks, or pull-adopts ClickUp tasks (FR-CUA-063, AC-CUA-050..053).
+[functions.clickup-onboard]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
